@@ -7,9 +7,30 @@
 !! You should have received a copy of the GNU General Public License along with cratermaker. 
 !! If not, see: https://www.gnu.org/licenses. 
 
-module bindings_module
-   use iso_c_binding !, only : c_char, c_null_char, c_int
+module bind_module
+   use iso_c_binding
+   use globals
+   use surface
    implicit none
-   contains
 
-end module bindings_module
+contains
+
+   type(c_ptr) function bind_surface_init(gridsize) bind(c)
+      integer(I4B), value :: gridsize
+      type(surface_type), pointer :: surf_ptr
+
+      allocate(surf_ptr)
+      call surf_ptr%allocate(gridsize) 
+      bind_surface_init = c_loc(surf_ptr)
+   end function bind_surface_init
+
+   subroutine bind_surface_final(surf) bind(c)
+      type(c_ptr), intent(in), value :: surf
+      type(surface_type), pointer :: surf_ptr
+
+      call c_f_pointer(surf, surf_ptr)
+      deallocate(surf_ptr)
+   end subroutine bind_surface_final
+
+
+end module bind_module

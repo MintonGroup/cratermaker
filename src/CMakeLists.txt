@@ -25,8 +25,10 @@ INCLUDE(SetFortranFlags)
 # Add the source files
 SET(SRC_FILES
     ${SRC}/globals/globals_module.f90
+    ${SRC}/surface/surface_module.f90
     ${SRC}/util/util_module.f90
     ${SRC}/crater/crater_module.f90
+    ${SRC}/bind/bind_module.f90
     ${SRC}/driver_module.f90
 )
 
