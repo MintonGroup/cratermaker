@@ -1,0 +1,14 @@
+*
+!src/
+!src/*/
+!src/globals/*.in
+!*.f90
+!.gitignore
+!CMakeLists.txt
+!distclean.cmake
+!README.md
+!version.txt
+!craterland/**.py
+!cmake/Modules/*.cmake
+!pyproject.toml
+!LICENSE

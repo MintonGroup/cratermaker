@@ -1,0 +1,53 @@
+[project]
+name = "cratermaker"
+version = "2023.10.0"
+authors=[
+    {name = 'David A. Minton', email='daminton@purdue.edu'},
+    {name = 'James E. Richardson'},
+    {name = 'Ya Huei Huang'},
+    {name = 'Masatoshi Hirabayashi'},
+    {name = 'Austin Blevins'},
+    {name = 'Jun Du'}
+]
+maintainers = [
+    {name = 'David A. Minton', email='daminton@purdue.edu'},
+]
+readme = "README.md"
+requires-python=">=3.8"
+license={file = "LICENSE"}
+classifiers=[
+'Development Status :: 3 - Alpha',
+'Intended Audience :: Science/Research',
+'Topic :: Scientific/Engineering :: Astronomy',
+'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+'Programming Language :: Python :: 3',
+]
+keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'landscape evolution']
+dependencies = [
+    'numpy>=1.24.3',
+    'scipy>=1.10.1',
+    'matplotlib>=3.7',
+    'cython>=3.0.0',
+    'mkdocs>=1.5.3'
+]
+
+[project.urls]
+Repository = 'https://github.com/profminton/cratermaker.git'
+
+[build-system]
+requires = [
+    "scikit-build-core",
+    "cython>=3.0.0",
+    "pytest",
+]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+build-dir = "build/{wheel_tag}"
+cmake.verbose = true
+
+[[tool.scikit-build.generate]]
+path = "version.txt"
+location = "source"
+template = '''${version}'''
+
