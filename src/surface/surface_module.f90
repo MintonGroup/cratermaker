@@ -8,6 +8,7 @@
 !! If not, see: https://www.gnu.org/licenses. 
 
 module surface
+   use iso_c_binding
    use globals
 
    type surface_tally
