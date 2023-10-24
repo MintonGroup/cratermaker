@@ -5,6 +5,7 @@
 !cratermaker/
 !cratermaker/**.py
 !cratermaker/**.pyx
+!cratermaker/**.h
 !cmake/
 !cmake/Modules/
 !cmake/Modules/*.cmake

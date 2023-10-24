@@ -67,7 +67,7 @@ IF(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
 ENDIF()
 
 # Ensure scikit-build modules
-FIND_PACKAGE(Python COMPONENTS Interpreter Development.Module REQUIRED)
+FIND_PACKAGE(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
 
 SET(SRC "${CMAKE_SOURCE_DIR}/src")
 SET(PY "${CMAKE_SOURCE_DIR}/cratermaker")

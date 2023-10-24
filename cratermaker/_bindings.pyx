@@ -5,7 +5,7 @@ import numpy as np
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset 
 
-cdef extern from "bindings.h":
+cdef extern from "_bindings.h":
     ctypedef struct surface_type:
         double *elev_data
         int elev_shape[2]
@@ -25,7 +25,7 @@ cdef class Surface:
 
     def __dealloc__(self):
         if self.c_surf is not NULL:
-            bind_surface_final(self.c_surf)
+            bind_surface_final(elf.c_surf)
             free(self.c_surf)
 
     # def get_elev(self):
