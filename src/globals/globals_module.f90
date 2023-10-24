@@ -7,11 +7,11 @@
 !! You should have received a copy of the GNU General Public License along with cratermaker. 
 !! If not, see: https://www.gnu.org/licenses. 
 
+
 module globals
    !! author: David A. Minton
    !!
-   !! Basic parameters, definitions, and global type definitions used throughout the Swiftest project
-   !! Adapted from David E. Kaufmann's Swifter routine: globals.f90 and module_swifter.f90
+   !! Basic parameters, definitions, and global type definitions used throughout the Cratermaker project
    use, intrinsic :: iso_fortran_env  ! Use the intrinsic kind definitions
    implicit none
    public

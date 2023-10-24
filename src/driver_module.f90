@@ -14,11 +14,7 @@ module driver
 
       !! author: David A. Minton
       !!
-      !! Driver program for the cratermaker integrators. Unlike the earlier Swift and Swifter drivers, in cratermaker all integrators 
-      !!    are run from this single program. 
-      !!
-      !! Adapted from Swifter by David E. Kaufmann's Swifter driver programs swifter_[bs,helio,ra15,rmvs,symba,tu4,whm].f90
-      !! Adapted from Hal Levison and Martin Duncan's Swift driver programs
+      !! Placeholder
       implicit none
 
       write(*,*) "Makin' craters!"

@@ -32,6 +32,8 @@ contains
 
       allocate(self%elev(gridsize,gridsize))
 
+      self%elev(:,:) = -1.0_DP
+
       return
    end subroutine surface_allocate
 
