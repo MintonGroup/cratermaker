@@ -1,11 +1,12 @@
-# Copyright 2022 - David Minton, Carlisle Wishard, Jennifer Pouplin, Jake Elliott, & Dana Singh
-# This file is part of Swiftest.
-# Swiftest is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
+# Copyright 2023 - David Minton
+# This file is part of Cratermaker.
+# Cratermaker is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
 # as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-# Swiftest is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+# Cratermaker is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
 # of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-# You should have received a copy of the GNU General Public License along with Swiftest. 
+# You should have received a copy of the GNU General Public License along with Cratermaker. 
 # If not, see: https://www.gnu.org/licenses. 
+
 
 ######################################################
 # Determine and set the Fortran compiler flags we want 
@@ -46,14 +47,13 @@ ELSE()
     MESSAGE(FATAL_ERROR "CMAKE_BUILD_TYPE not valid! ${BUILD_TYPE_MSG}")
 ENDIF(BT STREQUAL "RELEASE")
 
-
 #########################################################
 # If the compiler flags have already been set, return now
 #########################################################
 
 IF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_TESTING AND CMAKE_Fortran_FLAGS_DEBUG AND CMAKE_Fortran_FLAGS_PROFILE )
     RETURN ()
-ENDIF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_TESTING AND CMAKE_Fortran_FLAGS_DEBUG AND CMAKE_Fortran_FLAGS_PROFILE)
+ENDIF()
 
 ########################################################################
 # Determine the appropriate flags for this compiler for each build type.
@@ -72,13 +72,11 @@ ENDIF ()
 ### GENERAL FLAGS ###
 #####################
 
-
 # Free form
 IF (COMPILER_OPTIONS STREQUAL "GNU")
     SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
         Fortran "-ffree-form" # GNU
         ) 
-
     # Don't add underscores in symbols for C-compatability
     SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
         Fortran "-fno-underscoring" # GNU
@@ -88,12 +86,10 @@ IF (COMPILER_OPTIONS STREQUAL "GNU")
     SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
         Fortran "-fsignaling-nans " # GNU
         ) 
-    
     # Allows for lines longer than 80 characters without truncation
     SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
         Fortran "-ffree-line-length-512" # GNU (gfortran)
         )
-
     # Sets the dialect standard
     SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
         Fortran "-std=f2018" 
@@ -147,7 +143,6 @@ IF (NOT BUILD_SHARED_LIBS AND NOT WINOPT)
     SET_COMPILE_FLAG(CMAKE_FORTRAN_FLAGS "${CMAKE_FORTRAN_FLAGS}"
         Fortran "-fPIC"
         )
-
     IF (COMPILER_OPTIONS STREQUAL "Intel")
         # Use static Intel libraries
         SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
@@ -157,27 +152,27 @@ IF (NOT BUILD_SHARED_LIBS AND NOT WINOPT)
         SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
             Fortran "-static_mpi"  # Intel
         )
-
         IF (USE_OPENMP)
             SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
                 Fortran "-qopenmp-link=static"  # Intel
             )
         ENDIF (USE_OPENMP)
-
     ELSEIF (COMPILER_OPTIONS STREQUAL "GNU") 
-        # # Set GNU static libraries
-        # SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
-        #         Fortran  "-static-libgfortran" 
-        # )
-        # SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
-        #         Fortran  "-static-libgcc" 
-        # )
-        # SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
-        #         Fortran  "-static-libstdc++" 
-        # )
-        # SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
-        #         Fortran  "-static-libquadmath" 
-        # )
+        IF (NOT BUILD_SHARED_LIBS) 
+            # Set GNU static libraries
+            SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
+                Fortran  "-static-libgfortran" 
+            )
+            SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
+                Fortran  "-static-libgcc" 
+            )
+            SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
+                Fortran  "-static-libstdc++" 
+            )
+            SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
+                Fortran  "-static-libquadmath" 
+            )
+        ENDIF ()
         IF (USE_OPENMP)
             SET_COMPILE_FLAG(CMAKE_Fortran_LINK_FLAGS "${CMAKE_Fortran_LINK_FLAGS}"
                 Fortran "-lomp"  
@@ -210,54 +205,51 @@ IF (USE_SIMD)
 
         # Optimize for an old enough processor that it should run on most computers
         IF (WINOPT)
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "/Qx${MACHINE_CODE_VALUE}" # Intel
-                )
-                # Generate an extended set of vector functions
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+            )
+            # Generate an extended set of vector functions
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "/Qvecabi:cmdtarget" # Intel Windows
-                )
+            )
         ELSE ()
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "-x${MACHINE_CODE_VALUE}" # Intel
-                )
-                # Generate an extended set of vector functions
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+            )
+            # Generate an extended set of vector functions
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "-vecabi=cmdtarget" # Intel
-                )
+            )
         ENDIF ()
 
     ELSEIF (COMPILER_OPTIONS STREQUAL "GNU")
         SET(MACHINE_CODE_VALUE "native" CACHE STRING "Tells the compiler which processor features it may target, including which instruction sets and optimizations it may generate.")
-
         # Enables OpenMP SIMD compilation when OpenMP parallelization is disabled. 
         IF (NOT USE_OPENMP)
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "-fno-openmp -fopenmp-simd" # GNU
-                )     
+            )     
         ENDIF (NOT USE_OPENMP)
 
         IF (MACHINE_CODE_VALUE STREQUAL "Host")
-                SET(MACHINE_CODE_VALUE "native" CACHE STRING "native is the GNU equivalent of Host" FORCE)
+            SET(MACHINE_CODE_VALUE "native" CACHE STRING "native is the GNU equivalent of Host" FORCE)
         ENDIF ()
         
         IF (APPLE)
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "-mtune=${MACHINE_CODE_VALUE}" 
-                )
+            )
         ELSE ()
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "-march=${MACHINE_CODE_VALUE}" 
-                )
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+            )
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "-mtune=${MACHINE_CODE_VALUE}" 
-                )
+            )
         ENDIF ()
-        
     ENDIF ()
     SET(MACHINE_CODE_VALUE ${MACHINE_CODE_VALUE} CACHE STRING "Tells the compiler which processor features it may target, including which instruction sets and optimizations it may generate.")
 ENDIF (USE_SIMD)    
-
 
 ###################
 ### DEBUG FLAGS ###
@@ -269,32 +261,35 @@ IF (CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "TESTING" )
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran REQUIRED "/Od" # Intel Windows
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C REQUIRED "/0d"
+            )
             # Turn on all warnings 
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/warn:all" # Intel Windows
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "/warn:all" # Intel Windows
+            )
             # Tells the compiler to issue compile-time messages for nonstandard language elements (Fortran 2018).    
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/stand:f18"  # Intel Windows
             )  
-
             # Traceback
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/traceback"   # Intel Windows
             )
-
             # Check everything
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/check:all"      # Intel Windows
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "/check:all"      # Intel Windows
+            )
             # Initializes matrices/arrays with NaN values
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/Qinit:snan,arrays" # Intel Windows
             )
-
             # Does not generate an interface block for each routine in a source file
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/nogen-interfaces" # Intel Windows
@@ -304,27 +299,25 @@ IF (CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "TESTING" )
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/Qftz-"  # Intel Windows
             )
-
             # Enables floating-point invalid, divide-by-zero, and overflow exceptions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/fpe-all:0"         # Intel Windows
             )
-
             # Enables floating-point invalid, divide-by-zero, and overflow exceptions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran  "/fpe:0" # Intel Windows
             )
-
             # Enables debug info
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/debug:all" # Intel Windows
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "/debug:all" # Intel Windows
+            )
             # Disables additional interprocedural optimizations for a single file compilation
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/Qip-"  # Intel Windows
             )
-
             # Disables prefetch insertion optimization
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "/Qopt-prefetch-"   # Intel Windows
@@ -333,145 +326,166 @@ IF (CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "TESTING" )
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran REQUIRED "-O0" # All compilers not on Windows
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C REQUIRED "-O0" # All compilers not on Windows
+            )
             # Turn on all warnings 
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-warn all" # Intel
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "-Wall" # Intel
+            )
             # Tells the compiler to issue compile-time messages for nonstandard language elements (Fortran 2018).    
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-stand f18"  # Intel
             )  
-
             # Traceback
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-traceback"   # Intel Group
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "-traceback"   # Intel Group
+            )
             # Check everything
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-check all"       # Intel
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "-check=conversions,stack,uninit"       # Intel
+            )
             # Initializes matrices/arrays with NaN values
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-init=snan,arrays"  # Intel
             )
-
             # Does not generate an interface block for each routine in a source file
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-nogen-interfaces" # Intel
             )
-
             # Does not generate aposition independent executable
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-no-pie" # Intel
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "-no-pie" # Intel
+            )
             # Does not set denormal results from floating-point calculations to zero
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-no-ftz" # Intel
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "-no-ftz" # Intel
+            )
             # Enables floating-point invalid, divide-by-zero, and overflow exceptions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-fpe-all=0"         # Intel
             )
-
             # Enables floating-point invalid, divide-by-zero, and overflow exceptions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-fpe0"  # Intel 
             )
-
             # Enables debug info
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-debug all" # Intel
             )
-
+            SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+                C "-debug all" # Intel
+            )
             # Disables additional interprocedural optimizations for a single file compilation
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-no-ip" # Intel
             )
-
             # Disables prefetch insertion optimization
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                 Fortran "-qno-opt-prefetch" # Intel
             )
-
         ENDIF ()
-                
     ELSEIF (COMPILER_OPTIONS STREQUAL "GNU")
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
             Fortran REQUIRED "-Og" # GNU (gfortran)
         )
-
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C REQUIRED "-Og" # GNU (gfortran)
+        )
         # Turn on all warnings 
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-Wall"     # GNU
+            Fortran "-Wall"     # GNU
+        )
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C "-Wall"     # GNU
         )
         # This enables some extra warning flags that are not enabled by -Wall
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-Wextra" # GNU
+            Fortran "-Wextra" # GNU
         )
-
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C "-Wextra" # GNU
+        )
         # Disable the warning that arrays may be uninitialized, which comes up due to a known bug in gfortran
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-Wno-maybe-uninitialized" # GNU
+            Fortran "-Wno-maybe-uninitialized" # GNU
         )
         # Disable the warning about unused dummy arguments. These primarily occur due to interface rules for type-bound procedures used in extendable types.
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-Wno-unused-dummy-argument" # GNU
+            Fortran "-Wno-unused-dummy-argument" # GNU
         )
-
         # Tells the compiler to issue compile-time messages for nonstandard language elements (Fortran 2018).    
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-fstd=f2018" # GNU
+            Fortran "-fstd=f2018" # GNU
         )  
-
         # Traceback
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-fbacktrace"  # GNU (gfortran)
+            Fortran "-fbacktrace"  # GNU (gfortran)
         )
-
         # Sanitize
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-fsanitize=address, undefined"  # Gnu 
+            Fortran "-fsanitize=address, undefined"  # Gnu 
         )
-
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C "-fsanitize=address, undefined"  # Gnu 
+        )
         # Check everything
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-fcheck=all" # GNU 
+            Fortran "-fcheck=all" # GNU 
+        )
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C "-fcheck=all" # GNU 
         )
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-fstack-check" # GNU 
+            Fortran "-fstack-check" # GNU 
         )
-
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C "-fstack-check" # GNU 
+        )
         # Initializes matrices/arrays with NaN values
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-finit-real=snan"   # GNU
+            Fortran "-finit-real=snan"   # GNU
         )
-
         # Generates non position-independent code
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-fno-PIE" # GNU
+            Fortran "-fno-PIE" # GNU
         )
-
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C "-fno-PIE" # GNU
+        )
         # Enables floating-point invalid, divide-by-zero, and overflow exceptions
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-        Fortran "-ffpe-trap=zero,overflow,underflow" # GNU
+            Fortran "-ffpe-trap=zero,overflow,underflow" # GNU
         )
-
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C "-ffpe-trap=zero,overflow,underflow" # GNU
+        )
         # List of floating-point exceptions, whose flag status is printed to ERROR_UNIT when invoking STOP and ERROR STOP
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-ffpe-summary=all" # GNU
+            Fortran "-ffpe-summary=all" # GNU
         )
-
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
-                Fortran "-fstack-check" # GNU 
+            Fortran "-fstack-check" # GNU 
+        )
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}"
+            C "-fstack-check" # GNU 
         )
     ENDIF ()
-
 ENDIF ()
 
 #####################
@@ -479,15 +493,20 @@ ENDIF ()
 #####################
 
 IF (CMAKE_BUILD_TYPE STREQUAL "TESTING" )
-
     # Optimizations
     IF (WINOPT)
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_TESTING "${CMAKE_Fortran_FLAGS_DEBUG}"
-             REQUIRED "/O3" # Intel Windows
+            Fortran REQUIRED "/O3" # Intel Windows
+        )
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_TESTING "${CMAKE_C_FLAGS_DEBUG}"
+            C REQUIRED "/O3" # Intel Windows
         )
     ELSE ()
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_TESTING "${CMAKE_Fortran_FLAGS_DEBUG}"
-             REQUIRED "-O3" # All compilers not on Windows
+            Fortran REQUIRED "-O3" # All compilers not on Windows
+        )
+        SET_COMPILE_FLAG(CMAKE_C_FLAGS_TESTING "${CMAKE_C_FLAGS_DEBUG}"
+            C REQUIRED "-O3" # All compilers not on Windows
         )
     ENDIF ()
 ENDIF ()
@@ -497,47 +516,38 @@ ENDIF ()
 #####################
 # NOTE: agressive optimizations (-O3) are already turned on by default
 
-
 IF (CMAKE_BUILD_TYPE STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE STREQUAL "PROFILE")
-
     IF (COMPILER_OPTIONS STREQUAL "Intel")
         IF (WINOPT)
             # Unroll loops
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "/unroll"    # Intel Windows
+                Fortran "/Qunroll"    # Intel Windows
             )
-
             # Inline functions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "/Qinline"       # Intel Windows
+                Fortran "/inline"       # Intel Windows
             )
-
             # Calls the Matrix Multiply library
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "/Qopt-matmul" # Intel Windows
             )
-
             # Aligns a variable to a specified boundary and offset
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "/align:all" # Intel Windows
             )
-
             # No floating-point exceptions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "/fp:no-except"       # Intel Windows
+                Fortran "/fp:except-"       # Intel Windows
             )
-
             # Generate fused multiply-add instructions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "/Qfma" # Intel Windows
             )
-
             # Tells the compiler to link to certain libraries in the Intel oneAPI Math Kernel Library (oneMKL). 
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "/Qmkl:cluster" # Intel Windows
                         "/Qmkl"     # Intel Windows
             ) 
-
             # Enables additional interprocedural optimizations for a single file compilation
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "/Qip" # Intel Windows
@@ -547,7 +557,6 @@ IF (CMAKE_BUILD_TYPE STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE STREQUAL "PROFILE")
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "-unroll"    # Intel
             )
-
             # Inline functions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "-inline"    # Intel
@@ -557,12 +566,10 @@ IF (CMAKE_BUILD_TYPE STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE STREQUAL "PROFILE")
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "-qopt-matmul" # Intel
             )
-
             # Aligns a variable to a specified boundary and offset
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "-align all" # Intel
             )
-
             # No floating-point exceptions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "-fp-model no-except" # Intel
@@ -570,15 +577,15 @@ IF (CMAKE_BUILD_TYPE STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE STREQUAL "PROFILE")
 
             # Generate fused multiply-add instructions
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                    Fortran "-fma"  # Intel
+                Fortran "-fma"  # Intel
             )
-
             # Tells the compiler to link to certain libraries in the Intel oneAPI Math Kernel Library (oneMKL). 
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "-qmkl=cluster" # Intel
-                        "-qmkl"     # Intel
+                Fortran "-mkl=cluster" 
+                        "-mkl"
+                        "-qmkl=cluster"
+                        "-qmkl"     
             ) 
-
             # Enables additional interprocedural optimizations for a single file compilation
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "-ip"  # Intel
@@ -588,85 +595,88 @@ IF (CMAKE_BUILD_TYPE STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE STREQUAL "PROFILE")
     ELSEIF(COMPILER_OPTIONS STREQUAL "GNU")
         # Unroll loops
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "-funroll-loops" # GNU
-                )
-
+            Fortran "-funroll-loops" # GNU
+        )
         # Inline functions
         SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "-finline-functions" # GNU
-                )
+            Fortran "-finline-functions" # GNU
+        )
     ENDIF ()
-
 ENDIF ()
  
 #####################
 ### MATH FLAGS ###
 #####################
 IF (COMPILER_OPTIONS STREQUAL "Intel")
-
     IF (WINOPT)
         # Some subroutines require more strict floating point operation optimizations for repeatability
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "/fp:precise" # Intel Windows 
         )
-
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "/Qprec-div" # Intel Windows 
         ) 
-
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "/Qprec-sqrt" # Intel Windows 
         )
-
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "/assume:protect-parens" # Intel Windows 
         ) 
-
         # Improves floating-point precision and consistency
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "/Qprec" # Intel Windows
         ) 
+        # Most subroutines can use aggressive optimization of floating point operations without problems.       
+        SET_COMPILE_FLAG(FASTMATH_FLAGS "${FASTMATH_FLAGS}"
+            Fortran "/fp:fast"       # Intel Windows
+        )
     ELSE ()
         # Some subroutines require more strict floating point operation optimizations for repeatability
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-            Fortran "-fp-module=precise" # Intel 
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
+            Fortran "-fp-model=precise" # Intel 
         )
-
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "-prec-div" # Intel 
         ) 
-
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "-prec-sqrt" # Intel 
         )
-
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "-assume protect-parens" # Intel
         ) 
-
         # Improves floating-point precision and consistency
-        SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+        SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
             Fortran "-mp1" # Intel Windows
         ) 
+        # Most subroutines can use aggressive optimization of floating point operations without problems.       
+        SET_COMPILE_FLAG(FASTMATH_FLAGS "${FASTMATH_FLAGS}"
+            Fortran "-fp-model=fast"       # Intel Windows
+        )
     ENDIF ()    
-
 ELSEIF (COMPILER_OPTIONS STREQUAL "GNU")
-
     # Some subroutines require more strict floating point operation optimizations for repeatability
-    SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+    SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
         Fortran "-fno-unsafe-math-optimizations" # GNU
-        )
+    )
     # Disable transformations and optimizations that assume default floating-point rounding behavior. 
-    SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+    SET_COMPILE_FLAG(STRICTMATH_FLAGS "${STRICTMATH_FLAGS}"
         Fortran "-frounding-math"
-        )
+    )
+    # Most subroutines can use aggressive optimization of floating point operations without problems.       
+    SET_COMPILE_FLAG(FASTMATH_FLAGS "${FASTMATH_FLAGS}"
+        Fortran "-ffast-math"    # GNU
+    )
 ENDIF ()
+
+# Debug mode always uses strict math
+SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}" 
+    Fortran ${STRICTMATH_FLAGS}
+)
 
 #####################
 ### PROFILE FLAGS ###
 #####################
 IF (CMAKE_BUILD_TYPE STREQUAL "PROFILE")
-
     IF (COMPILER_OPTIONS STREQUAL "Intel")
     # Enables the optimization reports to be generated
         IF (WINOPT)

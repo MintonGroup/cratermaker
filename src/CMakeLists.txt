@@ -12,16 +12,6 @@ set(GLOBAL_MODULE_IN ${SRC}/globals/globals_module.f90.in)
 set(GLOBAL_MODULE_OUT ${SRC}/globals/globals_module.f90)
 CONFIGURE_FILE(${GLOBAL_MODULE_IN} ${GLOBAL_MODULE_OUT})
 
-IF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
-    MESSAGE(FATAL_ERROR "Fortran compiler does not support F90")
-ENDIF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
-
-INCLUDE(SetParallelizationLibrary)
-
-# This INCLUDE statement executes code that sets the compile flags for DEBUG,
-# RELEASE, PROFILING, and TESTING.  
-INCLUDE(SetFortranFlags) 
-
 # Add the source files
 SET(SRC_FILES
     ${SRC}/globals/globals_module.f90

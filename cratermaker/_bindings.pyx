@@ -12,7 +12,7 @@ cdef extern from "bindings.h":
 
     ctypedef double c_double
 
-    void bind_surface_init(surface_type* obj, int gridsize)
+    surface_type* bind_surface_init(int gridsize)
     void bind_surface_final(surface_type* obj)
 
 cdef class Surface:
@@ -20,7 +20,7 @@ cdef class Surface:
 
     def __cinit__(self, int gridsize):
         self.c_surf = bind_surface_init(gridsize)
-        if self.s_surf is NULL:
+        if self.c_surf is NULL:
             raise MemoryError("Failed to allocate surface object")
 
     def __dealloc__(self):
@@ -28,14 +28,14 @@ cdef class Surface:
             bind_surface_final(self.c_surf)
             free(self.c_surf)
 
-    def get_elev(self):
-        # Create a NumPy array from the Fortran array
-        cdef np.ndarray[np.float64_t, ndim=2] elev_array
-        elev_array = np.PyArray_SimpleNewFromData(2, <np.npy_intp>[gridsize, gridsize], np.NPY_FLOAT64, <void*>self.c_surf.elev)
-        return elev_array
-
-    def set_elev(self, np.ndarray[np.float64_t, ndim=2] elev_array):
-        if elev_array.shape != (gridsize, gridsize):
-            raise ValueError("Invalid shape for elev array")
-        # Copy data from elev_array to the Fortran array
-        np.copyto(elev_array, self.get_elev())
+    # def get_elev(self):
+    #    # Create a NumPy array from the Fortran array
+    #    cdef np.ndarray[np.float64_t, ndim=2] elev_array
+    #    elev_array = np.PyArray_SimpleNewFromData(2, <np.npy_intp>[gridsize, gridsize], np.NPY_FLOAT64, <void*>self.c_surf.elev)
+    #    return elev_array
+#
+#    def set_elev(self, np.ndarray[np.float64_t, ndim=2] elev_array):
+#        if elev_array.shape != (gridsize, gridsize):
+#            raise ValueError("Invalid shape for elev array")
+#        # Copy data from elev_array to the Fortran array
+#        np.copyto(elev_array, self.get_elev())
