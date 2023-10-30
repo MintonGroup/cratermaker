@@ -9,5 +9,5 @@
  If not, see: https://www.gnu.org/licenses. 
 """
 
-from .surface import Simulation
-from ._binding import Surface
+from .simulation import Simulation
+from . import craterproduction

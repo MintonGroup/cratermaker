@@ -18,16 +18,17 @@ cdef extern from "_surface.h":
     char* bind_surface_get_stringvar(c_surface_type *obj)
 
 
-cdef class Simulation_binding:
+cdef class _SurfaceBind:
     cdef c_surface_type* fobj
 
-    def __cinit__(self, tuple shape):
+    def __cinit__(self, tuple gridshape=(1000,1000)):
         """
         Initializes the Simulation object by calling the Fortran initializer, which will allocate the array in Fortran, set some initial values, and return a pointer that connects the Fortran derived type class variable to the Python object.
 
         Parameters
         ----------
-            Shape of the allocatable Numpy array to initialize in Fortran 
+            gridshape:
+                Shape of the allocatable Numpy array to initialize in Fortran 
 
         Returns
         -------
@@ -35,35 +36,24 @@ cdef class Simulation_binding:
         """
 
         # Check to make sure we are passing a correct 2D array for the shape.
-        if len(shape) != 2:
-            raise ValueError("Expected a tuple of length 2 for shape")
+        if len(gridshape) != 2:
+            raise ValueError("Expected a tuple of length 2 for gridshape")
 
-        print("Cython: calling bind_surface_init")
-        self.fobj = bind_surface_init(shape[0],shape[1])  
-        print("Cython: Successfully returned")
+        self.fobj = bind_surface_init(gridshape[0],gridshape[1])  
 
         # Do some basic checks to make sure the object variable and all its components were allocated succesfully
         if self.fobj is NULL:
             raise MemoryError("Failed to allocate Fortran object.")
-        else:
-            print("The Fortran object was allocated successfully ")
-        print(f"self.fobj           = {<unsigned long>self.fobj          }")
-        print(f"self.fobj.elevation = {<unsigned long>self.fobj.elevation}")
-        print(f"self.fobj.stringvar = {<unsigned long>self.fobj.stringvar}")
 
         if self.fobj.elevation is NULL:
             raise MemoryError("Failed to allocate component variable 'elevation' in the Fortran object.")
-        else:
-            print("The component variable 'elevation' was allocated successfuly in the Fortran object")
 
         if self.fobj.stringvar is NULL: # <- This is where the problem lies
             raise MemoryError("Failed to allocate component variable 'stringvar' in the Fortran object.")
-        else:
-            print("The component variable 'stringvar' was allocated successfuly in the Fortran object")
 
         # Manually set the shape of the 2D component array in the Python object
-        self.fobj.elevation_shape[0] = shape[0]
-        self.fobj.elevation_shape[1] = shape[1]
+        self.fobj.elevation_shape[0] = gridshape[0]
+        self.fobj.elevation_shape[1] = gridshape[1]
 
         return
 
