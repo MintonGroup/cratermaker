@@ -11,7 +11,7 @@
 module globals
    !! author: David A. Minton
    !!
-   !! Basic parameters, definitions, and global type definitions used throughout the Cratermaker project
+   !! Basic parameters, definitions, and global type definitions used throughout the PyOOF project
    use, intrinsic :: iso_c_binding  ! Use the intrinsic kind definitions
    implicit none
    public
@@ -25,6 +25,8 @@ module globals
    integer, parameter :: DP = c_double  !! Symbolic name for kind types of double-precision reals
    integer, parameter :: QP = c_long_double !! Symbolic name for kind types of quad-precision reals
 
-   character(*), parameter :: VERSION = "${CMAKE_PROJECT_VERSION}" !! Cratermaker version
+   character(*,kind=c_char), parameter :: VERSION = "${CMAKE_PROJECT_VERSION}" !! Cratermaker version
+
+   integer(I4B), parameter :: STRMAX = 512 !! Maximum size of character strings 
 
 end module globals

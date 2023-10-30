@@ -21,10 +21,13 @@ classifiers=[
 'Topic :: Scientific/Engineering :: Astronomy',
 'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
 'Programming Language :: Python :: 3',
+'Programming Language :: Fortran',
+'Operating System :: MacOS',
+'Operating System :: POSIX :: Linux',
 ]
 keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'landscape evolution']
 dependencies = [
-    'numpy>=1.24.3',
+    'numpy>=1.20',
     'scipy>=1.10.1',
     'matplotlib>=3.7',
     'cython>=3.0.0',
@@ -38,7 +41,8 @@ Repository = 'https://github.com/profminton/cratermaker.git'
 requires = [
     "scikit-build-core",
     "cython>=3.0.0",
-    "pytest",
+    "numpy>=1.20",
+    "pytest"
 ]
 build-backend = "scikit_build_core.build"
 

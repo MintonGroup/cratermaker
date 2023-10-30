@@ -9,5 +9,5 @@
  If not, see: https://www.gnu.org/licenses. 
 """
 
-from .simulation import Simulation
-from ._bindings import Surface
+from .surface import Simulation
+from ._binding import Surface
