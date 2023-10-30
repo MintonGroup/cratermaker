@@ -36,8 +36,6 @@ contains
       integer(I4B), value   :: ny, nx !! The dimensions of the array to create. Note, this expects row-major ordering like C
       ! Internals
       type(surface_type), pointer :: f_sim  !! A pointer to the surface type variable that will be passed to Cython
-      integer(I4B) :: i
-      type(c_ptr) :: c_ptr_var
 
       nullify(f_sim)
       allocate(f_sim)

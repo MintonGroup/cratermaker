@@ -33,7 +33,7 @@ contains
 
       allocate(self%elevation(nx,ny))
 
-      self%elevation(:,:) = -1.0_DP
+      self%elevation(:,:) = 0.0_DP
       self%stringvar = "Initialized in Fortran"
 
       return
