@@ -2,6 +2,7 @@ from ._surface import _SurfaceBind
 import xarray as xr
 import numpy as np
 import jigsawpy
+import os
 
 # Define some basic parameters
 body_radius_values = {
@@ -15,13 +16,23 @@ class Simulation(object):
     This is a class that defines the basic Cratermaker surface object. 
     """
     def __init__(self):
+        # TODO: Initialize with configure options or read in configuration file
+        self.cwd = os.getcwd()
+        
         self.config = {
             "body" : "Moon", # Which body to simulation (Options are "Moon","Custom" )
             "pix"  : 6.16e3, # Approximate cell global cell size
+            "cachedir" : os.path.join(self.cwd,".cache"), # Directory location of output files
+            "meshname" : "body", # Name of files generated during mesh process
         }
-        
         if self.config['body'] != 'Custom':
             self.config['body_radius'] = body_radius_values[self.config['body']]
+           
+        self.meshfile = os.path.join(self.config['cachedir'],f"{self.config['meshname']}.msh")
+        if not os.path.exists(self.config['cachedir']):
+            os.mkdir(self.config['cachedir'])
+        if not os.path.exists(self.meshfile):
+            self.mesh_body()   
         # self._surface = _SurfaceBind(gridshape)     
         # lat = np.linspace(-90, 90, gridshape[0])
         # lon = np.linspace(0, 360, gridshape[1])

@@ -10,15 +10,9 @@
 module crater
 
    interface
-      module subroutine crater_generate(user,crater,domain,prod,production_list,vdist,surf)
-      use module_globals
+      module subroutine crater_generate()
+      use globals
       implicit none
-      type(usertype),intent(in) :: user
-      type(cratertype),intent(inout) :: crater
-      type(domaintype),intent(in)    :: domain
-      real(DP),dimension(:,:),intent(in),optional :: prod,vdist
-      integer(I8B),dimension(:),intent(inout),optional  :: production_list            
-      type(surftype),dimension(:,:),intent(in),optional :: surf
       end subroutine crater_generate
    end interface
 
