@@ -1,6 +1,6 @@
 [project]
 name = "cratermaker"
-version = "2023.10.0"
+version = "2023.11.0"
 authors=[
     {name = 'David A. Minton', email='daminton@purdue.edu'},
     {name = 'James E. Richardson'},
@@ -33,7 +33,8 @@ dependencies = [
     'xesmf>=0.8',
     'matplotlib>=3.7',
     'cython>=3.0.0',
-    'mkdocs>=1.5.3'
+    'mkdocs>=1.5.3',
+    'jigsawpy>=0.3.3'
 ]
 
 [project.urls]

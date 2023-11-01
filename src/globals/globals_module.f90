@@ -25,7 +25,7 @@ module globals
    integer, parameter :: DP = c_double  !! Symbolic name for kind types of double-precision reals
    integer, parameter :: QP = c_long_double !! Symbolic name for kind types of quad-precision reals
 
-   character(*,kind=c_char), parameter :: VERSION = "2023.10.0" !! Cratermaker version
+   character(*,kind=c_char), parameter :: VERSION = "2023.11.0" !! Cratermaker version
 
    integer(I4B), parameter :: STRMAX = 512 !! Maximum size of character strings 
 
