@@ -8,6 +8,15 @@
 !! If not, see: https://www.gnu.org/licenses. 
 
 module util
-   contains
+   use globals
+
+   interface
+      module function util_perlin_noise(xx,yy,zz) result(noise)
+         implicit none
+         real(DP),intent(in) :: xx,yy
+         real(DP),intent(in),optional :: zz
+         real(DP) :: noise
+      end function util_perlin_noise
+   end interface
 
 end module util

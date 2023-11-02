@@ -12,8 +12,6 @@ module simulation
    use surface, only : surface_type
 
    type, extends(surface_type)  :: simulation_type
-      real(DP), dimension(:,:), allocatable :: elevation    !! Elevation of surface
-      character(len=STRMAX)                 :: stringvar    !! A placeholder for a string component variable
    contains
       final     ::               simulation_final      !! Finalizer (calls deallocate)
    end type simulation_type
@@ -28,11 +26,11 @@ contains
       !! Finalizer for the simulation object
       implicit none
       ! Arguments
-      type(surface_type), intent(inout) :: self
+      type(simulation_type), intent(inout) :: self
 
       call self%deallocate()
       return
    end subroutine simulation_final
 
 
-end module surface
+end module simulation
