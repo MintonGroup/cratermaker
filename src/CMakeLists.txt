@@ -22,7 +22,7 @@ SET(SRC_FILES
     ${SRC}/driver_module.f90
     ${SRC}/util/util_module.f90
     ${SRC}/crater/crater_submodule.f90
-    ${SRC}/util/util_submodule.f90
+    ${SRC}/util/util_perlin.f90
 )
 
 SET(DRIVER_src ${SRC}/main.f90)
