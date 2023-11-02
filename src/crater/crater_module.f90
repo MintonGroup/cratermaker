@@ -8,10 +8,10 @@
 !! If not, see: https://www.gnu.org/licenses. 
 
 module crater
+   use globals
 
    interface
       module subroutine crater_generate()
-      use globals
       implicit none
       end subroutine crater_generate
    end interface

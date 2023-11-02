@@ -1,7 +1,7 @@
 *
 !src/
 !src/*/
-!src/**.f90
+!src/*/**.f90
 !src/globals/*.in
 !cratermaker/
 !cratermaker/**.py
