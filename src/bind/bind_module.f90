@@ -22,7 +22,18 @@ module bind_module
    use iso_c_binding
    use globals
    use surface
+   use simulation
+   use util
    implicit none
+   
+   ! Define possible keyword arguments that can be passed to the Perlin noise functions
+   type :: PerlinArguments
+      real(DP) :: noise_height, freq, pers, gain !! Arguments used in most of the Perlin functions
+      integer(I4B) :: num_octaves = 0
+      real(DP) :: lacunarity, gain0, warp0, warp, damp0, damp, damp_scale !! Arguments used in the Jordan turbulence model
+      real(DP) :: slope !! Extra argument needed for power law turbulence model
+      real(DP), dimension(:), allocatable :: anchor !! The anchor point of the perlin layers
+   end type PerlinArguments
 
 contains
 

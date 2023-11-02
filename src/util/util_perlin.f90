@@ -11,7 +11,7 @@ submodule (util) s_util_perlin
    use globals
 contains
 
-   module subroutine util_perlin_noise(xx,yy,noise, dx,dy)
+   module subroutine util_perlin_noise(xx,yy,noise,dx,dy)
       ! Perlin noise with derivatives. Adapted from Ken Perlin's original code, with derivatives
       ! that are used in the noise functions by Giliam de Carpentier
       implicit none
@@ -209,8 +209,8 @@ contains
    module function util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
       real(DP), intent(in) ::  x, y, noise_height, freq, pers
-      integer(I4B) :: num_octaves
-      real(DP), dimension(3,num_octaves),intent(in) :: anchor
+      integer(I4B), intent(in) :: num_octaves
+      real(DP), dimension(:,:),intent(in) :: anchor
       real(DP) :: noise,xnew,ynew,norm,rx,ry,thetai
       
       integer(I4B) :: i
@@ -238,60 +238,25 @@ contains
    end function util_perlin_turbulence
 
 
-   module function util_perlin_arrayinput(x, y, num_octaves, Sarr, Aarr, anchor) result(noise)
-      implicit none
-      real(DP), intent(in) ::  x, y
-      integer(I4B) :: num_octaves
-      real(DP), dimension(num_octaves),intent(in) :: Sarr, Aarr
-      real(DP), dimension(3,num_octaves),intent(in) :: anchor
-      real(DP) :: noise
-      
-      !Internal variables
-      real(DP) :: xnew,ynew,norm,rx,ry,thetai
-      integer(I4B) :: i
-      real(DP) :: spatial_fac, noise_mag,dn,dx,dy
-      
-      noise = 0.0_DP
-      norm = 0.5_DP
-      do i = 1, num_octaves
-         spatial_fac = Sarr(i)
-         noise_mag = Aarr(i)
-         norm = norm + 0.5_DP * noise_mag
-         thetai = anchor(3,i)
-         rx = x * cos(thetai) - y * sin(thetai)
-         ry = x * sin(thetai) + y * cos(thetai)
-         xnew = (rx + anchor(1,i)) * spatial_fac
-         ynew = (ry + anchor(2,i)) * spatial_fac
-         call util_perlin_noise(xnew,ynew,dn)
-         noise = noise + dn * noise_mag / norm
-      end do
-      
-      noise = noise !/ norm
-      
-      return
-   end function util_perlin_arrayinput   
-
 
    module function util_perlin_billowedNoise(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
       real(DP), intent(in) ::  x, y, noise_height, freq, pers
-      integer(I4B) :: num_octaves
-      real(DP),dimension(3,num_octaves),intent(in) :: anchor
+      integer(I4B), intent(in) :: num_octaves
+      real(DP),dimension(:,:),intent(in) :: anchor
       real(DP) :: noise
       
       noise = abs(util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor))
       
-      
       return
-      
    end function util_perlin_billowedNoise
       
       
    module function util_perlin_plawNoise(x, y, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
       implicit none
       real(DP), intent(in) ::  x, y, noise_height, freq, pers,slope
-      integer(I4B) :: num_octaves
-      real(DP),dimension(3,num_octaves),intent(in) :: anchor
+      integer(I4B), intent(in) :: num_octaves
+      real(DP),dimension(:,:),intent(in) :: anchor
       real(DP) :: noise
       
       noise = util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor)
@@ -304,8 +269,8 @@ contains
    module function util_perlin_ridgedNoise(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
       real(DP), intent(in) ::  x, y, noise_height, freq, pers
-      integer(I4B) :: num_octaves
-      real(DP),dimension(3,num_octaves),intent(in) :: anchor
+      integer(I4B), intent(in) :: num_octaves
+      real(DP),dimension(:,:),intent(in) :: anchor
       real(DP) :: noise
       
       noise = noise_height - abs(util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor))
@@ -316,10 +281,13 @@ contains
       
    module function util_perlin_swissTurbulence(x, y, lacunarity, gain, warp, num_octaves, anchor) result(noise)
       implicit none
+      ! Arguments
       real(DP), intent(in) ::  x, y, lacunarity, gain, warp
-      integer(I4B) :: num_octaves
-      real(DP),dimension(3,num_octaves) :: anchor
+      integer(I4B), intent(in) :: num_octaves
+      real(DP),dimension(:,:), intent(in) :: anchor
+      ! Result
       real(DP) :: noise
+      ! Internals
       real(DP) :: freq, amp,newx,newy,norm
       real(DP),dimension(2) :: dsum
       real(DP),dimension(3) :: n
@@ -348,20 +316,20 @@ contains
    end function util_perlin_swissTurbulence
    
       
-   module function util_perlin_jordanTurbulence(x, y, lacunarity, gain1, gain, warp0, warp, damp0, damp, damp_scale,&
+   module function util_perlin_jordanTurbulence(x, y, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
             num_octaves, anchor) result(noise)
       ! Fortran implementation of noise function by Giliam de Carpentier
       implicit none
-      real(DP),intent(in) :: x, y, lacunarity, gain1, gain, warp0, warp, damp0, damp, damp_scale
+      real(DP),intent(in) :: x, y, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
       integer(I4B),intent(in) :: num_octaves
-      real(DP), dimension(3,num_octaves), intent(in) :: anchor
+      real(DP), dimension(:,:), intent(in) :: anchor
       ! Result variable
       real(DP) :: noise
    
       ! Internal variables
       real(DP),dimension(3) :: n,n2
       real(DP),dimension(2) :: dsum_warp,dsum_damp
-      real(DP) :: amp,freq,damped_amp,xnew,ynew
+      real(DP) :: freq,damped_amp,xnew,ynew,amp
       integer(I4B) :: i
    
       xnew = x + anchor(1,1)
@@ -372,8 +340,8 @@ contains
       dsum_warp(:) = warp0 * n2(2:3)
       dsum_damp(:) = damp0 * n2(2:3)
    
-      amp = gain1
       freq = lacunarity
+      amp = gain0
       damped_amp = amp * gain
    
       do i = 2, num_octaves
