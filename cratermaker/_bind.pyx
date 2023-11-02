@@ -5,21 +5,35 @@ cimport numpy as cnp
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset 
 
-cdef extern from "_surface.h":
-    ctypedef struct c_surface_type:
+cdef extern from "_bind.h":
+    ctypedef struct surface_type:
         double *elevation
         int elevation_shape[2]
         char *stringvar
         int stringvar_len
 
-    c_surface_type* bind_surface_init(int ny, int nx)
-    void bind_surface_final(c_surface_type *obj)
-    void bind_surface_set_stringvar(c_surface_type *obj, const char *c_string)
-    char* bind_surface_get_stringvar(c_surface_type *obj)
+    surface_type* bind_surface_init(int ny, int nx)
+    void bind_surface_final(surface_type *obj)
+    void bind_surface_set_stringvar(surface_type *obj, const char *c_string)
+    char* bind_surface_get_stringvar(surface_type *obj)
+
+    ctypedef struct PerlinArguments:
+        double damp
+        double damp0
+        double damp_scale
+        double freq
+        double gain
+        double gain0
+        double lacunarity
+        double noise_height
+        double pers
+        double slope
+        double warp
+        double warp0
 
 
 cdef class _SurfaceBind:
-    cdef c_surface_type* fobj
+    cdef surface_type* fobj
 
     def __cinit__(self, tuple gridshape=(1000,1000)):
         """
