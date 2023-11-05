@@ -11,3 +11,4 @@
 
 from .simulation import Simulation
 from . import craterproduction
+from ._bind import util_perlin

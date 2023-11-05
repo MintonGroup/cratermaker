@@ -34,7 +34,8 @@ dependencies = [
     'matplotlib>=3.7',
     'cython>=3.0.0',
     'mkdocs>=1.5.3',
-    'jigsawpy>=0.3.3'
+    'jigsawpy>=0.3.3',
+    'trimesh>=4.0.2'
 ]
 
 [project.urls]

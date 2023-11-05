@@ -11,63 +11,63 @@ module util
    use globals
 
    interface
-      module subroutine util_perlin_noise(xx, yy, noise, dx, dy)
+      module subroutine util_perlin_noise(xx, yy, zz, noise, dx, dy, dz)
          implicit none
-         real(DP),intent(in) :: xx,yy
+         real(DP),intent(in) :: xx,yy,zz
          real(DP),intent(out) :: noise
-         real(DP),intent(out),optional :: dx, dy
+         real(DP),intent(out),optional :: dx, dy, dz
       end subroutine util_perlin_noise
 
 
-      module function util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      module function util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), intent(in) ::  x, y, noise_height, freq, pers
+         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP), dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
       end function util_perlin_turbulence
    
    
-      module function util_perlin_billowedNoise(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      module function util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), intent(in) ::  x, y, noise_height, freq, pers
+         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
       end function util_perlin_billowedNoise
          
          
-      module function util_perlin_plawNoise(x, y, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
+      module function util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), intent(in) ::  x, y, noise_height, freq, pers,slope
+         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers,slope
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
       end function util_perlin_plawNoise
          
          
-      module function util_perlin_ridgedNoise(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      module function util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), intent(in) ::  x, y, noise_height, freq, pers
+         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
       end function util_perlin_ridgedNoise
          
          
-      module function util_perlin_swissTurbulence(x, y, lacunarity, gain, warp, num_octaves, anchor) result(noise)
+      module function util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), intent(in) ::  x, y, lacunarity, gain, warp
+         real(DP), intent(in) ::  x, y, z, lacunarity, gain, warp
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:), intent(in) :: anchor
          real(DP) :: noise
       end function util_perlin_swissTurbulence
       
          
-      module function util_perlin_jordanTurbulence(x, y, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
+      module function util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
                num_octaves, anchor) result(noise)
          implicit none
-         real(DP),intent(in) :: x, y, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
+         real(DP),intent(in) :: x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
          integer(I4B),intent(in) :: num_octaves
          real(DP), dimension(:,:), intent(in) :: anchor
          real(DP) :: noise

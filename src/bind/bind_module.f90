@@ -26,22 +26,6 @@ module bind_module
    use util
    implicit none
    
-   ! Define possible keyword arguments that can be passed to the Perlin noise functions
-   type, bind(c) :: PerlinArguments
-      real(DP) :: damp
-      real(DP) :: damp0
-      real(DP) :: damp_scale 
-      real(DP) :: freq
-      real(DP) :: gain 
-      real(DP) :: gain0
-      real(DP) :: lacunarity
-      real(DP) :: noise_height
-      real(DP) :: pers
-      real(DP) :: slope 
-      real(DP) :: warp
-      real(DP) :: warp0
-   end type PerlinArguments
-
 contains
 
    type(c_ptr) function bind_surface_init(ny,nx) bind(c)
@@ -51,7 +35,7 @@ contains
       !! that can be used as a struct in C, and ultimately to the Python class object via Cython.
       implicit none
       ! Arguments
-      integer(I4B), value   :: ny, nx !! The dimensions of the array to create. Note, this expects row-major ordering like C
+      integer(I4B), intent(in), value   :: ny, nx !! The dimensions of the array to create. Note, this expects row-major ordering like C
       ! Internals
       type(surface_type), pointer :: f_sim  !! A pointer to the surface type variable that will be passed to Cython
 
@@ -173,8 +157,8 @@ contains
       !! created in Fortran procedures.
       implicit none
       ! Arguments
-      character(len=*) :: f_string  !! Input Fortran-style string
-      character(kind=c_char), dimension(STRMAX), target :: c_string  !! Output C-style string (array of C characters)
+      character(len=*), intent(in) :: f_string  !! Input Fortran-style string
+      character(kind=c_char), dimension(STRMAX), target, intent(out) :: c_string  !! Output C-style string (array of C characters)
       ! Internals 
       integer :: n, i
 
@@ -186,39 +170,50 @@ contains
    end subroutine bind_f2c_string
 
 
-   function bind_perlin_noise(c_model, x, y, num_octaves, anchor, kw) bind(c) result(noise)
+   function bind_perlin_noise(c_model, x, y, z, num_octaves, c_anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
+                                 noise_height, pers, slope, warp, warp0) bind(c) result(noise)
       ! Arguments
       character(kind=c_char), dimension(*), intent(in) :: c_model !! The specific turbulence model to apply
-      real(DP), intent(in) :: x, y  !! The x and y position of the noise to evaluate
-      integer(I4B), intent(in) :: num_octaves
-      real(DP), dimension(:,:), intent(in) :: anchor
-      type(PerlinArguments), intent(in) :: kw
+      real(DP), intent(in), value :: x, y, z  !! The xyz cartesian position of the noise to evaluate
+      real(DP), intent(in), value :: damp, damp0, damp_scale, freq, gain, gain0, lacunarity, noise_height, pers, slope, warp, warp0
+      integer(I4B), intent(in), value :: num_octaves
+      type(c_ptr), intent(in), value :: c_anchor
       ! Return
       real(DP) :: noise
       ! Internals
-      character(len=:), allocatable :: model
+      real(DP), dimension(:,:), pointer :: anchor
+      character(len=STRMAX) :: model
+      
 
       ! Convert from C-style string to Fortran-style
       call bind_c2f_string(c_model, model)
+      if (c_associated(c_anchor)) then
+         call c_f_pointer(c_anchor, anchor,shape=[3,num_octaves]) 
+      else
+         return
+      end if
 
-      select case (model)
+      select case (trim(model))
       case('turbulence')
-         noise = util_perlin_turbulence(x, y, kw%noise_height, kw%freq, kw%pers, num_octaves, anchor) 
+         noise = util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) 
       case('billowed')
-         noise = util_perlin_billowedNoise(x, y, kw%noise_height, kw%freq, kw%pers, num_octaves, anchor)
+         noise = util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
       case('plaw')
-         noise = util_perlin_plawNoise(x, y, kw%noise_height, kw%freq, kw%pers, kw%slope, num_octaves, anchor)
+         noise = util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor)
       case('ridged')
-         noise = util_perlin_ridgedNoise(x, y, kw%noise_height, kw%freq, kw%pers, num_octaves, anchor)
+         noise = util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
       case('swiss')
-         noise = util_perlin_swissTurbulence(x, y, kw%lacunarity, kw%gain, kw%warp, num_octaves, anchor)
+         noise = util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor)
       case('jordan')
-         noise = util_perlin_jordanTurbulence(x, y, kw%lacunarity, kw%gain0, kw%gain, kw%warp0, kw%warp, kw%damp0, kw%damp,& 
-                                                kw%damp_scale, num_octaves, anchor) 
+         noise = util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp,& 
+                                                damp_scale, num_octaves, anchor) 
       case default
          noise = 0.0_DP
       end select
+      return
   end function bind_perlin_noise
+
+
   
 
    

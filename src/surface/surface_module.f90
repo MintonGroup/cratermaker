@@ -11,7 +11,7 @@ module surface
    use globals
 
    type  :: surface_type
-      real(DP), dimension(:,:), allocatable :: elevation    !! Elevation of surface
+      real(DP), dimension(:,:), allocatable :: elevation    !! Elevation of surface mesh relative to the datum
       character(len=STRMAX)                 :: stringvar    !! A placeholder for a string component variable
    contains
       procedure :: allocate   => surface_allocate   !! Allocate the allocatable components of the class

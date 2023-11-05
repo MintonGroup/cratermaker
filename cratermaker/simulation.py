@@ -1,8 +1,8 @@
-from ._surface import _SurfaceBind
-import xarray as xr
+from ._bind import _SurfaceBind
 import numpy as np
 import jigsawpy
 import os
+import trimesh
 from numpy.random import default_rng
 
 # Define some basic parameters
@@ -23,7 +23,7 @@ class Simulation(object):
         # TODO: Initialize with configure options as arguments or read in configuration file
         self.config = {
             "body" : "Moon", # Which body to simulation (Options are "Moon","Custom" )
-            "pix"  : 6.16e3, # Approximate cell global cell size
+            "pix"  : 6.16e3, # Approximate cell global cell size to make a body with 1e6 faces 
             "cachedir" : os.path.join(self.cwd,".cache"), # Directory location of output files
             "meshname" : "body", # Name of files generated during mesh process
             "seed" : 5421109845, # RNG seed
@@ -33,12 +33,14 @@ class Simulation(object):
         if self.config['body'] != 'Custom':
             self.config['body_radius'] = body_radius_values[self.config['body']]
            
-        # Set up Jigsaw mesh files and mesh body if a file doesn't already exist
-        self.meshfile = os.path.join(self.config['cachedir'],f"{self.config['meshname']}.msh")
         if not os.path.exists(self.config['cachedir']):
             os.mkdir(self.config['cachedir'])
-        if not os.path.exists(self.meshfile):
-            self.mesh_body()   
+            
+        if os.path.exists(os.path.join(self.config['cachedir'],f"{self.config['meshname']}.glb")):
+            self.load_body_mesh()
+        else:
+            self.make_body_mesh()
+               
             
         self.rng = default_rng(seed=self.config['seed'])
         # self._surface = _SurfaceBind(gridshape)     
@@ -64,41 +66,66 @@ class Simulation(object):
     def set_elevation(self, elevation_array):
         self._surface.set_elevation(elevation_array)
 
-    def mesh_body(self):
+    def make_body_mesh(self):
+        '''
+            This will use jigsawpy to tesselate a sphere to make our intial mesh. This will then be converted to a GLB format
+        '''
+        
         # This will get updated evantually after we're done testing
-        meshname=self.config['meshname']
-        cachedir=self.config['cachedir']
         # Set up jigsaw objects
         opts = jigsawpy.jigsaw_jig_t()
         geom = jigsawpy.jigsaw_msh_t()
         mesh = jigsawpy.jigsaw_msh_t()
-
-        # Define file names
-        opts.geom_file = os.path.join(cachedir,f"{meshname}_base.msh")
+        
+        # Set up Jigsaw mesh files and mesh body if a file doesn't already exist
+        meshname=self.config['meshname']
+        cachedir=self.config['cachedir']  
         opts.jcfg_file = os.path.join(cachedir,f"{meshname}.jig")
         opts.mesh_file = os.path.join(cachedir,f"{meshname}.msh")
-
+        opts.geom_file = os.path.join(cachedir,f"{meshname}_base.msh")
+        
         # Define basic sphere using the built-in ellipsoid mesh model
         geom.mshID = "ellipsoid-mesh"
         geom.radii = np.full(3, self.config['body_radius'], dtype=geom.REALS_t)
-        jigsawpy.savemsh(opts.geom_file, geom)
+        jigsawpy.savemsh(opts.geom_file,geom)
 
         # Set mesh options
         opts.hfun_scal = "absolute"  #scaling type for mesh-size function, either "relative" or "absolute." For "relative" mesh-size values as percentages of the (mean) length of the axis-aligned bounding-box (AABB) associated with the geometry. "absolute" interprets mesh-size values as absolute measures.
-        opts.hfun_hmax = self.config['pix']       # mesh-size function value (meaning depends on hfun_scal: for "relative" it is a percentage, and for "absolute" it is a dimensional value)
+        opts.hfun_hmax = np.sqrt(2.0) * self.config['pix']       # mesh-size function value. The "pix" value is adjusted to keep it scaled  to roughly the same as the older CTEM pix
         opts.mesh_dims = +2          # Number of mesh dimensions (2 for surface mesh, 3 for volume)
         opts.optm_qlim = +9.5E-01    # threshold on mesh cost function above which gradient-based optimisation is attempted.
-        opts.optm_iter = +32         # max. number of mesh optimisation iterations. 
+        opts.optm_iter = +64         # max. number of mesh optimisation iterations. 
         opts.optm_qtol = +1.0E-05    # tolerance on mesh cost function for convergence. Iteration on a given node is terminated if adjacent element cost-functions are improved by less than QTOL.
         opts.mesh_kern = "delfront"  # meshing kernel, choice of the standard Delaunay-refinement algorithm ('delaunay') or the Frontal-Delaunay method ('delfront').
-
+        
         # Generate tesselated mesh
         jigsawpy.cmd.jigsaw(opts, mesh)
+        
+        # Convert the mesh to trimesh
+        # Ensure the vertex and face data is in numpy array format
+        vertices = np.array([vert[0] for vert in mesh.vert3])
+        faces = np.array([face[0] for face in mesh.tria3])
 
-        scr2 = jigsawpy.triscr2(            # "quality" metric
-            mesh.point["coord"],
-            mesh.tria3["index"])
-
-        jigsawpy.savevtk(os.path.join(cachedir,f"{meshname}.vtk"), mesh)
-        self.mesh = mesh
+        # Create a trimesh object
+        self.mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+       
+        # Save generated mesh 
+        export = self.mesh.export(os.path.join(cachedir,f"{meshname}.glb"))
+        
         return
+    
+    
+    def load_body_mesh(self):
+        
+        # Set up Jigsaw mesh files and mesh body if a file doesn't already exist
+        meshname=self.config['meshname']
+        cachedir=self.config['cachedir']  
+          
+        # This is not well documented, but trimesh reads the mesh in as a Scene instead of a Trimesh, so we need to extract the actual mesh
+        scene = trimesh.load_mesh(os.path.join(cachedir,f"{meshname}.glb"))
+        
+        # Assuming that the only geometry in the file is the body mesh, this should work
+        self.mesh = next(iter(scene.geometry.values()))
+        
+        return
+       

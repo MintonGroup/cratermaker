@@ -11,34 +11,39 @@ submodule (util) s_util_perlin
    use globals
 contains
 
-   module subroutine util_perlin_noise(xx,yy,noise,dx,dy)
+   module subroutine util_perlin_noise(xx,yy,zz,noise,dx,dy,dz)
       ! Perlin noise with derivatives. Adapted from Ken Perlin's original code, with derivatives
       ! that are used in the noise functions by Giliam de Carpentier
       implicit none
-      real(DP),intent(in) :: xx,yy
+      real(DP),intent(in) :: xx,yy,zz
       real(DP),intent(out) :: noise
-      real(DP),intent(out),optional :: dx, dy
+      real(DP),intent(out),optional :: dx, dy, dz
    
       ! Internal variables
-      integer(I4B) :: xi,yi,A,B,AA,BB,AB,BA
-      real(DP) :: x,y
+      integer(I4B) :: xi,yi,zi,A,B,AA,BB,AB,BA
+      real(DP) :: x,y,z
    
       ! Intermediate variables used to calculate noise
-      real(DP) :: u,v
-      real(DP) :: GA1,GB1,GA2,GB2
-      real(DP) :: L1,L2
+      real(DP) :: u,v,w
+      real(DP) :: GA1,GB1,GA2,GB2,GA3,GB3,GA4,GB4
+      real(DP) :: L1,L2,L3,L4,LL1,LL2
    
       ! Intermediate variables used to calculate the derivative wrt x
-      real(DP) :: ux,vx
-      real(DP) :: GA1x,GB1x,GA2x,GB2x
-      real(DP) :: L1x,L2x
+      real(DP) :: ux,vx,wx
+      real(DP) :: GA1x,GB1x,GA2x,GB2x,GA3x,GB3x,GA4x,GB4x
+      real(DP) :: L1x,L2x,L3x,L4x,LL1x,LL2x
    
       ! Intermediate variables used to calculate the derivative wrt y
-      real(DP) :: uy,vy
-      real(DP) :: GA1y,GB1y,GA2y,GB2y
-      real(DP) :: L1y,L2y
+      real(DP) :: uy,vy,wy
+      real(DP) :: GA1y,GB1y,GA2y,GB2y,GA3y,GB3y,GA4y,GB4y
+      real(DP) :: L1y,L2y,L3y,L4y,LL1y,LL2y
    
-      real(DP),parameter :: hcorrection = 1.25 !2.0_DP / SQRT2
+      ! Intermediate variables used to calculate the derivative wrt z
+      real(DP) :: uz,vz,wz
+      real(DP) :: GA1z,GB1z,GA2z,GB2z,GA3z,GB3z,GA4z,GB4z
+      real(DP) :: L1z,L2z,L3z,L4z,LL1z,LL2z
+   
+      real(DP),parameter :: hcorrection = 1.25_DP 
    
       integer(I4B),dimension(0:511),parameter :: p = (/ 151,160,137,91,90,15, &
       131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,&
@@ -69,60 +74,119 @@ contains
    
       x = xx
       y = yy
+      z = zz
       xi = iand(floor(x),255)
       yi = iand(floor(y),255)
+      zi = iand(floor(z),255)
       x = x - real(floor(x), kind=DP)
       y = y - real(floor(y), kind=DP)
+      z = z - real(floor(z), kind=DP)
       u = fade(x)
       v = fade(y)
+      w = fade(z)
    
       A = p(xi) + yi
       B = p(xi + 1) + yi
    
-      AA = p(A) 
-      BA = p(B) 
+      AA = p(A) + zi
+      BA = p(B) + zi
    
-      AB = p(A + 1) 
-      BB = p(B + 1) 
+      AB = p(A + 1) + zi
+      BB = p(B + 1) + zi
    
-      GA1 = grad(p(AA), x        , y        )
-      GB1 = grad(p(BA), x - 1._DP, y        )
-      GA2 = grad(p(AB), x        , y - 1._DP)
-      GB2 = grad(p(BB), x - 1._DP, y - 1._DP)
+      GA1 = grad(p(AA    ), x        , y        , z)
+      GB1 = grad(p(BA    ), x - 1._DP, y        , z)
+      GA2 = grad(p(AB    ), x        , y - 1._DP, z)
+      GB2 = grad(p(BB    ), x - 1._DP, y - 1._DP, z)
+      GA3 = grad(p(AA + 1), x        , y        , z - 1._DP)
+      GB3 = grad(p(BA + 1), x - 1._DP, y        , z - 1._DP)
+      GA4 = grad(p(AB + 1), x        , y - 1._DP, z - 1._DP)
+      GB4 = grad(p(BB + 1), x - 1._DP, y - 1._DP, z - 1._DP)
+
    
       L1 = lerp(u, GA1, GB1)
       L2 = lerp(u, GA2, GB2)
+      L3 = lerp(u, GA3, GB3)
+      L4 = lerp(u, GA4, GB4)
+
+      LL1 = lerp(v, L1, L2)
+      LL2 = lerp(v, L3, L4)
      
-      noise = hcorrection * lerp(v, L1, L2)
-   
-      if (present(dx).and.present(dy)) then
-   
+      noise = hcorrection * lerp(w, LL1, LL2)
+
+      if (present(dx)) then
          ! Calculate derivatives wrt x
          ux = dfade(x)
          vx = 0.0_DP
-         GA1x = grad(p(AA),1._DP,0._DP)
-         GB1x = grad(p(BA),1._DP,0._DP)
-         GA2x = grad(p(AB),1._DP,0._DP)
-         GB2x = grad(p(BB),1._DP,0._DP)
+         wx = 0.0_DP
+         GA1x = grad(p(AA    ), 1._DP, 0._DP, 0._DP)
+         GB1x = grad(p(BA    ), 1._DP, 0._DP, 0._DP)
+         GA2x = grad(p(AB    ), 1._DP, 0._DP, 0._DP)
+         GB2x = grad(p(BB    ), 1._DP, 0._DP, 0._DP)
+         GA3x = grad(p(AA + 1), 1._DP, 0._DP, 0._DP)
+         GB3x = grad(p(BA + 1), 1._DP, 0._DP, 0._DP)
+         GA4x = grad(p(AB + 1), 1._DP, 0._DP, 0._DP)
+         GB4x = grad(p(BB + 1), 1._DP, 0._DP, 0._DP)
    
          L1x = dlerp(u, GA1, GB1, ux, GA1x, GB1x)
          L2x = dlerp(u, GA2, GB2, ux, GA2x, GB2x)
-   
-         dx = hcorrection * dlerp(v, L1, L2, vx, L1x, L2x)
-   
+         L3x = dlerp(u, GA3, GB3, ux, GA3x, GB3x)
+         L4x = dlerp(u, GA4, GB4, ux, GA4x, GB4x)
+    
+         LL1x = dlerp(v, L1, L2, vx, L1x, L2x)
+         LL2x = dlerp(v, L3, L4, vx, L3x, L4x)
+    
+         dx = hcorrection * dlerp(w, LL1, LL2, wx, LL1x, LL2x)
+      end if
+
+      if (present(dy)) then
          ! Calculate derivatives wrt y
          uy = 0.0_DP
          vy = dfade(y)
-         GA1y = grad(p(AA),0._DP,1._DP)
-         GB1y = grad(p(BA),0._DP,1._DP)
-         GA2y = grad(p(AB),0._DP,1._DP)
-         GB2y = grad(p(BB),0._DP,1._DP)
+         wy = 0.0_DP
+         GA1y = grad(p(AA    ), 0._DP, 1._DP, 0._DP)
+         GB1y = grad(p(BA    ), 0._DP, 1._DP, 0._DP)
+         GA2y = grad(p(AB    ), 0._DP, 1._DP, 0._DP)
+         GB2y = grad(p(BB    ), 0._DP, 1._DP, 0._DP)
+         GA3y = grad(p(AA + 1), 0._DP, 1._DP, 0._DP)
+         GB3y = grad(p(BA + 1), 0._DP, 1._DP, 0._DP)
+         GA4y = grad(p(AB + 1), 0._DP, 1._DP, 0._DP)
+         GB4y = grad(p(BB + 1), 0._DP, 1._DP, 0._DP)
    
          L1y = dlerp(u, GA1, GB1, uy, GA1y, GB1y)
          L2y = dlerp(u, GA2, GB2, uy, GA2y, GB2y)
+         L3y = dlerp(u, GA3, GB3, uy, GA3y, GB3y)
+         L4y = dlerp(u, GA4, GB4, uy, GA4y, GB4y)
+    
+         LL1y = dlerp(v, L1, L2, vy, L1y, L2y)
+         LL2y = dlerp(v, L3, L4, vy, L3y, L4y)
+    
+         dy = hcorrection * dlerp(w, LL1, LL2, wy, LL1y, LL2y)
+      end if
+
+      if (present(dz)) then
+         ! Calculate derivatives wrt z
+         uz = 0.0_DP
+         vz = 0.0_DP
+         wz = dfade(z)
+         GA1z = grad(p(AA    ), 0._DP, 0._DP, 1._DP)
+         GB1z = grad(p(BA    ), 0._DP, 0._DP, 1._DP)
+         GA2z = grad(p(AB    ), 0._DP, 0._DP, 1._DP)
+         GB2z = grad(p(BB    ), 0._DP, 0._DP, 1._DP)
+         GA3z = grad(p(AA + 1), 0._DP, 0._DP, 1._DP)
+         GB3z = grad(p(BA + 1), 0._DP, 0._DP, 1._DP)
+         GA4z = grad(p(AB + 1), 0._DP, 0._DP, 1._DP)
+         GB4z = grad(p(BB + 1), 0._DP, 0._DP, 1._DP)
    
-         dy = hcorrection * dlerp(v, L1, L2, vy, L1y, L2y)
-   
+         L1z = dlerp(u, GA1, GB1, uz, GA1z, GB1z)
+         L2z = dlerp(u, GA2, GB2, uz, GA2z, GB2z)
+         L3z = dlerp(u, GA3, GB3, uz, GA3z, GB3z)
+         L4z = dlerp(u, GA4, GB4, uz, GA4z, GB4z)
+    
+         LL1z = dlerp(v, L1, L2, vz, L1z, L2z)
+         LL2z = dlerp(v, L3, L4, vz, L3z, L4z)
+    
+         dz = hcorrection * dlerp(w, LL1, LL2, wz, LL1z, LL2z)
       end if
    
       return
@@ -138,16 +202,16 @@ contains
             return
             end function fade
       
-            function dfade(t) result(df)
+         function dfade(t) result(df)
             implicit none
             real(DP),intent(in) :: t
             real(DP) :: df
       
             df = t * t * (t * (t * 30._DP - 60._DP) + 30._DP)
             return
-            end function dfade
+         end function dfade
       
-            function lerp(t,a,b) result(l)
+         function lerp(t,a,b) result(l)
             implicit none
             real(DP),intent(in) :: t,a,b
             real(DP) :: l
@@ -167,11 +231,10 @@ contains
             return
          end function dlerp
    
-   
-         function grad(hash,x,y) result(g)
+         function grad(hash,x,y,z) result(g)
             implicit none
             integer(I4B),intent(in) :: hash
-            real(DP),intent(in) :: x,y
+            real(DP),intent(in) :: x,y,z
             real(DP) :: g,u,v
             integer(I4B) :: h
       
@@ -186,7 +249,7 @@ contains
             else if ((h == 12) .or. (h == 14)) then
                v = x
             else
-               v = 0._DP
+               v = z
             end if
             if (iand(h,1 ) == 0) then
                g = u
@@ -198,23 +261,21 @@ contains
             else
                g = g - v
             end if
-
             return
          end function grad
-   
    
    end subroutine util_perlin_noise
 
 
-   module function util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
+   module function util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
-      real(DP), intent(in) ::  x, y, noise_height, freq, pers
+      real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
       integer(I4B), intent(in) :: num_octaves
       real(DP), dimension(:,:),intent(in) :: anchor
-      real(DP) :: noise,xnew,ynew,norm,rx,ry,thetai
+      real(DP) :: noise,xnew,ynew,znew,norm
       
       integer(I4B) :: i
-      real(DP) :: spatial_fac, noise_mag,dn,dx,dy
+      real(DP) :: spatial_fac, noise_mag,dn
       
       noise = 0.0_DP
       norm = 0.5_DP
@@ -222,12 +283,10 @@ contains
          spatial_fac = freq ** (i - 1)
          noise_mag = pers ** (i - 1)
          norm = norm + 0.5_DP * noise_mag
-         thetai = anchor(3,i)
-         rx = x * cos(thetai) - y * sin(thetai)
-         ry = x * sin(thetai) + y * cos(thetai)
-         xnew = (rx + anchor(1,i)) * spatial_fac
-         ynew = (ry + anchor(2,i)) * spatial_fac
-         call util_perlin_noise(xnew,ynew,dn)
+         xnew = (x + anchor(1,i)) * spatial_fac
+         ynew = (y + anchor(2,i)) * spatial_fac
+         znew = (z + anchor(3,i)) * spatial_fac
+         call util_perlin_noise(xnew,ynew,znew,dn)
          noise = noise + dn * noise_mag
       end do
       
@@ -239,58 +298,58 @@ contains
 
 
 
-   module function util_perlin_billowedNoise(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
+   module function util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
-      real(DP), intent(in) ::  x, y, noise_height, freq, pers
+      real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
       integer(I4B), intent(in) :: num_octaves
       real(DP),dimension(:,:),intent(in) :: anchor
       real(DP) :: noise
       
-      noise = abs(util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor))
+      noise = abs(util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor))
       
       return
    end function util_perlin_billowedNoise
       
       
-   module function util_perlin_plawNoise(x, y, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
+   module function util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
       implicit none
-      real(DP), intent(in) ::  x, y, noise_height, freq, pers,slope
+      real(DP), intent(in) ::  x, y, z, noise_height, freq, pers,slope
       integer(I4B), intent(in) :: num_octaves
       real(DP),dimension(:,:),intent(in) :: anchor
       real(DP) :: noise
       
-      noise = util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor)
+      noise = util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor)
       noise = sign(abs(noise)**(slope),noise)
       
       return
    end function util_perlin_plawNoise
       
       
-   module function util_perlin_ridgedNoise(x, y, noise_height, freq, pers, num_octaves, anchor) result(noise)
+   module function util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
-      real(DP), intent(in) ::  x, y, noise_height, freq, pers
+      real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
       integer(I4B), intent(in) :: num_octaves
       real(DP),dimension(:,:),intent(in) :: anchor
       real(DP) :: noise
       
-      noise = noise_height - abs(util_perlin_turbulence(x, y, noise_height, freq, pers, num_octaves, anchor))
+      noise = noise_height - abs(util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor))
       
       return
    end function util_perlin_ridgedNoise
       
       
-   module function util_perlin_swissTurbulence(x, y, lacunarity, gain, warp, num_octaves, anchor) result(noise)
+   module function util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
       implicit none
       ! Arguments
-      real(DP), intent(in) ::  x, y, lacunarity, gain, warp
+      real(DP), intent(in) ::  x, y, z, lacunarity, gain, warp
       integer(I4B), intent(in) :: num_octaves
       real(DP),dimension(:,:), intent(in) :: anchor
       ! Result
       real(DP) :: noise
       ! Internals
-      real(DP) :: freq, amp,newx,newy,norm
-      real(DP),dimension(2) :: dsum
-      real(DP),dimension(3) :: n
+      real(DP) :: freq, amp,xnew,ynew,znew, norm
+      real(DP),dimension(3) :: dsum
+      real(DP),dimension(4) :: n
       integer(I4B) :: i
    
       noise =  0.0_DP
@@ -301,44 +360,46 @@ contains
       norm = 0.5_DP
          
       do i = 1, num_octaves 
-         newx = (x + anchor(1,i) + warp * dsum(1)) * freq
-         newy = (y + anchor(2,i) + warp * dsum(2)) * freq
-         call util_perlin_noise(newx,newy,n(1),dx = n(2),dy = n(3))
+         xnew = (x + anchor(1,i) + warp * dsum(1)) * freq
+         ynew = (y + anchor(2,i) + warp * dsum(2)) * freq
+         znew = (z + anchor(3,i) + warp * dsum(3)) * freq
+         call util_perlin_noise(xnew,ynew,znew,n(1),dx = n(2),dy = n(3), dz = n(4))
          noise = noise + amp * (1._DP - abs(n(1)))
          norm = norm + amp
-         dsum(:) = dsum(:) + amp * n(2:3) * (-n(1))
+         dsum(:) = dsum(:) + amp * n(2:4) * (-n(1))
          freq = freq * lacunarity;
          amp = amp * gain * max(min(noise,1.0_DP),0.0_DP)
       end do
-      noise = noise  !/ norm
+      noise = noise  
       return
    
    end function util_perlin_swissTurbulence
    
       
-   module function util_perlin_jordanTurbulence(x, y, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
+   module function util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
             num_octaves, anchor) result(noise)
       ! Fortran implementation of noise function by Giliam de Carpentier
       implicit none
-      real(DP),intent(in) :: x, y, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
+      real(DP),intent(in) :: x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
       integer(I4B),intent(in) :: num_octaves
       real(DP), dimension(:,:), intent(in) :: anchor
       ! Result variable
       real(DP) :: noise
    
       ! Internal variables
-      real(DP),dimension(3) :: n,n2
-      real(DP),dimension(2) :: dsum_warp,dsum_damp
-      real(DP) :: freq,damped_amp,xnew,ynew,amp
+      real(DP),dimension(4) :: n,n2
+      real(DP),dimension(3) :: dsum_warp,dsum_damp
+      real(DP) :: freq,damped_amp,xnew,ynew,znew, amp
       integer(I4B) :: i
    
       xnew = x + anchor(1,1)
       ynew = y + anchor(2,1)
-      call util_perlin_noise(xnew,ynew,n(1),dx = n(2),dy = n(3))
+      znew = z + anchor(3,1)
+      call util_perlin_noise(xnew,ynew,znew, n(1),dx = n(2),dy = n(3), dz = n(4))
       n2(:) = n(:) * n(1)
       noise = n2(1)
-      dsum_warp(:) = warp0 * n2(2:3)
-      dsum_damp(:) = damp0 * n2(2:3)
+      dsum_warp(:) = warp0 * n2(2:4)
+      dsum_damp(:) = damp0 * n2(2:4)
    
       freq = lacunarity
       amp = gain0
@@ -347,11 +408,12 @@ contains
       do i = 2, num_octaves
          xnew = x * freq + dsum_warp(1) + anchor(1,i)
          ynew = y * freq + dsum_warp(2) + anchor(2,i)
-         call util_perlin_noise(xnew,ynew,n(1),dx = n(2),dy = n(3))
+         znew = z * freq + dsum_warp(3) + anchor(3,i)
+         call util_perlin_noise(xnew,ynew,znew,n(1),dx = n(2),dy = n(3),dz = n(4))
          n2(:) = n(:) * n(1)
          noise = noise + damped_amp * n2(1)
-         dsum_warp(:) = dsum_warp(:) + warp * n2(2:3)
-         dsum_damp(:) = dsum_damp(:) + damp * n2(2:3)
+         dsum_warp(:) = dsum_warp(:) + warp * n2(2:4)
+         dsum_damp(:) = dsum_damp(:) + damp * n2(2:4)
          freq = freq * lacunarity
          amp = amp * gain
          damped_amp = amp * (1._DP - damp_scale / (1._DP + dot_product(dsum_damp(:),dsum_damp(:))))
