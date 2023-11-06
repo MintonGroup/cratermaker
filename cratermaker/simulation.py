@@ -10,67 +10,141 @@ class Target:
     # Define some built-in catalogue values for known solar system targets of interest
     gEarth = 9.80665 # 1 g in SI units
    
-    catalogue_properties = [
-        "name",    "radius",   "gravity"
+    body_properties = [
+        "name",    "radius",   "gravity",      "material"
     ]
-    catalogue_values = [
-        ("Mercury", 2440.0e3,  0.377 * gEarth),
-        ("Venus",   6051.84e3, 0.905 * gEarth),
-        ("Earth",   6371.01e3, 1.0   * gEarth),
-        ("Moon",    1737.53e3, 0.1657* gEarth),
-        ("Mars",    3389.92e3, 0.379 * gEarth),
-        ("Ceres",   469.7e3,   0.29  * gEarth),
-        ("Vesta",   262.7e3,   0.25  * gEarth),
-        ("Custom",  None,      None)
+    body_values = [
+        ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft rock"),
+        ("Venus",   6051.84e3, 0.905 * gEarth, "Hard rock"),
+        ("Earth",   6371.01e3, 1.0   * gEarth, "Wet soil"),
+        ("Moon",    1737.53e3, 0.1657* gEarth, "Soft rock"),
+        ("Mars",    3389.92e3, 0.379 * gEarth, "Soft rock"),
+        ("Ceres",   469.7e3,   0.29  * gEarth, "Ice"     ),
+        ("Vesta",   262.7e3,   0.25  * gEarth, "Soft rock"),
+    ]
+   
+    # Define some default crater scaling relationship terms (see Richardson 2009, Table 1) 
+    material_properties = [
+        "name",       "K1",     "mu",   "Ybar",     "density" 
+    ]
+    material_values = [
+        ("Water",     2.30,     0.55,   0.0,        1000.0),
+        ("Sand",      0.24,     0.41,   0.0,        1750.0),
+        ("Dry Soil",  0.24,     0.41,   0.18,       1500.0),
+        ("Wet Soil",  0.20,     0.55,   1.14,       2000.0),
+        ("Soft Rock", 0.20,     0.55,   7.60,       2250.0),
+        ("Hard Rock", 0.20,     0.55,   18.0,       2500.0),
+        ("Ice",       2.30,     0.39,   0.0,        900.0), # TODO: Update these based on Kraus, Senft, and Stewart (2011) 
     ]
 
-
-    def __init__(self, body_name="Moon"):
-        self.set_properties(body_name)
-
-        # Initialize the target's attributes
-        self.density    = None
-        self.strength   = None
-        self.mu         = None
-        self.kv         = None
-        self.simple_complex_transition_diameter = None
+    def __init__(self, **kwargs):
+        # Define all valid properties for the Target object
+        self.name = None
+        self.radius = None
+        self.gravity = None 
+        self.material = 'Soft Rock'
+        self.K1 = None
+        self.mu = None
+        self.Ybar = None
+        self.crustal_density = None
+        
+        # Set properties for the Target object based on the arguments passed to the function
+        self.set_properties(**kwargs)
         
         return
     
     @staticmethod
-    def create_target_catalogue(self):
+    def create_body_catalogue(self):
         # Create the catalogue dictionary using the class variables
-        target_catalogue = {
-            body[0]: dict(zip(self.catalogue_properties, body))
-            for body in self.catalogue_values
+        body_catalogue = {
+            body[0]: dict(zip(self.body_properties, body))
+            for body in self.body_values
         }
 
         # Remove the 'name' key from each dictionary in the catalogue
-        for body_name in list(target_catalogue):
-            del target_catalogue[body_name]['name']
+        for body_name in list(body_catalogue):
+            del body_catalogue[body_name]['name']
 
-        return target_catalogue
+        return body_catalogue
+    
+    
+    @staticmethod
+    def create_material_catalogue(self):
+        # Create the catalogue dictionary using the class variables
+        material_catalogue = {
+            material[0]: dict(zip(self.material_properties, material))
+            for material in self.material_values
+        }
+
+        # Remove the 'name' key from each dictionary in the catalogue
+        for material_name in list(material_catalogue):
+            del material_catalogue[material_name]['name']
+
+        return material_catalogue 
     
    
-    def set_properties(self, target_name):
-        properties = self.target_catalogue.get(target_name)
-        if properties:
-            self.radius = properties["radius"]
-            self.gravity = properties["gravity"]
+    def set_properties(self, **kwargs):
+        
+        # If the "name" variable is passed, look the name up in the catalogue and set properties to those from the catalogue
+        self.name = kwargs.get('name', None)
+        if self.name is not None:
+            self.name = self.name.title()
+        
+        body_properties = self.body_catalogue.get(self.name)
+        if body_properties: # The name was found in the catalogue
+            print(f"{self.name} was found in the catalogue of known bodies.")
+            self.radius = body_properties.get('radius', self.radius)
+            self.gravity = body_properties.get('gravity', self.gravity)
+            self.material = body_properties.get('material', self.material)
+        elif self.name is not None:
+            print(f"{self.name} was not found in the catalogue. Setting custom properties for this target body")
         else:
-            raise ValueError(f'Target {target_name} not found in catalogue. Use "Custom" instead')
+            raise ValueError("A name must be supplied to generate a custom target body!")
+        
+        # Override body properties with input arguments if provided 
+        self.radius = kwargs.get('radius', self.radius)  
+        self.gravity = kwargs.get('gravity', self.gravity)
+        self.material = kwargs.get('material',self.material)
+        
+        # Look up material in the catalogue
+        if self.material is not None:
+            self.material = self.material.title()
+        material_properties = self.material_catalogue.get(self.material)
+        if material_properties: # The material was found in the catalogue
+            print(f"{self.material} was found in the catalogue of known materials.")
+            self.K1 = material_properties.get('K1', self.K1)
+            self.mu = material_properties.get('mu', self.mu)
+            self.Ybar = material_properties.get('Ybar', self.Ybar)
+            self.crustal_density = material_properties.get('density', self.crustal_density)
+        elif self.material is not None:
+            print(f"{self.material} was not found in the catalogue. Setting custom properties for this material")
+        else:
+            raise ValueError("A valid material must must be supplied, or a name must be supplied to generate a custom target material!")
+           
+        # Override material properties with input arguments if provided
+        self.K1 = kwargs.get('K1', self.K1) 
+        self.mu = kwargs.get('mu', self.mu) 
+        self.Ybar = kwargs.get('Ybar', self.Ybar) 
+        self.crustal_density = kwargs.get('crustal_density', self.crustal_density)
+
+        # Check for any unset properties
+        for property_name, value in self.__dict__.items():
+            if value is None:
+                raise ValueError(f"The property {property_name} has not been set!")
+        return
+        
  
-Target.target_catalogue = Target.create_target_catalogue(Target)
+Target.body_catalogue = Target.create_body_catalogue(Target)
+Target.material_catalogue = Target.create_material_catalogue(Target)
 class Projectile:
     def __init__(self):
         # Initialize the projectile's attributes
         self.sfd   = None
-        self.density = None
         self.radius = None
         self.diameter = None
         self.velocity = None
         self.sin_impact_angle = None
-        self.vertical_velocity = None 
+        self.vertical_velocity = None
         
         return
 
@@ -86,8 +160,9 @@ class Simulation(object):
     """
     This is a class that defines the basic Cratermaker body object. 
     """
-    def __init__(self, target_name="Moon"):
-        self.target = Target(target_name)
+    def __init__(self, name="Moon", **kwargs):
+        kwargs['name'] = name
+        self.target = Target(**kwargs)
         # Set default configuration options
         # TODO: Initialize with configure options as arguments or read in configuration file
         self.config = {
