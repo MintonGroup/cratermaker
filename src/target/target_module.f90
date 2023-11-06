@@ -7,64 +7,64 @@
 !! You should have received a copy of the GNU General Public License along with pyoof. 
 !! If not, see: https://www.gnu.org/licenses. 
 
-module surface
+module target_body
    use globals
 
-   type  :: surface_type
+   type  :: target_body_type 
       real(DP), dimension(:,:), allocatable :: elevation    !! Elevation of surface mesh relative to the datum
-      character(len=STRMAX)                 :: stringvar    !! A placeholder for a string component variable
+      character(len=STRMAX)                 :: name    !! A placeholder for a string component variable
    contains
-      procedure :: allocate   => surface_allocate   !! Allocate the allocatable components of the class
-      procedure :: deallocate => surface_deallocate !! Deallocate all allocatable components of the class
-      final     ::               surface_final      !! Finalizer (calls deallocate)
-   end type surface_type
+      procedure :: allocate   => target_body_allocate   !! Allocate the allocatable components of the class
+      procedure :: deallocate => target_body_deallocate !! Deallocate all allocatable components of the class
+      final     ::               target_body_final      !! Finalizer (calls deallocate)
+   end type target_body_type
 
 
 contains
 
-   subroutine surface_allocate(self, nx, ny)
+   subroutine target_body_allocate(self, nx, ny)
       !! author: David A. Minton
       !!
       !! Allocate the allocatable components of the class
       implicit none
       ! Arguments
-      class(surface_type), intent(inout) :: self   !! Simulation object
+      class(target_body_type), intent(inout) :: self   !! Simulation object
       integer(I4B),        intent(in)    :: nx, ny !! Size of the grid
 
       allocate(self%elevation(nx,ny))
 
       self%elevation(:,:) = 0.0_DP
-      self%stringvar = "Initialized in Fortran"
+      self%name = "None"
 
       return
-   end subroutine surface_allocate
+   end subroutine target_body_allocate
 
 
-   subroutine surface_deallocate(self) 
+   subroutine target_body_deallocate(self) 
       !! author: David A. Minton
       !!
       !! Deallocate the allocatable components of the class
       implicit none
       ! Arguments
-      class(surface_type), intent(inout) :: self !! Surface object
+      class(target_body_type), intent(inout) :: self !! Surface object
 
       deallocate(self%elevation)
 
       return
-   end subroutine surface_deallocate
+   end subroutine target_body_deallocate
 
 
-   subroutine surface_final(self)
+   subroutine target_body_final(self)
       !! author: David A. Minton
       !!
       !! Finalizer for the surface object
       implicit none
       ! Arguments
-      type(surface_type), intent(inout) :: self
+      type(target_body_type), intent(inout) :: self
 
       call self%deallocate()
       return
-   end subroutine surface_final
+   end subroutine target_body_final
 
 
-end module surface
+end module target_body

@@ -16,12 +16,10 @@ CONFIGURE_FILE(${GLOBAL_MODULE_IN} ${GLOBAL_MODULE_OUT})
 SET(SRC_FILES
     ${SRC}/globals/globals_module.f90
     ${SRC}/bind/bind_module.f90
-    ${SRC}/surface/surface_module.f90
     ${SRC}/simulation/simulation_module.f90
-    ${SRC}/crater/crater_module.f90
+    ${SRC}/target/target_module.f90
     ${SRC}/driver_module.f90
     ${SRC}/util/util_module.f90
-    ${SRC}/crater/crater.f90
     ${SRC}/util/util.f90
 )
 

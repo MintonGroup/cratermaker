@@ -11,7 +11,7 @@
 module globals
    !! author: David A. Minton
    !!
-   !! Basic parameters, definitions, and global type definitions used throughout the PyOOF project
+   !! Basic parameters, definitions, and global type definitions used throughout the Cratermaker project
    use, intrinsic :: iso_c_binding  ! Use the intrinsic kind definitions
    implicit none
    public

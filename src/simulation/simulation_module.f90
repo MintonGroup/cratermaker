@@ -1,22 +1,20 @@
 !! Copyright 2023 - David Minton
-!! This file is part of PyOOF
-!! PyOOF is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
+!! This file is part of Cratermaker
+!! Cratermaker is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
 !! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-!! pyoof is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+!! Cratermaker is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
 !! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-!! You should have received a copy of the GNU General Public License along with pyoof. 
+!! You should have received a copy of the GNU General Public License along with Cratermaker. 
 !! If not, see: https://www.gnu.org/licenses. 
 
 module simulation
    use globals
-   use surface, only : surface_type
+   use target_body, only : target_body_type
 
-   type, extends(surface_type)  :: simulation_type
+   type, extends(target_body_type)  :: simulation_type
    contains
       final     ::               simulation_final      !! Finalizer (calls deallocate)
    end type simulation_type
-
-
 
 
 type configtype
@@ -27,14 +25,9 @@ type configtype
    real(DP)          :: mu        ! Crater scaling exponential constant (ignored for basins)
    real(DP)          :: kv        ! Crater scaling linear constant
    integer(I4B)      :: seed      ! Random number generator seed (only used in non-IDL driven mode)
-   real(DP)          :: targetDensity      ! Target surface density
-   real(DP)          :: Ybar      ! Targetstrength (Pa)
-   real(DP)          :: bodyGravityAccel  ! Gravitational accel at target
-   real(DP)          :: targetBodyRadius 
-   real(DP)          :: projectileDensity   
+
    character(STRMAX) :: sfdfile   ! Name of size distribution file
    character(STRMAX) :: velfile   ! Name of velocity distribution file
-   real(DP) :: seisk,cohaccel     ! seismic keff, cohesion breaking acceleration
    
    ! Optional input variables
    logical           :: dorealistic ! Set to T to enable realistic crater morphology. Default is F.
@@ -53,7 +46,7 @@ type configtype
    real(DP) :: neff        ! impact seismic energy efficiency factor
    real(DP) :: tvel        ! target P-wave (body wave) speed (m/s)
    real(DP) :: tfrac       ! mean free path for seismic wave scattering in medium
-   real(DP) :: regcoh      ! target surface regolith layer cohesion
+   real(DP) :: regcoh      ! target body regolith layer cohesion
 
    ! Crater diffusion input parameters
    real(DP) :: Kd1 ! Degradation function coefficient (from Minton et al. (2019))

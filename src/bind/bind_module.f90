@@ -1,10 +1,10 @@
 !! Copyright 2023 - David Minton
-!! This file is part of PyOOF
-!! PyOOF is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
+!! This file is part of Cratermaker
+!! Cratermaker is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
 !! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-!! pyoof is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+!! Cratermaker is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
 !! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-!! You should have received a copy of the GNU General Public License along with pyoof. 
+!! You should have received a copy of the GNU General Public License along with Cratermaker. 
 !! If not, see: https://www.gnu.org/licenses. 
 
 
@@ -21,42 +21,42 @@ module bind_module
    !! Cohen (see Fig. 19.8)
    use iso_c_binding
    use globals
-   use surface
    use simulation
+   use target_body
    use util
    implicit none
    
 contains
 
-   type(c_ptr) function bind_surface_init(ny,nx) bind(c)
+   type(c_ptr) function bind_body_init(ny,nx) bind(c)
       !! author: David A. Minton
       !!
-      !! This function is used to initialize the surface_type derived type object in Fortran and return a pointer to the object 
+      !! This function is used to initialize the target_body_type derived type object in Fortran and return a pointer to the object 
       !! that can be used as a struct in C, and ultimately to the Python class object via Cython.
       implicit none
       ! Arguments
       integer(I4B), intent(in), value   :: ny, nx !! The dimensions of the array to create. Note, this expects row-major ordering like C
       ! Internals
-      type(surface_type), pointer :: f_sim  !! A pointer to the surface type variable that will be passed to Cython
+      type(target_body_type), pointer :: f_sim  !! A pointer to the body type variable that will be passed to Cython
 
       nullify(f_sim)
       allocate(f_sim)
       call f_sim%allocate(nx, ny)
-      bind_surface_init = c_loc(f_sim)
+      bind_body_init = c_loc(f_sim)
 
       return
-   end function bind_surface_init
+   end function bind_body_init
 
 
-   subroutine bind_surface_final(sim) bind(c)
+   subroutine bind_body_final(sim) bind(c)
       !! author: David A. Minton
       !!
       !! This subroutine is used to deallocate the pointer that links the C struct to the Fortran derived type object. 
       implicit none
       ! Arguments
-      type(c_ptr), intent(in), value :: sim !! C pointer to the Fortran surface object
+      type(c_ptr), intent(in), value :: sim !! C pointer to the Fortran body object
       ! Internals
-      type(surface_type), pointer :: f_sim
+      type(target_body_type), pointer :: f_sim
 
       if (c_associated(sim)) then
          call c_f_pointer(sim, f_sim)
@@ -64,60 +64,60 @@ contains
       end if
 
       return
-   end subroutine bind_surface_final
+   end subroutine bind_body_final
 
 
-   type(c_ptr) function bind_surface_get_stringvar(c_sim) bind(c)
+   type(c_ptr) function bind_body_get_name(c_sim) bind(c)
       !! author: David A. Minton
       !!
-      !! This function is used to retrieve the string variable from the Fortran surface derived-type and pass it to a to C, and
+      !! This function is used to retrieve the string variable from the Fortran body derived-type and pass it to a to C, and
       !! ultimately to the Python string variable via Cython.
       implicit none
       ! Arguments
-      type(c_ptr), value :: c_sim  !! C pointer to the Fortran surface object
+      type(c_ptr), value :: c_sim  !! C pointer to the Fortran body object
       ! Internals
-      type(surface_type), pointer :: f_sim  !! A pointer to the surface type variable that will be passed to Cython
+      type(target_body_type), pointer :: f_sim  !! A pointer to the body type variable that will be passed to Cython
       character(kind=c_char), dimension(STRMAX), target :: f_str
 
       if (c_associated(c_sim)) then
          nullify(f_sim)
          call c_f_pointer(c_sim, f_sim)
-         call bind_f2c_string(trim(f_sim%stringvar), f_str)
-         bind_surface_get_stringvar = c_loc(f_str)
+         call bind_f2c_string(trim(f_sim%name), f_str)
+         bind_body_get_name = c_loc(f_str)
       else
          write(*,*) "The c_sim pointer is NULL!"
-         bind_surface_get_stringvar = c_null_ptr
+         bind_body_get_name = c_null_ptr
       end if
 
       return
-   end function bind_surface_get_stringvar
+   end function bind_body_get_name
 
 
-   subroutine bind_surface_set_stringvar(c_sim, c_string) bind(c)
+   subroutine bind_body_set_name(c_sim, c_string) bind(c)
       !! author: David A. Minton
       !!
-      !! This subroutine is used to set value of the string variable in the Fortran surface derived-type. It takes a C-style 
+      !! This subroutine is used to set value of the string variable in the Fortran body derived-type. It takes a C-style 
       !! string and converts it to a Fortran-style string 
       implicit none
       ! Arguments
-      type(c_ptr), value,                   intent(in) :: c_sim  !! C pointer to the Fortran surface object
+      type(c_ptr), value,                   intent(in) :: c_sim  !! C pointer to the Fortran body object
       character(kind=c_char), dimension(*), intent(in) :: c_string  !! Input C-style string
       ! Internals
       character(len=STRMAX)  :: f_string
-      type(surface_type), pointer :: f_sim
+      type(target_body_type), pointer :: f_sim
 
       nullify(f_sim)
       if (c_associated(c_sim)) then
          call c_f_pointer(c_sim, f_sim)
          call bind_c2f_string(c_string, f_string)
-         f_sim%stringvar = f_string
-         write(*,*) "The Fortran derived type has received a new string variable value: ",trim(f_sim%stringvar)
+         f_sim%name = f_string
+         write(*,*) "The Fortran derived type has received a new string variable value: ",trim(f_sim%name)
       else
          write(*,*) "The c_sim pointer is NULL!"
       end if
 
       return
-   end subroutine bind_surface_set_stringvar
+   end subroutine bind_body_set_name
 
 
    subroutine bind_c2f_string(c_string, f_string) 

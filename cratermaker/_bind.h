@@ -1,14 +1,14 @@
 #define STRMAX 512
 
-typedef struct c_surface_type {
+typedef struct c_target_body_type {
     double *elevation;
     int elevation_shape[2];
-    char stringvar[STRMAX];
-}surface_type;
-extern struct c_surface_type* bind_surface_init(int ny, int nx);
-extern void bind_surface_final(struct c_surface_type *obj);
-extern void bind_surface_set_stringvar(struct c_surface_type *obj, const char *c_string);
-extern char* bind_surface_get_stringvar(struct c_surface_type *obj);
+    char name[STRMAX];
+}target_body_type;
+extern struct c_target_body_type* bind_body_init(int ny, int nx);
+extern void bind_body_final(struct c_target_body_type *obj);
+extern void bind_body_set_name(struct c_target_body_type *obj, const char *c_string);
+extern char* bind_body_get_name(struct c_target_body_type *obj);
 
 typedef struct c_PerlinArguments {
       double damp;

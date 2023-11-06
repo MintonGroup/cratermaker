@@ -8,16 +8,16 @@ from libc.string cimport memset
 from libc.stdint cimport uintptr_t
 
 cdef extern from "_bind.h":
-    ctypedef struct surface_type:
+    ctypedef struct target_body_type:
         double *elevation
         int elevation_shape[2]
-        char *stringvar
-        int stringvar_len
+        char *name
+        int name_len
 
-    surface_type* bind_surface_init(int ny, int nx)
-    void bind_surface_final(surface_type *obj)
-    void bind_surface_set_stringvar(surface_type *obj, const char *c_string)
-    char* bind_surface_get_stringvar(surface_type *obj)
+    target_body_type* bind_body_init(int ny, int nx)
+    void bind_body_final(target_body_type *obj)
+    void bind_body_set_name(target_body_type *obj, const char *c_string)
+    char* bind_body_get_name(target_body_type *obj)
 
     ctypedef struct PerlinArguments:
         double damp
@@ -60,8 +60,8 @@ cdef void to_fortran_2D_double_array(cnp.ndarray[cnp.float64_t, ndim=2] src, dou
 
 
 
-cdef class _SurfaceBind:
-    cdef surface_type* fobj
+cdef class _BodyBind:
+    cdef target_body_type* fobj
 
     def __cinit__(self, tuple gridshape=(1000,1000)):
         """
@@ -81,7 +81,7 @@ cdef class _SurfaceBind:
         if len(gridshape) != 2:
             raise ValueError("Expected a tuple of length 2 for gridshape")
 
-        self.fobj = bind_surface_init(gridshape[0],gridshape[1])  
+        self.fobj = bind_body_init(gridshape[0],gridshape[1])  
 
         # Do some basic checks to make sure the object variable and all its components were allocated succesfully
         if self.fobj is NULL:
@@ -90,8 +90,8 @@ cdef class _SurfaceBind:
         if self.fobj.elevation is NULL:
             raise MemoryError("Failed to allocate component variable 'elevation' in the Fortran object.")
 
-        if self.fobj.stringvar is NULL: # <- This is where the problem lies
-            raise MemoryError("Failed to allocate component variable 'stringvar' in the Fortran object.")
+        if self.fobj.name is NULL: # <- This is where the problem lies
+            raise MemoryError("Failed to allocate component variable 'name' in the Fortran object.")
 
         # Manually set the shape of the 2D component array in the Python object
         self.fobj.elevation_shape[0] = gridshape[0]
@@ -112,7 +112,7 @@ cdef class _SurfaceBind:
             Deallocates the fobj component variables from Fortran.
         """
         if self.fobj is not NULL:
-            bind_surface_final(self.fobj)
+            bind_body_final(self.fobj)
 
 
     def get_elevation(self):
@@ -164,9 +164,9 @@ cdef class _SurfaceBind:
         return
 
 
-    def get_stringvar(self):
+    def get_name(self):
         """
-        A getter method that retrieves the stringvar from Fortran and returns it as a Python string 
+        A getter method that retrieves the name from Fortran and returns it as a Python string 
 
         Parameters
         ----------
@@ -176,7 +176,7 @@ cdef class _SurfaceBind:
             string : str
         """
         cdef char *c_string
-        c_string = bind_surface_get_stringvar(self.fobj)
+        c_string = bind_body_get_name(self.fobj)
         
         if c_string == NULL:
             return None
@@ -187,9 +187,9 @@ cdef class _SurfaceBind:
             return py_string
 
     
-    def set_stringvar(self, str string):
+    def set_name(self, str string):
         """
-        A setter method that sets the value of the stringvar in Fortran from a Python string. 
+        A setter method that sets the value of the name in Fortran from a Python string. 
 
         Parameters
         ----------
@@ -203,7 +203,7 @@ cdef class _SurfaceBind:
         cdef Py_ssize_t length
 
         c_string = PyUnicode_AsUTF8AndSize(string, &length)
-        bind_surface_set_stringvar(self.fobj, c_string)
+        bind_body_set_name(self.fobj, c_string)
 
 
     
