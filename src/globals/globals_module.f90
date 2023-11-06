@@ -29,4 +29,16 @@ module globals
 
    integer(I4B), parameter :: STRMAX = 512 !! Maximum size of character strings 
 
+
+   ! Frequently used mathematical constants 
+   real(DP), parameter :: PI      = ACOS(-1.0_DP) 
+   real(DP), parameter :: SQRT2   = SQRT(2.0_DP) 
+   real(DP), parameter :: LOGSQRT2 = LOG(SQRT2) 
+   real(DP), parameter :: SQRT3   = SQRT(3.0_DP) 
+   real(DP), parameter :: THIRD   = 1.0_DP / 3.0_DP 
+   real(DP), parameter :: SIXTH   = 1.0_DP / 6.0_DP 
+   real(DP), parameter :: DEG2RAD = PI / 180.0_DP 
+   
+
+
 end module globals

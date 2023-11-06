@@ -49,22 +49,22 @@ contains
 !    if (domain%initialize) then
 !       crater%xl = real(domain%side * 0.5_DP, kind=SP)
 !       crater%yl = real(domain%side * 0.5_DP, kind=SP)
-!    else if (user%testflag) then
-!       crater%xl = real(domain%side * 0.5_DP + user%testxoffset, kind=SP)
-!       crater%yl = real(domain%side * 0.5_DP + user%testyoffset, kind=SP)
+!    else if (config%testflag) then
+!       crater%xl = real(domain%side * 0.5_DP + config%testxoffset, kind=SP)
+!       crater%yl = real(domain%side * 0.5_DP + config%testyoffset, kind=SP)
 !    else
 !       crater%xl = real(domain%side * rn(1), kind=SP)
 !       crater%yl = real(domain%side * rn(2), kind=SP)
 !    end if
 
-!    crater%xlpx = min(max(nint(crater%xl / user%pix),1),user%gridsize)
-!    crater%ylpx = min(max(nint(crater%yl / user%pix),1),user%gridsize)
+!    crater%xlpx = min(max(nint(crater%xl / config%pix),1),config%gridsize)
+!    crater%ylpx = min(max(nint(crater%yl / config%pix),1),config%gridsize)
 
 !    ! Get impactor size from the distribution
 !    ! Reverted back to old code because the new one was way too slow
 !    if (.not.domain%initialize) then
-!       if (user%testflag) then
-!          crater%imp = user%testimp
+!       if (config%testflag) then
+!          crater%imp = config%testimp
 !       else 
 !          if (domain%pnum == 1) then
 !             crater%imp = prod(1,1)
@@ -114,17 +114,17 @@ contains
 !    end if
                                                        
 
-!    crater%impmass = 4*THIRD*PI*user%prho*(crater%imp*0.5_DP)**3
+!    crater%impmass = 4*THIRD*PI*config%prho*(crater%imp*0.5_DP)**3
 
 !    ! Determine which strength model to use
 
 
 !    !  find impact angle
 !    if (.not.domain%initialize) then
-!       if (user%testflag) then
-!          crater%sinimpang = sin(user%testang * DEG2RAD)
+!       if (config%testflag) then
+!          crater%sinimpang = sin(config%testang * DEG2RAD)
 !       else
-!          if (user%doangle) then
+!          if (config%doangle) then
 !             crater%sinimpang = sqrt(rn(5))
 !          else
 !             crater%sinimpang = 1._DP ! Vertical impact only
@@ -133,11 +133,11 @@ contains
 !    end if
 
 !    if (.not.domain%initialize) then
-!       if (user%testflag) then
-!          crater%impvel = user%testvel
+!       if (config%testflag) then
+!          crater%impactVelocity = config%testvel
 !       else
 !          if (domain%vnum == 1) then
-!             crater%impvel = vdist(1,1)
+!             crater%impactVelocity = vdist(1,1)
 !          else 
 !             !  Draw impact velocity from the velocity distribution
 !             nmark = vdist(3,domain%vlo) + (rn(6) * (vdist(3,domain%vhi) - vdist(3,domain%vlo)))
@@ -149,12 +149,12 @@ contains
 !             k = domain%vlo + int(Nk * rn(6) * (vdist(3,khi) - vdist(3,klo)))
 !             call util_search(vdist,3,domain%vnum-1,nmark,k)
 !             if (k == 0) then
-!                crater%impvel = vdist(1,1)
+!                crater%impactVelocity = vdist(1,1)
 !             else if (k == domain%vnum) then
-!                crater%impvel = vdist(1,domain%vnum)
+!                crater%impactVelocity = vdist(1,domain%vnum)
 !             else
 !                frac = (nmark-vdist(3,k))/(vdist(3,k+1)-vdist(3,k))
-!                crater%impvel = vdist(1,k) + (frac*(vdist(1,k+1)-vdist(1,k)))
+!                crater%impactVelocity = vdist(1,k) + (frac*(vdist(1,k+1)-vdist(1,k)))
 !             end if
 !          end if
 !       end if
@@ -162,12 +162,12 @@ contains
 
 !    !  scale to crater size
 !    if (.not.domain%initialize) crater%strflag = 0 ! Begin with regolith strength
-!    call crater_scale(user,crater%imp,crater%rad,crater%grad,crater%strflag,crater%sinimpang,crater%impvel)
+!    call crater_scale(user,crater%imp,crater%rad,crater%transientRadiusGravscale,crater%strflag,crater%sinimpang,crater%impactVelocity)
 !    if (.not.domain%initialize) then 
 !       dburial = EXFAC * crater%rad  
 !       if (dburial > surf(crater%xlpx,crater%ylpx)%ejcov) then 
 !          crater%strflag = 1 ! Use bedrock strength 
-!          call crater_scale(user,crater%imp,crater%rad,crater%grad,crater%strflag,crater%sinimpang,crater%impvel) 
+!          call crater_scale(user,crater%imp,crater%rad,crater%transientRadiusGravscale,crater%strflag,crater%sinimpang,crater%impactVelocity) 
 !       end if 
 !    end if 
 
@@ -180,10 +180,10 @@ contains
 !       crater%morphtype = "COMPLEX"
 !       crater%fcrat = trfin * ((trfin/crater%cxtran)**crater%cxexp) ! Complex Crater
 !    end if
-!    if (crater%imp >= user%basinimp) then
+!    if (crater%imp >= config%basinimp) then
 !       crater%morphtype = "MULTIRING" 
 !       ! This section is temporary until a better basin scaling law can be implemented. Potter et al. (2012) GRL v39. p 18203
-!       if ((crater%xl < (0.5_DP * domain%side) ).or.(user%testflag).or.(domain%initialize)) then ! pick TP1 for left-hand hemisphere
+!       if ((crater%xl < (0.5_DP * domain%side) ).or.(config%testflag).or.(domain%initialize)) then ! pick TP1 for left-hand hemisphere
 !          crater%fcrat = 0.1354e3_DP * (0.5_DP * trfin * 1e-3_DP)**(1.389_DP)  ! TP2
 !          crater%fcrat = 2 * 1.56_DP * crater%fcrat
 !       else
@@ -195,9 +195,58 @@ contains
 !    crater%frad = 0.5_DP  * crater%fcrat
    
 !    ! Get pixel space values
-!    crater%fcratpx = nint(crater%fcrat / user%pix)
-!    crater%fe = user%fe
+!    crater%fcratpx = nint(crater%fcrat / config%pix)
+!    crater%fe = config%fe
 !    return
 ! end subroutine crater_generate
+
+
+
+   module subroutine crater_projectile_to_transient(config,projectileDiameter,sinImpactAngle,impactVelocity,&
+                                                    transientRadius,transientRadiusGravscale)
+      implicit none
+   
+      ! Arguments
+      type(configtype),intent(in) :: config
+      real(DP), intent(in) :: projectileDiameter, sinImpactAngle, impactVelocity
+      real(DP),intent(out) :: transientRadius,transientRadiusGravscale
+   
+      ! Internal variables
+      real(DP)           :: transientVolume,transientVolumeGravscale
+      real(DP)           :: PiVolume,PiVolumeGravscale,PiTwo,PiThree,PiFour
+      real(DP)           :: projectileRadius,projectileVelocityVertical,pmass,targetStrength,targetDensity,mu,kv
+      real(DP)           :: c1,c2
+   
+      ! Executable code
+   
+      ! set target strength
+      targetStrength = config%Ybar
+      targetDensity = config%targetDensity
+      mu = config%mu
+      kv = config%kv
+   
+      ! Compute some auxiliary quantites
+      projectileVelocityVertical = impactVelocity * sinImpactAngle
+      projectileRadius = 0.5_DP * projectileDiameter
+      pmass = 4 * THIRD * pi * config%projectileDensity * projectileRadius**3
+      c1 = 1._DP + 0.5_DP * mu
+      c2 = (-3 * mu)/(2._DP + mu)
+   
+      ! Find dimensionless quantities
+      PiTwo = (config%bodyGravityAccel * projectileRadius)/(projectileVelocityVertical**2)
+      PiThree = targetStrength / (targetDensity * (projectileVelocityVertical**2))
+      PiFour = targetDensity / config%projectileDensity
+      PiVolume = kv * ((PiTwo * (PiFour**(-THIRD))) + (PiThree**c1))**c2
+      PiVolumeGravscale = kv * (PiTwo * (PiFour**(-THIRD)))**c2
+      
+      ! find transient crater volume and radii (depth = 1/3 diameter)
+      transientVolume = PiVolume * (pmass / targetDensity)
+      transientVolumeGravscale = PiVolumeGravscale * (pmass / targetDensity)
+      transientRadius = (3 * transientVolume / PI)**(THIRD)
+      transientRadiusGravscale = (3 * transientVolumeGravscale / PI)**(THIRD)
+   
+      return
+   end subroutine crater_projectile_to_transient
+   
 
 end submodule s_crater

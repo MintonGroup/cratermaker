@@ -7,7 +7,7 @@
 !! You should have received a copy of the GNU General Public License along with Cratermaker. 
 !! If not, see: https://www.gnu.org/licenses. 
 
-submodule (util) s_util_perlin
+submodule (util) s_util
    use globals
 contains
 
@@ -423,4 +423,4 @@ contains
       
       
 
-end submodule s_util_perlin
+end submodule s_util

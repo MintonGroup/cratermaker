@@ -9,11 +9,20 @@
 
 module crater
    use globals
+   use simulation
 
-   interface
-      module subroutine crater_generate()
+interface
+   module subroutine crater_generate()
+   implicit none
+   end subroutine crater_generate
+
+   module subroutine crater_projectile_to_transient(config,projectileDiameter,sinImpactAngle,impactVelocity,&
+                                                   transientRadius,transientRadiusGravscale)
       implicit none
-      end subroutine crater_generate
-   end interface
+      type(configtype),intent(in) :: config
+      real(DP), intent(in) :: projectileDiameter, sinImpactAngle, impactVelocity
+      real(DP),intent(out) :: transientRadius,transientRadiusGravscale
+   end subroutine crater_projectile_to_transient
+end interface
 
 end module crater

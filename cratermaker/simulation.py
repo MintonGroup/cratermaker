@@ -23,7 +23,7 @@ class Simulation(object):
         # TODO: Initialize with configure options as arguments or read in configuration file
         self.config = {
             "body" : "Moon", # Which body to simulation (Options are "Moon","Custom" )
-            "pix"  : 6.16e3, # Approximate cell global cell size to make a body with 1e6 faces 
+            "pix"  : 3.08e3, # Approximate cell global cell size to make a body with 1e6 faces 
             "cachedir" : os.path.join(self.cwd,".cache"), # Directory location of output files
             "meshname" : "body", # Name of files generated during mesh process
             "seed" : 5421109845, # RNG seed
@@ -41,7 +41,6 @@ class Simulation(object):
         else:
             self.make_body_mesh()
                
-            
         self.rng = default_rng(seed=self.config['seed'])
         # self._surface = _SurfaceBind(gridshape)     
         # lat = np.linspace(-90, 90, gridshape[0])
