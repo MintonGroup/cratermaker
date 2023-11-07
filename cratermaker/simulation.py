@@ -4,7 +4,17 @@ import jigsawpy
 import os
 import trimesh
 from numpy.random import default_rng
+import json
 
+def to_config(obj):
+    # Check if the object has the attribute 'config_ignore'
+    ignores = getattr(obj, 'config_ignore', [])
+        
+    # Generate a dictionary of serializable attributes, excluding those in 'ignores'
+    return {
+        k: v for k, v in obj.__dict__.items()
+        if isinstance(v, (int, float, str, list, dict, bool, type(None))) and k not in ignores
+    }
 
 class Target:
     # Define some built-in catalogue values for known solar system targets of interest
@@ -16,42 +26,27 @@ class Target:
     body_values = [
         ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft rock"),
         ("Venus",   6051.84e3, 0.905 * gEarth, "Hard rock"),
-        ("Earth",   6371.01e3, 1.0   * gEarth, "Wet soil"),
+        ("Earth",   6371.01e3, 1.0   * gEarth, "Wet soil" ),
         ("Moon",    1737.53e3, 0.1657* gEarth, "Soft rock"),
         ("Mars",    3389.92e3, 0.379 * gEarth, "Soft rock"),
-        ("Ceres",   469.7e3,   0.29  * gEarth, "Ice"     ),
+        ("Ceres",   469.7e3,   0.29  * gEarth, "Ice"      ),
         ("Vesta",   262.7e3,   0.25  * gEarth, "Soft rock"),
     ]
    
-    # Define some default crater scaling relationship terms (see Richardson 2009, Table 1) 
-    material_properties = [
-        "name",       "K1",     "mu",   "Ybar",     "density" 
-    ]
-    material_values = [
-        ("Water",     2.30,     0.55,   0.0,        1000.0),
-        ("Sand",      0.24,     0.41,   0.0,        1750.0),
-        ("Dry Soil",  0.24,     0.41,   0.18,       1500.0),
-        ("Wet Soil",  0.20,     0.55,   1.14,       2000.0),
-        ("Soft Rock", 0.20,     0.55,   7.60,       2250.0),
-        ("Hard Rock", 0.20,     0.55,   18.0,       2500.0),
-        ("Ice",       2.30,     0.39,   0.0,        900.0), # TODO: Update these based on Kraus, Senft, and Stewart (2011) 
-    ]
 
+    config_ignore = ['material']  # Instance variables to ignore when saving to file
     def __init__(self, **kwargs):
         # Define all valid properties for the Target object
         self.name = None
         self.radius = None
         self.gravity = None 
-        self.material = 'Soft Rock'
-        self.K1 = None
-        self.mu = None
-        self.Ybar = None
-        self.crustal_density = None
+        self.material = Material(**kwargs)
         
         # Set properties for the Target object based on the arguments passed to the function
         self.set_properties(**kwargs)
         
         return
+   
     
     @staticmethod
     def create_body_catalogue(self):
@@ -66,6 +61,64 @@ class Target:
             del body_catalogue[body_name]['name']
 
         return body_catalogue
+    
+   
+    def set_properties(self, **kwargs):
+        # If the "name" variable is passed, look the name up in the catalogue and set properties to those from the catalogue
+        self.name = kwargs.get('name', None)
+        if self.name is not None:
+            self.name = self.name.title()
+        
+        body_properties = self.body_catalogue.get(self.name)
+        if body_properties: # The name was found in the catalogue
+            print(f"{self.name} was found in the catalogue of known bodies.")
+            self.radius = body_properties.get('radius', self.radius)
+            self.gravity = body_properties.get('gravity', self.gravity)
+        elif self.name is not None:
+            print(f"{self.name} was not found in the catalogue. Setting custom properties for this target body")
+        else:
+            raise ValueError("A name must be supplied to generate a custom target body!")
+        
+        # Override body properties with input arguments if provided 
+        self.radius = kwargs.get('radius', self.radius)  
+        self.gravity = kwargs.get('gravity', self.gravity)
+        
+        # Check for any unset properties
+        for property_name, value in self.__dict__.items():
+            if value is None:
+                raise ValueError(f"The property {property_name} has not been set!")
+            
+        return
+Target.body_catalogue = Target.create_body_catalogue(Target)
+
+class Material:
+    
+    # Define some default crater scaling relationship terms (see Richardson 2009, Table 1) 
+    material_properties = [
+        "name",       "K1",     "mu",   "Ybar",     "density" 
+    ]
+    material_values = [
+        ("Water",     2.30,     0.55,   0.0,        1000.0),
+        ("Sand",      0.24,     0.41,   0.0,        1750.0),
+        ("Dry Soil",  0.24,     0.41,   0.18,       1500.0),
+        ("Wet Soil",  0.20,     0.55,   1.14,       2000.0),
+        ("Soft Rock", 0.20,     0.55,   7.60,       2250.0),
+        ("Hard Rock", 0.20,     0.55,   18.0,       2500.0),
+        ("Ice",       2.30,     0.39,   0.0,        900.0), # TODO: Update these based on Kraus, Senft, and Stewart (2011) 
+    ]
+    
+    def __init__(self, **kwargs):
+        # Define all valid properties for the Target object
+        self.name = 'Soft Rock'
+        self.K1 = None
+        self.mu = None
+        self.Ybar = None
+        self.density = None
+        
+        # Set properties for the Target object based on the arguments passed to the function
+        self.set_properties(**kwargs)
+        
+        return    
     
     
     @staticmethod
@@ -82,29 +135,8 @@ class Target:
 
         return material_catalogue 
     
-   
     def set_properties(self, **kwargs):
-        
-        # If the "name" variable is passed, look the name up in the catalogue and set properties to those from the catalogue
-        self.name = kwargs.get('name', None)
-        if self.name is not None:
-            self.name = self.name.title()
-        
-        body_properties = self.body_catalogue.get(self.name)
-        if body_properties: # The name was found in the catalogue
-            print(f"{self.name} was found in the catalogue of known bodies.")
-            self.radius = body_properties.get('radius', self.radius)
-            self.gravity = body_properties.get('gravity', self.gravity)
-            self.material = body_properties.get('material', self.material)
-        elif self.name is not None:
-            print(f"{self.name} was not found in the catalogue. Setting custom properties for this target body")
-        else:
-            raise ValueError("A name must be supplied to generate a custom target body!")
-        
-        # Override body properties with input arguments if provided 
-        self.radius = kwargs.get('radius', self.radius)  
-        self.gravity = kwargs.get('gravity', self.gravity)
-        self.material = kwargs.get('material',self.material)
+        self.material = kwargs.get('material',self.name)
         
         # Look up material in the catalogue
         if self.material is not None:
@@ -115,7 +147,7 @@ class Target:
             self.K1 = material_properties.get('K1', self.K1)
             self.mu = material_properties.get('mu', self.mu)
             self.Ybar = material_properties.get('Ybar', self.Ybar)
-            self.crustal_density = material_properties.get('density', self.crustal_density)
+            self.density = material_properties.get('density', self.density)
         elif self.material is not None:
             print(f"{self.material} was not found in the catalogue. Setting custom properties for this material")
         else:
@@ -125,17 +157,16 @@ class Target:
         self.K1 = kwargs.get('K1', self.K1) 
         self.mu = kwargs.get('mu', self.mu) 
         self.Ybar = kwargs.get('Ybar', self.Ybar) 
-        self.crustal_density = kwargs.get('crustal_density', self.crustal_density)
+        self.density = kwargs.get('density', self.density)
 
         # Check for any unset properties
         for property_name, value in self.__dict__.items():
             if value is None:
                 raise ValueError(f"The property {property_name} has not been set!")
+            
         return
-        
- 
-Target.body_catalogue = Target.create_body_catalogue(Target)
-Target.material_catalogue = Target.create_material_catalogue(Target)
+Material.material_catalogue = Material.create_material_catalogue(Material)
+
 class Projectile:
     def __init__(self):
         # Initialize the projectile's attributes
@@ -148,6 +179,7 @@ class Projectile:
         
         return
 
+
 class Crater:
     def __init__(self):
         # Initialize the crater's attributes
@@ -156,46 +188,47 @@ class Crater:
         self.morphotype = None
         return
 
+
 class Simulation(object):
     """
     This is a class that defines the basic Cratermaker body object. 
     """
-    def __init__(self, name="Moon", **kwargs):
-        kwargs['name'] = name
-        self.target = Target(**kwargs)
-        # Set default configuration options
-        # TODO: Initialize with configure options as arguments or read in configuration file
-        self.config = {
-            "body" : "Moon", # Which body to simulation (Options are "Moon","Custom" )
-            "pix"  : 6.16e3, # Approximate cell global cell size to make a body with 1e6 faces 
-            "cachedir" : os.path.join(os.getcwd(),".cache"), # Directory location of output files
-            "meshname" : "body", # Name of files generated during mesh process
-            "seed" : 5421109845, # RNG seed
-        }
+    def __init__(self, target_name="Moon", **kwargs):
+        kwargs['name'] = target_name
         
-        # Determine the radius of the target body
-        #if self.config['body'] != 'Custom':
-        #    self.config['body_radius'] = body_radius_values[self.config['body']]
+        # Set up target properties
+        self.target = Target(**kwargs)
+        self.pix = kwargs.get('pix', self.target.radius / 1e3)
+        self.seed = kwargs.get('seed', 235029385) 
+        self.cachedir = os.path.join(os.getcwd(),'.cache')
+        self.rng = default_rng(seed=self.seed)
+        
+        if not os.path.exists(self.cachedir):
+            os.mkdir(self.cachedir)
            
-        # if not os.path.exists(self.config['cachedir']):
-        #     os.mkdir(self.config['cachedir'])
-            
-        # if os.path.exists(os.path.join(self.config['cachedir'],f"{self.config['meshname']}.glb")):
-        #     self.load_body_mesh()
-        # else:
-        #     self.make_body_mesh()
-               
-        # self.rng = default_rng(seed=self.config['seed'])
-        # # self._body = _BodyBind(gridshape)     
-        # # lat = np.linspace(-90, 90, gridshape[0])
-        # # lon = np.linspace(0, 360, gridshape[1])
-        # # self.ds = xr.Dataset(
-        # #     {'elevation': (['lat', 'lon'], self.get_elevation())},
-        # #                 coords={'lat': lat, 'lon': lon}
-        # )
+        self.mesh_file = os.path.join(self.cachedir,"target_mesh.glb") 
+        if os.path.exists(self.mesh_file):
+            self.load_body_mesh()
+        else:
+            self.make_body_mesh()
     
-    def set_target(self, body_name):
-        self.target = Target(body_name)
+        
+    config_ignore = ['target', 'projectile', 'crater']  # Instance variables to ignore when saving to file
+    def to_json(self, filename):
+        # Get the simulation configuration
+        sim_config = to_config(self)
+        
+        # Assuming 'self.target' is an object with its own 'to_config' requirements
+        body_config = to_config(self.target)
+        
+        material_config = to_config(self.target.material)
+        
+        # Combine the configurations
+        combined_config = {'simulation': sim_config, 'target': {'body' : body_config, 'material' : material_config}}
+        
+        # Write the combined configuration to a JSON file
+        with open(filename, 'w') as f:
+            json.dump(combined_config, f, indent=4)
         
     @property
     def elevation(self):
@@ -223,20 +256,18 @@ class Simulation(object):
         mesh = jigsawpy.jigsaw_msh_t()
         
         # Set up Jigsaw mesh files and mesh body if a file doesn't already exist
-        meshname=self.config['meshname']
-        cachedir=self.config['cachedir']  
-        opts.jcfg_file = os.path.join(cachedir,f"{meshname}.jig")
-        opts.mesh_file = os.path.join(cachedir,f"{meshname}.msh")
-        opts.geom_file = os.path.join(cachedir,f"{meshname}_base.msh")
+        opts.mesh_file = self.mesh_file.replace(".glb",".msh")
+        opts.jcfg_file = self.mesh_file.replace(".glb",".jig")
+        opts.geom_file = self.mesh_file.replace(".glb","_geom.msh")
         
         # Define basic sphere using the built-in ellipsoid mesh model
         geom.mshID = "ellipsoid-mesh"
-        geom.radii = np.full(3, self.config['body_radius'], dtype=geom.REALS_t)
+        geom.radii = np.full(3, self.target.radius, dtype=geom.REALS_t)
         jigsawpy.savemsh(opts.geom_file,geom)
 
         # Set mesh options
         opts.hfun_scal = "absolute"  #scaling type for mesh-size function, either "relative" or "absolute." For "relative" mesh-size values as percentages of the (mean) length of the axis-aligned bounding-box (AABB) associated with the geometry. "absolute" interprets mesh-size values as absolute measures.
-        opts.hfun_hmax = np.sqrt(2.0) * self.config['pix']       # mesh-size function value. The "pix" value is adjusted to keep it scaled  to roughly the same as the older CTEM pix
+        opts.hfun_hmax = np.sqrt(2.0) * self.pix       # mesh-size function value. The "pix" value is adjusted to keep it scaled  to roughly the same as the older CTEM pix
         opts.mesh_dims = +2          # Number of mesh dimensions (2 for body mesh, 3 for volume)
         opts.optm_qlim = +9.5E-01    # threshold on mesh cost function above which gradient-based optimisation is attempted.
         opts.optm_iter = +64         # max. number of mesh optimisation iterations. 
@@ -261,13 +292,8 @@ class Simulation(object):
     
     
     def load_body_mesh(self):
-        
-        # Set up Jigsaw mesh files and mesh body if a file doesn't already exist
-        meshname=self.config['meshname']
-        cachedir=self.config['cachedir']  
-          
         # This is not well documented, but trimesh reads the mesh in as a Scene instead of a Trimesh, so we need to extract the actual mesh
-        scene = trimesh.load_mesh(os.path.join(cachedir,f"{meshname}.glb"))
+        scene = trimesh.load_mesh(self.mesh_file)
         
         # Assuming that the only geometry in the file is the body mesh, this should work
         self.mesh = next(iter(scene.geometry.values()))
