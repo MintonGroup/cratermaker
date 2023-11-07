@@ -161,6 +161,23 @@ class Target:
     def set_properties(self, **kwargs):
         set_properties(self,**kwargs)
         return
+    
+    
+@dataclass    
+class Projectile:
+    sfd  : float = None
+    radius: float = None
+    diameter: float = None
+    velocity: float = None
+    sin_impact_angle: float = None
+    vertical_velocity: float = None
+        
+
+@dataclass
+class Crater:
+    diameter: float = None
+    radius: float = None
+    morphotype: float = None
 
 
 class Simulation():
@@ -277,24 +294,5 @@ class Simulation():
         return
       
 
-class Projectile:
-    def __init__(self):
-        # Initialize the projectile's attributes
-        self.sfd   = None
-        self.radius = None
-        self.diameter = None
-        self.velocity = None
-        self.sin_impact_angle = None
-        self.vertical_velocity = None
-        
-        return
 
-
-class Crater:
-    def __init__(self):
-        # Initialize the crater's attributes
-        self.diameter = None
-        self.radius = None
-        self.morphotype = None
-        return
  
