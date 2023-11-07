@@ -1,10 +1,12 @@
 from ._bind import _BodyBind
+from dataclasses import dataclass, field
 import numpy as np
 import jigsawpy
 import os
 import trimesh
 from numpy.random import default_rng
 import json
+
 
 def to_config(obj):
     # Check if the object has the attribute 'config_ignore'
@@ -15,189 +17,163 @@ def to_config(obj):
         k: v for k, v in obj.__dict__.items()
         if isinstance(v, (int, float, str, list, dict, bool, type(None))) and k not in ignores
     }
-
-class Target:
-    # Define some built-in catalogue values for known solar system targets of interest
-    gEarth = 9.80665 # 1 g in SI units
    
-    body_properties = [
-        "name",    "radius",   "gravity",      "material"
-    ]
-    body_values = [
-        ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft rock"),
-        ("Venus",   6051.84e3, 0.905 * gEarth, "Hard rock"),
-        ("Earth",   6371.01e3, 1.0   * gEarth, "Wet soil" ),
-        ("Moon",    1737.53e3, 0.1657* gEarth, "Soft rock"),
-        ("Mars",    3389.92e3, 0.379 * gEarth, "Soft rock"),
-        ("Ceres",   469.7e3,   0.29  * gEarth, "Ice"      ),
-        ("Vesta",   262.7e3,   0.25  * gEarth, "Soft rock"),
-    ]
-   
-
-    config_ignore = ['material']  # Instance variables to ignore when saving to file
-    def __init__(self, **kwargs):
-        # Define all valid properties for the Target object
-        self.name = None
-        self.radius = None
-        self.gravity = None 
-        self.material = Material(**kwargs)
-        
-        # Set properties for the Target object based on the arguments passed to the function
-        self.set_properties(**kwargs)
-        
-        return
-   
+def set_properties(obj,**kwargs):
+    """
+    Sets properties of configurable Simulation objects (e.g. Simulation, Target, Material). How properties are set depends on what arguments are passed to the function in the following way: 
     
-    @staticmethod
-    def create_body_catalogue(self):
-        # Create the catalogue dictionary using the class variables
-        body_catalogue = {
-            body[0]: dict(zip(self.body_properties, body))
-            for body in self.body_values
-        }
-
-        # Remove the 'name' key from each dictionary in the catalogue
-        for body_name in list(body_catalogue):
-            del body_catalogue[body_name]['name']
-
-        return body_catalogue
+    1) filename : path-like
+        Properties are read in from JSON file.
+    2) catalogue: str
+        Properties are read in from a catalogue of pre-defined properties. Properties set by `catalogue` override any set by `filename`. 
+    3) kwargs: Any
+        Properties are set based on values keyword:value pairs passed to the function. Properties set by `kwarg` override any set by either `catalogue` or `filename 
+    """
     
-   
-    def set_properties(self, **kwargs):
-        # If the "name" variable is passed, look the name up in the catalogue and set properties to those from the catalogue
-        self.name = kwargs.get('name', None)
-        if self.name is not None:
-            self.name = self.name.title()
-        
-        body_properties = self.body_catalogue.get(self.name)
-        if body_properties: # The name was found in the catalogue
-            print(f"{self.name} was found in the catalogue of known bodies.")
-            self.radius = body_properties.get('radius', self.radius)
-            self.gravity = body_properties.get('gravity', self.gravity)
-        elif self.name is not None:
-            print(f"{self.name} was not found in the catalogue. Setting custom properties for this target body")
-        else:
-            raise ValueError("A name must be supplied to generate a custom target body!")
-        
-        # Override body properties with input arguments if provided 
-        self.radius = kwargs.get('radius', self.radius)  
-        self.gravity = kwargs.get('gravity', self.gravity)
-        
-        # Check for any unset properties
-        for property_name, value in self.__dict__.items():
-            if value is None:
-                raise ValueError(f"The property {property_name} has not been set!")
+    def set_properties_from_arguments(obj, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(obj, key):
+                setattr(obj, key, value)   
             
-        return
-Target.body_catalogue = Target.create_body_catalogue(Target)
-
-class Material:
-    
-    # Define some default crater scaling relationship terms (see Richardson 2009, Table 1) 
-    material_properties = [
-        "name",       "K1",     "mu",   "Ybar",     "density" 
-    ]
-    material_values = [
-        ("Water",     2.30,     0.55,   0.0,        1000.0),
-        ("Sand",      0.24,     0.41,   0.0,        1750.0),
-        ("Dry Soil",  0.24,     0.41,   0.18,       1500.0),
-        ("Wet Soil",  0.20,     0.55,   1.14,       2000.0),
-        ("Soft Rock", 0.20,     0.55,   7.60,       2250.0),
-        ("Hard Rock", 0.20,     0.55,   18.0,       2500.0),
-        ("Ice",       2.30,     0.39,   0.0,        900.0), # TODO: Update these based on Kraus, Senft, and Stewart (2011) 
-    ]
-    
-    def __init__(self, **kwargs):
-        # Define all valid properties for the Target object
-        self.name = 'Soft Rock'
-        self.K1 = None
-        self.mu = None
-        self.Ybar = None
-        self.density = None
+    def set_properties_from_catalogue(obj, catalogue, key):
+        # Look up material in the catalogue
+            
+        properties = catalogue.get(key) 
+        if properties: # A match was found to the catalogue 
+            set_properties_from_arguments(obj, **properties)
+            
+    def set_properties_from_file(obj, filename):
+        with open(filename, 'r') as f:
+            properties =  json.load(f)
+            n = obj.__class__.__name__.lower()
+            if n in properties:
+                set_properties_from_arguments(obj,**properties[n])
         
-        # Set properties for the Target object based on the arguments passed to the function
-        self.set_properties(**kwargs)
+    if 'filename' in kwargs:
+        set_properties_from_file(obj,filename=kwargs['filename'])
+    
+    if 'catalogue' in kwargs and 'key' in kwargs:
+        set_properties_from_catalogue(obj,kwargs['catalogue'],kwargs['key'])
+        
+    set_properties_from_arguments(obj,**kwargs)
+    
+    # Check for any unset properties
+    for property_name, value in obj.__dict__.items():
+        if value is None:
+            raise ValueError(f"The property {property_name} has not been set!")    
+    
+    return
+    
+    
+            
+def create_catalogue(header,values):
+    # Create the catalogue dictionary using the class variables
+    catalogue = {
+        tab[0]: dict(zip(header, tab))
+        for tab in values
+    }
+
+    # Remove the first key from each dictionary in the catalogue
+    for k in list(catalogue):
+        del catalogue[k][header[0]]
+
+    return catalogue 
+
+
+@dataclass
+class Material:
+    # Define all valid properties for the Target object
+    name: str = None
+    K1: float = None
+    mu: float = None
+    Ybar: float = None
+    density: float = None    
+
+    config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
+    def __post_init__(self):
+        # Define some default crater scaling relationship terms (see Richardson 2009, Table 1) 
+        material_properties = [
+            "name",       "K1",     "mu",   "Ybar",     "density" 
+        ]
+        material_values = [
+            ("Water",     2.30,     0.55,   0.0,        1000.0),
+            ("Sand",      0.24,     0.41,   0.0,        1750.0),
+            ("Dry Soil",  0.24,     0.41,   0.18,       1500.0),
+            ("Wet Soil",  0.20,     0.55,   1.14,       2000.0),
+            ("Soft Rock", 0.20,     0.55,   7.60,       2250.0),
+            ("Hard Rock", 0.20,     0.55,   18.0,       2500.0),
+            ("Ice",       2.30,     0.39,   0.0,        900.0), # TODO: Update these based on Kraus, Senft, and Stewart (2011) 
+        ]        
+        
+        self.catalogue = create_catalogue(material_properties, material_values)
+        
+        # Set properties for the Material object based on the catalogue value)
+        if self.name:
+            set_properties(self,catalogue=self.catalogue, key=self.name)
+        else:
+            raise ValueError('No material defined!')    
         
         return    
     
+    def set_properties(self, **kwargs):
+        set_properties(self,**kwargs)
+        return
+
+
+@dataclass
+class Target:
+    # Set up instance variables
+    name: str = None
+    radius: float = None
+    gravity: float = None
+    material: Material = field(default_factory=Material)
     
-    @staticmethod
-    def create_material_catalogue(self):
-        # Create the catalogue dictionary using the class variables
-        material_catalogue = {
-            material[0]: dict(zip(self.material_properties, material))
-            for material in self.material_values
-        }
+    config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
+    def __post_init__(self):
+        # Define some built-in catalogue values for known solar system targets of interest
+        gEarth = 9.80665 # 1 g in SI units
 
-        # Remove the 'name' key from each dictionary in the catalogue
-        for material_name in list(material_catalogue):
-            del material_catalogue[material_name]['name']
-
-        return material_catalogue 
+        body_properties = [
+            "name",    "radius",   "gravity",      "material_name"
+        ]
+        body_values = [
+            ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock"),
+            ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock"),
+            ("Earth",   6371.01e3, 1.0   * gEarth, "Wet Soil" ),
+            ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock"),
+            ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock"),
+            ("Ceres",   469.7e3,   0.29  * gEarth, "Ice"      ),
+            ("Vesta",   262.7e3,   0.25  * gEarth, "Soft Rock"),
+        ]      
+        
+        self.catalogue = create_catalogue(body_properties, body_values)
+        
+        # Set properties for the Target object based on the arguments passed to the function
+        if self.name:
+            set_properties(self,catalogue=self.catalogue, key=self.name)
+        else: 
+            raise ValueError('No target defined!')    
+                
+        
+        return
+   
     
     def set_properties(self, **kwargs):
-        self.material = kwargs.get('material',self.name)
-        
-        # Look up material in the catalogue
-        if self.material is not None:
-            self.material = self.material.title()
-        material_properties = self.material_catalogue.get(self.material)
-        if material_properties: # The material was found in the catalogue
-            print(f"{self.material} was found in the catalogue of known materials.")
-            self.K1 = material_properties.get('K1', self.K1)
-            self.mu = material_properties.get('mu', self.mu)
-            self.Ybar = material_properties.get('Ybar', self.Ybar)
-            self.density = material_properties.get('density', self.density)
-        elif self.material is not None:
-            print(f"{self.material} was not found in the catalogue. Setting custom properties for this material")
-        else:
-            raise ValueError("A valid material must must be supplied, or a name must be supplied to generate a custom target material!")
-           
-        # Override material properties with input arguments if provided
-        self.K1 = kwargs.get('K1', self.K1) 
-        self.mu = kwargs.get('mu', self.mu) 
-        self.Ybar = kwargs.get('Ybar', self.Ybar) 
-        self.density = kwargs.get('density', self.density)
-
-        # Check for any unset properties
-        for property_name, value in self.__dict__.items():
-            if value is None:
-                raise ValueError(f"The property {property_name} has not been set!")
-            
-        return
-Material.material_catalogue = Material.create_material_catalogue(Material)
-
-class Projectile:
-    def __init__(self):
-        # Initialize the projectile's attributes
-        self.sfd   = None
-        self.radius = None
-        self.diameter = None
-        self.velocity = None
-        self.sin_impact_angle = None
-        self.vertical_velocity = None
-        
+        set_properties(self,**kwargs)
         return
 
 
-class Crater:
-    def __init__(self):
-        # Initialize the crater's attributes
-        self.diameter = None
-        self.radius = None
-        self.morphotype = None
-        return
-
-
-class Simulation(object):
+class Simulation():
     """
     This is a class that defines the basic Cratermaker body object. 
     """
-    def __init__(self, target_name="Moon", **kwargs):
-        kwargs['name'] = target_name
+    def __init__(self, target_name="Moon", material_name=None, **kwargs):
+        if material_name:
+            material = Material(name=material_name)
+            self.target = Target(name=target_name, material=material, **kwargs) 
+        else: 
+            self.target = Target(name=target_name, **kwargs)
         
-        # Set up target properties
-        self.target = Target(**kwargs)
         self.pix = kwargs.get('pix', self.target.radius / 1e3)
         self.seed = kwargs.get('seed', 235029385) 
         self.cachedir = os.path.join(os.getcwd(),'.cache')
@@ -206,29 +182,29 @@ class Simulation(object):
         if not os.path.exists(self.cachedir):
             os.mkdir(self.cachedir)
            
-        self.mesh_file = os.path.join(self.cachedir,"target_mesh.glb") 
-        if os.path.exists(self.mesh_file):
-            self.load_body_mesh()
-        else:
-            self.make_body_mesh()
+        # self.mesh_file = os.path.join(self.cachedir,"target_mesh.glb") 
+        # if os.path.exists(self.mesh_file):
+        #     self.load_body_mesh()
+        # else:
+        #     self.make_body_mesh()
+            
+        
+    def set_properties(self, **kwargs):
+        set_properties(self,**kwargs)
+        return
     
         
     config_ignore = ['target', 'projectile', 'crater']  # Instance variables to ignore when saving to file
     def to_json(self, filename):
-        # Get the simulation configuration
-        sim_config = to_config(self)
         
-        # Assuming 'self.target' is an object with its own 'to_config' requirements
-        body_config = to_config(self.target)
-        
+        # Get the simulation configuration into the correct structure
         material_config = to_config(self.target.material)
-        
-        # Combine the configurations
-        combined_config = {'simulation': sim_config, 'target': {'body' : body_config, 'material' : material_config}}
+        target_config = {**to_config(self.target), 'material' : material_config}
+        sim_config = {**to_config(self),'target' : target_config} 
         
         # Write the combined configuration to a JSON file
         with open(filename, 'w') as f:
-            json.dump(combined_config, f, indent=4)
+            json.dump(sim_config, f, indent=4)
         
     @property
     def elevation(self):
@@ -299,4 +275,26 @@ class Simulation(object):
         self.mesh = next(iter(scene.geometry.values()))
         
         return
-       
+      
+
+class Projectile:
+    def __init__(self):
+        # Initialize the projectile's attributes
+        self.sfd   = None
+        self.radius = None
+        self.diameter = None
+        self.velocity = None
+        self.sin_impact_angle = None
+        self.vertical_velocity = None
+        
+        return
+
+
+class Crater:
+    def __init__(self):
+        # Initialize the crater's attributes
+        self.diameter = None
+        self.radius = None
+        self.morphotype = None
+        return
+ 
