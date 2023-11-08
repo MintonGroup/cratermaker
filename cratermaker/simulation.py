@@ -1,10 +1,11 @@
 from ._bind import _BodyBind
 from dataclasses import dataclass, field
 import numpy as np
+from numpy.typing import NDArray
+from numpy.random import default_rng
 import jigsawpy
 import os
 import trimesh
-from numpy.random import default_rng
 import json
 
 
@@ -165,7 +166,6 @@ class Target:
     
 @dataclass    
 class Projectile:
-    sfd  : float = None
     radius: float = None
     diameter: float = None
     velocity: float = None
@@ -190,25 +190,43 @@ class Simulation():
             self.target = Target(name=target_name, material=material, **kwargs) 
         else: 
             self.target = Target(name=target_name, **kwargs)
-        
+       
+        # Set some default values for the simulation parameters
         self.pix = kwargs.get('pix', self.target.radius / 1e3)
+        self.time_function = kwargs.get('time_function', None)
+        self.tstart = kwargs.get('tstart', 0.0)  # Simulation start time (in y)
+        self.tstop = kwargs.get('tstop', 4.31e9)    # Simulation stop time (in y)
+        
+        # Set some default values for the production function population
+        self.impactor_sfd  = kwargs.get('impactor_sfd', None)
+        self.impactor_velocity = kwargs.gt('impactor_velocity', None)
+        
+        # Set the random number generator seed
         self.seed = kwargs.get('seed', 235029385) 
-        self.cachedir = os.path.join(os.getcwd(),'.cache')
         self.rng = default_rng(seed=self.seed)
         
+        
+        self.cachedir = os.path.join(os.getcwd(),'.cache')
+        self.mesh_file = kwargs.get('mesh_file', os.path.join(self.cachedir,"target_mesh.glb") )
         if not os.path.exists(self.cachedir):
             os.mkdir(self.cachedir)
-           
-        # self.mesh_file = os.path.join(self.cachedir,"target_mesh.glb") 
-        # if os.path.exists(self.mesh_file):
-        #     self.load_body_mesh()
-        # else:
-        #     self.make_body_mesh()
+       
+        self.mesh = None 
+        # Check if a mesh exists, and if so, load it up
+        if os.path.exists(self.mesh_file):
+            self.load_body_mesh()
             
+    def populate(self):
+        """
+        Populate the surface with craters
+        """
         
-    def set_properties(self, **kwargs):
-        set_properties(self,**kwargs)
-        return
+        if not self.mesh:
+            print("Generating new mesh. Please be patient.")
+            self.make_target_mesh
+            
+         
+
     
         
     config_ignore = ['target', 'projectile', 'crater']  # Instance variables to ignore when saving to file
@@ -237,7 +255,7 @@ class Simulation():
     def set_elevation(self, elevation_array):
         self._body.set_elevation(elevation_array)
 
-    def make_body_mesh(self):
+    def make_target_mesh(self):
         '''
             This will use jigsawpy to tesselate a sphere to make our intial mesh. This will then be converted to a GLB format
         '''
@@ -292,6 +310,10 @@ class Simulation():
         self.mesh = next(iter(scene.geometry.values()))
         
         return
+    
+    def set_properties(self, **kwargs):
+        set_properties(self,**kwargs)
+        return 
       
 
 
