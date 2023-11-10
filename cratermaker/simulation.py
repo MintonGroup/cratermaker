@@ -1,4 +1,6 @@
-from ._bind import _BodyBind
+from  ._bind import _BodyBind
+from . import util
+from . import montecarlo as mc
 from dataclasses import dataclass, field
 import numpy as np
 from numpy.typing import NDArray
@@ -7,79 +9,7 @@ import jigsawpy
 import os
 import trimesh
 import json
-
-
-def to_config(obj):
-    # Check if the object has the attribute 'config_ignore'
-    ignores = getattr(obj, 'config_ignore', [])
-        
-    # Generate a dictionary of serializable attributes, excluding those in 'ignores'
-    return {
-        k: v for k, v in obj.__dict__.items()
-        if isinstance(v, (int, float, str, list, dict, bool, type(None))) and k not in ignores
-    }
-   
-def set_properties(obj,**kwargs):
-    """
-    Sets properties of configurable Simulation objects (e.g. Simulation, Target, Material). How properties are set depends on what arguments are passed to the function in the following way: 
-    
-    1) filename : path-like
-        Properties are read in from JSON file.
-    2) catalogue: str
-        Properties are read in from a catalogue of pre-defined properties. Properties set by `catalogue` override any set by `filename`. 
-    3) kwargs: Any
-        Properties are set based on values keyword:value pairs passed to the function. Properties set by `kwarg` override any set by either `catalogue` or `filename 
-    """
-    
-    def set_properties_from_arguments(obj, **kwargs):
-        for key, value in kwargs.items():
-            if hasattr(obj, key):
-                setattr(obj, key, value)   
-            
-    def set_properties_from_catalogue(obj, catalogue, key):
-        # Look up material in the catalogue
-            
-        properties = catalogue.get(key) 
-        if properties: # A match was found to the catalogue 
-            set_properties_from_arguments(obj, **properties)
-            
-    def set_properties_from_file(obj, filename):
-        with open(filename, 'r') as f:
-            properties =  json.load(f)
-            n = obj.__class__.__name__.lower()
-            if n in properties:
-                set_properties_from_arguments(obj,**properties[n])
-        
-    if 'filename' in kwargs:
-        set_properties_from_file(obj,filename=kwargs['filename'])
-    
-    if 'catalogue' in kwargs and 'key' in kwargs:
-        set_properties_from_catalogue(obj,kwargs['catalogue'],kwargs['key'])
-        
-    set_properties_from_arguments(obj,**kwargs)
-    
-    # Check for any unset properties
-    for property_name, value in obj.__dict__.items():
-        if value is None:
-            raise ValueError(f"The property {property_name} has not been set!")    
-    
-    return
-    
-    
-            
-def create_catalogue(header,values):
-    # Create the catalogue dictionary using the class variables
-    catalogue = {
-        tab[0]: dict(zip(header, tab))
-        for tab in values
-    }
-
-    # Remove the first key from each dictionary in the catalogue
-    for k in list(catalogue):
-        del catalogue[k][header[0]]
-
-    return catalogue 
-
+from scipy.stats import maxwell
 
 @dataclass
 class Material:
@@ -88,7 +18,7 @@ class Material:
     K1: float = None
     mu: float = None
     Ybar: float = None
-    density: float = None    
+    density: float = None 
 
     config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
     def __post_init__(self):
@@ -106,20 +36,19 @@ class Material:
             ("Ice",       2.30,     0.39,   0.0,        900.0), # TODO: Update these based on Kraus, Senft, and Stewart (2011) 
         ]        
         
-        self.catalogue = create_catalogue(material_properties, material_values)
+        self.catalogue = util._create_catalogue(material_properties, material_values)
         
         # Set properties for the Material object based on the catalogue value)
         if self.name:
-            set_properties(self,catalogue=self.catalogue, key=self.name)
+            util._set_properties(self,catalogue=self.catalogue, key=self.name)
         else:
             raise ValueError('No material defined!')    
         
         return    
     
     def set_properties(self, **kwargs):
-        set_properties(self,**kwargs)
+        util._set_properties(self,**kwargs)
         return
-
 
 @dataclass
 class Target:
@@ -128,33 +57,35 @@ class Target:
     radius: float = None
     gravity: float = None
     material: Material = field(default_factory=Material)
+    mean_impact_velocity: float = None
     
     config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
     def __post_init__(self):
         # Define some built-in catalogue values for known solar system targets of interest
         gEarth = 9.80665 # 1 g in SI units
-
+        
         body_properties = [
-            "name",    "radius",   "gravity",      "material_name"
+            "name",    "radius",   "gravity",      "material_name", "mean_impact_velocity"
         ]
         body_values = [
-            ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock"),
-            ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock"),
-            ("Earth",   6371.01e3, 1.0   * gEarth, "Wet Soil" ),
-            ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock"),
-            ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock"),
-            ("Ceres",   469.7e3,   0.29  * gEarth, "Ice"      ),
-            ("Vesta",   262.7e3,   0.25  * gEarth, "Soft Rock"),
+            ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock", 41100.0),
+            ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock", 29100.0),
+            ("Earth",   6371.01e3, 1.0   * gEarth, "Wet Soil" , 24600.0),
+            ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock", 22100.0),
+            ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock", 10700.0),
+            ("Ceres",   469.7e3,   0.29  * gEarth, "Ice"      , 5300.0),
+            ("Vesta",   262.7e3,   0.25  * gEarth, "Soft Rock", 5300.0),
         ]      
+        # Mean velocities for terrestrial planets based on analysis of simulations from Minton & Malhotra (2010) of main belt-derived asteroid
+        # Mean velocities for the asteroids are from Bottke et al. (1994)
         
-        self.catalogue = create_catalogue(body_properties, body_values)
+        self.catalogue = util._create_catalogue(body_properties, body_values)
         
         # Set properties for the Target object based on the arguments passed to the function
         if self.name:
-            set_properties(self,catalogue=self.catalogue, key=self.name)
+            util._set_properties(self,catalogue=self.catalogue, key=self.name)
         else: 
             raise ValueError('No target defined!')    
-                
         
         return
    
@@ -163,22 +94,22 @@ class Target:
         set_properties(self,**kwargs)
         return
     
-    
 @dataclass    
 class Projectile:
-    radius: float = None
-    diameter: float = None
-    velocity: float = None
-    sin_impact_angle: float = None
-    vertical_velocity: float = None
+    diameter: float = None              # The diameter of the projectile (m)
+    velocity: float = None              # The velocity of the projectile (m/s)
+    density: float  = None              # The mass density of the projectile (kg/m**3)
+    location: (float,float) = None      # Tuple that specifies a location of the impact onto the target surface: (lat,lon)? (theta,phi)? some other measure of location?
+    angle: float = 45.0          # The impact angle of the projectile (deg)
         
 
 @dataclass
 class Crater:
-    diameter: float = None
-    radius: float = None
-    morphotype: float = None
+    projectile: Projectile = None      # The projectile properties
+    diameter: float = None             # The crater diameter (m)
+    location: (float,float) = None     # Tuple that specifies a location of the impact onto the target surface: (lat,lon)? (theta,phi)? some other measure of location?
 
+    
 
 class Simulation():
     """
@@ -202,7 +133,7 @@ class Simulation():
         self.impactor_velocity = kwargs.gt('impactor_velocity', None)
         
         # Set the random number generator seed
-        self.seed = kwargs.get('seed', 235029385) 
+        self.seed = kwargs.get('seed', None) 
         self.rng = default_rng(seed=self.seed)
         
         
@@ -233,9 +164,9 @@ class Simulation():
     def to_json(self, filename):
         
         # Get the simulation configuration into the correct structure
-        material_config = to_config(self.target.material)
-        target_config = {**to_config(self.target), 'material' : material_config}
-        sim_config = {**to_config(self),'target' : target_config} 
+        material_config = util._to_config(self.target.material)
+        target_config = {**util._to_config(self.target), 'material' : material_config}
+        sim_config = {**util._to_config(self),'target' : target_config} 
         
         # Write the combined configuration to a JSON file
         with open(filename, 'w') as f:
@@ -312,9 +243,11 @@ class Simulation():
         return
     
     def set_properties(self, **kwargs):
-        set_properties(self,**kwargs)
+        util._set_properties(self,**kwargs)
         return 
-      
+
+        
+        
 
 
  
