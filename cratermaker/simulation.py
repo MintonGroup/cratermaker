@@ -13,6 +13,29 @@ from scipy.stats import maxwell
 
 @dataclass
 class Material:
+    """
+    Represents the material properties relevant to the crater simulation.
+
+    This class defines various physical properties of the material involved in the cratering process.
+    
+
+    Attributes
+    ----------
+    name : str
+        The name of the material. If the material is matched to one that is present in the catalogue, the rest of the properties will be retrieved for it unless specified. If the name is not known from the catalogue, then all other properties must be supplied and in order to build a custom material.
+    Ybar : float
+        The strength of the material, typically defined in Pa. 
+    other_properties : dict
+        Other relevant properties of the material.
+
+    Methods
+    -------
+    set_properties(name, **kwargs):
+        Add a custom property to the material.
+
+    """
+
+    
     # Define all valid properties for the Target object
     name: str = None
     K1: float = None
@@ -52,6 +75,20 @@ class Material:
 
 @dataclass
 class Target:
+    """
+    Represents the target body in the crater simulation.
+
+    This class encapsulates the properties of the target that is impacted, including
+    its material composition, size, and other relevant physical characteristics.
+
+    Attributes
+    ----------
+    material : Material
+        The material composition of the target.
+    size : float
+        The size of the target, in relevant units. 
+    """
+       
     # Set up instance variables
     name: str = None
     radius: float = None
@@ -96,6 +133,21 @@ class Target:
     
 @dataclass    
 class Projectile:
+    """
+    Represents the projectile in the crater simulation.
+
+    This class defines the properties of the impacting object, such as its size,
+    velocity, material, and angle of impact.
+
+    Attributes
+    ----------
+    velocity : float
+        The velocity of the projectile upon impact, in m/s.
+    angle : float
+        The angle of impact, in degrees.
+    material : Material
+        The material composition of the projectile. 
+    """
     diameter: float = None              # The diameter of the projectile (m)
     velocity: float = None              # The velocity of the projectile (m/s)
     density: float  = None              # The mass density of the projectile (kg/m**3)
@@ -105,6 +157,19 @@ class Projectile:
 
 @dataclass
 class Crater:
+    """
+    Represents a crater formed by an impact in the simulation.
+
+    This class models the crater resulting from an impact, including its size,
+    shape, depth, and other morphological features.
+
+    Attributes
+    ----------
+    diameter : float
+        The diameter of the crater, in relevant units.
+    depth : float
+        The depth of the crater, in relevant units.
+    """    
     projectile: Projectile = None      # The projectile properties
     diameter: float = None             # The crater diameter (m)
     location: (float,float) = None     # Tuple that specifies a location of the impact onto the target surface: (lat,lon)? (theta,phi)? some other measure of location?
