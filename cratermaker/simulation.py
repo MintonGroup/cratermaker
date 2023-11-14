@@ -1,4 +1,3 @@
-from  ._bind import _BodyBind
 from . import util
 from . import montecarlo as mc
 from dataclasses import dataclass, field
@@ -93,7 +92,8 @@ class Target:
     name: str = None
     radius: float = None
     gravity: float = None
-    material: Material = field(default_factory=Material)
+    material_name: str = None
+    material: Material = None
     mean_impact_velocity: float = None
     
     config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
@@ -110,8 +110,8 @@ class Target:
             ("Earth",   6371.01e3, 1.0   * gEarth, "Wet Soil" , 24600.0),
             ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock", 22100.0),
             ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock", 10700.0),
-            ("Ceres",   469.7e3,   0.29  * gEarth, "Ice"      , 5300.0),
-            ("Vesta",   262.7e3,   0.25  * gEarth, "Soft Rock", 5300.0),
+            ("Ceres",   469.7e3,   0.029 * gEarth, "Ice"      , 5300.0),
+            ("Vesta",   262.7e3,   0.025 * gEarth, "Soft Rock", 5300.0),
         ]      
         # Mean velocities for terrestrial planets based on analysis of simulations from Minton & Malhotra (2010) of main belt-derived asteroid
         # Mean velocities for the asteroids are from Bottke et al. (1994)
@@ -120,7 +120,9 @@ class Target:
         
         # Set properties for the Target object based on the arguments passed to the function
         if self.name:
+            self.material = "TEMP" 
             util._set_properties(self,catalogue=self.catalogue, key=self.name)
+            self.material = Material(name=self.material_name)
         else: 
             raise ValueError('No target defined!')    
         
@@ -195,7 +197,7 @@ class Simulation():
         
         # Set some default values for the production function population
         self.impactor_sfd  = kwargs.get('impactor_sfd', None)
-        self.impactor_velocity = kwargs.gt('impactor_velocity', None)
+        self.impactor_velocity = kwargs.get('impactor_velocity', None)
         
         # Set the random number generator seed
         self.seed = kwargs.get('seed', None) 
@@ -221,9 +223,6 @@ class Simulation():
             print("Generating new mesh. Please be patient.")
             self.make_target_mesh
             
-         
-
-    
         
     config_ignore = ['target', 'projectile', 'crater']  # Instance variables to ignore when saving to file
     def to_json(self, filename):
