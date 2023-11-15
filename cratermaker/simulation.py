@@ -313,6 +313,7 @@ class Simulation():
         jigsawpy.savemsh(opts.geom_file,geom)
 
         # Set mesh options
+        opts.numthread = os.getenv('OMP_NUM_THREADS')
         opts.hfun_scal = "absolute"  #scaling type for mesh-size function, either "relative" or "absolute." For "relative" mesh-size values as percentages of the (mean) length of the axis-aligned bounding-box (AABB) associated with the geometry. "absolute" interprets mesh-size values as absolute measures.
         opts.hfun_hmax = np.sqrt(2.0) * self.pix       # mesh-size function value. The "pix" value is adjusted to keep it scaled  to roughly the same as the older CTEM pix
         opts.mesh_dims = +2          # Number of mesh dimensions (2 for body mesh, 3 for volume)
@@ -320,7 +321,6 @@ class Simulation():
         opts.optm_iter = +64         # max. number of mesh optimisation iterations. 
         opts.optm_qtol = +1.0E-05    # tolerance on mesh cost function for convergence. Iteration on a given node is terminated if adjacent element cost-functions are improved by less than QTOL.
         opts.mesh_kern = "delfront"  # meshing kernel, choice of the standard Delaunay-refinement algorithm ('delaunay') or the Frontal-Delaunay method ('delfront').
-        
         # Generate tesselated mesh
         jigsawpy.cmd.jigsaw(opts, mesh)
         
