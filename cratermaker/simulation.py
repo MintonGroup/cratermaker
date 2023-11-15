@@ -1,14 +1,13 @@
 from . import util
 from . import montecarlo as mc
-from dataclasses import dataclass, field
+from  ._bind import _BodyBind
+from dataclasses import dataclass
 import numpy as np
-from numpy.typing import NDArray
 from numpy.random import default_rng
 import jigsawpy
 import os
 import trimesh
 import json
-from scipy.stats import maxwell
 
 @dataclass
 class Material:
@@ -203,7 +202,6 @@ class Simulation():
         self.seed = kwargs.get('seed', None) 
         self.rng = default_rng(seed=self.seed)
         
-        
         self.cachedir = os.path.join(os.getcwd(),'.cache')
         self.mesh_file = kwargs.get('mesh_file', os.path.join(self.cachedir,"target_mesh.glb") )
         if not os.path.exists(self.cachedir):
@@ -212,7 +210,9 @@ class Simulation():
         self.mesh = None 
         # Check if a mesh exists, and if so, load it up
         if os.path.exists(self.mesh_file):
-            self.load_body_mesh()
+            self.load_target_mesh()
+        else:
+            self.make_target_mesh()
             
     def populate(self):
         """
@@ -297,7 +297,7 @@ class Simulation():
         return
     
     
-    def load_body_mesh(self):
+    def load_target_mesh(self):
         # This is not well documented, but trimesh reads the mesh in as a Scene instead of a Trimesh, so we need to extract the actual mesh
         scene = trimesh.load_mesh(self.mesh_file)
         
