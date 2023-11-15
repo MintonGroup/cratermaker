@@ -35,7 +35,7 @@ contains
       !! that can be used as a struct in C, and ultimately to the Python class object via Cython.
       implicit none
       ! Arguments
-      integer(I4B), intent(in), value   :: ny, nx !! The dimensions of the array to create. Note, this expects row-major ordering like C
+      integer(I4B), intent(in), value   :: ny, nx !! The dimensions of the array to create. This expect C (row-major) ordering 
       ! Internals
       type(target_body_type), pointer :: f_sim  !! A pointer to the body type variable that will be passed to Cython
 
