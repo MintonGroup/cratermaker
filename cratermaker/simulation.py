@@ -43,31 +43,47 @@ class Material:
 
     config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
     def __post_init__(self):
-        # Define some default crater scaling relationship terms (see Richardson 2009, Table 1) 
+        # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
         material_properties = [
             "name",       "K1",     "mu",   "Ybar",     "density" 
         ]
         material_values = [
             ("Water",     2.30,     0.55,   0.0,        1000.0),
             ("Sand",      0.24,     0.41,   0.0,        1750.0),
-            ("Dry Soil",  0.24,     0.41,   0.18,       1500.0),
-            ("Wet Soil",  0.20,     0.55,   1.14,       2000.0),
-            ("Soft Rock", 0.20,     0.55,   7.60,       2250.0),
-            ("Hard Rock", 0.20,     0.55,   18.0,       2500.0),
-            ("Ice",       2.30,     0.39,   0.0,        900.0), # TODO: Update these based on Kraus, Senft, and Stewart (2011) 
+            ("Dry Soil",  0.24,     0.41,   0.18e6,     1500.0),
+            ("Wet Soil",  0.20,     0.55,   1.14e6,     2000.0),
+            ("Soft Rock", 0.20,     0.55,   7.60e6,     2250.0),
+            ("Hard Rock", 0.20,     0.55,   18.0e6,     2500.0),
+            ("Ice",       15.625,   0.48,   0.0,        900.0), 
         ]        
         
         self.catalogue = util._create_catalogue(material_properties, material_values)
         
         # Set properties for the Material object based on the catalogue value)
         if self.name:
-            util._set_properties(self,catalogue=self.catalogue, key=self.name)
+            self.set_properties(catalogue=self.catalogue, key=self.name)
         else:
             raise ValueError('No material defined!')    
         
         return    
     
     def set_properties(self, **kwargs):
+        """
+        Set properties of the current object based on the provided keyword arguments.
+
+        This function is a utility to update the properties of the current object. The actual implementation of the 
+        property setting is handled by the `util._set_properties` method.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            A dictionary of keyword arguments that represent the properties to be set on the current object.
+
+        Returns
+        -------
+        None
+            The function does not return a value.
+        """         
         util._set_properties(self,**kwargs)
         return
 
@@ -120,7 +136,7 @@ class Target:
         # Set properties for the Target object based on the arguments passed to the function
         if self.name:
             self.material = "TEMP" 
-            util._set_properties(self,catalogue=self.catalogue, key=self.name)
+            self.set_properties(catalogue=self.catalogue, key=self.name)
             self.material = Material(name=self.material_name)
         else: 
             raise ValueError('No target defined!')    
@@ -129,7 +145,23 @@ class Target:
    
     
     def set_properties(self, **kwargs):
-        set_properties(self,**kwargs)
+        """
+        Set properties of the current object based on the provided keyword arguments.
+
+        This function is a utility to update the properties of the current object. The actual implementation of the 
+        property setting is handled by the `util._set_properties` method.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            A dictionary of keyword arguments that represent the properties to be set on the current object.
+
+        Returns
+        -------
+        None
+            The function does not return a value.
+        """         
+        util._set_properties(self,**kwargs)
         return
     
 @dataclass    
@@ -251,9 +283,18 @@ class Simulation():
         self._body.set_elevation(elevation_array)
 
     def make_target_mesh(self):
-        '''
-            This will use jigsawpy to tesselate a sphere to make our intial mesh. This will then be converted to a GLB format
-        '''
+        """
+        Generate a tessellated mesh of a sphere using the jigsawpy library and convert it to GLB format.
+
+        This function sets up Jigsaw mesh files and a mesh body, defines a basic sphere using an ellipsoid mesh model,
+        sets mesh options, generates a tessellated mesh, and converts the mesh to a trimesh object. The generated mesh 
+        is then saved in GLB format.
+
+        Returns
+        -------
+        None
+            The function does not return a value but updates the `self.mesh` attribute with the generated trimesh object.
+        """
         
         # This will get updated evantually after we're done testing
         # Set up jigsaw objects
@@ -298,6 +339,19 @@ class Simulation():
     
     
     def load_target_mesh(self):
+        """
+        Load a target mesh from a file into the `self.mesh` attribute.
+
+        This function uses the trimesh library to read a mesh file, which is expected to be in GLB format. The function
+        handles the peculiarity of trimesh reading the mesh as a Scene instead of a Trimesh object and extracts the 
+        actual mesh from the scene.
+
+        Returns
+        -------
+        None
+            The function does not return a value but updates the `self.mesh` attribute with the loaded trimesh object.
+        """
+    
         # This is not well documented, but trimesh reads the mesh in as a Scene instead of a Trimesh, so we need to extract the actual mesh
         scene = trimesh.load_mesh(self.mesh_file)
         
@@ -307,6 +361,22 @@ class Simulation():
         return
     
     def set_properties(self, **kwargs):
+        """
+        Set properties of the current object based on the provided keyword arguments.
+
+        This function is a utility to update the properties of the current object. The actual implementation of the 
+        property setting is handled by the `util._set_properties` method.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            A dictionary of keyword arguments that represent the properties to be set on the current object.
+
+        Returns
+        -------
+        None
+            The function does not return a value.
+        """        
         util._set_properties(self,**kwargs)
         return 
 
