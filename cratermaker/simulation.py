@@ -313,7 +313,7 @@ class Simulation():
         jigsawpy.savemsh(opts.geom_file,geom)
 
         # Set mesh options
-        opts.numthread = int(os.getenv('OMP_NUM_THREADS'))
+        #opts.numthread = int(os.getenv('OMP_NUM_THREADS'))
         opts.hfun_scal = "absolute"  #scaling type for mesh-size function, either "relative" or "absolute." For "relative" mesh-size values as percentages of the (mean) length of the axis-aligned bounding-box (AABB) associated with the geometry. "absolute" interprets mesh-size values as absolute measures.
         opts.hfun_hmax = np.sqrt(2.0) * self.pix       # mesh-size function value. The "pix" value is adjusted to keep it scaled  to roughly the same as the older CTEM pix
         opts.mesh_dims = +2          # Number of mesh dimensions (2 for body mesh, 3 for volume)
@@ -333,7 +333,7 @@ class Simulation():
         self.mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
        
         # Save generated mesh 
-        export = self.mesh.export(os.path.join(self.cachedir,f"{self.meshname}.glb"))
+        export = self.mesh.export(self.mesh_file)
         
         return
     
