@@ -77,7 +77,7 @@ contains
       type(c_ptr), value :: c_sim  !! C pointer to the Fortran body object
       ! Internals
       type(target_body_type), pointer :: f_sim  !! A pointer to the body type variable that will be passed to Cython
-      character(kind=c_char), dimension(STRMAX), target :: f_str
+      character(kind=c_char), dimension(:),pointer :: f_str
 
       if (c_associated(c_sim)) then
          nullify(f_sim)

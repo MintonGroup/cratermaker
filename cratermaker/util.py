@@ -1,4 +1,7 @@
 import json
+from dataclasses import fields
+from typing import Union
+import numpy as np
 
 def _to_config(obj):
     """
@@ -124,3 +127,4 @@ def _create_catalogue(header,values):
         del catalogue[k][header[0]]
 
     return catalogue 
+

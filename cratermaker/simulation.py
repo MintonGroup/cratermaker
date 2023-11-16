@@ -1,13 +1,14 @@
 from . import util
 from . import montecarlo as mc
 from  ._bind import _BodyBind
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 from numpy.random import default_rng
 import jigsawpy
 import os
 import trimesh
 import json
+from typing import Union, Tuple, List
 
 @dataclass
 class Material:
@@ -33,7 +34,6 @@ class Material:
 
     """
 
-    
     # Define all valid properties for the Target object
     name: str = None
     K1: float = None
@@ -110,6 +110,7 @@ class Target:
     material_name: str = None
     material: Material = None
     mean_impact_velocity: float = None
+    transition_scale_type: str = "silicate" # Options are silicate and ice
     
     config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
     def __post_init__(self):
@@ -198,16 +199,58 @@ class Crater:
 
     Attributes
     ----------
-    diameter : float
-        The diameter of the crater, in relevant units.
-    depth : float
-        The depth of the crater, in relevant units.
-    """    
-    projectile: Projectile = None      # The projectile properties
-    diameter: float = None             # The crater diameter (m)
-    location: (float,float) = None     # Tuple that specifies a location of the impact onto the target surface: (lat,lon)? (theta,phi)? some other measure of location?
-
+    TBD
+    """
+    projectile: Projectile = field(default=None)      
+    location: np.ndarray = field(default=None)
+    diameter: np.float64 = field(default=None)
+    radius: np.float64 = field(default=None)
+    transient_diameter: np.float64 = field(default=None)
+    transient_radius: np.float64 = field(default=None)
     
+    def __post_init__(self):
+        values_set = sum(x is not None for x in [self.diameter, self.radius, 
+                                                 self.transient_diameter, self.transient_radius])
+
+        if values_set > 1:
+            raise ValueError("Only one of diameter, radius, transient_diameter, transient_radius may be set")
+
+        if self.diameter is not None:
+            self.radius = self.diameter / 2
+        elif self.radius is not None:
+            self.diameter = self.radius * 2
+        elif self.transient_diameter is not None:
+            self.transient_radius = self.transient_diameter / 2
+        elif self.transient_radius is not None:
+            self.transient_diameter = self.transient_radius * 2
+
+        if self.location is not None:
+            if not isinstance(self.location, np.ndarray):
+                self.location = np.array(self.location, dtype=np.float64)
+            if self.location.shape != (2,):
+                raise ValueError("location must be a 2-element array")
+        
+        return
+
+    def set_properties(self, **kwargs):
+        """
+        Set properties of the current object based on the provided keyword arguments.
+
+        This function is a utility to update the properties of the current object. The actual implementation of the 
+        property setting is handled by the `util._set_properties` method.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            A dictionary of keyword arguments that represent the properties to be set on the current object.
+
+        Returns
+        -------
+        None
+            The function does not return a value.
+        """         
+        util._set_properties(self,**kwargs)
+        return    
 
 class Simulation():
     """
@@ -245,7 +288,22 @@ class Simulation():
             self.load_target_mesh()
         else:
             self.make_target_mesh()
-            
+    
+   
+    @property
+    def crater(self):
+        return self._crater
+
+    @crater.setter
+    def crater(self, value):
+        self._crater = value
+        if hasattr(value, 'diameter') and value.diameter is not None:
+            self.final_to_transient()
+            self.crater.transient_radius = self.crater.transient_diameter / 2
+        elif hasattr(value, 'transient_diameter') and value.transient_diameter is not None:
+            self.transient_to_final()
+            self.crater.radius = self.crater.diameter / 2
+                     
     def populate(self):
         """
         Populate the surface with craters
@@ -278,9 +336,11 @@ class Simulation():
 
     def get_elevation(self):
         return self._body.get_elevation()
+
     
     def set_elevation(self, elevation_array):
         self._body.set_elevation(elevation_array)
+
 
     def make_target_mesh(self):
         """
@@ -360,6 +420,7 @@ class Simulation():
         
         return
     
+    
     def set_properties(self, **kwargs):
         """
         Set properties of the current object based on the provided keyword arguments.
@@ -380,8 +441,69 @@ class Simulation():
         util._set_properties(self,**kwargs)
         return 
 
+    
+
+    
+    def get_simple_to_complex_transition_factors(self):
+        simple_enlargement_factor = 0.84 # See Melosh (1989) pg. 129 just following eq. 8.2.1
+        transition_exp_mean = 0.15 # See Croft (1985) eq. 9
+        final_exp_mean = 0.85      # See Croft (1985) eq. 9
+        # Standard deviations for the exponents
+        transition_exp_std = 0.04
+        final_exp_std = 0.04
+       
+        # The transition values come from CTEM and are a synthesis of Pike (1980), Croft (1985), Schenk et al. (2004).
+        if self.target.transition_scale_type == "silicate":
+            simple_complex_exp = -1.0303 
+            simple_complex_mean = 2*16533.8 
+            simple_complex_std = 0.05
+        elif self.target.transition_scale_type == "ice":
+            simple_complex_exp = -1.22486
+            simple_complex_mean = 2*3081.39
+            simple_complex_std = 0.05
+           
+        # Draw from a normal distribution for each exponent
+        transition_exp = self.rng.normal(transition_exp_mean, transition_exp_std)
+        final_exp = self.rng.normal(final_exp_mean, final_exp_std)
+        simple_complex_fac = simple_complex_mean * np.exp(self.rng.normal(scale=simple_complex_std))
+        transition_diameter = simple_complex_fac * self.target.gravity**simple_complex_exp
         
+        return transition_diameter, simple_enlargement_factor, transition_exp, final_exp 
+     
+
+    def final_to_transient(self):
+        transition_diameter, simple_enlargement_factor, transition_exp, final_exp = self.get_simple_to_complex_transition_factors() 
+        if self.crater.diameter < transition_diameter:
+            self.crater.transient_diameter = simple_enlargement_factor * self.crater.diameter  # Simple crater scaling
+        else:
+            self.crater.transient_diameter = 1e3 * (transition_diameter * 1e-3)**transition_exp * (self.crater.diameter * 1e-3)**final_exp # Complex crater scaling (in m)
+        self.crater.transient_diameter = np.float64(self.crater.transient_diameter)
         
+        return 
+
+    def transient_to_final(self):
+        transition_diameter, simple_enlargement_factor, transition_exp, final_exp = self.get_simple_to_complex_transition_factors()
+        
+        final_diameter_simple = np.float64(self.crater.transient_diameter / simple_enlargement_factor)
+        final_diameter_complex = np.float64(1e3 * ((1e-3 * self.crater.transient_diameter) / (transition_diameter * 1e-3)**transition_exp)**(1.0 / final_exp))
+       
+        if final_diameter_simple < transition_diameter and final_diameter_complex < transition_diameter: # Unambiguosly simple
+            self.crater.diameter = final_diameter_simple
+            self.crater.morphology_type = "simple"
+        elif final_diameter_simple > transition_diameter and final_diameter_complex > transition_diameter: # Unambiguously complex
+            self.crater.diameter = final_diameter_complex
+            self.crater.morphology_type = "complex"
+        else: # Could be either complex or simple. We'll just draw which one from a hat weighted in the direction of whichever size is closest to the transition
+            is_simple = self.rng.random() < np.abs(final_diameter_complex - transition_diameter) / np.abs(final_diameter_simple - final_diameter_complex)
+            self.crater.morphology_type = self.rng.choice(["simple", "complex"])
+            if is_simple:
+                self.crater.diameter = final_diameter_simple
+                self.crater.morphology_type = "simple"
+            else:
+                self.crater.diameter = final_diameter_complex
+                self.crater.morphology_type = "complex"
+            
+        return    
 
 
  
