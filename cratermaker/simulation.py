@@ -10,6 +10,74 @@ import trimesh
 import json
 from typing import Union, Tuple, List
 
+
+@dataclass    
+class Projectile:
+    """
+    Represents the projectile in the crater simulation.
+
+    This class defines the properties of the impacting object, such as its size,
+    velocity, material, and angle of impact.
+
+    Attributes
+    ----------
+    velocity : float
+        The velocity of the projectile upon impact, in m/s.
+    angle : float
+        The angle of impact, in degrees.
+    material : Material
+        The material composition of the projectile. 
+    """
+    diameter: float = None              # The diameter of the projectile (m)
+    velocity: float = None              # The velocity of the projectile (m/s)
+    density: float  = None              # The mass density of the projectile (kg/m**3)
+    location: (float,float) = None      # Tuple that specifies a location of the impact onto the target surface: (lat,lon)? (theta,phi)? some other measure of location?
+    angle: float = None          # The impact angle of the projectile (deg)
+        
+
+@dataclass
+class Crater:
+    """
+    Represents a crater formed by an impact in the simulation.
+
+    This class models the crater resulting from an impact, including its size,
+    shape, depth, and other morphological features.
+
+    Attributes
+    ----------
+    TBD
+    """
+    location: np.ndarray = field(default=None)
+    diameter: np.float64 = field(default=None)
+    radius: np.float64 = field(default=None)
+    transient_diameter: np.float64 = field(default=None)
+    transient_radius: np.float64 = field(default=None)
+    
+    def __post_init__(self):
+        values_set = sum(x is not None for x in [self.diameter, self.radius, 
+                                                 self.transient_diameter, self.transient_radius])
+
+        if values_set > 1:
+            raise ValueError("Only one of diameter, radius, transient_diameter, transient_radius may be set")
+
+        if self.diameter is not None:
+            self.radius = self.diameter / 2
+        elif self.radius is not None:
+            self.diameter = self.radius * 2
+        elif self.transient_diameter is not None:
+            self.transient_radius = self.transient_diameter / 2
+        elif self.transient_radius is not None:
+            self.transient_diameter = self.transient_radius * 2
+
+        if self.location is not None:
+            if not isinstance(self.location, np.ndarray):
+                self.location = np.array(self.location, dtype=np.float64)
+            if self.location.shape != (2,):
+                raise ValueError("location must be a 2-element array")
+        
+        return
+   
+
 @dataclass
 class Material:
     """
@@ -165,93 +233,6 @@ class Target:
         util._set_properties(self,**kwargs)
         return
     
-@dataclass    
-class Projectile:
-    """
-    Represents the projectile in the crater simulation.
-
-    This class defines the properties of the impacting object, such as its size,
-    velocity, material, and angle of impact.
-
-    Attributes
-    ----------
-    velocity : float
-        The velocity of the projectile upon impact, in m/s.
-    angle : float
-        The angle of impact, in degrees.
-    material : Material
-        The material composition of the projectile. 
-    """
-    diameter: float = None              # The diameter of the projectile (m)
-    velocity: float = None              # The velocity of the projectile (m/s)
-    density: float  = None              # The mass density of the projectile (kg/m**3)
-    location: (float,float) = None      # Tuple that specifies a location of the impact onto the target surface: (lat,lon)? (theta,phi)? some other measure of location?
-    angle: float = 45.0          # The impact angle of the projectile (deg)
-        
-
-@dataclass
-class Crater:
-    """
-    Represents a crater formed by an impact in the simulation.
-
-    This class models the crater resulting from an impact, including its size,
-    shape, depth, and other morphological features.
-
-    Attributes
-    ----------
-    TBD
-    """
-    projectile: Projectile = field(default=None)      
-    location: np.ndarray = field(default=None)
-    diameter: np.float64 = field(default=None)
-    radius: np.float64 = field(default=None)
-    transient_diameter: np.float64 = field(default=None)
-    transient_radius: np.float64 = field(default=None)
-    
-    def __post_init__(self):
-        values_set = sum(x is not None for x in [self.diameter, self.radius, 
-                                                 self.transient_diameter, self.transient_radius])
-
-        if values_set > 1:
-            raise ValueError("Only one of diameter, radius, transient_diameter, transient_radius may be set")
-
-        if self.diameter is not None:
-            self.radius = self.diameter / 2
-        elif self.radius is not None:
-            self.diameter = self.radius * 2
-        elif self.transient_diameter is not None:
-            self.transient_radius = self.transient_diameter / 2
-        elif self.transient_radius is not None:
-            self.transient_diameter = self.transient_radius * 2
-
-        if self.location is not None:
-            if not isinstance(self.location, np.ndarray):
-                self.location = np.array(self.location, dtype=np.float64)
-            if self.location.shape != (2,):
-                raise ValueError("location must be a 2-element array")
-        
-        return
-
-    def set_properties(self, **kwargs):
-        """
-        Set properties of the current object based on the provided keyword arguments.
-
-        This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `util._set_properties` method.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            A dictionary of keyword arguments that represent the properties to be set on the current object.
-
-        Returns
-        -------
-        None
-            The function does not return a value.
-        """         
-        util._set_properties(self,**kwargs)
-        return    
-
 class Simulation():
     """
     This is a class that defines the basic Cratermaker body object. 
@@ -440,8 +421,6 @@ class Simulation():
         """        
         util._set_properties(self,**kwargs)
         return 
-
-    
 
     
     def get_simple_to_complex_transition_factors(self):
