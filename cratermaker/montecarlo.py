@@ -1,4 +1,4 @@
-
+import numpy as np
 def get_random_location(size=None, rng=None):
    """
    Computes random latitude and longitude values.

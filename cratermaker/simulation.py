@@ -333,7 +333,7 @@ class Simulation():
         self.mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
        
         # Save generated mesh 
-        export = self.mesh.export(os.path.join(cachedir,f"{meshname}.glb"))
+        export = self.mesh.export(os.path.join(self.cachedir,f"{self.meshname}.glb"))
         
         return
     
