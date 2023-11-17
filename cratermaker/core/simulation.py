@@ -11,228 +11,7 @@ import json
 from typing import Union, Tuple, List
 
 
-@dataclass    
-class Projectile:
-    """
-    Represents the projectile in the crater simulation.
 
-    This class defines the properties of the impacting object, such as its size,
-    velocity, material, and angle of impact.
-
-    Attributes
-    ----------
-    velocity : float
-        The velocity of the projectile upon impact, in m/s.
-    angle : float
-        The angle of impact, in degrees.
-    material : Material
-        The material composition of the projectile. 
-    """
-    diameter: float = None              # The diameter of the projectile (m)
-    velocity: float = None              # The velocity of the projectile (m/s)
-    density: float  = None              # The mass density of the projectile (kg/m**3)
-    location: (float,float) = None      # Tuple that specifies a location of the impact onto the target surface: (lat,lon)? (theta,phi)? some other measure of location?
-    angle: float = None          # The impact angle of the projectile (deg)
-        
-
-@dataclass
-class Crater:
-    """
-    Represents a crater formed by an impact in the simulation.
-
-    This class models the crater resulting from an impact, including its size,
-    shape, depth, and other morphological features.
-
-    Attributes
-    ----------
-    TBD
-    """
-    location: np.ndarray = field(default=None)
-    diameter: np.float64 = field(default=None)
-    radius: np.float64 = field(default=None)
-    transient_diameter: np.float64 = field(default=None)
-    transient_radius: np.float64 = field(default=None)
-    
-    def __post_init__(self):
-        values_set = sum(x is not None for x in [self.diameter, self.radius, 
-                                                 self.transient_diameter, self.transient_radius])
-
-        if values_set > 1:
-            raise ValueError("Only one of diameter, radius, transient_diameter, transient_radius may be set")
-
-        if self.diameter is not None:
-            self.radius = self.diameter / 2
-        elif self.radius is not None:
-            self.diameter = self.radius * 2
-        elif self.transient_diameter is not None:
-            self.transient_radius = self.transient_diameter / 2
-        elif self.transient_radius is not None:
-            self.transient_diameter = self.transient_radius * 2
-
-        if self.location is not None:
-            if not isinstance(self.location, np.ndarray):
-                self.location = np.array(self.location, dtype=np.float64)
-            if self.location.shape != (2,):
-                raise ValueError("location must be a 2-element array")
-        
-        return
-   
-
-@dataclass
-class Material:
-    """
-    Represents the material properties relevant to the crater simulation.
-
-    This class defines various physical properties of the material involved in the cratering process.
-    
-
-    Attributes
-    ----------
-    name : str
-        The name of the material. If the material is matched to one that is present in the catalogue, the rest of the properties will be retrieved for it unless specified. If the name is not known from the catalogue, then all other properties must be supplied and in order to build a custom material.
-    Ybar : float
-        The strength of the material, typically defined in Pa. 
-    other_properties : dict
-        Other relevant properties of the material.
-
-    Methods
-    -------
-    set_properties(name, **kwargs):
-        Add a custom property to the material.
-
-    """
-
-    # Define all valid properties for the Target object
-    name: str = None
-    K1: float = None
-    mu: float = None
-    Ybar: float = None
-    density: float = None 
-
-    config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
-    def __post_init__(self):
-        # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
-        material_properties = [
-            "name",       "K1",     "mu",   "Ybar",     "density" 
-        ]
-        material_values = [
-            ("Water",     2.30,     0.55,   0.0,        1000.0),
-            ("Sand",      0.24,     0.41,   0.0,        1750.0),
-            ("Dry Soil",  0.24,     0.41,   0.18e6,     1500.0),
-            ("Wet Soil",  0.20,     0.55,   1.14e6,     2000.0),
-            ("Soft Rock", 0.20,     0.55,   7.60e6,     2250.0),
-            ("Hard Rock", 0.20,     0.55,   18.0e6,     2500.0),
-            ("Ice",       15.625,   0.48,   0.0,        900.0), 
-        ]        
-        
-        self.catalogue = util._create_catalogue(material_properties, material_values)
-        
-        # Set properties for the Material object based on the catalogue value)
-        if self.name:
-            self.set_properties(catalogue=self.catalogue, key=self.name)
-        else:
-            raise ValueError('No material defined!')    
-        
-        return    
-    
-    def set_properties(self, **kwargs):
-        """
-        Set properties of the current object based on the provided keyword arguments.
-
-        This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `util._set_properties` method.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            A dictionary of keyword arguments that represent the properties to be set on the current object.
-
-        Returns
-        -------
-        None
-            The function does not return a value.
-        """         
-        util._set_properties(self,**kwargs)
-        return
-
-@dataclass
-class Target:
-    """
-    Represents the target body in the crater simulation.
-
-    This class encapsulates the properties of the target that is impacted, including
-    its material composition, size, and other relevant physical characteristics.
-
-    Attributes
-    ----------
-    material : Material
-        The material composition of the target.
-    size : float
-        The size of the target, in relevant units. 
-    """
-       
-    # Set up instance variables
-    name: str = None
-    radius: float = None
-    gravity: float = None
-    material_name: str = None
-    material: Material = None
-    mean_impact_velocity: float = None
-    transition_scale_type: str = "silicate" # Options are silicate and ice
-    
-    config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
-    def __post_init__(self):
-        # Define some built-in catalogue values for known solar system targets of interest
-        gEarth = 9.80665 # 1 g in SI units
-        
-        body_properties = [
-            "name",    "radius",   "gravity",      "material_name", "mean_impact_velocity"
-        ]
-        body_values = [
-            ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock", 41100.0),
-            ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock", 29100.0),
-            ("Earth",   6371.01e3, 1.0   * gEarth, "Wet Soil" , 24600.0),
-            ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock", 22100.0),
-            ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock", 10700.0),
-            ("Ceres",   469.7e3,   0.029 * gEarth, "Ice"      , 5300.0),
-            ("Vesta",   262.7e3,   0.025 * gEarth, "Soft Rock", 5300.0),
-        ]      
-        # Mean velocities for terrestrial planets based on analysis of simulations from Minton & Malhotra (2010) of main belt-derived asteroid
-        # Mean velocities for the asteroids are from Bottke et al. (1994)
-        
-        self.catalogue = util._create_catalogue(body_properties, body_values)
-        
-        # Set properties for the Target object based on the arguments passed to the function
-        if self.name:
-            self.material = "TEMP" 
-            self.set_properties(catalogue=self.catalogue, key=self.name)
-            self.material = Material(name=self.material_name)
-        else: 
-            raise ValueError('No target defined!')    
-        
-        return
-   
-    
-    def set_properties(self, **kwargs):
-        """
-        Set properties of the current object based on the provided keyword arguments.
-
-        This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `util._set_properties` method.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            A dictionary of keyword arguments that represent the properties to be set on the current object.
-
-        Returns
-        -------
-        None
-            The function does not return a value.
-        """         
-        util._set_properties(self,**kwargs)
-        return
-    
 class Simulation():
     """
     This is a class that defines the basic Cratermaker body object. 
@@ -270,6 +49,21 @@ class Simulation():
         else:
             self.make_target_mesh()
     
+
+    @property
+    def projectile(self):
+        return self._projectile
+
+    @crater.setter
+    def crater(self, value):
+        self._crater = value
+        if hasattr(value, 'diameter') and value.diameter is not None:
+            self.final_to_transient()
+            self.crater.transient_radius = self.crater.transient_diameter / 2
+        elif hasattr(value, 'transient_diameter') and value.transient_diameter is not None:
+            self.transient_to_final()
+            self.crater.radius = self.crater.diameter / 2
+                     
    
     @property
     def crater(self):
@@ -284,17 +78,9 @@ class Simulation():
         elif hasattr(value, 'transient_diameter') and value.transient_diameter is not None:
             self.transient_to_final()
             self.crater.radius = self.crater.diameter / 2
-                     
-    def populate(self):
-        """
-        Populate the surface with craters
-        """
-        
-        if not self.mesh:
-            print("Generating new mesh. Please be patient.")
-            self.make_target_mesh
             
-        
+            
+
     config_ignore = ['target', 'projectile', 'crater']  # Instance variables to ignore when saving to file
     def to_json(self, filename):
         
@@ -459,6 +245,7 @@ class Simulation():
         self.crater.transient_diameter = np.float64(self.crater.transient_diameter)
         
         return 
+
 
     def transient_to_final(self):
         transition_diameter, simple_enlargement_factor, transition_exp, final_exp = self.get_simple_to_complex_transition_factors()

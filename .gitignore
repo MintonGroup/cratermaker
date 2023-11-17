@@ -4,9 +4,15 @@
 !src/*/**.f90
 !src/globals/*.in
 !cratermaker/
+!cratermaker/core/
+!cratermaker/models/
+!cratermaker/plugins/
+!cratermaker/tests/
+!cratermaker/utils/
 !cratermaker/**.py
-!cratermaker/**.pyx
-!cratermaker/**.h
+!cratermaker/*/**.py
+!cratermaker/*/**.pyx
+!cratermaker/*/**.h
 !cmake/
 !cmake/Modules/
 !cmake/Modules/*.cmake
