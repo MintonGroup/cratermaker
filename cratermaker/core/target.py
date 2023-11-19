@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from .material import Material
+from ..utils.general_utils import set_properties, create_catalogue
 @dataclass
 class Target:
     """
@@ -43,7 +46,7 @@ class Target:
         # Mean velocities for terrestrial planets based on analysis of simulations from Minton & Malhotra (2010) of main belt-derived asteroid
         # Mean velocities for the asteroids are from Bottke et al. (1994)
         
-        self.catalogue = util._create_catalogue(body_properties, body_values)
+        self.catalogue = create_catalogue(body_properties, body_values)
         
         # Set properties for the Target object based on the arguments passed to the function
         if self.name:
@@ -61,7 +64,7 @@ class Target:
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `util._set_properties` method.
+        property setting is handled by the `util.set_properties` method.
 
         Parameters
         ----------
@@ -73,6 +76,6 @@ class Target:
         None
             The function does not return a value.
         """         
-        util._set_properties(self,**kwargs)
+        set_properties(self,**kwargs)
         return
     

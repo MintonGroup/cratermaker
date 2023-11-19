@@ -1,6 +1,6 @@
     
-
-        
+from dataclasses import dataclass
+from ..utils.general_utils import create_catalogue, set_properties
 
 @dataclass
 class Material:
@@ -49,7 +49,7 @@ class Material:
             ("Ice",       15.625,   0.48,   0.0,        900.0), 
         ]        
         
-        self.catalogue = util._create_catalogue(material_properties, material_values)
+        self.catalogue = create_catalogue(material_properties, material_values)
         
         # Set properties for the Material object based on the catalogue value)
         if self.name:
@@ -64,7 +64,7 @@ class Material:
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `util._set_properties` method.
+        property setting is handled by the `util.set_properties` method.
 
         Parameters
         ----------
@@ -76,5 +76,5 @@ class Material:
         None
             The function does not return a value.
         """         
-        util._set_properties(self,**kwargs)
+        set_properties(self,**kwargs)
         return

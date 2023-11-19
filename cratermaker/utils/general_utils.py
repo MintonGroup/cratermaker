@@ -3,7 +3,7 @@ from dataclasses import fields
 from typing import Union
 import numpy as np
 
-def _to_config(obj):
+def to_config(obj):
     """
     Serialize the attributes of an object into a dictionary.
 
@@ -35,7 +35,7 @@ def _to_config(obj):
     }
   
    
-def _set_properties(obj,**kwargs):
+def set_properties(obj,**kwargs):
     """
     Set properties of a simulation object from various sources.
 
@@ -93,7 +93,7 @@ def _set_properties(obj,**kwargs):
     return
     
             
-def _create_catalogue(header,values):
+def create_catalogue(header,values):
     """
     Create and return a catalogue of properties or items based on the given inputs.
 

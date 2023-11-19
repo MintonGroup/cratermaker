@@ -9,6 +9,11 @@
  If not, see: https://www.gnu.org/licenses. 
 """
 
-from .simulation import Simulation, Target, Material, Crater, Projectile
-from . import craterproduction
+from .core.simulation import Simulation
+from .core.target import Target
+from .core.material import Material
+from .core.crater import Crater
+from .core.projectile import Projectile
+from .core.mesh import Mesh
+from .models import craterproduction
 from ._bind import util_perlin

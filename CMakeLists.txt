@@ -69,8 +69,8 @@ ENDIF()
 # Ensure scikit-build modules
 FIND_PACKAGE(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
 
-SET(SRC "${CMAKE_SOURCE_DIR}/src")
 SET(PY "${CMAKE_SOURCE_DIR}/cratermaker")
+SET(SRC "${CMAKE_SOURCE_DIR}/fortran")
 
 #####################################
 # Tell how to install this executable
@@ -89,7 +89,7 @@ FILE(TO_CMAKE_PATH ${SRC} SRC)
 FILE(TO_CMAKE_PATH ${PY} PY)
 
 # Set the name of the cratermaker library
-SET(CRATERMAKER_LIBRARY ${SKBUILD_PROJECT_NAME})
+SET(CRATERMAKER_LIBRARY "${SKBUILD_PROJECT_NAME}_lib")
 
 # Determine compiler options
 IF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
