@@ -7,6 +7,7 @@ from .material import Material
 from . import projectile
 from . import crater 
 from .mesh import Mesh, load_target_mesh
+from ..utils.general_utils import to_config, set_properties
 
 
 class Simulation():
@@ -88,9 +89,9 @@ class Simulation():
     def to_json(self, filename):
         
         # Get the simulation configuration into the correct structure
-        material_config = util.to_config(self.target.material)
-        target_config = {**util.to_config(self.target), 'material' : material_config}
-        sim_config = {**util.to_config(self),'target' : target_config} 
+        material_config = to_config(self.target.material)
+        target_config = {**to_config(self.target), 'material' : material_config}
+        sim_config = {**to_config(self),'target' : target_config} 
         
         # Write the combined configuration to a JSON file
         with open(filename, 'w') as f:
@@ -129,7 +130,7 @@ class Simulation():
         None
             The function does not return a value.
         """        
-        util.set_properties(self,**kwargs)
+        set_properties(self,**kwargs)
         return 
 
     
