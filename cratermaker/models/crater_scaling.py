@@ -2,6 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from ..core.target import Target
 from ..core.projectile import Projectile
+from ..utils.montecarlo import bounded_norm
 
 def get_simple_to_complex_transition_factors(target: Target, rng: Generator=None):
    if not isinstance(target, Target):
@@ -22,20 +23,21 @@ def get_simple_to_complex_transition_factors(target: Target, rng: Generator=None
    if target.transition_scale_type == "silicate":
       simple_complex_exp = -1.0303 
       simple_complex_mean = 2*16533.8 
-      simple_complex_std = 0.05
+      simple_complex_std = 0.04
    elif target.transition_scale_type == "ice":
       simple_complex_exp = -1.22486
       simple_complex_mean = 2*3081.39
-      simple_complex_std = 0.05
+      simple_complex_std = 0.04
    
 
    # The nominal value will be used for determining the range of the "transitional" morphology type
    transition_nominal= simple_complex_mean * target.gravity**simple_complex_exp
    
-   # Draw from a normal distribution for each exponent
-   transition_exp = rng.normal(transition_exp_mean, transition_exp_std)
-   final_exp = rng.normal(final_exp_mean, final_exp_std)
-   simple_complex_fac = simple_complex_mean * np.exp(rng.normal(scale=simple_complex_std))
+   # Draw from a truncated normal distribution for each comonent of the model
+   transition_exp = bounded_norm(transition_exp_mean, transition_exp_std)
+   transition_exp = bounded_norm(transition_exp_mean, transition_exp_std)
+   final_exp = bounded_norm(final_exp_mean, final_exp_std)
+   simple_complex_fac = simple_complex_mean * np.exp(bounded_norm(loc=0.0,scale=simple_complex_std))
    transition_diameter = simple_complex_fac * target.gravity**simple_complex_exp
    return transition_diameter, transition_nominal, simple_enlargement_factor, transition_exp, final_exp
 

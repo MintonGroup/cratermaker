@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import truncnorm
 def get_random_location(size=None, rng=None):
    """
    Computes random latitude and longitude values.
@@ -216,3 +217,15 @@ def get_random_velocity(vmean, target=None, size=None, rng=None):
    vz = rng.normal(0, sigma, size=u_shape)
    velocities = np.sqrt(vx**2 + vy**2 + vz**2)
    return velocities
+
+def bounded_norm(loc,scale):
+   lower_bound = loc - scale
+   upper_bound = loc + scale
+   truncated_normal = truncnorm(
+         (lower_bound - loc) / scale,
+         (upper_bound - loc) / scale,
+         loc=loc, scale=scale
+      )
+
+   # Generate a random number from this distribution
+   return truncated_normal.rvs(1)
