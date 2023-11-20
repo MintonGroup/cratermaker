@@ -128,3 +128,19 @@ def create_catalogue(header,values):
 
     return catalogue 
 
+def validate_and_convert_location(location):
+    # Check if it's already a structured array with 'lat' and 'lon'
+    if isinstance(location, np.ndarray) and location.dtype.names == ('lat', 'lon'):
+        return location
+    
+    # Check if it's a dictionary with 'lat' and 'lon' keys
+    if isinstance(location, dict):
+        if "lat" in location and "lon" in location:
+            return np.array([(location['lat'], location['lon'])], dtype=[('lat', 'f8'), ('lon', 'f8')])
+    
+    # Check if it's a tuple, list, or array of the correct shape
+    if isinstance(location, (tuple, list, np.ndarray)):
+        if len(location) == 2:
+            return np.array([(location[0], location[1])], dtype=[('lat', 'f8'), ('lon', 'f8')])
+    
+    raise ValueError("location must be a dict with 'lat' and 'lon', a 2-element tuple/list, or a structured array with 'lat' and 'lon'")

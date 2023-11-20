@@ -1,3 +1,4 @@
+import numpy as np
 from numpy.random import default_rng
 import os
 import json
@@ -7,8 +8,8 @@ from .projectile import Projectile
 from .crater import Crater 
 from .mesh import Mesh, load_target_mesh
 from ..utils import general_utils 
-from ..models.crater_scaling import get_simple_to_complex_transition_factors
-from ..utils.montecarlo import get_random_location
+from ..utils.montecarlo import get_random_location, get_random_impact_angle
+from ..models.crater_scaling import final_to_transient, transient_to_final, projectile_to_transient
 
 
 class Simulation():
@@ -48,34 +49,28 @@ class Simulation():
         self._projectile = None
 
         return
-    
-    @property
-    def crater(self):
-        return self._crater
-    
-    @crater.setter
-    def crater(self, value):
-        if isinstance(value, Crater):
-            self._crater = value
-        else:
-            self._crater = Crater(target=self.target, rng=self.rng, **value)
             
     def add_crater(self, **kwargs):
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         crater = Crater(**kwargs)
+        
         if crater.diameter is not None:
             crater.radius = crater.diameter / 2
-            crater.final_to_transient(self.target,self.rng)
         elif crater.radius is not None:
             crater.diameter = crater.radius * 2
-            crater.final_to_transient(self.target,self.rng)
-        elif crater.transient_diameter is not None:
+            
+        if crater.transient_diameter is not None:
             crater.transient_radius = crater.transient_diameter / 2
-            crater.transient_to_final(self.target,self.rng)
         elif crater.transient_radius is not None:
             crater.transient_diameter = crater.transient_radius * 2
-            crater.transient_to_final(self.target,self.rng)
 
+        if crater.diameter is not None and crater.transient_diameter is None:
+            crater.transient_diameter = final_to_transient(crater.diameter,self.target,self.rng)
+            crater.transient_radius = crater.transient_diameter / 2            
+        elif crater.transient_diameter is not None and crater.diameter is None:
+            crater.diameter = transient_to_final(crater.transient_diameter,self.target,self.rng)
+            crater.radius = crater.diameter / 2            
+            
         if crater.morphology_type is None:
             crater.set_morphology_type(self.target,self.rng)
         if crater.location is None:
@@ -83,6 +78,46 @@ class Simulation():
             
         self.crater = crater
         
+        
+        return
+    
+
+    def add_projectile(self, **kwargs):
+        # Create a new Crater object with the passed arguments and set it as the crater of this simulation
+        projectile = Projectile(**kwargs)
+        
+        if projectile.location is None:
+            projectile.location = get_random_location(rng=self.rng)
+            
+        if projectile.angle is None:
+            projectile.angle = get_random_impact_angle(rng=self.rng)[0]
+        else: 
+            projectile.angle = np.deg2rad(projectile.angle)  
+                       
+        if projectile.velocity is None and projectile.vertical_velocity is not None:
+            projectile.velocity = projectile.vertical_velocity / np.sin(projectile.angle)
+        elif projectile.vertical_velocity is None and projectile.velocity is not None: 
+            projectile.vertical_velocity = projectile.velocity * np.sin(projectile.angle)
+        elif projectile.vertical_velocity is not None and projectile.velocity is not None:
+            projectile.angle = np.arcsin(projectile.vertical_velocity / projectile.velocity)
+            
+        if projectile.density is None:
+            if projectile.mass is not None and projectile.radius is not None:
+                volume = 4.0/3.0 * np.pi * projectile.radius**3
+                projectile.density = projectile.mass / volume    
+            else: # Default to target density if we are given no way to figure it out
+                projectile.density = self.target.material.density 
+                
+        if projectile.mass is None:
+            projectile.mass = 4.0/3.0 * np.pi * projectile.density * projectile.radius**3
+        elif projectile.radius is None:
+            projectile.radius = (3.0 * projectile.mass / (4.0 * np.pi * projectile.density))**(1.0/3.0)
+            projectile.diameter = projectile.radius * 2         
+            
+        # Now add the crater that this projectile would make
+        transient_diameter, _ = projectile_to_transient(projectile, self.target, self.rng) 
+        self.add_crater(transient_diameter=transient_diameter,location=projectile.location)
+        self.projectile = projectile
         return
         
             

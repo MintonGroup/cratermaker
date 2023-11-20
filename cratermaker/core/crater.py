@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from ..models.production_function import ProductionFunction
 from ..models import crater_scaling 
 from ..core.target import Target
+from ..utils.general_utils import validate_and_convert_location
 @dataclass
 class Crater:
     """
@@ -27,13 +28,10 @@ class Crater:
         values_set = sum(x is not None for x in [self.diameter, self.radius, 
                                                  self.transient_diameter, self.transient_radius])
         if values_set > 1:
-            raise ValueError("Only one of production, diameter, radius, transient_diameter, transient_radius may be set")
-                
+            raise ValueError("Only one of diameter, radius, transient_diameter, transient_radius may be set")
+               
         if self.location is not None:
-            if not isinstance(self.location, np.ndarray):
-                self.location = np.array(self.location, dtype=np.float64)
-            if self.location.shape != (2,):
-                raise ValueError("location must be a 2-element array")
+            self.location = validate_and_convert_location(self.location)
         
         return
     
@@ -71,17 +69,3 @@ class Crater:
                 prob = [p, 1.0-p] 
                 self._morphology_type = rng.choice(categories,p=prob)                
         return
-    
-     
-    def final_to_transient(self, target: Target, rng: Generator=None):
-        self.transient_diameter = crater_scaling.final_to_transient(self.diameter,target,rng)
-        self.transient_radius = self.transient_diameter / 2
-        self.set_morphology_type(target,rng)
-        return 
-
-
-    def transient_to_final(self, target: Target, rng: Generator=None):
-        self.diameter = crater_scaling.transient_to_final(self.transient_diameter,target,rng)    
-        self.radius = self.diameter / 2
-        self.set_morphology_type(target,rng)
-        return 

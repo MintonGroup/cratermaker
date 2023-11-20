@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.random import Generator
 from ..core.target import Target
+from ..core.projectile import Projectile
 
 def get_simple_to_complex_transition_factors(target: Target, rng: Generator=None):
    if not isinstance(target, Target):
@@ -83,3 +84,34 @@ def transient_to_final(transient_diameter, target: Target, rng: Generator=None):
    return np.float64(final_diameter)
 
 
+def projectile_to_transient(projectile: Projectile, target: Target, rng: Generator=None):
+   if not isinstance(projectile, Projectile):
+      raise TypeError("target must be an instance of Target")
+   if not isinstance(target, Target):
+      raise TypeError("target must be an instance of Target")
+   if rng and not isinstance(rng, Generator):
+      raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+   if rng is None:
+      rng = np.random.default_rng() 
+      
+   # Compute some auxiliary quantites
+   projectile.mass = 4.0/3.0 * np.pi * projectile.density * (projectile.radius)**3
+   mu = target.material.mu
+   kv = target.material.K1
+   c1 = 1.0 + 0.5 * mu
+   c2 = (-3 * mu)/(2.0 + mu)
+
+   # Find dimensionless quantities
+   pitwo = (target.gravity * projectile.radius)/(projectile.vertical_velocity**2)
+   pithree = target.material.Ybar / (target.material.density * (projectile.vertical_velocity**2))
+   pifour = target.material.density / projectile.density
+   pivol = kv * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
+   pivolg = kv * (pitwo * (pifour**(-1.0/3.0)))**c2
+   
+   # find transient crater volume and radii (depth = 1/3 diameter)
+   cvol = pivol * (projectile.mass / target.material.density)
+   cvolg = pivolg * (projectile.mass / target.material.density)
+   transient_radius = (3 * cvol / np.pi)**(1.0/3.0)
+   transient_radius_gravscale = (3 * cvolg / np.pi)**(1.0/3.0)
+    
+   return transient_radius, transient_radius_gravscale
