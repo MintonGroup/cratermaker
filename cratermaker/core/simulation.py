@@ -1,13 +1,14 @@
 import numpy as np
-from numpy.random import default_rng
+from numpy.random import default_rng, Generator
 import os
 import json
 from .target import Target
 from .material import Material
-from . import projectile
-from . import crater 
+from .projectile import Projectile
+from .crater import Crater 
 from .mesh import Mesh, load_target_mesh
-from ..utils.general_utils import to_config, set_properties
+from ..utils import general_utils 
+from ..models.crater_scaling import get_simple_to_complex_transition_factors
 
 
 class Simulation():
@@ -43,16 +44,54 @@ class Simulation():
             self.mesh = load_target_mesh(mesh_file)
         else:
             self.mesh = Mesh(mesh_file,self.target,self.pix) 
+        self._crater = None
+        self._projectile = None
 
         return
+    
+    @property
+    def crater(self):
+        return self._crater
+    
+    @crater.setter
+    def crater(self, value):
+        if isinstance(value, Crater):
+            self._crater = value
+        else:
+            self._crater = Crater(target=self.target, rng=self.rng, **value)
+            
+    def add_crater(self, **kwargs):
+        # Create a new Crater object with the passed arguments and set it as the crater of this simulation
+        crater = Crater(**kwargs)
+        if crater.diameter is not None:
+            crater.radius = crater.diameter / 2
+            crater.final_to_transient(self.target,self.rng)
+        elif crater.radius is not None:
+            crater.diameter = crater.radius * 2
+            crater.final_to_transient(self.target,self.rng)
+        elif crater.transient_diameter is not None:
+            crater.transient_radius = crater.transient_diameter / 2
+            crater.transient_to_final(self.target,self.rng)
+        elif crater.transient_radius is not None:
+            crater.transient_diameter = crater.transient_radius * 2
+            crater.transient_to_final(self.target,self.rng)
 
+        if crater.morphology_type is None:
+            transition_diameter, *_ = get_simple_to_complex_transition_factors(self.target,self.rng)
+            if crater.diameter < transition_diameter:
+                crater.morphology_type = "simple" 
+            else:
+                crater.morphology_type = "complex"        
+        self.crater = crater
+        
+            
     config_ignore = ['target', 'projectile', 'crater']  # Instance variables to ignore when saving to file
     def to_json(self, filename):
         
         # Get the simulation configuration into the correct structure
-        material_config = to_config(self.target.material)
-        target_config = {**to_config(self.target), 'material' : material_config}
-        sim_config = {**to_config(self),'target' : target_config} 
+        material_config = general_utils.to_config(self.target.material)
+        target_config = {**general_utils.to_config(self.target), 'material' : material_config}
+        sim_config = {**general_utils.to_config(self),'target' : target_config} 
         
         # Write the combined configuration to a JSON file
         with open(filename, 'w') as f:
@@ -79,7 +118,7 @@ class Simulation():
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `util.set_properties` method.
+        property setting is handled by the `utils.general_utils.set_properties` method.
 
         Parameters
         ----------
@@ -91,5 +130,5 @@ class Simulation():
         None
             The function does not return a value.
         """        
-        set_properties(self,**kwargs)
+        general_utils.set_properties(self,**kwargs)
         return 

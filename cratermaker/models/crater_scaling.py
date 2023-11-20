@@ -1,6 +1,5 @@
 import numpy as np
 from numpy.random import Generator
-from ..core.crater import Crater   
 from ..core.target import Target
 
 def get_simple_to_complex_transition_factors(target: Target, rng: Generator=None):

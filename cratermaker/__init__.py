@@ -15,5 +15,4 @@ from .core.material import Material
 from .core.crater import Crater
 from .core.projectile import Projectile
 from .core.mesh import Mesh
-from .models import craterproduction
 from ._bind import util_perlin
