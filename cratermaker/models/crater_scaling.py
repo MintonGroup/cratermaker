@@ -36,7 +36,6 @@ def get_simple_to_complex_transition_factors(target: Target, rng: Generator=None
    final_exp = rng.normal(final_exp_mean, final_exp_std)
    simple_complex_fac = simple_complex_mean * np.exp(rng.normal(scale=simple_complex_std))
    transition_diameter = simple_complex_fac * target.gravity**simple_complex_exp
-   
    return transition_diameter, transition_nominal, simple_enlargement_factor, transition_exp, final_exp
 
 
@@ -48,6 +47,7 @@ def final_to_transient(final_diameter, target: Target, rng: Generator=None):
    if rng is None:
       rng = np.random.default_rng()    
    transition_diameter, _, simple_enlargement_factor, transition_exp, final_exp = get_simple_to_complex_transition_factors(target,rng) 
+   
    if final_diameter < transition_diameter:
       transient_diameter = simple_enlargement_factor * final_diameter  # Simple crater scaling
    else:
@@ -66,8 +66,8 @@ def transient_to_final(transient_diameter, target: Target, rng: Generator=None):
            
    transition_diameter, _, simple_enlargement_factor, transition_exp, final_exp = get_simple_to_complex_transition_factors(target,rng)
    
-   final_diameter_simple = np.float64(transient_diameter / simple_enlargement_factor)
-   final_diameter_complex = np.float64(1e3 * ((1e-3 * transient_diameter) / (transition_diameter * 1e-3)**transition_exp)**(1.0 / final_exp))
+   final_diameter_simple = transient_diameter / simple_enlargement_factor
+   final_diameter_complex = 1e3 * ((1e-3 * transient_diameter) / (transition_diameter * 1e-3)**transition_exp)**(1.0 / final_exp)
    
    if final_diameter_simple < transition_diameter and final_diameter_complex < transition_diameter: # Unambiguosly simple
       final_diameter = final_diameter_simple
@@ -80,4 +80,6 @@ def transient_to_final(transient_diameter, target: Target, rng: Generator=None):
       else:
          final_diameter = final_diameter_complex
       
-   return final_diameter
+   return np.float64(final_diameter)
+
+

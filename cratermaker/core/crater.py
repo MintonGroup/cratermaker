@@ -43,15 +43,33 @@ class Crater:
     
     
     def set_morphology_type(self, target: Target, rng: Generator=None):
+        if not isinstance(target, Target):
+            raise TypeError("target must be an instance of Target")
+        if rng and not isinstance(rng, Generator):
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        if rng is None:
+            rng = np.random.default_rng()    
+        
         _, transition_nominal, *_ = crater_scaling.get_simple_to_complex_transition_factors(target,rng)
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular  
         transition_range = (0.5*transition_nominal,2*transition_nominal)
+        
         if self.diameter < transition_range[0]:
             self._morphology_type = "simple" 
         elif self.diameter > transition_range[1]:
             self._morphology_type = "complex"
         else:
-            self._morphology_type = "transitional"
+            # We'll uses the distance from the nominal transition diameter to set a probability of being either simple, complex, or transitional.
+            if self.diameter < transition_nominal:
+                p = (transition_nominal - self.diameter)/(transition_nominal - transition_range[0])
+                categories = ["simple","transitional"]
+                prob = [p, 1.0-p] 
+                self._morphology_type = rng.choice(categories,p=prob)
+            else:
+                p = (self.diameter - transition_nominal)/(transition_range[1] - transition_nominal)
+                categories = ["complex","transitional"]
+                prob = [p, 1.0-p] 
+                self._morphology_type = rng.choice(categories,p=prob)                
         return
     
      

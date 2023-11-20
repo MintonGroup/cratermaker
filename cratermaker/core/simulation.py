@@ -76,8 +76,8 @@ class Simulation():
             crater.transient_diameter = crater.transient_radius * 2
             crater.transient_to_final(self.target,self.rng)
 
-        # if crater.morphology_type is None:
-        #     crater.set_morphology_type(self.target,self.rng)
+        if crater.morphology_type is None:
+            crater.set_morphology_type(self.target,self.rng)
         if crater.location is None:
             crater.location = get_random_location(rng=self.rng)
             
