@@ -46,14 +46,12 @@ class Crater:
         _, transition_nominal, *_ = crater_scaling.get_simple_to_complex_transition_factors(target,rng)
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular  
         transition_range = (0.5*transition_nominal,2*transition_nominal)
-        print(f"Transition range: {transition_range}")
         if self.diameter < transition_range[0]:
             self._morphology_type = "simple" 
         elif self.diameter > transition_range[1]:
             self._morphology_type = "complex"
         else:
             self._morphology_type = "transitional"
-        print(f"Morphology type: {self._morphology_type}")
         return
     
      
