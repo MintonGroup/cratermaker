@@ -1,5 +1,4 @@
-import numpy as np
-from numpy.random import default_rng, Generator
+from numpy.random import default_rng
 import os
 import json
 from .target import Target
@@ -9,6 +8,7 @@ from .crater import Crater
 from .mesh import Mesh, load_target_mesh
 from ..utils import general_utils 
 from ..models.crater_scaling import get_simple_to_complex_transition_factors
+from ..utils.montecarlo import get_random_location
 
 
 class Simulation():
@@ -76,13 +76,14 @@ class Simulation():
             crater.transient_diameter = crater.transient_radius * 2
             crater.transient_to_final(self.target,self.rng)
 
-        if crater.morphology_type is None:
-            transition_diameter, *_ = get_simple_to_complex_transition_factors(self.target,self.rng)
-            if crater.diameter < transition_diameter:
-                crater.morphology_type = "simple" 
-            else:
-                crater.morphology_type = "complex"        
+        # if crater.morphology_type is None:
+        #     crater.set_morphology_type(self.target,self.rng)
+        if crater.location is None:
+            crater.location = get_random_location(rng=self.rng)
+            
         self.crater = crater
+        
+        return
         
             
     config_ignore = ['target', 'projectile', 'crater']  # Instance variables to ignore when saving to file
