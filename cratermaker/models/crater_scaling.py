@@ -39,7 +39,7 @@ def get_simple_to_complex_transition_factors(target: Target, rng: Generator=None
    transition_exp = bounded_norm(transition_exp_mean, transition_exp_std)
    final_exp = bounded_norm(final_exp_mean, final_exp_std)
    simple_enlargement_factor = bounded_norm(simple_enlargement_mean, simple_enlargement_std)
-   simple_complex_fac = simple_complex_mean * np.exp(bounded_norm(loc=0.0,scale=simple_complex_std))
+   simple_complex_fac = simple_complex_mean * np.exp(rng.normal(loc=0.0,scale=simple_complex_std))
    transition_diameter = simple_complex_fac * target.gravity**simple_complex_exp
    return transition_diameter, transition_nominal, simple_enlargement_factor, transition_exp, final_exp
 
