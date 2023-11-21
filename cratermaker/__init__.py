@@ -15,4 +15,6 @@ from .core.material import Material
 from .core.crater import Crater
 from .core.projectile import Projectile
 from .core.mesh import Mesh
+from .core import montecarlo
+from .models import craterscaling
 from ._bind import util_perlin

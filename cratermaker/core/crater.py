@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from dataclasses import dataclass, field
 from ..models.production_function import ProductionFunction
-from ..models import crater_scaling 
+from ..models import craterscaling 
 from ..core.target import Target
 from ..utils.general_utils import validate_and_convert_location
 @dataclass
@@ -48,7 +48,7 @@ class Crater:
         if rng is None:
             rng = np.random.default_rng()    
         
-        _, transition_nominal, *_ = crater_scaling.get_simple_to_complex_transition_factors(target,rng)
+        _, transition_nominal, *_ = craterscaling.get_simple_to_complex_transition_factors(target,rng)
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular  
         transition_range = (0.5*transition_nominal,2*transition_nominal)
         

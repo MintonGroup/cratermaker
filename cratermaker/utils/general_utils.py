@@ -129,6 +129,10 @@ def create_catalogue(header,values):
     return catalogue 
 
 def validate_and_convert_location(location):
+    # Check if it's already a tuple
+    if isinstance(location, tuple) and len(location) == 2:
+        return location
+    
     # Check if it's already a structured array with 'lat' and 'lon'
     if isinstance(location, np.ndarray) and location.dtype.names == ('lat', 'lon'):
         return location

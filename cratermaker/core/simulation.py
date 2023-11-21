@@ -7,9 +7,9 @@ from .material import Material
 from .projectile import Projectile
 from .crater import Crater 
 from .mesh import Mesh, load_target_mesh
-from ..utils import general_utils 
-from ..utils.montecarlo import get_random_location, get_random_impact_angle
-from ..models.crater_scaling import final_to_transient, transient_to_final, projectile_to_transient
+from ..utils import general_utils  as gu
+from . import montecarlo as mc
+from ..models import craterscaling as cs 
 
 
 class Simulation():
@@ -65,19 +65,18 @@ class Simulation():
             crater.transient_diameter = crater.transient_radius * 2
 
         if crater.diameter is not None and crater.transient_diameter is None:
-            crater.transient_diameter = final_to_transient(crater.diameter,self.target,self.rng)
+            crater.transient_diameter = cs.final_to_transient(crater.diameter,self.target,self.rng)
             crater.transient_radius = crater.transient_diameter / 2            
         elif crater.transient_diameter is not None and crater.diameter is None:
-            crater.diameter = transient_to_final(crater.transient_diameter,self.target,self.rng)
+            crater.diameter = cs.transient_to_final(crater.transient_diameter,self.target,self.rng)
             crater.radius = crater.diameter / 2            
             
         if crater.morphology_type is None:
             crater.set_morphology_type(self.target,self.rng)
         if crater.location is None:
-            crater.location = get_random_location(rng=self.rng)
+            crater.location = mc.get_random_location(rng=self.rng)
             
         self.crater = crater
-        
         
         return
     
@@ -87,12 +86,15 @@ class Simulation():
         projectile = Projectile(**kwargs)
         
         if projectile.location is None:
-            projectile.location = get_random_location(rng=self.rng)
+            projectile.location = mc.get_random_location(rng=self.rng)
             
         if projectile.angle is None:
-            projectile.angle = get_random_impact_angle(rng=self.rng)[0]
+            projectile.angle = mc.get_random_impact_angle(rng=self.rng)[0]
         else: 
-            projectile.angle = np.deg2rad(projectile.angle)  
+            projectile.angle = np.deg2rad(projectile.angle)
+        
+        if projectile.velocity is None:
+            projectile.angle = mc.get_random_velocity(self.target.mean_impact_velocity)
                        
         if projectile.velocity is None and projectile.vertical_velocity is not None:
             projectile.velocity = projectile.vertical_velocity / np.sin(projectile.angle)
@@ -115,9 +117,10 @@ class Simulation():
             projectile.diameter = projectile.radius * 2         
             
         # Now add the crater that this projectile would make
-        transient_diameter, _ = projectile_to_transient(projectile, self.target, self.rng) 
+        transient_diameter, _ = cs.projectile_to_transient(projectile, self.target, self.rng) 
         self.add_crater(transient_diameter=transient_diameter,location=projectile.location)
         self.projectile = projectile
+        
         return
         
             
@@ -125,9 +128,9 @@ class Simulation():
     def to_json(self, filename):
         
         # Get the simulation configuration into the correct structure
-        material_config = general_utils.to_config(self.target.material)
-        target_config = {**general_utils.to_config(self.target), 'material' : material_config}
-        sim_config = {**general_utils.to_config(self),'target' : target_config} 
+        material_config = gu.to_config(self.target.material)
+        target_config = {**gu.to_config(self.target), 'material' : material_config}
+        sim_config = {**gu.to_config(self),'target' : target_config} 
         
         # Write the combined configuration to a JSON file
         with open(filename, 'w') as f:
@@ -154,7 +157,7 @@ class Simulation():
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `utils.general_utils.set_properties` method.
+        property setting is handled by the `utils.gu.set_properties` method.
 
         Parameters
         ----------
@@ -166,5 +169,5 @@ class Simulation():
         None
             The function does not return a value.
         """        
-        general_utils.set_properties(self,**kwargs)
+        gu.set_properties(self,**kwargs)
         return 
