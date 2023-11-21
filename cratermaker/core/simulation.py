@@ -94,7 +94,9 @@ class Simulation():
             projectile.angle = np.deg2rad(projectile.angle)
         
         if projectile.velocity is None:
-            projectile.angle = mc.get_random_velocity(self.target.mean_impact_velocity)
+            vencounter_mean = np.sqrt(self.target.mean_impact_velocity**2 - self.target.escape_velocity**2)
+            vencounter = mc.get_random_velocity(vencounter_mean)
+            projectile.velocity = np.sqrt(vencounter**2 + self.target.escape_velocity**2)
                        
         if projectile.velocity is None and projectile.vertical_velocity is not None:
             projectile.velocity = projectile.vertical_velocity / np.sin(projectile.angle)

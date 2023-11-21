@@ -1,3 +1,4 @@
+import numpy as np
 from dataclasses import dataclass
 from .material import Material
 from ..utils.general_utils import set_properties, create_catalogue
@@ -19,11 +20,11 @@ class Target:
        
     # Set up instance variables
     name: str = None
-    radius: float = None
-    gravity: float = None
+    radius: np.float64 = None
+    gravity: np.float64 = None
     material_name: str = None
     material: Material = None
-    mean_impact_velocity: float = None
+    mean_impact_velocity: np.float64 = None
     transition_scale_type: str = "silicate" # Options are silicate and ice
     
     config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
@@ -57,7 +58,11 @@ class Target:
             raise ValueError('No target defined!')    
         
         return
-   
+    
+    @property
+    def escape_velocity(self):
+        return np.sqrt(2 * self.radius * self.gravity)
+    
     
     def set_properties(self, **kwargs):
         """
