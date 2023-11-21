@@ -65,10 +65,10 @@ class Simulation():
             crater.transient_diameter = crater.transient_radius * 2
 
         if crater.diameter is not None and crater.transient_diameter is None:
-            crater.transient_diameter = cs.final_to_transient(crater.diameter,self.target,self.rng)
+            crater.transient_diameter, crater.morphology_type = cs.final_to_transient(crater.diameter,self.target,self.rng)
             crater.transient_radius = crater.transient_diameter / 2            
         elif crater.transient_diameter is not None and crater.diameter is None:
-            crater.diameter = cs.transient_to_final(crater.transient_diameter,self.target,self.rng)
+            crater.diameter, crater.morphology_type = cs.transient_to_final(crater.transient_diameter,self.target,self.rng)
             crater.radius = crater.diameter / 2            
             
         if crater.morphology_type is None:
@@ -89,7 +89,7 @@ class Simulation():
             projectile.location = mc.get_random_location(rng=self.rng)
             
         if projectile.angle is None:
-            projectile.angle = mc.get_random_impact_angle(rng=self.rng)[0]
+            projectile.angle = mc.get_random_impact_angle(rng=self.rng)
         else: 
             projectile.angle = np.deg2rad(projectile.angle)
         

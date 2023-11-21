@@ -1,8 +1,10 @@
 import cratermaker
 import numpy as np
 import matplotlib.pyplot as plt
+from cratermaker import craterscaling as cs    
 
 sim = cratermaker.Simulation()
+cs.transient_to_final(100e3,sim.target,sim.rng)
 
 sim.add_projectile(diameter=5.0e3,velocity=25e3)
 sim.projectile
