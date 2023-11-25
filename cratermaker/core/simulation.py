@@ -6,7 +6,7 @@ from .target import Target
 from .material import Material
 from .projectile import Projectile
 from .crater import Crater 
-from .mesh import Mesh, load_target_mesh
+from .mesh import make_target_mesh, load_target_mesh
 from ..utils import general_utils  as gu
 from . import montecarlo as mc
 from ..models import craterscaling as cs 
@@ -38,13 +38,14 @@ class Simulation():
         self.rng = default_rng(seed=self.seed)
         
         self.cachedir = os.path.join(os.getcwd(),'.cache')
-        mesh_file = kwargs.get('mesh_file', os.path.join(self.cachedir,"target_mesh.glb") )
+        self.mesh_file = kwargs.get('mesh_file', os.path.join(self.cachedir,"target_mesh.nc") )
+        self.dem_file = kwargs.get('dem_file', os.path.join(self.cachedir,"surface_dem.nc"))
         if not os.path.exists(self.cachedir):
             os.mkdir(self.cachedir)
-        if os.path.exists(mesh_file):
-            self.mesh = load_target_mesh(mesh_file)
+        if os.path.exists(self.mesh_file) and os.path.exists(self.dem_file):
+            self.data = load_target_mesh(self.mesh_file, self.dem_file)
         else:
-            self.mesh = Mesh(mesh_file,self.target,self.pix) 
+            self.data = make_target_mesh(self.mesh_file,self.dem_file,self.target,self.pix) 
         self._crater = None
         self._projectile = None
 

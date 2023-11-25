@@ -220,6 +220,7 @@ def get_random_velocity(vmean: np.float64, size: Optional[Union[int, Tuple[int, 
     else:
         return velocities
 
+
 def bounded_norm(loc: np.float64,scale: np.float64,size: Optional[Union[int, Tuple[int, ...]]]=1):
     """
     Sample from a truncated normal distribution that is bounded by 1-sigma stdev

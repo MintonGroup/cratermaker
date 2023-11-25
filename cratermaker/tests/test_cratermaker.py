@@ -25,27 +25,19 @@ def make_noise(x,y,z):
     return noise
 
 # Get the vertices of the mesh
-vertices = sim.mesh.vertices
-
+print("Stacking node arrays")
+vertices = np.column_stack((sim.data.uxgrid.node_x,sim.data.uxgrid.node_y,sim.data.uxgrid.node_z))
 
 # Normalize the position vectors
 norms = np.linalg.norm(vertices, axis=1, keepdims=True)
 normalized_vectors = vertices / norms
 
 # Vectorized calculation of noise for each vertex
+print("Computing noise")
 noises = np.vectorize(make_noise)(normalized_vectors[:, 0], normalized_vectors[:, 1], normalized_vectors[:, 2])
-noises = noises.reshape(-1, 1)
 print("normalized: ",np.max(normalized_vectors),np.min(normalized_vectors))
 print("noises ",np.max(noises),np.min(noises))
 
-# Scale normalized position vectors by the noise values
-shift_vectors = normalized_vectors * noises
-
-# Update vertex positions
-new_vertices = vertices + shift_vectors
-
-
 # Update the mesh vertices
-sim.mesh.vertices = new_vertices
-
-export = sim.mesh.export("noise_sphere.glb")
+sim.data['elevation'] += noises
+sim.data.to_netcdf("noise_sphere.nc")
