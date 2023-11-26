@@ -1,7 +1,7 @@
 import numpy as np
 import cratermaker
 
-sim = cratermaker.Simulation()
+sim = cratermaker.Simulation(pix=5e3)
 
 noise_height = 10e4 # 10 km noise height
 num_octaves=12
@@ -26,7 +26,7 @@ def make_noise(x,y,z):
 
 # Get the vertices of the mesh
 print("Stacking node arrays")
-vertices = np.column_stack((sim.data.uxgrid.node_x,sim.data.uxgrid.node_y,sim.data.uxgrid.node_z))
+vertices = np.column_stack((sim.data.uxgrid.face_x,sim.data.uxgrid.face_y,sim.data.uxgrid.face_z))
 
 # Normalize the position vectors
 norms = np.linalg.norm(vertices, axis=1, keepdims=True)

@@ -47,16 +47,15 @@ def make_target_mesh(mesh_file,data_file,target, pix):
     build_spherical_mesh(cellWidth, lon, lat, out_filename=mesh_file, earth_radius=target.radius,dir=".cache")
  
     primal_mesh = uxr.open_grid(mesh_file, use_dual=False) 
-    elevation = uxr.UxDataArray(
+    dem = uxr.UxDataArray(
         name="elevation",
-        data=np.zeros(primal_mesh.n_node), 
-        dims=['n_node'],
+        data=np.zeros(primal_mesh.n_face), 
+        dims=['nCells'],
         uxgrid=primal_mesh
     )
-    uxds = elevation.to_dataset()
-    uxds.to_netcdf(data_file)
+    dem.to_netcdf(data_file)
     
-    return uxds
+    return dem
 
 def load_target_mesh(mesh_file, data_file):
     """
