@@ -2,6 +2,7 @@ import numpy as np
 from numpy.random import default_rng
 import os
 import json
+from dacite import from_dict
 from .target import Target
 from .material import Material
 from .projectile import Projectile
@@ -19,9 +20,10 @@ class Simulation():
     def __init__(self, target_name="Moon", material_name=None, **kwargs):
         if material_name:
             material = Material(name=material_name)
-            self.target = Target(name=target_name, material=material, **kwargs) 
+            self.target = from_dict(data_class=Target,data=dict({"name":target_name,"material":material}, **kwargs)) 
         else: 
-            self.target = Target(name=target_name, **kwargs)
+            #self.target = Target(name=target_name, **kwargs)
+            self.target = from_dict(data_class=Target,data=dict({"name":target_name}, **kwargs)) 
        
         # Set some default values for the simulation parameters
         self.pix = kwargs.get('pix', self.target.radius / 1e3)
