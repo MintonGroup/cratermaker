@@ -84,7 +84,7 @@ class Target:
         # Set properties for the Target object based on the arguments passed to the function
         if self.name:
             self.material = "TEMP" 
-            self.set_properties(catalogue=self.catalogue, key=self.name)
+            self.set_properties(catalogue=self.catalogue, name=self.name)
             self.material = Material(name=self.material_name)
         else: 
             raise ValueError('No target defined!')

@@ -61,30 +61,46 @@ def set_properties(obj,**kwargs):
     
     def set_properties_from_arguments(obj, **kwargs):
         for key, value in kwargs.items():
-            if hasattr(obj, key):
+            if hasattr(obj, key) and value is not None:
                 setattr(obj, key, value)   
             
-    def set_properties_from_catalogue(obj, catalogue, key):
+    def set_properties_from_catalogue(obj, catalogue, name=None, **kwargs):
+        # Check to make sure that the catalogue argument is in the valid nested dict format
+        if not isinstance(catalogue, dict):
+            raise ValueError("Catalogue must be a dictionary")
+
+        for key, value in catalogue.items():
+            if not isinstance(value, dict):
+                raise ValueError(f"Value for key '{key}' in catalogue must be a dictionary")
+        
         # Look up material in the catalogue
-            
-        properties = catalogue.get(key) 
+        if name is None:
+            if len(catalogue) == 1:
+                name = next(iter(catalogue)) 
+            else:
+                raise ValueError("A name argument must be passed if there is more than one item in the catalogue!")
+        
+        properties = catalogue.get(name) 
         if properties: # A match was found to the catalogue 
             set_properties_from_arguments(obj, **properties)
             
-    def set_properties_from_file(obj, filename):
+    def set_properties_from_file(obj, filename, name=None, **kwargs):
         with open(filename, 'r') as f:
-            properties =  json.load(f)
-            n = obj.__class__.__name__.lower()
-            if n in properties:
-                set_properties_from_arguments(obj,**properties[n])
+            catalogue = json.load(f)
+            
+        set_properties_from_catalogue(obj,catalogue=catalogue,name=name)
+        set_properties_from_arguments(obj,name=name)
         
     if 'filename' in kwargs:
-        set_properties_from_file(obj,filename=kwargs['filename'])
+        set_properties_from_file(obj,**kwargs)
     
-    if 'catalogue' in kwargs and 'key' in kwargs:
-        set_properties_from_catalogue(obj,kwargs['catalogue'],kwargs['key'])
+    if 'catalogue' in kwargs: 
+        set_properties_from_catalogue(obj,**kwargs)
         
     set_properties_from_arguments(obj,**kwargs)
+    
+    if not hasattr(obj,"name"):
+        raise ValueError("The object must be given a name")
     
     return
 
