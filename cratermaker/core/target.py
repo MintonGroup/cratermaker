@@ -26,19 +26,19 @@ class Target:
     """
        
     # Set up instance variables
-    name: str = None
-    radius: Optional[float_like] = None
-    diameter: Optional[float_like] = None
-    gravity: Optional[float_like] = None
-    material_name: Optional[str] = None
-    material: Optional[Material] = None
-    mean_impact_velocity: Optional[float_like] = None
-    pix: Optional[float_like] = None
-    transition_scale_type: Optional[str] = "silicate" # Options are silicate and ice
-    cachedir: Optional[Union[str,Path]] = None
-    ds_file: Optional[Union[str,Path]]  = None
-    catalogue: Optional[dict] = None
-    ds: Optional[xr.Dataset] = field(default_factory=xr.Dataset)
+    name: str | None = None
+    radius: float_like | None = None
+    diameter: float_like | None = None
+    gravity: float_like | None = None
+    material_name: str | None = None
+    material: Material | None = None
+    mean_impact_velocity: float_like | None = None
+    pix: float_like | None = None
+    transition_scale_type: str | None = None
+    cachedir: str | Path | os.PathLike | None = None
+    ds_file: str | Path | os.PathLike | None = None
+    catalogue: dict | None = None
+    ds: xr.Dataset = field(default_factory=xr.Dataset)
     
     def __getitem__(self,key):
         return self.ds[key]
@@ -53,16 +53,16 @@ class Target:
         gEarth = np.float64(9.80665) # 1 g in SI units
         
         body_properties = [
-            "name",    "radius",   "gravity",      "material_name", "mean_impact_velocity"
+            "name",    "radius",   "gravity",      "material_name", "mean_impact_velocity", "transition_scale_type"
         ]
         body_values = [
-            ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock", 41100.0),
-            ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock", 29100.0),
-            ("Earth",   6371.01e3, 1.000 * gEarth, "Wet Soil" , 24600.0),
-            ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock", 22100.0),
-            ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock", 10700.0),
-            ("Ceres",   469.7e3,   0.029 * gEarth, "Ice"      , 5300.0),
-            ("Vesta",   262.7e3,   0.025 * gEarth, "Soft Rock", 5300.0),
+            ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock", 41100.0, "silicate"),
+            ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock", 29100.0, "silicate"),
+            ("Earth",   6371.01e3, 1.000 * gEarth, "Wet Soil" , 24600.0, "silicate"),
+            ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock", 22100.0, "silicate"),
+            ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock", 10700.0, "silicate"),
+            ("Ceres",   469.7e3,   0.029 * gEarth, "Ice"      , 5300.0,  "ice"),
+            ("Vesta",   262.7e3,   0.025 * gEarth, "Soft Rock", 5300.0,  "silicate"),
         ]      
         # Mean velocities for terrestrial planets based on analysis of simulations from Minton & Malhotra (2010) of main belt-derived asteroid
         # Mean velocities for the asteroids are from Bottke et al. (1994)
@@ -114,15 +114,21 @@ class Target:
             self.gravity = np.float64(self.gravity)
         if self.mean_impact_velocity is not None:
             self.mean_impact_velocity = np.float64(self.mean_impact_velocity)
-        if self.transition_scale_type is None:
-            self.transition_scale_type = "silicate"
         if self.pix is not None:
             self.pix = np.float64(self.pix)
         else:    
-            self.pix = np.sqrt(4 * np.pi * self.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid        
-
+            self.pix = np.sqrt(4 * np.pi * self.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
+            
         if os.path.exists(self.ds_file):
             self.ds = xr.open_dataset(self.ds_file)
+            
+        valid_transition_scale_types = ["silicate", "ice"]
+        if self.transition_scale_type is not None:
+            if not isinstance(self.transition_scale_type, str):
+                raise ValueError(f"Transition scale type must be a string and one of {valid_transition_scale_types}")
+            self.transition_scale_type = self.transition_scale_type.lower()
+            if self.transition_scale_type not in valid_transition_scale_types:
+                raise ValueError(f"{self.transition_scale_type} is not a valid transition_scale_type. Must be one of {valid_transition_scale_types}")
             
         # Check to make sure all required properties are set 
         check_properties(self)
@@ -216,4 +222,5 @@ class Target:
     
     @property
     def escape_velocity(self):
-        return np.sqrt(2 * self.radius * self.gravity)    
+        return np.sqrt(2 * self.radius * self.gravity)
+    

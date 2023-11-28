@@ -3,6 +3,8 @@ from numpy.random import default_rng
 import json
 from dacite import from_dict
 import xarray as xr
+from typing import Any
+import os
 from .target import Target
 from .material import Material
 from .projectile import Projectile
@@ -11,19 +13,23 @@ from ..utils import general_utils  as gu
 from . import montecarlo as mc
 from ..models import craterscaling as cs 
 
-
 class Simulation():
     """
     This is a class that defines the basic Cratermaker body object. 
     """
-    def __init__(self, target_name="Moon", material_name=None, **kwargs):
+    def __init__(self, 
+                target_name: str="Moon",
+                material_name: str | None = None,
+                **kwargs: Any):
         if material_name:
             material = Material(name=material_name)
             self.target = from_dict(data_class=Target,data=dict({"name":target_name,"material":material}, **kwargs)) 
         else: 
-            #self.target = Target(name=target_name, **kwargs)
             self.target = from_dict(data_class=Target,data=dict({"name":target_name}, **kwargs)) 
-       
+      
+        if not os.path.exists(self.target.ds_file):
+            self.target.make_new_surface()
+            
         # Set some default values for the simulation parameters
         self.time_function = kwargs.get('time_function', None)
         self.tstart = kwargs.get('tstart', 0.0)  # Simulation start time (in y)

@@ -1,6 +1,5 @@
 import numpy as np
 from dataclasses import dataclass, asdict
-from typing import Optional
 from ..utils.general_utils import create_catalogue, set_properties, check_properties, float_like
 @dataclass
 class Material:
@@ -27,12 +26,12 @@ class Material:
     """
 
     # Define all valid properties for the Target object
-    name: str = None
-    K1: Optional[float_like] = None
-    mu: Optional[float_like] = None
-    Ybar: Optional[float_like] = None
-    density: Optional[float_like] = None
-    catalogue: Optional[dict] = None
+    name: str | None = None
+    K1: float_like | None = None
+    mu: float_like | None = None
+    Ybar: float_like | None = None
+    density: float_like | None = None
+    catalogue: dict | None = None
 
     config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
     def __post_init__(self):
