@@ -20,14 +20,19 @@ class Simulation():
     def __init__(self, 
                 target_name: str="Moon",
                 material_name: str | None = None,
+                make_new_surface:  bool | None = None,
                 **kwargs: Any):
         if material_name:
             material = Material(name=material_name)
             self.target = from_dict(data_class=Target,data=dict({"name":target_name,"material":material}, **kwargs)) 
         else: 
             self.target = from_dict(data_class=Target,data=dict({"name":target_name}, **kwargs)) 
-      
-        if not os.path.exists(self.target.ds_file):
+    
+        # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
+        if make_new_surface is None:
+            make_new_surface = not os.path.exists(self.target.ds_file)
+        
+        if make_new_surface:    
             self.target.make_new_surface()
             
         # Set some default values for the simulation parameters
