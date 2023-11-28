@@ -1,7 +1,7 @@
-    
+import numpy as np
 from dataclasses import dataclass
-from ..utils.general_utils import create_catalogue, set_properties
-
+from typing import Optional
+from ..utils.general_utils import create_catalogue, set_properties, check_properties, float_like
 @dataclass
 class Material:
     """
@@ -28,10 +28,10 @@ class Material:
 
     # Define all valid properties for the Target object
     name: str = None
-    K1: float = None
-    mu: float = None
-    Ybar: float = None
-    density: float = None 
+    K1: Optional[float_like] = None
+    mu: Optional[float_like] = None
+    Ybar: Optional[float_like] = None
+    density: Optional[float_like] = None
 
     config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
     def __post_init__(self):
@@ -55,7 +55,16 @@ class Material:
         if self.name:
             self.set_properties(catalogue=self.catalogue, key=self.name)
         else:
-            raise ValueError('No material defined!')    
+            raise ValueError('No material defined!')
+        
+        # Check to make sure all required properties are set 
+        check_properties(self)
+        
+        # Ensure types are cast correctly
+        self.K1 = np.float64(self.K1)
+        self.mu = np.float64(self.mu)
+        self.Ybar = np.float64(self.Ybar)
+        self.density = np.float64(self.density)
         
         return    
     

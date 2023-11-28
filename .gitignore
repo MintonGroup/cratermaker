@@ -4,6 +4,11 @@
 !cratermaker/models/
 !cratermaker/plugins/
 !cratermaker/tests/
+!cratermaker/tests/core/
+!cratermaker/tests/models/
+!cratermaker/tests/plugins/
+!cratermaker/tests/utils/
+!cratermaker/tests/*/*.py
 !cratermaker/utils/
 !cratermaker/**.py
 !cratermaker/*/**.py

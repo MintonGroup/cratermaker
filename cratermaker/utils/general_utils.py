@@ -1,7 +1,8 @@
 import json
-from dataclasses import fields
 from typing import Union
 import numpy as np
+
+float_like = Union[float, int, np.float64, np.float32, np.int64, np.int32]
 
 def to_config(obj):
     """
@@ -85,12 +86,22 @@ def set_properties(obj,**kwargs):
         
     set_properties_from_arguments(obj,**kwargs)
     
-    # Check for any unset properties
+    return
+
+
+def check_properties(obj):
+     # Check for any unset properties
+    missing_prop = []
     for property_name, value in obj.__dict__.items():
         if value is None:
-            raise ValueError(f"The property {property_name} has not been set!")    
-    
-    return
+            missing_prop.append(property_name)
+       
+    if len(missing_prop) == 0:
+        return     
+    elif len(missing_prop) == 1:
+        raise ValueError(f"The required property {missing_prop[0]} has not been set")    
+    else:
+        raise ValueError(f"The following required properties have not been set: {missing_prop}")
     
             
 def create_catalogue(header,values):

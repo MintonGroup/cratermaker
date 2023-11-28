@@ -1,13 +1,12 @@
 import numpy as np
 from numpy.random import default_rng
-import os
 import json
 from dacite import from_dict
+import xarray as xr
 from .target import Target
 from .material import Material
 from .projectile import Projectile
 from .crater import Crater 
-from .mesh import make_target_mesh, load_target_mesh
 from ..utils import general_utils  as gu
 from . import montecarlo as mc
 from ..models import craterscaling as cs 
@@ -26,7 +25,6 @@ class Simulation():
             self.target = from_dict(data_class=Target,data=dict({"name":target_name}, **kwargs)) 
        
         # Set some default values for the simulation parameters
-        self.pix = kwargs.get('pix', self.target.radius / 1e3)
         self.time_function = kwargs.get('time_function', None)
         self.tstart = kwargs.get('tstart', 0.0)  # Simulation start time (in y)
         self.tstop = kwargs.get('tstop', 4.31e9)    # Simulation stop time (in y)
@@ -39,19 +37,11 @@ class Simulation():
         self.seed = kwargs.get('seed', None) 
         self.rng = default_rng(seed=self.seed)
         
-        self.cachedir = os.path.join(os.getcwd(),'.cache')
-        self.mesh_file = kwargs.get('mesh_file', os.path.join(self.cachedir,"target_mesh.nc") )
-        self.dem_file = kwargs.get('dem_file', os.path.join(self.cachedir,"surface_dem.nc"))
-        if not os.path.exists(self.cachedir):
-            os.mkdir(self.cachedir)
-        if os.path.exists(self.mesh_file) and os.path.exists(self.dem_file):
-            self.data = load_target_mesh(self.mesh_file, self.dem_file)
-        else:
-            self.data = make_target_mesh(self.mesh_file,self.dem_file,self.target,self.pix) 
         self._crater = None
         self._projectile = None
 
         return
+    
             
     def add_crater(self, **kwargs):
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
@@ -127,9 +117,8 @@ class Simulation():
         self.projectile = projectile
         
         return
-        
-            
-    config_ignore = ['target', 'projectile', 'crater']  # Instance variables to ignore when saving to file
+   
+    
     def to_json(self, filename):
         
         # Get the simulation configuration into the correct structure
@@ -148,6 +137,7 @@ class Simulation():
     @property
     def name(self):
         return self._body.fobj.name
+
 
     def get_elevation(self):
         return self._body.get_elevation()
@@ -176,3 +166,4 @@ class Simulation():
         """        
         gu.set_properties(self,**kwargs)
         return 
+

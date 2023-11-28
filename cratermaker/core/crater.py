@@ -17,12 +17,12 @@ class Crater:
     ----------
     TBD
     """
-    diameter: np.float64 = field(default=None)
-    radius: np.float64 = field(default=None)
-    transient_diameter: np.float64 = field(default=None)
-    transient_radius: np.float64 = field(default=None)
-    location: np.ndarray = field(default=None)
-    _morphology_type: str = field(default=None) # This will be computed and is not meant to be set by the user
+    diameter: np.float64 = None
+    radius: np.float64 = None
+    transient_diameter: np.float64 = None
+    transient_radius: np.float64 = None
+    location: np.ndarray = None
+    _morphology_type: str = None # This will be computed and is not meant to be set by the user
     
     def __post_init__(self):
         values_set = sum(x is not None for x in [self.diameter, self.radius, 
@@ -32,7 +32,7 @@ class Crater:
                
         if self.location is not None:
             self.location = validate_and_convert_location(self.location)
-        
+            
         return
     
     @property
