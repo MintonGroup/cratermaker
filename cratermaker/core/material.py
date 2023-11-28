@@ -54,7 +54,6 @@ class Material:
             self.catalogue = create_catalogue(material_properties, material_values)
         
         # Set properties for the Material object based on the catalogue value)
-       
         self.set_properties(**asdict(self))
         
         # Check to make sure all required properties are set 

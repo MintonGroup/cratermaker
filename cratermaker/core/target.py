@@ -2,12 +2,12 @@ import numpy as np
 import os
 import xarray as xr
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field, asdict
 from typing import Union, Optional
 import os
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 from .material import Material
-from ..utils.general_utils import set_properties, create_catalogue, check_properties
+from ..utils.general_utils import set_properties, create_catalogue, check_properties, float_like
 
 @dataclass
 class Target:
@@ -26,17 +26,19 @@ class Target:
     """
        
     # Set up instance variables
-    name: Optional[str]
-    radius: Optional[Union[np.float64,float,int]]
-    gravity: Optional[Union[np.float64,float,int]]
-    material_name: Optional[str]
-    material: Optional[Material]
-    mean_impact_velocity: Optional[Union[np.float64,float,int]]
-    pix: Optional[Union[np.float64,float,int]]
-    transition_scale_type: Optional[str] # Options are silicate and ice
-    cachedir: Optional[Union[str,Path]] 
-    ds_file: Optional[Union[str,Path]] 
-    ds: Optional[xr.Dataset]
+    name: str = None
+    radius: Optional[float_like] = None
+    diameter: Optional[float_like] = None
+    gravity: Optional[float_like] = None
+    material_name: Optional[str] = None
+    material: Optional[Material] = None
+    mean_impact_velocity: Optional[float_like] = None
+    pix: Optional[float_like] = None
+    transition_scale_type: Optional[str] = "silicate" # Options are silicate and ice
+    cachedir: Optional[Union[str,Path]] = None
+    ds_file: Optional[Union[str,Path]]  = None
+    catalogue: Optional[dict] = None
+    ds: Optional[xr.Dataset] = field(default_factory=xr.Dataset)
     
     def __getitem__(self,key):
         return self.ds[key]
@@ -47,20 +49,6 @@ class Target:
     
     config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
     def __post_init__(self):
-
-        if self.cachedir is None:
-            self.cachedir = Path.cwd() / ".cache" 
-        elif not isinstance(self.cachedir, Path):
-            self.cachedir = Path(self.cachedir)
-            
-        if self.ds_file is None:
-            self.ds_file = Path.cwd() / "surface_dem.nc"
-        elif not isinstance(self.ds_file, Path):
-            self.ds_file = Path(self.ds_file)
-            
-        if not os.path.exists(self.cachedir):
-            os.mkdir(self.cachedir)            
-        
         # Define some built-in catalogue values for known solar system targets of interest
         gEarth = np.float64(9.80665) # 1 g in SI units
         
@@ -78,18 +66,48 @@ class Target:
         ]      
         # Mean velocities for terrestrial planets based on analysis of simulations from Minton & Malhotra (2010) of main belt-derived asteroid
         # Mean velocities for the asteroids are from Bottke et al. (1994)
+       
+        if self.catalogue is None: 
+            self.catalogue = create_catalogue(body_properties, body_values)
+
+        if self.cachedir is None:
+            self.cachedir = Path.cwd() / ".cache" 
+        elif not isinstance(self.cachedir, Path):
+            self.cachedir = Path(self.cachedir)
+            
+        if self.ds_file is None:
+            self.ds_file = Path.cwd() / "surface_dem.nc"
+        elif not isinstance(self.ds_file, Path):
+            self.ds_file = Path(self.ds_file)
+            
+        if not os.path.exists(self.cachedir):
+            os.mkdir(self.cachedir)
         
-        self.catalogue = create_catalogue(body_properties, body_values)
-        
+        # ensure that only either diamter of radius is passed
+        values_set = sum(x is not None for x in [self.diameter, self.radius])
+        if values_set > 1:
+            raise ValueError("Only one of diameter, radius may be set")
+        elif values_set == 1:
+            # Be sure to perform the conversion here before the catalogue gets evaluated, in case of potential overrides (e.g. passing diameter as an argument to override a catalogue radius value)
+            if self.diameter is not None:
+                self.diameter = np.float64(self.diameter)
+                self.radius = self.diameter / 2
+            elif self.radius is not None:
+                self.radius = np.float64(self.radius)
+                self.diameter = self.radius * 2 
+
         # Set properties for the Target object based on the arguments passed to the function
-        if self.name:
-            self.material = "TEMP" 
-            self.set_properties(catalogue=self.catalogue, name=self.name)
-            self.material = Material(name=self.material_name)
-        else: 
-            raise ValueError('No target defined!')
+        self.set_properties(**asdict(self))        
+        self.material = Material(name=self.material_name)
         
-        
+        # Check to make sure diameter and radius conversion happens when catalogue values are used
+        if self.diameter is not None:
+            self.diameter = np.float64(self.diameter)
+            self.radius = self.diameter / 2
+        elif self.radius is not None:
+            self.radius = np.float64(self.radius)
+            self.diameter = self.radius * 2       
+            
         if self.radius is not None:
             self.radius = np.float64(self.radius)
         if self.gravity is not None:
@@ -105,8 +123,6 @@ class Target:
 
         if os.path.exists(self.ds_file):
             self.ds = xr.open_dataset(self.ds_file)
-        else:
-            self.make_new_surface()
             
         # Check to make sure all required properties are set 
         check_properties(self)
