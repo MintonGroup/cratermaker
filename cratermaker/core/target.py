@@ -13,17 +13,39 @@ from ..utils.general_utils import set_properties, create_catalogue, check_proper
 @dataclass
 class Target:
     """
-    Represents the target body in the crater simulation.
+    Represents the target body in a crater simulation.
 
     This class encapsulates the properties of the target that is impacted, including
     its material composition, size, and other relevant physical characteristics.
 
     Attributes
     ----------
-    material : Material
-        The material composition of the target.
-    size : float
-        The size of the target, in relevant units. 
+    name : str or None
+        Name of the target body.
+    radius : float_like or None
+        Radius of the target body in meters.
+    diameter : float_like or None
+        Diameter of the target body in meters.
+    gravity : float_like or None
+        Surface gravity of the target body in m/s^2.
+    material_name : str or None
+        Name of the material composition of the target body.
+    material : Material or None
+        Material composition of the target body.
+    mean_impact_velocity : float_like or None
+        Mean impact velocity in m/s.
+    pix : float_like or None
+        Pixel resolution for the mesh.
+    transition_scale_type : str or None
+        Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
+    cachedir : str, Path, or os.PathLike or None
+        Directory path for caching data.
+    ds_file : str, Path, or os.PathLike or None
+        File path for the target dataset file.
+    catalogue : dict or None
+        Optional input of catalogue solar system targets to replace the built-in catalogue.
+    ds : xarray.Dataset
+        xarray Dataset representing the surface mesh and associated data.
     """
        
     # Set up instance variables
@@ -50,6 +72,11 @@ class Target:
     
     config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
     def __post_init__(self):
+        """
+        Initialize the target object, setting properties from the provided arguments,
+        and creating a catalogue of known solar system targets if not provided.
+        """    
+        
         # Define some built-in catalogue values for known solar system targets of interest
         gEarth = np.float64(9.80665) # 1 g in SI units
         
@@ -188,6 +215,14 @@ class Target:
         
         
     def set_elevation(self,new_elev=None):
+        """
+        Set elevation data for the target's surface mesh.
+
+        Parameters
+        ----------
+        new_elev : np.ndarray, optional
+            New elevation data to be set. If None, the elevation is set to zero.
+        """        
         if new_elev is None:
             new_elev = np.zeros(self.ds.nCells.size,dtype=np.float64)
             
@@ -223,18 +258,179 @@ class Target:
     
     @property
     def escape_velocity(self):
+        """
+        Calculate the escape velocity for the target body.
+
+        Returns
+        -------
+        np.float64
+            Escape velocity in m/s.
+        """        
         return np.sqrt(2 * self.radius * self.gravity)
-    
 
     @staticmethod
-    def get_distance(p1: Tuple, p2: Tuple, radius: float_like):
+    def calculate_haversine_distance(lon1: float_like, 
+                    lat1: float_like, 
+                    lon2: float_like, 
+                    lat2: float_like,
+                    radius: float_like) -> np.float64:
         """
-        Calculate the great circle distance between two points on a sphere. 
-        """
-        delta = tuple(map(sub,p2,p1))
+        Calculate the great circle distance between two points on a sphere.
 
-        a = np.sin(delta[0]/2)**2 + np.cos(p1[0]) * np.cos(p2[0]) * np.sin(delta[0]/2)**2
+        Parameters
+        ----------
+        lon1 : float_like
+            Longitude of the first point in radians.
+        lat1 : float_like
+            Latitude of the first point in radians.
+        lon2 : float_like
+            Longitude of the second point in radians.
+        lat2 : float_like
+            Latitude of the second point in radians.
+        radius : float_like
+            Radius of the sphere in meters.
+
+        Returns
+        -------
+        np.float64
+            Great circle distance between the two points in meters.
+        """
+        # Calculate differences in coordinates
+        dlon = lon2 - lon1
+        dlat = lat2 - lat1
+
+        # Haversine formula
+        a = np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2.0)**2
         c = 2 * np.arcsin(np.sqrt(a))
         return radius * c
+    
+    
+    def get_cell_distance(self, location: Tuple[np.float64, np.float64]) -> xr.DataArray:
+        """
+        Computes the distances between cell centers and a given location.
+
+        Parameters
+        ----------
+        location : Tuple[np.float64, np.float64]
+            Tuple containing the longitude and latitude of the location in radians.
+
+        Returns
+        -------
+        xarray.DataArray
+            DataArray of distances for each cell in meters.
+        """
+        return self.calculate_haversine_distance(location[0],location[1],self.ds.lonCell,self.ds.latCell,self.radius)
+    
+    
+    @staticmethod 
+    def calculate_initial_bearing(lon1: float_like, 
+                                lat1: float_like, 
+                                lon2: float_like, 
+                                lat2: float_like) -> np.float64:
+        """
+        Calculate the initial bearing from one point to another on the surface of a sphere.
+
+        Parameters
+        ----------
+        lon1 : float_like
+            Longitude of the first point in radians.
+        lat1 : float_like
+            Latitude of the first point in radians.
+        lon2 : float_like
+            Longitude of the second point in radians.
+        lat2 : float_like
+            Latitude of the second point in radians.
+
+        Returns
+        -------
+        np.float64
+            Initial bearing from the first point to the second point in radians.
+        """
+        # Calculate differences in coordinates
+        dlon = np.mod(lon2 - lon1 + np.pi, 2 * np.pi) - np.pi
+
+        # Haversine formula calculations
+        x = np.sin(dlon) * np.cos(lat2)
+        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+        initial_bearing = np.arctan2(x, y)
+
+        # Normalize bearing to 0 to 2*pi
+        initial_bearing = (initial_bearing + 2 * np.pi) % (2 * np.pi)
+
+        return initial_bearing
+
+    
+    def get_cell_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> xr.DataArray:
+        """
+        Computes the initial bearing between cell centers and a given location.
+
+        Parameters
+        ----------
+        location : Tuple[np.float64, np.float64]
+            Tuple containing the longitude and latitude of the location in radians.
+
+        Returns
+        -------
+        xarray.DataArray
+            DataArray of initial bearings for each cell in radians.
+        """
+        return self.calculate_initial_bearing(location[0], location[1], self.ds.lonCell, self.ds.latCell)
+    
+
+    def get_average_surface(self, location: Tuple[np.float64, np.float64], radius: np.float64) -> Tuple[np.float64, np.float64]:
+        """
+        Calculate the orientation and radius of the hemispherical cap.
+
+        Parameters
+        ----------
+        location : Tuple[float, float]
+            Tuple containing the longitude and latitude of the reference location in radians.
+        radius : float
+            The reference radius of to compute the average over in meters.
+
+        Returns
+        -------
+        cap_center_vector : ndarray
+            The vector pointing to the center of the cap from the sphere's center.
+        cap_radius : float
+            The radius of the cap.
+        """
+        # Calculate distances from the crater center to each cell
+        distances = self.get_cell_distance(location)
+
+        # Find cells within the crater radius
+        cells_within_radius = distances <= radius
+
+        # Get the bearings and distances for cells within the crater radius
+        bearings = self.ds['bearing'].where(cells_within_radius, drop=True)
+        distances = distances.where(cells_within_radius, drop=True)
+
+        # Convert bearings to vector components
+        # Bearing is angle from north, positive clockwise, but we need standard mathematical angle, positive counter-clockwise
+        angles = np.deg2rad(90) - bearings  # Convert bearing to angle in radians
+        x_components = np.cos(angles) * distances
+        y_components = np.sin(angles) * distances
+
+        # Calculate the weighted average vector components
+        # Weight by the area of each cell to give more importance to larger cells
+        cell_areas = self.ds['areaCell'].where(cells_within_radius, drop=True)
+        weighted_x = (x_components * cell_areas).sum() / cell_areas.sum()
+        weighted_y = (y_components * cell_areas).sum() / cell_areas.sum()
+
+        # Calculate the weighted mean elevation to get the z-component
+        elevation_values = self.ds['elevation'].where(cells_within_radius, drop=True)
+        weighted_z = (elevation_values * cell_areas).sum() / cell_areas.sum()
+
+        # Combine components to form the cap center vector
+        cap_center_vector = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
+
+        # The radius of the cap is the length of the cap center vector
+        cap_radius = np.linalg.norm(cap_center_vector)
+
+        return cap_center_vector, cap_radius
+
+# Example usage:
+#cap_center_vector, cap_radius = sim.target.calculate_cap_orientation(sim.crater.location, sim.crater.final_radius)
+    
 
     
