@@ -3,7 +3,8 @@ import os
 import xarray as xr
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import Union, Optional
+from typing import Tuple
+from operator import sub
 import os
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 from .material import Material
@@ -223,4 +224,17 @@ class Target:
     @property
     def escape_velocity(self):
         return np.sqrt(2 * self.radius * self.gravity)
+    
+
+    @staticmethod
+    def get_distance(p1: Tuple, p2: Tuple, radius: float_like):
+        """
+        Calculate the great circle distance between two points on a sphere. 
+        """
+        delta = tuple(map(sub,p2,p1))
+
+        a = np.sin(delta[0]/2)**2 + np.cos(p1[0]) * np.cos(p2[0]) * np.sin(delta[0]/2)**2
+        c = 2 * np.arcsin(np.sqrt(a))
+        return radius * c
+
     

@@ -6,7 +6,7 @@ from scipy.stats import truncnorm
 
 def get_random_location(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Optional[Generator]=None) -> Union[np.float64, Tuple[np.float64, np.float64], np.ndarray]:
     """
-    Computes random latitude and longitude values.
+    Computes random longitude and latitude values.
     
     Generates a set of latitude and longitude values that are uniformly distributed on the surface of a sphere.
     
@@ -19,8 +19,8 @@ def get_random_location(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Opti
     
     Returns
     -------
-    (lat,lon) or ndarray[(lat,lon)] of given size
-        A pair or array of pairs of latitude and longitude values.
+    (lon,lat) or ndarray[(lon,lat)] of given size
+        A pair or array of pairs of longitude and latitude values in radians.
     """
 
     if rng and not isinstance(rng, Generator):
@@ -35,22 +35,23 @@ def get_random_location(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Opti
     theta = 2 * np.pi * u
     phi = np.arccos(2 * v - 1)
     
-    # Convert to lat/lon
-    lat = np.degrees(phi - np.pi / 2)
-    lon = np.degrees(theta)
+    # Convert to lon/lat
+    lon = theta
+    lat = phi - np.pi / 2.0
+    
     if size == 1: 
-        return (np.float64(lat),np.float64(lon))
+        return (np.float64(lon),np.float64(lat))
     else:
         # Reshape lat and lon to the original size if necessary
-        lat = lat.reshape(size)
         lon = lon.reshape(size)
+        lat = lat.reshape(size)
   
         # Combine lat and lon into a structured array
-        latlon_arr = np.empty(size, dtype=[('lat', 'float'), ('lon', 'float')])
-        latlon_arr['lat'] = lat
-        latlon_arr['lon'] = lon
+        lonlat_arr = np.empty(size, dtype=[('lon', 'float'), ('lat', 'float')])
+        lonlat_arr['lon'] = lon
+        lonlat_arr['lat'] = lat
     
-    return latlon_arr
+    return lonlat_arr
 
 
 def get_random_impact_angle(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Optional[Generator]=None) -> Union[np.float64,NDArray[np.float64]]:
