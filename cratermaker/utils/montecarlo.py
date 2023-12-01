@@ -40,7 +40,7 @@ def get_random_location(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Opti
     lat = phi - np.pi / 2.0
     
     if size == 1: 
-        return (np.float64(lon),np.float64(lat))
+        return (np.float64(lon.item()),np.float64(lat.item()))
     else:
         # Reshape lat and lon to the original size if necessary
         lon = lon.reshape(size)

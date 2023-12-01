@@ -12,9 +12,7 @@
 from .core.simulation import Simulation
 from .core.target import Target
 from .core.material import Material
-from .core.crater import Crater
+from .core.crater import Crater, CraterScaling
 from .core.projectile import Projectile
-from .core import montecarlo
-from .models import craterscaling
 from ._bind import util_perlin
-from .utils import general_utils
+from .utils import general_utils, mesh_tools, montecarlo

@@ -60,7 +60,7 @@ def make_uniform_cell_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArr
 
 
 def set_elevation(nCells: int | None = None,
-                  new_elev: NDArray[np.float64] | List[float_like] | None = None) -> xr.DataArray:
+                  new_elev: NDArray[np.float64] | List[float_like] | None = None) -> xr.Dataset:
     """
     Set elevation data for the target's surface mesh.
 
@@ -80,11 +80,12 @@ def set_elevation(nCells: int | None = None,
         if nCells is not None:
             raise ValueError("Cannot pass both nCells and new_elev")
             
-    dem = xr.DataArray(
+    elevation = xr.DataArray(
             data=new_elev,
             dims=["nCells"],
             attrs={"long_name":"elevation of cells"}
             )
+    dem = xr.Dataset(data_vars={"elevation":elevation})
     
     return dem
 
@@ -200,14 +201,18 @@ def get_cell_initial_bearing(mesh: xr.Dataset,
 
 
 def get_average_surface(mesh: xr.Dataset, 
-                        dem: xr.DataArray,
-                        location: Tuple[np.float64, np.float64], 
+                        data: xr.DataArray,
+                        location: Tuple[float_like, float_like], 
                         radius: np.float64) -> Tuple[np.float64, np.float64]:
     """
-    Calculate the orientation and radius of the hemispherical cap.
+    Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
 
     Parameters
     ----------
+    mesh: Xarray Dataset
+        The Dataset describing the mesh properties
+    data: Xarray Dataset
+        Data attached to the mesh.
     location : Tuple[float, float]
         Tuple containing the longitude and latitude of the reference location in radians.
     radius : float
@@ -215,17 +220,17 @@ def get_average_surface(mesh: xr.Dataset,
 
     Returns
     -------
-    cap_center_vector : ndarray
+    center_vector : ndarray
         The vector pointing to the center of the cap from the sphere's center.
-    cap_radius : float
+    radius : float
         The radius of the cap.
     """
 
     # Find cells within the crater radius
-    cells_within_radius = mesh['crater_distance'] <= radius
+    cells_within_radius = data['crater_distance'] <= radius
 
-    bearings = mesh['crater_bearing'].where(cells_within_radius, drop=True)
-    distances = mesh['crater_distance'].where(cells_within_radius, drop=True)
+    bearings = data['crater_bearing'].where(cells_within_radius, drop=True)
+    distances = data['crater_distance'].where(cells_within_radius, drop=True)
 
     # Convert bearings to vector components
     # Bearing is angle from north, positive clockwise, but we need standard mathematical angle, positive counter-clockwise
@@ -240,15 +245,15 @@ def get_average_surface(mesh: xr.Dataset,
     weighted_y = (y_components * cell_areas).sum() / cell_areas.sum()
 
     # Calculate the weighted mean elevation to get the z-component
-    elevation_values = dem.where(cells_within_radius, drop=True)
+    elevation_values = data['elevation'].where(cells_within_radius, drop=True)
     weighted_z = (elevation_values * cell_areas).sum() / cell_areas.sum()
 
     # Combine components to form the cap center vector
-    cap_center_vector = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
+    center_vector = -np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
 
     # The radius of the cap is the length of the cap center vector
-    cap_radius = np.linalg.norm(cap_center_vector)
+    radius = np.linalg.norm(center_vector)
 
-    return cap_center_vector, cap_radius
+    return center_vector 
 
     

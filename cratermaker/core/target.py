@@ -120,29 +120,7 @@ class Target:
         check_properties(self)
         
         return
-    
-        
-    def set_elevation(self,new_elev=None):
-        """
-        Set elevation data for the target's surface mesh.
 
-        Parameters
-        ----------
-        new_elev : np.ndarray, optional
-            New elevation data to be set. If None, the elevation is set to zero.
-        """        
-        if new_elev is None:
-            new_elev = np.zeros(self.ds.nCells.size,dtype=np.float64)
-            
-        dem = xr.DataArray(
-            data=new_elev,
-            dims=["nCells"],
-            attrs={"long_name":"elevation of cells"}
-            )
-        
-        return
-    
-    
     def set_properties(self, **kwargs):
         """
         Set properties of the current object based on the provided keyword arguments.
