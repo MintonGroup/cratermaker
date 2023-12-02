@@ -1,7 +1,6 @@
 import numpy as np
 from numpy.random import Generator
 from scipy.optimize import root_scalar
-from dataclasses import dataclass, field
 from typing import Tuple
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location, float_like
@@ -27,8 +26,6 @@ class Crater:
     location : (2,) float
         The lat. and lon. of the impact point    
     """
-    
-
 
     def __init__(self, 
                 diameter: float_like = None,
@@ -54,7 +51,7 @@ class Crater:
             raise ValueError("A crater must include one of diameter, radius, transient_diameter, or transient_radius!")
         
         # Initialize the crater scaling operations class
-        self.cs = CraterScaling(target, rng)
+        self.scale = CraterScaling(target, rng)
         
         # Now call the setters to ensure that all related calculations and checks are performed
         self._diameter = diameter
@@ -90,7 +87,7 @@ class Crater:
                 raise ValueError("Diameter of crater rim must be finite and positive!")
             self._diameter = value
             self._radius = value / 2
-            self._transient_diameter, self.morphology_type = self.cs.final_to_transient(value)
+            self._transient_diameter, self.morphology_type = self.scale.final_to_transient(value)
             self._transient_radius = self._transient_diameter / 2
         return
     
@@ -105,7 +102,7 @@ class Crater:
                 raise ValueError("Radius of crater rim must be finite and positive!")            
             self._radius = value
             self._diameter = value * 2
-            self._transient_diameter, self.morphology_type = self.cs.final_to_transient(value)
+            self._transient_diameter, self.morphology_type = self.scale.final_to_transient(value)
             self._transient_radius = self._transient_diameter / 2
             
     @property
@@ -119,7 +116,7 @@ class Crater:
                 raise ValueError("Diameter of transient crater must be finite and positive!")
             self._transient_diameter = value
             self._transient_radius = value / 2
-            self._diameter,self.morphology_type = self.cs.transient_to_final(value)
+            self._diameter,self.morphology_type = self.scale.transient_to_final(value)
             self._radius = self._diameter / 2
         return
     
@@ -134,7 +131,7 @@ class Crater:
             if value <= 0.0:
                 raise ValueError("Radius of transient crater must be finite and positive!")            
             self._transient_diameter = value * 2            
-            self._diameter,self.morphology_type = self.cs.transient_to_final(value)
+            self._diameter,self.morphology_type = self.scale.transient_to_final(value)
             self._radius = self._diameter / 2
     
     @property
@@ -332,8 +329,8 @@ class CraterScaling:
         
         # Invert the final -> transient functions for  each crater type
         final_diameter_simple = transient_diameter * self.simple_enlargement_factor
-        def root_func(final_diameter,Dt,cs):
-            return cs.f2t_complex(final_diameter) - Dt
+        def root_func(final_diameter,Dt,scale):
+            return scale.f2t_complex(final_diameter) - Dt
             
         sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(0.1*final_diameter_simple,10*final_diameter_simple), args=(transient_diameter, self))
         final_diameter_complex = sol.root

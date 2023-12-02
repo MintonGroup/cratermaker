@@ -1,12 +1,10 @@
 import numpy as np
 from numpy.random import Generator
-from dataclasses import dataclass, field
 from .target import Target
 from .crater import Crater
-from ..utils.general_utils import validate_and_convert_location
+from ..utils.general_utils import validate_and_convert_location, float_like
 from ..utils import montecarlo as mc
 
-@dataclass    
 class Projectile:
     """
     Represents the self.in the crater simulation.
@@ -30,17 +28,22 @@ class Projectile:
         The lat. and lon. of the impact point    
     """
     
-    _diameter: np.float64 = field(default=None, repr=False)
-    _radius: np.float64 = field(default=None, repr=False)
-    _density: np.float64 = field(default=None, repr=False)
-    _mass: np.float64 = field(default=None, repr=False)
-    _velocity: np.float64 = field(default=None, repr=False)
-    _vertical_velocity: np.float64 = field(default=None, repr=False)
-    _location: np.ndarray = field(default=None, repr=False)
-    
-    def __post_init__(self, target: Target, rng: Generator = None):
-        if not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target")
+    def __init__(self, 
+                diameter: float_like = None,
+                radius: float_like = None,
+                density: float_like = None,
+                mass: float_like = None,
+                velocity: float_like = None,
+                angle: float_like = None,
+                vertical_velocity: float_like = None,
+                location: np.ndarray = None,
+                target: Target = None, 
+                rng: Generator = None):
+        
+        if target is None:
+            target = Target(name="Moon")
+        elif not isinstance(target, Target):
+            raise TypeError("target must be an instance of Target")        
         if rng and not isinstance(rng, Generator):
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
         
@@ -53,9 +56,22 @@ class Projectile:
         values_set = sum(x is not None for x in [self.mass, self.density, self.radius])
         if values_set > 2:
             raise ValueError("Only two of mass, density, radius/diameter may be set")
+        
+        # Now call the setters to ensure that all related calculations and checks are performed
+        self._diameter = diameter
+        self._radius = radius
+        self._density = density
+        self._mass = mass    
+        self._velocity = velocity    
+        self._angle = angle    
+        self._vertical_velocity = vertical_velocity
+        self._location = location
+        
         if self.density is None:
             if self.mass is None or self.radius is  None: # Default to target density if we are given no way to figure it out
                 self.density = target.material.density 
+                
+        self.scale = ProjectileScaling(target, rng)
                 
         # Evaluate and check velocity/impact angle inputs
         values_set = sum(x is not None for x in [self.velocity, self.vertical_velocity, self.angle])
@@ -63,6 +79,11 @@ class Projectile:
             raise ValueError("Only two of velocity, vertical_velocity, angle may be set")
             
         self._initialize_velocities(target,rng)
+        
+        
+        # Set location last since it does not depend on other properties
+        if location is not None:
+            self.location = location              
         self._initialize_location(rng)
         
         return
