@@ -499,7 +499,7 @@ class Scale:
         else:
             # We'll uses the distance from the nominal transition diameter to set a probability of being either simple, complex, or transitional.
             if final_diameter < self.transition_nominal:
-                p = (self.transition_nominal - diameter)/(self.transition_nominal - transition_range[0])
+                p = (self.transition_nominal - final_diameter)/(self.transition_nominal - transition_range[0])
                 categories = ["simple","transitional"]
                 prob = [p, 1.0-p] 
                 morphology_type = self.rng.choice(categories,p=prob)
@@ -661,7 +661,7 @@ class Scale:
         return projectile
 
     @staticmethod
-    def projectile_to_transient(projectile: Projectile, target: Target) -> np.float64:
+    def projectile_to_transient(projectile: Projectile, target: Target, rng: Generator) -> np.float64:
         if not isinstance(projectile, Projectile):
             raise TypeError("target must be an instance of Projectile")
         if not isinstance(target, Target):
