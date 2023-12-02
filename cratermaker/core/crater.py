@@ -693,8 +693,7 @@ class Scale:
         return transient_diameter
 
 
-    @staticmethod
-    def transient_to_projectile(crater: Crater, target: Target, rng: Generator = None) -> Projectile:
+    def transient_to_projectile(self, crater: Crater, target: Target, rng: Generator = None) -> Projectile:
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
         if not isinstance(target, Target):

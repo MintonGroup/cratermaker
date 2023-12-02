@@ -15,24 +15,39 @@ from ..utils import montecarlo as mc
 
 class Simulation():
     """
-    This is a class that defines the Simulation object in Cratermaker, which orchestrates the processes involved in running a simulation. 
-    
- 
+    This class orchestrates the processes involved in running a crater simulation.
+
     Attributes
     ----------
-    mesh_temp_dir : str, Path, or os.PathLike or None
+    mesh_temp_dir : Path
         Directory path for caching data.
-    mesh_file : str, Path, or os.PathLike or None
+    mesh_file : Path
         File path for the dataset file describing the target mesh.
-    dem_file : str, Path, or os.PathLike or None
-        File path for the dataset file describing the target elevation data. 
+    dem_file : Path
+        File path for the dataset file describing the target elevation data.
     ds : xarray.Dataset
-        xarray Dataset representing the surface mesh and associated data.    
-    pix : float_like or None
+        xarray Dataset representing the surface mesh and associated data.
+    pix : float
         Pixel resolution for the mesh.
-        
-        
+    target : Target
+        The target body for the impact simulation.
+    rng : numpy.random.Generator
+        Random number generator instance.
+
+    Methods
+    -------
+    set_properties(**kwargs):
+        Set properties of the current object based on the provided keyword arguments.
+    to_json(filename):
+        Export the current simulation configuration to a JSON file.
+    generate_crater(**kwargs):
+        Create a new Crater object and its corresponding Projectile.
+    generate_projectile(**kwargs):
+        Create a new Projectile object and its corresponding Crater.
+    emplace_crater(from_projectile=False, **kwargs):
+        Emplace a crater in the simulation, optionally based on a projectile.
     """
+
     def __init__(self, 
                 target_name: str="Moon",
                 material_name: str | None = None,
@@ -45,6 +60,34 @@ class Simulation():
                 mesh_data: xr.Dataset | None=None,
                 dem_data: xr.Dataset | None=None,
                 **kwargs: Any):
+        """
+        Initialize the Simulation object.
+
+        Parameters
+        ----------
+        target_name : str, optional
+            Name of the target body for the simulation, default is "Moon".
+        material_name : str, optional
+            Name of the material for the target body, default is None.
+        make_new_mesh : bool, optional
+            Flag to generate a new mesh, default is None.
+        reset_surface : bool, optional
+            Flag to reset the surface elevation, default is True.
+        mesh_temp_dir : str, Path, os.PathLike, optional
+            Directory path for caching data, default is ".mesh".
+        mesh_file : str, Path, os.PathLike, optional
+            File path for the surface mesh dataset, default is "surface_mesh.nc".
+        dem_file : str, Path, os.PathLike, optional
+            File path for the surface elevation dataset, default is "surface_dem.nc".
+        pix : float, optional
+            Pixel resolution for the mesh, default is None.
+        mesh_data : xarray.Dataset, optional
+            xarray Dataset representing the surface mesh, default is None.
+        dem_data : xarray.Dataset, optional
+            xarray Dataset representing the elevation data, default is None.
+        **kwargs : Any
+            Additional keyword arguments.
+        """
       
         self.mesh_temp_dir = Path(mesh_temp_dir)
         self.mesh_file = Path(mesh_file)
@@ -113,16 +156,20 @@ class Simulation():
         **kwargs : dict
             A dictionary of keyword arguments that represent the properties to be set on the current object.
 
-        Returns
-        -------
-        None
-            The function does not return a value.
         """        
         gu.set_properties(self,**kwargs)
         return 
 
     
     def to_json(self, filename):
+        """
+        Export the current simulation configuration to a JSON file.
+
+        Parameters
+        ----------
+        filename : str
+            The file path where the JSON configuration will be saved.
+        """        
         #TODO: Re-do this once the dust settles a bit
         # Get the simulation configuration into the correct structure
         material_config = gu.to_config(self.target.material)
@@ -137,35 +184,65 @@ class Simulation():
     
 
     def generate_crater(self, **kwargs):
+        """
+        Create a new Crater object and its corresponding Projectile.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Keyword arguments for initializing the Crater object.
+
+        Returns
+        -------
+        (Crater, Projectile)
+            A tuple containing the newly created Crater and Projectile objects.
+        """        
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(self.target, self.rng, **kwargs)
+        crater = Crater(target=self.target, rng=self.rng, **kwargs)
+        projectile = crater.scale.crater_to_projectile(crater)
         
-        self.crater = crater
-        
-        return
+        return crater, projectile
     
     
     def generate_projectile(self, **kwargs):
-        # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        projectile = Projectile(self.target, self.rng, **kwargs)
+        """
+        Create a new Projectile object and its corresponding Crater.
 
-        # Now add the crater that this projectile would make
-        #transient_diameter, _ = .projectile_to_transient(projectile, self.target, self.rng) 
-        self.generate_crater(transient_diameter=transient_diameter,location=projectile.location)
-        self.projectile = projectile
+        Parameters
+        ----------
+        **kwargs : dict
+            Keyword arguments for initializing the Projectile object.
+
+        Returns
+        -------
+        (Projectile, Crater)
+            A tuple containing the newly created Projectile and Crater objects.
+        """
+        projectile = Projectile(target=self.target, rng=self.rng, **kwargs)
+        crater = projectile.scale.projectile_to_crater(projectile)
         
-        return
+        return projectile, crater
    
    
     def emplace_crater(self, from_projectile=False, **kwargs):
+        """
+        Emplace a crater in the simulation, optionally based on a projectile.
+
+        Parameters
+        ----------
+        from_projectile : bool, optional
+            Flag to create a crater based on a projectile, default is False.
+        **kwargs : dict
+            Keyword arguments for initializing the Crater or Projectile object.
+        """        
         if from_projectile:
-            self.generate_projectile(**kwargs)
+            self.projectile, self.crater = self.generate_projectile(**kwargs)
         else:
-            self.generate_crater(**kwargs)
-        self.dem['crater_distance'] = mesh_tools.get_cell_distance(self.mesh, self.crater.location, self.target.radius)
-        self.dem['crater_bearing'] = mesh_tools.get_cell_initial_bearing(self.mesh, self.crater.location)
+            self.crater, self.projectile = self.generate_crater(**kwargs)
+        #self.dem['crater_distance'] = mesh_tools.get_cell_distance(self.mesh, self.crater.location, self.target.radius)
+        #self.dem['crater_bearing'] = mesh_tools.get_cell_initial_bearing(self.mesh, self.crater.location)
         
-        self.crater.average_surface_normal_vector = mesh_tools.get_average_surface(self.mesh, self.dem, self.crater.location, self.crater.radius)
+        #self.crater.average_surface_normal_vector = mesh_tools.get_average_surface(self.mesh, self.dem, self.crater.location, self.crater.radius)
         
         return  
 
