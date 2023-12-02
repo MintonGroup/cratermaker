@@ -6,11 +6,8 @@ import xarray as xr
 from typing import Any
 import os
 from pathlib import Path
-from .target import Target
-from .material import Material
-from .projectile import Projectile
-from .crater import Crater
-from .crater import CraterScaling  as cs
+from .target import Target, Material
+from .crater import Crater, Projectile, CraterScaling
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
 from ..utils import mesh_tools
@@ -153,7 +150,7 @@ class Simulation():
         projectile = Projectile(self.target, self.rng, **kwargs)
 
         # Now add the crater that this projectile would make
-        transient_diameter, _ = cs.projectile_to_transient(projectile, self.target, self.rng) 
+        #transient_diameter, _ = .projectile_to_transient(projectile, self.target, self.rng) 
         self.generate_crater(transient_diameter=transient_diameter,location=projectile.location)
         self.projectile = projectile
         
