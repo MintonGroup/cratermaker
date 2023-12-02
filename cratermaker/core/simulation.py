@@ -7,7 +7,7 @@ from typing import Any
 import os
 from pathlib import Path
 from .target import Target, Material
-from .crater import Crater, Projectile, CraterScaling
+from .crater import Crater, Projectile, Scale
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
 from ..utils import mesh_tools

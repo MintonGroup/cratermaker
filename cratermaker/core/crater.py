@@ -51,7 +51,7 @@ class Crater:
             raise ValueError("A crater must include one of diameter, radius, transient_diameter, or transient_radius!")
         
         # Initialize the crater scaling operations class
-        self.scale = CraterScaling(target, rng)
+        self.scale = Scale(target, rng)
         
         # Now call the setters to ensure that all related calculations and checks are performed
         self._diameter = diameter
@@ -66,10 +66,9 @@ class Crater:
             self.radius = radius
         elif transient_diameter is not None:
             self.transient_diameter = transient_diameter
-        elif transient_radius is not None:
+        elif transient_radius is not None:  
             self.transient_radius = transient_radius
 
-        # Set location last since it does not depend on other properties
         if location is not None:
             self.location = location              
         self._initialize_location(rng) 
@@ -162,6 +161,10 @@ class Projectile:
         The diameter of the projectile in m.
     radius : float
         The radius of the projectile in m.
+    density : float
+        The mass density of the projectile in kg/m**3.
+    mass : float
+        The mass of the projectile in kg.
     velocity : float
         The velocity of the projectile upon impact, in m/s.
     vertical_velocity : float
@@ -192,14 +195,28 @@ class Projectile:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
         
         # Evaluate and check diameter/radius inputs
-        values_set = sum(x is not None for x in [self.diameter, self.radius])
+        values_set = sum(x is not None for x in [diameter, radius])
         if values_set > 1:
-            raise ValueError("Only one of diameter, radius may be set")
+            raise ValueError("Only one of diameter or radius may be set")
+        
+        values_set = sum(x is not None for x in [diameter, radius, mass])
+        if values_set == 0:
+            raise ValueError("A projectile must include one of diameter, radius, or mass!")
         
         # Evaluate and check mass/density/radius inputs 
-        values_set = sum(x is not None for x in [self.mass, self.density, self.radius])
+        values_set = sum(x is not None for x in [mass, density, radius])
         if values_set > 2:
-            raise ValueError("Only two of mass, density, radius/diameter may be set")
+            raise ValueError("Only two of mass, density, and radius may be set")
+        
+        # Evaluate and check mass/density/diameter inputs 
+        values_set = sum(x is not None for x in [mass, density, diameter])
+        if values_set > 2:
+            raise ValueError("Only two of mass, density, and diameter may be set")
+        
+        # Evaluate and check velocity/impact angle inputs
+        values_set = sum(x is not None for x in [velocity, vertical_velocity, angle])
+        if values_set > 2:
+            raise ValueError("Only two of velocity, vertical_velocity, angle may be set")
         
         # Now call the setters to ensure that all related calculations and checks are performed
         self._diameter = diameter
@@ -211,27 +228,36 @@ class Projectile:
         self._vertical_velocity = vertical_velocity
         self._location = location
         
-        if self.density is None:
-            if self.mass is None or self.radius is  None: # Default to target density if we are given no way to figure it out
+        if diameter is not None:
+            self.diameter = diameter
+        elif radius is not None:
+            self.radius = radius
+
+        if mass is not None:
+            self.mass = mass
+       
+        if density is not None:
+            self.density = density 
+        else:
+            if self.mass is None or self.radius is None: # Default to target density if we are given no way to figure it out
                 self.density = target.material.density 
                 
-        self.scale = ProjectileScaling(target, rng)
-                
-        # Evaluate and check velocity/impact angle inputs
-        values_set = sum(x is not None for x in [self.velocity, self.vertical_velocity, self.angle])
-        if values_set > 2:
-            raise ValueError("Only two of velocity, vertical_velocity, angle may be set")
-            
-        self._initialize_velocities(target,rng)
-        
-        
-        # Set location last since it does not depend on other properties
         if location is not None:
             self.location = location              
+        
+        if velocity is not None:
+            self.velocity = velocity
+        if angle is not None:
+            self.angle = angle
+        if vertical_velocity is not None:
+            self.vertical_velocity = vertical_velocity 
+            
+        self._initialize_velocities(target,rng)
         self._initialize_location(rng)
         
+        self.scale = Scale(target, rng)
+        
         return
-    
     
     @property
     def diameter(self):
@@ -342,14 +368,17 @@ class Projectile:
             if self._velocity is not None:
                 self._vertical_velocity = self._velocity * np.sin(self._angle)
 
-    def _initialize_velocities(self, target, rng):
+    def _initialize_velocities(self, target: Target, rng: Generator | None = None):
         if self._velocity is None:
             vencounter_mean = np.sqrt(target.mean_impact_velocity**2 - target.escape_velocity**2)
-            vencounter = mc.get_random_velocity(vencounter_mean)
+            vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)
             self.velocity = np.sqrt(vencounter**2 + target.escape_velocity**2)
 
         if self._angle is None:
-            self.angle = mc.get_random_impact_angle(rng)
+            if rng:
+                self.angle = mc.get_random_impact_angle(rng=rng)
+            else:
+                self.angle = mc.get_random_impact_angle()
         return
 
 
@@ -369,9 +398,9 @@ class Projectile:
             self.location = validate_and_convert_location(self.location)
 
     
-class CraterScaling:
+class Scale:
     """
-    A class for handling the scaling relationships between impactors and craters.
+    An operations class for computing the scaling relationships between impactors and craters.
 
     This class encapsulates the logic for converting between projectile properties and crater properties, 
     as well as determining crater morphology based on size and target properties.
@@ -591,7 +620,7 @@ class CraterScaling:
         return final_diameter, morphology_type
  
         
-    def projectile_to_crater(self, projectile: Projectile, target: Target) -> Crater:
+    def projectile_to_crater(self, projectile: Projectile) -> Crater:
         """
         Convert a projectile to its corresponding crater.
 
@@ -606,8 +635,8 @@ class CraterScaling:
         Crater
             The crater resulting from the impact of the projectile.
         """
-        transient_diameter = projectile_to_transient(profjectile, target)
-        crater = Crater(transient_diameter=transient_diameter)
+        transient_diameter = self.projectile_to_transient(projectile, target=self.target, rng=self.rng)
+        crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng)
 
         return crater
 
@@ -627,7 +656,7 @@ class CraterScaling:
         Projectile
             The estimated projectile that could have caused the crater.
         """
-         
+        projectile = self.transient_to_projectile(crater, target=self.target, rng=self.rng)
         
         return projectile
 
@@ -673,7 +702,6 @@ class CraterScaling:
         if rng and not isinstance(rng, Generator):
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
                 
-        
         # We'll create a Projectile object that will allow us to set velocity
         projectile = Projectile(diameter=crater.transient_diameter, target=target, location=crater.location, rng=rng)
         
