@@ -267,8 +267,6 @@ def initialize_surface(grid_file: str = "surface_grid.nc",
     if reset_surface:
         generate_surface_dem(grid_file,dem_file)
          
-
-          
     # Initialize UxDataset with the loaded data
     surf = uxr.open_mfdataset(grid_file, data_file_list, latlon=True, use_dual=False)
     
