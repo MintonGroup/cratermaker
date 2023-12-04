@@ -70,7 +70,7 @@ def get_random_impact_angle(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: 
     Returns
     ----------
     np.float64 or ndarray of np.float 64 
-        A scalar or array of impact angles (in radians).
+        A scalar or array of impact angles (in degrees).
     """    
     
     if rng and not isinstance(rng, Generator):
@@ -81,9 +81,9 @@ def get_random_impact_angle(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: 
     u = np.sqrt(rng.uniform(size=size))
     impact_angle = np.arcsin(u)
     if size == 1:
-        return impact_angle[0]
+        return np.rad2deg(impact_angle[0])
     else:
-        return impact_angle
+        return np.rad2deg(impact_angle)
 
 
 def get_random_size(diameters: NDArray[np.float64], cdf: NDArray[np.float64], size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Optional[Generator]=None) -> Union[np.float64,NDArray[np.float64]]:

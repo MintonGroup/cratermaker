@@ -9,7 +9,41 @@ from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
 # Import other necessary modules and functions
 
 class TestSurface(unittest.TestCase):
-    
+    """
+    A collection of unit tests for the Surface class in the cratermaker project.
+
+    Attributes
+    ----------
+    temp_dir : TemporaryDirectory
+        A temporary directory for testing file generation and I/O.
+    grid_file : str
+        Path to the temporary grid file.
+    grid_temp_dir : str
+        Path to the temporary directory for grid generation.
+    target : Target
+        Target object representing a celestial body.
+    pix : float
+        Pixel size or resolution of the grid.
+
+    Methods
+    -------
+    setUp()
+        Set up the temporary environment for each test.
+    tearDown()
+        Clean up after each test.
+    test_generate_grid()
+        Test the grid generation functionality.
+    test_initialize_surface()
+        Test the initialization of the Surface object with various parameters.
+    test_set_elevation()
+        Test setting elevation data on the Surface object.
+    test_calculate_haversine_distance()
+        Test the haversine distance calculation between two points.
+    test_get_cell_distance()
+        Test the calculation of distances from a location to each cell in the grid.
+    test_calculate_initial_bearing()
+        Test the calculation of the initial bearing from one point to another.
+    """    
     def setUp(self):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -132,7 +166,7 @@ class TestSurface(unittest.TestCase):
         self.assertAlmostEqual(distances[north_pole_idx], target_radius * np.pi / 2, delta=2*self.pix)
         self.assertAlmostEqual(distances[south_pole_idx], target_radius * np.pi / 2, delta=2*self.pix)
         self.assertAlmostEqual(distances[antipode_idx], target_radius * np.pi, delta=2*self.pix)
-
+        
     def test_calculate_initial_bearing(self):
         # Example coordinates (lat/lon in radians)
         lon1, lat1 = np.radians(0), np.radians(0)  # Equator, prime meridian
