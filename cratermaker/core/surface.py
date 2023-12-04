@@ -5,7 +5,7 @@ from glob import glob
 import os
 import numpy as np
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
-from pathlib import Path
+import logging
 from ..utils.general_utils import float_like
 from .target import Target
 from typing import Tuple, List
@@ -95,7 +95,15 @@ class Surface(UxDataset):
         
         return uxda
 
-
+    def save_data(self) -> None:
+        """
+        Saves all data to the data directory.
+        """ 
+        for var in self.data_vars:
+            filename = os.path.join(self.data_dir, var + ".nc")
+            self[var].to_netcdf(filename)
+        
+       
     @staticmethod
     def calculate_haversine_distance(lon1: float_like, 
                     lat1: float_like, 
@@ -259,7 +267,7 @@ class Surface(UxDataset):
         return center_vector 
 
 
-def initialize_surface( make_new_grid: bool = False,
+def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
          pix: float_like | None = None,
          target: Target | str | None = None,
@@ -320,15 +328,22 @@ def initialize_surface( make_new_grid: bool = False,
     elevation_file_path = os.path.join(data_dir_path,_ELEVATION_FILE_NAME)
         
     # Load the grid and data files
-    data_file_list = glob(os.path.join(data_dir_path, _DATA_DIR, "*.nc"))
+    data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
     if grid_file_path in data_file_list:
         data_file_list.remove(grid_file_path)
-    if grid_file_path not in data_file_list:
-        data_file_list.append(elevation_file_path)
-        
+  
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
     make_new_grid = make_new_grid or not os.path.exists(grid_file_path)
-    reset_surface = reset_surface or not os.path.exists(elevation_file_path) or make_new_grid
+    reset_surface = reset_surface or not os.path.exists(elevation_file_path) or make_new_grid  
+   
+    # If reset_surface is True, delete all data files except the grid file 
+    if reset_surface:
+        for f in data_file_list:
+            os.remove(f)
+        data_file_list = []
+            
+    if elevation_file_path not in data_file_list:
+        data_file_list.append(elevation_file_path)
 
     if make_new_grid:
         generate_grid(target_radius=target.radius,
@@ -344,18 +359,17 @@ def initialize_surface( make_new_grid: bool = False,
          
     # Initialize UxDataset with the loaded data
     surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False)
-   
-    surf = Surface(surf,uxgrid=surf.uxgrid) 
+    surf = Surface(surf,uxgrid=surf.uxgrid,source_datasets=surf.source_datasets) 
     
     surf.grid_temp_dir = grid_temp_dir_path
     surf.data_dir = data_dir_path
     surf.grid_file = grid_file_path
-    surf.elevation_file = elevation_file_path    
+    surf.elevation_file = elevation_file_path
     
     return surf
 
 
-def make_uniform_cell_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArray]:
+def _make_uniform_cell_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArray]:
     """
     Create cell width array for this mesh on a regular latitude-longitude grid.
     Returns
@@ -382,7 +396,7 @@ def make_uniform_cell_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArr
 
 
 def generate_grid(target_radius: float_like, 
-                cell_size: float_like, 
+                pix: float_like, 
                 grid_file: os.PathLike,
                 grid_temp_dir: os.PathLike)  -> Surface:
     """
@@ -394,7 +408,7 @@ def generate_grid(target_radius: float_like,
     ----------
     target_radius : float_like
         Radius of the target body.
-    cell_size : float_like
+    pix : float_like
         Desired cell size for the mesh.
     grid_file : os.PathLike
         Path where the grid file will be saved.
@@ -406,11 +420,17 @@ def generate_grid(target_radius: float_like,
     A cratermaker Surface object with the generated grid as the uxgrid attribute and with an elevation variable set to zero.
     """
 
-
-    cellWidth, lon, lat = make_uniform_cell_size(cell_size)
+    cellWidth, lon, lat = _make_uniform_cell_size(pix)
     orig_dir = os.getcwd()
     os.chdir(grid_temp_dir)
-    build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target_radius, plot_cellWidth=False)
+    # Configure logger to suppress output
+    logger = logging.getLogger("mpas_logger")
+    file_handler = logging.FileHandler('mesh.log')
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.INFO)     
+
+    print("Building grid with jigsaw...")
+    build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target_radius, plot_cellWidth=False, logger=logger)
     os.chdir(orig_dir)
   
     return 
