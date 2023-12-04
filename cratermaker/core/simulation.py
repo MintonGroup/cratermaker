@@ -18,14 +18,6 @@ class Simulation():
 
     Attributes
     ----------
-    grid_temp_dir : Path
-        Directory path for caching data.
-    grid_file : Path
-        File path for the dataset file describing the target mesh.
-    dem_file : Path
-        File path for the dataset file describing the target elevation data.
-    ds : xarray.Dataset
-        xarray Dataset representing the surface mesh and associated data.
     pix : float
         Pixel resolution for the mesh.
     target : Target
@@ -67,10 +59,6 @@ class Simulation():
             Flag to reset the surface elevation, default is True.
         pix : float, optional
             Pixel resolution for the mesh, default is None.
-        grid_data : xarray.Dataset, optional
-            xarray Dataset representing the surface mesh, default is None.
-        dem_data : xarray.Dataset, optional
-            xarray Dataset representing the elevation data, default is None.
         **kwargs : Any
             Additional keyword arguments.
         """

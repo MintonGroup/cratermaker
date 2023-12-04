@@ -11,9 +11,14 @@ from .target import Target
 from typing import Tuple, List
 from numpy.typing import NDArray
 
+# Default file names and directories
+_DATA_DIR = "surface_data"
+_GRID_FILE_NAME = "grid.nc"
+_ELEVATION_FILE_NAME = "elevation.nc"
+_GRID_TEMP_DIR = ".grid"
 
 class Surface(UxDataset):
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', 'target_name', 'pix', 'grid_type')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_name', 'pix', 'grid_type')    
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
 
@@ -216,12 +221,8 @@ class Surface(UxDataset):
 
     
 
-def initialize_surface(grid_file: str = "surface_grid.nc",
-         dem_file: str = "surface_dem.nc",
-         data_files: str = "surface_*.nc",
-         make_new_grid: bool = False,
+def initialize_surface( make_new_grid: bool = False,
          reset_surface: bool = True,
-         grid_temp_dir: str | Path | os.PathLike = ".mesh",
          pix: float_like | None = None,
          target: Target | str | None = None,
          *args, **kwargs):
@@ -234,51 +235,56 @@ def initialize_surface(grid_file: str = "surface_grid.nc",
         except:
             raise ValueError(f"Invalid target name {target}")
     elif not isinstance(target, Target):
-        raise TypeError("target must be an instance of Target or a ")
+        raise TypeError("target must be an instance of Target or a valid name of a target body")
     
+        
+    # Verify directory structure exists and create it if not
+    grid_temp_dir_path = os.path.join(os.getcwd(), _GRID_TEMP_DIR) 
+    if not os.path.exists(grid_temp_dir_path):
+        os.mkdir(grid_temp_dir_path)
+    
+    data_dir_path = os.path.join(os.getcwd(), _DATA_DIR)     
+    if not os.path.exists(data_dir_path):
+        os.mkdir(data_dir_path)
+        
+    grid_file_path = os.path.join(data_dir_path,_GRID_FILE_NAME)
+    elevation_file_path = os.path.join(data_dir_path,_ELEVATION_FILE_NAME)
+        
     # Load the grid and data files
-    data_file_list = glob(data_files)
-    if grid_file in data_file_list:
-        data_file_list.remove(grid_file)
-    if dem_file not in data_file_list:
-        data_file_list.append(dem_file)        
-    
-    if not os.path.exists(grid_temp_dir):
-        os.mkdir(grid_temp_dir)
-    
-    grid_temp_dir = Path(grid_temp_dir)
-    grid_file = Path(grid_file)
-    if not grid_file.is_absolute():
-        grid_file = Path.cwd() / grid_file
+    data_file_list = glob(os.path.join(data_dir_path, _DATA_DIR, "*.nc"))
+    if grid_file_path in data_file_list:
+        data_file_list.remove(grid_file_path)
+    if grid_file_path not in data_file_list:
+        data_file_list.append(elevation_file_path)
         
-    dem_file = Path(dem_file)
-    if not dem_file.is_absolute():
-        dem_file = Path.cwd() / dem_file   
-    grid_file = str(grid_file)
-    dem_file = str(dem_file)
-        
+    
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-    make_new_grid = make_new_grid or not os.path.exists(grid_file)
-    reset_surface = reset_surface or not os.path.exists(dem_file) or make_new_grid
+    make_new_grid = make_new_grid or not os.path.exists(grid_file_path)
+    reset_surface = reset_surface or not os.path.exists(elevation_file_path) or make_new_grid
 
     if make_new_grid:
-        generate_grid(target.radius,pix,grid_file,dem_file,grid_temp_dir, *args, **kwargs)
+        generate_grid(target.radius,pix,grid_file_path,grid_temp_dir_path,*args, **kwargs)
        
     if reset_surface:
-        generate_surface_dem(grid_file,dem_file)
+        generate_surface_dem(grid_file_path,elevation_file_path)
          
     # Initialize UxDataset with the loaded data
-    surf = uxr.open_mfdataset(grid_file, data_file_list, latlon=True, use_dual=False)
+    surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False)
+   
+    surf = Surface(surf,uxgrid=surf.uxgrid) 
     
-    return Surface(surf,uxgrid=surf.uxgrid)
+    surf.grid_temp_dir = grid_temp_dir_path
+    surf.data_dir = data_dir_path
+    surf.grid_file = grid_file_path
+    surf.elevation_file = elevation_file_path    
+    
+    return surf
         
         
 def generate_grid(target_radius: float_like, 
                 cell_size: float_like, 
-                grid_file: str | Path | os.PathLike = "surface_mesh.nc", 
-                dem_file: str | Path | os.PathLike = "surface_dem.nc", 
-                grid_temp_dir:  str | Path | os.PathLike = ".mesh",
-                *args, **kwargs) -> Surface:
+                grid_file: os.PathLike,
+                grid_temp_dir: os.PathLike)  -> Surface:
     """
     Generate a tessellated mesh of a sphere using the jigsaw-based mesh builder in MPAS-tools.
 
@@ -322,7 +328,7 @@ def generate_grid(target_radius: float_like,
   
     return 
 
-def generate_surface_dem(grid_file: os.PathLike, dem_file: os.PathLike):
+def generate_surface_dem(grid_file: os.PathLike, elevation_file: os.PathLike):
     uxgrid = uxr.open_grid(grid_file,latlon=True,use_dual=False)
     new_elev = np.zeros(uxgrid.n_face,dtype=np.float64)
     ds = xr.DataArray(
@@ -332,7 +338,7 @@ def generate_surface_dem(grid_file: os.PathLike, dem_file: os.PathLike):
             name="elevation"
             ) 
     ds = ds.to_dataset()
-    ds.to_netcdf(dem_file) 
+    ds.to_netcdf(elevation_file) 
     ds.close()
     return
     
