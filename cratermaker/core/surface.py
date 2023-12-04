@@ -18,6 +18,45 @@ _ELEVATION_FILE_NAME = "elevation.nc"
 _GRID_TEMP_DIR = ".grid"
 
 class Surface(UxDataset):
+    """
+    Surface class that extends UxDataset for cratermaker project.
+
+    This class is used for handling surface-related data and operations in the 
+    cratermaker project. It provides functionalities for setting elevation data, 
+    calculating distances and bearings, and other surface-related computations.
+
+    Attributes
+    ----------
+    grid_temp_dir : str
+        Directory for temporary grid files.
+    data_dir : str
+        Directory for data files.
+    grid_file : str
+        Path to the grid file.
+    elevation_file : str
+        Path to the elevation file.
+    target_name : str
+        Name of the target body.
+    pix : float_like
+        Pixel size or resolution of the grid.
+    grid_type : str
+        Type of the grid used.
+
+    Methods
+    -------
+    set_elevation(new_elev=None)
+        Set elevation data for the target's surface mesh.
+    calculate_haversine_distance(lon1, lat1, lon2, lat2, radius)
+        Calculate the great circle distance between two points on a sphere.
+    get_cell_distance(location, target_radius)
+        Computes the distances between cell centers and a given location.
+    calculate_initial_bearing(lon1, lat1, lon2, lat2)
+        Calculate the initial bearing from one point to another on the surface of a sphere.
+    get_cell_initial_bearing(location)
+        Computes the initial bearing between cell centers and a given location.
+    get_average_surface(location, radius)
+        Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
+    """   
     __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_name', 'pix', 'grid_type')    
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
@@ -219,14 +258,45 @@ class Surface(UxDataset):
         center_vector = None
         return center_vector 
 
-    
 
 def initialize_surface( make_new_grid: bool = False,
          reset_surface: bool = True,
          pix: float_like | None = None,
          target: Target | str | None = None,
-         *args, **kwargs):
+         *args, **kwargs) -> Surface:
+    """
+    Initialize a Surface object with specified parameters and directory structure.
 
+    This function creates necessary directories, generates grid and surface DEM if required,
+    and initializes a Surface object with the loaded data.
+
+    Parameters
+    ----------
+    make_new_grid : bool, default False
+        If True, generate a new grid.
+    reset_surface : bool, default True
+        If True, reset the surface data.
+    pix : float_like | None, optional
+        Pixel size or resolution of the grid.
+    target : Target | str | None, optional
+        The target body for the surface, either as a Target object or a string name.
+    *args
+        Variable length argument list for additional parameters.
+    **kwargs
+        Arbitrary keyword arguments.
+
+    Returns
+    -------
+    Surface
+        An initialized Surface object.
+
+    Raises
+    ------
+    ValueError
+        If the provided target name is invalid.
+    TypeError
+        If the target is neither a Target instance nor a valid string name.
+    """
     if not target:
         target = Target("Moon")
     elif isinstance(target, str):
@@ -237,7 +307,6 @@ def initialize_surface( make_new_grid: bool = False,
     elif not isinstance(target, Target):
         raise TypeError("target must be an instance of Target or a valid name of a target body")
     
-        
     # Verify directory structure exists and create it if not
     grid_temp_dir_path = os.path.join(os.getcwd(), _GRID_TEMP_DIR) 
     if not os.path.exists(grid_temp_dir_path):
@@ -257,16 +326,21 @@ def initialize_surface( make_new_grid: bool = False,
     if grid_file_path not in data_file_list:
         data_file_list.append(elevation_file_path)
         
-    
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
     make_new_grid = make_new_grid or not os.path.exists(grid_file_path)
     reset_surface = reset_surface or not os.path.exists(elevation_file_path) or make_new_grid
 
     if make_new_grid:
-        generate_grid(target.radius,pix,grid_file_path,grid_temp_dir_path,*args, **kwargs)
+        generate_grid(target_radius=target.radius,
+                      pix=pix,
+                      grid_file=grid_file_path,
+                      grid_temp_dir=grid_temp_dir_path)
        
     if reset_surface:
-        generate_surface_dem(grid_file_path,elevation_file_path)
+        generate_data_file(grid_file=grid_file_path,
+                           data_file=elevation_file_path,
+                           name="elevation",
+                           long_name="elevation of faces")
          
     # Initialize UxDataset with the loaded data
     surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False)
@@ -279,8 +353,34 @@ def initialize_surface( make_new_grid: bool = False,
     surf.elevation_file = elevation_file_path    
     
     return surf
-        
-        
+
+
+def make_uniform_cell_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArray]:
+    """
+    Create cell width array for this mesh on a regular latitude-longitude grid.
+    Returns
+    -------
+    cellWidth : ndarray
+        m x n array of cell width in km
+    lon : ndarray
+        longitude in degrees (length n and between -180 and 180)
+    lat : ndarray
+        longitude in degrees (length m and between -90 and 90)
+    """
+    dlat = 10
+    dlon = 10
+    constantCellWidth = cell_size * 1e-3 # build_spherical_mesh assumes units of km, so must be converted
+
+    nlat = int(180/dlat) + 1
+    nlon = int(360/dlon) + 1
+
+    lat = np.linspace(-90., 90., nlat)
+    lon = np.linspace(-180., 180., nlon)
+
+    cellWidth = constantCellWidth * np.ones((lat.size, lon.size))
+    return cellWidth, lon, lat
+
+
 def generate_grid(target_radius: float_like, 
                 cell_size: float_like, 
                 grid_file: os.PathLike,
@@ -288,37 +388,24 @@ def generate_grid(target_radius: float_like,
     """
     Generate a tessellated mesh of a sphere using the jigsaw-based mesh builder in MPAS-tools.
 
-    This function generates temporary files in the `grid_temp_dir` directory and saves the final mesh to `grid_file`
+    This function generates temporary files in the `grid_temp_dir` directory and saves the final mesh to `grid_file`.
+
+    Parameters
+    ----------
+    target_radius : float_like
+        Radius of the target body.
+    cell_size : float_like
+        Desired cell size for the mesh.
+    grid_file : os.PathLike
+        Path where the grid file will be saved.
+    grid_temp_dir : os.PathLike
+        Path to the directory for storing temporary grid files.
 
     Returns
     -------
-    xarray Dataset
-    An MPAS-style dataset with the mesh data and variables 
+    A cratermaker Surface object with the generated grid as the uxgrid attribute and with an elevation variable set to zero.
     """
-    def make_uniform_cell_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArray]:
-        """
-        Create cell width array for this mesh on a regular latitude-longitude grid.
-        Returns
-        -------
-        cellWidth : ndarray
-            m x n array of cell width in km
-        lon : ndarray
-            longitude in degrees (length n and between -180 and 180)
-        lat : ndarray
-            longitude in degrees (length m and between -90 and 90)
-        """
-        dlat = 10
-        dlon = 10
-        constantCellWidth = cell_size * 1e-3 # build_spherical_mesh assumes units of km, so must be converted
 
-        nlat = int(180/dlat) + 1
-        nlon = int(360/dlon) + 1
-
-        lat = np.linspace(-90., 90., nlat)
-        lon = np.linspace(-180., 180., nlon)
-
-        cellWidth = constantCellWidth * np.ones((lat.size, lon.size))
-        return cellWidth, lon, lat
 
     cellWidth, lon, lat = make_uniform_cell_size(cell_size)
     orig_dir = os.getcwd()
@@ -328,17 +415,56 @@ def generate_grid(target_radius: float_like,
   
     return 
 
-def generate_surface_dem(grid_file: os.PathLike, elevation_file: os.PathLike):
+
+def generate_data_file(grid_file: os.PathLike,
+                       data_file: os.PathLike,
+                       name: str,
+                       long_name: str | None = None,
+                       data: float_like | NDArray = 0.0,
+                       isfacedata: bool = True) -> None:
+    """
+    Generate a NetCDF data file using the provided grid file and save it to the specified path.
+
+
+    Parameters
+    ----------
+    data_file : os.PathLike
+        Path where the grid file will be saved.
+    grid_file : os.PathLike
+        Path where the grid file can be found.
+    name : str
+        Name of the data variable.
+    long_name : str, optional
+        Long name of the data variable that will be saved as an attribute.
+    data : scalar or array-like
+        Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+    isfacedata : bool, optional
+        Flag to indicate whether the data is face data or node data. Default is True.
+    Returns
+    -------
+    None
+    """    
     uxgrid = uxr.open_grid(grid_file,latlon=True,use_dual=False)
-    new_elev = np.zeros(uxgrid.n_face,dtype=np.float64)
+    if isfacedata: 
+        dims = ["n_face"]
+        size = uxgrid.n_face
+    else:
+        dims = ["n_node"]
+        size = uxgrid.n_node
+    
+    if np.isscalar(data):
+        data = np.full(size,data)
+    else:
+        if data.size != size:
+            raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
     ds = xr.DataArray(
-            data=new_elev,
-            dims=["n_face"],
-            attrs={"long_name":"elevation of cells"},
-            name="elevation"
+            data=data,
+            dims=dims,
+            attrs=None if long_name is None else {"long_name": long_name},
+            name=name,
             ) 
     ds = ds.to_dataset()
-    ds.to_netcdf(elevation_file) 
+    ds.to_netcdf(data_file) 
     ds.close()
     return
     
