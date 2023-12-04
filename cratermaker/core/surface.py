@@ -4,6 +4,8 @@ from uxarray import UxDataset
 from glob import glob
 import os
 import numpy as np
+import shutil
+import tempfile
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from ..utils.general_utils import float_like
@@ -75,25 +77,12 @@ class Surface(UxDataset):
 
         Parameters
         ----------
-        nCells: int, optional
-            The number of cells in the mesh. Must be passed if new_elev is not
         new_elev : array_like, optional
             New elevation data to be set. If None, the elevation is set to zero. Must be passed if nCells is not
         """        
-       
-        if new_elev is None:
-            new_elev = np.zeros(self.uxgrid.n_face,dtype=np.float64)
-        else:
-            if new_elev.size != self.uxgrid.n_face:
-                raise ValueError("new_elev must have the same size as the number of faces in the grid")
-        uxda = uxr.UxDataArray(
-                data=new_elev,
-                dims=["n_face"],
-                attrs={"long_name":"elevation of cells"},
-                uxgrid=self.uxgrid
-                )
-        
-        return uxda
+        self['elevation'] = generate_data(grid_file=self.grid_file,data_file=self.elevation_file,data=new_elev, name="elevation",long_name="elevation of faces")
+          
+        return 
 
     def save_data(self) -> None:
         """
@@ -325,40 +314,53 @@ def initialize_surface(make_new_grid: bool = False,
         os.mkdir(data_dir_path)
         
     grid_file_path = os.path.join(data_dir_path,_GRID_FILE_NAME)
+    
+    # Check to see if the grid is correct for this particular set of parameters. If not, then delete it and regrid
+    make_new_grid = make_new_grid or not os.path.exists(grid_file_path)
+    if not make_new_grid:
+        uxgrid = uxr.open_grid(grid_file_path) 
+        if "pix" not in uxgrid.parsed_attrs or uxgrid.parsed_attrs["pix"] != pix:
+            make_new_grid = True
+        elif "grid_type" not in uxgrid.parsed_attrs or uxgrid.parsed_attrs["grid_type"] != "uniform": # this will need to be updated when other grid types are added
+            make_new_grid = True
+    
+    if make_new_grid:
+        reset_surface = True
+        generate_grid(target=target,
+                      pix=pix,
+                      grid_file=grid_file_path,
+                      grid_temp_dir=grid_temp_dir_path)
+    
+    # Now redo the elevation data files if necessary 
     elevation_file_path = os.path.join(data_dir_path,_ELEVATION_FILE_NAME)
-        
+    
     # Load the grid and data files
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
     if grid_file_path in data_file_list:
         data_file_list.remove(grid_file_path)
-  
+    
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-    make_new_grid = make_new_grid or not os.path.exists(grid_file_path)
     reset_surface = reset_surface or not os.path.exists(elevation_file_path) or make_new_grid  
-   
+    
     # If reset_surface is True, delete all data files except the grid file 
     if reset_surface:
         for f in data_file_list:
             os.remove(f)
         data_file_list = []
-            
+        generate_data(grid_file=grid_file_path,
+                      data_file=elevation_file_path,
+                      name="elevation",
+                      long_name="elevation of faces",
+                      save_to_file = True)
+
     if elevation_file_path not in data_file_list:
         data_file_list.append(elevation_file_path)
-
-    if make_new_grid:
-        generate_grid(target_radius=target.radius,
-                      pix=pix,
-                      grid_file=grid_file_path,
-                      grid_temp_dir=grid_temp_dir_path)
-       
-    if reset_surface:
-        generate_data_file(grid_file=grid_file_path,
-                           data_file=elevation_file_path,
-                           name="elevation",
-                           long_name="elevation of faces")
-         
+        
     # Initialize UxDataset with the loaded data
-    surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False)
+    try:
+        surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False)
+    except:
+        raise ValueError("Error loading grid and data files")
     surf = Surface(surf,uxgrid=surf.uxgrid,source_datasets=surf.source_datasets) 
     
     surf.grid_temp_dir = grid_temp_dir_path
@@ -395,7 +397,7 @@ def _make_uniform_cell_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDAr
     return cellWidth, lon, lat
 
 
-def generate_grid(target_radius: float_like, 
+def generate_grid(target: Target | str, 
                 pix: float_like, 
                 grid_file: os.PathLike,
                 grid_temp_dir: os.PathLike)  -> Surface:
@@ -406,8 +408,8 @@ def generate_grid(target_radius: float_like,
 
     Parameters
     ----------
-    target_radius : float_like
-        Radius of the target body.
+    target : str or Target
+        Name of target body or a Target object
     pix : float_like
         Desired cell size for the mesh.
     grid_file : os.PathLike
@@ -419,7 +421,14 @@ def generate_grid(target_radius: float_like,
     -------
     A cratermaker Surface object with the generated grid as the uxgrid attribute and with an elevation variable set to zero.
     """
-
+    if isinstance(target, str):
+        try:
+            target = Target(target)
+        except:
+            raise ValueError(f"Invalid target name {target}")
+    elif not isinstance(target, Target):
+        raise TypeError("target must be an instance of Target or a valid name of a target body")
+    
     cellWidth, lon, lat = _make_uniform_cell_size(pix)
     orig_dir = os.getcwd()
     os.chdir(grid_temp_dir)
@@ -430,18 +439,35 @@ def generate_grid(target_radius: float_like,
     logger.setLevel(logging.INFO)     
 
     print("Building grid with jigsaw...")
-    build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target_radius, plot_cellWidth=False, logger=logger)
+    try:
+        build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius, plot_cellWidth=False, logger=logger)
+    except:
+        print("Error building grid with jigsaw. See mesh.log for details.")
+        raise
     os.chdir(orig_dir)
+    
+    # Create the attribute dictionary that will enable the grid to be identified in case it needs to be regridded 
+    with xr.open_dataset(grid_file) as ds:
+        ds = ds.assign_attrs(pix=pix, grid_type="uniform") 
+    
+    # Create a temporary file
+    temp_file = tempfile.NamedTemporaryFile(delete=False)
+    # Write to the temporary file
+    ds.to_netcdf(temp_file.name)
+
+    # Replace the original file only if writing succeeded
+    shutil.move(temp_file.name,grid_file)    
   
     return 
 
 
-def generate_data_file(grid_file: os.PathLike,
-                       data_file: os.PathLike,
-                       name: str,
-                       long_name: str | None = None,
-                       data: float_like | NDArray = 0.0,
-                       isfacedata: bool = True) -> None:
+def generate_data(grid_file: os.PathLike,
+                  data_file: os.PathLike,
+                  name: str,
+                  long_name: str | None = None,
+                  data: float_like | NDArray | None = None,
+                  isfacedata: bool = True,
+                  save_to_file: bool = False) -> None:
     """
     Generate a NetCDF data file using the provided grid file and save it to the specified path.
 
@@ -460,6 +486,8 @@ def generate_data_file(grid_file: os.PathLike,
         Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
     isfacedata : bool, optional
         Flag to indicate whether the data is face data or node data. Default is True.
+    save_to_file: bool, optional
+        Specify whether the data should be saved to a file. Default is False.
     Returns
     -------
     None
@@ -471,20 +499,23 @@ def generate_data_file(grid_file: os.PathLike,
     else:
         dims = ["n_node"]
         size = uxgrid.n_node
-    
-    if np.isscalar(data):
+   
+    if data is None:
+        data = np.zeros(size,dtype=np.float64) 
+    elif np.isscalar(data):
         data = np.full(size,data)
     else:
         if data.size != size:
             raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
-    ds = xr.DataArray(
+    uxda = uxr.UxDataArray(
             data=data,
             dims=dims,
             attrs=None if long_name is None else {"long_name": long_name},
             name=name,
+            uxgrid=uxgrid
             ) 
-    ds = ds.to_dataset()
-    ds.to_netcdf(data_file) 
-    ds.close()
-    return
-    
+    if save_to_file:
+        uxds = uxda.to_dataset()
+        uxds.to_netcdf(data_file) 
+        uxds.close()
+    return uxda 
