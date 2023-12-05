@@ -65,36 +65,62 @@ class TestMonteCarlo(unittest.TestCase):
         # Check if the p-value is greater than a chosen significance level (0.05)
         self.assertGreater(p_value, 0.05)
 
+
     def test_get_random_size(self):
         # Generate power law CDF and test that it results in a Poisson-like distribution of binned counts
-        diameters = np.exp(np.linspace(np.log(1.0), np.log(1.0e2), 10))
-        cdf = diameters**-3
-        cdf /= cdf[-1]  # Normalize CDF
+        nbins = 20
+        diameters = np.logspace(0,3,nbins)
+        model_cdf = diameters**-3
+        model_cdf /= model_cdf[0]  # Normalize the CDF
 
-        # Generate random sizes
-        size = 100000
-        random_sizes = get_random_size(diameters, cdf, size=size)
+        # Generate multiple populations of sizes and bin the results from each population
+        size = 10000
+        num_realizations = 1000
+        all_counts = []
+        for _ in range(num_realizations):
+            random_sizes = get_random_size(diameters, model_cdf, size=size)
+            counts, _ = np.histogram(random_sizes, bins=diameters)
+            cumulative_counts = np.cumsum(counts[::-1])[::-1]
+            all_counts.append(cumulative_counts)
+       
+        # Assuming 'all_counts' is a list of arrays, each array being the counts for one realization
+        observed_counts = np.stack(all_counts)  # Stack all count arrays
 
-        # Geometric binning
-        bin_edges = np.geomspace(1.0, 1e5, 20)
-        counts, _ = np.histogram(random_sizes, bins=bin_edges)
+        # Calculate the mean and standard deviation of observed counts for each bin
+        observed_means = np.mean(observed_counts, axis=0)
+        observed_std_devs = np.std(observed_counts, axis=0)
 
-        # Expected counts based on Poisson distribution
-        # Compute cumulative counts at bin edges
-        cumulative_counts_at_edges = bin_edges**-3
+        # Calculate the expected standard deviation for each bin from the Poisson distribution
+        expected_counts = model_cdf * size
+        expected_std_devs = np.sqrt(expected_counts)
 
-        # Calculate expected counts in each bin as the difference in cumulative counts
-        lambda_ = np.diff(cumulative_counts_at_edges)
+        # Compare observed and expected standard deviations
+        for i in np.arange(start=1, stop=nbins-1):
+            if observed_means[i] == 0:
+                continue
+            self.assertAlmostEqual(observed_means[i], expected_counts[i], delta=4*expected_std_devs[i])
+            
+        # test with invalid diameter shape or size
+        diameters = np.array([[100., 56.], [32., 18.]])  # 2D array
+        cdf = np.array([1., 0.8, 0.6, 0.4])
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, cdf)
+        diameters = np.array([])  # Empty array
+        cdf = np.array([])
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, cdf) 
+        diameters = np.array([100., 56., 32., 18.])
+        cdf = np.array([0.4, 0.6, 0.8])
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, cdf)
+        
+        # test the case when the cdf is not monotonically decreasing with increasing diameter 
+        diameters = np.array([100., 56., 32., 18.])
+        cdf = np.array([1., 0.8, 0.6, 0.4])
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, cdf)
 
-        # Normalize lambda_ so that sum(lambda_) equals size
-        lambda_ *= size / lambda_.sum()
-        expected_counts = [poisson.pmf(k, lambda_[k]) * size for k in range(len(counts))]
-
-        # Perform chi-square test
-        chi2_statistic, p_value = chisquare(f_obs=counts, f_exp=expected_counts)
-
-        # Check if p-value is significant
-        self.assertGreater(p_value, 0.05)  # Common threshold for significance
+        return
         
 
 if __name__ == '__main__':
