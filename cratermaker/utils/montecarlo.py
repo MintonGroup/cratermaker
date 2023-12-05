@@ -3,6 +3,7 @@ from numpy.random import Generator
 from typing import Union, Optional, Tuple
 from numpy.typing import NDArray
 from scipy.stats import truncnorm
+from scipy.stats import maxwell
 
 def get_random_location(
                         size: int | Tuple[int, ...]=1, 
@@ -296,40 +297,158 @@ def bounded_norm(loc: np.float64,scale: np.float64,size: Optional[Union[int, Tup
     else:
         return truncated_normal.rvs(size)
     
+           
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    num_realizations = 100
-    nbins = 10
-    size = 100000
-    Dhi = 100.0
-    p = 2.0
-    C =  Dhi**p 
-    Dlo = (size/C)**(-1.0/p) 
-    diameters = np.exp(np.linspace(np.log(Dlo), np.log(100*Dhi), nbins))
-    # Test a simple power law SFD
-    cdf = C * diameters**-p
-    
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
 
-    ax.set_title("Test SFD generation")
-    ax.set_xlabel("$D$")
-    ax.set_ylabel("$N_{>D}$")
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    ax.set_ylim([1.0,1.1*size])
-
-    for i in range(num_realizations):
-        new_diameters = get_random_size(diameters, cdf, mu=size)
-        new_diameters = np.sort(new_diameters)[::-1]
-        nval = np.arange(1, new_diameters.size+1)
-        if i == 0:
-            label = 'Sampled SFD'
-        else:
-            label = None
-            
-        ax.plot(new_diameters, nval, label=label, alpha=0.25, color='orange')
+    def plot_random_location():
+        # Sample data generation
+        size = 10000
+        points = get_random_location(size=size)
         
-    ax.plot(diameters, cdf, label='Model SFD')
-    ax.legend(loc='upper right')
-    plt.show()    
+        lons = points['lon']
+        lats = points['lat']
+
+        # Number of bins
+        bins = 50 
+
+        # Longitude plot
+        observed_counts_lon, bins_lon = np.histogram(lons, bins=bins, range=(0.0, 2 * np.pi))
+        expected_count_lon = size // bins
+
+        # Latitude plot
+        observed_counts_lat, bins_lat = np.histogram(lats, bins=bins, range=(-np.pi/2, np.pi/2))
+        # For expected counts in latitude, adjust for area covered by each bin
+        area_ratio = np.sin(bins_lat[1:]) - np.sin(bins_lat[:-1])
+        total_area = np.sin(np.pi/2) - np.sin(-np.pi/2)  # Total area for the entire sphere
+        expected_count_lat = size * area_ratio / total_area
+
+        # Convert bins to degrees
+        bins_lon_deg = np.rad2deg(bins_lon)
+        bins_lat_deg = np.rad2deg(bins_lat)
+        
+        # Bar width in degrees
+        bar_width_lon = np.diff(bins_lon_deg)
+        bar_width_lat = np.diff(bins_lat_deg)
+
+        # Plotting
+        fig, axs = plt.subplots(2, 1, figsize=(8, 6))
+
+        # Longitude plot
+        axs[0].bar(bins_lon_deg[:-1], observed_counts_lon, width=bar_width_lon, align='edge', label='Observed')
+        axs[0].plot(bins_lon_deg[:-1], [expected_count_lon] * len(bins_lon_deg[:-1]), color='red', label='Expected')
+        axs[0].set_xlabel('Longitude (deg)')
+        axs[0].set_ylabel('Number')
+        axs[0].legend()
+        axs[0].set_title('Number vs Longitude')
+        
+        # Latitude
+        axs[1].bar(bins_lat_deg[:-1], observed_counts_lat, width=bar_width_lat, align='edge', alpha=0.5, label='Observed')
+        axs[1].plot(bins_lat_deg[:-1], expected_count_lat, label='Expected', color='red')
+        axs[1].set_xlabel('Latitude (deg)')
+        axs[1].set_ylabel('Number')
+        axs[1].legend()
+        axs[1].set_title('Number vs Latitude')
+
+        plt.tight_layout()
+        plt.show()
+
+
+    def plot_random_angle():
+        # Sample data generation
+        size = 10000
+        angles = get_random_impact_angle(size=size)
+        
+
+        # Number of bins
+        bins = 50 
+        observed_counts, bins_ang = np.histogram(angles, bins=bins, range=(0.0, 90.0))
+
+        # Calculate expected distribution
+        uniform_dist = np.linspace(0, 1, size)
+        transformed_angles = np.rad2deg(np.arcsin(np.sqrt(uniform_dist)))
+        expected_counts, _ = np.histogram(transformed_angles, bins=bins, range=(0.0, 90.0))
+
+        # Plotting
+        fig, ax = plt.subplots(figsize=(8, 4))
+
+        # Observed counts
+        ax.bar(bins_ang[:-1], observed_counts, width=np.diff(bins_ang), align='edge', label='Observed', alpha=0.5)
+
+        # Expected counts
+        ax.plot(bins_ang[:-1], expected_counts, label='Expected', color='red')
+
+        ax.set_xlabel('Impact Angle (deg)')
+        ax.set_ylabel('Count')
+        ax.legend()
+        ax.set_title('Impact Angle Distribution')
+
+        plt.show()
+
+
+    def plot_random_velocity():
+        vmean = 20e3
+        size = 10000
+        velocities = get_random_velocity(vmean, size)
+        
+        # Create histogram of the generated velocities
+        bins = np.linspace(0, vmean*3, 50)
+        histogram, bins = np.histogram(velocities, bins=bins, density=True)
+        bin_centers = 0.5 * (bins[1:] + bins[:-1])
+
+        # Generate theoretical Maxwell-Boltzmann distribution for the given vmean
+        theoretical_dist = maxwell.pdf(bin_centers, scale=vmean/np.sqrt(8/np.pi))
+
+        # Plotting
+        plt.figure(figsize=(8, 4))
+        plt.bar(bin_centers, histogram, width=bins[1]-bins[0], alpha=0.5, label='Generated Velocities')
+        plt.plot(bin_centers, theoretical_dist, label='Theoretical Maxwell-Boltzmann', color='red')
+        plt.xlabel('Velocity (m/s)')
+        plt.ylabel('Probability Density')
+        plt.title('Maxwell-Boltzmann Distribution of Velocities')
+        plt.legend()
+        plt.show()
+
+           
+    def plot_random_size():
+        num_realizations = 100
+        nbins = 10
+        size = 100000
+        Dhi = 100.0
+        p = 2.0
+        C =  Dhi**p 
+        Dlo = (size/C)**(-1.0/p) 
+        diameters = np.exp(np.linspace(np.log(Dlo), np.log(100*Dhi), nbins))
+        # Test a simple power law SFD
+        cdf = C * diameters**-p
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+
+        ax.set_title("Test SFD generation")
+        ax.set_xlabel("$D$")
+        ax.set_ylabel("$N_{>D}$")
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_ylim([1.0,1.1*size])
+
+        for i in range(num_realizations):
+            new_diameters = get_random_size(diameters, cdf, mu=size)
+            new_diameters = np.sort(new_diameters)[::-1]
+            nval = np.arange(1, new_diameters.size+1)
+            if i == 0:
+                label = 'Sampled SFD'
+            else:
+                label = None
+                
+            ax.plot(new_diameters, nval, label=label, alpha=0.25, color='orange')
+            
+        ax.plot(diameters, cdf, label='Model SFD')
+        ax.legend(loc='upper right')
+        plt.show()  
+        
+        
+    plot_random_location()
+    plot_random_angle()
+    plot_random_velocity()
+    plot_random_size()          
