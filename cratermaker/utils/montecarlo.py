@@ -174,7 +174,7 @@ def get_random_size(diameters: NDArray[np.float64], cdf: NDArray[np.float64], si
     new_diameters = new_diameters.reshape(original_shape)
 
     # Add a small random noise to the diameters
-    noise = 1e-3 * rng.uniform(size=new_diameters.shape)
+    noise = 1e-8 * rng.uniform(size=new_diameters.shape)
     new_diameters *= (1 + noise)
     if size == 1:
         return new_diameters[0]

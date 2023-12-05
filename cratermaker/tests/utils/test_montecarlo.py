@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from cratermaker.utils.montecarlo import *
-from scipy.stats import chisquare, ks_2samp
+from scipy.stats import chisquare, ks_2samp, poisson
 
 class TestMonteCarlo(unittest.TestCase):
 
@@ -65,12 +65,36 @@ class TestMonteCarlo(unittest.TestCase):
         # Check if the p-value is greater than a chosen significance level (0.05)
         self.assertGreater(p_value, 0.05)
 
-if __name__ == '__main__':
-    unittest.main()
-    
+    def test_get_random_size(self):
+        # Generate power law CDF and test that it results in a Poisson-like distribution of binned counts
+        diameters = np.exp(np.linspace(np.log(1.0), np.log(1.0e2), 10))
+        cdf = diameters**-3
+        cdf /= cdf[-1]  # Normalize CDF
 
-if __name__ == '__main__':
-    unittest.main()
+        # Generate random sizes
+        size = 100000
+        random_sizes = get_random_size(diameters, cdf, size=size)
+
+        # Geometric binning
+        bin_edges = np.geomspace(1.0, 1e5, 20)
+        counts, _ = np.histogram(random_sizes, bins=bin_edges)
+
+        # Expected counts based on Poisson distribution
+        # Compute cumulative counts at bin edges
+        cumulative_counts_at_edges = bin_edges**-3
+
+        # Calculate expected counts in each bin as the difference in cumulative counts
+        lambda_ = np.diff(cumulative_counts_at_edges)
+
+        # Normalize lambda_ so that sum(lambda_) equals size
+        lambda_ *= size / lambda_.sum()
+        expected_counts = [poisson.pmf(k, lambda_[k]) * size for k in range(len(counts))]
+
+        # Perform chi-square test
+        chi2_statistic, p_value = chisquare(f_obs=counts, f_exp=expected_counts)
+
+        # Check if p-value is significant
+        self.assertGreater(p_value, 0.05)  # Common threshold for significance
         
 
 if __name__ == '__main__':
