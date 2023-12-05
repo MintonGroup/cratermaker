@@ -14,8 +14,8 @@ class TestMonteCarlo(unittest.TestCase):
             size = 1000
             points = get_random_location(size=size)
 
-            lons = points['lon']
-            lats = points['lat']
+            lons = np.deg2rad(points['lon'])
+            lats = np.deg2rad(points['lat'])
             self.assertIsInstance(lons[0], np.float64)
             self.assertIsInstance(lats[0], np.float64)
             self.assertTrue(np.all(0.0 <= lons) and np.all(lons <= 2 * np.pi))

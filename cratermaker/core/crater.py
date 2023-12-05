@@ -24,7 +24,7 @@ class Crater:
     transient_radius : float
         The radius of the transient crater in m.    
     location : (2,) float
-        The lat. and lon. of the impact point    
+        The lat. and lon. of the impact point in degrees
     """
 
     def __init__(self, 
@@ -77,10 +77,10 @@ class Crater:
 
     
     def __repr__(self):
-        return (f"Crater(diameter={self.diameter*1e-3} km, radius={self.radius*1e-3} km, "
-                f"transient_diameter={self.transient_diameter*1e-3} km, transient_radius={self.transient_radius*1e-3} km, "
+        return (f"Crater(diameter={self.diameter} m, radius={self.radius} m, "
+                f"transient_diameter={self.transient_diameter} m, transient_radius={self.transient_radius} m, "
                 f"morphology_type={self.morphology_type} "
-                f"lon: {np.rad2deg(self.location[0])}, lat {np.rad2deg(self.location[1])}")
+                f"lon: {self.location[0]}, lat {self.location[1]}")
     
     @property
     def diameter(self):
@@ -179,7 +179,7 @@ class Projectile:
     angle : float
         The angle of impact, in degrees.
     location : (2,) float
-        The lat. and lon. of the impact point    
+        The lat. and lon. of the impact point in degrees
     """
     
     def __init__(self, 
@@ -267,11 +267,11 @@ class Projectile:
         return
 
     def __repr__(self):
-        return (f"Projectile(diameter={self.diameter*1e-3} km, radius={self.radius*1e-3} km, "
+        return (f"Projectile(diameter={self.diameter} mm, radius={self.radius} m, "
                 f"mass={self.mass} kg, density={self.density} kg/m^3, "
-                f"velocity={self.velocity*1e-3} km/s, angle={np.rad2deg(self.angle)} deg, "
-                f"vertical_velocity={self.vertical_velocity*1e-3} km/s, "
-                f"lon: {np.rad2deg(self.location[0])}, lat {np.rad2deg(self.location[1])})")
+                f"velocity={self.velocity} m/s, angle={self.angle} deg, "
+                f"vertical_velocity={self.vertical_velocity} m/s, "
+                f"lon: {self.location[0]}, lat {self.location[1]}")
 
     @property
     def diameter(self):
@@ -337,7 +337,7 @@ class Projectile:
     @property
     def velocity(self):
         if self._velocity is None and self._vertical_velocity is not None and self._angle is not None:
-            self._velocity = self._vertical_velocity / np.sin(self._angle)
+            self._velocity = self._vertical_velocity / np.sin(np.deg2rad(self._angle))
         return self._velocity
 
     @velocity.setter
@@ -347,12 +347,12 @@ class Projectile:
         self._velocity = value
             
         if value is not None and self._angle is not None:
-            self._vertical_velocity = value * np.sin(self._angle)
+            self._vertical_velocity = value * np.sin(np.deg2rad(self._angle))
 
     @property
     def vertical_velocity(self):
         if self._vertical_velocity is None and self._velocity is not None and self._angle is not None:
-            self._vertical_velocity = self._velocity * np.sin(self._angle)
+            self._vertical_velocity = self._velocity * np.sin(np.deg2rad(self._angle))
         return self._vertical_velocity
 
     @vertical_velocity.setter
@@ -364,9 +364,9 @@ class Projectile:
         # Update velocity only if angle is already set
         if self._angle is not None and value is not None:
             try:
-                self._velocity = value / np.sin(self._angle)
+                self._velocity = value / np.sin(np.deg2rad(self._angle))
             except ValueError:
-                raise ValueError(f"Invalid vertical velocity value {value} for a given angle value {np.rad2deg(self._angle)}!")
+                raise ValueError(f"Invalid vertical velocity value {value} for a given angle value {self._angle}!")
 
     @property
     def angle(self):
@@ -377,10 +377,10 @@ class Projectile:
         if value is not None:
             if value < 0.0 or value > 90.0:
                 raise ValueError("Impact angle of projectile must be between 0 and 90 degrees")
-            self._angle = np.deg2rad(value)
+            self._angle = value
             # Update vertical_velocity only if velocity is already set
             if self._velocity is not None:
-                self._vertical_velocity = self._velocity * np.sin(self._angle)
+                self._vertical_velocity = self._velocity * np.sin(np.deg2rad(self._angle))
 
     def _initialize_velocities(self, target: Target, rng: Generator | None = None):
         if self._velocity is None:

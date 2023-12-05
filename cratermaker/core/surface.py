@@ -146,7 +146,9 @@ class Surface(UxDataset):
         UxArray.UxDataArray
             DataArray of distances for each cell in meters.
         """
-        return self.calculate_haversine_distance(location[0],location[1],self.uxgrid.face_lon,self.uxgrid.face_lat,target_radius)
+        lon = np.deg2rad(location[0])
+        lat = np.deg2rad(location[1])
+        return self.calculate_haversine_distance(lon,lat,self.uxgrid.face_lon,self.uxgrid.face_lat,target_radius)
     
 
     @staticmethod
