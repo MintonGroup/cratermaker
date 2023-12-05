@@ -24,7 +24,7 @@ def get_random_location(
     Returns
     -------
     (lon,lat) or ndarray[(lon,lat)] of given size
-        A pair or array of pairs of longitude and latitude values in radians.
+        A pair or array of pairs of longitude and latitude values in degrees.
     """
 
     if rng and not isinstance(rng, Generator):
@@ -40,8 +40,8 @@ def get_random_location(
     phi = np.arccos(2 * v - 1)
     
     # Convert to lon/lat
-    lon = theta
-    lat = phi - np.pi / 2.0
+    lon = np.rad2deg(theta)
+    lat = np.rad2deg(phi - np.pi / 2.0)
     
     if size == 1: 
         return (np.float64(lon.item()),np.float64(lat.item()))
@@ -313,20 +313,20 @@ if __name__ == '__main__':
         bins = 50 
 
         # Longitude plot
-        observed_counts_lon, bins_lon = np.histogram(lons, bins=bins, range=(0.0, 2 * np.pi))
+        observed_counts_lon, bins_lon_deg = np.histogram(lons, bins=bins, range=(0.0, 360.0))
         expected_count_lon = size // bins
 
         # Latitude plot
-        observed_counts_lat, bins_lat = np.histogram(lats, bins=bins, range=(-np.pi/2, np.pi/2))
+        observed_counts_lat, bins_lat_deg = np.histogram(lats, bins=bins, range=(-90, 90))
+        # Convert bins to degrees
+        bins_lon = np.deg2rad(bins_lon_deg)
+        bins_lat = np.deg2rad(bins_lat_deg)
+        
         # For expected counts in latitude, adjust for area covered by each bin
         area_ratio = np.sin(bins_lat[1:]) - np.sin(bins_lat[:-1])
         total_area = np.sin(np.pi/2) - np.sin(-np.pi/2)  # Total area for the entire sphere
         expected_count_lat = size * area_ratio / total_area
 
-        # Convert bins to degrees
-        bins_lon_deg = np.rad2deg(bins_lon)
-        bins_lat_deg = np.rad2deg(bins_lat)
-        
         # Bar width in degrees
         bar_width_lon = np.diff(bins_lon_deg)
         bar_width_lat = np.diff(bins_lat_deg)
