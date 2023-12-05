@@ -7,6 +7,7 @@ import numpy as np
 import shutil
 import tempfile
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
+from mpas_tools.viz.paraview_extractor import extract_vtk
 import logging
 from ..utils.general_utils import float_like
 from .target import Target
@@ -59,7 +60,8 @@ class Surface(UxDataset):
     get_average_surface(location, radius)
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_name', 'pix', 'grid_type')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_name', 'pix', 'grid_type')
+    
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
 
@@ -84,13 +86,8 @@ class Surface(UxDataset):
           
         return 
 
-    def save_data(self) -> None:
-        """
-        Saves all data to the data directory.
-        """ 
-        for var in self.data_vars:
-            filename = os.path.join(self.data_dir, var + ".nc")
-            self[var].to_netcdf(filename)
+
+
         
        
     @staticmethod
@@ -256,6 +253,39 @@ class Surface(UxDataset):
         # radius = np.linalg.norm(center_vector)
         center_vector = None
         return center_vector 
+
+
+    def export_vtk(self, out_dir: os.PathLike = "vtk_files") -> None:
+        """
+        Export the surface mesh to a VTK file.
+
+        Parameters
+        ----------
+        out_dir : str, Default "vtk_files"
+            Directory to store the VTK files.
+        """
+        ignore_time = "time" not in self.dims
+
+        temp_files = []
+        for var in self.data_vars:
+            filename = os.path.join(out_dir, var + ".nc")
+            if 'n_face' in self[var].dims:
+                dim_map = {'n_face': 'nCells'}
+            elif 'n_node' in self[var].dims:
+                dim_map = {'n_node': 'nVertices'}
+            self[var].rename(dim_map).to_netcdf(filename)        
+            temp_files.append(filename)
+            
+        extract_vtk(
+            filename_pattern=os.path.join(out_dir,"*.nc"),
+            mesh_filename=self.grid_file,
+            variable_list=['allOnCells','allOnVertices'], 
+            dimension_list=['maxEdges=','vertexDegree='], combine=True,include_mesh_vars=True,
+            out_dir=out_dir, ignore_time=ignore_time)
+        
+        for f in temp_files:
+            os.remove(f)
+        return
 
 
 def initialize_surface(make_new_grid: bool = False,
