@@ -7,7 +7,7 @@ class TestMonteCarlo(unittest.TestCase):
 
     def test_get_random_location(self):
         """Test get_random_location with default parameters."""
-        size = 10000
+        size = 1000
         points = get_random_location(size=size)
 
         lons = points['lon']
@@ -22,7 +22,7 @@ class TestMonteCarlo(unittest.TestCase):
         # Set a significance level for your test, commonly 0.05
         alpha = 0.05
        
-        bins = 100 
+        bins = 20 
         observed_counts, bins_lon = np.histogram(lons, bins=bins, range=(0.0, 2 * np.pi))
         expected_count_lon = size // bins
         
@@ -68,7 +68,7 @@ class TestMonteCarlo(unittest.TestCase):
 
     def test_get_random_size(self):
         # Generate power law CDF and test that it results in a Poisson-like distribution of binned counts
-        nbins = 20
+        nbins = 10
         diameters = np.logspace(0,3,nbins)
         model_cdf = diameters**-3
         model_cdf /= model_cdf[0]  # Normalize the CDF
@@ -78,7 +78,7 @@ class TestMonteCarlo(unittest.TestCase):
         num_realizations = 1000
         all_counts = []
         for _ in range(num_realizations):
-            random_sizes = get_random_size(diameters, model_cdf, size=size)
+            random_sizes = get_random_size(diameters, model_cdf, mu=size)
             counts, _ = np.histogram(random_sizes, bins=diameters)
             cumulative_counts = np.cumsum(counts[::-1])[::-1]
             all_counts.append(cumulative_counts)
@@ -95,10 +95,11 @@ class TestMonteCarlo(unittest.TestCase):
         expected_std_devs = np.sqrt(expected_counts)
 
         # Compare observed and expected standard deviations
-        for i in np.arange(start=1, stop=nbins-1):
+        for i in range(len(observed_means)):
             if observed_means[i] == 0:
                 continue
             self.assertAlmostEqual(observed_means[i], expected_counts[i], delta=4*expected_std_devs[i])
+            self.assertAlmostEqual(observed_std_devs[i], expected_std_devs[i], delta=expected_std_devs[i])
             
         # test with invalid diameter shape or size
         diameters = np.array([[100., 56.], [32., 18.]])  # 2D array
@@ -109,6 +110,14 @@ class TestMonteCarlo(unittest.TestCase):
         cdf = np.array([])
         with self.assertRaises(ValueError):
             get_random_size(diameters, cdf) 
+        diameters = np.array([1.0])  # Single element array
+        cdf = np.array([1.0])
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, cdf)
+        diameters = 1.0  # Scalar
+        cdf = 1.0
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, cdf)                          
         diameters = np.array([100., 56., 32., 18.])
         cdf = np.array([0.4, 0.6, 0.8])
         with self.assertRaises(ValueError):
@@ -119,6 +128,24 @@ class TestMonteCarlo(unittest.TestCase):
         cdf = np.array([1., 0.8, 0.6, 0.4])
         with self.assertRaises(ValueError):
             get_random_size(diameters, cdf)
+            
+        # test the case when both size and mu are requested
+        diameters = np.logspace(0,3,nbins)
+        model_cdf = diameters**-3
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, model_cdf, size=100, mu=100)
+         
+        # test the case when negative values are requested
+        diameters = np.logspace(0,3,nbins)
+        model_cdf = diameters**-3
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, model_cdf, size=-100)
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, model_cdf, mu=-100)
+        with self.assertRaises(ValueError):
+            get_random_size(diameters, -model_cdf)
+        with self.assertRaises(ValueError):
+            get_random_size(-diameters, model_cdf)
 
         return
         

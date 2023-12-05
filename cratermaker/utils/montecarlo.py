@@ -4,7 +4,10 @@ from typing import Union, Optional, Tuple
 from numpy.typing import NDArray
 from scipy.stats import truncnorm
 
-def get_random_location(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Optional[Generator]=None) -> Union[np.float64, Tuple[np.float64, np.float64], np.ndarray]:
+def get_random_location(
+                        size: int | Tuple[int, ...]=1, 
+                        rng: Generator | None=None
+                        ) -> Union[np.float64, Tuple[np.float64, np.float64], np.ndarray]:
     """
     Computes random longitude and latitude values.
     
@@ -54,7 +57,10 @@ def get_random_location(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Opti
     return lonlat_arr
 
 
-def get_random_impact_angle(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Optional[Generator]=None) -> Union[np.float64,NDArray[np.float64]]:
+def get_random_impact_angle(
+                            size: int | Tuple[int, ...]=1, 
+                            rng: Generator | None=None
+                            ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample impact angles from a distribution centered on 45deg.
     
@@ -86,7 +92,12 @@ def get_random_impact_angle(size: Optional[Union[int, Tuple[int, ...]]]=1, rng: 
         return np.rad2deg(impact_angle)
 
 
-def get_random_size(diameters: NDArray[np.float64], cdf: NDArray[np.float64], size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Optional[Generator]=None) -> Union[np.float64,NDArray[np.float64]]:
+def get_random_size(diameters: NDArray[np.float64], 
+                    cdf: NDArray[np.float64], 
+                    size: int | Tuple[int, ...] | None = None, 
+                    mu: int | Tuple[int, ...] | None = None,
+                    rng: Generator | None=None
+                    ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample diameters from a cumulative size-frequency distribution (SFD).
     
@@ -99,14 +110,16 @@ def get_random_size(diameters: NDArray[np.float64], cdf: NDArray[np.float64], si
     cdf : array_like
         The cumulative distribution function corresponding to `diameters`. Must be the same size as `diameters` and must be monotonically increasing with decreasing diameter value.
     size : int or tuple of ints, optional
-        The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
+        The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None and mu is None then a single value is returned. Note: mu and size are mutually exclusive. 
+    mu : int or tuple of ints, optional
+        The expected number of samples to generate using a Poisson random number genertor. If the shape is (m, n, k), then m * n * k samples are drawn. Note: mu and size are mutually exclusive. 
     rng : numpy.random.Generator, optional
         An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used to create a new instance.
     
     Returns
     -------
     np.float64 or ndarray of np.float 64 
-        A scalar or array of sampled diameter values from the SFD. The size of the array is determined by the `size` parameter.
+        A scalar or array of sampled diameter values from the SFD. 
     
     Notes
     -----
@@ -133,18 +146,26 @@ def get_random_size(diameters: NDArray[np.float64], cdf: NDArray[np.float64], si
         rng = np.random.default_rng() 
         
     # Check that the shapes and sizes of diameters and cdf are compatible
-    if np.isscalar(diameters):
-        if not np.isscalar(cdf):
-            raise ValueError("The 'diameters' and 'cdf' arguments must have the same shape")
-    else:
-        if diameters.ndim != 1:
-            raise ValueError("The 'diameters' argument must be a 1-dimensional array")
-        if diameters.shape != cdf.shape:
-            raise ValueError("The 'diameters' and 'cdf' arguments must have the same shape")
-        if diameters.size != cdf.size:
-            raise ValueError("The 'diameters' and 'cdf' arguments must have the same size")
-        if diameters.size == 0:
-            raise ValueError("The 'diameters' and 'cdf' arguments must have at least one element")
+    if np.isscalar(diameters) or np.isscalar(cdf):
+        raise ValueError("The 'diameters' and 'cdf' arguments must be arrays")
+    if diameters.ndim != 1:
+        raise ValueError("The 'diameters' argument must be a 1-dimensional array")
+    if diameters.shape != cdf.shape:
+        raise ValueError("The 'diameters' and 'cdf' arguments must have the same shape")
+    if diameters.size != cdf.size:
+        raise ValueError("The 'diameters' and 'cdf' arguments must have the same size")
+    if diameters.size < 2:
+        raise ValueError("The 'diameters' and 'cdf' arguments must have at least two elements")
+    if np.any(diameters <= 0.0):
+        raise ValueError("All values in the 'diameters' argument must be positive")
+    if np.any(cdf <= 0.0):
+        raise ValueError("All values in the 'cdf' argument must be positive")
+    if size is None and mu is None:
+        size = 1
+    elif size is not None and mu is not None:
+        raise ValueError("The 'size' and 'mu' arguments are mutually exclusive")
+    elif size is None and mu is not None:
+        size = rng.poisson(mu) 
 
     # Sort the diameters in descending order and get the cumulative distribution if it was not supplied
     sorted_indices = np.argsort(diameters)[::-1]
@@ -201,7 +222,11 @@ def get_random_size(diameters: NDArray[np.float64], cdf: NDArray[np.float64], si
         return new_diameters
 
 
-def get_random_velocity(vmean: np.float64, size: Optional[Union[int, Tuple[int, ...]]]=1, rng: Optional[Generator]=None) -> Union[np.float64,NDArray[np.float64]]:
+def get_random_velocity(
+                        vmean: np.float64, 
+                        size: int | Tuple[int, ...]=1, 
+                        rng: Generator | None=None
+                        ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample impact velocities from a Maxwell-Boltzmann distribution given a mean velocity.
     
