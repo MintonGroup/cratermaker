@@ -298,14 +298,16 @@ def bounded_norm(loc: np.float64,scale: np.float64,size: Optional[Union[int, Tup
     
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    size = 100000
     num_realizations = 100
-    diameters = np.exp(np.linspace(np.log(1.0), np.log(1.0e2), 10))
+    nbins = 10
+    size = 100000
+    Dhi = 100.0
+    p = 2.0
+    C =  Dhi**p 
+    Dlo = (size/C)**(-1.0/p) 
+    diameters = np.exp(np.linspace(np.log(Dlo), np.log(100*Dhi), nbins))
     # Test a simple power law SFD
-    cdf = diameters**-2
-    cdf /= cdf[0]  # Normalize CDF
-    lambda_ = cdf * size # Production function
-    new_diameters = get_random_size(diameters, cdf, size=size)
+    cdf = C * diameters**-p
     
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
@@ -318,9 +320,9 @@ if __name__ == '__main__':
     ax.set_ylim([1.0,1.1*size])
 
     for i in range(num_realizations):
-        new_diameters = get_random_size(diameters, cdf, size=size)
+        new_diameters = get_random_size(diameters, cdf, mu=size)
         new_diameters = np.sort(new_diameters)[::-1]
-        nval = np.arange(1, size+1)
+        nval = np.arange(1, new_diameters.size+1)
         if i == 0:
             label = 'Sampled SFD'
         else:
@@ -328,6 +330,6 @@ if __name__ == '__main__':
             
         ax.plot(new_diameters, nval, label=label, alpha=0.25, color='orange')
         
-    ax.plot(diameters, lambda_, label='Model SFD')
+    ax.plot(diameters, cdf, label='Model SFD')
     ax.legend(loc='upper right')
     plt.show()    
