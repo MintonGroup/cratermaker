@@ -4,6 +4,8 @@ import cratermaker
 from cratermaker import Target
 import tempfile
 import os
+import numpy as np
+import xarray as xr
 from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
 
 class TestSimulation(unittest.TestCase):
@@ -26,8 +28,33 @@ class TestSimulation(unittest.TestCase):
         self.assertEqual(sim.target.material.name, "Soft Rock")
         
     def test_simulation_save(self):
+        # Test basic save operation
         sim = cratermaker.Simulation(pix=self.pix, target=self.target)
         sim.save()
+       
+        # Test that variables are saved correctly
+        sim.surf.set_elevation(1.0)
+        np.testing.assert_array_equal(sim.surf['elevation_face'].values, np.ones(sim.surf.uxgrid.n_face)) 
+        np.testing.assert_array_equal(sim.surf['elevation_node'].values, np.ones(sim.surf.uxgrid.n_node)) 
+        sim.save()
+        
+        with xr.open_dataset(os.path.join(sim.surf.data_dir, "elevation_node.nc")) as ds:
+            np.testing.assert_array_equal(ds['elevation_node'].values, np.ones(sim.surf.uxgrid.n_node))
+        
+        with xr.open_dataset(os.path.join(sim.surf.data_dir, "elevation_face.nc")) as ds:
+            np.testing.assert_array_equal(ds['elevation_face'].values, np.ones(sim.surf.uxgrid.n_face))
+        
+    def test_simulation_export_vtk(self):
+        sim = cratermaker.Simulation(pix=self.pix, target=self.target) 
+        
+        # Test with default parameters
+        default_out_dir = os.path.join(sim.simdir, "vtk_files")
+        expected_files = ["staticFieldsOnCells.vtp", "staticFieldsOnVertices.vtp"]
+        sim.export_vtk()
+        self.assertTrue(os.path.isdir(default_out_dir))
+        for f in expected_files:
+            self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
+         
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,15 +1,14 @@
 import numpy as np
 from numpy.random import default_rng
 import json
-import uxarray as uxr
-from typing import Any
 import os
+from typing import Any
 from .target import Target, Material
 from .crater import Crater, Projectile
-from .surface import Surface, initialize_surface, save_surface, export_vtk
+from .surface import Surface, initialize_surface, save_surface
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
-
+from mpas_tools.viz.paraview_extractor import extract_vtk
 class Simulation():
     """
     This class orchestrates the processes involved in running a crater simulation.
@@ -38,10 +37,11 @@ class Simulation():
     """
 
     def __init__(self, 
-                target: str | Target | None = None,
+                target: str | Target = "Moon",
                 material: str | Material | None = None,
                 pix: float_like | None = None,
                 reset_surface: bool = True,
+                simdir: os.PathLike = os.getcwd(),
                 *args: Any,
                 **kwargs: Any):
         """
@@ -49,17 +49,26 @@ class Simulation():
 
         Parameters
         ----------
-        target_name : str, optional
-            Name of the target body for the simulation, default is "Moon".
-        material_name : str, optional
-            Name of the material for the target body, default is None.
-        reset_surface : bool, optional
-            Flag to reset the surface elevation, default is True.
+        target: str or Target, optional, default "Moon"
+            Name of the target body or Target object for the simulation, default is "Moon".
+        material : str or Material, optional
+            Name of the material or Material object for the target body, if None is passed, the default material for the target body is used.
         pix : float, optional
             Pixel resolution for the mesh, default is None.
+        reset_surface : bool, optional
+            Flag to reset the surface elevation, default is True.
+        simdir: PathLike, optional
+            Path to the simulation directory, default is current working directory.
         **kwargs : Any
             Additional keyword arguments.
         """
+       
+        if not os.path.isabs(simdir):
+            simdir = os.path.abspath(simdir)
+        if not os.path.exists(simdir):
+            os.makedirs(simdir) 
+        self.simdir = simdir
+        
         if material:
             if isinstance(material, str):
                 try:
@@ -218,6 +227,7 @@ class Simulation():
         
         return  
 
+
     def save(self, *args, **kwargs):
         """
         Save the current simulation state to a file.
@@ -226,13 +236,54 @@ class Simulation():
         
         return
     
-    def export_to_vtk(self, *args, **kwargs):
+    
+    def export_vtk(self, 
+                   out_dir: os.PathLike | None = None,
+                   *args, **kwargs
+                   ) -> None:
         """
-        Export the current simulation state to a VTK file.
+        Export the surface mesh to a VTK file.
+
+        Parameters
+        ----------
+        out_dir : str, Default "vtk_files"
+            Directory to store the VTK files.
         """
-        export_vtk(self.surf, *args, **kwargs)
+        if out_dir is None:
+            out_dir = os.path.join(self.simdir, "vtk_files")
+        self.save(*args, **kwargs)
+        ignore_time = "time" not in self.surf.dims
+        
+        # Combine the grid and data into one file
+        extract_vtk(
+            filename_pattern=os.path.join(self.data_dir, '*.nc'),
+            mesh_filename=self.grid_file,
+            variable_list=['allOnVertices', 'allOnCells'], 
+            dimension_list=['maxEdges=','vertexDegree='], 
+            combine=True,
+            include_mesh_vars=True,
+            out_dir=out_dir, 
+            ignore_time=ignore_time, 
+            *args, **kwargs)
         
         return
+    
+    @property
+    def data_dir(self):
+        return self.surf.data_dir
+    
+    @property
+    def grid_file(self):
+        return self.surf.grid_file
+    
+    @property
+    def elevation_face_file(self):
+        return self.surf.elevation_face_file
+    
+    @property
+    def elevation_node_file(self):
+        return self.surf.elevation_node_file
+        
         
     # The following are placeholders for if/when we need to pass data back and forth to the Fortran library     
     # @property

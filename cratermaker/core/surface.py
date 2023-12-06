@@ -7,7 +7,6 @@ import numpy as np
 import shutil
 import tempfile
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
-from mpas_tools.viz.paraview_extractor import extract_vtk
 import logging
 from ..utils.general_utils import float_like
 from .target import Target
@@ -17,8 +16,10 @@ from numpy.typing import NDArray
 # Default file names and directories
 _DATA_DIR = "surface_data"
 _GRID_FILE_NAME = "grid.nc"
-_NODE_ELEVATION_FILE_NAME = "elevation_node.nc"
-_FACE_ELEVATION_FILE_NAME = "elevation_face.nc"
+_ELEVATION_NODE_VAR_NAME = "elevation_node"
+_ELEVATION_FACE_VAR_NAME = "elevation_face"
+_elevation_node_FILE_NAME = _ELEVATION_NODE_VAR_NAME + ".nc"
+_elevation_face_FILE_NAME = _ELEVATION_FACE_VAR_NAME + ".nc"
 _GRID_TEMP_DIR = ".grid"
 
 # Mapping from MPAS to UGRID dimension names
@@ -42,9 +43,9 @@ class Surface(UxDataset):
         Directory for data files.
     grid_file : str
         Path to the grid file.
-    node_elevation_file : str
+    elevation_node_file : str
         Path to the node elevation file.
-    face_elevation_file : str
+    elevation_face_file : str
         Path to the face elevation file.
     target_name : str
         Name of the target body.
@@ -68,7 +69,7 @@ class Surface(UxDataset):
     get_average_surface(location, radius)
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','node_elevation_file','face_elevation_file','target_name', 'pix', 'grid_type')
+    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_node_file','elevation_face_file','target_name', 'pix', 'grid_type')
     
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
@@ -81,7 +82,10 @@ class Surface(UxDataset):
         self._description = "Surface class for cratermaker"
         
 
-    def set_elevation(self, new_elev: NDArray[np.float64] | List[float_like] | None = None) -> uxr.UxDataArray:
+    def set_elevation(self, 
+                      new_elev: NDArray[np.float64] | List[float_like] | None = None,
+                      save_to_file: bool = False, 
+                      ) -> None:
         """
         Set elevation data for the target's surface mesh.
 
@@ -90,15 +94,34 @@ class Surface(UxDataset):
         new_elev : array_like, optional
             New elevation data to be set. If None, the elevation is set to zero. Must be passed if nCells is not
         """
-        if new_elev is None:     
-            self['elevation_face'] = generate_data(grid_file=self.grid_file,data_file=self.face_elevation_file,data=new_elev, name="elevation",long_name="elevation of faces", isfacedata=True, save_to_file=False)
-            self['elevation_node'] = generate_data(grid_file=self.grid_file,data_file=self.node_elevation_file,data=new_elev, name="elevation",long_name="elevation of nodes", isfacedata=False, save_to_file=False)
+        if new_elev is None or np.isscalar(new_elev):
+            save_face = True
+            save_node = True
         elif new_elev.size == self.uxgrid.n_face:
-            self['elevation_face'] = generate_data(grid_file=self.grid_file,data_file=self.face_elevation_file,data=new_elev, name="elevation",long_name="elevation of faces", isfacedata=True, save_to_file=False)
+            save_face = True
+            save_node = False
         elif new_elev.size == self.uxgrid.n_node:
-            self['elevation_node'] = generate_data(grid_file=self.grid_file,data_file=self.node_elevation_file,data=new_elev, name="elevation",long_name="elevation of nodes", isfacedata=False, save_to_file=False)
+            save_face = False
+            save_node = True
         else:
             raise ValueError("new_elev must be None or an array with the same size as the number of faces or nodes in the grid")
+        
+        if save_face:
+            self[_ELEVATION_FACE_VAR_NAME] = generate_data(grid_file=self.grid_file,
+                                                           data_file=self.elevation_face_file,
+                                                           data=new_elev, 
+                                                           name=_ELEVATION_FACE_VAR_NAME,
+                                                           long_name="elevation of faces", 
+                                                           isfacedata=True, 
+                                                           save_to_file=save_to_file)
+        if save_node:
+            self[_ELEVATION_NODE_VAR_NAME] = generate_data(grid_file=self.grid_file,
+                                                           data_file=self.elevation_node_file,
+                                                           data=new_elev, 
+                                                           name=_ELEVATION_NODE_VAR_NAME,
+                                                           long_name="elevation of nodes",
+                                                           isfacedata=False,
+                                                           save_to_file=save_to_file)
           
         return 
 
@@ -266,12 +289,13 @@ class Surface(UxDataset):
         # radius = np.linalg.norm(center_vector)
         center_vector = None
         return center_vector 
-
+    
 
 def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
          pix: float_like | None = None,
          target: Target | str | None = None,
+         simdir: os.PathLike  = os.getcwd(),
          *args, **kwargs) -> Surface:
     """
     Initialize a Surface object with specified parameters and directory structure.
@@ -317,11 +341,11 @@ def initialize_surface(make_new_grid: bool = False,
         raise TypeError("target must be an instance of Target or a valid name of a target body")
     
     # Verify directory structure exists and create it if not
-    grid_temp_dir_path = os.path.join(os.getcwd(), _GRID_TEMP_DIR) 
+    grid_temp_dir_path = os.path.join(simdir, _GRID_TEMP_DIR) 
     if not os.path.exists(grid_temp_dir_path):
         os.mkdir(grid_temp_dir_path)
     
-    data_dir_path = os.path.join(os.getcwd(), _DATA_DIR)     
+    data_dir_path = os.path.join(simdir, _DATA_DIR)     
     if not os.path.exists(data_dir_path):
         os.mkdir(data_dir_path)
         
@@ -344,8 +368,8 @@ def initialize_surface(make_new_grid: bool = False,
                       grid_temp_dir=grid_temp_dir_path)
     
     # Now redo the elevation data files if necessary 
-    node_elevation_file_path = os.path.join(data_dir_path,_NODE_ELEVATION_FILE_NAME)
-    face_elevation_file_path = os.path.join(data_dir_path,_FACE_ELEVATION_FILE_NAME)
+    elevation_node_file_path = os.path.join(data_dir_path,_elevation_node_FILE_NAME)
+    elevation_face_file_path = os.path.join(data_dir_path,_elevation_face_FILE_NAME)
     
     # Load the grid and data files
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
@@ -353,7 +377,7 @@ def initialize_surface(make_new_grid: bool = False,
         data_file_list.remove(grid_file_path)
     
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-    reset_surface = reset_surface or not os.path.exists(node_elevation_file_path) or not os.path.exists(face_elevation_file_path) or make_new_grid  
+    reset_surface = reset_surface or not os.path.exists(elevation_node_file_path) or not os.path.exists(elevation_face_file_path) or make_new_grid  
     
     # If reset_surface is True, delete all data files except the grid file 
     if reset_surface:
@@ -361,25 +385,24 @@ def initialize_surface(make_new_grid: bool = False,
             os.remove(f)
         data_file_list = []
         generate_data(grid_file=grid_file_path,
-                      data_file=node_elevation_file_path,
-                      name="elevation_node",
+                      data_file=elevation_node_file_path,
+                      name=_ELEVATION_NODE_VAR_NAME,
                       long_name="elevation of nodes",
                       save_to_file = True,
                       isfacedata=False,
                       )
         generate_data(grid_file=grid_file_path,
-                      data_file=face_elevation_file_path,
-                      name="elevation_face",
+                      data_file=elevation_face_file_path,
+                      name=_ELEVATION_FACE_VAR_NAME,
                       long_name="elevation of faces",
                       save_to_file = True,
                       isfacedata=True,
                       )        
-        
 
-    if node_elevation_file_path not in data_file_list:
-        data_file_list.append(node_elevation_file_path)
-    if face_elevation_file_path not in data_file_list:
-        data_file_list.append(face_elevation_file_path)
+    if elevation_node_file_path not in data_file_list:
+        data_file_list.append(elevation_node_file_path)
+    if elevation_face_file_path not in data_file_list:
+        data_file_list.append(elevation_face_file_path)
         
     # Initialize UxDataset with the loaded data
     try:
@@ -391,8 +414,8 @@ def initialize_surface(make_new_grid: bool = False,
     surf.grid_temp_dir = grid_temp_dir_path
     surf.data_dir = data_dir_path
     surf.grid_file = grid_file_path
-    surf.node_elevation_file = node_elevation_file_path
-    surf.face_elevation_file = face_elevation_file_path
+    surf.elevation_node_file = elevation_node_file_path
+    surf.elevation_face_file = elevation_face_file_path
     
     return surf
 
@@ -493,7 +516,8 @@ def generate_data(grid_file: os.PathLike,
                   long_name: str | None = None,
                   data: float_like | NDArray | None = None,
                   isfacedata: bool = True,
-                  save_to_file: bool = False) -> None:
+                  save_to_file: bool = False,
+                  ) -> None:
     """
     Generate a NetCDF data file using the provided grid file and save it to the specified path.
 
@@ -566,39 +590,15 @@ def save_surface(surf: Surface,
     if out_dir is None:
         out_dir = surf.data_dir
     surf.close()
-    for var in surf.data_vars:
-        dim_map = {k: _DIM_MAP[k] for k in surf[var].dims if k in _DIM_MAP}  # only map dimensions that are in the variable
-        surf[var].rename(dim_map).to_netcdf(os.path.join(out_dir, var + ".nc")) 
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for var in surf.data_vars:
+            dim_map = {k: _DIM_MAP[k] for k in surf[var].dims if k in _DIM_MAP}  # only map dimensions that are in the variable
+            outname = var + ".nc" 
+            outpath =os.path.join(temp_dir, outname)
+            surf[var].rename(dim_map).to_netcdf(outpath)
+            shutil.move(outpath,os.path.join(out_dir, outname))
         
     return
 
 
-def export_vtk(surf: Surface, 
-               out_dir: os.PathLike = "vtk_files",
-               *args, **kwargs) -> None:
-    """
-    Export the surface mesh to a VTK file.
-
-    Parameters
-    ----------
-    out_dir : str, Default "vtk_files"
-        Directory to store the VTK files.
-    """
-    ignore_time = "time" not in surf.dims
-    
-    # Save the current state of the surface before exporting 
-    save_surface(surf)
-    
-    # Combine the grid and data into one file
-    extract_vtk(
-        filename_pattern=os.path.join(surf.data_dir, '*.nc'),
-        mesh_filename=surf.grid_file,
-        variable_list=['allOnVertices', 'allOnCells'], 
-        dimension_list=['maxEdges=','vertexDegree='], 
-        combine=True,
-        include_mesh_vars=True,
-        out_dir=out_dir, 
-        ignore_time=ignore_time, 
-        *args, **kwargs)
-    
-    return
