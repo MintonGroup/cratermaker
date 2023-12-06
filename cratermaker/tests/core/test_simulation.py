@@ -54,6 +54,13 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.isdir(default_out_dir))
         for f in expected_files:
             self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
+            
+        # Test with custom output directory
+        custom_out_dir = os.path.join(sim.simdir, "custom_vtk_files")
+        sim.export_vtk(out_dir=custom_out_dir)
+        self.assertTrue(os.path.isdir(custom_out_dir))
+        for f in expected_files:
+            self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
          
 
 if __name__ == '__main__':
