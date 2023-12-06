@@ -17,10 +17,7 @@ from ..utils.general_utils import float_like
 _DATA_DIR = "surface_data"
 _COMBINED_DATA_FILE_NAME = "surface_data.nc"
 _GRID_FILE_NAME = "grid.nc"
-_ELEVATION_NODE_VAR_NAME = "elevation_node"
-_ELEVATION_FACE_VAR_NAME = "elevation_face"
-_ELEVATION_NODE_FILE_NAME = _ELEVATION_NODE_VAR_NAME + ".nc"
-_ELEVATION_FACE_FILE_NAME = _ELEVATION_FACE_VAR_NAME + ".nc"
+_ELEVATION_FILE_NAME = "elevation.nc"
 _GRID_TEMP_DIR = ".grid"
 
 # Mapping from MPAS to UGRID dimension names
@@ -45,10 +42,8 @@ class Surface(UxDataset):
         Directory for data files.
     grid_file : str
         Path to the grid file.
-    elevation_node_file : str
+    elevation_file : str
         Path to the node elevation file.
-    elevation_face_file : str
-        Path to the face elevation file.
     target_name : str
         Name of the target body.
     pix : float_like
@@ -71,7 +66,7 @@ class Surface(UxDataset):
     get_average_surface(location, radius)
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_node_file','elevation_face_file','target_name', 'pix', 'grid_type')
+    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_name', 'pix', 'grid_type')
     
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
@@ -96,34 +91,16 @@ class Surface(UxDataset):
         new_elev : array_like, optional
             New elevation data to be set. If None, the elevation is set to zero. Must be passed if nCells is not
         """
-        if new_elev is None or np.isscalar(new_elev):
-            save_face = True
-            save_node = True
-        elif new_elev.size == self.uxgrid.n_face:
-            save_face = True
-            save_node = False
-        elif new_elev.size == self.uxgrid.n_node:
-            save_face = False
-            save_node = True
-        else:
-            raise ValueError("new_elev must be None or an array with the same size as the number of faces or nodes in the grid")
-        
-        if save_face:
-            self[_ELEVATION_FACE_VAR_NAME] = generate_data(grid_file=self.grid_file,
-                                                           data_file=self.elevation_face_file,
+        if new_elev is None or np.isscalar(new_elev) or new_elev.size == self.uxgrid.n_node:
+            self['elevation'] = generate_data(grid_file=self.grid_file,
+                                                           data_file=self.elevation_file,
                                                            data=new_elev, 
-                                                           name=_ELEVATION_FACE_VAR_NAME,
-                                                           long_name="elevation of faces", 
-                                                           isfacedata=True, 
-                                                           save_to_file=save_to_file)
-        if save_node:
-            self[_ELEVATION_NODE_VAR_NAME] = generate_data(grid_file=self.grid_file,
-                                                           data_file=self.elevation_node_file,
-                                                           data=new_elev, 
-                                                           name=_ELEVATION_NODE_VAR_NAME,
+                                                           name="elevation",
                                                            long_name="elevation of nodes",
                                                            isfacedata=False,
-                                                           save_to_file=save_to_file)
+                                                           save_to_file=save_to_file)            
+        else:
+            raise ValueError("new_elev must be None, a scalar, or an array with the same size as the number of nodes in the grid")
           
         return 
 
@@ -370,8 +347,7 @@ def initialize_surface(make_new_grid: bool = False,
                       grid_temp_dir=grid_temp_dir_path)
     
     # Now redo the elevation data files if necessary 
-    elevation_node_file_path = os.path.join(data_dir_path,_ELEVATION_NODE_FILE_NAME)
-    elevation_face_file_path = os.path.join(data_dir_path,_ELEVATION_FACE_FILE_NAME)
+    elevation_file_path = os.path.join(data_dir_path,_ELEVATION_FILE_NAME)
     
     # Load the grid and data files
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
@@ -379,7 +355,7 @@ def initialize_surface(make_new_grid: bool = False,
         data_file_list.remove(grid_file_path)
     
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-    reset_surface = reset_surface or not os.path.exists(elevation_node_file_path) or not os.path.exists(elevation_face_file_path) or make_new_grid  
+    reset_surface = reset_surface or not os.path.exists(elevation_file_path) or make_new_grid  
     
     # If reset_surface is True, delete all data files except the grid file 
     if reset_surface:
@@ -387,24 +363,15 @@ def initialize_surface(make_new_grid: bool = False,
             os.remove(f)
         data_file_list = []
         generate_data(grid_file=grid_file_path,
-                      data_file=elevation_node_file_path,
-                      name=_ELEVATION_NODE_VAR_NAME,
+                      data_file=elevation_file_path,
+                      name="elevation",
                       long_name="elevation of nodes",
                       save_to_file = True,
                       isfacedata=False,
                       )
-        generate_data(grid_file=grid_file_path,
-                      data_file=elevation_face_file_path,
-                      name=_ELEVATION_FACE_VAR_NAME,
-                      long_name="elevation of faces",
-                      save_to_file = True,
-                      isfacedata=True,
-                      )        
 
-    if elevation_node_file_path not in data_file_list:
-        data_file_list.append(elevation_node_file_path)
-    if elevation_face_file_path not in data_file_list:
-        data_file_list.append(elevation_face_file_path)
+    if elevation_file_path not in data_file_list:
+        data_file_list.append(elevation_file_path)
         
     # Initialize UxDataset with the loaded data
     try:
@@ -416,8 +383,7 @@ def initialize_surface(make_new_grid: bool = False,
     surf.grid_temp_dir = grid_temp_dir_path
     surf.data_dir = data_dir_path
     surf.grid_file = grid_file_path
-    surf.elevation_node_file = elevation_node_file_path
-    surf.elevation_face_file = elevation_face_file_path
+    surf.elevation_file = elevation_file_path
     
     return surf
 

@@ -263,17 +263,17 @@ class Simulation():
             # Use elevation data to modify the mesh for visualization purposes
             grid = xr.open_dataset(self.grid_file)
            
-            cell_vars = ['xCell', 'yCell', 'zCell']
             vert_vars = ['xVertex', 'yVertex', 'zVertex']
             
-            ds_new = elevation_to_cartesian(grid[cell_vars], self.surf['elevation_face'])
-            for var in cell_vars:
-                grid[var] = ds_new[var]
-                  
-            ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['elevation_node'])
+            ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['elevation'])
             for var in vert_vars:
                 grid[var] = ds_new[var]
                 
+            face_vars = ['xCell', 'yCell', 'zCell']
+            ds_new = elevation_to_cartesian(grid[face_vars], self.surf['elevation'].nodal_average())
+            for var in face_vars:
+                grid[var] = ds_new[var]
+            
             grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"))
             
             # Combine the grid and data into one file
@@ -302,12 +302,8 @@ class Simulation():
         return self.surf.grid_file
     
     @property
-    def elevation_face_file(self):
-        return self.surf.elevation_face_file
-    
-    @property
-    def elevation_node_file(self):
-        return self.surf.elevation_node_file
+    def elevation_file(self):
+        return self.surf.elevation_file
     
         
     # The following are placeholders for if/when we need to pass data back and forth to the Fortran library     
