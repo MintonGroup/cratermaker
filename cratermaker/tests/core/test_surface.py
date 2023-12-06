@@ -112,7 +112,7 @@ class TestSurface(unittest.TestCase):
         surf.set_elevation(new_elev)
 
         # Check if the elevation data is correctly set
-        np.testing.assert_array_equal(surf['elevation'].values, new_elev)
+        np.testing.assert_array_equal(surf['elevation_face'].values, new_elev)
 
         # Test with invalid elevation data (wrong size)
         new_elev = np.random.rand(surf.uxgrid.n_face + 1)  # Incorrect size
@@ -125,7 +125,8 @@ class TestSurface(unittest.TestCase):
         surf.set_elevation(None)
 
         # Check if the elevation data is set to zero
-        np.testing.assert_array_equal(surf['elevation'].values, np.zeros(surf.uxgrid.n_face))
+        np.testing.assert_array_equal(surf['elevation_face'].values, np.zeros(surf.uxgrid.n_face))
+        np.testing.assert_array_equal(surf['elevation_node'].values, np.zeros(surf.uxgrid.n_node))
         
         return
     

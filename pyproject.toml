@@ -30,7 +30,7 @@ dependencies = [
     'cython>=3.0.0',
     'mkdocs>=1.5.3',
     'jigsawpy>=0.3.3',
-    'dacite>=1.8.1',
+    'mpas_tools>=2023.11',
 ]
 
 [project.urls]

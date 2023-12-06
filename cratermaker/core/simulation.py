@@ -1,14 +1,12 @@
 import numpy as np
 from numpy.random import default_rng
 import json
-from dacite import from_dict
 import uxarray as uxr
 from typing import Any
 import os
-from pathlib import Path
 from .target import Target, Material
 from .crater import Crater, Projectile
-from .surface import Surface, initialize_surface
+from .surface import Surface, initialize_surface, save_surface, export_vtk
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
 
@@ -40,8 +38,8 @@ class Simulation():
     """
 
     def __init__(self, 
-                target_name: str="Moon",
-                material_name: str | None = None,
+                target: str | Target | None = None,
+                material: str | Material | None = None,
                 pix: float_like | None = None,
                 reset_surface: bool = True,
                 *args: Any,
@@ -62,13 +60,36 @@ class Simulation():
         **kwargs : Any
             Additional keyword arguments.
         """
+        if material:
+            if isinstance(material, str):
+                try:
+                    material = Material(material)
+                except:
+                    raise ValueError(f"Invalid material name {material}")
+            elif not isinstance(material, Material):
+                raise TypeError("materiat must be an instance of Material or a valid name of a material")        
             
-        if material_name:
-            material = Material(name=material_name)
-            self.target = from_dict(data_class=Target,data=dict({"name":target_name,"material":material}, **kwargs)) 
-        else: 
-            self.target = from_dict(data_class=Target,data=dict({"name":target_name}, **kwargs))
-            
+        if not target:
+            if material:
+                target = Target("Moon", material=material)
+            else:
+                target = Target("Moon")
+        elif isinstance(target, str):
+            try:
+                if material:
+                    target = Target(target, material=material)
+                else:
+                    target = Target(target)
+            except:
+                raise ValueError(f"Invalid target name {target}")
+        elif isinstance(target, Target):
+            if material:
+                target.material = material
+        elif not isinstance(target, Target):
+            raise TypeError("target must be an instance of Target or a valid name of a target body")
+
+        self.target = target
+
         if pix is not None:
             self.pix = np.float64(pix)
         else:    
@@ -197,6 +218,22 @@ class Simulation():
         
         return  
 
+    def save(self, *args, **kwargs):
+        """
+        Save the current simulation state to a file.
+        """
+        save_surface(self.surf, *args, **kwargs)
+        
+        return
+    
+    def export_to_vtk(self, *args, **kwargs):
+        """
+        Export the current simulation state to a VTK file.
+        """
+        export_vtk(self.surf, *args, **kwargs)
+        
+        return
+        
     # The following are placeholders for if/when we need to pass data back and forth to the Fortran library     
     # @property
     # def elevation(self):
