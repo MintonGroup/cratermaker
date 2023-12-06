@@ -6,20 +6,21 @@ import os
 import numpy as np
 import shutil
 import tempfile
-from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
-import logging
-from ..utils.general_utils import float_like
-from .target import Target
 from typing import Tuple, List
 from numpy.typing import NDArray
+from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
+import logging
+from .target import Target
+from ..utils.general_utils import float_like
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
+_COMBINED_DATA_FILE_NAME = "surface_data.nc"
 _GRID_FILE_NAME = "grid.nc"
 _ELEVATION_NODE_VAR_NAME = "elevation_node"
 _ELEVATION_FACE_VAR_NAME = "elevation_face"
-_elevation_node_FILE_NAME = _ELEVATION_NODE_VAR_NAME + ".nc"
-_elevation_face_FILE_NAME = _ELEVATION_FACE_VAR_NAME + ".nc"
+_ELEVATION_NODE_FILE_NAME = _ELEVATION_NODE_VAR_NAME + ".nc"
+_ELEVATION_FACE_FILE_NAME = _ELEVATION_FACE_VAR_NAME + ".nc"
 _GRID_TEMP_DIR = ".grid"
 
 # Mapping from MPAS to UGRID dimension names
@@ -27,6 +28,7 @@ _DIM_MAP = {"n_node": "nVertices",
             "n_face": "nCells",
             "n_edge": "nEdges",
             }
+
 class Surface(UxDataset):
     """
     Surface class that extends UxDataset for cratermaker project.
@@ -289,8 +291,8 @@ class Surface(UxDataset):
         # radius = np.linalg.norm(center_vector)
         center_vector = None
         return center_vector 
+   
     
-
 def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
          pix: float_like | None = None,
@@ -368,8 +370,8 @@ def initialize_surface(make_new_grid: bool = False,
                       grid_temp_dir=grid_temp_dir_path)
     
     # Now redo the elevation data files if necessary 
-    elevation_node_file_path = os.path.join(data_dir_path,_elevation_node_FILE_NAME)
-    elevation_face_file_path = os.path.join(data_dir_path,_elevation_face_FILE_NAME)
+    elevation_node_file_path = os.path.join(data_dir_path,_ELEVATION_NODE_FILE_NAME)
+    elevation_face_file_path = os.path.join(data_dir_path,_ELEVATION_FACE_FILE_NAME)
     
     # Load the grid and data files
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
@@ -494,6 +496,7 @@ def generate_grid(target: Target | str,
         print("Error building grid with jigsaw. See mesh.log for details.")
         raise
     os.chdir(orig_dir)
+    print("Done")
     
     # Create the attribute dictionary that will enable the grid to be identified in case it needs to be regridded 
     with xr.open_dataset(grid_file) as ds:
@@ -567,14 +570,14 @@ def generate_data(grid_file: os.PathLike,
             uxgrid=uxgrid
             ) 
     if save_to_file:
-        uxds = uxda.to_dataset()
-        uxds.rename(dim_map).to_netcdf(data_file) 
-        uxds.close()
+        uxda.rename(dim_map).to_netcdf(data_file) 
+        uxda.close()
     return uxda 
 
 
 def save_surface(surf: Surface, 
                  out_dir: os.PathLike | None = None,
+                 combine_data_files: bool = False,
                  *args, **kwargs, 
                  ) -> None:
     """
@@ -589,16 +592,47 @@ def save_surface(surf: Surface,
     """
     if out_dir is None:
         out_dir = surf.data_dir
+        
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)         
+        
     surf.close()
     
-    with tempfile.TemporaryDirectory() as temp_dir:
-        for var in surf.data_vars:
-            dim_map = {k: _DIM_MAP[k] for k in surf[var].dims if k in _DIM_MAP}  # only map dimensions that are in the variable
-            outname = var + ".nc" 
-            outpath =os.path.join(temp_dir, outname)
-            surf[var].rename(dim_map).to_netcdf(outpath)
-            shutil.move(outpath,os.path.join(out_dir, outname))
+    if combine_data_files:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outpath = os.path.join(temp_dir, _COMBINED_DATA_FILE_NAME)
+            dim_map = {k: _DIM_MAP[k] for k in surf.dims if k in _DIM_MAP}
+            surf.rename(dim_map).to_netcdf(outpath)
+            shutil.move(outpath,os.path.join(out_dir, _COMBINED_DATA_FILE_NAME)) 
+    else: 
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for var in surf.data_vars:
+                dim_map = {k: _DIM_MAP[k] for k in surf[var].dims if k in _DIM_MAP}  # only map dimensions that are in the variable
+                outname = var + ".nc" 
+                outpath =os.path.join(temp_dir, outname)
+                surf[var].rename(dim_map).to_netcdf(outpath)
+                shutil.move(outpath,os.path.join(out_dir, outname))
         
     return
 
 
+def elevation_to_cartesian(position: xr.Dataset, 
+                           elevation: xr.DataArray
+                           ) -> xr.Dataset:
+    
+    vars = list(position.data_vars)
+    if len(vars) != 3:
+        raise ValueError("Dataset must contain exactly three coordinate variables")
+    dim_var = list(position.dims)[0]
+
+    rvec = np.column_stack((position[vars[0]], position[vars[1]], position[vars[2]]))
+    runit = rvec / np.linalg.norm(rvec, axis=1, keepdims=True)
+    
+    ds_new = xr.Dataset(
+                        {
+                            vars[0]: ((dim_var,), rvec[:,0] + elevation.values * runit[:,0]),
+                            vars[1]: ((dim_var,), rvec[:,1] + elevation.values * runit[:,1]),
+                            vars[2]: ((dim_var,), rvec[:,2] + elevation.values * runit[:,2]),
+                            }
+                        )
+    return ds_new

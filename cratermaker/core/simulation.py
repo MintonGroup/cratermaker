@@ -1,14 +1,17 @@
 import numpy as np
 from numpy.random import default_rng
+import xarray as xr
 import json
 import os
+import tempfile
 from typing import Any
 from .target import Target, Material
 from .crater import Crater, Projectile
-from .surface import Surface, initialize_surface, save_surface
+from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
 from mpas_tools.viz.paraview_extractor import extract_vtk
+
 class Simulation():
     """
     This class orchestrates the processes involved in running a crater simulation.
@@ -251,20 +254,42 @@ class Simulation():
         """
         if out_dir is None:
             out_dir = os.path.join(self.simdir, "vtk_files")
-        self.save(*args, **kwargs)
         ignore_time = "time" not in self.surf.dims
         
-        # Combine the grid and data into one file
-        extract_vtk(
-            filename_pattern=os.path.join(self.data_dir, '*.nc'),
-            mesh_filename=self.grid_file,
-            variable_list=['allOnVertices', 'allOnCells'], 
-            dimension_list=['maxEdges=','vertexDegree='], 
-            combine=True,
-            include_mesh_vars=True,
-            out_dir=out_dir, 
-            ignore_time=ignore_time, 
-            *args, **kwargs)
+        # Save the surface data to a combined netCDF file
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.save(combine_data_files=True, out_dir=temp_dir)
+            
+            # Use elevation data to modify the mesh for visualization purposes
+            grid = xr.open_dataset(self.grid_file)
+           
+            cell_vars = ['xCell', 'yCell', 'zCell']
+            vert_vars = ['xVertex', 'yVertex', 'zVertex']
+            
+            ds_new = elevation_to_cartesian(grid[cell_vars], self.surf['elevation_face'])
+            for var in cell_vars:
+                grid[var] = ds_new[var]
+                  
+            ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['elevation_node'])
+            for var in vert_vars:
+                grid[var] = ds_new[var]
+                
+            grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"))
+            
+            # Combine the grid and data into one file
+            try:
+                extract_vtk(
+                    filename_pattern=os.path.join(temp_dir, "*.nc"),
+                    mesh_filename=os.path.join(temp_dir, "surface_mesh.nc"),
+                    variable_list=['allOnVertices', 'allOnCells'] , 
+                    dimension_list=['maxEdges=','vertexDegree='], 
+                    combine=True,
+                    include_mesh_vars=True,
+                    out_dir=out_dir, 
+                    ignore_time=ignore_time, 
+                    *args, **kwargs)
+            except:
+                raise RuntimeError("Error in mpas_tools.viz.paraview_extractor.extract_vtk. Cannot export VTK files")
         
         return
     
@@ -283,7 +308,7 @@ class Simulation():
     @property
     def elevation_node_file(self):
         return self.surf.elevation_node_file
-        
+    
         
     # The following are placeholders for if/when we need to pass data back and forth to the Fortran library     
     # @property

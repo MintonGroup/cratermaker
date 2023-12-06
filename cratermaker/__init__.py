@@ -12,6 +12,6 @@
 from .core.simulation import Simulation
 from .core.target import Target, Material
 from .core.crater import Crater, Projectile, Scale
-from .core.surface import Surface, initialize_surface, generate_grid, generate_data
+from .core.surface import Surface, initialize_surface, generate_grid, generate_data, elevation_to_cartesian
 from .utils import general_utils, montecarlo
 from ._bind import util_perlin

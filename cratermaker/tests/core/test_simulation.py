@@ -6,7 +6,7 @@ import tempfile
 import os
 import numpy as np
 import xarray as xr
-from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
+from cratermaker.core.surface import _ELEVATION_NODE_VAR_NAME, _ELEVATION_FACE_VAR_NAME, _COMBINED_DATA_FILE_NAME
 
 class TestSimulation(unittest.TestCase):
     
@@ -34,15 +34,26 @@ class TestSimulation(unittest.TestCase):
        
         # Test that variables are saved correctly
         sim.surf.set_elevation(1.0)
-        np.testing.assert_array_equal(sim.surf['elevation_face'].values, np.ones(sim.surf.uxgrid.n_face)) 
-        np.testing.assert_array_equal(sim.surf['elevation_node'].values, np.ones(sim.surf.uxgrid.n_node)) 
+        np.testing.assert_array_equal(sim.surf[_ELEVATION_FACE_VAR_NAME].values, np.ones(sim.surf.uxgrid.n_face)) 
+        np.testing.assert_array_equal(sim.surf[_ELEVATION_NODE_VAR_NAME].values, np.ones(sim.surf.uxgrid.n_node)) 
         sim.save()
         
-        with xr.open_dataset(os.path.join(sim.surf.data_dir, "elevation_node.nc")) as ds:
-            np.testing.assert_array_equal(ds['elevation_node'].values, np.ones(sim.surf.uxgrid.n_node))
+        with xr.open_dataset(sim.surf.elevation_node_file) as ds:
+            np.testing.assert_array_equal(ds[_ELEVATION_NODE_VAR_NAME].values, np.ones(sim.surf.uxgrid.n_node))
         
-        with xr.open_dataset(os.path.join(sim.surf.data_dir, "elevation_face.nc")) as ds:
-            np.testing.assert_array_equal(ds['elevation_face'].values, np.ones(sim.surf.uxgrid.n_face))
+        with xr.open_dataset(sim.surf.elevation_face_file) as ds:
+            np.testing.assert_array_equal(ds[_ELEVATION_FACE_VAR_NAME].values, np.ones(sim.surf.uxgrid.n_face))
+            
+        # Test saving combined data
+        sim.save(combine_data_files=True)
+        combined_file = os.path.join(sim.surf.data_dir, _COMBINED_DATA_FILE_NAME)
+        self.assertTrue(os.path.exists(combined_file))
+        
+        with xr.open_dataset(combined_file) as ds:
+            np.testing.assert_array_equal(ds[_ELEVATION_NODE_VAR_NAME].values, np.ones(sim.surf.uxgrid.n_node))
+            np.testing.assert_array_equal(ds[_ELEVATION_FACE_VAR_NAME].values, np.ones(sim.surf.uxgrid.n_face))
+       
+        return 
         
     def test_simulation_export_vtk(self):
         sim = cratermaker.Simulation(pix=self.pix, target=self.target) 
