@@ -50,8 +50,6 @@ class TestSetProperties(unittest.TestCase):
             gu.set_properties(self.mock_object, catalogue=invalid_catalogue, name="invalid_key") # Not a nested dict
         with self.assertRaises(ValueError):  
             gu.set_properties(self.mock_object, catalogue=catalogue) # Name omitted
-        with self.assertRaises(ValueError):  
-            gu.set_properties(self.mock_object, catalogue=catalogue, name="baz") # Not a valid entry in the dict
         
         return
 

@@ -84,7 +84,7 @@ def set_properties(obj,**kwargs):
         if properties: # A match was found to the catalogue 
             set_properties_from_arguments(obj, **properties)
         else:
-            raise ValueError(f"Could not find '{name}' in the catalogue")
+            set_properties_from_arguments(obj, name=name, **kwargs)
             
     def set_properties_from_file(obj, filename, name=None, **kwargs):
         with open(filename, 'r') as f:
