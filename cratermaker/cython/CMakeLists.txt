@@ -7,7 +7,7 @@
 # You should have received a copy of the GNU General Public License along with Cratermaker. 
 # If not, see: https://www.gnu.org/licenses. 
 
-SET(CRATERMAKER_BIND _bind)
+SET(CRATERMAKER_BIND fortran_bind)
 
 # Find the Cython executable, but don't look in the cmake root directory (due how cmake and cython are installed on the RCAC system)
 FIND_PROGRAM(CYTHON 

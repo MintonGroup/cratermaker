@@ -11,7 +11,7 @@ from .surface import Surface, initialize_surface, save_surface, elevation_to_car
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
 from mpas_tools.viz.paraview_extractor import extract_vtk
-from .._bind import util_perlin
+from ..fortran_bind import util_perlin
 
 class Simulation():
     """
@@ -294,17 +294,20 @@ class Simulation():
         
         return
     
-    def apply_noise(self, **kwargs,
+    def apply_noise(self, 
+                    model="turbulence",
+                    noise_width=1000e3,
+                    noise_height=20e3,
+                    **kwargs,
                     ) -> None:
-       
-        model = kwargs.pop("model", "turbulence")
-        scale = kwargs.pop("scale", self.target.radius)
+      
+        scale = self.target.radius / noise_width
         num_octaves = kwargs.pop("num_octaves", 12)
         anchor = kwargs.pop("anchor", self.rng.uniform(0.0,scale, size=(num_octaves, 3))) 
         
         # Set reasonable default values for the different models
         if model == "turbulence" or model == "billowed" or model == "plaw" or model == "ridged":
-            kwargs.setdefault("noise_height", 20e3 / self.target.radius)
+            kwargs.setdefault("noise_height", noise_height)
             kwargs.setdefault("freq", 2.00)
             kwargs.setdefault("pers", 0.5)
         if model == "plaw":
@@ -318,17 +321,19 @@ class Simulation():
             kwargs.setdefault("warp0", 0.4)
             kwargs.setdefault("damp0", 1.0)
             kwargs.setdefault("damp", 0.8)
-            kwargs.setdefault("damp_scale", 0.01)     
-             
+            kwargs.setdefault("damp_scale", 0.01) 
+            
+        if "noise_height" in kwargs:
+            kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
+            
         vars = ['node_x', 'node_y', 'node_z']
-        ds_norm = self.surf.uxgrid._ds[vars] / self.target.radius
+        ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
         noise_function = lambda x, y, z: util_perlin(model, x, y, z, num_octaves, anchor, **kwargs)
         noise = np.vectorize(noise_function)(ds_norm[vars[0]], ds_norm[vars[1]], ds_norm[vars[2]])
        
         self.surf['elevation'] += noise * self.target.radius 
         
         return
-    
       
     @property
     def data_dir(self):
@@ -342,8 +347,6 @@ class Simulation():
     def elevation_file(self):
         return self.surf.elevation_file
     
-
-        
     # The following are placeholders for if/when we need to pass data back and forth to the Fortran library     
     # @property
     # def elevation(self):

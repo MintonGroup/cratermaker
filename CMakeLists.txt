@@ -69,8 +69,8 @@ ENDIF()
 # Ensure scikit-build modules
 FIND_PACKAGE(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
 
-SET(PY "${CMAKE_SOURCE_DIR}/cratermaker")
-SET(SRC "${CMAKE_SOURCE_DIR}/fortran")
+SET(CYTHON_SRC "${CMAKE_SOURCE_DIR}/cratermaker/cython")
+SET(FORTRAN_SRC "${CMAKE_SOURCE_DIR}/fortran")
 
 #####################################
 # Tell how to install this executable
@@ -85,8 +85,8 @@ ENDIF()
 
 
 # Make sure paths are correct for Unix or Windows style
-FILE(TO_CMAKE_PATH ${SRC} SRC)
-FILE(TO_CMAKE_PATH ${PY} PY)
+FILE(TO_CMAKE_PATH ${FORTRAN_SRC} FORTRAN_SRC)
+FILE(TO_CMAKE_PATH ${CYTHON_SRC} CYTHON_SRC)
 
 # Set the name of the cratermaker library
 SET(CRATERMAKER_LIBRARY "${SKBUILD_PROJECT_NAME}_lib")
@@ -103,8 +103,8 @@ ENDIF ()
 INCLUDE(SetCratermakerFlags) 
 
 # The source for the CRATERMAKER binary and have it placed in the bin folder
-ADD_SUBDIRECTORY(${SRC} ${CMAKE_INSTALL_BINDIR})
-ADD_SUBDIRECTORY(${PY})
+ADD_SUBDIRECTORY(${FORTRAN_SRC} ${CMAKE_INSTALL_BINDIR})
+ADD_SUBDIRECTORY(${CYTHON_SRC})
 
 # Add a distclean target to the Makefile
 ADD_CUSTOM_TARGET(distclean 
