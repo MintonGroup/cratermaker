@@ -11,6 +11,7 @@ from .surface import Surface, initialize_surface, save_surface, elevation_to_car
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
 from mpas_tools.viz.paraview_extractor import extract_vtk
+from .._bind import util_perlin
 
 class Simulation():
     """
@@ -293,6 +294,42 @@ class Simulation():
         
         return
     
+    def apply_noise(self, **kwargs,
+                    ) -> None:
+       
+        model = kwargs.pop("model", "turbulence")
+        scale = kwargs.pop("scale", self.target.radius)
+        num_octaves = kwargs.pop("num_octaves", 12)
+        anchor = kwargs.pop("anchor", self.rng.uniform(0.0,scale, size=(num_octaves, 3))) 
+        
+        # Set reasonable default values for the different models
+        if model == "turbulence" or model == "billowed" or model == "plaw" or model == "ridged":
+            kwargs.setdefault("noise_height", 20e3 / self.target.radius)
+            kwargs.setdefault("freq", 2.00)
+            kwargs.setdefault("pers", 0.5)
+        if model == "plaw":
+            kwargs.setdefault("slope", 2.0)
+        if model == "swiss" or model == "jordan":
+            kwargs.setdefault("lacunarity", 1.92)
+            kwargs.setdefault("gain", 0.5)
+            kwargs.setdefault("warp", 0.35)
+        if model == "jordan":
+            kwargs.setdefault("gain0", 70.0)
+            kwargs.setdefault("warp0", 0.4)
+            kwargs.setdefault("damp0", 1.0)
+            kwargs.setdefault("damp", 0.8)
+            kwargs.setdefault("damp_scale", 0.01)     
+             
+        vars = ['node_x', 'node_y', 'node_z']
+        ds_norm = self.surf.uxgrid._ds[vars] / self.target.radius
+        noise_function = lambda x, y, z: util_perlin(model, x, y, z, num_octaves, anchor, **kwargs)
+        noise = np.vectorize(noise_function)(ds_norm[vars[0]], ds_norm[vars[1]], ds_norm[vars[2]])
+       
+        self.surf['elevation'] += noise * self.target.radius 
+        
+        return
+    
+      
     @property
     def data_dir(self):
         return self.surf.data_dir
@@ -305,6 +342,7 @@ class Simulation():
     def elevation_file(self):
         return self.surf.elevation_file
     
+
         
     # The following are placeholders for if/when we need to pass data back and forth to the Fortran library     
     # @property
