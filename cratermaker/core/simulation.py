@@ -110,7 +110,7 @@ class Simulation():
         else:    
             self.pix = np.sqrt(4 * np.pi * self.target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
 
-        self.surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, *args, **kwargs)
+        self.surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, simdir=simdir, *args, **kwargs)
         
         # Set some default values for the simulation parameters
         self.time_function = kwargs.get('time_function', None)

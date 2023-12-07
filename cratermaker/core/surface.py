@@ -274,7 +274,7 @@ def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
          pix: float_like | None = None,
          target: Target | str | None = None,
-         simdir: os.PathLike  = os.getcwd(),
+         simdir: os.PathLike | None = None,
          *args, **kwargs) -> Surface:
     """
     Initialize a Surface object with specified parameters and directory structure.
@@ -309,6 +309,9 @@ def initialize_surface(make_new_grid: bool = False,
     TypeError
         If the target is neither a Target instance nor a valid string name.
     """
+    
+    if simdir is None:
+        simdir = os.getcwd()
     if not target:
         target = Target("Moon")
     elif isinstance(target, str):
