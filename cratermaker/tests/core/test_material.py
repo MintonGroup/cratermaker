@@ -36,6 +36,7 @@ class TestMaterial(unittest.TestCase):
         # Test incomplete custom material creation
         with self.assertRaises(ValueError):
             Material("Flubber", density=2000.0)
+        with self.assertRaises(ValueError):
             Material(K1=3.8, mu=0.1, Ybar=1e7, density=2000.0)
         return
 

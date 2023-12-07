@@ -86,6 +86,8 @@ cdef class _SurfaceBind:
         # Check to make sure we are passing a correct value for the number of nodes
         if n_node < 1:
             raise ValueError("n_node must be greater than 0.")
+        if n_face < 1:
+            raise ValueError("n_face must be greater than 0.")
 
         self.fobj = bind_surface_init(n_node, n_face)
 
@@ -132,8 +134,8 @@ cdef class _SurfaceBind:
         if self.fobj is not NULL:
             bind_surface_final(self.fobj)
 
-
-    def get_elevation(self):
+    @property
+    def elevation(self):
         """
         A getter method that retrieves the elevation allocatable array from Fortran and returns it as a Numpy array
 
@@ -144,46 +146,27 @@ cdef class _SurfaceBind:
         -------
             elevation_array : Numpy array
         """
+        # Ensure the underlying C object is not NULL
+        if self.fobj is NULL or self.fobj.elevation is NULL:
+            raise RuntimeError("Elevation data is not available.")
 
-        # Retrieve the shape of the elevation data
-        cdef cnp.npy_intp size[1]
-        size[0] = self.fobj.elevation_len
+        # Convert to NumPy array and return
+        cdef cnp.npy_intp size = self.fobj.elevation_len
+        return cnp.PyArray_SimpleNewFromData(1, &size, cnp.NPY_FLOAT64, <void*>(self.fobj.elevation))
 
-        # Create a NumPy array from the Fortran array
-        cdef cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] elevation_array
-        elevation_array = cnp.PyArray_SimpleNewFromData(1, size, cnp.NPY_FLOAT64, <void*>(self.fobj.elevation))
-
-        return elevation_array
- 
-    def set_elevation(self, cnp.ndarray[cnp.float64_t, ndim=1] elevation_array):
+    @elevation.setter
+    def elevation(self, cnp.ndarray[cnp.float64_t, ndim=1] elevation_array):
         """
-        A setter method that sets the value of the elevation allocatable array in Fortran from a Numpy array
-
-        Parameters
-        ----------
-            elevation_array : [y,x] Numpy array
-        Returns
-        -------
-            None : Sets the values of self.fobj
+        Property to set the elevation data.
         """
-        # Check if the Fortran object is allocated
         if self.fobj is NULL:
             raise RuntimeError("Fortran object is not initialized.")
-
-        # Check if the elevation array in Fortran is allocated
         if self.fobj.elevation is NULL:
             raise RuntimeError("Elevation array in Fortran object is not allocated.")
-
-        # Ensure the NumPy array has the same length as the Fortran array
         if elevation_array.shape[0] != self.fobj.elevation_len:
             raise ValueError("Length of input NumPy array does not match the length of the Fortran array.")
-
-        # Copy data from NumPy array to Fortran array
         for i in range(elevation_array.shape[0]):
             self.fobj.elevation[i] = elevation_array[i]
-
-        return
-
 
     
 def util_perlin(str model, cnp.float64_t x, cnp.float64_t y, cnp.float64_t z, int num_octaves, cnp.ndarray[cnp.float64_t, ndim=2] anchor, **kwargs):

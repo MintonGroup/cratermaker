@@ -102,6 +102,7 @@ class TestSurface(unittest.TestCase):
             surf = initialize_surface(pix=self.pix, target=1, reset_surface=False)
         with self.assertRaises(ValueError):
             surf = initialize_surface(pix=self.pix, target="Arrakis", reset_surface=False)
+        with self.assertRaises(ValueError):
             surf = initialize_surface(pix=self.pix, target=Target(name="Salusa Secundus"), reset_surface=False)
         return
 
