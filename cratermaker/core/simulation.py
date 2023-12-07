@@ -45,7 +45,7 @@ class Simulation():
                 material: str | Material | None = None,
                 pix: float_like | None = None,
                 reset_surface: bool = True,
-                simdir: os.PathLike = os.getcwd(),
+                simdir: os.PathLike | None = None, 
                 *args: Any,
                 **kwargs: Any):
         """
@@ -66,7 +66,9 @@ class Simulation():
         **kwargs : Any
             Additional keyword arguments.
         """
-       
+      
+        if simdir is None:
+            simdir = os.getcwd() 
         if not os.path.isabs(simdir):
             simdir = os.path.abspath(simdir)
         if not os.path.exists(simdir):

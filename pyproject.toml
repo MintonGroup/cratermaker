@@ -22,11 +22,10 @@ classifiers=[
 ]
 keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'landscape evolution']
 dependencies = [
-    'numpy>=1.20',
-    'scipy>=1.10.1',
+    'numpy>=1.26',
+    'scipy>=1.11.3',
     'xarray>=2023.11',
     'uxarray>=2023.12',
-    'matplotlib>=3.7',
     'cython>=3.0.0',
     'mkdocs>=1.5.3',
     'jigsawpy>=0.3.3',
@@ -38,7 +37,7 @@ Repository = 'https://github.com/profminton/cratermaker.git'
 
 [build-system]
 requires = [
-    "scikit-build-core",
+    "scikit-build-core>=0.7.0",
     "cython>=3.0.0",
     "numpy>=1.20",
     "pytest"

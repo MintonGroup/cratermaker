@@ -18,8 +18,6 @@ typedef struct c_surface_type {
 }surface_type;
 extern struct c_surface_type* bind_surface_init(int ny, int nx);
 extern void bind_surface_final(struct c_surface_type *obj);
-extern void bind_surface_set_name(struct c_surface_type *obj, const char *c_string);
-extern char* bind_surface_get_name(struct c_surface_type *obj);
 
 typedef struct c_PerlinArguments {
       double damp;

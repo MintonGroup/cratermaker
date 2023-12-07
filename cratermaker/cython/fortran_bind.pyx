@@ -166,8 +166,24 @@ cdef class _SurfaceBind:
         -------
             None : Sets the values of self.fobj
         """
-        
+        # Check if the Fortran object is allocated
+        if self.fobj is NULL:
+            raise RuntimeError("Fortran object is not initialized.")
+
+        # Check if the elevation array in Fortran is allocated
+        if self.fobj.elevation is NULL:
+            raise RuntimeError("Elevation array in Fortran object is not allocated.")
+
+        # Ensure the NumPy array has the same length as the Fortran array
+        if elevation_array.shape[0] != self.fobj.elevation_len:
+            raise ValueError("Length of input NumPy array does not match the length of the Fortran array.")
+
+        # Copy data from NumPy array to Fortran array
+        for i in range(elevation_array.shape[0]):
+            self.fobj.elevation[i] = elevation_array[i]
+
         return
+
 
     
 def util_perlin(str model, cnp.float64_t x, cnp.float64_t y, cnp.float64_t z, int num_octaves, cnp.ndarray[cnp.float64_t, ndim=2] anchor, **kwargs):
