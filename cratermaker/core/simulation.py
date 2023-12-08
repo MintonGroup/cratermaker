@@ -315,15 +315,15 @@ class Simulation():
         if model == "plaw":
             kwargs.setdefault("slope", 2.0)
         if model == "swiss" or model == "jordan":
-            kwargs.setdefault("lacunarity", 1.92)
+            kwargs.setdefault("lacunarity", 2.00)
             kwargs.setdefault("gain", 0.5)
             kwargs.setdefault("warp", 0.35)
         if model == "jordan":
-            kwargs.setdefault("gain0", 70.0)
+            kwargs.setdefault("gain0", 0.8)
             kwargs.setdefault("warp0", 0.4)
             kwargs.setdefault("damp0", 1.0)
             kwargs.setdefault("damp", 0.8)
-            kwargs.setdefault("damp_scale", 0.01) 
+            kwargs.setdefault("damp_scale", 1.0) 
             
         if "noise_height" in kwargs:
             kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
@@ -334,8 +334,15 @@ class Simulation():
         y = ds_norm[vars[1]].values
         z = ds_norm[vars[2]].values
         noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
-       
-        self.surf['elevation'] += noise * self.target.radius 
+        
+        # Make sure the noise is volume-conserving (i.e., the mean is zero)
+        # TODO: Take into account the nodes are not uniformly distributed on the sphere
+        noise = noise - np.mean(noise)
+        
+        if model =="swiss" or model == "jordan":
+            self.surf['elevation'] += noise * noise_height
+        else:
+            self.surf['elevation'] += noise * self.target.radius 
         
         return
       
