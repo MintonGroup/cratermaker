@@ -358,19 +358,4 @@ class Simulation():
     def elevation_file(self):
         return self.surf.elevation_file
     
-    # The following are placeholders for if/when we need to pass data back and forth to the Fortran library     
-    # @property
-    # def elevation(self):
-    #     return self._body.fobj.elevation
-    
-    # @property
-    # def name(self):
-    #     return self._body.fobj.name
 
-
-    # def get_elevation(self):
-    #     return self._body.get_elevation()
-
-    
-    # def set_elevation(self, elevation_array):
-    #     self._body.set_elevation(elevation_array)
