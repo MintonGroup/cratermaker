@@ -330,8 +330,10 @@ class Simulation():
             
         vars = ['node_x', 'node_y', 'node_z']
         ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
-        noise_function = lambda x, y, z: apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
-        noise = np.vectorize(noise_function)(ds_norm[vars[0]], ds_norm[vars[1]], ds_norm[vars[2]])
+        x = ds_norm[vars[0]].values
+        y = ds_norm[vars[1]].values
+        z = ds_norm[vars[2]].values
+        noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
        
         self.surf['elevation'] += noise * self.target.radius 
         

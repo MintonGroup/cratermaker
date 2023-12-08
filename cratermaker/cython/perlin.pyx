@@ -19,7 +19,7 @@ cdef extern from "perlin.h":
         double warp
         double warp0
 
-    double bind_perlin_noise(const char *model, double x, double y, double z, int num_octaves, double *anchor, double damp, double damp0, double damp_scale, double freq, double gain, double gain0, double lacunarity, double noise_height, double pers, double slope, double warp, double warp0)
+    double bind_perlin_noise_one(const char *model, double x, double y, double z, int num_octaves, double *anchor, double damp, double damp0, double damp_scale, double freq, double gain, double gain0, double lacunarity, double noise_height, double pers, double slope, double warp, double warp0)
 
 
 cdef void _to_fortran_2D_double_array(cnp.ndarray[cnp.float64_t, ndim=2] src, double* dest, int rows, int cols):
@@ -45,7 +45,34 @@ cdef void _to_fortran_2D_double_array(cnp.ndarray[cnp.float64_t, ndim=2] src, do
             dest[j * rows + i] = src[i, j]  # Transpose the index for Fortran's column-major order
 
 
-def apply_noise(str model, cnp.float64_t x, cnp.float64_t y, cnp.float64_t z, int num_octaves, cnp.ndarray[cnp.float64_t, ndim=2] anchor, **kwargs):
+def apply_noise(str model, cnp.ndarray[cnp.float64_t, ndim=1] x, cnp.ndarray[cnp.float64_t, ndim=1] y, cnp.ndarray[cnp.float64_t, ndim=1] z, int num_octaves, cnp.ndarray[cnp.float64_t, ndim=2] anchor, **kwargs):
+    """
+    Applies Perlin noise based on the specified model and parameters.
+
+    Parameters:
+    ----------
+    model: str  
+        Name of the turbulence model.
+    x, y, z: ndarray (N,)  
+        Cartesian coordinates for noise evaluation.
+    num_octaves: int 
+        Number of octaves for the noise function.
+    anchor: ndarray (num_octaves, 3)
+        array of spatial anchor points for each noise octave.
+    kwargs: dict 
+        Additional model-specific parameters.
+
+    Returns:
+    ----------
+    ndarray(N,)
+        computed noise value.
+
+    Raises:
+    ----------
+    ValueError - If required parameters are missing, arrays are mismatched, or if an invalid model is specified.
+    """
+    if not (x.size == y.size == z.size):
+        raise ValueError("x, y, and z arrays must have the same length")
 
     # Ensure memory-contiguous numpy array
     anchor = np.ascontiguousarray(anchor, dtype=np.float64)
@@ -84,7 +111,11 @@ def apply_noise(str model, cnp.float64_t x, cnp.float64_t y, cnp.float64_t z, in
             # iterate over required_kwargs[model] for all keys and set the value of kw[key]to be given by kwargs[key]
             for arg in required_kwargs[model]:
                 kw[arg] = kwargs[arg]
-            noise = bind_perlin_noise(model, x, y, z, num_octaves, f_anchor, kw['damp'], kw['damp0'], kw['damp_scale'], kw['freq'], kw['gain'], kw['gain0'], kw['lacunarity'], kw['noise_height'], kw['pers'], kw['slope'], kw['warp'], kw['warp0'] )
+
+            # Initialize an array to store noise values
+            noise = np.empty(x.size, dtype=np.float64)
+            for i in range(x.size):
+                noise[i] = bind_perlin_noise_one(model, x[i], y[i], z[i], num_octaves, f_anchor, kw['damp'], kw['damp0'], kw['damp_scale'], kw['freq'], kw['gain'], kw['gain0'], kw['lacunarity'], kw['noise_height'], kw['pers'], kw['slope'], kw['warp'], kw['warp0'] )
         else:
             missing_args = set(required_kwargs[model]) - kwargs.keys()
             raise ValueError(f"The {model} model requires the following missing keywords: {', '.join(missing_args)}")

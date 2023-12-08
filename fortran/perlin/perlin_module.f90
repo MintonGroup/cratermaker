@@ -73,11 +73,23 @@ module perlin_module
          real(DP), dimension(:,:), intent(in) :: anchor
          real(DP) :: noise
       end function perlin_jordanTurbulence
+
+      module pure function perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
+                                            lacunarity, noise_height, pers, slope, warp, warp0) result(noise)
+         implicit none
+         character(len=*), intent(in) :: model !! The specific turbulence model to apply
+         real(DP), intent(in), value :: x, y, z  !! The xyz cartesian position of the noise to evaluate
+         integer(I4B), intent(in), value :: num_octaves
+         real(DP), dimension(:,:), intent(in) :: anchor
+         real(DP), intent(in) :: damp, damp0, damp_scale, freq, gain, gain0, lacunarity, noise_height, pers, slope, warp, warp0
+         real(DP) :: noise
+      end function perlin_noise_one
+
          
    end interface
 
 contains
-   function bind_perlin_noise(c_model, x, y, z, num_octaves, c_anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
+   function bind_perlin_noise_one(c_model, x, y, z, num_octaves, c_anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
                                  noise_height, pers, slope, warp, warp0) bind(c) result(noise)
       ! Arguments
       character(kind=c_char), dimension(*), intent(in) :: c_model !! The specific turbulence model to apply
@@ -100,24 +112,8 @@ contains
          return
       end if
 
-      select case (trim(model))
-      case('turbulence')
-         noise = perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) 
-      case('billowed')
-         noise = perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
-      case('plaw')
-         noise = perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor)
-      case('ridged')
-         noise = perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
-      case('swiss')
-         noise = perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor)
-      case('jordan')
-         noise = perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp,& 
-                                                damp_scale, num_octaves, anchor) 
-      case default
-         noise = 0.0_DP
-      end select
-      return
-  end function bind_perlin_noise
+      noise = perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
+                                 noise_height, pers, slope, warp, warp0)
+  end function bind_perlin_noise_one
 
 end module perlin_module
