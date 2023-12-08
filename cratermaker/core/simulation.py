@@ -296,13 +296,52 @@ class Simulation():
         
         return
     
+
     def apply_noise(self, 
                     model="turbulence",
                     noise_width=1000e3,
                     noise_height=20e3,
                     **kwargs,
                     ) -> None:
-      
+        """
+        Applies a specified noise model to the simulation's surface elevation.
+
+        This method adjusts the surface elevation of the simulation based on the chosen noise model. It supports various noise models, each with its own set of default and customizable parameters. The method also ensures that the applied noise is volume-conserving.
+
+        Parameters
+        ----------
+        model : str, optional
+            The noise model to apply. Supported models include 'turbulence', 'billowed', 'plaw', 'ridged', 'swiss', and 'jordan'. The default is 'turbulence'.
+        noise_width : float, optional
+            The width scale of the noise in meters. The default is 1000e3 (1000 km).
+        noise_height : float, optional
+            The height scale of the noise in meters. The default is 20e3 (20 km).
+        **kwargs :
+            Additional keyword arguments specific to the noise model. Common parameters include 'num_octaves' and 'anchor'. Model-specific parameters like 'freq', 'pers', 'slope', 'lacunarity', 'gain', etc., can also be set.
+
+        Returns
+        -------
+        None
+            This method modifies the simulation's surface elevation in-place and does not return a value.
+
+        Notes
+        -----
+        - The noise is scaled to be volume-conserving, ensuring the mean of the noise is zero.
+        - The method internally calculates normalized coordinates based on the target radius and scales the noise appropriately.
+        - Default values for noise parameters are set based on the chosen model.
+        - For details on thes noise models, see https://www.decarpentier.nl/scape-procedural-basics
+
+        Examples
+        --------
+        Apply default turbulence noise:
+
+        >>> sim = cratermaker.Simulation()
+        >>> sim.apply_noise()
+
+        Apply ridged noise with custom parameters:
+
+        >>> sim.apply_noise(model="ridged", noise_width=500e3, num_octaves=10, freq=1.5)
+        """      
         scale = self.target.radius / noise_width
         num_octaves = kwargs.pop("num_octaves", 12)
         anchor = kwargs.pop("anchor", self.rng.uniform(0.0,scale, size=(num_octaves, 3))) 
