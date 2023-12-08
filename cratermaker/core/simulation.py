@@ -384,7 +384,20 @@ class Simulation():
             self.surf['elevation'] += noise * self.target.radius 
         
         return
-      
+    
+     
+    def set_elevation(self, *args, **kwargs) -> None:
+        """
+        Set the elevation on the surface. Delegates to the Surface object.
+
+        Parameters
+        ----------
+        *args: Variable length argument list to pass to self.surf.set_elevation.
+        **kwargs: Arbitrary keyword arguments to pass to self.surf.set_elevation.
+        """
+        return self.surf.set_elevation(*args, **kwargs)   
+    
+          
     @property
     def data_dir(self):
         return self.surf.data_dir
@@ -396,5 +409,13 @@ class Simulation():
     @property
     def elevation_file(self):
         return self.surf.elevation_file
+    
+    @property
+    def n_node(self):
+        return self.surf.uxgrid.n_node
+    
+    @property
+    def n_face(self):
+        return self.surf.uxgrid.n_face
     
 

@@ -89,7 +89,9 @@ class Surface(UxDataset):
         Parameters
         ----------
         new_elev : array_like, optional
-            New elevation data to be set. If None, the elevation is set to zero. Must be passed if nCells is not
+            New elevation data to be set. If None, the elevation is set to zero. 
+        save_to_file : bool, default False
+            If True, save the elevation data to the elevation file.
         """
         if new_elev is None or np.isscalar(new_elev) or new_elev.size == self.uxgrid.n_node:
             self['elevation'] = generate_data(grid_file=self.grid_file,
