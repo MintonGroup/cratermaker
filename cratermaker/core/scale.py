@@ -231,7 +231,7 @@ class Scale():
         return final_diameter, morphology_type
  
         
-    def projectile_to_crater(self, projectile):
+    def projectile_to_crater(self, projectile, **kwargs):
         """
         Convert a projectile to its corresponding crater.
 
@@ -248,7 +248,7 @@ class Scale():
         """
         from .crater import Crater
         transient_diameter = self.projectile_to_transient(projectile, target=self.target, rng=self.rng)
-        crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng)
+        crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng, **kwargs)
 
         return crater
 

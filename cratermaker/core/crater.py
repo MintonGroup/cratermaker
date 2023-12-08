@@ -36,7 +36,8 @@ class Crater:
                 target: Target = None,
                 scale: Scale = None,
                 morphology: Morphology = None, 
-                rng: Generator = None):
+                rng: Generator = None,
+                **kwargs):
         
         if target is None:
             target = Target(name="Moon")
@@ -211,7 +212,8 @@ class Projectile:
                 location: np.ndarray = None,
                 target: Target = None, 
                 scale = None,
-                rng: Generator = None):
+                rng: Generator = None,
+                **kwargs):
         from .scale import Scale 
         if target is None:
             target = Target(name="Moon")

@@ -7,8 +7,9 @@ import tempfile
 from typing import Any
 from .target import Target, Material
 from .crater import Crater, Projectile
-from .scale import Scale
 from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
+from .scale import Scale
+from .morphology import Morphology
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
 from mpas_tools.viz.paraview_extractor import extract_vtk
@@ -48,6 +49,7 @@ class Simulation():
                 reset_surface: bool = True,
                 simdir: os.PathLike | None = None, 
                 scale: Scale | None = None,
+                morphology: Morphology | None = None,
                 *args: Any,
                 **kwargs: Any):
         """
@@ -135,7 +137,13 @@ class Simulation():
         elif isinstance(scale, Scale):
             self.scale = scale
         else:
-            raise TypeError("scale must be an instance of AbstractScale") 
+            raise TypeError("scale must be an instance of Scale") 
+        
+        
+        if morphology is None or isinstance(morphology, Morphology):
+            self.morphology = morphology
+        else:
+            raise TypeError("morphology must be an instance of Morphology")
 
         return
 
@@ -209,8 +217,8 @@ class Simulation():
             A tuple containing the newly created Crater and Projectile objects.
         """        
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(scale=self.scale, target=self.target, rng=self.rng, **kwargs)
-        projectile = crater.scale.crater_to_projectile(crater)
+        crater = Crater(target=self.target, morphology=self.morphology, scale=self.scale, rng=self.rng, **kwargs)
+        projectile = crater.scale.crater_to_projectile(crater, morphology=self.morphology)
         
         return crater, projectile
     
@@ -229,8 +237,8 @@ class Simulation():
         (Projectile, Crater)
             A tuple containing the newly created Projectile and Crater objects.
         """
-        projectile = Projectile(scale=self.Scale, target=self.target, rng=self.rng, **kwargs)
-        crater = projectile.scale.projectile_to_crater(projectile)
+        projectile = Projectile(target=self.target, rng=self.rng, scale=self.scale, morphology=self.morphology, **kwargs)
+        crater = projectile.scale.projectile_to_crater(projectile, morphology=self.morphology)
         
         return projectile, crater
    
