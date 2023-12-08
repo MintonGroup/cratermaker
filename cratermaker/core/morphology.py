@@ -119,13 +119,12 @@ class Morphology:
         r = np.abs(r) / self.radius
 
         # Compute the height based on the relative radial distance
-        if r < flrad:
-            h = -self.floordepth
-        elif r >= 1.0:
-            h = (self.rimheight - self.ejrim) * (r**(-RIMDROP))
-        else:
-            h = c0 + c1 * r + c2 * r**2 + c3 * r**3
-
+        h = np.where(r < flrad, 
+                     -self.floordepth, 
+                     np.where(r >=1.0, 
+                              (self.rimheight - self.ejrim) * (r**(-RIMDROP)),
+                              c0 + c1 * r + c2 * r**2 + c3 * r**3)
+                     )
         return h        
 
     
@@ -151,12 +150,21 @@ class Morphology:
         thick = self.ejrim * (r)**(-ejprofile)
         return thick
           
-    def form_crater_interior(self):
+    def form_crater(self, surf: Surface) -> None:
         """
         Form the interior of the crater.
 
-        This method forms the interior of the crater by removing the material from the surface mesh. It also updates the surface elevation to account for the removed material.
+        This method forms the interior of the crater by altering the elevation variable of the surface mesh.
         """
+       
+        def _crater_profile(r):
+            h = self.crater_profile(r) 
+            h[r > self.crater.radius] += self.ejecta_profile(r[r > self.crater.radius])
+            h[h < self.floordepth] = self.floordepth
+            return h
+     
+        new_elevation =  _crater_profile(surf['crater_distance']) 
+        surf.set_elevation(new_elevation)
          
         return  
     

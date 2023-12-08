@@ -165,6 +165,27 @@ class Surface(UxDataset):
         return self.calculate_haversine_distance(lon,lat,self.uxgrid.face_lon,self.uxgrid.face_lat,target_radius)
     
 
+    def get_node_distance(self, 
+                        location: Tuple[np.float64, np.float64],
+                        target_radius: np.float64) -> uxr.UxDataArray:
+        """
+        Computes the distances between nodes and a given location.
+
+        Parameters
+        ----------
+        location : Tuple[np.float64, np.float64]
+            Tuple containing the longitude and latitude of the location in radians.
+
+        Returns
+        -------
+        UxArray.UxDataArray
+            DataArray of distances for each cell in meters.
+        """
+        lon = np.deg2rad(location[0])
+        lat = np.deg2rad(location[1])
+        return self.calculate_haversine_distance(lon,lat,self.uxgrid.node_lon,self.uxgrid.node_lat,target_radius)    
+    
+
     @staticmethod
     def calculate_initial_bearing(lon1: float_like, 
                                 lat1: float_like, 
@@ -218,6 +239,23 @@ class Surface(UxDataset):
             DataArray of initial bearings for each cell in radians.
         """
         return self.calculate_initial_bearing(location[0], location[1], self.uxgrid.face_lon, self.uxgrid.face_lat)
+   
+    
+    def get_node_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
+        """
+        Computes the initial bearing between nodes and a given location.
+
+        Parameters
+        ----------
+        location : Tuple[np.float64, np.float64]
+            Tuple containing the longitude and latitude of the location in radians.
+
+        Returns
+        -------
+        xarray.DataArray
+            DataArray of initial bearings for each cell in radians.
+        """
+        return self.calculate_initial_bearing(location[0], location[1], self.uxgrid.node_lon, self.uxgrid.face_lat)    
 
 
     def get_average_surface(self,
