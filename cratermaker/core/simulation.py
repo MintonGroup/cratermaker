@@ -110,7 +110,7 @@ class Simulation():
         else:    
             self.pix = np.sqrt(4 * np.pi * self.target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
 
-        self.surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, simdir=simdir, *args, **kwargs)
+        self.initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, simdir=simdir, *args, **kwargs)
         
         # Set some default values for the simulation parameters
         self.time_function = kwargs.get('time_function', None)
@@ -170,6 +170,21 @@ class Simulation():
         return
     
 
+    def initialize_surface(self, *args, **kwargs):
+        """
+        Initialize the surface mesh.
+
+        Parameters
+        ----------
+        *args : dict
+            Variable length argument list to pass to initialize_surface.
+        **kwargs : dict
+            Keyword arguments for initializing the surface mesh.
+        """        
+        self.surf = initialize_surface(*args, **kwargs)
+        return
+   
+    
     def generate_crater(self, **kwargs):
         """
         Create a new Crater object and its corresponding Projectile.
