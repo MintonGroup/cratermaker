@@ -128,6 +128,28 @@ class Morphology:
 
         return h        
 
+    
+    def ejecta_profile(self, r: float_like) -> np.float64:
+        """
+        Calculate the thickness of ejecat as a function of distance from the center of the crater.
+
+        Parameters:
+        ----------
+        r : float-like
+            Radial distance from the crater center in meters.
+        crater: Crater
+            The crater to be created.
+
+        Returns:
+        ----------
+        np.float64
+            Elevation of the crater relative to a reference surface.
+        """
+        
+        ejprofile = 3.0
+        r = np.abs(r) / self.radius
+        thick = self.ejrim * (r)**(-ejprofile)
+        return thick
           
     def form_crater_interior(self):
         """

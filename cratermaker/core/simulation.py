@@ -218,7 +218,7 @@ class Simulation():
         """        
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         crater = Crater(target=self.target, morphology=self.morphology, scale=self.scale, rng=self.rng, **kwargs)
-        projectile = crater.scale.crater_to_projectile(crater, morphology=self.morphology)
+        projectile = crater.scale.crater_to_projectile(crater)
         
         return crater, projectile
     

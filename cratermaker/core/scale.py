@@ -253,7 +253,7 @@ class Scale():
         return crater
 
 
-    def crater_to_projectile(self, crater):
+    def crater_to_projectile(self, crater, **kwargs):
         """
         Convert a crater back to its corresponding projectile.
         This operation is more hypothetical and approximates the possible projectile that created the crater.
