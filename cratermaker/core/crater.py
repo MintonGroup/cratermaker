@@ -228,7 +228,6 @@ class Projectile:
         else:
             raise TypeError("scale must be an instance of Scale") 
 
-        
         # Evaluate and check diameter/radius inputs
         values_set = sum(x is not None for x in [diameter, radius])
         if values_set > 1:
