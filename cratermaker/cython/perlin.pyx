@@ -21,6 +21,7 @@ cdef extern from "perlin.h":
 
     double bind_perlin_noise_one(const char *model, double x, double y, double z, int num_octaves, double *anchor, double damp, double damp0, double damp_scale, double freq, double gain, double gain0, double lacunarity, double noise_height, double pers, double slope, double warp, double warp0)
 
+    void bind_perlin_noise_all(const char *model, double *x, double *y, double *z, int num_elements, int num_octaves, double *anchor, double damp, double damp0, double damp_scale, double freq, double gain, double gain0, double lacunarity, double noise_height, double pers, double slope, double warp, double warp0, double *noise)
 
 cdef void _to_fortran_2D_double_array(cnp.ndarray[cnp.float64_t, ndim=2] src, double* dest, int rows, int cols):
     """
@@ -45,7 +46,13 @@ cdef void _to_fortran_2D_double_array(cnp.ndarray[cnp.float64_t, ndim=2] src, do
             dest[j * rows + i] = src[i, j]  # Transpose the index for Fortran's column-major order
 
 
-def apply_noise(str model, cnp.ndarray[cnp.float64_t, ndim=1] x, cnp.ndarray[cnp.float64_t, ndim=1] y, cnp.ndarray[cnp.float64_t, ndim=1] z, int num_octaves, cnp.ndarray[cnp.float64_t, ndim=2] anchor, **kwargs):
+def apply_noise(str model, 
+                cnp.ndarray[cnp.float64_t, ndim=1] x_array, 
+                cnp.ndarray[cnp.float64_t, ndim=1] y_array, 
+                cnp.ndarray[cnp.float64_t, ndim=1] z_array, 
+                int num_octaves, 
+                cnp.ndarray[cnp.float64_t, ndim=2] anchor, 
+                **kwargs):
     """
     Applies Perlin noise based on the specified model and parameters.
 
@@ -53,7 +60,7 @@ def apply_noise(str model, cnp.ndarray[cnp.float64_t, ndim=1] x, cnp.ndarray[cnp
     ----------
     model: str  
         Name of the turbulence model.
-    x, y, z: ndarray (N,)  
+    x_array, y_array, z_array: ndarray (N,)  
         Cartesian coordinates for noise evaluation.
     num_octaves: int 
         Number of octaves for the noise function.
@@ -71,11 +78,25 @@ def apply_noise(str model, cnp.ndarray[cnp.float64_t, ndim=1] x, cnp.ndarray[cnp
     ----------
     ValueError - If required parameters are missing, arrays are mismatched, or if an invalid model is specified.
     """
-    if not (x.size == y.size == z.size):
+
+
+    if not (x_array.size == y_array.size == z_array.size):
         raise ValueError("x, y, and z arrays must have the same length")
+
+    cdef int num_elements = x_array.size
 
     # Ensure memory-contiguous numpy array
     anchor = np.ascontiguousarray(anchor, dtype=np.float64)
+    x_array = np.ascontiguousarray(x_array, dtype=np.float64)
+    y_array = np.ascontiguousarray(y_array, dtype=np.float64)
+    z_array = np.ascontiguousarray(z_array, dtype=np.float64)
+    noise_array = np.empty(num_elements, dtype=np.float64)
+
+    # Make memory view of the numpy arrays
+    cdef cnp.float64_t[::1] x = x_array
+    cdef cnp.float64_t[::1] y = y_array
+    cdef cnp.float64_t[::1] z = z_array
+    cdef cnp.float64_t[::1] noise = noise_array
 
     # Convert numpy 2D array to double**
     cdef double* f_anchor = <double*> malloc(3 * num_octaves * sizeof(double))
@@ -112,10 +133,7 @@ def apply_noise(str model, cnp.ndarray[cnp.float64_t, ndim=1] x, cnp.ndarray[cnp
             for arg in required_kwargs[model]:
                 kw[arg] = kwargs[arg]
 
-            # Initialize an array to store noise values
-            noise = np.empty(x.size, dtype=np.float64)
-            for i in range(x.size):
-                noise[i] = bind_perlin_noise_one(model, x[i], y[i], z[i], num_octaves, f_anchor, kw['damp'], kw['damp0'], kw['damp_scale'], kw['freq'], kw['gain'], kw['gain0'], kw['lacunarity'], kw['noise_height'], kw['pers'], kw['slope'], kw['warp'], kw['warp0'] )
+            bind_perlin_noise_all(model, &x[0], &y[0], &z[0], num_elements, num_octaves, f_anchor, kw['damp'], kw['damp0'], kw['damp_scale'], kw['freq'], kw['gain'], kw['gain0'], kw['lacunarity'], kw['noise_height'], kw['pers'], kw['slope'], kw['warp'], kw['warp0'], &noise[0] )
         else:
             missing_args = set(required_kwargs[model]) - kwargs.keys()
             raise ValueError(f"The {model} model requires the following missing keywords: {', '.join(missing_args)}")

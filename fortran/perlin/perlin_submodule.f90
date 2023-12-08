@@ -415,8 +415,8 @@ contains
                                           lacunarity, noise_height, pers, slope, warp, warp0) result(noise)
       implicit none
       character(len=*), intent(in) :: model !! The specific turbulence model to apply
-      real(DP), intent(in), value :: x, y, z  !! The xyz cartesian position of the noise to evaluate
-      integer(I4B), intent(in), value :: num_octaves
+      real(DP), intent(in) :: x, y, z  !! The xyz cartesian position of the noise to evaluate
+      integer(I4B), intent(in) :: num_octaves
       real(DP), dimension(:,:), intent(in) :: anchor
       real(DP), intent(in) :: damp, damp0, damp_scale, freq, gain, gain0, lacunarity, noise_height, pers, slope, warp, warp0
       real(DP) :: noise
@@ -440,5 +440,51 @@ contains
       end select
       return
    end function perlin_noise_one
+
+
+   module subroutine perlin_noise_all(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
+                                          lacunarity, noise_height, pers, slope, warp, warp0, noise)
+      implicit none
+      character(len=*), intent(in) :: model !! The specific turbulence model to apply
+      real(DP), dimension(:), intent(in) :: x, y, z  !! The xyz cartesian position of the noise to evaluate
+      integer(I4B), intent(in) :: num_octaves
+      real(DP), dimension(:,:), intent(in) :: anchor
+      real(DP), intent(in) :: damp, damp0, damp_scale, freq, gain, gain0, lacunarity, noise_height, pers, slope, warp, warp0
+      real(DP), dimension(:), intent(out) :: noise
+      integer :: i, N
+
+      N = size(x)
+
+      select case (trim(model))
+      case('turbulence')
+         do concurrent(i = 1:N)
+            noise(i) = perlin_turbulence(x(i), y(i), z(i), noise_height, freq, pers, num_octaves, anchor) 
+         end do
+      case('billowed')
+         do concurrent(i = 1:N)
+            noise(i) = perlin_billowedNoise(x(i), y(i), z(i), noise_height, freq, pers, num_octaves, anchor)
+         end do
+      case('plaw')
+         do concurrent(i = 1:N)
+            noise(i) = perlin_plawNoise(x(i), y(i), z(i), noise_height, freq, pers, slope, num_octaves, anchor)
+         end do
+      case('ridged')
+         do concurrent(i = 1:N)
+            noise(i) = perlin_ridgedNoise(x(i), y(i), z(i), noise_height, freq, pers, num_octaves, anchor)
+         end do
+      case('swiss')
+         do concurrent(i = 1:N)
+            noise(i) = perlin_swissTurbulence(x(i), y(i), z(i), lacunarity, gain, warp, num_octaves, anchor)
+         end do
+      case('jordan')
+         do concurrent(i = 1:N)
+            noise(i) = perlin_jordanTurbulence(x(i), y(i), z(i), lacunarity, gain0, gain, warp0, warp, damp0, damp,& 
+                                                damp_scale, num_octaves, anchor) 
+         end do
+      case default
+         noise(:) = 0.0_DP
+      end select
+      return
+   end subroutine perlin_noise_all
 
 end submodule s_perlin
