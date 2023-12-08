@@ -117,18 +117,20 @@ contains
    end subroutine bind_f2c_string
 
 
-   function bind_perlin_noise(c_model, x, y, z, num_octaves, c_anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
-                                 noise_height, pers, slope, warp, warp0) bind(c) result(noise)
+   subroutine bind_perlin_noise(c_model, c_x, c_y, c_z, N, num_octaves, c_anchor, damp, damp0, damp_scale, freq, gain, gain0, &
+                                 lacunarity, noise_height, pers, slope, warp, warp0, c_noise) bind(c) 
       ! Arguments
       character(kind=c_char), dimension(*), intent(in) :: c_model !! The specific turbulence model to apply
-      real(DP), intent(in), value :: x, y, z  !! The xyz cartesian position of the noise to evaluate
+      type(c_ptr), intent(in), value :: c_x, c_y, c_z  !! The xyz cartesian position of the noise to evaluate
+      integer(I4B), intent(in), value :: N  !! The number of points to evaluate
       real(DP), intent(in), value :: damp, damp0, damp_scale, freq, gain, gain0, lacunarity, noise_height, pers, slope, warp, warp0
       integer(I4B), intent(in), value :: num_octaves
       type(c_ptr), intent(in), value :: c_anchor
-      ! Return
-      real(DP) :: noise
+      type(c_ptr), intent(inout) :: c_noise
       ! Internals
       real(DP), dimension(:,:), pointer :: anchor
+      real(DP), dimension(:), pointer :: x, y, z
+      real(DP), dimension(:), pointer :: noise
       character(len=STRMAX) :: model
       
 
@@ -140,24 +142,49 @@ contains
          return
       end if
 
+      if (c_associated(c_x)) then
+         call c_f_pointer(c_x, x,shape=[N]) 
+      else
+         return
+      end if
+
+      if (c_associated(c_y)) then
+         call c_f_pointer(c_y, y,shape=[N]) 
+      else
+         return
+      end if
+
+      if (c_associated(c_z)) then
+         call c_f_pointer(c_z, z,shape=[N]) 
+      else
+         return
+      end if
+
+      if (c_associated(c_noise)) then
+         call c_f_pointer(c_noise, noise,shape=[N]) 
+      else
+         return
+      end if
+
       select case (trim(model))
       case('turbulence')
-         noise = util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) 
+         call util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor, noise) 
       case('billowed')
-         noise = util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
+         call util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor, noise)
       case('plaw')
-         noise = util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor)
+         call util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor, noise)
       case('ridged')
-         noise = util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
+         call util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor, noise)
       case('swiss')
-         noise = util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor)
+         call util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor, noise)
       case('jordan')
-         noise = util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp,& 
-                                                damp_scale, num_octaves, anchor) 
+         call util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp,& 
+                                                damp_scale, num_octaves, anchor, noise) 
       case default
-         noise = 0.0_DP
+         noise(:) = 0.0_DP
       end select
+
       return
-  end function bind_perlin_noise
+   end subroutine bind_perlin_noise
    
 end module bind_module
