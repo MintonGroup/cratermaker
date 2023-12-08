@@ -33,10 +33,9 @@ contains
       !! Allocate the allocatable components of the class
       implicit none
       ! Arguments
-      class(surface_type), intent(inout), target :: self   !! Simulation object
+      class(surface_type), intent(inout) :: self   !! Simulation object
       integer(I4B),        intent(in)    :: n_node !! Number of nodes in the surface mesh
       integer(I4B),        intent(in)    :: n_face !! Number of faces in the surface mesh
-      type(c_ptr) :: cptr
 
       allocate(self%elevation(n_node))
       allocate(self%node_x(n_node))
@@ -53,22 +52,6 @@ contains
       self%face_x(:)    = 0.0_DP
       self%face_y(:)    = 0.0_DP
       self%face_z(:)    = 0.0_DP
-
-      write(*,*) "Allocated elevation in Fortran with size: ", size(self%elevation)
-      write(*,*) "Pointer address of elevation in Fortran: ", c_loc(self%elevation)
-      write(*,*) "Allocated node_x in Fortran with size: ", size(self%node_x)
-      write(*,*) "Pointer address of node_x in Fortran: ", c_loc(self%node_x)
-      write(*,*) "Allocated node_y in Fortran with size: ", size(self%node_y)
-      write(*,*) "Pointer address of node_y in Fortran: ", c_loc(self%node_y)
-      write(*,*) "Allocated node_z in Fortran with size: ", size(self%node_z)
-      write(*,*) "Pointer address of node_z in Fortran: ", c_loc(self%node_z)
-      write(*,*) "Allocated face_x in Fortran with size: ", size(self%face_x)
-      write(*,*) "Pointer address of face_x in Fortran: ", c_loc(self%face_x)
-      write(*,*) "Allocated face_y in Fortran with size: ", size(self%face_y)
-      write(*,*) "Pointer address of face_y in Fortran: ", c_loc(self%face_y)
-      write(*,*) "Allocated face_z in Fortran with size: ", size(self%face_z)
-      write(*,*) "Pointer address of face_z in Fortran: ", c_loc(self%face_z)
-
 
       return
    end subroutine surface_allocate

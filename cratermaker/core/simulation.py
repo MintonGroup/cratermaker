@@ -295,7 +295,6 @@ class Simulation():
                 raise RuntimeError("Error in mpas_tools.viz.paraview_extractor.extract_vtk. Cannot export VTK files")
         
         return
-   
     
     def apply_noise(self, 
                     model="turbulence",
@@ -331,7 +330,8 @@ class Simulation():
             
         vars = ['node_x', 'node_y', 'node_z']
         ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
-        noise = util_perlin(model, ds_norm[vars[0]].values, ds_norm[vars[1]].values, ds_norm[vars[2]].values, num_octaves, anchor, **kwargs)
+        noise_function = lambda x, y, z: util_perlin(model, x, y, z, num_octaves, anchor, **kwargs)
+        noise = np.vectorize(noise_function)(ds_norm[vars[0]], ds_norm[vars[1]], ds_norm[vars[2]])
        
         self.surf['elevation'] += noise * self.target.radius 
         

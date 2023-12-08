@@ -11,7 +11,7 @@ module util
    use globals
 
    interface
-      module pure elemental subroutine util_perlin_noise(xx, yy, zz, noise, dx, dy, dz)
+      module subroutine util_perlin_noise(xx, yy, zz, noise, dx, dy, dz)
          implicit none
          real(DP),intent(in) :: xx,yy,zz
          real(DP),intent(out) :: noise
@@ -19,65 +19,59 @@ module util
       end subroutine util_perlin_noise
 
 
-      module subroutine util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor, noise)
+      module function util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), dimension(:), intent(in) ::  x, y, z
-         real(DP), intent(in) :: noise_height, freq, pers
+         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP), dimension(:,:),intent(in) :: anchor
-         real(DP), dimension(:), intent(out) :: noise
-      end subroutine util_perlin_turbulence
+         real(DP) :: noise
+      end function util_perlin_turbulence
    
    
-      module subroutine util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor, noise)
+      module function util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), dimension(:), intent(in) ::  x, y, z
-         real(DP), intent(in) ::  noise_height, freq, pers
+         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
-         real(DP), dimension(:), intent(out) :: noise
-      end subroutine util_perlin_billowedNoise
+         real(DP) :: noise
+      end function util_perlin_billowedNoise
          
          
-      module subroutine util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor, noise)
+      module function util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
          implicit none
-         real(DP),  dimension(:), intent(in) ::  x, y, z
-         real(DP), intent(in) ::  noise_height, freq, pers,slope
+         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers,slope
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
-         real(DP), dimension(:), intent(out) :: noise
-      end subroutine util_perlin_plawNoise
+         real(DP) :: noise
+      end function util_perlin_plawNoise
          
          
-      module subroutine util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor, noise)
+      module function util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), dimension(:), intent(in) ::  x, y, z
-         real(DP), intent(in) ::  noise_height, freq, pers
+         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
-         real(DP), dimension(:), intent(out) :: noise
-      end subroutine util_perlin_ridgedNoise
+         real(DP) :: noise
+      end function util_perlin_ridgedNoise
          
          
-      module subroutine util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor,noise)
+      module function util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
          implicit none
-         real(DP), dimension(:), intent(in) ::  x, y, z
-         real(DP), intent(in) ::  lacunarity, gain, warp
+         real(DP), intent(in) ::  x, y, z, lacunarity, gain, warp
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:), intent(in) :: anchor
-         real(DP), dimension(:), intent(out) :: noise
-      end subroutine util_perlin_swissTurbulence
+         real(DP) :: noise
+      end function util_perlin_swissTurbulence
       
          
-      module subroutine util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
-               num_octaves, anchor, noise)
+      module function util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
+               num_octaves, anchor) result(noise)
          implicit none
-         real(DP),dimension(:),intent(in) :: x, y, z
-         real(DP),intent(in) :: lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
+         real(DP),intent(in) :: x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
          integer(I4B),intent(in) :: num_octaves
          real(DP), dimension(:,:), intent(in) :: anchor
-         real(DP),dimension(:), intent(out) :: noise
-      end subroutine util_perlin_jordanTurbulence
+         real(DP) :: noise
+      end function util_perlin_jordanTurbulence
          
    end interface
 
