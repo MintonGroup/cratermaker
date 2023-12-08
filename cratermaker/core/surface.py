@@ -271,7 +271,7 @@ class Surface(UxDataset):
         center_vector = None
         return center_vector 
    
-    
+         
 def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
          pix: float_like | None = None,

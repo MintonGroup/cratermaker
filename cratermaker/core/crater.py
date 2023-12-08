@@ -273,6 +273,7 @@ class Projectile:
                 f"vertical_velocity={self.vertical_velocity} m/s, "
                 f"lon: {self.location[0]}, lat {self.location[1]}")
 
+
     @property
     def diameter(self):
         return self._diameter
@@ -394,7 +395,6 @@ class Projectile:
             else:
                 self.angle = mc.get_random_impact_angle()
         return
-
 
     @property
     def location(self):
