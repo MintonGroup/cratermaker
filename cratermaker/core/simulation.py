@@ -7,6 +7,7 @@ import tempfile
 from typing import Any
 from .target import Target, Material
 from .crater import Crater, Projectile
+from .scale import Scale
 from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
@@ -46,6 +47,7 @@ class Simulation():
                 pix: float_like | None = None,
                 reset_surface: bool = True,
                 simdir: os.PathLike | None = None, 
+                scale: Scale | None = None,
                 *args: Any,
                 **kwargs: Any):
         """
@@ -127,6 +129,13 @@ class Simulation():
         
         self._crater = None
         self._projectile = None
+       
+        if scale is None:
+            self.scale = Scale(self.target, self.rng) 
+        elif isinstance(scale, Scale):
+            self.scale = scale
+        else:
+            raise TypeError("scale must be an instance of AbstractScale") 
 
         return
 
@@ -200,7 +209,7 @@ class Simulation():
             A tuple containing the newly created Crater and Projectile objects.
         """        
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(target=self.target, rng=self.rng, **kwargs)
+        crater = Crater(scale=self.scale, target=self.target, rng=self.rng, **kwargs)
         projectile = crater.scale.crater_to_projectile(crater)
         
         return crater, projectile
@@ -220,7 +229,7 @@ class Simulation():
         (Projectile, Crater)
             A tuple containing the newly created Projectile and Crater objects.
         """
-        projectile = Projectile(target=self.target, rng=self.rng, **kwargs)
+        projectile = Projectile(scale=self.Scale, target=self.target, rng=self.rng, **kwargs)
         crater = projectile.scale.projectile_to_crater(projectile)
         
         return projectile, crater
