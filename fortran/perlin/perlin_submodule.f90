@@ -1,5 +1,5 @@
-submodule (perlin) s_perlin
-    use globals
+submodule (perlin_module) s_perlin
+    use globals_module
 contains
    module pure elemental subroutine perlin_noise(xx,yy,zz,noise,dx,dy,dz)
       ! Perlin noise with derivatives. Adapted from Ken Perlin's original code, with derivatives

@@ -7,8 +7,8 @@
 !! You should have received a copy of the GNU General Public License along with pyoof. 
 !! If not, see: https://www.gnu.org/licenses. 
 
-module surface
-   use globals
+module surface_module
+   use globals_module
 
    type  :: surface_type 
       real(DP), dimension(:), allocatable :: elevation !! Elevation of surface mesh relative to the datum
@@ -90,4 +90,4 @@ contains
    end subroutine surface_final
 
 
-end module surface
+end module surface_module
