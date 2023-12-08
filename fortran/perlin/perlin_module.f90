@@ -7,72 +7,72 @@
 !! You should have received a copy of the GNU General Public License along with cratermaker. 
 !! If not, see: https://www.gnu.org/licenses. 
 
-module util
+module perlin
    use globals
 
    interface
-      module pure elemental subroutine util_perlin_noise(xx, yy, zz, noise, dx, dy, dz)
+      module pure elemental subroutine perlin_noise(xx, yy, zz, noise, dx, dy, dz)
          implicit none
          real(DP),intent(in) :: xx,yy,zz
          real(DP),intent(out) :: noise
          real(DP),intent(out),optional :: dx, dy, dz
-      end subroutine util_perlin_noise
+      end subroutine perlin_noise
 
 
-      module pure function util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      module pure function perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP), dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
-      end function util_perlin_turbulence
+      end function perlin_turbulence
    
    
-      module pure function util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      module pure function perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
-      end function util_perlin_billowedNoise
+      end function perlin_billowedNoise
          
          
-      module pure function util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
+      module pure function perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, noise_height, freq, pers,slope
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
-      end function util_perlin_plawNoise
+      end function perlin_plawNoise
          
          
-      module pure function util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      module pure function perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
-      end function util_perlin_ridgedNoise
+      end function perlin_ridgedNoise
          
          
-      module pure function util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
+      module pure function perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, lacunarity, gain, warp
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:), intent(in) :: anchor
          real(DP) :: noise
-      end function util_perlin_swissTurbulence
+      end function perlin_swissTurbulence
       
          
-      module pure function util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
+      module pure function perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
                num_octaves, anchor) result(noise)
          implicit none
          real(DP),intent(in) :: x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
          integer(I4B),intent(in) :: num_octaves
          real(DP), dimension(:,:), intent(in) :: anchor
          real(DP) :: noise
-      end function util_perlin_jordanTurbulence
+      end function perlin_jordanTurbulence
          
    end interface
 
-end module util
+end module perlin

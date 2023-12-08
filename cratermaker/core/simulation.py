@@ -11,7 +11,7 @@ from .surface import Surface, initialize_surface, save_surface, elevation_to_car
 from ..utils import general_utils as gu
 from ..utils.general_utils import float_like
 from mpas_tools.viz.paraview_extractor import extract_vtk
-from ..fortran_bind import util_perlin
+from ..perlin import apply_noise
 
 class Simulation():
     """
@@ -330,7 +330,7 @@ class Simulation():
             
         vars = ['node_x', 'node_y', 'node_z']
         ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
-        noise_function = lambda x, y, z: util_perlin(model, x, y, z, num_octaves, anchor, **kwargs)
+        noise_function = lambda x, y, z: apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         noise = np.vectorize(noise_function)(ds_norm[vars[0]], ds_norm[vars[1]], ds_norm[vars[2]])
        
         self.surf['elevation'] += noise * self.target.radius 

@@ -14,4 +14,4 @@ from .core.target import Target, Material
 from .core.crater import Crater, Projectile, Scale
 from .core.surface import Surface, initialize_surface, generate_grid, generate_data, elevation_to_cartesian
 from .utils import general_utils, montecarlo
-from .fortran_bind import util_perlin
+from .perlin import apply_noise

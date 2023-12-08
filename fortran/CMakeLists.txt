@@ -12,8 +12,8 @@ SET(SRC_FILES
     ${FORTRAN_SRC}/globals/globals_module.f90
     ${FORTRAN_SRC}/bind/bind_module.f90
     ${FORTRAN_SRC}/surface/surface_module.f90
-    ${FORTRAN_SRC}/util/util_module.f90
-    ${FORTRAN_SRC}/util/util.f90
+    ${FORTRAN_SRC}/perlin/perlin_module.f90
+    ${FORTRAN_SRC}/perlin/perlin_submodule.f90
 )
 
 SET(DRIVER_src ${FORTRAN_SRC}/main.f90)

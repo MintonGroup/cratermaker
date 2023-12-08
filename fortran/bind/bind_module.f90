@@ -22,7 +22,7 @@ module bind_module
    use iso_c_binding
    use globals
    use surface
-   use util
+   use perlin
    implicit none
    
 contains
@@ -142,17 +142,17 @@ contains
 
       select case (trim(model))
       case('turbulence')
-         noise = util_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) 
+         noise = perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) 
       case('billowed')
-         noise = util_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
+         noise = perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
       case('plaw')
-         noise = util_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor)
+         noise = perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor)
       case('ridged')
-         noise = util_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
+         noise = perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor)
       case('swiss')
-         noise = util_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor)
+         noise = perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor)
       case('jordan')
-         noise = util_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp,& 
+         noise = perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp,& 
                                                 damp_scale, num_octaves, anchor) 
       case default
          noise = 0.0_DP

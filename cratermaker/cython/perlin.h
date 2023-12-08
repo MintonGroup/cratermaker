@@ -1,23 +1,3 @@
-#define STRMAX 512
-
-typedef struct c_surface_type {
-    double *elevation;
-    int elevation_len;
-    double *node_x;
-    int node_x_len;
-    double *node_y;
-    int node_y_len;
-    double *node_z;
-    int node_z_len;
-    double *face_x;
-    int face_x_len;
-    double *face_y;
-    int face_y_len;
-    double *face_z;
-    int face_z_len;
-}surface_type;
-extern struct c_surface_type* bind_surface_init(int ny, int nx);
-extern void bind_surface_final(struct c_surface_type *obj);
 
 typedef struct c_PerlinArguments {
       double damp;
