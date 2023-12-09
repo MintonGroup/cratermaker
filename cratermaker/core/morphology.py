@@ -119,12 +119,13 @@ class Morphology:
         r = np.abs(r) / self.radius
 
         # Compute the height based on the relative radial distance
-        h = np.where(r < flrad, 
-                     -self.floordepth, 
-                     np.where(r >=1.0, 
-                              (self.rimheight - self.ejrim) * (r**(-RIMDROP)),
-                              c0 + c1 * r + c2 * r**2 + c3 * r**3)
-                     )
+        if r < flrad:
+            h = -self.floordepth
+        elif r >= 1.0:
+            h = (self.rimheight - self.ejrim) * (r**(-RIMDROP))
+        else:
+            h = c0 + c1 * r + c2 * r**2 + c3 * r**3
+
         return h        
 
     
@@ -159,12 +160,13 @@ class Morphology:
        
         def _crater_profile(r):
             h = self.crater_profile(r) 
-            h[r > self.crater.radius] += self.ejecta_profile(r[r > self.crater.radius])
-            h[h < self.floordepth] = self.floordepth
+            if r > self.crater.radius:
+                h += self.ejecta_profile(r)
+            if h > self.floordepth:
+                h = self.floordepth
             return h
      
-        new_elevation =  _crater_profile(surf['crater_distance']) 
-        surf.set_elevation(new_elevation)
+        surf['elevation'] += np.vectorize(_crater_profile)(surf['crater_distance']) 
          
         return  
     
