@@ -57,11 +57,11 @@ class Surface(UxDataset):
         Set elevation data for the target's surface mesh.
     calculate_haversine_distance(lon1, lat1, lon2, lat2, radius)
         Calculate the great circle distance between two points on a sphere.
-    get_cell_distance(location, target_radius)
+    get_face_distance(location, target_radius)
         Computes the distances between cell centers and a given location.
     calculate_initial_bearing(lon1, lat1, lon2, lat2)
         Calculate the initial bearing from one point to another on the surface of a sphere.
-    get_cell_initial_bearing(location)
+    get_face_initial_bearing(location)
         Computes the initial bearing between cell centers and a given location.
     get_average_surface(location, radius)
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
@@ -144,7 +144,7 @@ class Surface(UxDataset):
         return radius * c
     
 
-    def get_cell_distance(self, 
+    def get_face_distance(self, 
                         location: Tuple[np.float64, np.float64],
                         target_radius: np.float64) -> uxr.UxDataArray:
         """
@@ -160,9 +160,11 @@ class Surface(UxDataset):
         UxArray.UxDataArray
             DataArray of distances for each cell in meters.
         """
-        lon = np.deg2rad(location[0])
-        lat = np.deg2rad(location[1])
-        return self.calculate_haversine_distance(lon,lat,self.uxgrid.face_lon,self.uxgrid.face_lat,target_radius)
+        lon1 = np.deg2rad(location[0])
+        lat1 = np.deg2rad(location[1])
+        lon2 = np.deg2rad(self.uxgrid.face_lon)
+        lat2 = np.deg2rad(self.uxgrid.face_lat)
+        return self.calculate_haversine_distance(lon1,lat1,lon2,lat2,target_radius)
     
 
     def get_node_distance(self, 
@@ -181,9 +183,11 @@ class Surface(UxDataset):
         UxArray.UxDataArray
             DataArray of distances for each cell in meters.
         """
-        lon = np.deg2rad(location[0])
-        lat = np.deg2rad(location[1])
-        return self.calculate_haversine_distance(lon,lat,self.uxgrid.node_lon,self.uxgrid.node_lat,target_radius)    
+        lon1 = np.deg2rad(location[0])
+        lat1 = np.deg2rad(location[1])
+        lon2 = np.deg2rad(self.uxgrid.node_lon)
+        lat2 = np.deg2rad(self.uxgrid.node_lat)        
+        return self.calculate_haversine_distance(lon1,lat1,lon2,lat2,target_radius)
     
 
     @staticmethod
@@ -224,7 +228,7 @@ class Surface(UxDataset):
         return initial_bearing
 
 
-    def get_cell_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
+    def get_face_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
         """
         Computes the initial bearing between cell centers and a given location.
 
@@ -238,7 +242,11 @@ class Surface(UxDataset):
         xarray.DataArray
             DataArray of initial bearings for each cell in radians.
         """
-        return self.calculate_initial_bearing(location[0], location[1], self.uxgrid.face_lon, self.uxgrid.face_lat)
+        lon1 = np.deg2rad(location[0])
+        lat1 = np.deg2rad(location[1])
+        lon2 = np.deg2rad(self.uxgrid.face_lon)
+        lat2 = np.deg2rad(self.uxgrid.face_lat)        
+        return self.calculate_initial_bearing(lon1,lat1,lon2,lat2)
    
     
     def get_node_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
@@ -255,7 +263,11 @@ class Surface(UxDataset):
         xarray.DataArray
             DataArray of initial bearings for each cell in radians.
         """
-        return self.calculate_initial_bearing(location[0], location[1], self.uxgrid.node_lon, self.uxgrid.face_lat)    
+        lon1 = np.deg2rad(location[0])
+        lat1 = np.deg2rad(location[1])
+        lon2 = np.deg2rad(self.uxgrid.node_lon)
+        lat2 = np.deg2rad(self.uxgrid.node_lat)             
+        return self.calculate_initial_bearing(lon1,lat1,lon2,lat2)  
 
 
     def get_average_surface(self,
@@ -431,7 +443,7 @@ def initialize_surface(make_new_grid: bool = False,
     return surf
 
 
-def _make_uniform_cell_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArray]:
+def _make_uniform_face_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArray]:
     """
     Create cell width array for this mesh on a regular latitude-longitude grid.
     Returns
@@ -489,7 +501,7 @@ def generate_grid(target: Target | str,
     elif not isinstance(target, Target):
         raise TypeError("target must be an instance of Target or a valid name of a target body")
     
-    cellWidth, lon, lat = _make_uniform_cell_size(pix)
+    cellWidth, lon, lat = _make_uniform_face_size(pix)
     orig_dir = os.getcwd()
     os.chdir(grid_temp_dir)
     # Configure logger to suppress output

@@ -10,8 +10,7 @@ from .crater import Crater, Projectile
 from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
 from .scale import Scale
 from .morphology import Morphology
-from ..utils import general_utils as gu
-from ..utils.general_utils import float_like
+from ..utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, float_like
 from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..perlin import apply_noise
 
@@ -153,7 +152,7 @@ class Simulation():
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `utils.gu.set_properties` method.
+        property setting is handled by the `utils.set_properties` method.
 
         Parameters
         ----------
@@ -161,7 +160,7 @@ class Simulation():
             A dictionary of keyword arguments that represent the properties to be set on the current object.
 
         """        
-        gu.set_properties(self,**kwargs)
+        set_properties(self,**kwargs)
         return 
 
     
@@ -176,9 +175,9 @@ class Simulation():
         """        
         #TODO: Re-do this once the dust settles a bit
         # Get the simulation configuration into the correct structure
-        material_config = gu.to_config(self.target.material)
-        target_config = {**gu.to_config(self.target), 'material' : material_config}
-        sim_config = {**gu.to_config(self),'target' : target_config} 
+        material_config = to_config(self.target.material)
+        target_config = {**to_config(self.target), 'material' : material_config}
+        sim_config = {**to_config(self),'target' : target_config} 
         
         # Write the combined configuration to a JSON file
         with open(filename, 'w') as f:

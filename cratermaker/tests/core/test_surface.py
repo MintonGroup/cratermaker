@@ -6,6 +6,8 @@ import tempfile
 from cratermaker import Target
 from cratermaker import Surface, initialize_surface, generate_grid, generate_data
 from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
+from cratermaker.utils.montecarlo import get_random_location
+from cratermaker.utils.general_utils import normalize_coords
 # Import other necessary modules and functions
 
 class TestSurface(unittest.TestCase):
@@ -39,7 +41,7 @@ class TestSurface(unittest.TestCase):
         Test setting elevation data on the Surface object.
     test_calculate_haversine_distance()
         Test the haversine distance calculation between two points.
-    test_get_cell_distance()
+    test_get_face_distance()
         Test the calculation of distances from a location to each cell in the grid.
     test_calculate_initial_bearing()
         Test the calculation of the initial bearing from one point to another.
@@ -140,30 +142,71 @@ class TestSurface(unittest.TestCase):
         # Compare the expected and calculated distances
         self.assertAlmostEqual(calculated_distance, expected_distance, places=1)
 
-    def test_get_cell_distance(self):
+    def test_get_face_distance(self):
         surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=True)
-        location = (0, 0)  # Equator, prime meridian in radians
         target_radius = self.target.radius
+        
+        location = get_random_location()
+        lon = location[0]
+        lat = location[1]
 
         # Convert important points to radians
-        north_pole = (0, np.radians(90))
-        south_pole = (0, np.radians(-90))
-        antipode = (np.radians(180), 0)
+        north = (lon, lat + 90)
+        south = (lon, lat - 90)
+        antipode = (lon+180, -lat)
+        
+        north = normalize_coords(north)
+        south = normalize_coords(south)
+        antipode = normalize_coords(antipode)
 
         # Function to find nearest cell index
         def find_nearest_index(point):
             distances = surf.calculate_haversine_distance(surf.uxgrid.face_lon, surf.uxgrid.face_lat, *point, target_radius)
             return np.argmin(distances.data)
 
-        north_pole_idx = find_nearest_index(north_pole)
-        south_pole_idx = find_nearest_index(south_pole)
+        north_idx = find_nearest_index(north)
+        south_idx = find_nearest_index(south)
         antipode_idx = find_nearest_index(antipode)
 
         # Test distances
-        distances = surf.get_cell_distance(location, target_radius)
-        self.assertAlmostEqual(distances[north_pole_idx], target_radius * np.pi / 2, delta=2*self.pix)
-        self.assertAlmostEqual(distances[south_pole_idx], target_radius * np.pi / 2, delta=2*self.pix)
+        distances = surf.get_face_distance(location, target_radius)
+        self.assertAlmostEqual(distances[north_idx], target_radius * np.pi / 2, delta=2*self.pix)
+        self.assertAlmostEqual(distances[south_idx], target_radius * np.pi / 2, delta=2*self.pix)
         self.assertAlmostEqual(distances[antipode_idx], target_radius * np.pi, delta=2*self.pix)
+        
+        
+    def test_get_node_distance(self):
+        surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=True)
+        target_radius = self.target.radius
+        
+        location = get_random_location()
+        lon = location[0]
+        lat = location[1]
+
+        # Convert important points to radians
+        north = (lon, lat + 90)
+        south = (lon, lat - 90)
+        antipode = (lon+180, -lat)
+        
+        north = normalize_coords(north)
+        south = normalize_coords(south)
+        antipode = normalize_coords(antipode)
+
+
+        # Function to find nearest cell index
+        def find_nearest_index(point):
+            distances = surf.calculate_haversine_distance(surf.uxgrid.node_lon, surf.uxgrid.node_lat, *point, target_radius)
+            return np.argmin(distances.data)
+
+        north_idx = find_nearest_index(north)
+        south_idx = find_nearest_index(south)
+        antipode_idx = find_nearest_index(antipode)
+
+        # Test distances
+        distances = surf.get_node_distance(location, target_radius)
+        self.assertAlmostEqual(distances[north_idx], target_radius * np.pi / 2, delta=2*self.pix)
+        self.assertAlmostEqual(distances[south_idx], target_radius * np.pi / 2, delta=2*self.pix)
+        self.assertAlmostEqual(distances[antipode_idx], target_radius * np.pi, delta=2*self.pix)        
         
     def test_calculate_initial_bearing(self):
         # Example coordinates (lat/lon in radians)
