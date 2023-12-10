@@ -1,6 +1,6 @@
 import unittest
 from cratermaker import Target
-from cratermaker import general_utils as gu
+from cratermaker import create_catalogue
 import numpy as np
 gEarth = np.float64(9.80665)
 
@@ -31,7 +31,7 @@ class TestTarget(unittest.TestCase):
             ("Arrakis", 5995.0e3,  0.900 * gEarth, "Sand", 18000.0, "silicate"),
             ("Salusa Secundus", 7200.e3, 1.20 * gEarth, "Hard Rock", 29100.0, "silicate"),
         ]          
-        catalogue = gu.create_catalogue(body_properties, body_values) 
+        catalogue = create_catalogue(body_properties, body_values) 
         for planet,v in catalogue.items():
             target = Target(name=planet, catalogue=catalogue)
             self.assertEqual(target.radius, v['radius'])

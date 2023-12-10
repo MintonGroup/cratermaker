@@ -14,12 +14,12 @@ class TestMonteCarlo(unittest.TestCase):
             size = 1000
             points = get_random_location(size=size)
 
-            lons = np.deg2rad(points['lon'])
-            lats = np.deg2rad(points['lat'])
+            lons = points['lon']
+            lats = points['lat']
             self.assertIsInstance(lons[0], np.float64)
             self.assertIsInstance(lats[0], np.float64)
-            self.assertTrue(np.all(0.0 <= lons) and np.all(lons <= 2 * np.pi))
-            self.assertTrue(np.all(-np.pi/2 <= lats) and np.all(lats <= np.pi/2))
+            self.assertTrue(np.all(-180.0 <= lons) and np.all(lons <= 180.0), msg=f"Longitude range: {np.min(lons)} to {np.max(lons)}")
+            self.assertTrue(np.all(-90.0 <= lats) and np.all(lats <= 90.0), msg=f"Latitude range: {np.min(lats)} to {np.max(lats)}")
             
             # Test Longitude Uniformity
             
@@ -27,7 +27,7 @@ class TestMonteCarlo(unittest.TestCase):
             alpha = 0.05
         
             bins = 20 
-            observed_counts, bins_lon = np.histogram(lons, bins=bins, range=(0.0, 2 * np.pi))
+            observed_counts, bins_lon = np.histogram(lons, bins=bins, range=(-180, 180))
             expected_count_lon = size // bins
             
             # Perform the chi-square test
@@ -36,7 +36,7 @@ class TestMonteCarlo(unittest.TestCase):
             # Assert that the p-value is greater than the significance level
             result = p_value
             
-            sin_lats = np.sin(lats)
+            sin_lats = np.sin(np.deg2rad(lats))
             observed_counts, bins_lat = np.histogram(sin_lats, bins=bins, range=(-1, 1))
             expected_count_lat = size // bins
             

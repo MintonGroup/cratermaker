@@ -40,7 +40,7 @@ def get_random_location(
     phi = np.arccos(2 * v - 1)
     
     # Convert to lon/lat
-    lon = np.rad2deg(theta)
+    lon = np.rad2deg(theta - np.pi) # Use the convention that longitude is in the range [-180, 180]
     lat = np.rad2deg(phi - np.pi / 2.0)
     
     if size == 1: 
@@ -313,7 +313,7 @@ if __name__ == '__main__':
         bins = 50 
 
         # Longitude plot
-        observed_counts_lon, bins_lon_deg = np.histogram(lons, bins=bins, range=(0.0, 360.0))
+        observed_counts_lon, bins_lon_deg = np.histogram(lons, bins=bins, range=(-180, 180.0))
         expected_count_lon = size // bins
 
         # Latitude plot

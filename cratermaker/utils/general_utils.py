@@ -182,7 +182,7 @@ def validate_and_convert_location(location):
 
 def normalize_coords(loc):
     """
-    Normalize geographic coordinates to ensure longitude is within [0, 360) degrees 
+    Normalize geographic coordinates to ensure longitude is within [-180, 180) degrees 
     and latitude within [-90, 90] degrees.
 
     This function takes a tuple of longitude and latitude values in degrees, normalizes 
@@ -199,17 +199,13 @@ def normalize_coords(loc):
     -------
     tuple
         A tuple of two elements: (normalized_longitude, normalized_latitude). 
-        The normalized longitude is in the range [0, 360) degrees, and the 
+        The normalized longitude is in the range [-180, 180) degrees, and the 
         normalized latitude is in the range [-90, 90] degrees.
 
     Notes
     -----
-    - The longitude is normalized simply by modulo operation with 360 degrees.
-    - The latitude normalization reflects values beyond the poles back into 
-      the [-90, 90] degrees range and adjusts longitude accordingly.
-    - If latitude exceeds 90 degrees in either direction (north or south), 
-      it is reflected back, and longitude is shifted by 180 degrees to 
-      maintain the correct geographical orientation.
+    - The longitude is normalized using a modulo operation with 360 degrees and then adjusted to the range [-180, 180).
+    - Latitude values beyond 90 or below -90 degrees are adjusted by reflecting them within the range and flipping the longitude by 180 degrees, then re-normalizing it to the [-180, 180) range.
 
     Examples
     --------
@@ -217,20 +213,25 @@ def normalize_coords(loc):
     (10.0, 85.0)
 
     >>> normalize_coords((-185, -100))
-    (95.0, -80.0)
-    """    
+    (-5.0, 80.0)
+    """
     lon, lat = loc
 
-    # Normalize longitude
-    normalized_lon = lon % (360.0)
+    # Normalize longitude to be within [-180, 180)
+    normalized_lon = ((lon + 180) % 360) - 180
 
     # Normalize latitude
-    if lat > 90 or lat < -90:
-        # Reflect the latitude back into the range [-90, 90]
-        lat = 90 - abs(lat) if lat > 0.0 else -90 + abs(lat)
-        # Flip the longitude by π (180 degrees) when latitude flips over the poles
-        normalized_lon = (normalized_lon + 90) % 360
+    if lat > 90:
+        normalized_lat = 180 - lat 
+        normalized_lon = lon - 180 # Flip the longitude 
+    elif lat < -90:
+        normalized_lat = -180 - lat 
+        normalized_lon = lon - 180 # Flip the longitude
+    else:
+        normalized_lat = lat
 
-    normalized_lat = np.clip(lat, -90, 90)
+    # Ensure latitude is within the range [-90, 90] after adjustments
+    normalized_lat = np.clip(normalized_lat, -90, 90)
 
     return normalized_lon, normalized_lat
+

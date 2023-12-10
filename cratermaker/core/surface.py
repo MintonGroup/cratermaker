@@ -44,8 +44,8 @@ class Surface(UxDataset):
         Path to the grid file.
     elevation_file : str
         Path to the node elevation file.
-    target_name : str
-        Name of the target body.
+    target_radius : str
+        Radius of the target body.
     pix : float_like
         Pixel size or resolution of the grid.
     grid_type : str
@@ -57,16 +57,20 @@ class Surface(UxDataset):
         Set elevation data for the target's surface mesh.
     calculate_haversine_distance(lon1, lat1, lon2, lat2, radius)
         Calculate the great circle distance between two points on a sphere.
-    get_face_distance(location, target_radius)
+    get_face_distance(location)
         Computes the distances between cell centers and a given location.
+    get_node_distance(location)
+        Computes the distances between nodes and a given location.
     calculate_initial_bearing(lon1, lat1, lon2, lat2)
         Calculate the initial bearing from one point to another on the surface of a sphere.
     get_face_initial_bearing(location)
         Computes the initial bearing between cell centers and a given location.
+    get_node_initial_bearing(location)
+        Computes the initial bearing between nodes and a given location.
     get_average_surface(location, radius)
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_name', 'pix', 'grid_type')
+    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_radius', 'pix', 'grid_type')
     
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
@@ -77,6 +81,7 @@ class Surface(UxDataset):
         # Additional initialization for Surface
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
+        
         
 
     def set_elevation(self, 
@@ -112,7 +117,7 @@ class Surface(UxDataset):
                     lat1: float_like, 
                     lon2: float_like, 
                     lat2: float_like,
-                    radius: float_like) -> np.float64:
+                    radius: float_like = 1.0) -> np.float64:
         """
         Calculate the great circle distance between two points on a sphere.
 
@@ -145,8 +150,7 @@ class Surface(UxDataset):
     
 
     def get_face_distance(self, 
-                        location: Tuple[np.float64, np.float64],
-                        target_radius: np.float64) -> uxr.UxDataArray:
+                        location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
         """
         Computes the distances between cell centers and a given location.
 
@@ -164,12 +168,11 @@ class Surface(UxDataset):
         lat1 = np.deg2rad(location[1])
         lon2 = np.deg2rad(self.uxgrid.face_lon)
         lat2 = np.deg2rad(self.uxgrid.face_lat)
-        return self.calculate_haversine_distance(lon1,lat1,lon2,lat2,target_radius)
+        return self.calculate_haversine_distance(lon1,lat1,lon2,lat2,self.target_radius)
     
 
     def get_node_distance(self, 
-                        location: Tuple[np.float64, np.float64],
-                        target_radius: np.float64) -> uxr.UxDataArray:
+                        location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
         """
         Computes the distances between nodes and a given location.
 
@@ -187,7 +190,7 @@ class Surface(UxDataset):
         lat1 = np.deg2rad(location[1])
         lon2 = np.deg2rad(self.uxgrid.node_lon)
         lat2 = np.deg2rad(self.uxgrid.node_lat)        
-        return self.calculate_haversine_distance(lon1,lat1,lon2,lat2,target_radius)
+        return self.calculate_haversine_distance(lon1,lat1,lon2,lat2,self.target_radius)
     
 
     @staticmethod
@@ -268,6 +271,70 @@ class Surface(UxDataset):
         lon2 = np.deg2rad(self.uxgrid.node_lon)
         lat2 = np.deg2rad(self.uxgrid.node_lat)             
         return self.calculate_initial_bearing(lon1,lat1,lon2,lat2)  
+    
+    
+    # Function to find nearest cell index
+    def find_nearest_node_index(self,point):
+        """
+        Find the index of the nearest node to a given point.
+
+        This method calculates the Haversine distance from the given point to each node in the grid,
+        and returns the index of the node with the minimum distance.
+
+        Parameters
+        ----------
+        point : tuple
+            A tuple containing two elements: (longitude, latitude) in degrees.
+
+        Returns
+        -------
+        int
+            The index of the nearest node in the grid to the given point.
+
+        Notes
+        -----
+        The method converts the longitude and latitude values from degrees to radians before
+        calculating distances. The Haversine formula is used to compute the distances on the
+        surface of a sphere with a radius of 1.0 unit.
+        """        
+        lon1 = np.deg2rad(point[0])
+        lat1 = np.deg2rad(point[1])
+        lon2 = np.deg2rad(self.uxgrid.node_lon)
+        lat2 = np.deg2rad(self.uxgrid.node_lat)        
+        distances = self.calculate_haversine_distance(lon1,lat1,lon2,lat2,radius=1.0)
+        return np.argmin(distances.data)    
+
+
+    def find_nearest_face_index(self,point):
+        """
+        Find the index of the nearest face to a given point.
+
+        This method calculates the Haversine distance from the given point to each face in the grid,
+        and returns the index of the face with the minimum distance.
+
+        Parameters
+        ----------
+        point : tuple
+            A tuple containing two elements: (longitude, latitude) in degrees.
+
+        Returns
+        -------
+        int
+            The index of the nearest face in the grid to the given point.
+
+        Notes
+        -----
+        The method converts the longitude and latitude values from degrees to radians before
+        calculating distances. The Haversine formula is used to compute the distances on the
+        surface of a sphere with a radius of 1.0 unit. This method differs from `find_nearest_node_index`
+        in that it considers the grid's faces instead of its nodes.
+        """        
+        lon1 = np.deg2rad(point[0])
+        lat1 = np.deg2rad(point[1])
+        lon2 = np.deg2rad(self.uxgrid.face_lon)
+        lat2 = np.deg2rad(self.uxgrid.face_lat)        
+        distances = self.calculate_haversine_distance(lon1,lat1,lon2,lat2,radius=1.0)
+        return np.argmin(distances.data)   
 
 
     def get_average_surface(self,
@@ -439,6 +506,7 @@ def initialize_surface(make_new_grid: bool = False,
     surf.data_dir = data_dir_path
     surf.grid_file = grid_file_path
     surf.elevation_file = elevation_file_path
+    surf.target_radius = target.radius
     
     return surf
 
