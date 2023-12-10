@@ -159,6 +159,51 @@ def create_catalogue(header,values):
 
 
 def validate_and_convert_location(location):
+    """
+    Validate and convert a given location into a standard structured format.
+
+    This function checks the input location data and converts it into a 
+    consistent structured array format if it is a valid location representation.
+    Valid formats for location include a tuple, a dictionary, or a structured 
+    array with latitude ('lat') and longitude ('lon').
+
+    Parameters
+    ----------
+    location : tuple, dict, np.ndarray
+        The input location data. It can be:
+        - A tuple with two elements (latitude, longitude).
+        - A dictionary with keys 'lat' and 'lon'.
+        - A structured numpy array with 'lat' and 'lon' fields.
+        - A list or an unstructured numpy array with two elements.
+
+    Returns
+    -------
+    np.ndarray
+        A structured numpy array with the location data in the format 
+        [('lat', 'f8'), ('lon', 'f8')].
+
+    Raises
+    ------
+    ValueError
+        If the input does not conform to one of the expected formats for location data.
+
+    Examples
+    --------
+    >>> validate_and_convert_location((45.0, -120.0))
+    array([(45., -120.)], dtype=[('lat', '<f8'), ('lon', '<f8')])
+
+    >>> validate_and_convert_location({'lat': 45.0, 'lon': -120.0})
+    array([(45., -120.)], dtype=[('lat', '<f8'), ('lon', '<f8')])
+
+    >>> validate_and_convert_location(np.array([(45.0, -120.0)], dtype=[('lat', 'f8'), ('lon', 'f8')]))
+    array([(45., -120.)], dtype=[('lat', '<f8'), ('lon', '<f8')])
+
+    Notes
+    -----
+    The function ensures that the output is always a structured numpy array with 
+    'lat' and 'lon' fields for consistent handling of location data across different
+    input formats.
+    """    
     # Check if it's already a tuple
     if isinstance(location, tuple) and len(location) == 2:
         return location
