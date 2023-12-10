@@ -15,6 +15,7 @@ from .core.crater import Crater, Projectile
 from .core.scale import Scale
 from .core.surface import Surface, initialize_surface, generate_grid, generate_data, elevation_to_cartesian
 from .core.morphology import Morphology
+from .core.production import Production, NeukumProductionFunction
 from .utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, float_like, normalize_coords
 from .utils.montecarlo import get_random_location, get_random_impact_angle, get_random_velocity, get_random_size, bounded_norm
 from .perlin import apply_noise
