@@ -123,17 +123,41 @@ class NeukumProductionFunction():
             The number of craters per square kilometer greater than Dkm in diameter at T=1 Ga
         """
         if Dkm < self.sfd_range[0]:
-            slope = self.DSFD(self.sfd_range[0])
+            slope = self.dNdD(self.sfd_range[0])
             A = self.CSFD(self.sfd_range[0])
             return A * (Dkm / self.sfd_range[0]) ** slope
         elif Dkm > self.sfd_range[1]:
-            slope = self.DSFD(self.sfd_range[1])
+            slope = self.dNdD(self.sfd_range[1])
             A = self.CSFD(self.sfd_range[1])
             return A * (Dkm / self.sfd_range[1]) ** slope
         else:
             logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
             return 10 ** logCSFD
 
+    def dNdD(self, Dkm):
+        """
+        Return the derivative of the cumulative size-frequency distribution as a function of diameter
+
+        Parameters
+        ----------
+        Dkm : numpy array
+            Diameters in units of km
+
+        Returns
+        -------
+        dNdD : numpy array
+            The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at T = 1 Ga
+        """        
+        
+        dcoef = self.sfd_coef[1:]
+        if Dkm < self.sfd_range[0]:
+            D = self.sfd_range[0]
+        elif Dkm > self.sfd_range[1]:
+            D = self.sfd_range[1]
+        else:
+            D = Dkm
+        
+        return sum(co * np.log10(Dkm) ** i for i, co in enumerate(dcoef))
 
     def DSFD(self, Dkm):
         """
@@ -150,21 +174,8 @@ class NeukumProductionFunction():
         DSFD : numpy array
             The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at T = 1 Ga
         """
-        if Dkm < self.sfd_range[0]:
-            # Extrapolate using the slope at the lower boundary
-            slope = self.DSFD(self.sfd_range[0])
-            A = self.DSFD(self.sfd_range[0])
-            return A * (Dkm / self.sfd_range[0]) ** (slope - 1)
-        elif Dkm > self.sfd_range[1]:
-            # Extrapolate using the slope at the upper boundary
-            slope = self.DSFD(self.sfd_range[1])
-            A = self.DSFD(self.sfd_range[1])
-            return A * (Dkm / self.sfd_range[1]) ** (slope - 1)
-        else:
-            # Calculate DSFD normally for values within the range
-            dcoef = self.sfd_coef[1:]
-            logDSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(dcoef))
-            return 10**(logDSFD) * self.CSFD(Dkm) / Dkm
+
+        return self.dNdD(Dkm) * self.CSFD(Dkm) / Dkm 
 
 
     def Tscale(self,T):
@@ -266,10 +277,11 @@ if __name__ == "__main__":
 
     tvals = [0.01,1.0,4.0]
     x_min = 1e-5
-    x_max = 1e3
-    y_min = 1e-9
-    y_max = 1e4
-    Dvals = np.logspace(np.log10(x_min), np.log10(x_max))
+    x_max = 1e4
+    y_min = 1e-12
+    y_max = 1e7
+    nD = 1000
+    Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
     for key in ax:
         npf = NeukumProductionFunction(target_name=key)
         ax[key].title.set_text(key)
@@ -285,10 +297,15 @@ if __name__ == "__main__":
         ax[key].xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
         ax[key].grid(True,which="minor",ls="-",lw=0.5,zorder=5)
         ax[key].grid(True,which="major",ls="-",lw=1,zorder=10)
+        inrange = (Dvals >= npf.sfd_range[0]) & (Dvals <= npf.sfd_range[1])
+        lo = Dvals < npf.sfd_range[0]
+        hi = Dvals > npf.sfd_range[1]
         for t in tvals:
             prod = npf.production_csfd(t,Dvals)
-            ax[key].plot(Dvals, prod, '-', color='black', linewidth=1.0, zorder=50)
-            labeli = 15
+            ax[key].plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
+            ax[key].plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=1.0, zorder=50)
+            ax[key].plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=1.0, zorder=50)
+            labeli = int(0.5*nD)
             ax[key].text(Dvals[labeli],prod[labeli],f"{t:.2f} Ga", ha="left", va="top",rotation=-72)
 
     plt.tick_params(axis='y', which='minor')
