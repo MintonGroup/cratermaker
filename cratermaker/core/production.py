@@ -68,11 +68,7 @@ class NeukumProductionFunction():
             "Moon" : [0.01,1000],
             "Mars" : [0.015,362]
         }
-        
-        time_range = {
-            "Moon" : [0.0,4.5],
-            "Mars" : [0.0,4.5]
-        }
+       
         
         #Exponential time constant ()
         self.tau = 6.93
@@ -83,19 +79,20 @@ class NeukumProductionFunction():
             "Mars" : Nexp * 10**(sfd_coef.get("Mars")[0]) / 10**(sfd_coef.get("Moon")[0])
         }   
         
+        self.max_time = 4.5  # Maximum time in Gy ago for which the production function is valid
+        
         self.sfd_coef = sfd_coef[self.target_name]
         self.time_coef = time_coef[self.target_name]
         self.sfd_range = sfd_range[self.target_name]
-        self.time_range = time_range[self.target_name]
        
         
     def csfd(self,
              diameter: float_like | Sequence[float_like] | np.ndarray,
              time_range: Tuple[float_like, float_like] = (-1000.0, 0.0),
-             check_time_range: bool=True
+             check_valid_time: bool=True
              ) -> Union[float_like, np.ndarray]:
         """
-        Return the cumulative size-frequency distribution form of the production function as a function of Time
+        Return the cumulative size-frequency distribution form of the production function over a given time range
 
         Parameters
         ----------
@@ -103,7 +100,7 @@ class NeukumProductionFunction():
             Crater diameter(s) to compute corresponding cumulative N values in units of m
         time_range : Tuple of 2 values, default=(-1000.0,0.0)
             time range relative to the present day to compute cumulative SFD in units of My. Defaults to the last 1 
-        check_time_range : bool, optional (default=True)
+        check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range
 
         Returns
@@ -111,6 +108,9 @@ class NeukumProductionFunction():
         float_like or numpy array of float_like
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
+            
+        Notes
+        ----- 
         """
        
         if time_range[0] > time_range[1]:
@@ -119,15 +119,26 @@ class NeukumProductionFunction():
         Dkm = diameter * 1e-3           # Convert m to km for internal functions
         time_Gy = -time_range * 1e-3    # Convert time range from My to Gy ago for internal functions
         
-        N0 = self.CSFD(Dkm) * self.time_to_N(time_Gy[0],check_time_range) * 1e6  
-        N1 = self.CSFD(Dkm) * self.time_to_N(time_Gy[1],check_time_range) * 1e6 
+        N0 = self.CSFD(Dkm) * self.time_to_N(time_Gy[0],check_valid_time) * 1e6  
+        N1 = self.CSFD(Dkm) * self.time_to_N(time_Gy[1],check_valid_time) * 1e6 
          
-        return  (N0 - N1)*1e6 # Convert from km^-2 to m^-2
+        return (N0 - N1)*1e6 # Convert from km^-2 to m^-2
+    
+    def csfd_to_time(self,
+                     diameter: float_like | Sequence[float_like] | np.ndarray,
+                     csfd: float_like | Sequence[float_like] | np.ndarray,
+                     check_valid_time: bool=True
+                     ) -> Union[float_like, np.ndarray]:
+        """
+        Return the time in the past for the given cumulative size-frequency distribution of craters as a function of diameter.
+        
+    
+        """
 
 
     def _N1(self,
             time: float_like | Sequence[float_like] | np.ndarray,
-            check_time_range:bool=True
+            check_valid_time:bool=True
             ) -> Union[float_like, np.ndarray]:
         """
         Return the N(1) value as a function of time for a particular production function model
@@ -136,7 +147,7 @@ class NeukumProductionFunction():
         ----------
         time : float_like or numpy array
             Time ago in units of 
-        check_time_range : bool, optional (default=True)
+        check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range        
 
         Returns
@@ -145,8 +156,8 @@ class NeukumProductionFunction():
             The number of craters per square kilometer greater than 1 km in diameter
         """
         retval =self.time_coef * (np.exp(self.tau * time) - 1.0) + 10 ** (self.sfd_coef[0]) * time
-        if check_time_range:
-            retval = np.where((time >= self.time_range[0]) & (time <= self.time_range[1]), retval, np.nan)
+        if check_valid_time:
+            retval = np.where(time <= self.max_time, retval, np.nan)
         return retval.item() if np.isscalar(time) else retval
     
 
@@ -235,7 +246,7 @@ class NeukumProductionFunction():
 
     def _time_to_Nrel(self,
                    time: float_like | Sequence[float_like] | np.ndarray, 
-                   check_time_range:bool=True
+                   check_valid_time:bool=True
                    )-> Union[float_like, np.ndarray]:
         """
         Return the number density of craters at a given time relative to time = 1 Gy ago.
@@ -244,7 +255,7 @@ class NeukumProductionFunction():
         ----------
         time : numpy array
             Time in units of 
-        check_time_range : bool, optional (default=True)
+        check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range
             
         Returns
@@ -253,12 +264,12 @@ class NeukumProductionFunction():
            Number density of craters at the given time 
         """
         
-        return self._N1(time,check_time_range) / self._CSFD(1.0)
+        return self._N1(time,check_valid_time) / self._CSFD(1.0)
 
 
     def _Nrel_to_time(self,
                   Nrel: float_like | Sequence[float_like] | np.ndarray,
-                  check_time_range:bool=True
+                  check_valid_time:bool=True
                   )-> Union[float_like, np.ndarray]:
         """
         Return the time in  for the given number density of craters relative to that at 1 Gy ago.
@@ -268,7 +279,7 @@ class NeukumProductionFunction():
         ----------
         Nrel : numpy array
             number density of craters relative to that at 1 Gy ago 
-        check_time_range : bool, optional (default=True)
+        check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range
 
         Returns
@@ -278,15 +289,15 @@ class NeukumProductionFunction():
         """
         
         def func(time,Nrel):
-            return self._time_to_Nrel(time,check_time_range=False) - Nrel 
+            return self._time_to_Nrel(time,check_valid_time=False) - Nrel 
         
         xtol = 1e-10
-        max_guess = self.time_range[1] * (1.0 - xtol)
+        max_guess = self.max_time * (1.0 - xtol)
         x0 = np.where(Nrel < max_guess, Nrel, max_guess)
         root_val, infodict, ier, mesg = fsolve(func=func, x0=x0, args=(Nrel), xtol=xtol, full_output=True) 
         if ier == 1:
-            if check_time_range:
-                root_val = np.where((root_val >= self.time_range[0]) & (root_val <= self.time_range[1]), root_val, np.nan)
+            if check_valid_time:
+                root_val = np.where(root_val <= self.max_time, root_val, np.nan)
             retval = root_val
         else:
             retval = Nrel

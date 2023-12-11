@@ -11,8 +11,8 @@ class TestNPF(unittest.TestCase):
         time_output = npf._Nrel_to_time(npf._time_to_Nrel(time_input))
         np.testing.assert_array_almost_equal(time_input, time_output, decimal=6)
         
-        bad_N = np.array([-1.0,1.0,npf._time_to_Nrel(4.6,check_time_range=False)])
-        expected_time = np.array([np.nan,1.0,np.nan])
+        bad_N = np.array([-1.0,1.0,npf._time_to_Nrel(4.6,check_valid_time=False)])
+        expected_time = np.array([-1.0,1.0,np.nan])
         time_output = npf._Nrel_to_time(bad_N)
         np.testing.assert_array_almost_equal(expected_time, time_output, decimal=1)
         
