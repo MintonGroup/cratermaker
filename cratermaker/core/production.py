@@ -3,7 +3,8 @@ from numpy.random import Generator
 from scipy.optimize import fsolve
 from cratermaker.core.target import Target
 from cratermaker.utils.general_utils import float_like
-from typing import Union, Sequence, Tuple
+from numpy.typing import ArrayLike
+from typing import Union, Sequence, Tuple, Callable
 
 class Production():
     """
@@ -142,10 +143,10 @@ class NeukumProductionFunction():
        
         
     def production_function(self,
-             diameter: float_like | Sequence[float_like] | np.ndarray,
+             diameter: float_like | Sequence[float_like] | ArrayLike,
              time_range: Tuple[float_like, float_like] = (-1000.0, 0.0),
              check_valid_time: bool=True
-             ) -> Union[float_like, np.ndarray]:
+             ) -> Union[float_like, ArrayLike]:
         """
         Return the cumulative size-frequency distribution of craters over a given time range and crater diameters.
 
@@ -179,18 +180,21 @@ class NeukumProductionFunction():
         Dkm = diameter * 1e-3           # Convert m to km for internal functions
         time_Gy = -np.array(time_range) * 1e-3    # Convert time range from My to Gy ago for internal functions
         
-        N0 = self._CSFD(Dkm) * self._time_to_Nrel(time_Gy[0],check_valid_time)
-        N1 = self._CSFD(Dkm) * self._time_to_Nrel(time_Gy[1],check_valid_time)
+        if self.target_name == "Projectile":
+            pass
+        else:
+            N0 = self._CSFD(Dkm) * self._time_to_Nrel(time_Gy[0],check_valid_time)
+            N1 = self._CSFD(Dkm) * self._time_to_Nrel(time_Gy[1],check_valid_time)
          
         return (N0 - N1)*1e6 # Convert from km^-2 to m^-2
    
     
     def csfd_to_time(self,
-                     diameter: float_like | Sequence[float_like] | np.ndarray,
-                     csfd: float_like | Sequence[float_like] | np.ndarray,
-                     reference_time: float_like | Sequence[float_like] | np.ndarray | None = None,
+                     diameter: float_like | Sequence[float_like] | ArrayLike,
+                     csfd: float_like | Sequence[float_like] | ArrayLike,
+                     reference_time: float_like | Sequence[float_like] | ArrayLike | None = None,
                      check_valid_time: bool=True
-                     ) -> Union[float_like, np.ndarray]:
+                     ) -> Union[float_like, ArrayLike]:
         """
         Return the time in My relative to a reference time given a cumulative number density of craters of a given diameter. 
         
@@ -241,9 +245,9 @@ class NeukumProductionFunction():
 
 
     def _N1(self,
-            time: float_like | Sequence[float_like] | np.ndarray,
+            time: float_like | Sequence[float_like] | ArrayLike,
             check_valid_time:bool=True
-            ) -> Union[float_like, np.ndarray]:
+            ) -> Union[float_like, ArrayLike]:
         """
         Return the N(1) value as a function of time for a particular production function model
 
@@ -266,8 +270,8 @@ class NeukumProductionFunction():
     
 
     def _CSFD(self,
-              Dkm: float_like | Sequence[float_like] | np.ndarray
-              ) -> Union[float_like, np.ndarray]:
+              Dkm: float_like | Sequence[float_like] | ArrayLike 
+              ) -> Union[float_like, ArrayLike]:
         """
         Return the cumulative size-frequency distribution at the reference time of 1 Gy ago. For diameter values outside 
         the range of the NPF, the CSFD is extrapolated using a power law.
@@ -298,8 +302,8 @@ class NeukumProductionFunction():
 
 
     def _dNdD(self, 
-              Dkm: float_like | Sequence[float_like] | np.ndarray
-              ) -> Union[float_like, np.ndarray]:
+              Dkm: float_like | Sequence[float_like] | ArrayLike
+              ) -> Union[float_like, ArrayLike]:
         """
         Return the derivative of the cumulative size-frequency distribution as a function of diameter. For diameter values outside 
         the range of the NPF, the derivative is extrapolated using a power law.
@@ -329,8 +333,8 @@ class NeukumProductionFunction():
 
 
     def _DSFD(self, 
-              Dkm: float_like | Sequence[float_like] | np.ndarray
-              ) -> Union[float_like, np.ndarray]:
+              Dkm: float_like | Sequence[float_like] | ArrayLike
+              ) -> Union[float_like, ArrayLike]:
         """
         Return the differential size-frequency distribution of craters as a function of diameter. 
 
@@ -349,9 +353,9 @@ class NeukumProductionFunction():
 
 
     def _time_to_Nrel(self,
-                   time: float_like | Sequence[float_like] | np.ndarray, 
+                   time: float_like | Sequence[float_like] | ArrayLike, 
                    check_valid_time:bool=True
-                   )-> Union[float_like, np.ndarray]:
+                   )-> Union[float_like, ArrayLike]:
         """
         Return the number density of craters at a given time relative to time = 1 Gy ago.
 
@@ -372,9 +376,9 @@ class NeukumProductionFunction():
 
 
     def _Nrel_to_time(self,
-                  Nrel: float_like | Sequence[float_like] | np.ndarray,
+                  Nrel: float_like | Sequence[float_like] | ArrayLike,
                   check_valid_time:bool=True
-                  )-> Union[float_like, np.ndarray]:
+                  )-> Union[float_like, ArrayLike]:
         """
         Return the time in  for the given number density of craters relative to that at 1 Gy ago.
         This is the inverse of _time_to_Nrel.
@@ -408,6 +412,32 @@ class NeukumProductionFunction():
             raise ValueError(f"_Nrel_to_time failed. {mesg}")
         return retval.item() if np.isscalar(Nrel) else retval
 
+
+def R_to_CSFD(R, D, Dlim):
+    """
+    Convert R values to cumulative N values for a given D.
+
+    Parameters
+    ----------
+    R : function 
+    D : float_like or numpy array
+        Diameters in units of km.
+
+    Returns
+    -------
+    float_like or numpy array
+        The cumulative number of craters greater than Dkm in diameter.
+    """
+    # Helper function to integrate
+    def integrand(D):
+        return R / D**3  # This is dN/dD
+
+    # Integrate R(D) / D^3 from Dkm to infinity
+    # You will need to choose an upper limit for the integration that makes sense for your problem
+    # For example, this could be the maximum diameter of craters you consider.
+    N, _ = quad(integrand, Dkm, Dlim)
+
+    return N
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt

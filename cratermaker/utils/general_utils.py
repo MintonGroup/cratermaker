@@ -1,6 +1,7 @@
 import json
 from typing import Union
 import numpy as np
+from numpy.typing import ArrayLike
 
 float_like = Union[float, int, np.number]
 
@@ -169,7 +170,7 @@ def validate_and_convert_location(location):
 
     Parameters
     ----------
-    location : tuple, dict, np.ndarray
+    location : tuple, dict, ArrayLike
         The input location data. It can be:
         - A tuple with two elements (latitude, longitude).
         - A dictionary with keys 'lat' and 'lon'.
@@ -178,7 +179,7 @@ def validate_and_convert_location(location):
 
     Returns
     -------
-    np.ndarray
+    ArrayLike
         A structured numpy array with the location data in the format 
         [('lat', 'f8'), ('lon', 'f8')].
 
@@ -209,7 +210,7 @@ def validate_and_convert_location(location):
         return location
     
     # Check if it's already a structured array with 'lat' and 'lon'
-    if isinstance(location, np.ndarray) and location.dtype.names == ('lat', 'lon'):
+    if isinstance(location, ArrayLike) and location.dtype.names == ('lat', 'lon'):
         return location
     
     # Check if it's a dictionary with 'lat' and 'lon' keys
@@ -218,7 +219,7 @@ def validate_and_convert_location(location):
             return np.array([(location['lat'], location['lon'])], dtype=[('lat', 'f8'), ('lon', 'f8')])
     
     # Check if it's a tuple, list, or array of the correct shape
-    if isinstance(location, (tuple, list, np.ndarray)):
+    if isinstance(location, (tuple, list, ArrayLike)):
         if len(location) == 2:
             return np.array([(location[0], location[1])], dtype=[('lat', 'f8'), ('lon', 'f8')])
     

@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.random import Generator
+from numpy.typing import ArrayLike
 from typing import Type
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location, float_like
@@ -32,7 +33,7 @@ class Crater:
                 radius: float_like = None,
                 transient_diameter: float_like = None,
                 transient_radius: float_like = None,
-                location: np.ndarray = None,
+                location: ArrayLike = None,
                 target: Target = None,
                 scale: Scale = None,
                 morphology: Morphology = None, 
@@ -209,7 +210,7 @@ class Projectile:
                 velocity: float_like = None,
                 angle: float_like = None,
                 vertical_velocity: float_like = None,
-                location: np.ndarray = None,
+                location: ArrayLike = None,
                 target: Target = None, 
                 scale = None,
                 rng: Generator = None,

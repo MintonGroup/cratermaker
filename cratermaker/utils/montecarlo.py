@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.random import Generator
+from numpy.typing import ArrayLike
 from typing import Union, Optional, Tuple
 from numpy.typing import NDArray
 from scipy.stats import truncnorm
@@ -8,7 +9,7 @@ from scipy.stats import maxwell
 def get_random_location(
                         size: int | Tuple[int, ...]=1, 
                         rng: Generator | None=None
-                        ) -> Union[np.float64, Tuple[np.float64, np.float64], np.ndarray]:
+                        ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
     """
     Computes random longitude and latitude values.
     

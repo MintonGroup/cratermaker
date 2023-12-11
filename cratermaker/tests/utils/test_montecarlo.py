@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+from numpy.typing import ArrayLike
 from cratermaker.utils.montecarlo import *
 from scipy.stats import chisquare, ks_2samp, poisson
 
@@ -56,7 +57,7 @@ class TestMonteCarlo(unittest.TestCase):
         angles = get_random_impact_angle(size=size)
 
         # Check type and shape
-        self.assertIsInstance(angles, np.ndarray)
+        self.assertIsInstance(angles, ArrayLike)
         self.assertEqual(angles.shape, (size,))
 
         # Check range (0 to np.pi/2 radians)
