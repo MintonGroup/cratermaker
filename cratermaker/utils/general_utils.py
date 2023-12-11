@@ -2,7 +2,7 @@ import json
 from typing import Union
 import numpy as np
 
-float_like = Union[float, int, np.float64, np.float32, np.int64, np.int32]
+float_like = Union[float, int, np.number]
 
 def to_config(obj):
     """
