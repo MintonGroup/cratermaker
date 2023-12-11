@@ -90,15 +90,4 @@ ELSE ()
     MESSAGE(STATUS "Quad precision real is not supported")
 ENDIF ()
 
-
-#####################################
-# Tell how to install this executable
-#####################################
-IF(MSVC)
-    SET(CMAKE_INSTALL_PREFIX "C:\\Program Files")
-    FILE(TO_CMAKE_PATH ${CMAKE_INSTALL_PREFIX} CMAKE_INSTALL_PREFIX)
-ELSE()
-    SET(CMAKE_INSTALL_PREFIX /usr/local)
-ENDIF(MSVC)
-
-
+INSTALL(TARGETS ${CRATERMAKER_LIBRARY} LIBRARY DESTINATION ${INSTALL_LIBDIR})
