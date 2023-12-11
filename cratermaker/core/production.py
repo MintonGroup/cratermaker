@@ -141,7 +141,7 @@ class NeukumProductionFunction():
         self.sfd_range = sfd_range[self.target_name]
        
         
-    def csfd(self,
+    def production_function(self,
              diameter: float_like | Sequence[float_like] | np.ndarray,
              time_range: Tuple[float_like, float_like] = (-1000.0, 0.0),
              check_valid_time: bool=True
@@ -444,7 +444,7 @@ if __name__ == "__main__":
             lo = Dvals < npf.sfd_range[0]
             hi = Dvals > npf.sfd_range[1]
             for t in tvals:
-                prod = npf.csfd(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
+                prod = npf.production_function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
                 prod *= 1e-6 # convert from m^-2 to km^-2
                 ax[key].plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
                 ax[key].plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
@@ -497,7 +497,7 @@ if __name__ == "__main__":
         lo = Dvals < npf.sfd_range[0]
         hi = Dvals > npf.sfd_range[1]
         t = 1.0
-        prod = npf.csfd(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
+        prod = npf.production_function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
         prod *= 1e-6 # convert from m^-2 to km^-2
         ax.plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
         ax.plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
@@ -506,6 +506,6 @@ if __name__ == "__main__":
         plt.tick_params(axis='y', which='minor')
         plt.tight_layout()
         plt.show()        
-    #plot_npf_csfd()
+    plot_npf_csfd()
     #plot_npf_N1_vs_T()
-    plot_npf_proj()
+    #plot_npf_proj()
