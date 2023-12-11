@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.random import Generator
-from scipy import optimize
+from scipy.optimize import fsolve
 from cratermaker.core.target import Target
 
 class Production():
@@ -69,7 +69,7 @@ class NeukumProductionFunction():
         
         time_range = {
             "Moon" : [0.0,4.5],
-            "Mars" : [0.0,4.0]
+            "Mars" : [0.0,4.5]
         }
         
         #Exponential time constant (Ga)
@@ -87,13 +87,13 @@ class NeukumProductionFunction():
         self.time_range = time_range[self.target_name]
         
         
-    def N1(self,T):
+    def N1(self,time,check_time_range=True):
         """
         Return the N(1) value as a function of time for a particular production function model
 
         Parameters
         ----------
-        T : numpy array
+        time : numpy array
             Time in units of Ga
 
         Returns
@@ -101,11 +101,11 @@ class NeukumProductionFunction():
         N1 : numpy array
             The number of craters per square kilometer greater than 1 km in diameter
         """
-        if T > self.time_range[0] and T <= self.time_range[1]:
-            return self.time_coef * (np.exp(self.tau * T) - 1.0) + 10 ** (self.sfd_coef[0])
-        else:
-            return np.nan
-
+        retval =self.time_coef * (np.exp(self.tau * time) - 1.0) + 10 ** (self.sfd_coef[0]) * time
+        if check_time_range:
+            retval = np.where((time >= self.time_range[0]) & (time <= self.time_range[1]), retval, np.nan)
+        return retval.item() if np.isscalar(time) else retval
+    
 
     def CSFD(self, Dkm):
         """
@@ -120,19 +120,21 @@ class NeukumProductionFunction():
         Returns
         -------
         CSFD : numpy array
-            The number of craters per square kilometer greater than Dkm in diameter at T=1 Ga
+            The number of craters per square kilometer greater than Dkm in diameter at time=1 Ga
         """
-        if Dkm < self.sfd_range[0]:
-            slope = self.dNdD(self.sfd_range[0])
-            A = self.CSFD(self.sfd_range[0])
-            return A * (Dkm / self.sfd_range[0]) ** slope
-        elif Dkm > self.sfd_range[1]:
-            slope = self.dNdD(self.sfd_range[1])
-            A = self.CSFD(self.sfd_range[1])
-            return A * (Dkm / self.sfd_range[1]) ** slope
-        else:
-            logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
-            return 10 ** logCSFD
+        def _CSFD(Dkm):
+            if Dkm < self.sfd_range[0]:
+                slope = self.dNdD(self.sfd_range[0])
+                A = self.CSFD(self.sfd_range[0])
+                return A * (Dkm / self.sfd_range[0]) ** slope
+            elif Dkm > self.sfd_range[1]:
+                slope = self.dNdD(self.sfd_range[1])
+                A = self.CSFD(self.sfd_range[1])
+                return A * (Dkm / self.sfd_range[1]) ** slope
+            else:
+                logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
+                return 10 ** logCSFD
+        return _CSFD(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD)(Dkm)
 
     def dNdD(self, Dkm):
         """
@@ -146,18 +148,20 @@ class NeukumProductionFunction():
         Returns
         -------
         dNdD : numpy array
-            The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at T = 1 Ga
+            The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at time = 1 Ga
         """        
+       
+        def _dNdD(Dkm): 
+            dcoef = self.sfd_coef[1:]
+            if Dkm < self.sfd_range[0]:
+                D = self.sfd_range[0]
+            elif Dkm > self.sfd_range[1]:
+                D = self.sfd_range[1]
+            else:
+                D = Dkm
+            return sum(co * np.log10(D) ** i for i, co in enumerate(dcoef))
         
-        dcoef = self.sfd_coef[1:]
-        if Dkm < self.sfd_range[0]:
-            D = self.sfd_range[0]
-        elif Dkm > self.sfd_range[1]:
-            D = self.sfd_range[1]
-        else:
-            D = Dkm
-        
-        return sum(co * np.log10(Dkm) ** i for i, co in enumerate(dcoef))
+        return _dNdD(Dkm) if np.isscalar(Dkm) else np.vectorize(_dNdD)(Dkm)
 
     def DSFD(self, Dkm):
         """
@@ -172,39 +176,37 @@ class NeukumProductionFunction():
         Returns
         -------
         DSFD : numpy array
-            The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at T = 1 Ga
+            The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at time = 1 Ga
         """
 
         return self.dNdD(Dkm) * self.CSFD(Dkm) / Dkm 
 
 
-    def Tscale(self,T):
+    def time_to_N(self,time,check_time_range=True):
         """
-        Return the number density of craters at time T relative to time T = 1 Ga
+        Return the number density of craters at time time relative to time time = 1 Ga
 
         Parameters
         ----------
-        T : numpy array
+        time : numpy array
             Time in units of Ga
 
         Returns
         -------
-        Tscale : numpy array
-            N1(T) / CSFD(Dkm = 1.0)
+        time_to_N : numpy array
+            N1(time) / CSFD(Dkm = 1.0)
         """
-        v_N1 = np.vectorize(self.N1)
-        v_CSFD = np.vectorize(self.CSFD)
         
-        return v_N1(T) / v_CSFD(1.0)
+        return self.N1(time,check_time_range) / self.CSFD(1.0)
 
 
-    def production_csfd(self,T,Dkm):
+    def production_csfd(self,time,Dkm,check_time_range=True):
         """
         Return the cumulative size-frequency distribution for a particular production function model as a function of Time
 
         Parameters
         ----------
-        T : numpy array
+        time : numpy array
             Time in units of Ga
         Dkm : numpy array
             Diameters in units of km
@@ -212,20 +214,19 @@ class NeukumProductionFunction():
         Returns
         -------
         production_csfd : numpy array
-            The cumulative number of craters per square kilometer greater than Dkm in diameter at time T T
+            The cumulative number of craters per square kilometer greater than Dkm in diameter at time time time
         """
-        v_CSFD = np.vectorize(self.CSFD)
          
-        return v_CSFD(Dkm) * self.Tscale(T)
+        return self.CSFD(Dkm) * self.time_to_N(time,check_time_range)
 
 
-    def production_dsfd(self,T,Dkm):
+    def production_dsfd(self,time,Dkm,check_time_range=True):
         """
         Return the differential size-frequency distribution for a particular production function model as a function of Time
 
         Parameters
         ----------
-        T : numpy array
+        time : numpy array
             Time in units of Ga
         Dkm : numpy array
             Diameters in units of km
@@ -233,81 +234,105 @@ class NeukumProductionFunction():
         Returns
         -------
         production_dsfd : numpy array
-            The cumulative number of craters per square kilometer greater than Dkm in diameter at time T T
+            The cumulative number of craters per square kilometer greater than Dkm in diameter at time time time
         """
-        v_DSFD = np.vectorize(self.DSFD)
-        return v_DSFD(Dkm) * self.Tscale(T)
+        return self.DSFD(Dkm) * self.time_to_N(time)
 
 
-    def T_from_scale(self,TS):
+    def N_to_time(self,N,check_time_range=True):
         """
         Return the time in Ga for the given number density of craters relative to that at 1 Ga.
-        This is the inverse of Tscale
+        This is the inverse of time_to_N
 
         Parameters
         ----------
-        TS : numpy array
+        N : numpy array
             number density of craters relative to that at 1 Ga
 
         Returns
         -------
-        T_from_scale : numpy array
+        N_to_time : numpy array
             The time in Ga
         """
-        def func(S):
-            return self.Tscale(S) - TS
-        return optimize.fsolve(func, np.full_like(TS,4.4),xtol=1e-10)
+        
+        def func(time,N):
+            return self.time_to_N(time,check_time_range=False) - N 
+        
+        xtol = 1e-10
+        max_guess = self.time_range[1] * (1.0 - xtol)
+        x0 = np.where(N < max_guess, N, max_guess)
+        root_val, infodict, ier, mesg = fsolve(func=func, x0=x0, args=(N), xtol=xtol, full_output=True) 
+        if ier == 1:
+            if check_time_range:
+                root_val = np.where((root_val >= self.time_range[0]) & (root_val <= self.time_range[1]), root_val, np.nan)
+            retval = root_val
+        else:
+            retval = N
+            raise ValueError(f"N_to_time failed. {mesg}")
+        return retval.item() if np.isscalar(N) else retval
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
-    print("Tests go here")
-    npf = NeukumProductionFunction(target_name="Moon")
-    print(f"T = 1 Ga, N(1) = {npf.production_csfd(1.0,1.00)}")
-    print(f"T = 4.2 Ga, N(1) = {npf.production_csfd(4.2,1.00)}")
-    print("Tscale test: Should return all 1s")
-    Ttest = np.logspace(-4,np.log10(4.4),num=100)
-    Tres = npf.T_from_scale(npf.Tscale(Ttest))
-    print(Ttest / Tres)
 
-    CSFDfig = plt.figure(1, figsize=(8, 7))
-    ax = {'Moon': CSFDfig.add_subplot(121),
-          'Mars': CSFDfig.add_subplot(122)}
+    def plot_npf_csfd():
+        CSFDfig = plt.figure(1, figsize=(8, 7))
+        ax = {'Moon': CSFDfig.add_subplot(121),
+            'Mars': CSFDfig.add_subplot(122)}
 
-    tvals = [0.01,1.0,4.0]
-    x_min = 1e-5
-    x_max = 1e4
-    y_min = 1e-12
-    y_max = 1e7
-    nD = 1000
-    Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
-    for key in ax:
-        npf = NeukumProductionFunction(target_name=key)
-        ax[key].title.set_text(key)
-        ax[key].set_xscale('log')
-        ax[key].set_yscale('log')
-        ax[key].set_ylabel('$\mathregular{N_{>D} (km^{-2})}$')
-        ax[key].set_xlabel('Diameter (km)')
-        ax[key].set_xlim(x_min, x_max)
-        ax[key].set_ylim(y_min, y_max)
-        ax[key].yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-        ax[key].yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
-        ax[key].xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-        ax[key].xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
-        ax[key].grid(True,which="minor",ls="-",lw=0.5,zorder=5)
-        ax[key].grid(True,which="major",ls="-",lw=1,zorder=10)
-        inrange = (Dvals >= npf.sfd_range[0]) & (Dvals <= npf.sfd_range[1])
-        lo = Dvals < npf.sfd_range[0]
-        hi = Dvals > npf.sfd_range[1]
-        for t in tvals:
-            prod = npf.production_csfd(t,Dvals)
-            ax[key].plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
-            ax[key].plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=1.0, zorder=50)
-            ax[key].plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=1.0, zorder=50)
-            labeli = int(0.5*nD)
-            ax[key].text(Dvals[labeli],prod[labeli],f"{t:.2f} Ga", ha="left", va="top",rotation=-72)
+        tvals = [0.01,1.0,4.0]
+        x_min = 1e-5
+        x_max = 1e4
+        y_min = 1e-12
+        y_max = 1e7
+        nD = 1000
+        Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
+        for key in ax:
+            npf = NeukumProductionFunction(target_name=key)
+            ax[key].title.set_text(key)
+            ax[key].set_xscale('log')
+            ax[key].set_yscale('log')
+            ax[key].set_ylabel('$\mathregular{N_{>D} (km^{-2})}$')
+            ax[key].set_xlabel('Diameter (km)')
+            ax[key].set_xlim(x_min, x_max)
+            ax[key].set_ylim(y_min, y_max)
+            ax[key].yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+            ax[key].yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
+            ax[key].xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+            ax[key].xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
+            ax[key].grid(True,which="minor",ls="-",lw=0.5,zorder=5)
+            ax[key].grid(True,which="major",ls="-",lw=1,zorder=10)
+            inrange = (Dvals >= npf.sfd_range[0]) & (Dvals <= npf.sfd_range[1])
+            lo = Dvals < npf.sfd_range[0]
+            hi = Dvals > npf.sfd_range[1]
+            for t in tvals:
+                prod = npf.production_csfd(t,Dvals)
+                ax[key].plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
+                ax[key].plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=1.0, zorder=50)
+                ax[key].plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=1.0, zorder=50)
+                labeli = int(0.5*nD)
+                ax[key].text(Dvals[labeli],prod[labeli],f"{t:.2f} Ga", ha="left", va="top",rotation=-72)
 
-    plt.tick_params(axis='y', which='minor')
-    plt.tight_layout()
-    plt.show()
+        plt.tick_params(axis='y', which='minor')
+        plt.tight_layout()
+        plt.show()
+        
+    def plot_npf_N1_vs_T():
+        fig = plt.figure(1, figsize=(8, 4))
+        ax = fig.add_subplot(111)
+        ax.set_yscale('log')
+        ax.set_ylabel('$\mathregular{N_{1} (km^{-2})}$')
+        ax.set_xlabel('Time (Ga)')
+        ax.set_xlim(4.5, 0)
+        #ax.set_ylim(1e-1, 1e5)
+        npf = NeukumProductionFunction(target_name="Moon")
+        tvals = np.linspace(4.5, 0.0, num=1000)
+        v_N1 = np.vectorize(npf.N1)
+        N1 = v_N1(tvals)
+        ax.plot(tvals, N1, '-', color='black', linewidth=1.0, zorder=50)
+        plt.tight_layout()
+        plt.show() 
+        
+    plot_npf_csfd()
+    plot_npf_N1_vs_T()
