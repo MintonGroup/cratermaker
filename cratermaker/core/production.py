@@ -47,7 +47,7 @@ class NeukumProductionFunction():
     
     def __init__(self, target_name: str = "Moon"):
         
-        valid_target_name = ["Moon", "Mars"]
+        valid_target_name = ["Moon", "Mars", "Projectile"]
         
         if isinstance(target_name, str):
             if target_name in valid_target_name:
@@ -65,7 +65,6 @@ class NeukumProductionFunction():
         # Projectile PF from: Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters 
         #    and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1–34. 
         #    https://doi.org/10.1007/978-94-010-0712-2_1
-
 
         sfd_coef = {
                 "Moon" : np.array(
@@ -121,6 +120,7 @@ class NeukumProductionFunction():
         sfd_range = {
             "Moon" : np.array([0.01,1000]),
             "Mars" : np.array([0.015,362]),
+            "Projectile" : np.array([0.01, 500.0]) # Estimated based on Fig. 16 of Ivanov et al. (2001)
         }
        
         
@@ -130,7 +130,8 @@ class NeukumProductionFunction():
 
         time_coef = {
             "Moon" : Nexp,
-            "Mars" : Nexp * 10**(sfd_coef.get("Mars")[0]) / 10**(sfd_coef.get("Moon")[0])
+            "Mars" : Nexp * 10**(sfd_coef.get("Mars")[0]) / 10**(sfd_coef.get("Moon")[0]),
+            "Projectile": Nexp * 10**(sfd_coef.get("Projectile")[0]) / 10**(sfd_coef.get("Moon")[0])
         }   
         
         self.max_time = 4.5  # Maximum time in Gy ago for which the production function is valid
@@ -413,9 +414,9 @@ if __name__ == "__main__":
     import matplotlib.ticker as ticker
 
     def plot_npf_csfd():
-        CSFDfig = plt.figure(1, figsize=(8, 7))
-        ax = {'Moon': CSFDfig.add_subplot(121),
-            'Mars': CSFDfig.add_subplot(122)}
+        fig = plt.figure(1, figsize=(8, 7))
+        ax = {'Moon': fig.add_subplot(121),
+            'Mars': fig.add_subplot(122)}
 
         tvals = [0.01,1.0,4.0]
         x_min = 1e-3
@@ -468,6 +469,43 @@ if __name__ == "__main__":
         ax.plot(tvals, npf._N1(tvals), '-', color='black', linewidth=1.0, zorder=50)
         plt.tight_layout()
         plt.show() 
-        
-    plot_npf_csfd()
-    plot_npf_N1_vs_T()
+
+    def plot_npf_proj():
+        fig = plt.figure(1, figsize=(4, 7))
+        ax = fig.add_subplot(111)
+
+        x_min = 1e-3
+        x_max = 1e4
+        y_min = 1e-12
+        y_max = 1e6
+        nD = 1000
+        Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
+        npf = NeukumProductionFunction(target_name="Projectile")
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_ylabel('$\mathregular{N_{>D} (km^{-2})}$')
+        ax.set_xlabel('Projectile Diameter (km)')
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_min, y_max)
+        ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+        ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
+        ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+        ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
+        ax.grid(True,which="minor",ls="-",lw=0.5,zorder=5)
+        ax.grid(True,which="major",ls="-",lw=1,zorder=10)
+        inrange = (Dvals >= npf.sfd_range[0]) & (Dvals <= npf.sfd_range[1])
+        lo = Dvals < npf.sfd_range[0]
+        hi = Dvals > npf.sfd_range[1]
+        t = 1.0
+        prod = npf.csfd(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
+        prod *= 1e-6 # convert from m^-2 to km^-2
+        ax.plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
+        ax.plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
+        ax.plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=2.0, zorder=50)
+
+        plt.tick_params(axis='y', which='minor')
+        plt.tight_layout()
+        plt.show()        
+    #plot_npf_csfd()
+    #plot_npf_N1_vs_T()
+    plot_npf_proj()
