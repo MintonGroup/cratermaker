@@ -1,10 +1,11 @@
 import numpy as np
 from numpy.random import Generator
 from scipy.optimize import fsolve
+from scipy import integrate
 from cratermaker.core.target import Target
 from cratermaker.utils.general_utils import float_like
 from numpy.typing import ArrayLike
-from typing import Union, Sequence, Tuple, Callable
+from typing import Union, Sequence, Tuple, Callable, Any
 
 class Production():
     """
@@ -44,19 +45,19 @@ class Production():
         return
     
 
-class NeukumProductionFunction():
+class NeukumProductionFunction(Production):
     
-    def __init__(self, target_name: str = "Moon"):
+    def __init__(self, model_name: str = "Moon"):
         
         valid_target_name = ["Moon", "Mars", "Projectile"]
         
-        if isinstance(target_name, str):
-            if target_name in valid_target_name:
-                self.target_name = target_name
+        if isinstance(model_name, str):
+            if model_name in valid_target_name:
+                self.model_name = model_name
             else:
-                raise ValueError(f"Invalid target_name {target_name}. Must be one of {valid_target_name}")
+                raise ValueError(f"Invalid model_name {model_name}. Must be one of {valid_target_name}")
         else:
-            raise ValueError("target_name must be a string")
+            raise ValueError("model_name must be a string")
         
         # The Neukum production function for the Moon and Mars
         # Lunar PF from: Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
@@ -121,25 +122,26 @@ class NeukumProductionFunction():
         sfd_range = {
             "Moon" : np.array([0.01,1000]),
             "Mars" : np.array([0.015,362]),
-            "Projectile" : np.array([0.01, 500.0]) # Estimated based on Fig. 16 of Ivanov et al. (2001)
+            "Projectile" : np.array([0.0001, 200.0]) # Estimated based on Fig. 16 of Ivanov et al. (2001)
         }
        
-        
         #Exponential time constant ()
         self.tau = 6.93
         Nexp = 5.44e-14
+       
+        Nexp_proj = 1.0 / 8.17e-10 
 
         time_coef = {
             "Moon" : Nexp,
             "Mars" : Nexp * 10**(sfd_coef.get("Mars")[0]) / 10**(sfd_coef.get("Moon")[0]),
-            "Projectile": Nexp * 10**(sfd_coef.get("Projectile")[0]) / 10**(sfd_coef.get("Moon")[0])
+            "Projectile": Nexp_proj,
         }   
         
         self.max_time = 4.5  # Maximum time in Gy ago for which the production function is valid
         
-        self.sfd_coef = sfd_coef[self.target_name]
-        self.time_coef = time_coef[self.target_name]
-        self.sfd_range = sfd_range[self.target_name]
+        self.sfd_coef = sfd_coef[self.model_name]
+        self.time_coef = time_coef[self.model_name]
+        self.sfd_range = sfd_range[self.model_name]
        
         
     def production_function(self,
@@ -155,7 +157,7 @@ class NeukumProductionFunction():
         diameter : float_like or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
         time_range : Tuple of 2 values, default=(-1000.0,0.0)
-            time range relative to the present day to compute cumulative SFD in units of My. Defaults to the last 1 
+            time range relative to the present day to compute cumulative SFD in units of My. Defaults to the last 1000 My
         check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range
 
@@ -173,20 +175,20 @@ class NeukumProductionFunction():
         coefficients from Neukum (1983). The correct value is 10**(-3.0876) = 8.17e-4. We compute the value from the coefficients 
         in our implementation of the chronology function.
         """
-       
         if time_range[0] > time_range[1]:
             raise ValueError("time_range[0] must be less than time_range[1]")
          
-        Dkm = diameter * 1e-3           # Convert m to km for internal functions
-        time_Gy = -np.array(time_range) * 1e-3    # Convert time range from My to Gy ago for internal functions
+        Dkm = diameter * 1e-3 # Convert m to km for internal functions
+        time_Gy = -np.array(time_range) * 1e-3  # Convert time range from My to Gy ago for internal functions
         
-        if self.target_name == "Projectile":
-            pass
+        if self.model_name == "Projectile":
+            N0 = R_to_CSFD(R=self._CSFD, D=Dkm) * self._time_to_Nrel(time_Gy[0],check_valid_time)
+            N1 = R_to_CSFD(R=self._CSFD, D=Dkm) * self._time_to_Nrel(time_Gy[1],check_valid_time)
         else:
             N0 = self._CSFD(Dkm) * self._time_to_Nrel(time_Gy[0],check_valid_time)
             N1 = self._CSFD(Dkm) * self._time_to_Nrel(time_Gy[1],check_valid_time)
          
-        return (N0 - N1)*1e6 # Convert from km^-2 to m^-2
+        return (N0 - N1)*1e-6 # Convert from km^-2 to m^-2
    
     
     def csfd_to_time(self,
@@ -413,31 +415,50 @@ class NeukumProductionFunction():
         return retval.item() if np.isscalar(Nrel) else retval
 
 
-def R_to_CSFD(R, D, Dlim):
+def R_to_CSFD(
+              R: Callable[Union[float_like, ArrayLike], Union[float_like, ArrayLike]], 
+              D: Union[float_like, ArrayLike],
+              Dlim: float_like = 1e6,
+              *args: Any,
+            ) -> Union[float_like, ArrayLike]:
     """
-    Convert R values to cumulative N values for a given D.
+    Convert R values to cumulative N values for a given D using the R-plot function.
 
     Parameters
     ----------
-    R : function 
-    D : float_like or numpy array
+    R : R = f(D) 
+        A function that computes R given D.
+    D : float_like or ArrayLike
         Diameters in units of km.
+    Dlim : float_like
+        Upper limit on the diameter over which to evaluate the integral
+    *args : Any
+        Additional arguments to pass to the R function
 
     Returns
     -------
-    float_like or numpy array
-        The cumulative number of craters greater than Dkm in diameter.
+    float or ArrayLike
+        The cumulative number of craters greater than D in diameter.
     """
-    # Helper function to integrate
-    def integrand(D):
-        return R / D**3  # This is dN/dD
+    def _R_to_CSFD_scalar(R, D, Dlim, *args):
+        # Helper function to integrate
+        def integrand(D):
+            return R(D,*args) / D**3  # This is dN/dD
+        
+        N = 0.0
+        D_i = D
+        while D_i < Dlim:
+            D_next = D_i * np.sqrt(2.0) 
+            D_mid = (D_i + D_next) / 2  # Mid-point of the bin
+            bin_width = D_next - D_i
+            R_value = integrand(D_mid)
+            N += R_value * bin_width
+            D_i = D_next  # Move to the next bin
+    
+        return N
+    
+    return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
 
-    # Integrate R(D) / D^3 from Dkm to infinity
-    # You will need to choose an upper limit for the integration that makes sense for your problem
-    # For example, this could be the maximum diameter of craters you consider.
-    N, _ = quad(integrand, Dkm, Dlim)
-
-    return N
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -456,7 +477,7 @@ if __name__ == "__main__":
         nD = 1000
         Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
         for key in ax:
-            npf = NeukumProductionFunction(target_name=key)
+            npf = NeukumProductionFunction(model_name=key)
             ax[key].title.set_text(key)
             ax[key].set_xscale('log')
             ax[key].set_yscale('log')
@@ -475,7 +496,7 @@ if __name__ == "__main__":
             hi = Dvals > npf.sfd_range[1]
             for t in tvals:
                 prod = npf.production_function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
-                prod *= 1e-6 # convert from m^-2 to km^-2
+                prod *= 1e6 # convert from m^-2 to km^-2
                 ax[key].plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
                 ax[key].plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
                 ax[key].plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=2.0, zorder=50)
@@ -494,26 +515,27 @@ if __name__ == "__main__":
         ax.set_xlabel('Time (Gy ago)')
         ax.set_xlim(4.5, 0)
         #ax.set_ylim(1e-1, 1e5)
-        npf = NeukumProductionFunction(target_name="Moon")
+        npf = NeukumProductionFunction(model_name="Moon")
         tvals = np.linspace(4.5, 0.0, num=1000)
         ax.plot(tvals, npf._N1(tvals), '-', color='black', linewidth=1.0, zorder=50)
         plt.tight_layout()
         plt.show() 
 
-    def plot_npf_proj():
+    
+    def plot_npf_proj_rplot():
         fig = plt.figure(1, figsize=(4, 7))
         ax = fig.add_subplot(111)
 
-        x_min = 1e-3
-        x_max = 1e4
-        y_min = 1e-12
-        y_max = 1e6
+        x_min = 1e-5
+        x_max = 1e3
+        y_min = 1e-1
+        y_max = 1e2
         nD = 1000
         Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
-        npf = NeukumProductionFunction(target_name="Projectile")
+        npf = NeukumProductionFunction(model_name="Projectile")
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_ylabel('$\mathregular{N_{>D} (km^{-2})}$')
+        ax.set_ylabel('$\mathregular{R}$')
         ax.set_xlabel('Projectile Diameter (km)')
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(y_min, y_max)
@@ -527,15 +549,54 @@ if __name__ == "__main__":
         lo = Dvals < npf.sfd_range[0]
         hi = Dvals > npf.sfd_range[1]
         t = 1.0
-        prod = npf.production_function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
-        prod *= 1e-6 # convert from m^-2 to km^-2
+        prod = npf._CSFD(Dkm=Dvals)
         ax.plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
         ax.plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
         ax.plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=2.0, zorder=50)
 
         plt.tick_params(axis='y', which='minor')
         plt.tight_layout()
-        plt.show()        
-    plot_npf_csfd()
+        plt.show()          
+
+    
+    def plot_npf_proj_csfd():
+        fig = plt.figure(1, figsize=(4, 7))
+        ax = fig.add_subplot(111)
+
+        x_min = 1e-5
+        x_max = 1e4
+        y_min = 1e-7
+        y_max = 1e13
+        nD = 1000
+        Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
+        npf = NeukumProductionFunction(model_name="Projectile")
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_ylabel('$\mathregular{N_{>D}}$')
+        ax.set_xlabel('Projectile Diameter (km)')
+        ax.set_xlim(x_min, x_max)
+        #ax.set_ylim(y_min, y_max)
+        ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+        ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
+        ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+        ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
+        ax.grid(True,which="minor",ls="-",lw=0.5,zorder=5)
+        ax.grid(True,which="major",ls="-",lw=1,zorder=10)
+        inrange = (Dvals >= npf.sfd_range[0]) & (Dvals <= npf.sfd_range[1])
+        lo = Dvals < npf.sfd_range[0]
+        hi = Dvals > npf.sfd_range[1]
+        t = 1.0
+        prod = npf.production_function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
+        prod *= 1e6 # convert from m^-2 to km^-2
+        ax.plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
+        ax.plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
+        ax.plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=2.0, zorder=50)
+
+        plt.tick_params(axis='y', which='minor')
+        plt.tight_layout()
+        plt.show()    
+            
+    #plot_npf_csfd()
     #plot_npf_N1_vs_T()
-    #plot_npf_proj()
+    #plot_npf_proj_rplot()
+    plot_npf_proj_csfd()
