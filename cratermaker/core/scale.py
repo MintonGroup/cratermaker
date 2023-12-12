@@ -300,8 +300,7 @@ class Scale():
         transient_radius = (3 * cvol / np.pi)**(1.0/3.0)
         transient_radius_gravscale = (3 * cvolg / np.pi)**(1.0/3.0)
         
-        # TODO: Compute whether or not to use gravity scaling or strength scaling
-        transient_diameter = transient_radius_gravscale * 2
+        transient_diameter = transient_radius * 2
         
         if transient_diameter < projectile.diameter:
             transient_diameter = projectile.diameter

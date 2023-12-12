@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.random import Generator
 from scipy.optimize import fsolve
+from scipy.special import lambertw
 from cratermaker.core.target import Target
 from cratermaker.utils.general_utils import FloatLike
 from numpy.typing import ArrayLike
@@ -168,17 +169,17 @@ class Production():
             Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
         slope : float
             The slope of the power law production function. 
-            Defaults to -3.32 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
+            Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
         """
         # Default values that are approximately equal to the NPF for the Moon
         default_N1_coef = {
-            "crater" : 7.9e-3, 
-            "projectile" : 2.2e-8
+            "crater" : 7.88e-3, 
+            "projectile" : 2.18e-8
             }
        
         default_slope = {
-            "crater" : -3.32, 
-            "projectile" : -2.6
+            "crater" : -3.33, 
+            "projectile" : -2.63
             } 
         # Set the power law parameters for the production function along with defaults 
         if N1_coef is None:
@@ -434,20 +435,28 @@ class NeukumProduction(Production):
                     N1 = np.where(time >= min_time, N1, np.nan) 
             return N1.item() if np.isscalar(time) else N1
         
-        N1_reference = 10**(self.sfd_coef[0])
+        N1_reference = _N1(1.0) 
         N1_values = _N1(time_Gy,check_valid_time)
         N1_values /= N1_reference
         
         return  N1_values 
+   
     
     def _time_from_N(self, 
                      N: FloatLike | Sequence[FloatLike] | ArrayLike,
                      D: FloatLike | Sequence[FloatLike] | ArrayLike,
                      ) -> Union[FloatLike, ArrayLike]:
         
-        def inv_chrono_func(N):
-            
-            A = self.Cexp 
+        def _inv_chrono_func(N1):
+            N1_reference = self.Cexp * (np.exp(1.0/self.tau) - 1.0) + self.Clin 
+            A = self.Cexp / N1_reference
+            B = self.Clin / N1_reference
+            t = A/B + N1/B - self.tau * lambertw(-A * np.exp((A + N1)/(B * self.tau)) / (B * self.tau)).real
+            return t 
+
+        N1 = self.size_frequency_distribution(D)  
+        t = _inv_chrono_func(N/N1)
+        return  t
             
     def size_frequency_distribution(self,diameter: FloatLike | Sequence[FloatLike] | ArrayLike,) -> Union[FloatLike, ArrayLike]:
         """
@@ -605,9 +614,10 @@ def R_to_CSFD(
 
 
 if __name__ == "__main__":
+    from scipy.optimize import curve_fit
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
-
+    
     def plot_npf_csfd():
         fig = plt.figure(1, figsize=(8, 7))
         ax = {'Moon': fig.add_subplot(121),
@@ -669,7 +679,42 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show() 
 
-    
+    def plot_npf_fit():
+        # Define the power-law function
+        def power_law(D, N1_coef, slope):
+            return N1_coef * D ** slope
+       
+        # Create the lunar crater and projectile production functions 
+        crater_production = NeukumProduction(model="Moon")
+        projectile_production = NeukumProduction(model="Projectile")
+
+        # Make a population of sizes that spans the size of interest
+        Dc = np.logspace(-1,2)
+        Di = np.logspace(-2,1)
+
+        # Compute the reference N values (N>D at 1 My)
+        Nc = crater_production.function(diameter=Dc,time=1.0)
+        Ni = projectile_production.function(diameter=Di,time=1.0)
+       
+        D1proj = 69.5 # Approximate diameter of crater made by a 1 m projectile using the default Cratermaker scaling relationships
+         
+        N1_c = crater_production.function(diameter = D1proj, time = 1.0)
+        N1_p = projectile_production.function(diameter = 1.0, time = 1.0)        
+
+        # Fit the power-law function to the crater data
+        params_crater, _ = curve_fit(power_law, Dc, Nc)
+
+        # Fit the power-law function to the projectile data
+        params_projectile, _ = curve_fit(power_law, Di, Ni * N1_c / N1_p)
+
+        # Extracting the parameters
+        N1_coef_crater, slope_crater = params_crater
+        N1_coef_projectile, slope_projectile = params_projectile
+
+        # Output the results
+        print("Crater Production Fit Parameters: N1_coef =", N1_coef_crater, ", slope =", slope_crater)
+        print("Projectile Production Fit Parameters: N1_coef =", N1_coef_projectile, ", slope =", slope_projectile)
+
     def plot_npf_proj_rplot():
         fig = plt.figure(1, figsize=(4, 7))
         ax = fig.add_subplot(111)
@@ -705,7 +750,6 @@ if __name__ == "__main__":
         plt.tick_params(axis='y', which='minor')
         plt.tight_layout()
         plt.show()          
-
     
     def plot_npf_proj_csfd():
         fig = plt.figure(1, figsize=(4, 7))
