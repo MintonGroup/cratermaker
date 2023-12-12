@@ -45,19 +45,19 @@ class Production():
         return
     
 
-class NeukumProductionFunction(Production):
+class NeukumProduction(Production):
     
-    def __init__(self, model_name: str = "Moon"):
+    def __init__(self, model: str = "Moon"):
         
         valid_target_name = ["Moon", "Mars", "Projectile"]
         
-        if isinstance(model_name, str):
-            if model_name in valid_target_name:
-                self.model_name = model_name
+        if isinstance(model, str):
+            if model in valid_target_name:
+                self.model = model
             else:
-                raise ValueError(f"Invalid model_name {model_name}. Must be one of {valid_target_name}")
+                raise ValueError(f"Invalid model {model}. Must be one of {valid_target_name}")
         else:
-            raise ValueError("model_name must be a string")
+            raise ValueError("model must be a string")
         
         # The Neukum production function for the Moon and Mars
         # Lunar PF from: Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
@@ -85,66 +85,65 @@ class NeukumProductionFunction(Production):
                         +5.54e-5
                     ]),
                 "Mars" : np.array(
-                [
-                    -3.384, 
-                    -3.197,
-                    +1.257,
-                    +0.7915,
-                    -0.4861,
-                    -0.3630,
-                    +0.1016,
-                    +6.756e-2,
-                    -1.181e-2,
-                    -4.753e-3,
-                    +6.233e-4,
-                    +5.805e-5
-                ]),
+                    [
+                        -3.384, 
+                        -3.197,
+                        +1.257,
+                        +0.7915,
+                        -0.4861,
+                        -0.3630,
+                        +0.1016,
+                        +6.756e-2,
+                        -1.181e-2,
+                        -4.753e-3,
+                        +6.233e-4,
+                        +5.805e-5
+                    ]),
                 "Projectile" : np.array(
-                [
-                    0,
-                    +1.375458,
-                    +1.272521e-1,
-                    -1.282166,
-                    -3.074558e-1,
-                    +4.149280e-1,
-                    +1.910668e-1,
-                    -4.260980e-2,
-                    -3.976305e-2,
-                    -3.180179e-3,
-                    +2.799369e-3,
-                    +6.892223e-4,
-                    +2.614385e-6,
-                    -1.416178e-5,
-                    -1.191124e-6
-                ]
+                    [
+                        0,
+                        +1.375458,
+                        +1.272521e-1,
+                        -1.282166,
+                        -3.074558e-1,
+                        +4.149280e-1,
+                        +1.910668e-1,
+                        -4.260980e-2,
+                        -3.976305e-2,
+                        -3.180179e-3,
+                        +2.799369e-3,
+                        +6.892223e-4,
+                        +2.614385e-6,
+                        -1.416178e-5,
+                        -1.191124e-6
+                    ]
                 )
             }
         sfd_range = {
-            "Moon" : np.array([0.01,1000]),
-            "Mars" : np.array([0.015,362]),
-            "Projectile" : np.array([0.0001, 200.0]) # Estimated based on Fig. 16 of Ivanov et al. (2001)
-        }
+                "Moon" : np.array([0.01,1000]),
+                "Mars" : np.array([0.015,362]),
+                "Projectile" : np.array([0.0001, 200.0]) # Estimated based on Fig. 16 of Ivanov et al. (2001)
+            }
        
-        #Exponential time constant ()
+        #Exponential time constant 
         self.tau = 6.93
         Nexp = 5.44e-14
-       
-        Nexp_proj = 1.0 / 8.17e-10 
+        Nexp_proj = 1.0 
 
         time_coef = {
-            "Moon" : Nexp,
-            "Mars" : Nexp * 10**(sfd_coef.get("Mars")[0]) / 10**(sfd_coef.get("Moon")[0]),
-            "Projectile": Nexp_proj,
-        }   
+                "Moon" : Nexp,
+                "Mars" : Nexp * 10**(sfd_coef.get("Mars")[0]) / 10**(sfd_coef.get("Moon")[0]),
+                "Projectile": Nexp_proj * Nexp_proj * 10**(sfd_coef.get("Projectile")[0]) / 10**(sfd_coef.get("Moon")[0]),
+            }   
         
-        self.max_time = 4.5  # Maximum time in Gy ago for which the production function is valid
+        self.valid_time = (-4500.0,None)  # Range over which the production function is valid
         
-        self.sfd_coef = sfd_coef[self.model_name]
-        self.time_coef = time_coef[self.model_name]
-        self.sfd_range = sfd_range[self.model_name]
+        self.sfd_coef = sfd_coef[self.model]
+        self.time_coef = time_coef[self.model]
+        self.sfd_range = sfd_range[self.model]
        
         
-    def production_function(self,
+    def function(self,
              diameter: float_like | Sequence[float_like] | ArrayLike,
              time_range: Tuple[float_like, float_like] = (-1000.0, 0.0),
              check_valid_time: bool=True
@@ -166,6 +165,30 @@ class NeukumProductionFunction(Production):
         float_like or numpy array of float_like
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
+        """            
+
+        return self.size_frequency_distribution(diameter) * (self.chronology(time_range[1],check_valid_time) - self.chronology(time_range[0],check_valid_time))
+    
+     
+    def chronology(self,
+             time: float_like | Sequence[float_like] | ArrayLike,
+             check_valid_time: bool=True
+             ) -> Union[float_like, ArrayLike]:
+        """
+        Return the relative number of craters produced over a given time range.
+
+        Parameters
+        ----------
+        time : float_like or 
+            time to compute the relative number of craters in units of My.
+        check_valid_time : bool, optional (default=True)
+            If True, return NaN for time values outside the valid time range
+
+        Returns
+        -------
+        float_like or numpy array of float_like
+            The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
+            surface over the given time range.
             
         Notes
         ----- 
@@ -174,106 +197,62 @@ class NeukumProductionFunction(Production):
         is given as 8.38e-4. The value should be 10**(a0), and therefore the number given in the paper is based on the "Old"
         coefficients from Neukum (1983). The correct value is 10**(-3.0876) = 8.17e-4. We compute the value from the coefficients 
         in our implementation of the chronology function.
-        """
-        if time_range[0] > time_range[1]:
-            raise ValueError("time_range[0] must be less than time_range[1]")
-         
+        """     
+        if np.any(time) < 0.0:
+            raise ValueError("time must be positive")
+        
+        time_Gy = -np.array(time) * 1e-3  # Convert time range from My to Gy ago for internal functions
+        
+        def _N1(time: float_like | Sequence[float_like] | ArrayLike,
+                check_valid_time:bool=True
+                ) -> Union[float_like, ArrayLike]:
+            """
+            Return the N(1) value as a function of time. 
+
+            Parameters
+            ----------
+            time : float_like or numpy array
+                Time ago in units of 
+            check_valid_time : bool, optional (default=True)
+                If True, return NaN for time values outside the valid time range        
+
+            Returns
+            -------
+            float_like or numpy array
+                The number of craters per square kilometer greater than 1 km in diameter
+            """
+            N1 = self.time_coef * (np.exp(self.tau * time) - 1.0) + 10 ** (self.sfd_coef[0]) * time
+            if check_valid_time:
+                if self.valid_time[0] is not None:
+                    max_time = -self.valid_time[0] * 1e-3
+                    N1 = np.where(time <= max_time, N1, np.nan)
+                if self.valid_time[1] is not None:
+                    min_time = -self.valid_time[1] * 1e-3
+                    N1 = np.where(time >= min_time, N1, np.nan) 
+            return N1.item() if np.isscalar(time) else N1
+        
+        N1_reference = self._CSFD(1.0) 
+        N1_values = _N1(time_Gy,check_valid_time)
+        N1_values /= N1_reference
+        
+        return  N1_values 
+    
+        
+    def size_frequency_distribution(self,diameter: float_like | Sequence[float_like] | ArrayLike,) -> Union[float_like, ArrayLike]:
+
+        if np.any(diameter < 0.0):
+            raise ValueError("diameter must be greater than or equal to 0.0")
+              
         Dkm = diameter * 1e-3 # Convert m to km for internal functions
-        time_Gy = -np.array(time_range) * 1e-3  # Convert time range from My to Gy ago for internal functions
-        
-        if self.model_name == "Projectile":
-            N0 = R_to_CSFD(R=self._CSFD, D=Dkm) * self._time_to_Nrel(time_Gy[0],check_valid_time)
-            N1 = R_to_CSFD(R=self._CSFD, D=Dkm) * self._time_to_Nrel(time_Gy[1],check_valid_time)
-        else:
-            N0 = self._CSFD(Dkm) * self._time_to_Nrel(time_Gy[0],check_valid_time)
-            N1 = self._CSFD(Dkm) * self._time_to_Nrel(time_Gy[1],check_valid_time)
-         
-        return (N0 - N1)*1e-6 # Convert from km^-2 to m^-2
-   
-    
-    def csfd_to_time(self,
-                     diameter: float_like | Sequence[float_like] | ArrayLike,
-                     csfd: float_like | Sequence[float_like] | ArrayLike,
-                     reference_time: float_like | Sequence[float_like] | ArrayLike | None = None,
-                     check_valid_time: bool=True
-                     ) -> Union[float_like, ArrayLike]:
-        """
-        Return the time in My relative to a reference time given a cumulative number density of craters of a given diameter. 
-        
-        Parameters
-        ----------
-        diameter : float_like or numpy array
-            Crater diameter(s) in units of meters to compute corresponding time values. 
-        csfd: float_like or numpy array
-            Cumulative number density of craters per square meter greater than the input diameter. 
-            `csfd and `diameter` must have the same shape.
-        reference_time : optional, default=None
-            Reference time in My from present to compute time values relative to. If None, the reference time is set to 0.0 (the present)
-        check_valid_time : bool, optional (default=True)
-            If True, return NaN for time values outside the valid time range
 
-        Returns
-        -------
-        float_like or numpy array of float_like
-            The time values in My relative to the present day 
-        """
-        # Check if both diameter and csfd are scalars or arrays of the same shape
-        if np.isscalar(diameter) and np.isscalar(csfd):
-            pass
-        elif np.shape(diameter) == np.shape(csfd):
-            pass
+        if self.model == "Projectile":
+            Ncumulative = R_to_CSFD(R=self._CSFD, D=Dkm) 
         else:
-            raise ValueError("diameter and csfd must be both scalars or arrays of the same shape")
-        
-        if reference_time is None:
-            reference_time = 0.0
-        else:
-            reference_time -= 1e-3 # convert from My from present to Gy ago
-        
-        if check_valid_time and reference_time > self.max_time:
-            raise ValueError(f"reference_time must be less than {self.max_time} Gy ago")
-           
-        Dkm = diameter * 1e-3 # convert from m to km 
-        Nrel = csfd * 1e-6 / self._CSFD(Dkm) # convert from m^-2 to km^-2 and get the number density relative to the reference diameter
-        Nref = self._time_to_Nrel(reference_time,check_valid_time) 
-        time_Gy = self._Nrel_to_time(Nrel-Nref,check_valid_time)
-        
-        if check_valid_time:
-            time_Gy = np.where(time_Gy <= self.max_time, time_Gy, np.nan)
+            Ncumulative = self._CSFD(Dkm) 
             
-        time_My = -time_Gy * 1e3 # convert from Gy ago to My from present
+        return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
         
-        return time_My.item() if np.isscalar(diameter) else time_My
-
-
-    def _N1(self,
-            time: float_like | Sequence[float_like] | ArrayLike,
-            check_valid_time:bool=True
-            ) -> Union[float_like, ArrayLike]:
-        """
-        Return the N(1) value as a function of time for a particular production function model
-
-        Parameters
-        ----------
-        time : float_like or numpy array
-            Time ago in units of 
-        check_valid_time : bool, optional (default=True)
-            If True, return NaN for time values outside the valid time range        
-
-        Returns
-        -------
-        float_like or numpy array
-            The number of craters per square kilometer greater than 1 km in diameter
-        """
-        retval =self.time_coef * (np.exp(self.tau * time) - 1.0) + 10 ** (self.sfd_coef[0]) * time
-        if check_valid_time:
-            retval = np.where(time <= self.max_time, retval, np.nan)
-        return retval.item() if np.isscalar(time) else retval
-    
-
-    def _CSFD(self,
-              Dkm: float_like | Sequence[float_like] | ArrayLike 
-              ) -> Union[float_like, ArrayLike]:
+    def _CSFD(self, Dkm: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
         """
         Return the cumulative size-frequency distribution at the reference time of 1 Gy ago. For diameter values outside 
         the range of the NPF, the CSFD is extrapolated using a power law.
@@ -288,70 +267,77 @@ class NeukumProductionFunction(Production):
         float_like or numpy array
             The number of craters per square kilometer greater than Dkm in diameter at time=1 Gy ago.
         """
+        
+        def _extrapolate_sfd(side: str = "lo") -> Union[float_like, ArrayLike]:
+            """
+            Return the exponent, p, and and proportionality constant, A, for  the extrapolated 
+            CSFD in the form N(D) = A * D**-p. 
+
+            Parameters
+            ----------
+            side : str
+                The side of the range to extrapolate. Valid values are "lo" and "hi"
+
+            Returns
+            -------
+            A, p
+                
+            """    
+            if side == "lo":
+                idx = 0
+            elif side == "hi":
+                idx = 1
+            else:
+                raise ValueError("side must be 'lo' or 'hi'")
+            p = _dNdD(self.sfd_range[idx])
+            A = self._CSFD(self.sfd_range[idx])
+            return A, p
+
+
+        def _dNdD(Dkm: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
+            """
+            Return the derivative of the cumulative size-frequency distribution as a function of diameter. For diameter values outside 
+            the range of the NPF, the derivative is extrapolated using a power law.
+
+            Parameters
+            ----------
+            Dkm : float_like or numpy array
+                Diameters in units of km
+
+            Returns
+            -------
+            float_like or numpy array
+                The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at time = 1 Gy ago.
+            """        
+        
+            def _dNdD_scalar(Dkm): 
+                dcoef = self.sfd_coef[1:]
+                if Dkm < self.sfd_range[0]:
+                    _extrapolate_sfd(side="lo")
+                    return A * (p / Dkm) * (Dkm / self.sfd_range[0]) ** p 
+                elif Dkm > self.sfd_range[1]:
+                    _extrapolate_sfd(side="hi")
+                    return A * (p / Dkm) * (Dkm / self.sfd_range[0]) ** p 
+                else:
+                    return sum(co * np.log10(Dkm) ** i for i, co in enumerate(dcoef))
+            
+            return _dNdD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_dNdD_scalar)(Dkm)
+
+        
         def _CSFD_scalar(Dkm):
             if Dkm < self.sfd_range[0]:
-                slope = self._dNdD(self.sfd_range[0])
-                A = self._CSFD(self.sfd_range[0])
-                return A * (Dkm / self.sfd_range[0]) ** slope
+                A, p = _extrapolate_sfd(side="lo")
+                return A * (Dkm / self.sfd_range[0]) ** p
             elif Dkm > self.sfd_range[1]:
-                slope = self._dNdD(self.sfd_range[1])
-                A = self._CSFD(self.sfd_range[1])
-                return A * (Dkm / self.sfd_range[1]) ** slope
+                A, p = _extrapolate_sfd(side="hi")
+                return A * (Dkm / self.sfd_range[1]) ** p
             else:
                 logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
                 return 10 ** logCSFD
+       
         return _CSFD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD_scalar)(Dkm)
 
 
-    def _dNdD(self, 
-              Dkm: float_like | Sequence[float_like] | ArrayLike
-              ) -> Union[float_like, ArrayLike]:
-        """
-        Return the derivative of the cumulative size-frequency distribution as a function of diameter. For diameter values outside 
-        the range of the NPF, the derivative is extrapolated using a power law.
-
-        Parameters
-        ----------
-        Dkm : float_like or numpy array
-            Diameters in units of km
-
-        Returns
-        -------
-        float_like or numpy array
-            The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at time = 1 Gy ago.
-        """        
-       
-        def _dNdD_scalar(Dkm): 
-            dcoef = self.sfd_coef[1:]
-            if Dkm < self.sfd_range[0]:
-                D = self.sfd_range[0]
-            elif Dkm > self.sfd_range[1]:
-                D = self.sfd_range[1]
-            else:
-                D = Dkm
-            return sum(co * np.log10(D) ** i for i, co in enumerate(dcoef))
-        
-        return _dNdD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_dNdD_scalar)(Dkm)
-
-
-    def _DSFD(self, 
-              Dkm: float_like | Sequence[float_like] | ArrayLike
-              ) -> Union[float_like, ArrayLike]:
-        """
-        Return the differential size-frequency distribution of craters as a function of diameter. 
-
-        Parameters
-        ----------
-        Dkm : numpy array
-            Diameters in units of km
-
-        Returns
-        -------
-        DSFD : numpy array
-            The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at time = 1 
-        """
-
-        return self._dNdD(Dkm) * self._CSFD(Dkm) / Dkm 
 
 
     def _time_to_Nrel(self,
@@ -477,7 +463,7 @@ if __name__ == "__main__":
         nD = 1000
         Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
         for key in ax:
-            npf = NeukumProductionFunction(model_name=key)
+            production = NeukumProduction(model=key)
             ax[key].title.set_text(key)
             ax[key].set_xscale('log')
             ax[key].set_yscale('log')
@@ -491,17 +477,17 @@ if __name__ == "__main__":
             ax[key].xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
             ax[key].grid(True,which="minor",ls="-",lw=0.5,zorder=5)
             ax[key].grid(True,which="major",ls="-",lw=1,zorder=10)
-            inrange = (Dvals >= npf.sfd_range[0]) & (Dvals <= npf.sfd_range[1])
-            lo = Dvals < npf.sfd_range[0]
-            hi = Dvals > npf.sfd_range[1]
+            inrange = (Dvals >= production.sfd_range[0]) & (Dvals <= production.sfd_range[1])
+            lo = Dvals < production.sfd_range[0]
+            hi = Dvals > production.sfd_range[1]
             for t in tvals:
-                prod = npf.production_function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
-                prod *= 1e6 # convert from m^-2 to km^-2
-                ax[key].plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
-                ax[key].plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
-                ax[key].plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=2.0, zorder=50)
+                Nvals = production.function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
+                Nvals *= 1e6 # convert from m^-2 to km^-2
+                ax[key].plot(Dvals[inrange], Nvals[inrange], '-', color='black', linewidth=1.0, zorder=50)
+                ax[key].plot(Dvals[lo], Nvals[lo], '-.', color='orange', linewidth=2.0, zorder=50)
+                ax[key].plot(Dvals[hi], Nvals[hi], '-.', color='orange', linewidth=2.0, zorder=50)
                 labeli = int(0.25*nD)
-                ax[key].text(Dvals[labeli],3*prod[labeli],f"{t:.2f} ", ha="left", va="top",rotation=-72)
+                ax[key].text(Dvals[labeli],3*Nvals[labeli],f"{t:.2f} ", ha="left", va="top",rotation=-72)
 
         plt.tick_params(axis='y', which='minor')
         plt.tight_layout()
@@ -515,9 +501,9 @@ if __name__ == "__main__":
         ax.set_xlabel('Time (Gy ago)')
         ax.set_xlim(4.5, 0)
         #ax.set_ylim(1e-1, 1e5)
-        npf = NeukumProductionFunction(model_name="Moon")
+        production = NeukumProduction(model="Moon")
         tvals = np.linspace(4.5, 0.0, num=1000)
-        ax.plot(tvals, npf._N1(tvals), '-', color='black', linewidth=1.0, zorder=50)
+        ax.plot(tvals, production.chronology(-tvals*1e3)*production.size_frequency_distribution(diameter=1000.0)*1e6, '-', color='black', linewidth=1.0, zorder=50)
         plt.tight_layout()
         plt.show() 
 
@@ -532,7 +518,7 @@ if __name__ == "__main__":
         y_max = 1e2
         nD = 1000
         Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
-        npf = NeukumProductionFunction(model_name="Projectile")
+        production = NeukumProduction(model="Projectile")
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_ylabel('$\mathregular{R}$')
@@ -545,14 +531,14 @@ if __name__ == "__main__":
         ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
         ax.grid(True,which="minor",ls="-",lw=0.5,zorder=5)
         ax.grid(True,which="major",ls="-",lw=1,zorder=10)
-        inrange = (Dvals >= npf.sfd_range[0]) & (Dvals <= npf.sfd_range[1])
-        lo = Dvals < npf.sfd_range[0]
-        hi = Dvals > npf.sfd_range[1]
+        inrange = (Dvals >= production.sfd_range[0]) & (Dvals <= production.sfd_range[1])
+        lo = Dvals < production.sfd_range[0]
+        hi = Dvals > production.sfd_range[1]
         t = 1.0
-        prod = npf._CSFD(Dkm=Dvals)
-        ax.plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
-        ax.plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
-        ax.plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=2.0, zorder=50)
+        Nvals = production._CSFD(Dkm=Dvals)
+        ax.plot(Dvals[inrange], Nvals[inrange], '-', color='black', linewidth=1.0, zorder=50)
+        ax.plot(Dvals[lo], Nvals[lo], '-.', color='orange', linewidth=2.0, zorder=50)
+        ax.plot(Dvals[hi], Nvals[hi], '-.', color='orange', linewidth=2.0, zorder=50)
 
         plt.tick_params(axis='y', which='minor')
         plt.tight_layout()
@@ -569,7 +555,7 @@ if __name__ == "__main__":
         y_max = 1e13
         nD = 1000
         Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
-        npf = NeukumProductionFunction(model_name="Projectile")
+        production = NeukumProduction(model="Projectile")
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_ylabel('$\mathregular{N_{>D}}$')
@@ -582,21 +568,21 @@ if __name__ == "__main__":
         ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
         ax.grid(True,which="minor",ls="-",lw=0.5,zorder=5)
         ax.grid(True,which="major",ls="-",lw=1,zorder=10)
-        inrange = (Dvals >= npf.sfd_range[0]) & (Dvals <= npf.sfd_range[1])
-        lo = Dvals < npf.sfd_range[0]
-        hi = Dvals > npf.sfd_range[1]
+        inrange = (Dvals >= production.sfd_range[0]) & (Dvals <= production.sfd_range[1])
+        lo = Dvals < production.sfd_range[0]
+        hi = Dvals > production.sfd_range[1]
         t = 1.0
-        prod = npf.production_function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
-        prod *= 1e6 # convert from m^-2 to km^-2
-        ax.plot(Dvals[inrange], prod[inrange], '-', color='black', linewidth=1.0, zorder=50)
-        ax.plot(Dvals[lo], prod[lo], '-.', color='orange', linewidth=2.0, zorder=50)
-        ax.plot(Dvals[hi], prod[hi], '-.', color='orange', linewidth=2.0, zorder=50)
+        Nvals = production.function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
+        Nvals *= 1e6 # convert from m^-2 to km^-2
+        ax.plot(Dvals[inrange], Nvals[inrange], '-', color='black', linewidth=1.0, zorder=50)
+        ax.plot(Dvals[lo], Nvals[lo], '-.', color='orange', linewidth=2.0, zorder=50)
+        ax.plot(Dvals[hi], Nvals[hi], '-.', color='orange', linewidth=2.0, zorder=50)
 
         plt.tick_params(axis='y', which='minor')
         plt.tight_layout()
         plt.show()    
             
     #plot_npf_csfd()
-    #plot_npf_N1_vs_T()
+    plot_npf_N1_vs_T()
     #plot_npf_proj_rplot()
-    plot_npf_proj_csfd()
+    #plot_npf_proj_csfd()

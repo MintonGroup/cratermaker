@@ -1,12 +1,12 @@
 import unittest
 import cratermaker
-from cratermaker import NeukumProductionFunction
+from cratermaker import NeukumProduction
 import numpy as np
 
 class TestNPF(unittest.TestCase):
     
     def test_npf_N_to_time(self):
-        npf = NeukumProductionFunction()
+        npf = NeukumProduction()
         time_input = np.logspace(-4,np.log10(4.4),num=100)
         time_output = npf._Nrel_to_time(npf._time_to_Nrel(time_input))
         np.testing.assert_array_almost_equal(time_input, time_output, decimal=6)
@@ -17,7 +17,7 @@ class TestNPF(unittest.TestCase):
         np.testing.assert_array_almost_equal(expected_time, time_output, decimal=1)
         
     def test_arr_vs_scalar_args(self):
-        npf = NeukumProductionFunction()
+        npf = NeukumProduction()
         time_array = np.logspace(-4,np.log10(4.4))
         time_scalar = 2.0
         
