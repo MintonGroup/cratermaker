@@ -64,6 +64,24 @@ class Production():
         return
         
     def _validate_model(self, model: str | None) -> str:
+        """
+        Validates the given model string against the list of valid models.
+
+        Parameters
+        ----------
+        model : str | None
+            The model name to validate. If None, the first model in the valid models list is returned.
+
+        Returns
+        -------
+        str
+            The validated model name. If the input model is None, returns the first model in the valid models list.
+
+        Raises
+        ------
+        ValueError
+            If the model is not a string or if the model is not in the list of valid models.
+        """       
         if not model:
             return self.valid_models[0]
         if not isinstance(model, str):
@@ -71,8 +89,27 @@ class Production():
         if model not in self.valid_models:
             raise ValueError(f"Invalid model {model}. Must be one of {self.valid_models}")
         return model
+
     
     def _validate_generator_type(self, generator_type: str | None) -> str:
+        """
+        Validates the given generator type against the list of valid generator types.
+
+        Parameters
+        ----------
+        generator_type : str | None
+            The generator type to validate. If None, the first type in the valid generator types list is returned.
+
+        Returns
+        -------
+        str
+            The validated generator type. If the input generator type is None, returns the first type in the valid generator types list.
+
+        Raises
+        ------
+        ValueError
+            If the generator type is not a string or if the generator type is not in the list of valid generator types.
+        """        
         if not generator_type:
             return self.valid_generator_types[0]
         if not isinstance(generator_type, str):
@@ -80,7 +117,41 @@ class Production():
         if generator_type not in self.valid_generator_types:
             raise ValueError(f"Invalid generator_type {generator_type}. Must be one of {self.valid_generator_types}")
         return generator_type
-   
+
+
+    def _validate_time(self, time: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
+        """
+        Processes the time argument. Checks that it is valid and returns a tuple of start and end times.
+
+        Parameters
+        ----------        
+        time : float or Tuple of 2 values, default=1.0
+            time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is interpreted
+            as a start and end time. If a single value is passed, it is interpreted as the end time in My.  
+            The default value is 1, which is the same as passing (0, 1), or 1 My of model time.
+
+        Returns
+        ------- 
+        Tuple of np.float64
+            The start and end times in units of My.
+            
+        Raises
+        ------
+        ValueError
+            If the the start time is greater than the end time or the time variable is not a scalar or a sequence of 2 values.
+        """
+               
+        if np.isscalar(time):
+            time = (0.0, np.float64(time))
+        elif len(time) == 2:
+            time = (np.float64(time[0]), np.float64(time[1]))
+        else:
+            raise ValueError("time must be a scalar or a tuple of 2 values")
+        
+        if time[0] > time[1]:
+            raise ValueError("The start time must be greater than the end time")
+       
+        return time   
     
     def set_powerlaw_parameters(self, 
                                 N1_coef: float_like | None = None,
@@ -127,9 +198,10 @@ class Production():
             raise ValueError("slope must be a float")   
         self.slope = slope 
        
+       
     def function(self,
              diameter: float_like | Sequence[float_like] | ArrayLike,
-             time_range: Tuple[float_like, float_like] = (-1000.0, 0.0),
+             time: float_like | Tuple[float_like, float_like] = -1.0,
              **kwargs: Any,
              ) -> Union[float_like, ArrayLike]:
         """
@@ -140,8 +212,9 @@ class Production():
         ----------
         diameter : float_like or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        time_range : Tuple of 2 values, default=(-1000.0,0.0)
-            time range relative to the present day to compute cumulative SFD in units of My. Defaults to the last 1000 My
+        time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is interpreted
+            as a start and end time. If a single value is passed, it is interpreted as a start time and the end time is assumed to be 0. 
+            The default value is -1, which is the same as (-1, 0).    
         **kwargs : Any
             Any additional keywords.
 
@@ -151,14 +224,13 @@ class Production():
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
         """            
-        
-        return self.N1_coef * diameter**self.slope * (time_range[1] - time_range[0])
+        time = self._validate_time(time) 
+        return self.N1_coef * diameter**self.slope * (time[1] - time[0])
     
 
 class NeukumProduction(Production):
     """
     An operations class for computing the the Neukum production function for the Moon and Mars.
-
 
     Parameters
     ----------
@@ -253,33 +325,35 @@ class NeukumProduction(Production):
                     ]
                 )
             }
+        self.sfd_coef = sfd_coef[self.model]
         sfd_range = {
                 "Moon" : np.array([0.01,1000]),
                 "Mars" : np.array([0.015,362]),
                 "Projectile" : np.array([0.0001, 200.0]) # Estimated based on Fig. 16 of Ivanov et al. (2001)
             }
-       
-        #Exponential time constant 
-        self.tau = 6.93
-        
-        # Chronology coefficients
-        Nexp = 5.44e-14
-        time_coef = {
-                "Moon" : Nexp,
-                "Mars" : Nexp * 10**(sfd_coef.get("Mars")[0]) / 10**(sfd_coef.get("Moon")[0]),
-                "Projectile": Nexp * 10**(sfd_coef.get("Projectile")[0]) / 10**(sfd_coef.get("Moon")[0]),
-            }   
-        
-        self.valid_time = (-4500.0,None)  # Range over which the production function is valid
-        
-        self.sfd_coef = sfd_coef[self.model]
-        self.time_coef = time_coef[self.model]
         self.sfd_range = sfd_range[self.model]
-       
         
+        # Chronology function parameters
+        self.valid_time = (-4500.0,None)  # Range over which the production function is valid
+        self.tau = 1.0 / 6.93
+        Cexp_moon = 5.44e-14
+        Clin = {
+                "Moon" : 10**(sfd_coef.get("Moon")[0]),
+                "Mars" : 10**(sfd_coef.get("Mars")[0]),
+                "Projectile": 10**(sfd_coef.get("Projectile")[0]),
+        }
+        Cexp = {
+                "Moon" : Cexp_moon,
+                "Mars" : Cexp_moon * Clin["Mars"] / Clin["Moon"],
+                "Projectile": Cexp_moon * Clin["Projectile"] / Clin["Moon"],
+            }   
+        self.Cexp = Cexp[self.model]
+        self.Clin = Clin[self.model]
+        
+
     def function(self,
              diameter: float_like | Sequence[float_like] | ArrayLike,
-             time_range: Tuple[float_like, float_like] = (-1000.0, 0.0),
+             time: float_like | Tuple[float_like, float_like] = 1.0,
              check_valid_time: bool=True
              ) -> Union[float_like, ArrayLike]:
         """
@@ -289,8 +363,12 @@ class NeukumProduction(Production):
         ----------
         diameter : float_like or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        time_range : Tuple of 2 values, default=(-1000.0,0.0)
-            time range relative to the present day to compute cumulative SFD in units of My. Defaults to the last 1000 My
+        time : float or Tuple of 2 values, default=-1.0
+            time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is interpreted
+            as a start and end time. If a single value is passed, it is interpreted as a start time and the end time is assumed to be 0. 
+            The default value is 1, which is the same as (0, 1). NOTE: time is interpeted as time ago, so positive values are 
+            interpreted as time in the past. So a value of (0, 1) is intepreted as "1 My ago until the present day". Likewise, a value
+            of (3500, 4100) is interprted as "4.1 Gy ago until 3.5 Gy ago" 
         check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range
 
@@ -299,9 +377,10 @@ class NeukumProduction(Production):
         float_like or numpy array of float_like
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
-        """            
+        """
+        time = self._validate_time(time) 
 
-        return self.size_frequency_distribution(diameter) * (self.chronology(time_range[0],check_valid_time) - self.chronology(time_range[1],check_valid_time))
+        return self.size_frequency_distribution(diameter) * (self.chronology(time[1],check_valid_time) - self.chronology(time[0],check_valid_time))
     
      
     def chronology(self,
@@ -325,10 +404,7 @@ class NeukumProduction(Production):
             surface over the given time range.
             
         """     
-        if np.any(time) < 0.0:
-            raise ValueError("time must be positive")
-        
-        time_Gy = -np.array(time) * 1e-3  # Convert time range from My to Gy ago for internal functions
+        time_Gy = np.array(time) * 1e-3  # Convert time range from My to Gy ago for internal functions
         
         def _N1(time: float_like | Sequence[float_like] | ArrayLike,
                 check_valid_time:bool=True
@@ -348,7 +424,7 @@ class NeukumProduction(Production):
             float_like or numpy array
                 The number of craters per square kilometer greater than 1 km in diameter
             """
-            N1 = self.time_coef * (np.exp(self.tau * time) - 1.0) + 10 ** (self.sfd_coef[0]) * time
+            N1 = self.Cexp * (np.exp(time/self.tau) - 1.0) + self.Clin * time
             if check_valid_time:
                 if self.valid_time[0] is not None:
                     max_time = -self.valid_time[0] * 1e-3
@@ -364,6 +440,16 @@ class NeukumProduction(Production):
         
         return  N1_values 
     
+    def _time_from_N(self, 
+                     N: float_like | Sequence[float_like] | ArrayLike,
+                     D: float_like | Sequence[float_like] | ArrayLike,
+                     ) -> Union[float_like, ArrayLike]:
+        
+        def inv_chrono_func(N):
+            
+            A = self.Cexp 
+            
+
         
     def size_frequency_distribution(self,diameter: float_like | Sequence[float_like] | ArrayLike,) -> Union[float_like, ArrayLike]:
         """
@@ -555,7 +641,7 @@ if __name__ == "__main__":
             lo = Dvals < production.sfd_range[0]
             hi = Dvals > production.sfd_range[1]
             for t in tvals:
-                Nvals = production.function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
+                Nvals = production.function(diameter=Dvals*1e3,time=t*1e3)
                 Nvals *= 1e6 # convert from m^-2 to km^-2
                 ax[key].plot(Dvals[inrange], Nvals[inrange], '-', color='black', linewidth=1.0, zorder=50)
                 ax[key].plot(Dvals[lo], Nvals[lo], '-.', color='orange', linewidth=2.0, zorder=50)
@@ -577,8 +663,8 @@ if __name__ == "__main__":
         moon = NeukumProduction(model="Moon")
         mars = NeukumProduction(model="Mars")
         tvals = np.linspace(4.5, 0.0, num=1000)
-        N1_moon = moon.chronology(-tvals*1e3)*moon.size_frequency_distribution(diameter=1000.0)*1e6
-        N1_mars = mars.chronology(-tvals*1e3)*mars.size_frequency_distribution(diameter=1000.0)*1e6
+        N1_moon = moon.chronology(tvals*1e3)*moon.size_frequency_distribution(diameter=1000.0)*1e6
+        N1_mars = mars.chronology(tvals*1e3)*mars.size_frequency_distribution(diameter=1000.0)*1e6
         ax.plot(tvals, N1_moon, '-', color='dimgrey', linewidth=2.0, zorder=50, label="Moon")
         ax.plot(tvals, N1_mars, '-', color='orange', linewidth=2.0, zorder=50, label="Mars")
         ax.legend()
@@ -650,7 +736,7 @@ if __name__ == "__main__":
         lo = Dvals < production.sfd_range[0]
         hi = Dvals > production.sfd_range[1]
         t = 1.0
-        Nvals = production.function(diameter=Dvals*1e3,time_range=(-t*1e3,0.0))
+        Nvals = production.function(diameter=Dvals*1e3,time=t*1e3)
         Nvals *= 1e6 # convert from m^-2 to km^-2
         ax.plot(Dvals[inrange], Nvals[inrange], '-', color='black', linewidth=1.0, zorder=50)
         ax.plot(Dvals[lo], Nvals[lo], '-.', color='orange', linewidth=2.0, zorder=50)
@@ -660,7 +746,7 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()    
             
-    #plot_npf_csfd()
+    plot_npf_csfd()
     plot_npf_N1_vs_T()
     #plot_npf_proj_rplot()
-    #plot_npf_proj_csfd()
+    plot_npf_proj_csfd()
