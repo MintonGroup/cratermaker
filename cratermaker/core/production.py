@@ -1,11 +1,10 @@
 import numpy as np
 from numpy.random import Generator
 from scipy.optimize import fsolve
-from scipy import integrate
 from cratermaker.core.target import Target
-from cratermaker.utils.general_utils import float_like
+from cratermaker.utils.general_utils import FloatLike
 from numpy.typing import ArrayLike
-from typing import Union, Sequence, Tuple, Callable, Any, Literal
+from typing import Union, Sequence, Tuple, Callable, Any
 
 class Production():
     """
@@ -119,7 +118,7 @@ class Production():
         return generator_type
 
 
-    def _validate_time(self, time: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
+    def _validate_time(self, time: FloatLike | Sequence[FloatLike] | ArrayLike) -> Union[FloatLike, ArrayLike]:
         """
         Processes the time argument. Checks that it is valid and returns a tuple of start and end times.
 
@@ -152,10 +151,11 @@ class Production():
             raise ValueError("The start time must be greater than the end time")
        
         return time   
+
     
     def set_powerlaw_parameters(self, 
-                                N1_coef: float_like | None = None,
-                                slope: float_like | None = None,
+                                N1_coef: FloatLike | None = None,
+                                slope: FloatLike | None = None,
                                 **kwargs: Any,
                                 ) -> None:
         """
@@ -183,7 +183,7 @@ class Production():
         # Set the power law parameters for the production function along with defaults 
         if N1_coef is None:
             N1_coef = default_N1_coef[self.generator_type] 
-        elif not isinstance(N1_coef, float_like):
+        elif not isinstance(N1_coef, FloatLike):
             raise ValueError("N1_coef must be a float")
         else:
             raise ValueError("N1_coef must be greater than or equal to 0.0")
@@ -194,23 +194,23 @@ class Production():
             slope = default_slope[self.generator_type]
         elif slope < 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
             slope *= -1
-        elif not isinstance(self.slope, float_like):
+        elif not isinstance(self.slope, FloatLike):
             raise ValueError("slope must be a float")   
         self.slope = slope 
        
        
     def function(self,
-             diameter: float_like | Sequence[float_like] | ArrayLike,
-             time: float_like | Tuple[float_like, float_like] = -1.0,
+             diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
+             time: FloatLike | Tuple[FloatLike, FloatLike] = -1.0,
              **kwargs: Any,
-             ) -> Union[float_like, ArrayLike]:
+             ) -> Union[FloatLike, ArrayLike]:
         """
         Return the cumulative size-frequency distribution of craters over a given time range and crater diameters for a simple power
         law model.
 
         Parameters
         ----------
-        diameter : float_like or numpy array
+        diameter : FloatLike or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
         time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is interpreted
             as a start and end time. If a single value is passed, it is interpreted as a start time and the end time is assumed to be 0. 
@@ -220,7 +220,7 @@ class Production():
 
         Returns
         -------
-        float_like or numpy array of float_like
+        FloatLike or numpy array of FloatLike
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
         """            
@@ -352,16 +352,16 @@ class NeukumProduction(Production):
         
 
     def function(self,
-             diameter: float_like | Sequence[float_like] | ArrayLike,
-             time: float_like | Tuple[float_like, float_like] = 1.0,
+             diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
+             time: FloatLike | Tuple[FloatLike, FloatLike] = 1.0,
              check_valid_time: bool=True
-             ) -> Union[float_like, ArrayLike]:
+             ) -> Union[FloatLike, ArrayLike]:
         """
         Return the cumulative size-frequency distribution of craters over a given time range and crater diameters.
 
         Parameters
         ----------
-        diameter : float_like or numpy array
+        diameter : FloatLike or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
         time : float or Tuple of 2 values, default=-1.0
             time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is interpreted
@@ -374,7 +374,7 @@ class NeukumProduction(Production):
 
         Returns
         -------
-        float_like or numpy array of float_like
+        FloatLike or numpy array of FloatLike
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
         """
@@ -384,44 +384,44 @@ class NeukumProduction(Production):
     
      
     def chronology(self,
-             time: float_like | Sequence[float_like] | ArrayLike,
+             time: FloatLike | Sequence[FloatLike] | ArrayLike,
              check_valid_time: bool=True
-             ) -> Union[float_like, ArrayLike]:
+             ) -> Union[FloatLike, ArrayLike]:
         """
         Returns  the relative number of craters produced over a given time range.
 
         Parameters
         ----------
-        time : float_like or 
+        time : FloatLike or 
             time to compute the relative number of craters in units of My.
         check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range
 
         Returns
         -------
-        float_like or numpy array of float_like
+        FloatLike or numpy array of FloatLike
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
             
         """     
         time_Gy = np.array(time) * 1e-3  # Convert time range from My to Gy ago for internal functions
         
-        def _N1(time: float_like | Sequence[float_like] | ArrayLike,
+        def _N1(time: FloatLike | Sequence[FloatLike] | ArrayLike,
                 check_valid_time:bool=True
-                ) -> Union[float_like, ArrayLike]:
+                ) -> Union[FloatLike, ArrayLike]:
             """
             Return the N(1) value as a function of time. 
 
             Parameters
             ----------
-            time : float_like or numpy array
+            time : FloatLike or numpy array
                 Time ago in units of 
             check_valid_time : bool, optional (default=True)
                 If True, return NaN for time values outside the valid time range        
 
             Returns
             -------
-            float_like or numpy array
+            FloatLike or numpy array
                 The number of craters per square kilometer greater than 1 km in diameter
             """
             N1 = self.Cexp * (np.exp(time/self.tau) - 1.0) + self.Clin * time
@@ -441,17 +441,15 @@ class NeukumProduction(Production):
         return  N1_values 
     
     def _time_from_N(self, 
-                     N: float_like | Sequence[float_like] | ArrayLike,
-                     D: float_like | Sequence[float_like] | ArrayLike,
-                     ) -> Union[float_like, ArrayLike]:
+                     N: FloatLike | Sequence[FloatLike] | ArrayLike,
+                     D: FloatLike | Sequence[FloatLike] | ArrayLike,
+                     ) -> Union[FloatLike, ArrayLike]:
         
         def inv_chrono_func(N):
             
             A = self.Cexp 
             
-
-        
-    def size_frequency_distribution(self,diameter: float_like | Sequence[float_like] | ArrayLike,) -> Union[float_like, ArrayLike]:
+    def size_frequency_distribution(self,diameter: FloatLike | Sequence[FloatLike] | ArrayLike,) -> Union[FloatLike, ArrayLike]:
         """
         Return the cumulative size frequency distribution of craters at a given time relative to time = 1 Gy ago per m^2.
 
@@ -462,10 +460,10 @@ class NeukumProduction(Production):
             
         Returns
         -------
-        float_like or numpy array
+        FloatLike or numpy array
            Cumulative number density of craters per square meter greater than the input diameter.
         """        
-        def _extrapolate_sfd(side: str = "lo") -> Union[float_like, ArrayLike]:
+        def _extrapolate_sfd(side: str = "lo") -> Union[FloatLike, ArrayLike]:
             """
             Return the exponent, p, and and proportionality constant, A, for  the extrapolated 
             CSFD in the form N(D) = A * D**-p. 
@@ -490,19 +488,19 @@ class NeukumProduction(Production):
             return A, p
 
 
-        def _dNdD(Dkm: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
+        def _dNdD(Dkm: FloatLike | Sequence[FloatLike] | ArrayLike) -> Union[FloatLike, ArrayLike]:
             """
             Return the derivative of the cumulative size-frequency distribution as a function of diameter. For diameter values outside 
             the range of the NPF, the derivative is extrapolated using a power law.
 
             Parameters
             ----------
-            Dkm : float_like or numpy array
+            Dkm : FloatLike or numpy array
                 Diameters in units of km
 
             Returns
             -------
-            float_like or numpy array
+            FloatLike or numpy array
                 The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at time = 1 Gy ago.
             """        
             def _dNdD_scalar(Dkm): 
@@ -519,19 +517,19 @@ class NeukumProduction(Production):
             return _dNdD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_dNdD_scalar)(Dkm)
 
     
-        def _CSFD(Dkm: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
+        def _CSFD(Dkm: FloatLike | Sequence[FloatLike] | ArrayLike) -> Union[FloatLike, ArrayLike]:
             """
             Return the cumulative size-frequency distribution at the reference time of 1 Gy ago. For diameter values outside 
             the range of the NPF, the CSFD is extrapolated using a power law.
 
             Parameters
             ----------
-            Dkm : float_like or numpy array
+            Dkm : FloatLike or numpy array
                 Diameters in units of km
 
             Returns
             -------
-            float_like or numpy array
+            FloatLike or numpy array
                 The number of craters per square kilometer greater than Dkm in diameter at time=1 Gy ago.
             """
             def _CSFD_scalar(Dkm):
@@ -562,11 +560,11 @@ class NeukumProduction(Production):
 
 
 def R_to_CSFD(
-              R: Callable[Union[float_like, ArrayLike], Union[float_like, ArrayLike]], 
-              D: Union[float_like, ArrayLike],
-              Dlim: float_like = 1e6,
+              R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayLike]], 
+              D: Union[FloatLike, ArrayLike],
+              Dlim: FloatLike = 1e6,
               *args: Any,
-            ) -> Union[float_like, ArrayLike]:
+            ) -> Union[FloatLike, ArrayLike]:
     """
     Convert R values to cumulative N values for a given D using the R-plot function.
 
@@ -574,9 +572,9 @@ def R_to_CSFD(
     ----------
     R : R = f(D) 
         A function that computes R given D.
-    D : float_like or ArrayLike
+    D : FloatLike or ArrayLike
         Diameters in units of km.
-    Dlim : float_like
+    Dlim : FloatLike
         Upper limit on the diameter over which to evaluate the integral
     *args : Any
         Additional arguments to pass to the R function

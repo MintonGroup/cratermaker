@@ -5,7 +5,7 @@ from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Tuple
 import os
-from ..utils.general_utils import set_properties, create_catalogue, check_properties, float_like
+from ..utils.general_utils import set_properties, create_catalogue, check_properties, FloatLike
 
 
 @dataclass
@@ -34,10 +34,10 @@ class Material:
 
     # Define all valid properties for the Target object
     name: str | None = None
-    K1: float_like | None = None
-    mu: float_like | None = None
-    Ybar: float_like | None = None
-    density: float_like | None = None
+    K1: FloatLike | None = None
+    mu: FloatLike | None = None
+    Ybar: FloatLike | None = None
+    density: FloatLike | None = None
     catalogue: dict | None = None
 
     config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
@@ -106,17 +106,17 @@ class Target:
     ----------
     name : str or None
         Name of the target body.
-    radius : float_like or None
+    radius : FloatLike or None
         Radius of the target body in meters.
-    diameter : float_like or None
+    diameter : FloatLike or None
         Diameter of the target body in meters.
-    gravity : float_like or None
+    gravity : FloatLike or None
         Surface gravity of the target body in m/s^2.
     material_name : str or None
         Name of the material composition of the target body.
     material : Material or None
         Material composition of the target body.
-    mean_impact_velocity : float_like or None
+    mean_impact_velocity : FloatLike or None
         Mean impact velocity in m/s.
     transition_scale_type : str or None
         Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
@@ -126,12 +126,12 @@ class Target:
        
     # Set up instance variables
     name: str | None = None
-    radius: float_like | None = None
-    diameter: float_like | None = None
-    gravity: float_like | None = None
+    radius: FloatLike | None = None
+    diameter: FloatLike | None = None
+    gravity: FloatLike | None = None
     material_name: str | None = None
     material: Material | None = None
-    mean_impact_velocity: float_like | None = None
+    mean_impact_velocity: FloatLike | None = None
     transition_scale_type: str | None = None
     catalogue: dict | None = None
     

@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
-from ..utils.general_utils import float_like
+from ..utils.general_utils import FloatLike
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
@@ -46,7 +46,7 @@ class Surface(UxDataset):
         Path to the node elevation file.
     target_radius : str
         Radius of the target body.
-    pix : float_like
+    pix : FloatLike
         Pixel size or resolution of the grid.
     grid_type : str
         Type of the grid used.
@@ -85,7 +85,7 @@ class Surface(UxDataset):
         
 
     def set_elevation(self, 
-                      new_elev: NDArray[np.float64] | List[float_like] | None = None,
+                      new_elev: NDArray[np.float64] | List[FloatLike] | None = None,
                       save_to_file: bool = False, 
                       ) -> None:
         """
@@ -113,25 +113,25 @@ class Surface(UxDataset):
 
 
     @staticmethod
-    def calculate_haversine_distance(lon1: float_like, 
-                    lat1: float_like, 
-                    lon2: float_like, 
-                    lat2: float_like,
-                    radius: float_like = 1.0) -> np.float64:
+    def calculate_haversine_distance(lon1: FloatLike, 
+                    lat1: FloatLike, 
+                    lon2: FloatLike, 
+                    lat2: FloatLike,
+                    radius: FloatLike = 1.0) -> np.float64:
         """
         Calculate the great circle distance between two points on a sphere.
 
         Parameters
         ----------
-        lon1 : float_like
+        lon1 : FloatLike
             Longitude of the first point in radians.
-        lat1 : float_like
+        lat1 : FloatLike
             Latitude of the first point in radians.
-        lon2 : float_like
+        lon2 : FloatLike
             Longitude of the second point in radians.
-        lat2 : float_like
+        lat2 : FloatLike
             Latitude of the second point in radians.
-        radius : float_like
+        radius : FloatLike
             Radius of the sphere in meters.
 
         Returns
@@ -194,22 +194,22 @@ class Surface(UxDataset):
     
 
     @staticmethod
-    def calculate_initial_bearing(lon1: float_like, 
-                                lat1: float_like, 
-                                lon2: float_like, 
-                                lat2: float_like) -> np.float64:
+    def calculate_initial_bearing(lon1: FloatLike, 
+                                lat1: FloatLike, 
+                                lon2: FloatLike, 
+                                lat2: FloatLike) -> np.float64:
         """
         Calculate the initial bearing from one point to another on the surface of a sphere.
 
         Parameters
         ----------
-        lon1 : float_like
+        lon1 : FloatLike
             Longitude of the first point in radians.
-        lat1 : float_like
+        lat1 : FloatLike
             Latitude of the first point in radians.
-        lon2 : float_like
+        lon2 : FloatLike
             Longitude of the second point in radians.
-        lat2 : float_like
+        lat2 : FloatLike
             Latitude of the second point in radians.
 
         Returns
@@ -338,7 +338,7 @@ class Surface(UxDataset):
 
 
     def get_average_surface(self,
-                            location: Tuple[float_like, float_like], 
+                            location: Tuple[FloatLike, FloatLike], 
                             radius: np.float64) -> Tuple[np.float64, np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
@@ -391,7 +391,7 @@ class Surface(UxDataset):
          
 def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
-         pix: float_like | None = None,
+         pix: FloatLike | None = None,
          target: Target | str | None = None,
          simdir: os.PathLike | None = None,
          *args, **kwargs) -> Surface:
@@ -407,7 +407,7 @@ def initialize_surface(make_new_grid: bool = False,
         If True, generate a new grid.
     reset_surface : bool, default True
         If True, reset the surface data.
-    pix : float_like | None, optional
+    pix : FloatLike | None, optional
         Pixel size or resolution of the grid.
     target : Target | str | None, optional
         The target body for the surface, either as a Target object or a string name.
@@ -511,7 +511,7 @@ def initialize_surface(make_new_grid: bool = False,
     return surf
 
 
-def _make_uniform_face_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDArray]:
+def _make_uniform_face_size(cell_size: FloatLike) -> Tuple[NDArray,NDArray,NDArray]:
     """
     Create cell width array for this mesh on a regular latitude-longitude grid.
     Returns
@@ -538,7 +538,7 @@ def _make_uniform_face_size(cell_size: float_like) -> Tuple[NDArray,NDArray,NDAr
 
 
 def generate_grid(target: Target | str, 
-                pix: float_like, 
+                pix: FloatLike, 
                 grid_file: os.PathLike,
                 grid_temp_dir: os.PathLike)  -> Surface:
     """
@@ -550,7 +550,7 @@ def generate_grid(target: Target | str,
     ----------
     target : str or Target
         Name of target body or a Target object
-    pix : float_like
+    pix : FloatLike
         Desired cell size for the mesh.
     grid_file : os.PathLike
         Path where the grid file will be saved.
@@ -606,7 +606,7 @@ def generate_data(grid_file: os.PathLike,
                   data_file: os.PathLike,
                   name: str,
                   long_name: str | None = None,
-                  data: float_like | NDArray | None = None,
+                  data: FloatLike | NDArray | None = None,
                   isfacedata: bool = True,
                   save_to_file: bool = False,
                   ) -> None:

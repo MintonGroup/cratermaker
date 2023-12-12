@@ -3,7 +3,7 @@ from typing import Union
 import numpy as np
 from numpy.typing import ArrayLike
 
-float_like = Union[float, int, np.number]
+FloatLike = Union[float, int, np.number]
 
 def to_config(obj):
     """

@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from typing import Tuple
 from .target import Target
-from ..utils.general_utils import float_like
+from ..utils.general_utils import FloatLike
 from ..utils import montecarlo as mc
 from .surface import Surface
 from .target import Target
@@ -86,7 +86,7 @@ class Morphology:
         self.ejrim = 0.14 * (self.diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
    
-    def crater_profile(self, r: float_like) -> np.float64:
+    def crater_profile(self, r: FloatLike) -> np.float64:
         """
         Calculate the elevation of a crater as a function of distance from the center.
 
@@ -129,7 +129,7 @@ class Morphology:
         return h        
 
     
-    def ejecta_profile(self, r: float_like) -> np.float64:
+    def ejecta_profile(self, r: FloatLike) -> np.float64:
         """
         Calculate the thickness of ejecat as a function of distance from the center of the crater.
 
@@ -199,7 +199,7 @@ class Morphology:
         return self.crater.rimheight
     
     @rimheight.setter
-    def rimheight(self, value: float_like) -> None:
+    def rimheight(self, value: FloatLike) -> None:
         """
         Set the height of the crater rim in meters.
         """
@@ -213,7 +213,7 @@ class Morphology:
         return self.crater.rimwidth
     
     @rimwidth.setter
-    def rimwidth(self, value: float_like) -> None:
+    def rimwidth(self, value: FloatLike) -> None:
         """
         Set the width of the crater rim in meters.
         """
@@ -227,7 +227,7 @@ class Morphology:
         return self.crater.peakheight
     
     @peakheight.setter
-    def peakheight(self, value: float_like) -> None:
+    def peakheight(self, value: FloatLike) -> None:
         """
         Set the height of the central peak in meters.
         """
@@ -241,7 +241,7 @@ class Morphology:
         return self.crater.floordiam
     
     @floordiam.setter
-    def floordiam(self, value: float_like) -> None:
+    def floordiam(self, value: FloatLike) -> None:
         """
         Set the diameter of the crater floor in meters.
         """
@@ -255,7 +255,7 @@ class Morphology:
         return self.crater.floordepth
     
     @floordepth.setter
-    def floordepth(self, value: float_like) -> None:
+    def floordepth(self, value: FloatLike) -> None:
         """
         Set the depth of the crater floor in meters.
         """
@@ -269,7 +269,7 @@ class Morphology:
         return self.crater.ejrim
     
     @ejrim.setter
-    def ejrim(self, value: float_like) -> None:
+    def ejrim(self, value: FloatLike) -> None:
         """
         Set the thickness of ejecta at the rim in meters.
         """

@@ -3,7 +3,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike
 from typing import Type
 from .target import Target
-from ..utils.general_utils import validate_and_convert_location, float_like
+from ..utils.general_utils import validate_and_convert_location, FloatLike
 from ..utils import montecarlo as mc
 from .scale import Scale 
 from .morphology import Morphology
@@ -29,10 +29,10 @@ class Crater:
     """
 
     def __init__(self, 
-                diameter: float_like = None,
-                radius: float_like = None,
-                transient_diameter: float_like = None,
-                transient_radius: float_like = None,
+                diameter: FloatLike = None,
+                radius: FloatLike = None,
+                transient_diameter: FloatLike = None,
+                transient_radius: FloatLike = None,
                 location: ArrayLike = None,
                 target: Target = None,
                 scale: Scale = None,
@@ -203,13 +203,13 @@ class Projectile:
     """
     
     def __init__(self, 
-                diameter: float_like = None,
-                radius: float_like = None,
-                density: float_like = None,
-                mass: float_like = None,
-                velocity: float_like = None,
-                angle: float_like = None,
-                vertical_velocity: float_like = None,
+                diameter: FloatLike = None,
+                radius: FloatLike = None,
+                density: FloatLike = None,
+                mass: FloatLike = None,
+                velocity: FloatLike = None,
+                angle: FloatLike = None,
+                vertical_velocity: FloatLike = None,
                 location: ArrayLike = None,
                 target: Target = None, 
                 scale = None,

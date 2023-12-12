@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from typing import Tuple
 from .target import Target
-from ..utils.general_utils import float_like
+from ..utils.general_utils import FloatLike
 from scipy.optimize import root_scalar
 from ..utils import montecarlo as mc
 
@@ -85,7 +85,7 @@ class Scale():
         return 
 
 
-    def get_morphology_type(self, final_diameter: float_like) -> str:
+    def get_morphology_type(self, final_diameter: FloatLike) -> str:
         """
         Computes and the morphology type of a crater and returns a string corresponding to its type.
 
@@ -131,7 +131,7 @@ class Scale():
         return Df / (self.simple_enlargement_factor * self.complex_enlargement_factor) * (Df / self.transition_diameter)**-self.final_exp
     
     
-    def final_to_transient(self, final_diameter: float_like, morphology_type: str | None = None) -> np.float64:
+    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None) -> np.float64:
         """
         Computes the transient diameter of a crater based on its final diameter and morphology type.
 
@@ -163,7 +163,7 @@ class Scale():
         return transient_diameter, morphology_type
 
 
-    def transient_to_final(self, transient_diameter: float_like) -> Tuple[np.float64, str]:
+    def transient_to_final(self, transient_diameter: FloatLike) -> Tuple[np.float64, str]:
         """
         Computes the final diameter of a crater based on its transient diameter and morphology type.
 
@@ -321,7 +321,7 @@ class Scale():
         # We'll create a Projectile object that will allow us to set velocity
         projectile = Projectile(diameter=crater.transient_diameter, target=target, location=crater.location, rng=rng)
         
-        def root_func(projectile_diameter: float_like, 
+        def root_func(projectile_diameter: FloatLike, 
                       projectile: Projectile, 
                       crater: Crater,
                       target: Target,

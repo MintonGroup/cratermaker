@@ -10,7 +10,7 @@ from .crater import Crater, Projectile
 from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
 from .scale import Scale
 from .morphology import Morphology
-from ..utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, float_like
+from ..utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, FloatLike
 from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..perlin import apply_noise
 
@@ -44,7 +44,7 @@ class Simulation():
     def __init__(self, 
                 target: str | Target = "Moon",
                 material: str | Material | None = None,
-                pix: float_like | None = None,
+                pix: FloatLike | None = None,
                 reset_surface: bool = True,
                 simdir: os.PathLike | None = None, 
                 scale: Scale | None = None,
