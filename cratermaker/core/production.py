@@ -173,13 +173,13 @@ class Production():
         """
         # Default values that are approximately equal to the NPF for the Moon
         default_N1_coef = {
-            "crater" : 7.88e-3, 
-            "projectile" : 2.18e-8
+            "crater" : 7.883e-3, 
+            "projectile" : 7.989e-7
             }
        
         default_slope = {
-            "crater" : -3.33, 
-            "projectile" : -2.63
+            "crater" : -3.328, 
+            "projectile" : -2.634
             } 
         # Set the power law parameters for the production function along with defaults 
         if N1_coef is None:
@@ -561,7 +561,7 @@ class NeukumProduction(Production):
         Dkm = diameter * 1e-3 # Convert m to km for internal functions
 
         if self.model == "Projectile":
-            Ncumulative = R_to_CSFD(R=_CSFD, D=Dkm) 
+            Ncumulative = R_to_CSFD(R=_CSFD, D=Dkm) * 2.94e-5 # This is a multiplication factor that gets the projectile CSFD to approximately match the lunar crater CSFD 
         else:
             Ncumulative = _CSFD(Dkm) 
             
@@ -696,7 +696,7 @@ if __name__ == "__main__":
         Nc = crater_production.function(diameter=Dc,time=1.0)
         Ni = projectile_production.function(diameter=Di,time=1.0)
        
-        D1proj = 69.5 # Approximate diameter of crater made by a 1 m projectile using the default Cratermaker scaling relationships
+        D1proj = 22.3 # Approximate diameter of crater made by a 1 m projectile using the default Cratermaker scaling relationships
          
         N1_c = crater_production.function(diameter = D1proj, time = 1.0)
         N1_p = projectile_production.function(diameter = 1.0, time = 1.0)        
@@ -714,43 +714,35 @@ if __name__ == "__main__":
         # Output the results
         print("Crater Production Fit Parameters: N1_coef =", N1_coef_crater, ", slope =", slope_crater)
         print("Projectile Production Fit Parameters: N1_coef =", N1_coef_projectile, ", slope =", slope_projectile)
+        
+        # Create the fitted curve data
+        fitted_curve_crater = power_law(Dc, *params_crater)
+        fitted_curve_projectile = power_law(Di, *params_projectile)
 
-    def plot_npf_proj_rplot():
-        fig = plt.figure(1, figsize=(4, 7))
-        ax = fig.add_subplot(111)
+        # Plotting the crater data
+        plt.figure(figsize=(10, 5))
+        plt.subplot(1, 2, 1)
+        plt.loglog(Dc, Nc, 'o', label='Original Data (Crater)')
+        plt.loglog(Dc, fitted_curve_crater, '-', label='Fitted Curve (Crater)')
+        plt.xlabel('Crater Diameter (m)')
+        plt.ylabel('N>D')
+        plt.title('Crater Production')
+        plt.legend()
 
-        x_min = 1e-5
-        x_max = 1e3
-        y_min = 1e-1
-        y_max = 1e2
-        nD = 1000
-        Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
-        production = NeukumProduction(model="Projectile")
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.set_ylabel('$\mathregular{R}$')
-        ax.set_xlabel('Projectile Diameter (km)')
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(y_min, y_max)
-        ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-        ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
-        ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-        ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
-        ax.grid(True,which="minor",ls="-",lw=0.5,zorder=5)
-        ax.grid(True,which="major",ls="-",lw=1,zorder=10)
-        inrange = (Dvals >= production.sfd_range[0]) & (Dvals <= production.sfd_range[1])
-        lo = Dvals < production.sfd_range[0]
-        hi = Dvals > production.sfd_range[1]
-        t = 1.0
-        Nvals = production._CSFD(Dkm=Dvals)
-        ax.plot(Dvals[inrange], Nvals[inrange], '-', color='black', linewidth=1.0, zorder=50)
-        ax.plot(Dvals[lo], Nvals[lo], '-.', color='orange', linewidth=2.0, zorder=50)
-        ax.plot(Dvals[hi], Nvals[hi], '-.', color='orange', linewidth=2.0, zorder=50)
+        # Plotting the projectile data
+        plt.subplot(1, 2, 2)
+        plt.loglog(Di, Ni * N1_c/N1_p, 'o', label='Original Data (Projectile)')
+        plt.loglog(Di, fitted_curve_projectile, '-', label='Fitted Curve (Projectile)')
+        plt.xlabel('Projectile Diameter (m)')
+        plt.ylabel('N>D')
+        plt.title('Projectile Production')
+        plt.legend()
 
-        plt.tick_params(axis='y', which='minor')
+        # Show the plot
         plt.tight_layout()
-        plt.show()          
-    
+        plt.show()        
+
+
     def plot_npf_proj_csfd():
         fig = plt.figure(1, figsize=(4, 7))
         ax = fig.add_subplot(111)
@@ -790,5 +782,5 @@ if __name__ == "__main__":
             
     plot_npf_csfd()
     plot_npf_N1_vs_T()
-    #plot_npf_proj_rplot()
+    plot_npf_fit()    
     plot_npf_proj_csfd()
