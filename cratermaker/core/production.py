@@ -85,6 +85,7 @@ class Production():
     def set_powerlaw_parameters(self, 
                                 N1_coef: float_like | None = None,
                                 slope: float_like | None = None,
+                                **kwargs: Any,
                                 ) -> None:
         """
         Set the parameters for the power law production function.
@@ -110,19 +111,21 @@ class Production():
             } 
         # Set the power law parameters for the production function along with defaults 
         if N1_coef is None:
-            self.N1_coef = default_N1_coef[self.generator_type] 
-        elif not isinstance(self.N1_coef, float_like):
+            N1_coef = default_N1_coef[self.generator_type] 
+        elif not isinstance(N1_coef, float_like):
             raise ValueError("N1_coef must be a float")
         else:
             raise ValueError("N1_coef must be greater than or equal to 0.0")
+        self.N1_coef = N1_coef
        
         # Set the power law exponent for the production function along with defaults 
-        if self.slope is None:
-            self.slope = default_slope[self.generator_type]
-        elif self.slope < 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
-            self.slope *= -1
+        if slope is None:
+            slope = default_slope[self.generator_type]
+        elif slope < 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
+            slope *= -1
         elif not isinstance(self.slope, float_like):
-            raise ValueError("slope must be a float")    
+            raise ValueError("slope must be a float")   
+        self.slope = slope 
        
     def function(self,
              diameter: float_like | Sequence[float_like] | ArrayLike,
