@@ -251,6 +251,7 @@ class NeukumProduction(Production):
             Ncumulative = self._CSFD(Dkm) 
             
         return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
+    
         
     def _CSFD(self, Dkm: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
         """
@@ -338,67 +339,65 @@ class NeukumProduction(Production):
         return _CSFD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD_scalar)(Dkm)
 
 
+    # def _time_to_Nrel(self,
+    #                time: float_like | Sequence[float_like] | ArrayLike, 
+    #                check_valid_time:bool=True
+    #                )-> Union[float_like, ArrayLike]:
+    #     """
+    #     Return the number density of craters at a given time relative to time = 1 Gy ago.
 
-
-    def _time_to_Nrel(self,
-                   time: float_like | Sequence[float_like] | ArrayLike, 
-                   check_valid_time:bool=True
-                   )-> Union[float_like, ArrayLike]:
-        """
-        Return the number density of craters at a given time relative to time = 1 Gy ago.
-
-        Parameters
-        ----------
-        time : numpy array
-            Time in units of 
-        check_valid_time : bool, optional (default=True)
-            If True, return NaN for time values outside the valid time range
+    #     Parameters
+    #     ----------
+    #     time : numpy array
+    #         Time in units of 
+    #     check_valid_time : bool, optional (default=True)
+    #         If True, return NaN for time values outside the valid time range
             
-        Returns
-        -------
-        float_like or numpy array
-           Number density of craters at the given time 
-        """
+    #     Returns
+    #     -------
+    #     float_like or numpy array
+    #        Number density of craters at the given time 
+    #     """
         
-        return self._N1(time,check_valid_time) / self._CSFD(1.0)
+    #     return self._N1(time,check_valid_time) / self._CSFD(1.0)
 
 
-    def _Nrel_to_time(self,
-                  Nrel: float_like | Sequence[float_like] | ArrayLike,
-                  check_valid_time:bool=True
-                  )-> Union[float_like, ArrayLike]:
-        """
-        Return the time in  for the given number density of craters relative to that at 1 Gy ago.
-        This is the inverse of _time_to_Nrel.
+    # def _Nrel_to_time(self,
+    #               Nrel: float_like | Sequence[float_like] | ArrayLike,
+    #               check_valid_time:bool=True
+    #               )-> Union[float_like, ArrayLike]:
+    #     """
+    #     Return the time in  for the given number density of craters relative to that at 1 Gy ago.
+    #     This is the inverse of _time_to_Nrel.
 
-        Parameters
-        ----------
-        Nrel : numpy array
-            number density of craters relative to that at 1 Gy ago 
-        check_valid_time : bool, optional (default=True)
-            If True, return NaN for time values outside the valid time range
+    #     Parameters
+    #     ----------
+    #     Nrel : numpy array
+    #         number density of craters relative to that at 1 Gy ago 
+    #     check_valid_time : bool, optional (default=True)
+    #         If True, return NaN for time values outside the valid time range
 
-        Returns
-        -------
-        float_like or numpy array
-            The time in Gy ago for the given relative number density of craters. 
-        """
+    #     Returns
+    #     -------
+    #     float_like or numpy array
+    #         The time in Gy ago for the given relative number density of craters. 
+    #     """
         
-        def func(time,Nrel):
-            return self._time_to_Nrel(time,check_valid_time=False) - Nrel 
+    #     def func(time,Nrel):
+    #         return self._time_to_Nrel(time,check_valid_time=False) - Nrel 
         
-        xtol = 1e-10
-        max_guess = self.max_time * (1.0 - xtol)
-        x0 = np.where(Nrel < max_guess, Nrel, max_guess)
-        root_val, infodict, ier, mesg = fsolve(func=func, x0=x0, args=(Nrel), xtol=xtol, full_output=True) 
-        if ier == 1:
-            if check_valid_time:
-                root_val = np.where(root_val <= self.max_time, root_val, np.nan)
-            retval = root_val
-        else:
-            retval = Nrel
-            raise ValueError(f"_Nrel_to_time failed. {mesg}")
-        return retval.item() if np.isscalar(Nrel) else retval
+    #     xtol = 1e-10
+    #     max_guess = self.max_time * (1.0 - xtol)
+    #     x0 = np.where(Nrel < max_guess, Nrel, max_guess)
+    #     root_val, infodict, ier, mesg = fsolve(func=func, x0=x0, args=(Nrel), xtol=xtol, full_output=True) 
+    #     if ier == 1:
+    #         if check_valid_time:
+    #             root_val = np.where(root_val <= self.max_time, root_val, np.nan)
+    #         retval = root_val
+    #     else:
+    #         retval = Nrel
+    #         raise ValueError(f"_Nrel_to_time failed. {mesg}")
+    #     return retval.item() if np.isscalar(Nrel) else retval
 
 
 def R_to_CSFD(
