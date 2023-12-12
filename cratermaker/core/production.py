@@ -5,7 +5,7 @@ from scipy import integrate
 from cratermaker.core.target import Target
 from cratermaker.utils.general_utils import float_like
 from numpy.typing import ArrayLike
-from typing import Union, Sequence, Tuple, Callable, Any
+from typing import Union, Sequence, Tuple, Callable, Any, Literal
 
 class Production():
     """
@@ -14,15 +14,25 @@ class Production():
 
     Parameters
     ----------
+    model : str
+        The specific model to use for the production function. Defaults to "Powerlaw".
     target : Target
         The target body for the impact simulation.
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used.
+    **kwargs : Any
+        Additional keyword arguments to pass to the Production class.
     """
-
     def __init__(self, 
+                model: str | None = None, 
                 target: Target | str = "Moon", 
-                rng: Generator | None = None):
+                rng: Generator | None = None,
+                **kwargs: Any):
+          
+        if not hasattr(self, "valid_models"):
+            self.valid_models = ["Powerlaw"] 
+        self.model = self._validate_model(model)          
+            
         if not target:
             self.target = Target("Moon")
         elif isinstance(target, str):
@@ -41,32 +51,153 @@ class Production():
             self.rng = rng
         else:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-
+        
+        
+        # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
+        self.valid_generator_types = ["crater", "projectile"]
+        self.generator_type = kwargs.get("generator_type")
+        self._validate_generator_type(self.generator_type)        
+        
+        if self.model == "Powerlaw":
+            self.set_powerlaw_parameters(**kwargs)
+       
         return
+        
+    def _validate_model(self, model: str | None) -> str:
+        if not model:
+            return self.valid_models[0]
+        if not isinstance(model, str):
+            raise ValueError("model must be a string")
+        if model not in self.valid_models:
+            raise ValueError(f"Invalid model {model}. Must be one of {self.valid_models}")
+        return model
+    
+    def _validate_generator_type(self, generator_type: str | None) -> str:
+        if not generator_type:
+            return self.valid_generator_types[0]
+        if not isinstance(generator_type, str):
+            raise ValueError("generator_type must be a string")
+        if generator_type not in self.valid_generator_types:
+            raise ValueError(f"Invalid generator_type {generator_type}. Must be one of {self.valid_generator_types}")
+        return generator_type
+   
+    
+    def set_powerlaw_parameters(self, 
+                                N1_coef: float_like | None = None,
+                                slope: float_like | None = None,
+                                ) -> None:
+        """
+        Set the parameters for the power law production function.
+        
+        Parameters
+        ----------
+        N1_coef : float
+            The coefficient for the power law production function at 1 m diameter per 1 My. 
+            Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
+        slope : float
+            The slope of the power law production function. 
+            Defaults to -3.32 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
+        """
+        # Default values that are approximately equal to the NPF for the Moon
+        default_N1_coef = {
+            "crater" : 7.9e-3, 
+            "projectile" : 2.2e-8
+            }
+       
+        default_slope = {
+            "crater" : -3.32, 
+            "projectile" : -2.6
+            } 
+        # Set the power law parameters for the production function along with defaults 
+        if N1_coef is None:
+            self.N1_coef = default_N1_coef[self.generator_type] 
+        elif not isinstance(self.N1_coef, float_like):
+            raise ValueError("N1_coef must be a float")
+        else:
+            raise ValueError("N1_coef must be greater than or equal to 0.0")
+       
+        # Set the power law exponent for the production function along with defaults 
+        if self.slope is None:
+            self.slope = default_slope[self.generator_type]
+        elif self.slope < 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
+            self.slope *= -1
+        elif not isinstance(self.slope, float_like):
+            raise ValueError("slope must be a float")    
+       
+    def function(self,
+             diameter: float_like | Sequence[float_like] | ArrayLike,
+             time_range: Tuple[float_like, float_like] = (-1000.0, 0.0),
+             **kwargs: Any,
+             ) -> Union[float_like, ArrayLike]:
+        """
+        Return the cumulative size-frequency distribution of craters over a given time range and crater diameters for a simple power
+        law model.
+
+        Parameters
+        ----------
+        diameter : float_like or numpy array
+            Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
+        time_range : Tuple of 2 values, default=(-1000.0,0.0)
+            time range relative to the present day to compute cumulative SFD in units of My. Defaults to the last 1000 My
+        **kwargs : Any
+            Any additional keywords.
+
+        Returns
+        -------
+        float_like or numpy array of float_like
+            The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
+            surface over the given time range.
+        """            
+        
+        return self.N1_coef * diameter**self.slope * (time_range[1] - time_range[0])
     
 
 class NeukumProduction(Production):
+    """
+    An operations class for computing the the Neukum production function for the Moon and Mars.
+
+
+    Parameters
+    ----------
+    model : {"Moon", "Mars", "Projectile"}, optional
+        The specific model to use for the production function. "Moon" and "Mars" are both crater production functions, and
+        "Projectile" is a projectile function. Defaults to "Moon".
+    rng : Generator, optional
+        A random number generator instance. If not provided, the default numpy RNG will be used.
+    **kwargs : Any
+        Additional keyword arguments to pass to the Production class.    
+        
+    Notes
+    ----- 
+    The CSFD is computed using the model of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 for the Moon and Mars, with 
+    minor changes. Notably, there is a typo in the chronology function (Eq. 5) of the original paper. The linear term in the paper
+    is given as 8.38e-4. The value should be 10**(a0), and therefore the number given in the paper is based on the "Old"
+    coefficients from Neukum (1983). The correct value is 10**(-3.0876) = 8.17e-4. We compute the value from the coefficients 
+    in our implementation of the chronology function.       
+   
+    References
+    ---------- 
+    Lunar PF from: Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
+        the Lunar Reference System. Space Science Reviews 96, 55–86. https://doi.org/10.1023/A:1011989004263
+    Mars PF from: Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. Space Science Reviews 96, 87–104.
+        https://doi.org/10.1023/A:1011941121102
+    Projectile PF from: Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters 
+        and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1–34. 
+        https://doi.org/10.1007/978-94-010-0712-2_1
+    """
     
-    def __init__(self, model: str = "Moon"):
+    def __init__(self, 
+                model: str | None = None, 
+                 **kwargs: Any):
         
-        valid_target_name = ["Moon", "Mars", "Projectile"]
+        if not hasattr(self, "valid_models"):
+            self.valid_models = ["Moon", "Mars", "Projectile"]
+        super().__init__(model=model, **kwargs) 
         
-        if isinstance(model, str):
-            if model in valid_target_name:
-                self.model = model
-            else:
-                raise ValueError(f"Invalid model {model}. Must be one of {valid_target_name}")
+        if self.model == "Projectile":
+            self.generator_type = "projectile"
         else:
-            raise ValueError("model must be a string")
-        
-        # The Neukum production function for the Moon and Mars
-        # Lunar PF from: Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
-        #    the Lunar Reference System. Space Science Reviews 96, 55–86. https://doi.org/10.1023/A:1011989004263
-        # Mars PF from: Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. Space Science Reviews 96, 87–104.
-        #    https://doi.org/10.1023/A:1011941121102
-        # Projectile PF from: Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters 
-        #    and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1–34. 
-        #    https://doi.org/10.1007/978-94-010-0712-2_1
+            self.generator_type = "crater"
 
         sfd_coef = {
                 "Moon" : np.array(
@@ -127,13 +258,13 @@ class NeukumProduction(Production):
        
         #Exponential time constant 
         self.tau = 6.93
+        
+        # Chronology coefficients
         Nexp = 5.44e-14
-        Nexp_proj = 1.0 
-
         time_coef = {
                 "Moon" : Nexp,
                 "Mars" : Nexp * 10**(sfd_coef.get("Mars")[0]) / 10**(sfd_coef.get("Moon")[0]),
-                "Projectile": Nexp_proj * Nexp_proj * 10**(sfd_coef.get("Projectile")[0]) / 10**(sfd_coef.get("Moon")[0]),
+                "Projectile": Nexp * 10**(sfd_coef.get("Projectile")[0]) / 10**(sfd_coef.get("Moon")[0]),
             }   
         
         self.valid_time = (-4500.0,None)  # Range over which the production function is valid
@@ -190,13 +321,6 @@ class NeukumProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
             
-        Notes
-        ----- 
-        The CSFD is computed using the model of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 for the Moon and Mars, with 
-        minor changes. Notably, there is a typo in the chronology function (Eq. 5) of the original paper. The linear term in the paper
-        is given as 8.38e-4. The value should be 10**(a0), and therefore the number given in the paper is based on the "Old"
-        coefficients from Neukum (1983). The correct value is 10**(-3.0876) = 8.17e-4. We compute the value from the coefficients 
-        in our implementation of the chronology function.
         """     
         if np.any(time) < 0.0:
             raise ValueError("time must be positive")
@@ -346,67 +470,6 @@ class NeukumProduction(Production):
             Ncumulative = _CSFD(Dkm) 
             
         return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
-    
-    
-    # def _time_to_Nrel(self,
-    #                time: float_like | Sequence[float_like] | ArrayLike, 
-    #                check_valid_time:bool=True
-    #                )-> Union[float_like, ArrayLike]:
-    #     """
-    #     Return the number density of craters at a given time relative to time = 1 Gy ago.
-
-    #     Parameters
-    #     ----------
-    #     time : numpy array
-    #         Time in units of 
-    #     check_valid_time : bool, optional (default=True)
-    #         If True, return NaN for time values outside the valid time range
-            
-    #     Returns
-    #     -------
-    #     float_like or numpy array
-    #        Number density of craters at the given time 
-    #     """
-        
-    #     return self._N1(time,check_valid_time) / self._CSFD(1.0)
-
-
-    # def _Nrel_to_time(self,
-    #               Nrel: float_like | Sequence[float_like] | ArrayLike,
-    #               check_valid_time:bool=True
-    #               )-> Union[float_like, ArrayLike]:
-    #     """
-    #     Return the time in  for the given number density of craters relative to that at 1 Gy ago.
-    #     This is the inverse of _time_to_Nrel.
-
-    #     Parameters
-    #     ----------
-    #     Nrel : numpy array
-    #         number density of craters relative to that at 1 Gy ago 
-    #     check_valid_time : bool, optional (default=True)
-    #         If True, return NaN for time values outside the valid time range
-
-    #     Returns
-    #     -------
-    #     float_like or numpy array
-    #         The time in Gy ago for the given relative number density of craters. 
-    #     """
-        
-    #     def func(time,Nrel):
-    #         return self._time_to_Nrel(time,check_valid_time=False) - Nrel 
-        
-    #     xtol = 1e-10
-    #     max_guess = self.max_time * (1.0 - xtol)
-    #     x0 = np.where(Nrel < max_guess, Nrel, max_guess)
-    #     root_val, infodict, ier, mesg = fsolve(func=func, x0=x0, args=(Nrel), xtol=xtol, full_output=True) 
-    #     if ier == 1:
-    #         if check_valid_time:
-    #             root_val = np.where(root_val <= self.max_time, root_val, np.nan)
-    #         retval = root_val
-    #     else:
-    #         retval = Nrel
-    #         raise ValueError(f"_Nrel_to_time failed. {mesg}")
-    #     return retval.item() if np.isscalar(Nrel) else retval
 
 
 def R_to_CSFD(
@@ -508,10 +571,14 @@ if __name__ == "__main__":
         ax.set_ylabel('$\mathregular{N(1) (km^{-2})}$')
         ax.set_xlabel('Time (Gy ago)')
         ax.set_xlim(4.5, 0)
-        #ax.set_ylim(1e-1, 1e5)
-        production = NeukumProduction(model="Moon")
+        moon = NeukumProduction(model="Moon")
+        mars = NeukumProduction(model="Mars")
         tvals = np.linspace(4.5, 0.0, num=1000)
-        ax.plot(tvals, production.chronology(-tvals*1e3)*production.size_frequency_distribution(diameter=1000.0)*1e6, '-', color='black', linewidth=1.0, zorder=50)
+        N1_moon = moon.chronology(-tvals*1e3)*moon.size_frequency_distribution(diameter=1000.0)*1e6
+        N1_mars = mars.chronology(-tvals*1e3)*mars.size_frequency_distribution(diameter=1000.0)*1e6
+        ax.plot(tvals, N1_moon, '-', color='dimgrey', linewidth=2.0, zorder=50, label="Moon")
+        ax.plot(tvals, N1_mars, '-', color='orange', linewidth=2.0, zorder=50, label="Mars")
+        ax.legend()
         plt.tight_layout()
         plt.show() 
 
@@ -590,7 +657,7 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()    
             
-    plot_npf_csfd()
+    #plot_npf_csfd()
     plot_npf_N1_vs_T()
     #plot_npf_proj_rplot()
-    plot_npf_proj_csfd()
+    #plot_npf_proj_csfd()
