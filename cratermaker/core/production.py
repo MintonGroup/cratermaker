@@ -167,7 +167,7 @@ class NeukumProduction(Production):
             surface over the given time range.
         """            
 
-        return self.size_frequency_distribution(diameter) * (self.chronology(time_range[1],check_valid_time) - self.chronology(time_range[0],check_valid_time))
+        return self.size_frequency_distribution(diameter) * (self.chronology(time_range[0],check_valid_time) - self.chronology(time_range[1],check_valid_time))
     
      
     def chronology(self,
@@ -175,7 +175,7 @@ class NeukumProduction(Production):
              check_valid_time: bool=True
              ) -> Union[float_like, ArrayLike]:
         """
-        Return the relative number of craters produced over a given time range.
+        Returns  the relative number of craters produced over a given time range.
 
         Parameters
         ----------
@@ -231,7 +231,7 @@ class NeukumProduction(Production):
                     N1 = np.where(time >= min_time, N1, np.nan) 
             return N1.item() if np.isscalar(time) else N1
         
-        N1_reference = self._CSFD(1.0) 
+        N1_reference = 10**(self.sfd_coef[0])
         N1_values = _N1(time_Gy,check_valid_time)
         N1_values /= N1_reference
         
@@ -239,36 +239,19 @@ class NeukumProduction(Production):
     
         
     def size_frequency_distribution(self,diameter: float_like | Sequence[float_like] | ArrayLike,) -> Union[float_like, ArrayLike]:
-
-        if np.any(diameter < 0.0):
-            raise ValueError("diameter must be greater than or equal to 0.0")
-              
-        Dkm = diameter * 1e-3 # Convert m to km for internal functions
-
-        if self.model == "Projectile":
-            Ncumulative = R_to_CSFD(R=self._CSFD, D=Dkm) 
-        else:
-            Ncumulative = self._CSFD(Dkm) 
-            
-        return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
-    
-        
-    def _CSFD(self, Dkm: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
         """
-        Return the cumulative size-frequency distribution at the reference time of 1 Gy ago. For diameter values outside 
-        the range of the NPF, the CSFD is extrapolated using a power law.
+        Return the cumulative size frequency distribution of craters at a given time relative to time = 1 Gy ago per m^2.
 
         Parameters
         ----------
-        Dkm : float_like or numpy array
-            Diameters in units of km
-
+        diameter : numpy array
+            Time in units of meter 
+            
         Returns
         -------
         float_like or numpy array
-            The number of craters per square kilometer greater than Dkm in diameter at time=1 Gy ago.
-        """
-        
+           Cumulative number density of craters per square meter greater than the input diameter.
+        """        
         def _extrapolate_sfd(side: str = "lo") -> Union[float_like, ArrayLike]:
             """
             Return the exponent, p, and and proportionality constant, A, for  the extrapolated 
@@ -282,7 +265,6 @@ class NeukumProduction(Production):
             Returns
             -------
             A, p
-                
             """    
             if side == "lo":
                 idx = 0
@@ -291,7 +273,7 @@ class NeukumProduction(Production):
             else:
                 raise ValueError("side must be 'lo' or 'hi'")
             p = _dNdD(self.sfd_range[idx])
-            A = self._CSFD(self.sfd_range[idx])
+            A = _CSFD(self.sfd_range[idx])
             return A, p
 
 
@@ -310,7 +292,6 @@ class NeukumProduction(Production):
             float_like or numpy array
                 The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at time = 1 Gy ago.
             """        
-        
             def _dNdD_scalar(Dkm): 
                 dcoef = self.sfd_coef[1:]
                 if Dkm < self.sfd_range[0]:
@@ -324,21 +305,49 @@ class NeukumProduction(Production):
             
             return _dNdD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_dNdD_scalar)(Dkm)
 
+    
+        def _CSFD(Dkm: float_like | Sequence[float_like] | ArrayLike) -> Union[float_like, ArrayLike]:
+            """
+            Return the cumulative size-frequency distribution at the reference time of 1 Gy ago. For diameter values outside 
+            the range of the NPF, the CSFD is extrapolated using a power law.
+
+            Parameters
+            ----------
+            Dkm : float_like or numpy array
+                Diameters in units of km
+
+            Returns
+            -------
+            float_like or numpy array
+                The number of craters per square kilometer greater than Dkm in diameter at time=1 Gy ago.
+            """
+            def _CSFD_scalar(Dkm):
+                if Dkm < self.sfd_range[0]:
+                    A, p = _extrapolate_sfd(side="lo")
+                    return A * (Dkm / self.sfd_range[0]) ** p
+                elif Dkm > self.sfd_range[1]:
+                    A, p = _extrapolate_sfd(side="hi")
+                    return A * (Dkm / self.sfd_range[1]) ** p
+                else:
+                    logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
+                    return 10 ** logCSFD
         
-        def _CSFD_scalar(Dkm):
-            if Dkm < self.sfd_range[0]:
-                A, p = _extrapolate_sfd(side="lo")
-                return A * (Dkm / self.sfd_range[0]) ** p
-            elif Dkm > self.sfd_range[1]:
-                A, p = _extrapolate_sfd(side="hi")
-                return A * (Dkm / self.sfd_range[1]) ** p
-            else:
-                logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
-                return 10 ** logCSFD
-       
-        return _CSFD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD_scalar)(Dkm)
+            return _CSFD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD_scalar)(Dkm)
 
 
+        if np.any(diameter < 0.0):
+            raise ValueError("diameter must be greater than or equal to 0.0")
+              
+        Dkm = diameter * 1e-3 # Convert m to km for internal functions
+
+        if self.model == "Projectile":
+            Ncumulative = R_to_CSFD(R=_CSFD, D=Dkm) 
+        else:
+            Ncumulative = _CSFD(Dkm) 
+            
+        return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
+    
+    
     # def _time_to_Nrel(self,
     #                time: float_like | Sequence[float_like] | ArrayLike, 
     #                check_valid_time:bool=True
@@ -581,7 +590,7 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()    
             
-    #plot_npf_csfd()
+    plot_npf_csfd()
     plot_npf_N1_vs_T()
     #plot_npf_proj_rplot()
-    #plot_npf_proj_csfd()
+    plot_npf_proj_csfd()
