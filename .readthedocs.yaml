@@ -12,7 +12,7 @@ mkdocs:
 
 # Optionally set the OS, Python version and other tools
 build:
-  os: macos-latest
+  os: ubuntu-22.04
   tools:
     python: "3.11"  
 
