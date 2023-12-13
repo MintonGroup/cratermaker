@@ -120,16 +120,19 @@ class Production():
         return generator_type
 
 
-    def _validate_time(self, time: FloatLike | Sequence[FloatLike] | ArrayLike) -> Union[FloatLike, ArrayLike]:
+    def _validate_time(self, 
+                       time: FloatLike | Sequence[FloatLike] | ArrayLike,
+                       time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+                       ) -> Union[FloatLike, ArrayLike]:
         """
         Processes the time argument. Checks that it is valid and returns a tuple of start and end times.
 
         Parameters
         ----------        
-        time : float or Tuple of 2 values, default=1.0
-            time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is interpreted
-            as a start and end time. If a single value is passed, it is interpreted as the end time in My.  
-            The default value is 1, which is the same as passing (0, 1), or 1 My of model time.
+        time : FloatLike or ArrayLike, default=1.0
+            time in the past relative to the present day to compute cumulative SFD in units of My. 
+        time_end, FloatLike or ArrayLike, optional
+            interpreted as a start time in My relative to the present day.  Default is 0 (present day)
 
         Returns
         ------- 
@@ -142,20 +145,33 @@ class Production():
             If the the start time is greater than the end time or the time variable is not a scalar or a sequence of 2 values.
         """
               
-            
+          
         if np.isscalar(time):
-            time = (0.0, np.float64(time))
-        elif len(time) == 1:
-            time = (0.0, np.float64(time.item()))
-        elif len(time) == 2:
-            time = (np.float64(time[0]), np.float64(time[1]))
+            time = np.float64(time)
+            if time_end is None:
+                time_end = np.float64(0.0)
+            else:
+                if not np.isscalar(time_end):
+                    raise ValueError("If time is a scalar, time_end must be a scalar")
+            if time_end > time:
+                raise ValueError("The start time must be greater than or equal to the end time")
+        elif isinstance(time, (list, tuple, np.ndarray)):
+            time = np.array(time)
+            if time_end is None:  
+                time_end = np.zeros_like(time)
+            elif isinstance(time_end, (list, tuple, np.ndarray)):
+                time_end = np.array(time_end)
+            else:
+                raise ValueError("If time is a sequence, time_end must be a sequence")
+            if time.size != time_end.size:
+                raise ValueError("If time is a sequence, time_end must be a sequence of the same size")
+            for i, t in np.ndenumerate(time):
+                if t < time_end[i]:
+                    raise ValueError("The start time must be greater than or equal to the end time")
         else:
-            raise ValueError("time must be a scalar or a tuple of 2 values")
-        
-        if time[0] > time[1]:
-            raise ValueError("The start time must be greater than or equal to the end time")
+            raise ValueError("time must be a scalar or a sequence of 2 values")
        
-        return time   
+        return time, time_end 
 
 
     def _validate_csfd(self, 
@@ -263,7 +279,8 @@ class Production():
        
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             time: FloatLike | Tuple[FloatLike, FloatLike] = 1.0,
+             time: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+             time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
              **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]:
         """
@@ -272,12 +289,12 @@ class Production():
 
         Parameters
         ----------
-        diameter : FloatLike or numpy array
+        diameter : FloatLike or ArrayLike
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        time : float or Tuple of 2 values, default=1.0
-            time or time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is 
-            interpreted as a start and end time. If a single value is passed, it is interpreted as the end time and the start time 
-            is assumed to be 0.  The default value is 1, which is the same as (0, 1).    
+        time : FloatLike or ArrayLike, default=1.0
+            time in the past relative to the present day to compute cumulative SFD in units of My. 
+        time_end, FloatLike or ArrayLike, optional
+            interpreted as a start time in My relative to the present day.  Default is 0 (present day)
         **kwargs : Any
             Any additional keywords.
 
@@ -288,8 +305,8 @@ class Production():
             surface over the given time range.
         """         
         diameter, _ = self._validate_csfd(diameter=diameter)   
-        time = self._validate_time(time) 
-        return self.N1_coef * diameter**self.slope * (time[1] - time[0])
+        time, time_end = self._validate_time(time, time_end)
+        return self.N1_coef * diameter**self.slope * (time - time_end)
     
 
     def function_inverse(self,
@@ -466,7 +483,8 @@ class NeukumProduction(Production):
 
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             time: FloatLike | Tuple[FloatLike, FloatLike] = 1.0,
+             time: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+             time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
              check_valid_time: bool=True,
              **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]:
@@ -477,12 +495,10 @@ class NeukumProduction(Production):
         ----------
         diameter : FloatLike or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        time : float or Tuple of 2 values, default=-1.0
-            time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is interpreted
-            as a start and end time. If a single value is passed, it is interpreted as a start time and the end time is assumed to be 0. 
-            The default value is 1, which is the same as (0, 1). NOTE: time is interpeted as time ago, so positive values are 
-            interpreted as time in the past. So a value of (0, 1) is intepreted as "1 My ago until the present day". Likewise, a value
-            of (3500, 4100) is interprted as "4.1 Gy ago until 3.5 Gy ago" 
+        time : FloatLike or ArrayLike, default=1.0
+            time in the past relative to the present day to compute cumulative SFD in units of My. 
+        time_end, FloatLike or ArrayLike, optional
+            interpreted as a start time in My relative to the present day.  Default is 0 (present day)
         check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range
 
@@ -492,10 +508,10 @@ class NeukumProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given time range.
         """
-        time = self._validate_time(time) 
+        time, time_end = self._validate_time(time, time_end) 
         diameter, _ = self._validate_csfd(diameter=diameter)
 
-        return self.size_frequency_distribution(diameter) * (self.chronology(time[1],check_valid_time) - self.chronology(time[0],check_valid_time))
+        return self.size_frequency_distribution(diameter) * (self.chronology(time,check_valid_time) - self.chronology(time_end,check_valid_time))
     
      
     def chronology(self,
@@ -503,11 +519,11 @@ class NeukumProduction(Production):
              check_valid_time: bool=True
              ) -> Union[FloatLike, ArrayLike]:
         """
-        Returns  the relative number of craters produced over a given time range.
+        Returns the relative number of craters produced over a given time range.
 
         Parameters
         ----------
-        time : FloatLike or 
+        time : FloatLike or ArrayLike
             time to compute the relative number of craters in units of My.
         check_valid_time : bool, optional (default=True)
             If True, return NaN for time values outside the valid time range
@@ -790,8 +806,8 @@ if __name__ == "__main__":
         moon = NeukumProduction(model="Moon")
         mars = NeukumProduction(model="Mars")
         tvals = np.linspace(4.5, 0.0, num=1000)
-        N1_moon = moon.chronology(tvals*1e3)*moon.size_frequency_distribution(diameter=1000.0)*1e6
-        N1_mars = mars.chronology(tvals*1e3)*mars.size_frequency_distribution(diameter=1000.0)*1e6
+        N1_moon = moon.function(diameter=1000.0, time=tvals*1e3)*1e6
+        N1_mars = mars.function(diameter=1000.0, time=tvals*1e3)*1e6
         ax.plot(tvals, N1_moon, '-', color='dimgrey', linewidth=2.0, zorder=50, label="Moon")
         ax.plot(tvals, N1_mars, '-', color='orange', linewidth=2.0, zorder=50, label="Mars")
         ax.legend()
