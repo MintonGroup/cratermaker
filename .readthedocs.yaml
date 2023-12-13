@@ -7,7 +7,7 @@ version: 2
 
 # Build documentation with MkDocs
 mkdocs:
-  configuration: mkdocs.yml
+  configuration: cratermaker/mkdocs.yml
   fail_on_warning: false  # Optional: Set to true if you want the build to fail on warnings.
 
 # Optionally set the OS, Python version and other tools
