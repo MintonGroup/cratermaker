@@ -27,5 +27,5 @@ python:
   install:
     - requirements: requirements.txt  # Specify your project's requirements file
     # If your documentation has additional dependencies, list them as follows:
-    # - method: pip
-    #   path: docs/requirements.txt
+    - method: pip
+      path: cratermaker/requirements.txt
