@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.random import Generator
 from scipy.optimize import root_scalar
-from cratermaker.core.target import Target
+from cratermaker.utils.montecarlo import get_random_size
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from numpy.typing import ArrayLike
 from typing import Union, Sequence, Tuple, Callable, Any
@@ -15,8 +15,6 @@ class Production():
     ----------
     model : str
         The specific model to use for the production function. Defaults to "Powerlaw".
-    target : Target
-        The target body for the impact simulation.
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used.
     **kwargs : Any
@@ -24,7 +22,6 @@ class Production():
     """
     def __init__(self, 
                 model: str | None = None, 
-                target: Target | str = "Moon", 
                 rng: Generator | None = None,
                 **kwargs: Any):
           
@@ -32,25 +29,12 @@ class Production():
             self.valid_models = ["Powerlaw"] 
         self.model = self._validate_model(model)          
             
-        if not target:
-            self.target = Target("Moon")
-        elif isinstance(target, str):
-            try:
-                self.target = Target(target)
-            except:
-                raise ValueError(f"Invalid target name {target}")
-        elif isinstance(target, Target):
-            self.target = target
-        else:
-            raise TypeError("The 'target' argument must be a string or a Target instance")
-         
         if rng is None:
             self.rng = np.random.default_rng()
         elif isinstance(rng, Generator):
             self.rng = rng
         else:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        
         
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
         self.valid_generator_types = ["crater", "projectile"]
@@ -362,8 +346,93 @@ class Production():
                age: FloatLike | None = None,
                reference_age: FloatLike | None = None,
                cumulative_number_at_diameter: PairOfFloats | None = None,
-               ) -> Tuple[np.ndarray, np.ndarray]:
-        pass
+               reference_cumulative_number_at_diameter: PairOfFloats | None = None,
+               minimum_diameter: FloatLike | None = None,
+               maximum_diameter: FloatLike | None = None,
+               num: int = 1,
+               ) -> np.ndarray:
+        
+        """
+        Sample crater diameters and ages from the production function. This function can either sample from a given age range or
+        from a given cumulative number/diameter pair (but not both). 
+       
+        Parameters
+        ----------
+        age : FloatLike or ArrayLike, optional
+            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
+        reference_age, FloatLike or ArrayLike, optional
+            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
+            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
+            "4.0 Gy to 3.5 Gy ago". 
+        cumulative_number_at_diameter : PairOfFloats, optional
+            A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function convert this value
+            to a corresponding age and use the production function for a given age.
+        reference_cumulative_number_at_diameter : PairOfFloats, optional
+            A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function will convert this
+            value to a corresponding reference age and use the production function for a given age.
+        minimum_diameter : FloatLike
+            The minimum crater diameter to sample from in meters. 
+        maximum_diameter : FloatLike
+            The maximum crater diameter to sample from in meters.
+        num : int, optional
+            The number of samples to generate. Defaults to 1.
+            
+        Returns
+        -------
+        numpy array
+            The sampled diameter values
+            
+        Raises
+        ------
+        ValueError
+            If both the age and cumulative_number_at_diameter arguments are provided, or if the minimum_diameter is less than or 
+            equal to 0 or is greater than the maximum_diameter, or if the num argument is less than 1. 
+
+        """
+        # Validate all the input arguments
+        if age is None and cumulative_number_at_diameter is None:
+            raise ValueError("Either the 'age' or 'cumulative_number_at_diameter' must be provided")
+        if age is not None and cumulative_number_at_diameter is not None:
+            raise ValueError("Only one of the 'age' or 'cumulative_number_at_diameter' arguments can be provided")
+        if reference_age is not None and reference_cumulative_number_at_diameter is not None: 
+            raise ValueError("Only one of the 'reference_age' or 'reference_cumulative_number_at_diameter' arguments can be provided") 
+        if minimum_diameter is None:
+            raise ValueError("The 'minimum_diameter' must be provided")
+        if minimum_diameter <= 0.0:
+            raise ValueError("The 'minimum_diameter' must be greater than 0.0")
+        if maximum_diameter is None:
+            raise ValueError("The 'maximum_diameter' must be provided")
+        if maximum_diameter < minimum_diameter:
+            raise ValueError("The 'maximum_diameter' must be greater than or equal to the 'minimum_diameter'")
+        if num < 1:
+            raise ValueError("The 'num' must be greater than or equal to 1") 
+       
+        if reference_cumulative_number_at_diameter is not None:
+            reference_cumulative_number_at_diameter = self._validate_csfd(*reference_cumulative_number_at_diameter)
+            reference_age = self.function_inverse(diameter=reference_cumulative_number_at_diameter[1], cumulative_number=reference_cumulative_number_at_diameter[0])
+            # Check to be sure that the diameter in the reference_cumulative_number_at_diameter is the same as cumulative_number_at_diameter. 
+            # If not, we need to adjust it so that they match 
+            if cumulative_number_at_diameter is not None:
+                if reference_cumulative_number_at_diameter[1] != cumulative_number_at_diameter[1]:
+                    reference_cumulative_number_at_diameter[0] = self.function(diameter=cumulative_number_at_diameter[1], age=reference_age)
+                    reference_cumulative_number_at_diameter[1] = cumulative_number_at_diameter[1]
+                # Now adjust the N value so that when we convert it to age, we get the age value relative to the present
+                cumulative_number_at_diameter[0] += reference_cumulative_number_at_diameter[0] 
+            
+            cumulative_number_at_diameter = self._validate_csfd(*cumulative_number_at_diameter)
+            age = self.function_inverse(diameter=cumulative_number_at_diameter[1], cumulative_number=cumulative_number_at_diameter[0])
+            # Convert the absolute age to a relative age
+            age -= reference_age
+        
+        age, reference_age = self._validate_age(age, reference_age)
+           
+        # Build the cumulative distribution function from which we will sample 
+        input_diameters = np.logspace(np.log10(minimum_diameter), np.log10(maximum_diameter), num=num)
+        cdf = self.function(diameter=input_diameters, age=age, reference_age=reference_age)
+        diameters = get_random_size(diameters=input_diameters, cdf=cdf, mu=num, rng=self.rng)
+        
+        return diameters    
+            
     
 class NeukumProduction(Production):
     """
@@ -745,6 +814,7 @@ if __name__ == "__main__":
     from scipy.optimize import curve_fit
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
+    from cratermaker.core.target import Target
     
     def plot_npf_csfd():
         fig = plt.figure(1, figsize=(8, 7))
@@ -909,8 +979,60 @@ if __name__ == "__main__":
         plt.tick_params(axis='y', which='minor')
         plt.tight_layout()
         plt.show()    
+   
+   
+    def plot_sampled_csfd():
+        fig = plt.figure(1, figsize=(8, 7))
+        ax = {'Power Law': fig.add_subplot(121),
+            'NPF (Moon)': fig.add_subplot(122)}
+
+        production = {
+                    'Power Law': Production(),
+                    'NPF (Moon)': NeukumProduction(model="Moon")
+                    }
+        
+        target = Target("Moon")
+        area = 4*np.pi*target.radius**2 
+        age = 1000.0
+        x_min = 1e0
+        x_max = 1e4
+        y_min = 1e-8
+        y_max = 1e-3
+        nD = 1000
+        Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
+        Nevaluations = 100
+        for key in ax:
+            ax[key].title.set_text(key)
+            ax[key].set_xscale('log')
+            ax[key].set_yscale('log')
+            ax[key].set_ylabel('$\mathregular{N_{>D} (km^{-2})}$')
+            ax[key].set_xlabel('Diameter (km)')
+            ax[key].set_xlim(x_min, x_max)
+            ax[key].set_ylim(y_min, y_max)
+            ax[key].yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+            ax[key].yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
+            ax[key].xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+            ax[key].xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
+            # Plot the sampled values
+            Nexpected = int(production[key].function(diameter=x_min*1e3,age=age) * area)
+            for i in range(Nevaluations):
+                Dsampled = production[key].sample(age=age, minimum_diameter=x_min*1e3, maximum_diameter=x_max*1e3, num=Nexpected)
+                Dsampled = np.sort(Dsampled)[::-1]
+                Nsampled = range(1,len(Dsampled)+1) / area 
+                ax[key].plot(Dsampled*1e-3, Nsampled*1e6, '-', color='cornflowerblue', linewidth=2.0, zorder=50, alpha=0.2)
+               
+            # Plot the production function 
+            Nvals = production[key].function(diameter=Dvals*1e3,age=age)
+            Nvals *= 1e6 # convert from m^-2 to km^-2
+            ax[key].plot(Dvals, Nvals, '-', color='black', linewidth=3.0, zorder=50)
+
+        plt.tick_params(axis='y', which='minor')
+        plt.tight_layout()
+        plt.show()
+    
             
-    plot_npf_csfd()
-    plot_npf_N1_vs_T()
-    plot_npf_fit()    
-    plot_npf_proj_csfd()
+    #plot_npf_csfd()
+    #plot_npf_N1_vs_T()
+    #plot_npf_fit()    
+    #plot_npf_proj_csfd()
+    plot_sampled_csfd()
