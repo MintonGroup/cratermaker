@@ -18,17 +18,13 @@ class Production():
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used.
     **kwargs : Any
-        Additional keyword arguments to pass to the Production class.
+        Additional keyword arguments to pass to the Production class. These are used to pass optional arguments
+        to set the parameters of the power law production function using the set_model_parameters method.
     """
     def __init__(self, 
-                model: str | None = None, 
                 rng: Generator | None = None,
                 **kwargs: Any):
           
-        if not hasattr(self, "valid_models"):
-            self.valid_models = ["Powerlaw"] 
-        self.model = self._validate_model(model)          
-            
         if rng is None:
             self.rng = np.random.default_rng()
         elif isinstance(rng, Generator):
@@ -36,199 +32,42 @@ class Production():
         else:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
         
-        # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
-        self.valid_generator_types = ["crater", "projectile"]
-        generator_type = kwargs.get("generator_type")
-        self.generator_type = self._validate_generator_type(generator_type)        
-        self.valid_time = (0,None)  # Range over which the production function is valid
-        
-        if self.model == "Powerlaw":
-            self.set_powerlaw_parameters(**kwargs)
+        self.set_model_parameters(**kwargs)
        
         return
        
-        
-    def _validate_model(self, model: str | None) -> str:
-        """
-        Validates the given model string against the list of valid models.
-
-        Parameters
-        ----------
-        model : str | None
-            The model name to validate. If None, the first model in the valid models list is returned.
-
-        Returns
-        -------
-        str
-            The validated model name. If the input model is None, returns the first model in the valid models list.
-
-        Raises
-        ------
-        ValueError
-            If the model is not a string or if the model is not in the list of valid models.
-        """       
-        if not model:
-            return self.valid_models[0]
-        if not isinstance(model, str):
-            raise ValueError("model must be a string")
-        if model not in self.valid_models:
-            raise ValueError(f"Invalid model {model}. Must be one of {self.valid_models}")
-        return model
-
     
-    def _validate_generator_type(self, generator_type: str | None) -> str:
-        """
-        Validates the given generator type against the list of valid generator types.
-
-        Parameters
-        ----------
-        generator_type : str | None
-            The generator type to validate. If None, the first type in the valid generator types list is returned.
-
-        Returns
-        -------
-        str
-            The validated generator type. If the input generator type is None, returns the first type in the valid generator types list.
-
-        Raises
-        ------
-        ValueError
-            If the generator type is not a string or if the generator type is not in the list of valid generator types.
-        """        
-        if not generator_type:
-            return self.valid_generator_types[0]
-        if not isinstance(generator_type, str):
-            raise ValueError("generator_type must be a string")
-        if generator_type not in self.valid_generator_types:
-            raise ValueError(f"Invalid generator_type {generator_type}. Must be one of {self.valid_generator_types}")
-        return generator_type
-
-
-    def _validate_age(self, 
-                       age: FloatLike | Sequence[FloatLike] | ArrayLike,
-                       reference_age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-                       ) -> Union[FloatLike, ArrayLike]:
-        """
-        Processes the age argument and reference_age arguments. Checks that they are valid and returns a tuple of age and reference_age.
-
-        Parameters
-        ----------        
-        age : FloatLike or ArrayLike, default=1.0
-            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
-        reference_age, FloatLike or ArrayLike, optional
-            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
-            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
-            "4.0 Gy to 3.5 Gy ago". 
-
-        Returns
-        ------- 
-        Tuple of np.float64
-            The start and end ages in units of My.
-            
-        Raises
-        ------
-        ValueError
-            If the the start age is greater than the end age or the age variable is not a scalar or a sequence of 2 values.
-        """
-          
-        if np.isscalar(age):
-            age = np.float64(age)
-            if reference_age is None:
-                reference_age = np.float64(0.0)
-            else:
-                if not np.isscalar(reference_age):
-                    raise ValueError("If age is a scalar, reference_age must be a scalar")
-            if age < 0:
-                raise ValueError("Age must be positive")
-        elif isinstance(age, (list, tuple, np.ndarray)):
-            age = np.array(age)
-            if reference_age is None:  
-                reference_age = np.zeros_like(age)
-            elif isinstance(reference_age, (list, tuple, np.ndarray)):
-                reference_age = np.array(reference_age)
-            else:
-                raise ValueError("If age is a sequence, reference_age must be a sequence")
-            if age.size != reference_age.size:
-                raise ValueError("If age is a sequence, reference_age must be a sequence of the same size")
-            if np.any(age < 0):
-                raise ValueError("All values in the 'age' argument must be greater than or equal to 0.0")
-        else:
-            raise ValueError("age must be a scalar or a sequence")
-       
-        return age, reference_age 
-
-
-    def _validate_csfd(self,
-                        diameter: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-                        cumulative_number: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-                       ) -> Tuple[Union[FloatLike, ArrayLike], Union[FloatLike, ArrayLike]]:
-        """
-        Validates the diameter and cumulative_number arguments. Both arguments can be either
-        scalar or array-like, but they must be both scalars or both arrays of the same length.
-        Values must be non-negative.
-
-        Parameters
-        ----------
-        diameter : float-like or array-like, optional
-            Diameter of the crater in meters.
-        cumulative_number : float-like or array-like, optional
-            Number density of craters per square meter surface area greater than the input diameter.
-
-        Raises
-        ------
-        ValueError
-            If any of the conditions on the CSFD are not met.
-        """
-        
-        if diameter is None and cumulative_number is None:
-            raise ValueError("Either the 'diameter' or 'cumulative_number' must be provided")
-        
-        # Convert inputs to numpy arrays for uniform processing
-        if diameter is not None:
-            diameter_array = np.atleast_1d(diameter)
-        else:
-            diameter_array = None
-        if cumulative_number is not None:
-            cumulative_number_array = np.atleast_1d(cumulative_number)   
-        else:
-            cumulative_number_array = None
-
-        # Check if both are provided, they should be of the same length
-        if diameter_array is not None and cumulative_number_array is not None:
-            # Check for length consistency
-            if (len(diameter_array) != len(cumulative_number_array)):
-                raise ValueError("The 'diameter' and 'cumulative_number' must have the same length when both are provided")
-            
-        # Validate non-negative values
-        if diameter_array is not None and np.any(diameter_array < 0):
-            raise ValueError("All values in 'diameter' must be non-negative")
-        if cumulative_number_array is not None and np.any(cumulative_number_array < 0):
-            raise ValueError("All values in 'cumulative_number' must be non-negative")
-
-        if diameter is not None and not np.isscalar(diameter):
-            diameter = diameter_array
-        if cumulative_number is not None and not np.isscalar(cumulative_number):
-            cumulative_number = cumulative_number_array
-        return diameter, cumulative_number
-   
-    
-    def set_powerlaw_parameters(self, 
-                                N1_coef: FloatLike | None = None,
-                                slope: FloatLike | None = None,
-                                **kwargs: Any,
-                                ) -> None:
+    def set_model_parameters(self, **kwargs: Any) -> None:
         """
         Set the parameters for the power law production function.
         
         Parameters
         ----------
-        N1_coef : float
-            The coefficient for the power law production function at 1 m diameter per 1 My. 
-            Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
-        slope : float
-            The slope of the power law production function. 
-            Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
+        **kwargs : Any
+            This function accepts the following keyword arguments:
+          
+            model : str
+                The specific model to use for the production function. Defaults to "Powerlaw". 
+            generator_type : str
+                The type of generator to use. This can be either "crater" or "projectile". Defaults to "crater". 
+            N1_coef : float
+                The coefficient for the power law production function at 1 m diameter per 1 My. 
+                Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
+            slope : float
+                The slope of the power law production function. 
+                Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
         """
+        if not hasattr(self, "valid_models"):
+            self.valid_models = ["Powerlaw"] 
+        model = kwargs.get("model", "Powerlaw")
+        self.model = self._validate_model(model)          
+        
+        # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
+        self.valid_generator_types = ["crater", "projectile"]
+        generator_type = kwargs.get("generator_type", "crater")
+        self.generator_type = self._validate_generator_type(generator_type)        
+        self.valid_time = (0,None)  # Range over which the production function is valid       
+        
         # Default values that are approximately equal to the NPF for the Moon
         default_N1_coef = {
             "crater" : 7.883e-3, 
@@ -240,23 +79,22 @@ class Production():
             "projectile" : -2.634
             } 
         # Set the power law parameters for the production function along with defaults 
-        if N1_coef is None:
-            N1_coef = default_N1_coef[self.generator_type] 
-        elif not isinstance(N1_coef, FloatLike):
+        N1_coef = kwargs.get("N1_coef",default_N1_coef[self.generator_type] )
+        
+        if not isinstance(N1_coef, FloatLike):
             raise ValueError("N1_coef must be a float")
-        else:
-            raise ValueError("N1_coef must be greater than or equal to 0.0")
+        if N1_coef < 0.0:
+            raise ValueError("N1_coef must be positive")
         self.N1_coef = N1_coef
        
         # Set the power law exponent for the production function along with defaults 
-        if slope is None:
-            slope = default_slope[self.generator_type]
-        elif slope < 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
-            slope *= -1
-        elif not isinstance(self.slope, FloatLike):
+        slope = kwargs.get("slope", default_slope[self.generator_type])
+        if not isinstance(slope, FloatLike):
             raise ValueError("slope must be a float")   
+        elif slope > 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
+            slope *= -1
         self.slope = slope 
-       
+        
        
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -279,7 +117,8 @@ class Production():
             interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
             "4.0 Gy to 3.5 Gy ago". 
         **kwargs : Any
-            Any additional keywords.
+            Any additional keywords. These are not used in this base class, but included here so that any extended class can share
+            the same function signature.
 
         Returns
         -------
@@ -305,10 +144,10 @@ class Production():
         ----------
         diameter : float-lik or  array-like
             diameter of the crater in m
-        cumulative : float-like or array-like
+        cumulative_number : float-like or array-like
             number density of craters per m^2 surface area greater than the input diameter
         **kwargs: Any
-            Any additional keywords.
+            Any additional keywords that are passed to the function method.
 
         Returns
         -------
@@ -316,10 +155,10 @@ class Production():
             The age in My for the given relative number density of craters. 
         """
        
-        diameter, cumulative = self._validate_csfd(diameter=diameter, cumulative_number=cumulative_number) 
+        diameter, cumulative_number = self._validate_csfd(diameter=diameter, cumulative_number=cumulative_number) 
         
         def _root_func(t,D,N):
-            retval = self.function(diameter=D,age=t,check_valid_time=False) - N
+            retval = self.function(diameter=D,age=t,check_valid_time=False,**kwargs) - N
             return retval
              
         xtol = 1e-10
@@ -450,6 +289,170 @@ class Production():
         diameters = get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng)
         
         return diameters    
+    
+        
+    def _validate_model(self, model: str | None) -> str:
+        """
+        Validates the given model string against the list of valid models.
+
+        Parameters
+        ----------
+        model : str | None
+            The model name to validate. If None, the first model in the valid models list is returned.
+
+        Returns
+        -------
+        str
+            The validated model name. If the input model is None, returns the first model in the valid models list.
+
+        Raises
+        ------
+        ValueError
+            If the model is not a string or if the model is not in the list of valid models.
+        """       
+        if not model:
+            return self.valid_models[0]
+        if not isinstance(model, str):
+            raise ValueError("model must be a string")
+        if model not in self.valid_models:
+            raise ValueError(f"Invalid model {model}. Must be one of {self.valid_models}")
+        return model
+
+    
+    def _validate_generator_type(self, generator_type: str | None) -> str:
+        """
+        Validates the given generator type against the list of valid generator types.
+
+        Parameters
+        ----------
+        generator_type : str | None
+            The generator type to validate. If None, the first type in the valid generator types list is returned.
+
+        Returns
+        -------
+        str
+            The validated generator type. If the input generator type is None, returns the first type in the valid generator types list.
+
+        Raises
+        ------
+        ValueError
+            If the generator type is not a string or if the generator type is not in the list of valid generator types.
+        """        
+        if not generator_type:
+            return self.valid_generator_types[0]
+        if not isinstance(generator_type, str):
+            raise ValueError("generator_type must be a string")
+        if generator_type not in self.valid_generator_types:
+            raise ValueError(f"Invalid generator_type {generator_type}. Must be one of {self.valid_generator_types}")
+        return generator_type
+
+
+    def _validate_age(self, 
+                       age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+                       reference_age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+                       ) -> Union[FloatLike, ArrayLike]:
+        """
+        Processes the age argument and reference_age arguments. Checks that they are valid and returns a tuple of age and reference_age.
+
+        Parameters
+        ----------        
+        age : FloatLike or ArrayLike, default=1.0
+            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
+        reference_age, FloatLike or ArrayLike, optional
+            The reference used when computing age in My. If none is passed, it will be set either 0 or an array of zeros, depending on 
+            the size of age.  If a non-zero value is passed, the `age` is interpreted as a delta on the reference age. So for instance, 
+            if `age=500` and `reference_age=3500`, then this means "4.0 Gy to 3.5 Gy ago". 
+
+        Returns
+        ------- 
+        Tuple of np.float64
+            The start and end ages in units of My.
+            
+        Raises
+        ------
+        ValueError
+            If the the start age is greater than the end age or the age variable is not a scalar or a sequence of 2 values.
+        """
+          
+        if np.isscalar(age):
+            age = np.float64(age)
+            if reference_age is None:
+                reference_age = np.float64(0.0)
+            else:
+                if not np.isscalar(reference_age):
+                    raise ValueError("If age is a scalar, reference_age must be a scalar")
+            if age < 0:
+                raise ValueError("Age must be positive")
+        elif isinstance(age, (list, tuple, np.ndarray)):
+            age = np.array(age)
+            if reference_age is None:  
+                reference_age = np.zeros_like(age)
+            elif isinstance(reference_age, (list, tuple, np.ndarray)):
+                reference_age = np.array(reference_age)
+            else:
+                raise ValueError("If age is a sequence, reference_age must be a sequence")
+            if age.size != reference_age.size:
+                raise ValueError("If age is a sequence, reference_age must be a sequence of the same size")
+            if np.any(age < 0):
+                raise ValueError("All values in the 'age' argument must be greater than or equal to 0.0")
+        else:
+            raise ValueError("age must be a scalar or a sequence")
+       
+        return age, reference_age 
+
+
+    def _validate_csfd(self,
+                        diameter: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+                        cumulative_number: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+                       ) -> Tuple[Union[FloatLike, ArrayLike], Union[FloatLike, ArrayLike]]:
+        """
+        Validates the diameter and cumulative_number arguments. Both arguments can be either
+        scalar or array-like, but they must be both scalars or both arrays of the same length.
+        Values must be non-negative.
+
+        Parameters
+        ----------
+        diameter : float-like or array-like, optional
+            Diameter of the crater in meters.
+        cumulative_number : float-like or array-like, optional
+            Number density of craters per square meter surface area greater than the input diameter.
+
+        Raises
+        ------
+        ValueError
+            If any of the conditions on the CSFD are not met.
+        """
+        
+        if diameter is None and cumulative_number is None:
+            raise ValueError("Either the 'diameter' or 'cumulative_number' must be provided")
+        
+        # Convert inputs to numpy arrays for uniform processing
+        if diameter is not None:
+            diameter_array = np.atleast_1d(diameter)
+        else:
+            diameter_array = None
+        if cumulative_number is not None:
+            cumulative_number_array = np.atleast_1d(cumulative_number)   
+        else:
+            cumulative_number_array = None
+
+        # Check if both are provided, they should be of the same length
+        if diameter_array is not None and cumulative_number_array is not None:
+            # Check for length consistency
+            if (len(diameter_array) != len(cumulative_number_array)):
+                raise ValueError("The 'diameter' and 'cumulative_number' must have the same length when both are provided")
+            
+        # Validate non-negative values
+        if diameter_array is not None and np.any(diameter_array < 0):
+            raise ValueError("All values in 'diameter' must be non-negative")
+        if cumulative_number_array is not None and np.any(cumulative_number_array < 0):
+            raise ValueError("All values in 'cumulative_number' must be non-negative")
+
+        if diameter is not None and not np.isscalar(diameter):
+            diameter = diameter_array
+        if cumulative_number is not None and not np.isscalar(cumulative_number):
+            cumulative_number = cumulative_number_array
+        return diameter, cumulative_number
             
     
 class NeukumProduction(Production):
@@ -464,7 +467,7 @@ class NeukumProduction(Production):
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used.
     **kwargs : Any
-        Additional keyword arguments to pass to the Production class.    
+        Includes arguments that were called from the parent class. These are not used in this class.
         
     Notes
     ----- 
@@ -484,14 +487,32 @@ class NeukumProduction(Production):
         and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1–34. 
         https://doi.org/10.1007/978-94-010-0712-2_1
     """
-    
-    def __init__(self, 
-                model: str | None = None, 
-                 **kwargs: Any):
         
+    def set_model_parameters(self, **kwargs: Any) -> None:
+        """
+        Set the parameters for Neukum production. This will set the following attributes based on the value of the keyword argument
+        `model`, which is either "Moon", "Mars", or "Projectile".
+        
+        - sfd_coef : the coefficients for the size-frequency distribution function (See Table 1 of Neukum et al. 2001)
+        - sfd_range : the range of diameters over which the size-frequency distribution function is valid 
+        - valid_time : the range of ages over which the chronology function is valid
+        - tau : the time constant for the chronology function (See Eq. 5 of Neukum et al. 2001)
+        - Cexp : the coefficient for the exponential componenbt of the chronology function (See Eq. 5 of Neukum et al. 2001)
+        - Clin : the coefficient for the linear component of the chronology function (See Eq. 5 of Neukum et al. 2001, but our implementation corrects the typo in that expression)
+        
+        Parameters
+        ----------
+        **kwargs : Any
+            This function accepts the following keyword arguments:
+          
+            model : str, {"Moon", "Mars", "Projectile"}
+                The specific model to use for the production function. Defaults to "Moon" 
+        """
+        # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
         if not hasattr(self, "valid_models"):
             self.valid_models = ["Moon", "Mars", "Projectile"]
-        super().__init__(model=model, **kwargs) 
+        model = kwargs.get("model", "Moon")
+        self.model = self._validate_model(model)   
         
         if self.model == "Projectile":
             self.generator_type = "projectile"
@@ -611,7 +632,7 @@ class NeukumProduction(Production):
     
      
     def _chronology(self,
-             age: FloatLike | Sequence[FloatLike] | ArrayLike,
+             age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
              check_valid_time: bool=True
              ) -> Union[FloatLike, ArrayLike]:
         """
@@ -672,13 +693,13 @@ class NeukumProduction(Production):
         return  N1_values 
    
     
-    def _size_frequency_distribution(self,diameter: FloatLike | Sequence[FloatLike] | ArrayLike,) -> Union[FloatLike, ArrayLike]:
+    def _size_frequency_distribution(self,diameter: FloatLike | ArrayLike,) -> Union[FloatLike, ArrayLike]:
         """
         Return the cumulative size frequency distribution of craters at a given age relative to age = 1 Gy ago per m^2.
 
         Parameters
         ----------
-        diameter : numpy array
+        diameter : FloatLike or ArrayLike
             Time in units of meter 
             
         Returns
@@ -810,7 +831,7 @@ def R_to_CSFD(
     """
     
     def _R_to_CSFD_scalar(R, D, Dlim, *args):
-        # Helper function to integrate
+        # Helper function to integrate the R function
         def integrand(D):
             return R(D,*args) / D**3  # This is dN/dD
         
