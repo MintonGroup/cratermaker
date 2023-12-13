@@ -130,7 +130,6 @@ class Production():
         ValueError
             If the the start age is greater than the end age or the age variable is not a scalar or a sequence of 2 values.
         """
-              
           
         if np.isscalar(age):
             age = np.float64(age)
@@ -342,14 +341,14 @@ class Production():
         else:
             raise ValueError(f"The root finding algorithm did not converge for all values of diameter and cumulative_number. Flag {flag}")
 
+
     def sample(self,
                age: FloatLike | None = None,
                reference_age: FloatLike | None = None,
                cumulative_number_at_diameter: PairOfFloats | None = None,
                reference_cumulative_number_at_diameter: PairOfFloats | None = None,
-               minimum_diameter: FloatLike | None = None,
-               maximum_diameter: FloatLike | None = None,
-               num: int = 1,
+               diameter_range: PairOfFloats | None = None,
+               area: FloatLike | None = None, 
                ) -> np.ndarray:
         
         """
@@ -370,12 +369,11 @@ class Production():
         reference_cumulative_number_at_diameter : PairOfFloats, optional
             A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function will convert this
             value to a corresponding reference age and use the production function for a given age.
-        minimum_diameter : FloatLike
-            The minimum crater diameter to sample from in meters. 
-        maximum_diameter : FloatLike
-            The maximum crater diameter to sample from in meters.
-        num : int, optional
-            The number of samples to generate. Defaults to 1.
+        diameter_range : PairOfFloats
+            The minimum and maximum crater diameter to sample from in meters. 
+        area : FloatLike, optional
+            The area in m^2 over which the production function is evaluated to generate the expected number, which is the production
+            function over the input age/cumulative number range at the minimum diameter.
             
         Returns
         -------
@@ -385,34 +383,56 @@ class Production():
         Raises
         ------
         ValueError
-            If both the age and cumulative_number_at_diameter arguments are provided, or if the minimum_diameter is less than or 
-            equal to 0 or is greater than the maximum_diameter, or if the num argument is less than 1. 
+            If any of the following conditions are met:
+            - Both the age and cumulative_number_at_diameter arguments are provided
+            - The diameter_range is not provided.
+            - If diameter_range is not a pair of values.
+            - If the minimum diameter is less than or equal to 0.
+            - If the maximum diameter is less than or equal the minimum.
+            - If the cumulative_number_at_diameter argument is not a pair of values, or any of them are less than 0
+            - If the reference_cumulative_number_at_diameter argument is not a pair of values, or any of them are less than 0
+            - If if the area argument is less than 1. 
 
         """
         # Validate all the input arguments
         if age is None and cumulative_number_at_diameter is None:
             raise ValueError("Either the 'age' or 'cumulative_number_at_diameter' must be provided")
-        if age is not None and cumulative_number_at_diameter is not None:
+        elif age is not None and cumulative_number_at_diameter is not None:
             raise ValueError("Only one of the 'age' or 'cumulative_number_at_diameter' arguments can be provided")
         if reference_age is not None and reference_cumulative_number_at_diameter is not None: 
             raise ValueError("Only one of the 'reference_age' or 'reference_cumulative_number_at_diameter' arguments can be provided") 
-        if minimum_diameter is None:
-            raise ValueError("The 'minimum_diameter' must be provided")
-        if minimum_diameter <= 0.0:
-            raise ValueError("The 'minimum_diameter' must be greater than 0.0")
-        if maximum_diameter is None:
-            raise ValueError("The 'maximum_diameter' must be provided")
-        if maximum_diameter < minimum_diameter:
-            raise ValueError("The 'maximum_diameter' must be greater than or equal to the 'minimum_diameter'")
-        if num < 1:
-            raise ValueError("The 'num' must be greater than or equal to 1") 
+        
+        if age is not None and not np.isscalar(age):
+            raise ValueError("The 'age' must be a scalar")
+        
+        if diameter_range is None:
+            raise ValueError("The 'diameter_range' must be provided")
+        if len(diameter_range) != 2:
+            raise ValueError("The 'diameter_range' must be a pair of values")
+        if diameter_range[0] <= 0:
+            raise ValueError(f"Diameter range invalid: {diameter_range}. The minimum diameter must be greater than 0")
+        if diameter_range[1] < diameter_range[0]:
+            raise ValueError(f"Diameter range invalid: {diameter_range}. The maximum diameter must be greater than or equal to the minimum diameter")
+        
+        if area is not None:
+            if not np.isscalar(area):
+                raise ValueError("The 'area' must be a scalar")
+            if area < 0.0:
+                raise ValueError("The 'area' must be greater than 0")
+            size = None # Override the size argument with the expected_num argument if it is passed
+        if size and size < 1:
+            raise ValueError("The 'size' must be greater than or equal to 1") 
        
         if reference_cumulative_number_at_diameter is not None:
+            if len(reference_cumulative_number_at_diameter) != 2:
+                raise ValueError("The 'reference_cumulative_number_at_diameter' must be a pair of values")
             reference_cumulative_number_at_diameter = self._validate_csfd(*reference_cumulative_number_at_diameter)
             reference_age = self.function_inverse(diameter=reference_cumulative_number_at_diameter[1], cumulative_number=reference_cumulative_number_at_diameter[0])
             # Check to be sure that the diameter in the reference_cumulative_number_at_diameter is the same as cumulative_number_at_diameter. 
             # If not, we need to adjust it so that they match 
             if cumulative_number_at_diameter is not None:
+                if len(cumulative_number_at_diameter) != 2:
+                    raise ValueError("The 'cumulative_number_at_diameter' must be a pair of values")
                 if reference_cumulative_number_at_diameter[1] != cumulative_number_at_diameter[1]:
                     reference_cumulative_number_at_diameter[0] = self.function(diameter=cumulative_number_at_diameter[1], age=reference_age)
                     reference_cumulative_number_at_diameter[1] = cumulative_number_at_diameter[1]
@@ -427,9 +447,10 @@ class Production():
         age, reference_age = self._validate_age(age, reference_age)
            
         # Build the cumulative distribution function from which we will sample 
-        input_diameters = np.logspace(np.log10(minimum_diameter), np.log10(maximum_diameter), num=num)
+        input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
         cdf = self.function(diameter=input_diameters, age=age, reference_age=reference_age)
-        diameters = get_random_size(diameters=input_diameters, cdf=cdf, mu=num, rng=self.rng)
+        expected_num = cdf[0] * area if area is not None else None
+        diameters = get_random_size(diameters=input_diameters, cdf=cdf, size=size, mu=expected_num, rng=self.rng)
         
         return diameters    
             
@@ -994,10 +1015,11 @@ if __name__ == "__main__":
         target = Target("Moon")
         area = 4*np.pi*target.radius**2 
         age = 1000.0
-        x_min = 1e0
+        x_min = 1e-1
         x_max = 1e4
-        y_min = 1e-8
-        y_max = 1e-3
+        y_min = 1e0
+        y_max = 1e6
+        diameter_range = (1e3,1e7) # Range of diameters to generate in m
         nD = 1000
         Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
         Nevaluations = 100
@@ -1005,7 +1027,7 @@ if __name__ == "__main__":
             ax[key].title.set_text(key)
             ax[key].set_xscale('log')
             ax[key].set_yscale('log')
-            ax[key].set_ylabel('$\mathregular{N_{>D} (km^{-2})}$')
+            ax[key].set_ylabel('$\mathregular{N_{>D}}$')
             ax[key].set_xlabel('Diameter (km)')
             ax[key].set_xlim(x_min, x_max)
             ax[key].set_ylim(y_min, y_max)
@@ -1014,16 +1036,15 @@ if __name__ == "__main__":
             ax[key].xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
             ax[key].xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
             # Plot the sampled values
-            Nexpected = int(production[key].function(diameter=x_min*1e3,age=age) * area)
             for i in range(Nevaluations):
-                Dsampled = production[key].sample(age=age, minimum_diameter=x_min*1e3, maximum_diameter=x_max*1e3, num=Nexpected)
+                Dsampled = production[key].sample(age=age, diameter_range=diameter_range, area=area)
                 Dsampled = np.sort(Dsampled)[::-1]
-                Nsampled = range(1,len(Dsampled)+1) / area 
-                ax[key].plot(Dsampled*1e-3, Nsampled*1e6, '-', color='cornflowerblue', linewidth=2.0, zorder=50, alpha=0.2)
+                Nsampled = range(1,len(Dsampled)+1) 
+                ax[key].plot(Dsampled*1e-3, Nsampled, '-', color='cornflowerblue', linewidth=2.0, zorder=50, alpha=0.2)
                
             # Plot the production function 
             Nvals = production[key].function(diameter=Dvals*1e3,age=age)
-            Nvals *= 1e6 # convert from m^-2 to km^-2
+            Nvals *= area # convert from per unit area to total number
             ax[key].plot(Dvals, Nvals, '-', color='black', linewidth=3.0, zorder=50)
 
         plt.tick_params(axis='y', which='minor')
@@ -1031,8 +1052,8 @@ if __name__ == "__main__":
         plt.show()
     
             
-    #plot_npf_csfd()
-    #plot_npf_N1_vs_T()
-    #plot_npf_fit()    
-    #plot_npf_proj_csfd()
+    # plot_npf_csfd()
+    # plot_npf_N1_vs_T()
+    # plot_npf_fit()    
+    # plot_npf_proj_csfd()
     plot_sampled_csfd()
