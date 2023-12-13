@@ -1,8 +1,8 @@
 import numpy as np
 from numpy.random import Generator
-from scipy.optimize import fsolve, root_scalar
+from scipy.optimize import root_scalar
 from cratermaker.core.target import Target
-from cratermaker.utils.general_utils import FloatLike
+from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from numpy.typing import ArrayLike
 from typing import Union, Sequence, Tuple, Callable, Any
 
@@ -174,6 +174,7 @@ class Production():
        
         return age, reference_age 
 
+
     def _validate_csfd(self,
                         diameter: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
                         cumulative_number: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
@@ -266,7 +267,7 @@ class Production():
        
         # Set the power law exponent for the production function along with defaults 
         if slope is None:
-            lope = default_slope[self.generator_type]
+            slope = default_slope[self.generator_type]
         elif slope < 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
             slope *= -1
         elif not isinstance(self.slope, FloatLike):
@@ -356,7 +357,14 @@ class Production():
             return retval.item() if np.isscalar(diameter) else retval
         else:
             raise ValueError(f"The root finding algorithm did not converge for all values of diameter and cumulative_number. Flag {flag}")
-        
+
+    def sample(self,
+               age: FloatLike | None = None,
+               reference_age: FloatLike | None = None,
+               cumulative_number_at_diameter: PairOfFloats | None = None,
+               ) -> Tuple[np.ndarray, np.ndarray]:
+        pass
+    
 class NeukumProduction(Production):
     """
     An operations class for computing the the Neukum production function for the Moon and Mars.

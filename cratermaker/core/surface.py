@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
-from ..utils.general_utils import FloatLike
+from ..utils.custom_types import FloatLike
 
 # Default file names and directories
 _DATA_DIR = "surface_data"

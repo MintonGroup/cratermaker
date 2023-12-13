@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from cratermaker import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, FloatLike, normalize_coords  # Adjust the import according to your project's structure
+from cratermaker import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, normalize_coords  
+from cratermaker.utils.custom_types import FloatLike
 
 mock_properties = [
     "name",       "property1",     "property2"

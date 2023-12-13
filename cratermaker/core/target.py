@@ -5,7 +5,8 @@ from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Tuple
 import os
-from ..utils.general_utils import set_properties, create_catalogue, check_properties, FloatLike
+from ..utils.general_utils import set_properties, create_catalogue, check_properties
+from ..utils.custom_types import FloatLike
 
 
 @dataclass

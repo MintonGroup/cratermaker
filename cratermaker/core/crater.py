@@ -3,8 +3,9 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike
 from typing import Type
 from .target import Target
-from ..utils.general_utils import validate_and_convert_location, FloatLike
+from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
+from ..utils.custom_types import FloatLike
 from .scale import Scale 
 from .morphology import Morphology
 class Crater:

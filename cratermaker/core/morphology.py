@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from typing import Tuple
 from .target import Target
-from ..utils.general_utils import FloatLike
+from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
 from .surface import Surface
 from .target import Target

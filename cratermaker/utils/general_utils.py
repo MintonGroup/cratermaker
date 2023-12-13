@@ -1,9 +1,6 @@
 import json
-from typing import Union
 import numpy as np
 from numpy.typing import ArrayLike
-
-FloatLike = Union[float, int, np.number]
 
 def to_config(obj):
     """

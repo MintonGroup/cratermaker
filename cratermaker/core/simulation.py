@@ -7,10 +7,11 @@ import tempfile
 from typing import Any
 from .target import Target, Material
 from .crater import Crater, Projectile
-from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
+from .surface import initialize_surface, save_surface, elevation_to_cartesian
 from .scale import Scale
 from .morphology import Morphology
-from ..utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, FloatLike
+from ..utils.general_utils import to_config, set_properties
+from ..utils.custom_types import FloatLike
 from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..perlin import apply_noise
 
