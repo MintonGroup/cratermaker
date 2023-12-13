@@ -15,6 +15,9 @@
 !cratermaker/*/**.pyx
 !cratermaker/*/**.h
 !cratermaker/tests/*/*.py
+!cratermaker/docs/
+!cratermaker/*/**.md
+!cratermaker/mkdocs.yml
 !fortran/
 !fortran/*/
 !fortran/*/**.f90

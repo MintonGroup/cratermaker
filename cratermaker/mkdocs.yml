@@ -1,0 +1,8 @@
+site_name: Cratermaker
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          rendering:
+            show_source: true
