@@ -120,79 +120,76 @@ class Production():
         return generator_type
 
 
-    def _validate_time(self, 
-                       time: FloatLike | Sequence[FloatLike] | ArrayLike,
-                       time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+    def _validate_age(self, 
+                       age: FloatLike | Sequence[FloatLike] | ArrayLike,
+                       reference_age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
                        ) -> Union[FloatLike, ArrayLike]:
         """
-        Processes the time argument. Checks that it is valid and returns a tuple of start and end times.
+        Processes the age argument and reference_age arguments. Checks that they are valid and returns a tuple of age and reference_age.
 
         Parameters
         ----------        
-        time : FloatLike or ArrayLike, default=1.0
-            time in the past relative to the present day to compute cumulative SFD in units of My. 
-        time_end, FloatLike or ArrayLike, optional
-            interpreted as a start time in My relative to the present day.  Default is 0 (present day)
+        age : FloatLike or ArrayLike, default=1.0
+            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
+        reference_age, FloatLike or ArrayLike, optional
+            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
+            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
+            "4.0 Gy to 3.5 Gy ago". 
 
         Returns
         ------- 
         Tuple of np.float64
-            The start and end times in units of My.
+            The start and end ages in units of My.
             
         Raises
         ------
         ValueError
-            If the the start time is greater than the end time or the time variable is not a scalar or a sequence of 2 values.
+            If the the start age is greater than the end age or the age variable is not a scalar or a sequence of 2 values.
         """
               
           
-        if np.isscalar(time):
-            time = np.float64(time)
-            if time_end is None:
-                time_end = np.float64(0.0)
+        if np.isscalar(age):
+            age = np.float64(age)
+            if reference_age is None:
+                reference_age = np.float64(0.0)
             else:
-                if not np.isscalar(time_end):
-                    raise ValueError("If time is a scalar, time_end must be a scalar")
-            if time_end > time:
-                raise ValueError("The start time must be greater than or equal to the end time")
-        elif isinstance(time, (list, tuple, np.ndarray)):
-            time = np.array(time)
-            if time_end is None:  
-                time_end = np.zeros_like(time)
-            elif isinstance(time_end, (list, tuple, np.ndarray)):
-                time_end = np.array(time_end)
+                if not np.isscalar(reference_age):
+                    raise ValueError("If age is a scalar, reference_age must be a scalar")
+            if age < 0:
+                raise ValueError("Age must be positive")
+        elif isinstance(age, (list, tuple, np.ndarray)):
+            age = np.array(age)
+            if reference_age is None:  
+                reference_age = np.zeros_like(age)
+            elif isinstance(reference_age, (list, tuple, np.ndarray)):
+                reference_age = np.array(reference_age)
             else:
-                raise ValueError("If time is a sequence, time_end must be a sequence")
-            if time.size != time_end.size:
-                raise ValueError("If time is a sequence, time_end must be a sequence of the same size")
-            for i, t in np.ndenumerate(time):
-                if t < time_end[i]:
-                    raise ValueError("The start time must be greater than or equal to the end time")
+                raise ValueError("If age is a sequence, reference_age must be a sequence")
+            if age.size != reference_age.size:
+                raise ValueError("If age is a sequence, reference_age must be a sequence of the same size")
+            if np.any(age < 0):
+                raise ValueError("All values in the 'age' argument must be greater than or equal to 0.0")
         else:
-            raise ValueError("time must be a scalar or a sequence of 2 values")
+            raise ValueError("age must be a scalar or a sequence")
        
-        return time, time_end 
+        return age, reference_age 
 
-
-    def _validate_csfd(self, 
-                       diameter: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-                       cumulative_number: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-                       ) -> Union[FloatLike, ArrayLike]:
+    def _validate_csfd(self,
+                        diameter: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+                        cumulative_number: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+                       ) -> Tuple[Union[FloatLike, ArrayLike], Union[FloatLike, ArrayLike]]:
         """
-        Processes either the diameter and cumulative_number arguments or both. Checks that each one is valid (greater than zero),
-        and if both are passed, ensures that they are the same length and that cumulative_number increases with decreasing diameter.
+        Validates the diameter and cumulative_number arguments. Both arguments can be either
+        scalar or array-like, but they must be both scalars or both arrays of the same length.
+        Values must be non-negative.
 
         Parameters
-        ----------        
-        time : float or Tuple of 2 values, default=1.0
-            time range relative to the present day to compute cumulative SFD in units of My. If a tuple is pased, this is interpreted
-            as a start and end time. If a single value is passed, it is interpreted as the end time in My.  
-            The default value is 1, which is the same as passing (0, 1), or 1 My of model time.
+        ----------
+        diameter : float-like or array-like, optional
+            Diameter of the crater in meters.
+        cumulative_number : float-like or array-like, optional
+            Number density of craters per square meter surface area greater than the input diameter.
 
-        Returns
-        ------- 
-        None
-            
         Raises
         ------
         ValueError
@@ -200,36 +197,36 @@ class Production():
         """
         
         if diameter is None and cumulative_number is None:
-            raise ValueError("Either the 'diameter' or 'cumulative_number' arguments must be passed")
+            raise ValueError("Either the 'diameter' or 'cumulative_number' must be provided")
+        
+        # Convert inputs to numpy arrays for uniform processing
         if diameter is not None:
-            diameter = np.array(diameter) 
-            if np.any(diameter < 0):
-                raise ValueError("All values in the 'diameter' argument must be greater than or equal to 0.0")
+            diameter_array = np.atleast_1d(diameter)
+        else:
+            diameter_array = None
         if cumulative_number is not None:
-            cumulative_number = np.array(cumulative_number)
-            if np.any(cumulative_number < 0):
-                raise ValueError("All values in the 'cumulative_number' argument must be greater than or equal to 0.0")
-        if cumulative_number is not None and diameter is not None:    
-            # Check that the shapes and sizes of diameter and cumulative_number are compatible
-            
-                
-            if diameter.shape != cumulative_number.shape:
-                raise ValueError("The 'diameter' and 'cumulative_number' arguments must have the same shape")
-            
-            if diameter.size != cumulative_number.size:
-                raise ValueError("The 'diameter' and 'cumulative_number' arguments must have the same size")
+            cumulative_number_array = np.atleast_1d(cumulative_number)   
+        else:
+            cumulative_number_array = None
 
-            if diameter.size > 1:
-                # Sort the diameter in descending order and get the cumulative distribution if it was not supplied
-                sorted_indices = np.argsort(diameter)[::-1]
-                sorted_cumulative_number = cumulative_number[sorted_indices]
+        # Check if both are provided, they should be of the same length
+        if diameter_array is not None and cumulative_number_array is not None:
+            # Check for length consistency
+            if (len(diameter_array) != len(cumulative_number_array)):
+                raise ValueError("The 'diameter' and 'cumulative_number' must have the same length when both are provided")
             
-                # Check to make sure that the cumulative_number is correctly specified so that as diameter is decreasing it is monotonically increasing
-                is_monotonic_increasing = np.all(np.diff(sorted_cumulative_number) >= 0)
-                if not is_monotonic_increasing:
-                    raise ValueError("The cumulative_number must be monotonically increasing with decreasing diameter.")
-       
-        return diameter, cumulative_number   
+        # Validate non-negative values
+        if diameter_array is not None and np.any(diameter_array < 0):
+            raise ValueError("All values in 'diameter' must be non-negative")
+        if cumulative_number_array is not None and np.any(cumulative_number_array < 0):
+            raise ValueError("All values in 'cumulative_number' must be non-negative")
+
+        if diameter is not None and not np.isscalar(diameter):
+            diameter = diameter_array
+        if cumulative_number is not None and not np.isscalar(cumulative_number):
+            cumulative_number = cumulative_number_array
+        return diameter, cumulative_number
+   
     
     def set_powerlaw_parameters(self, 
                                 N1_coef: FloatLike | None = None,
@@ -269,7 +266,7 @@ class Production():
        
         # Set the power law exponent for the production function along with defaults 
         if slope is None:
-            slope = default_slope[self.generator_type]
+            lope = default_slope[self.generator_type]
         elif slope < 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
             slope *= -1
         elif not isinstance(self.slope, FloatLike):
@@ -279,22 +276,24 @@ class Production():
        
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             time: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+             age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+             reference_age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
              **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]:
         """
-        Return the cumulative size-frequency distribution of craters over a given time range and crater diameter for a simple power
+        Return the cumulative size-frequency distribution of craters over a given age range and crater diameter for a simple power
         law model.
 
         Parameters
         ----------
         diameter : FloatLike or ArrayLike
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        time : FloatLike or ArrayLike, default=1.0
-            time in the past relative to the present day to compute cumulative SFD in units of My. 
-        time_end, FloatLike or ArrayLike, optional
-            interpreted as a start time in My relative to the present day.  Default is 0 (present day)
+        age : FloatLike or ArrayLike, default=1.0
+            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
+        reference_age, FloatLike or ArrayLike, optional
+            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
+            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
+            "4.0 Gy to 3.5 Gy ago". 
         **kwargs : Any
             Any additional keywords.
 
@@ -302,21 +301,21 @@ class Production():
         -------
         FloatLike or numpy array of FloatLike
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
-            surface over the given time range.
+            surface over the given age range.
         """         
         diameter, _ = self._validate_csfd(diameter=diameter)   
-        time, time_end = self._validate_time(time, time_end)
-        return self.N1_coef * diameter**self.slope * (time - time_end)
+        age, reference_age = self._validate_age(age, reference_age)
+        return self.N1_coef * diameter**self.slope * age # reference_age has no meaning in a constant production function, so we ignore it here.
     
 
     def function_inverse(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
-             cumulative_number: FloatLike | Tuple[FloatLike, FloatLike],
+             cumulative_number: FloatLike | Sequence[FloatLike] | ArrayLike,
              **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]:
       
         """
-        Return the time in My for a given number density of craters and diameter 
+        Return the age in My for a given number density of craters and diameter 
 
         Parameters
         ----------
@@ -330,13 +329,13 @@ class Production():
         Returns
         -------
         float_like or numpy array
-            The time in My for the given relative number density of craters. 
+            The age in My for the given relative number density of craters. 
         """
        
-        diameter, cumulative_number = self._validate_csfd(diameter, cumulative_number) 
+        diameter, cumulative = self._validate_csfd(diameter=diameter, cumulative_number=cumulative_number) 
         
         def _root_func(t,D,N):
-            retval = self.function(diameter=D,time=t,check_valid_time=False) - N
+            retval = self.function(diameter=D,age=t,check_valid_time=False) - N
             return retval
              
         xtol = 1e-10
@@ -483,87 +482,93 @@ class NeukumProduction(Production):
 
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             time: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+             age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+             reference_age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
              check_valid_time: bool=True,
              **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]:
         """
-        Return the cumulative size-frequency distribution of craters over a given time range and crater diameter.
+        Return the cumulative size-frequency distribution of craters over a given age range and crater diameter.
 
         Parameters
         ----------
         diameter : FloatLike or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        time : FloatLike or ArrayLike, default=1.0
-            time in the past relative to the present day to compute cumulative SFD in units of My. 
-        time_end, FloatLike or ArrayLike, optional
-            interpreted as a start time in My relative to the present day.  Default is 0 (present day)
+        age : FloatLike or ArrayLike, default=1.0
+            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
+        reference_age, FloatLike or ArrayLike, optional
+            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
+            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
+            "4.0 Gy to 3.5 Gy ago". 
         check_valid_time : bool, optional (default=True)
-            If True, return NaN for time values outside the valid time range
+            If True, return NaN for age values outside the valid age range
 
         Returns
         -------
         FloatLike or numpy array of FloatLike
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
-            surface over the given time range.
+            surface over the given age range.
         """
-        time, time_end = self._validate_time(time, time_end) 
+        age, reference_age = self._validate_age(age, reference_age) 
         diameter, _ = self._validate_csfd(diameter=diameter)
 
-        return self.size_frequency_distribution(diameter) * (self.chronology(time,check_valid_time) - self.chronology(time_end,check_valid_time))
+        return self._size_frequency_distribution(diameter) * (self._chronology(reference_age + age,check_valid_time) - self._chronology(reference_age,check_valid_time))
     
      
-    def chronology(self,
-             time: FloatLike | Sequence[FloatLike] | ArrayLike,
+    def _chronology(self,
+             age: FloatLike | Sequence[FloatLike] | ArrayLike,
              check_valid_time: bool=True
              ) -> Union[FloatLike, ArrayLike]:
         """
-        Returns the relative number of craters produced over a given time range.
+        Returns the relative number of craters produced over a given age range. This implements the chronology function given in
+        Eq. 5 of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86, but takes in the age argument in the Cratermaker unit 
+        system of My instead of Gy. The returned value is normalized to the number of craters greater than 1 km in diameter at the
+        reference time of 1 Gy. 
 
         Parameters
         ----------
-        time : FloatLike or ArrayLike
-            time to compute the relative number of craters in units of My.
+        age : FloatLike or ArrayLike, default=1.0
+            Age in the past relative to the present day to compute cumulative SFD in units of My. 
         check_valid_time : bool, optional (default=True)
-            If True, return NaN for time values outside the valid time range
+            If True, return NaN for age values outside the valid age range
 
         Returns
         -------
         FloatLike or numpy array of FloatLike
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
-            surface over the given time range.
+            surface over the given age range.
             
         """     
-        time_Gy = np.array(time) * 1e-3  # Convert time range from My to Gy ago for internal functions
+        time_Gy = np.array(age) * 1e-3  # Convert age range from My to Gy ago for internal functions
         
-        def _N1(time: FloatLike | Sequence[FloatLike] | ArrayLike,
+        def _N1(age: FloatLike | Sequence[FloatLike] | ArrayLike,
                 check_valid_time:bool=True
                 ) -> Union[FloatLike, ArrayLike]:
             """
-            Return the N(1) value as a function of time. 
+            Return the cumulative number of 1 km craters as a function of age in Gy. This is a direct implementation of Eq. 5 in
+            Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 (with corrected coefficient for the linear term).  
 
             Parameters
             ----------
-            time : FloatLike or numpy array
-                Time ago in units of 
+            age : FloatLike or numpy array
+                Time ago in units of Gy
             check_valid_time : bool, optional (default=True)
-                If True, return NaN for time values outside the valid time range        
+                If True, return NaN for age values outside the valid age range        
 
             Returns
             -------
             FloatLike or numpy array
                 The number of craters per square kilometer greater than 1 km in diameter
             """
-            N1 = self.Cexp * (np.exp(time/self.tau) - 1.0) + self.Clin * time
+            N1 = self.Cexp * (np.exp(age/self.tau) - 1.0) + self.Clin * age
             if check_valid_time:
                 if self.valid_time[0] is not None:
                     min_time = self.valid_time[0] * 1e-3
-                    N1 = np.where(time >= min_time, N1, np.nan)
+                    N1 = np.where(age >= min_time, N1, np.nan)
                 if self.valid_time[1] is not None:
                     max_time = self.valid_time[1] * 1e-3
-                    N1 = np.where(time <= max_time, N1, np.nan) 
-            return N1.item() if np.isscalar(time) else N1
+                    N1 = np.where(age <= max_time, N1, np.nan) 
+            return N1.item() if np.isscalar(age) else N1
         
         N1_reference = _N1(1.0) 
         N1_values = _N1(time_Gy,check_valid_time)
@@ -572,29 +577,9 @@ class NeukumProduction(Production):
         return  N1_values 
    
     
-    # def _time_from_N(self, 
-    #                  N: FloatLike | Sequence[FloatLike] | ArrayLike,
-    #                  diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
-    #                  ) -> Union[FloatLike, ArrayLike]:
-        
-    #     # Scale the input N value to the reference diameter value at the reference time of 1 Gy
-    #     N1 = self.function(diameter=diameter, time=1000)
-    #     N1_reference = self.function(diameter=1000, time=1000)
-        
-    #     Nscaled = (N / N1) * 1e6 # Convert from m^-2 to km^-2
-    #     def _inv_chrono_func(N1):
-    #         A = self.Cexp / N1_reference
-    #         B = self.Clin / N1_reference
-    #         t = A/B + N1/B - self.tau * lambertw(-A * np.exp((A + N1)/(B * self.tau)) / (B * self.tau)).real
-    #         return t 
-        
-    #     t = _inv_chrono_func(Nscaled) * 1e3 # Convert from Gy to My
-    #     return t
-            
-            
-    def size_frequency_distribution(self,diameter: FloatLike | Sequence[FloatLike] | ArrayLike,) -> Union[FloatLike, ArrayLike]:
+    def _size_frequency_distribution(self,diameter: FloatLike | Sequence[FloatLike] | ArrayLike,) -> Union[FloatLike, ArrayLike]:
         """
-        Return the cumulative size frequency distribution of craters at a given time relative to time = 1 Gy ago per m^2.
+        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 Gy ago per m^2.
 
         Parameters
         ----------
@@ -644,7 +629,7 @@ class NeukumProduction(Production):
             Returns
             -------
             FloatLike or numpy array
-                The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at time = 1 Gy ago.
+                The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at age = 1 Gy ago.
             """        
             def _dNdD_scalar(Dkm): 
                 dcoef = self.sfd_coef[1:]
@@ -662,7 +647,7 @@ class NeukumProduction(Production):
     
         def _CSFD(Dkm: FloatLike | Sequence[FloatLike] | ArrayLike) -> Union[FloatLike, ArrayLike]:
             """
-            Return the cumulative size-frequency distribution at the reference time of 1 Gy ago. For diameter values outside 
+            Return the cumulative size-frequency distribution at the reference age of 1 Gy ago. For diameter values outside 
             the range of the NPF, the CSFD is extrapolated using a power law.
 
             Parameters
@@ -673,7 +658,7 @@ class NeukumProduction(Production):
             Returns
             -------
             FloatLike or numpy array
-                The number of craters per square kilometer greater than Dkm in diameter at time=1 Gy ago.
+                The number of craters per square kilometer greater than Dkm in diameter at age=1 Gy ago.
             """
             def _CSFD_scalar(Dkm):
                 if Dkm < self.sfd_range[0]:
@@ -784,7 +769,7 @@ if __name__ == "__main__":
             lo = Dvals < production.sfd_range[0]
             hi = Dvals > production.sfd_range[1]
             for t in tvals:
-                Nvals = production.function(diameter=Dvals*1e3,time=t*1e3)
+                Nvals = production.function(diameter=Dvals*1e3,age=t*1e3)
                 Nvals *= 1e6 # convert from m^-2 to km^-2
                 ax[key].plot(Dvals[inrange], Nvals[inrange], '-', color='black', linewidth=1.0, zorder=50)
                 ax[key].plot(Dvals[lo], Nvals[lo], '-.', color='orange', linewidth=2.0, zorder=50)
@@ -795,6 +780,7 @@ if __name__ == "__main__":
         plt.tick_params(axis='y', which='minor')
         plt.tight_layout()
         plt.show()
+
         
     def plot_npf_N1_vs_T():
         fig = plt.figure(1, figsize=(8, 4))
@@ -806,13 +792,14 @@ if __name__ == "__main__":
         moon = NeukumProduction(model="Moon")
         mars = NeukumProduction(model="Mars")
         tvals = np.linspace(4.5, 0.0, num=1000)
-        N1_moon = moon.function(diameter=1000.0, time=tvals*1e3)*1e6
-        N1_mars = mars.function(diameter=1000.0, time=tvals*1e3)*1e6
+        N1_moon = moon.function(diameter=1000.0, age=tvals*1e3)*1e6
+        N1_mars = mars.function(diameter=1000.0, age=tvals*1e3)*1e6
         ax.plot(tvals, N1_moon, '-', color='dimgrey', linewidth=2.0, zorder=50, label="Moon")
         ax.plot(tvals, N1_mars, '-', color='orange', linewidth=2.0, zorder=50, label="Mars")
         ax.legend()
         plt.tight_layout()
         plt.show() 
+
 
     def plot_npf_fit():
         # Define the power-law function
@@ -828,13 +815,13 @@ if __name__ == "__main__":
         Di = np.logspace(-2,1)
 
         # Compute the reference N values (N>D at 1 My)
-        Nc = crater_production.function(diameter=Dc,time=1.0)
-        Ni = projectile_production.function(diameter=Di,time=1.0)
+        Nc = crater_production.function(diameter=Dc,age=1.0)
+        Ni = projectile_production.function(diameter=Di,age=1.0)
        
         D1proj = 22.3 # Approximate diameter of crater made by a 1 m projectile using the default Cratermaker scaling relationships
          
-        N1_c = crater_production.function(diameter = D1proj, time = 1.0)
-        N1_p = projectile_production.function(diameter = 1.0, time = 1.0)        
+        N1_c = crater_production.function(diameter = D1proj, age = 1.0)
+        N1_p = projectile_production.function(diameter = 1.0, age = 1.0)        
 
         # Fit the power-law function to the crater data
         params_crater, _ = curve_fit(power_law, Dc, Nc)
@@ -905,7 +892,7 @@ if __name__ == "__main__":
         lo = Dvals < production.sfd_range[0]
         hi = Dvals > production.sfd_range[1]
         t = 1.0
-        Nvals = production.function(diameter=Dvals*1e3,time=t*1e3)
+        Nvals = production.function(diameter=Dvals*1e3,age=t*1e3)
         Nvals *= 1e6 # convert from m^-2 to km^-2
         ax.plot(Dvals[inrange], Nvals[inrange], '-', color='black', linewidth=1.0, zorder=50)
         ax.plot(Dvals[lo], Nvals[lo], '-.', color='orange', linewidth=2.0, zorder=50)
