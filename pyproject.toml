@@ -29,7 +29,7 @@ dependencies = [
     'cython>=3.0.0',
     'mkdocs>=1.5.3',
     'mkdocstrings-python>=1.7.5',
-    'jigsawpy>=0.3.3',
+    'jigsawpy>=1.0.0',
     'mpas_tools>=0.29',
     'matplotlib>=3.8.2',
 ]
