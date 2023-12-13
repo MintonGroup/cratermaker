@@ -47,7 +47,7 @@ class Surface(UxDataset):
     target_radius : str
         Radius of the target body.
     pix : FloatLike
-        Pixel size or resolution of the grid.
+        Approximate pixel size or resolution used to generate the mesh.
     grid_type : str
         Type of the grid used.
 
