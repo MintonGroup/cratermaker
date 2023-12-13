@@ -1,17 +1,30 @@
-# Welcome to MkDocs
+# Welcome to Cratermaker
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+Cratermaker is a sophisticated tool designed for simulating and analyzing impact craters, primarily focusing on lunar and other planetary surfaces. It offers a blend of scientific rigor and computational efficiency, making it ideal for both academic research and practical applications in astronomy and astrophysics.
 
-## Commands
+## Features
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
+- **Comprehensive Crater Simulation**: Accurate modeling of impact craters, considering factors like projectile size, impact velocity, and target material.
+- **Crater Morphology Analysis**: Tools for in-depth analysis of crater dimensions, shapes, and distribution patterns.
+- **Robust Production Functions**: Advanced algorithms to simulate crater production over time and across different celestial surfaces.
+- **Monte Carlo Crater Size Scaling**: Projectile to crater size scaling incorporates natural variability capture in emprical models.    
+- **Monte Carlo Utilities**: Robust statistical methods for populating surfaces with craters.
 
-## Project layout
+## Quick Start
 
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+Get started with Cratermaker:
+
+1. **Installation**: TBD
+2. **Basic Tutorials**: TBD
+3. **Advanced Usage**: TBD
+4. **API Reference**: Detailed API documentation for a deeper understanding of Cratermaker's capabilities.
+
+## Contributing
+
+Contributions are welcome! 
+
+## License
+
+Cratermaker is available under the GNU General Public License v3 or later (GPLv3+). See the [LICENSE](LICENSE) file for more details.
+
+
