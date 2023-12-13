@@ -1,0 +1,31 @@
+# .readthedocs.yaml
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+# Required
+version: 2
+
+# Build documentation with MkDocs
+mkdocs:
+  configuration: mkdocs.yml
+  fail_on_warning: false  # Optional: Set to true if you want the build to fail on warnings.
+
+# Optionally set the OS, Python version and other tools
+build:
+  os: macos-latest
+  tools:
+    python: "3.11"  
+
+# Optionally build your docs in additional formats such as PDF and ePub
+# formats:
+#   - pdf
+#   - epub
+
+# Optional but recommended, declare the Python requirements required
+# to build your documentation
+python:
+  install:
+    - requirements: requirements.txt  # Specify your project's requirements file
+    # If your documentation has additional dependencies, list them as follows:
+    # - method: pip
+    #   path: docs/requirements.txt
