@@ -764,6 +764,7 @@ class NeukumProduction(Production):
                     return A * (Dkm / self.sfd_range[0]) ** p
                 elif Dkm > self.sfd_range[1]:
                     A, p = _extrapolate_sfd(side="hi")
+                    p -= 2.0 # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
                     return A * (Dkm / self.sfd_range[1]) ** p
                 else:
                     logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
@@ -1014,12 +1015,12 @@ if __name__ == "__main__":
         
         target = Target("Moon")
         area = 4*np.pi*target.radius**2 
-        age = 1000.0
-        x_min = 1e-1
-        x_max = 1e4
+        age = 4100.0
+        x_min = 1e0
+        x_max = 1e5
         y_min = 1e0
-        y_max = 1e6
-        diameter_range = (1e3,1e7) # Range of diameters to generate in m
+        y_max = 1e4
+        diameter_range = (2e3,10000e3) # Range of diameters to generate in m
         nD = 1000
         Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
         Nevaluations = 100
@@ -1052,7 +1053,7 @@ if __name__ == "__main__":
         plt.show()
     
             
-    # plot_npf_csfd()
+    #plot_npf_csfd()
     # plot_npf_N1_vs_T()
     # plot_npf_fit()    
     # plot_npf_proj_csfd()
