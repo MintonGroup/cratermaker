@@ -18,6 +18,7 @@
 !cratermaker/docs/
 !cratermaker/*/**.md
 !cratermaker/mkdocs.yml
+!cratermaker/.readthedocs.yaml
 !fortran/
 !fortran/*/
 !fortran/*/**.f90
@@ -33,4 +34,3 @@
 !version.txt
 !pyproject.toml
 !LICENSE
-!.readthedocs.yaml
