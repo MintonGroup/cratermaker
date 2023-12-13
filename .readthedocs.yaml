@@ -25,6 +25,4 @@ build:
 # to build your documentation
 python:
   install:
-    # If your documentation has additional dependencies, list them as follows:
-    - method: pip
-      path: .
+    - requirements: cratermaker/docs/requirements.txt
