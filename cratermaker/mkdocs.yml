@@ -1,4 +1,17 @@
-site_name: Cratermaker
+site_name: CraterMaker Documentation
+nav:
+  - Home: index.md
+  - Overview: cratermaker_overview.md
+  - API Reference:
+    - Crater: api/crater.md
+    - Morphology: api/morphology.md
+    - Production: api/production.md
+    - Scale: api/scale.md
+    - Simulation: api/simulation.md
+    - Surface: api/surface.md
+    - Target: api/target.md
+    - General Utilities: api/general_utils.md
+    - Monte Carlo Utilities: api/montecarlo.md
 plugins:
   - search
   - mkdocstrings:
