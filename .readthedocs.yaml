@@ -27,4 +27,4 @@ python:
   install:
     # If your documentation has additional dependencies, list them as follows:
     - method: pip
-      path: /
+      path: .
