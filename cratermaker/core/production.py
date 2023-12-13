@@ -419,9 +419,6 @@ class Production():
                 raise ValueError("The 'area' must be a scalar")
             if area < 0.0:
                 raise ValueError("The 'area' must be greater than 0")
-            size = None # Override the size argument with the expected_num argument if it is passed
-        if size and size < 1:
-            raise ValueError("The 'size' must be greater than or equal to 1") 
        
         if reference_cumulative_number_at_diameter is not None:
             if len(reference_cumulative_number_at_diameter) != 2:
@@ -450,7 +447,7 @@ class Production():
         input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
         cdf = self.function(diameter=input_diameters, age=age, reference_age=reference_age)
         expected_num = cdf[0] * area if area is not None else None
-        diameters = get_random_size(diameters=input_diameters, cdf=cdf, size=size, mu=expected_num, rng=self.rng)
+        diameters = get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng)
         
         return diameters    
             
@@ -1053,8 +1050,8 @@ if __name__ == "__main__":
         plt.show()
     
             
-    #plot_npf_csfd()
-    # plot_npf_N1_vs_T()
-    # plot_npf_fit()    
-    # plot_npf_proj_csfd()
+    plot_npf_csfd()
+    plot_npf_N1_vs_T()
+    plot_npf_fit()    
+    plot_npf_proj_csfd()
     plot_sampled_csfd()
