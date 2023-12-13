@@ -28,8 +28,10 @@ dependencies = [
     'uxarray>=2023.12',
     'cython>=3.0.0',
     'mkdocs>=1.5.3',
+    'mkdocstrings-python>=1.7.5',
     'jigsawpy>=0.3.3',
     'mpas_tools>=0.29',
+    'matplotlib>=3.8.2',
 ]
 
 [project.urls]
