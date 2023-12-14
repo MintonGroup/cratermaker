@@ -24,3 +24,4 @@ dependencies:
   - matplotlib>=3.8.2
   - scikit-build-core>=0.7.0
   - pytest
+  - gfortran
