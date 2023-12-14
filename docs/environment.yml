@@ -14,4 +14,4 @@ dependencies:
   - nbsphinx
   - pip>=20.1 
   - pip
-    - path: .
+    - .
