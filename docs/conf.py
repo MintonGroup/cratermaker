@@ -28,6 +28,15 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "IPython.sphinxext.ipython_directive",
+    "IPython.sphinxext.ipython_console_highlighting",
+    "nbsphinx",
+    "sphinx_autosummary_accessors",
+    "sphinx.ext.linkcode",
+    "sphinxext.opengraph",
+    "sphinx_copybutton",
+    "sphinx_design",
+    "sphinx_inline_tabs",    
 ]
 
 
@@ -58,7 +67,6 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "numpy": ("https://numpy.org/doc/stable", None),
     "xarray" : ("https://docs.xarray.dev/en/stable/", None),
-    "uxarray" : ("https://uxarray.readthedocs.io/", None),
 }
 
 templates_path = ["_templates"]
@@ -110,4 +118,59 @@ html_favicon = "_static/logos/Cratermaker_Icon.svg"
 html_static_path = ["_static"]
 html_css_files = ["style.css"]
 
+
+# based on numpy doc/source/conf.py
+def linkcode_resolve(domain, info):
+    """
+    Determine the URL corresponding to Python object
+    """
+    if domain != "py":
+        return None
+
+    modname = info["module"]
+    fullname = info["fullname"]
+
+    submod = sys.modules.get(modname)
+    if submod is None:
+        return None
+
+    obj = submod
+    for part in fullname.split("."):
+        try:
+            obj = getattr(obj, part)
+        except AttributeError:
+            return None
+
+    try:
+        fn = inspect.getsourcefile(inspect.unwrap(obj))
+    except TypeError:
+        fn = None
+    if not fn:
+        return None
+
+    try:
+        source, lineno = inspect.getsourcelines(obj)
+    except OSError:
+        lineno = None
+
+    if lineno:
+        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
+    else:
+        linespec = ""
+
+    fn = os.path.relpath(fn, start=os.path.dirname(xarray.__file__))
+
+    if "+" in xarray.__version__:
+        return f"https://github.com/pydata/xarray/blob/main/xarray/{fn}{linespec}"
+    else:
+        return (
+            f"https://github.com/pydata/xarray/blob/"
+            f"v{xarray.__version__}/xarray/{fn}{linespec}"
+        )
+
+
+def html_page_context(app, pagename, templatename, context, doctree):
+    # Disable edit button for docstring generated pages
+    if "generated" in pagename:
+        context["theme_use_edit_page_button"] = False
 
