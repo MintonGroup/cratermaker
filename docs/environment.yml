@@ -13,3 +13,12 @@ dependencies:
   - sphinxext-opengraph
   - nbsphinx
   - pip>=20.1 
+  - jigsaw
+  - numpy>=1.26
+  - scipy>=1.11.3
+  - xarray>=2023.11
+  - uxarray>=2023.12
+  - cython>=3.0.0
+  - jigsawpy>=1.0.0
+  - mpas_tools>=0.29
+  - matplotlib>=3.8.2
