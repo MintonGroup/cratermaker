@@ -33,4 +33,6 @@
 !docs/
 !docs/**/*
 docs/**/*.ai
+docs/_build/
+docs/_build/**/*
 !.readthedocs.yaml
