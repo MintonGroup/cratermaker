@@ -1,0 +1,2 @@
+mkdocs>=1.5.3
+mkdocstrings-python>=1.7.5

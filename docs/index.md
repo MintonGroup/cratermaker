@@ -1,6 +1,9 @@
-# Welcome to Cratermaker
+# Cratermaker
+## Simulate the evolution of a landscape dominated by impact bombardment.
 
-Cratermaker is a sophisticated tool designed for simulating and analyzing impact craters, primarily focusing on lunar and other planetary surfaces. It offers a blend of scientific rigor and computational efficiency, making it ideal for both academic research and practical applications in astronomy and astrophysics.
+Cratermaker is a modernized re-write of the older [Cratered Terrain Evolution Model](https://github.itap.purdue.edu/MintonGroup/ctem)). 
+Cratermaker is a sophisticated tool designed for simulating and analyzing impact craters, primarily focusing on lunar and other planetary surfaces.  
+Development of Cratermaker is still in its very early stages, and not all features of CTEM have  been implemented yet. 
 
 ## Features
 
@@ -23,8 +26,6 @@ Get started with Cratermaker:
 
 Contributions are welcome! 
 
-## License
-
-Cratermaker is available under the GNU General Public License v3 or later (GPLv3+). See the [LICENSE](LICENSE) file for more details.
+Cratermaker is available under the GNU General Public License v3 or later (GPLv3+). See the [LICENSE](license.md) file for more details.
 
 

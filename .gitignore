@@ -15,10 +15,6 @@
 !cratermaker/*/**.pyx
 !cratermaker/*/**.h
 !cratermaker/tests/*/*.py
-!cratermaker/docs/
-!cratermaker/docs/requirements.txt
-!cratermaker/*/**.md
-!cratermaker/mkdocs.yml
 !fortran/
 !fortran/*/
 !fortran/*/**.f90
@@ -34,4 +30,12 @@
 !version.txt
 !pyproject.toml
 !LICENSE
+!docs/
+!docs/requirements.txt
+!docs/*.md
+!docs/api/
+!docs/*/**.md
+!site/
+!site/**/*
 !.readthedocs.yaml
+!mkdocs.yml

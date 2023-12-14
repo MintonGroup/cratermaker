@@ -12,6 +12,7 @@ nav:
     - Target: api/target.md
     - General Utilities: api/general_utils.md
     - Monte Carlo Utilities: api/montecarlo.md
+  - License: license.md
 plugins:
   - search
   - mkdocstrings:
