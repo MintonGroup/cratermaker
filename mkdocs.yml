@@ -22,3 +22,13 @@ plugins:
         python:
           rendering:
             show_source: true
+            show_signature_annotations: true
+            show_signature_variables: true
+            show_category_heading: true
+            heading_level: 4
+          setup_commands:
+            - "import numpy"
+            - "from numpy import ndarray"
+          selection:
+            docstring_style: "numpy"   
+
