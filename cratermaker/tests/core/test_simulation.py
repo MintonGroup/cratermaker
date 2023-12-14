@@ -67,7 +67,7 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.isdir(custom_out_dir))
         for f in expected_files:
             self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
-         
+            
 
 if __name__ == '__main__':
     unittest.main()
