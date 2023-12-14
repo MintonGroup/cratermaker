@@ -278,3 +278,49 @@ def normalize_coords(loc):
 
     return normalized_lon, normalized_lat
 
+
+
+def R_to_CSFD(
+              R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayLike]], 
+              D: Union[FloatLike, ArrayLike],
+              Dlim: FloatLike = 1e6,
+              *args: Any,
+            ) -> Union[FloatLike, ArrayLike]:
+    """
+    Convert R values to cumulative N values for a given D using the R-plot function.
+
+    Parameters
+    ----------
+    R : R = f(D) 
+        A function that computes R given D.
+    D : FloatLike or ArrayLike
+        diameter in units of km.
+    Dlim : FloatLike
+        Upper limit on the diameter over which to evaluate the integral
+    *args : Any
+        Additional arguments to pass to the R function
+
+    Returns
+    -------
+    float or ArrayLike
+        The cumulative number of craters greater than D in diameter.
+    """
+    
+    def _R_to_CSFD_scalar(R, D, Dlim, *args):
+        # Helper function to integrate the R function
+        def integrand(D):
+            return R(D,*args) / D**3  # This is dN/dD
+        
+        N = 0.0
+        D_i = D
+        while D_i < Dlim:
+            D_next = D_i * np.sqrt(2.0) 
+            D_mid = (D_i + D_next) / 2  # Mid-point of the bin
+            bin_width = D_next - D_i
+            R_value = integrand(D_mid)
+            N += R_value * bin_width
+            D_i = D_next  # Move to the next bin
+    
+        return N
+    
+    return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
