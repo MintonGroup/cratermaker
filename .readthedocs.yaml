@@ -17,7 +17,7 @@ build:
     python: "mambaforge-22.9"  
   jobs:
     post_create_environment: 
-      - pip install .
+      - pip install --config-settings=editable.rebuild=true --config-settings=build-dir="build/{wheel_tag}"  --config-settings=cmake.build-type="Release"  --no-build-isolation -ve .
 
 # Optionally build your docs in additional formats such as PDF and ePub
 # formats:
