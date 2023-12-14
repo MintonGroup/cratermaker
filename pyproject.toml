@@ -27,7 +27,7 @@ dependencies = [
     'xarray>=2023.11',
     'uxarray>=2023.12',
     'cython>=3.0.0',
-    'jigsawpy>=0.9.14',
+    'jigsawpy>=0.9',
     'mpas_tools>=0.29',
     'matplotlib>=3.8.2',
 ]

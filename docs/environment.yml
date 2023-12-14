@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - jigsaw
   - jigsawpy>=0.9
   - sphinx
   - sphinx-autosummary-accessors
@@ -14,7 +15,6 @@ dependencies:
   - sphinxext-opengraph
   - nbsphinx
   - pip>=20.1 
-  - jigsaw
   - numpy>=1.26
   - scipy>=1.11.3
   - xarray>=2023.11
