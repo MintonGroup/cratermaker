@@ -16,7 +16,7 @@ build:
   tools:
     python: "mambaforge-22.9"  
   jobs:
-    post_build: 
+    post_create_environment: 
       - pip install .
 
 # Optionally build your docs in additional formats such as PDF and ePub
