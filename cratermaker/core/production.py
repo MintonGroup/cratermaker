@@ -473,8 +473,8 @@ class NeukumProduction(Production):
     ----- 
     The CSFD is computed using the model of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 for the Moon and Mars, with 
     minor changes. Notably, there is a typo in the chronology function (Eq. 5) of the original paper. The linear term in the paper
-    is given as 8.38e-4. The value should be 10**(a0), and therefore the number given in the paper is based on the "Old"
-    coefficients from Neukum (1983). The correct value is 10**(-3.0876) = 8.17e-4. We compute the value from the coefficients 
+    is given as 8.38e-4. The value should be 10^(a0), and therefore the number given in the paper is based on the "Old"
+    coefficients from Neukum (1983). The correct value is 10^(-3.0876) = 8.17e-4. We compute the value from the coefficients 
     in our implementation of the chronology function.       
    
     References
