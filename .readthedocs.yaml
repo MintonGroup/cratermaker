@@ -6,7 +6,7 @@
 version: 2
 
 # Build documentation with Sphinx
-mkdocs:
+sphinx:
   configuration: docs/conf.py
   fail_on_warning: false  # Optional: Set to true if you want the build to fail on warnings.
 
