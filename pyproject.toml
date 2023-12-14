@@ -27,8 +27,6 @@ dependencies = [
     'xarray>=2023.11',
     'uxarray>=2023.12',
     'cython>=3.0.0',
-    'mkdocs>=1.5.3',
-    'mkdocstrings-python>=1.7.5',
     'jigsawpy>=1.0.0',
     'mpas_tools>=0.29',
     'matplotlib>=3.8.2',
@@ -42,7 +40,16 @@ requires = [
     "scikit-build-core>=0.7.0",
     "cython>=3.0.0",
     "numpy>=1.20",
-    "pytest"
+    "pytest",
+    "sphinx",
+    "sphinx-autosummary-accessors",
+    "sphinx-book-theme >= 0.3.0",
+    "sphinx-copybutton",
+    "sphinx-design",
+    "sphinx-inline-tabs",
+    "sphinxext-rediraffe",
+    "sphinxext-opengraph",
+    "nbsphinx"
 ]
 build-backend = "scikit_build_core.build"
 
