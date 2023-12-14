@@ -13,5 +13,5 @@ dependencies:
   - sphinxext-opengraph
   - nbsphinx
   - pip>=20.1 
-  - pip
+  - pip:
     - .
