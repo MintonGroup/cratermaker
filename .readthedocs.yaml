@@ -23,3 +23,6 @@ build:
 
 conda:
   environment: docs/environment.yml
+
+build:
+  post_build: "pip install ."
