@@ -1,4 +1,6 @@
 site_name: CraterMaker Documentation
+theme:
+  name: material
 nav:
   - Home: index.md
   - Overview: cratermaker_overview.md
