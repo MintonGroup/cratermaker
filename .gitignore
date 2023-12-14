@@ -31,11 +31,6 @@
 !pyproject.toml
 !LICENSE
 !docs/
-!docs/requirements.txt
-!docs/*.md
-!docs/api/
-!docs/*/**.md
-!site/
-!site/**/*
+!docs/**/*
+docs/**/*.ai
 !.readthedocs.yaml
-!mkdocs.yml

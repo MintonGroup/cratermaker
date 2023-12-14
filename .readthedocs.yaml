@@ -5,9 +5,9 @@
 # Required
 version: 2
 
-# Build documentation with MkDocs
+# Build documentation with Sphinx
 mkdocs:
-  configuration: mkdocs.yml
+  configuration: docs/conf.py
   fail_on_warning: false  # Optional: Set to true if you want the build to fail on warnings.
 
 # Optionally set the OS, Python version and other tools

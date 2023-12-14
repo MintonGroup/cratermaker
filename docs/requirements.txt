@@ -1,4 +1,8 @@
-mkdocs>=1.5.3
-mkdocstrings-python>=1.7.5
-mkdocs-material>=9.5.2
-numpy>=1.26
+sphinx
+sphinx-autosummary-accessors
+sphinx-book-theme >= 0.3.0
+sphinx-copybutton
+sphinx-design
+sphinx-inline-tabs
+sphinxext-rediraffe
+sphinxext-opengraph
