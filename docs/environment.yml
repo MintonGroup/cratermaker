@@ -1,0 +1,18 @@
+name: cratermakerdocs
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - sphinx
+  - sphinx-autosummary-accessors
+  - sphinx-book-theme >= 0.3.0
+  - sphinx-copybutton
+  - sphinx-design
+  - sphinx-inline-tabs
+  - sphinxext-rediraffe
+  - sphinxext-opengraph
+  - nbsphinx
+  - pip>=20.1 
+  - pip
+  - python
+    - path: .
