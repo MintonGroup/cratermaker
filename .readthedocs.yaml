@@ -15,8 +15,8 @@ build:
   os: ubuntu-22.04
   tools:
     python: "mambaforge-22.9"  
-  post_build: 
-    - pip install .
+  jobs:
+    post_build: "pip install .""
 
 # Optionally build your docs in additional formats such as PDF and ePub
 # formats:
