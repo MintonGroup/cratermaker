@@ -91,14 +91,14 @@ class Morphology:
         Calculate the elevation of a crater as a function of distance from the center.
 
         Parameters:
-        ----------
+        -----------
         r : float-like
             Radial distance from the crater center in meters.
         crater: Crater
             The crater to be created.
 
         Returns:
-        ----------
+        --------
         np.float64
             Elevation of the crater relative to a reference surface.
         """
@@ -134,14 +134,14 @@ class Morphology:
         Calculate the thickness of ejecat as a function of distance from the center of the crater.
 
         Parameters:
-        ----------
+        -----------
         r : float-like
             Radial distance from the crater center in meters.
         crater: Crater
             The crater to be created.
 
         Returns:
-        ----------
+        --------
         np.float64
             Elevation of the crater relative to a reference surface.
         """

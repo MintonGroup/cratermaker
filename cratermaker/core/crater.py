@@ -15,7 +15,7 @@ class Crater:
     This class models the crater resulting from an impact, including its size,
     shape, depth, and other morphological features.
 
-    Attributes
+    Parameters
     ----------
     diameter : float
         The diameter of the crater rim in m.
@@ -183,7 +183,7 @@ class Projectile:
     This class defines the properties of the impacting object, such as its size,
     velocity, material, and angle of impact.
 
-    Attributes
+    Parameters
     ----------
     diameter : float
         The diameter of the projectile in m.

@@ -19,7 +19,7 @@ class Simulation():
     """
     This class orchestrates the processes involved in running a crater simulation.
 
-    Attributes
+    Parameters
     ----------
     pix : float
         Pixel resolution for the mesh.
@@ -28,18 +28,6 @@ class Simulation():
     rng : numpy.random.Generator
         Random number generator instance.
 
-    Methods
-    -------
-    set_properties(**kwargs):
-        Set properties of the current object based on the provided keyword arguments.
-    to_json(filename):
-        Export the current simulation configuration to a JSON file.
-    generate_crater(**kwargs):
-        Create a new Crater object and its corresponding Projectile.
-    generate_projectile(**kwargs):
-        Create a new Projectile object and its corresponding Crater.
-    emplace_crater(from_projectile=False, **kwargs):
-        Emplace a crater in the simulation, optionally based on a projectile.
     """
 
     def __init__(self, 

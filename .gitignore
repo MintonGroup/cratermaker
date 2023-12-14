@@ -30,9 +30,11 @@
 !version.txt
 !pyproject.toml
 !LICENSE
+!.readthedocs.yaml
 !docs/
 !docs/**/*
 docs/**/*.ai
 docs/_build/
 docs/_build/**/*
-!.readthedocs.yaml
+docs/generated/
+docs/generated/**/*

@@ -1,13 +1,15 @@
 import datetime
 import os
 import sys
+import inspect
 from contextlib import suppress
 
 import sphinx_autosummary_accessors
-import yaml
 from sphinx.application import Sphinx
 from sphinx.util import logging
 import os
+
+import cratermaker
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -118,6 +120,13 @@ html_favicon = "_static/logos/Cratermaker_Icon.svg"
 html_static_path = ["_static"]
 html_css_files = ["style.css"]
 
+# configuration for sphinxext.opengraph
+ogp_site_url = "https://cratermaker.readthedocs.io/en/latest/"
+ogp_image = "https://cratermaker.readthedocs.io/en/stable/_static/logos/Cratermaker_Social_Preview.png"
+ogp_custom_meta_tags = [
+    '<meta name="image" property="og:image" content="https://cratermaker.readthedocs.io/en/stable/_static/logos/Cratermaker_Social_Preview.png" />',
+]
+
 
 # based on numpy doc/source/conf.py
 def linkcode_resolve(domain, info):
@@ -158,15 +167,8 @@ def linkcode_resolve(domain, info):
     else:
         linespec = ""
 
-    fn = os.path.relpath(fn, start=os.path.dirname(xarray.__file__))
+    fn = os.path.relpath(fn, start=os.path.dirname(cratermaker.__file__))
 
-    if "+" in xarray.__version__:
-        return f"https://github.com/pydata/xarray/blob/main/xarray/{fn}{linespec}"
-    else:
-        return (
-            f"https://github.com/pydata/xarray/blob/"
-            f"v{xarray.__version__}/xarray/{fn}{linespec}"
-        )
 
 
 def html_page_context(app, pagename, templatename, context, doctree):

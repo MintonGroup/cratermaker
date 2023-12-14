@@ -28,13 +28,14 @@ _DIM_MAP = {"n_node": "nVertices",
 
 class Surface(UxDataset):
     """
-    Surface class that extends UxDataset for cratermaker project.
 
     This class is used for handling surface-related data and operations in the 
-    cratermaker project. It provides functionalities for setting elevation data, 
+    cratermaker project. It provides methods for setting elevation data, 
     calculating distances and bearings, and other surface-related computations.
+    
+    The Surface class extends UxDataset for the cratermaker project.
 
-    Attributes
+    Parameters
     ----------
     grid_temp_dir : str
         Directory for temporary grid files.
@@ -51,24 +52,6 @@ class Surface(UxDataset):
     grid_type : str
         Type of the grid used.
 
-    Methods
-    -------
-    set_elevation(new_elev=None)
-        Set elevation data for the target's surface mesh.
-    calculate_haversine_distance(lon1, lat1, lon2, lat2, radius)
-        Calculate the great circle distance between two points on a sphere.
-    get_face_distance(location)
-        Computes the distances between cell centers and a given location.
-    get_node_distance(location)
-        Computes the distances between nodes and a given location.
-    calculate_initial_bearing(lon1, lat1, lon2, lat2)
-        Calculate the initial bearing from one point to another on the surface of a sphere.
-    get_face_initial_bearing(location)
-        Computes the initial bearing between cell centers and a given location.
-    get_node_initial_bearing(location)
-        Computes the initial bearing between nodes and a given location.
-    get_average_surface(location, radius)
-        Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
     """   
     __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_radius', 'pix', 'grid_type')
     

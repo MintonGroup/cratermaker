@@ -17,7 +17,7 @@ class Material:
     This class defines various physical properties of the material involved in the cratering process.
     
 
-    Attributes
+    Parameters
     ----------
     name : str
         The name of the material. If the material is matched to one that is present in the catalogue, the rest of the properties will be retrieved for it unless specified. If the name is not known from the catalogue, then all other properties must be supplied and in order to build a custom material.
@@ -25,12 +25,6 @@ class Material:
         The strength of the material, typically defined in Pa. 
     other_properties : dict
         Other relevant properties of the material.
-
-    Methods
-    -------
-    set_properties(name, **kwargs):
-        Add a custom property to the material.
-
     """
 
     # Define all valid properties for the Target object
@@ -103,7 +97,7 @@ class Target:
     This class encapsulates the properties of the target that is impacted, including
     its material composition, size, and other relevant physical characteristics.
 
-    Attributes
+    Parameters
     ----------
     name : str or None
         Name of the target body.

@@ -5,7 +5,7 @@ from cratermaker.utils.montecarlo import get_random_size
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import R_to_CSFD
 from numpy.typing import ArrayLike
-from typing import Union, Sequence, Tuple, Callable, Any
+from typing import Union, Sequence, Tuple, Any
 
 class Production():
     """

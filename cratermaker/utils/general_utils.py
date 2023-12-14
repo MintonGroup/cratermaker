@@ -1,6 +1,8 @@
 import json
 import numpy as np
 from numpy.typing import ArrayLike
+from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+from typing import Callable, Union, Any
 
 def to_config(obj):
     """
@@ -22,7 +24,7 @@ def to_config(obj):
     Notes
     -----
     Only attributes that are instances of basic data types (int, float, str, list, dict, bool, None) are included.
-    Attributes listed in 'config_ignore' of the object are excluded from serialization.
+    Parameters listed in 'config_ignore' of the object are excluded from serialization.
     """   
     # Check if the object has the attribute 'config_ignore'
     ignores = getattr(obj, 'config_ignore', [])
