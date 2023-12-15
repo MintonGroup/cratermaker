@@ -7,6 +7,7 @@ from typing import Tuple
 import os
 from ..utils.general_utils import set_properties, create_catalogue, check_properties
 from ..utils.custom_types import FloatLike
+import warnings
 
 
 @dataclass
@@ -97,7 +98,7 @@ class Target:
     This class encapsulates the properties of the target that is impacted, including
     its material composition, size, and other relevant physical characteristics.
 
-    Parameters
+    Attributes
     ----------
     name : str or None
         Name of the target body.
@@ -141,20 +142,18 @@ class Target:
         gEarth = np.float64(9.80665) # 1 g in SI units
         
         body_properties = [
-            "name",    "radius",   "gravity",      "material_name", "mean_impact_velocity", "transition_scale_type"
+            "name",    "radius",   "gravity",      "material_name", "transition_scale_type"
         ]
         body_values = [
-            ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock", 41100.0, "silicate"),
-            ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock", 29100.0, "silicate"),
-            ("Earth",   6371.01e3, 1.000 * gEarth, "Wet Soil" , 24600.0, "silicate"),
-            ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock", 22100.0, "silicate"),
-            ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock", 10700.0, "silicate"),
-            ("Ceres",   469.7e3,   0.029 * gEarth, "Ice"      , 5300.0,  "ice"),
-            ("Vesta",   262.7e3,   0.025 * gEarth, "Soft Rock", 5300.0,  "silicate"),
+            ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock", "silicate"),
+            ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock", "silicate"),
+            ("Earth",   6371.01e3, 1.000 * gEarth, "Wet Soil" , "silicate"),
+            ("Moon",    1737.53e3, 0.1657* gEarth, "Soft Rock", "silicate"),
+            ("Mars",    3389.92e3, 0.379 * gEarth, "Soft Rock", "silicate"),
+            ("Ceres",   469.7e3,   0.029 * gEarth, "Ice"      , "ice"),
+            ("Vesta",   262.7e3,   0.025 * gEarth, "Soft Rock", "silicate"),
         ]      
-        # Mean velocities for terrestrial planets based on analysis of simulations from Minton & Malhotra (2010) of main belt-derived asteroid
-        # Mean velocities for the asteroids are from Bottke et al. (1994)
-       
+
         if self.catalogue is None: 
             self.catalogue = create_catalogue(body_properties, body_values)
         
@@ -186,8 +185,6 @@ class Target:
             self.radius = np.float64(self.radius)
         if self.gravity is not None:
             self.gravity = np.float64(self.gravity)
-        if self.mean_impact_velocity is not None:
-            self.mean_impact_velocity = np.float64(self.mean_impact_velocity)
 
         valid_transition_scale_types = ["silicate", "ice"]
         if self.transition_scale_type is not None:
@@ -196,10 +193,10 @@ class Target:
             self.transition_scale_type = self.transition_scale_type.lower()
             if self.transition_scale_type not in valid_transition_scale_types:
                 raise ValueError(f"{self.transition_scale_type} is not a valid transition_scale_type. Must be one of {valid_transition_scale_types}")
+           
+        if self.mean_impact_velocity is not None:
+            self.mean_impact_velocity = np.float64(self.mean_impact_velocity)
             
-        # Check to make sure all required properties are set 
-        check_properties(self)
-        
         return
 
     def set_properties(self, **kwargs):

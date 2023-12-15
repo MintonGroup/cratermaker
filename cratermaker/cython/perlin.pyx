@@ -56,8 +56,8 @@ def apply_noise(str model,
     """
     Applies Perlin noise based on the specified model and parameters.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     model: str  
         Name of the turbulence model.
     x_array, y_array, z_array: ndarray (N,)  
@@ -69,13 +69,13 @@ def apply_noise(str model,
     kwargs: dict 
         Additional model-specific parameters.
 
-    Returns:
-    --------
+    Returns
+    -------
     ndarray(N,)
         computed noise value.
 
-    Raises:
-    -------
+    Raises
+    ------
     ValueError - If required parameters are missing, arrays are mismatched, or if an invalid model is specified.
     """
 

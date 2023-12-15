@@ -67,7 +67,7 @@ class Morphology:
         """
         diameter_km = self.diameter * 1e-3  # Convert to km for these models
 
-        if self.morphology_type in ["simple", "transition"]:
+        if self.morphology_type in ["simple", "transitional"]:
             # A hybrid model between Pike (1977) and Fassett & Thomson (2014)
             self.rimheight = 0.043 * diameter_km**1.014 * 1e3  # Closer to Fassett & Thomson
             self.rimwidth = 0.257 * diameter_km**1.011 * 1e3   # Pike model
@@ -82,6 +82,8 @@ class Morphology:
             # Fassett & Thomson for D~1km, Pike for D~20km, but limited to 90% of diameter
             self.floordiam = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * self.diameter)
             self.peakheight = 0.032 * diameter_km**0.900 * 1e3  # Pike model
+        else:
+            raise ValueError(f"Unknown morphology type: {self.morphology_type}")
             
         self.ejrim = 0.14 * (self.diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
@@ -90,14 +92,14 @@ class Morphology:
         """
         Calculate the elevation of a crater as a function of distance from the center.
 
-        Parameters:
+        Parameters
         -----------
         r : float-like
             Radial distance from the crater center in meters.
         crater: Crater
             The crater to be created.
 
-        Returns:
+        Returns
         --------
         np.float64
             Elevation of the crater relative to a reference surface.
@@ -133,15 +135,15 @@ class Morphology:
         """
         Calculate the thickness of ejecat as a function of distance from the center of the crater.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         r : float-like
             Radial distance from the crater center in meters.
         crater: Crater
             The crater to be created.
 
-        Returns:
-        --------
+        Returns
+        -------
         np.float64
             Elevation of the crater relative to a reference surface.
         """
@@ -165,8 +167,12 @@ class Morphology:
             if h > self.floordepth:
                 h = self.floordepth
             return h
-     
-        surf['elevation'] += np.vectorize(_crater_profile)(surf['crater_distance']) 
+    
+        try: 
+            surf['elevation'] += np.vectorize(_crater_profile)(surf['crater_distance']) 
+        except:
+            print(self)
+            raise ValueError("Something went wrong with this crater!")
          
         return  
     

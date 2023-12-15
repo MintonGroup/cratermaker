@@ -67,7 +67,20 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.isdir(custom_out_dir))
         for f in expected_files:
             self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
-            
+           
+    def test_emplace_crater(self):
+        sim = cratermaker.Simulation(pix=self.pix)
+        sim.emplace_crater(diameter=10e3)
+        
+        sim.emplace_crater(diameter=1e3, from_projectile=True)
+       
+        # # Now try with a simulation that does not contain a mean_impact_velocity in its target 
+        sim = cratermaker.Simulation(pix=self.pix, target=self.target)
+        sim.emplace_crater(diameter=10e3)
+        
+        with self.assertRaises(RuntimeError): 
+            sim.emplace_crater(diameter=1e3, from_projectile=True)
+        return
 
 if __name__ == '__main__':
     unittest.main()

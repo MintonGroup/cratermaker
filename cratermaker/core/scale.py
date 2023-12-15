@@ -3,8 +3,8 @@ from numpy.random import Generator
 from typing import Tuple
 from .target import Target
 from ..utils.custom_types import FloatLike
-from scipy.optimize import root_scalar
 from ..utils import montecarlo as mc
+from scipy.optimize import root_scalar
 
 class Scale():
     """
@@ -271,6 +271,7 @@ class Scale():
         projectile = self.transient_to_projectile(crater, target=self.target, rng=self.rng)
         
         return projectile
+
 
     @staticmethod
     def projectile_to_transient(projectile, target, rng: Generator) -> np.float64:

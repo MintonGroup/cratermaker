@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.random import default_rng
+from numpy.random import default_rng, Generator
 import xarray as xr
 import json
 import os
@@ -83,6 +83,63 @@ class Simulation():
             os.makedirs(simdir) 
         self.simdir = simdir
         
+        
+        # Set some default values for the simulation parameters
+        self.time_function = kwargs.get('time_function', None)
+        self.tstart = kwargs.get('tstart', 0.0)  # Simulation start time (in y)
+        self.tstop = kwargs.get('tstop', 4.31e9)    # Simulation stop time (in y)
+        
+        # Set the random number generator seed
+        self.seed = kwargs.get('seed', None) 
+        self.rng = kwargs.get('rng', default_rng(seed=self.seed))
+        if not isinstance(self.rng, Generator):
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        
+        self._crater = None
+        self._projectile = None        
+        
+       
+        # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
+        # in order to instantiate the target body.
+        #  
+        # Check to see if the impact velocity model is set with an argument. If not, set it based on a combination of target body 
+        # and production function 
+        impact_velocity_model = kwargs.get('impact_velocity_model', None)
+        
+        if not target:
+            target_name = "Moon"
+        elif isinstance(target, str):
+            target_name = target
+        elif isinstance(target, Target):
+            target_name = target.name
+        
+        # Set the production function model for this simulation 
+        impact_velocity_model = None
+        if production_cls is None:
+            if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
+                production_cls = NeukumProduction
+                if target_name in ['Moon', 'Mars']:
+                    self.production = production_cls(model=target_name, rng=self.rng, **kwargs) 
+                else:
+                    self.production = production_cls(model='projectile', rng=self.rng, **kwargs)
+                impact_velocity_model = target_name + "_MBA"
+            else:
+                self.production = Production(rng=self.rng, **kwargs)
+        elif issubclass(production_cls, Production):
+            self.production = production_cls(rng=self.rng, **kwargs)
+        else:
+            raise TypeError("production must be a subclass of Production")
+       
+        impact_velocity_model = kwargs.get('impact_velocity_model', impact_velocity_model) 
+        if impact_velocity_model is None:
+            if target_name in ['Ceres', 'Vesta']:
+                impact_velocity_model = "MBA_MBA" 
+            
+        # Allow an argument to override the value from the production function 
+        mean_impact_velocity = kwargs.get("mean_impact_velocity",
+                                          self.production.set_mean_impact_velocity(impact_velocity_model=impact_velocity_model)
+                                          )
+        
         if material:
             if isinstance(material, str):
                 try:
@@ -94,15 +151,15 @@ class Simulation():
             
         if not target:
             if material:
-                target = Target("Moon", material=material, **kwargs)
+                target = Target("Moon", material=material, mean_impact_velocity=mean_impact_velocity, **kwargs)
             else:
-                target = Target("Moon", **kwargs)
+                target = Target("Moon", mean_impact_velocity=mean_impact_velocity, **kwargs)
         elif isinstance(target, str):
             try:
                 if material:
-                    target = Target(target, material=material, **kwargs)
+                    target = Target(target, material=material, mean_impact_velocity=mean_impact_velocity, **kwargs)
                 else:
-                    target = Target(target, **kwargs)
+                    target = Target(target, mean_impact_velocity=mean_impact_velocity, **kwargs)
             except:
                 raise ValueError(f"Invalid target name {target}")
         elif isinstance(target, Target):
@@ -120,45 +177,22 @@ class Simulation():
 
         self.initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, simdir=simdir, *args, **kwargs)
         
-        # Set some default values for the simulation parameters
-        self.time_function = kwargs.get('time_function', None)
-        self.tstart = kwargs.get('tstart', 0.0)  # Simulation start time (in y)
-        self.tstop = kwargs.get('tstop', 4.31e9)    # Simulation stop time (in y)
-        
-        # Set some default values for the production function population
-        self.impactor_sfd  = kwargs.get('impactor_sfd', None)
-        self.impactor_velocity = kwargs.get('impactor_velocity', None)
-        
-        # Set the random number generator seed
-        self.seed = kwargs.get('seed', None) 
-        self.rng = default_rng(seed=self.seed)
-        
-        self._crater = None
-        self._projectile = None
-       
+        # Set the scaling law model for this simulation 
         if scale_cls is None:
             self.scale_cls = Scale
         elif issubclass(scale_cls, Scale):
             self.scale_cls = scale_cls
         else:
             raise TypeError("scale must be a subclass of Scale") 
-       
+      
+        # Set the morphology model for this simulation 
         if morphology_cls is None:
             self.morphology_cls = Morphology 
         elif issubclass(morphology_cls, Morphology):
             self.morphology_cls = morphology_cls
         else:
             raise TypeError("morphology must be a subclass of Morphology")
-        
-        if production_cls is None:
-            if self.target.name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
-                self.production_cls = NeukumProduction
-            else:
-                self.production_cls = Production
-        elif issubclass(production_cls, Production):
-            self.production_cls = production_cls
-        else:
-            raise TypeError("production must be a subclass of Production")
+      
         
         self._craterlist = []
 
@@ -244,7 +278,10 @@ class Simulation():
         """        
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
-        projectile = crater.scale.crater_to_projectile(crater)
+        if self.target.mean_impact_velocity is None:
+            projectile = None
+        else:
+            projectile = crater.scale.crater_to_projectile(crater)
         
         return crater, projectile
     
@@ -265,7 +302,9 @@ class Simulation():
         (Projectile, Crater)
             A tuple containing the newly created Projectile and Crater objects.
         """
-        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, morphology_cls=self.morphology_cls, **kwargs)
+        if self.target.mean_impact_velocity is None:
+            raise RuntimeError("The mean impact velocity is not set for this simulation")
+        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, **kwargs)
         crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls)
         
         return projectile, crater
@@ -446,7 +485,7 @@ class Simulation():
         >>> sim = cratermaker.Simulation()
         >>> sim.apply_noise()
 
-        Apply ridged noise with custom parameters:
+        Apply ridged noise with custom Parameters
 
         >>> sim.apply_noise(model="ridged", noise_width=500e3, num_octaves=10, freq=1.5)
         """      

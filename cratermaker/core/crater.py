@@ -1,13 +1,14 @@
 import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike
-from typing import Type
+from typing import Type, Any
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
-from ..utils.custom_types import FloatLike
+from ..utils.custom_types import FloatLike, PairOfFloats
 from .scale import Scale 
 from .morphology import Morphology
+from .production import Production
 class Crater:
     """
     Represents a crater formed by an impact in the simulation.
@@ -15,18 +16,6 @@ class Crater:
     This class models the crater resulting from an impact, including its size,
     shape, depth, and other morphological features.
 
-    Parameters
-    ----------
-    diameter : float
-        The diameter of the crater rim in m.
-    radius : float
-        The radius of the crater rim in m.
-    transient_diameter : float
-        The diameter of the transient crater in m.
-    transient_radius : float
-        The radius of the transient crater in m.    
-    location : (2,) float
-        The lat. and lon. of the impact point in degrees
     """
 
     def __init__(self, 
@@ -34,13 +23,38 @@ class Crater:
                 radius: FloatLike = None,
                 transient_diameter: FloatLike = None,
                 transient_radius: FloatLike = None,
-                location: ArrayLike = None,
+                location: PairOfFloats = None,
                 target: Target = None,
                 scale_cls: Type[Scale] = None,
                 morphology_cls: Type[Morphology] = None, 
                 rng: Generator = None,
-                **kwargs):
+                **kwargs: Any):
+        """
+        Constructor for the Crater class.
         
+        Parameters
+        ----------
+        diameter : FloatLike
+            The diameter of the crater rim in m.
+        radius : FloatLike
+            The radius of the crater rim in m.
+        transient_diameter : FloatLike
+            The diameter of the transient crater in m.
+        transient_radius : FloatLIke
+            The radius of the transient crater in m.    
+        location : PairOfFloats
+            The lat. and lon. of the impact point in degrees
+        target : Target
+            The target body for the impact simulation.
+        scale_cls : Type[Scale]
+            The class to use for scaling the crater size.
+        morphology_cls : Type[Morphology]
+            The class to use for computing the crater morphology.
+        rng : Generator
+            A random number generator instance. If not provided, the default numpy RNG will be used.
+        **kwargs : Any 
+            Additional keyword arguments to pass to the scale and morphology classes.
+        """        
         if target is None:
             target = Target(name="Moon")
         elif not isinstance(target, Target):
@@ -59,7 +73,7 @@ class Crater:
             self.rng = rng
         else:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        
+        self.scale = self.scale_cls(target=target, rng=rng, **kwargs)
         
         #  Evaluate and check diameter/radius values 
         values_set = sum(x is not None for x in [diameter, radius, transient_diameter, transient_radius])
@@ -74,7 +88,6 @@ class Crater:
         self._transient_diameter = transient_diameter
         self._transient_radius = transient_radius    
         self._location = location
-        self.scale = self.scale_cls(target=target, rng=rng, **kwargs)
         
         if diameter is not None:
             self.diameter = diameter
@@ -93,7 +106,7 @@ class Crater:
             morphology_cls = Morphology
         elif not issubclass(morphology_cls, Morphology):
             raise TypeError("morphology must be a subclass of Morphology")
-        morphology = morphology_cls(self, target=target, rng=self.rng, **kwargs)
+        self.morphology = morphology_cls(self, target=target, rng=self.rng, **kwargs)
             
         return
 
@@ -179,29 +192,11 @@ class Crater:
 
 class Projectile:
     """
-    Represents the self.in the crater simulation.
+    Represents the projectile body in the crater simulation.
 
     This class defines the properties of the impacting object, such as its size,
     velocity, material, and angle of impact.
 
-    Parameters
-    ----------
-    diameter : float
-        The diameter of the projectile in m.
-    radius : float
-        The radius of the projectile in m.
-    density : float
-        The mass density of the projectile in kg/m**3.
-    mass : float
-        The mass of the projectile in kg.
-    velocity : float
-        The velocity of the projectile upon impact, in m/s.
-    vertical_velocity : float
-        The vertical component of the projectile velocity upon impact, in m/s.
-    angle : float
-        The angle of impact, in degrees.
-    location : (2,) float
-        The lat. and lon. of the impact point in degrees
     """
     
     def __init__(self, 
@@ -216,7 +211,32 @@ class Projectile:
                 target: Target = None, 
                 scale_cls: Type[Scale] = None,
                 rng: Generator = None,
+                mean_impact_velocity: FloatLike = 0.0,
                 **kwargs):
+        """
+        
+        Constructor for the Projectile class.
+        
+        Parameters
+        ----------
+        diameter : float
+            The diameter of the projectile in m.
+        radius : float
+            The radius of the projectile in m.
+        density : float
+            The mass density of the projectile in kg/m**3.
+        mass : float
+            The mass of the projectile in kg.
+        velocity : float
+            The velocity of the projectile upon impact, in m/s.
+        vertical_velocity : float
+            The vertical component of the projectile velocity upon impact, in m/s.
+        angle : float
+            The angle of impact, in degrees.
+        location : (2,) float
+            The lat. and lon. of the impact point in degrees
+        """        
+        
         from .scale import Scale 
         if target is None:
             target = Target(name="Moon")
@@ -413,9 +433,21 @@ class Projectile:
 
     def _initialize_velocities(self, target: Target, rng: Generator | None = None):
         if self._velocity is None:
-            vencounter_mean = np.sqrt(target.mean_impact_velocity**2 - target.escape_velocity**2)
-            vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)
-            self.velocity = np.sqrt(vencounter**2 + target.escape_velocity**2)
+            if target.mean_impact_velocity is None:
+                raise ValueError("No mean impact velocity is defined for target {target.name}. Projectiles will not be computed.")
+        
+            # Check if the impact velocity is greater than the escape velocity. If so, be sure to add the escape velocity to the mean impact velocity in quadrature
+            # Otherwise, just use the mean velocity value
+            if target.mean_impact_velocity > target.escape_velocity:
+                vencounter_mean = np.sqrt(target.mean_impact_velocity**2 - target.escape_velocity**2)
+                vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)
+                self.velocity = np.sqrt(vencounter**2 + target.escape_velocity**2)
+            else: 
+                # Be sure not to generate velocities above escape in this scenario
+                while True:  
+                    self.velocity = mc.get_random_velocity(target.mean_impact_velocity, rng=rng)
+                    if self.velocity < target.escape_velocity:
+                        break
 
         if self._angle is None:
             if rng:
@@ -432,10 +464,19 @@ class Projectile:
     def location(self, value):
         self._location = value
     
-    
     def _initialize_location(self, rng):
         if self._location is None:
             self.location = mc.get_random_location(rng=rng)
         else:    
             self.location = validate_and_convert_location(self.location)
-
+            
+    @property
+    def mean_impact_velocity(self):
+        return self._mean_impact_velocity
+    
+    @mean_impact_velocity.setter
+    def mean_impact_velocity(self, value):
+        if value is not None and value <= 0.0:
+            raise ValueError("Mean impact velocity of projectile must be finite and positive!")
+        self._mean_impact_velocity = value
+        return

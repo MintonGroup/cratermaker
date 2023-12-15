@@ -6,6 +6,7 @@ from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import R_to_CSFD
 from numpy.typing import ArrayLike
 from typing import Union, Sequence, Tuple, Any
+import warnings
 
 class Production():
     """
@@ -47,16 +48,16 @@ class Production():
         **kwargs : Any
             This function accepts the following keyword arguments:
           
-            model : str
-                The specific model to use for the production function. Defaults to "Powerlaw". 
-            generator_type : str
-                The type of generator to use. This can be either "crater" or "projectile". Defaults to "crater". 
-            N1_coef : float
-                The coefficient for the power law production function at 1 m diameter per 1 My. 
-                Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
-            slope : float
-                The slope of the power law production function. 
-                Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
+        model : str
+            The specific model to use for the production function. Defaults to "Powerlaw". 
+        generator_type : str
+            The type of generator to use. This can be either "crater" or "projectile". Defaults to "crater". 
+        N1_coef : float
+            The coefficient for the power law production function at 1 m diameter per 1 My. 
+            Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
+        slope : float
+            The slope of the power law production function. 
+            Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
         """
         if not hasattr(self, "valid_models"):
             self.valid_models = ["Powerlaw"] 
@@ -96,6 +97,54 @@ class Production():
             slope *= -1
         self.slope = slope 
         
+        self.impact_velocity_model = kwargs.get("impact_velocity_model", "Moon")
+        
+    
+    def set_mean_impact_velocity(self, 
+                                 **kwargs: Any
+                                ) -> None:
+        """
+        Sets an appropriate mean impact velocity for a target body.
+        
+        Parameters
+        ----------
+        **kwargs : Any
+            This function accepts the following keyword arguments:        
+        impact_velocity_model : str
+            The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". If None, the mean_impact_velocity is not set and a warning will be raised and Projectile <-> Crater scalings will not be performed.
+            
+        Returns
+        -------
+        np.float64 or None
+            The mean impact velocity in m/s. If the target_name is None, returns None.
+        
+        
+        Notes
+        ----- 
+        Mean velocities for terrestrial planets and the Moon are based on analysis of simulations of main-belt derived asteroids from Minton & Malhotra (2010) [1]_  and Yue et al. (2013) [2]_. Mean velocities for the asteroids are from Bottke et al. (1994) [3]_.
+        
+        References
+        ----------
+        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744–757. https://doi.org/10.1016/j.icarus.2009.12.008
+        .. [2] Yue, Z., Johnson, B.C., Minton, D.A., Melosh, H.J., Di, K., Hu, W., Liu, Y., 2013. Projectile remnants in central peaks of lunar impact craters. Nature Geosci 6, 435 EP-. https://doi.org/10.1038/ngeo1828
+        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255–268. https://doi.org/10.1006/icar.1994.1021
+        """
+     
+        predefined_models = ['Mercury_MBA', 'Venus_MBA', 'Earth_MBA', 'Moon_MBA', 'Mars_MBA', 'MBA_MBA']
+        predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
+        predefined = dict(zip(predefined_models, predefined_velocities))
+       
+        impact_velocity_model = kwargs.get("impact_velocity_model", None) 
+        if impact_velocity_model is None:
+            warnings.warn("No impact_velocity_model provided. mean_impact_velocity not set.")
+            return
+        
+        if impact_velocity_model not in predefined_models:
+            warnings.warn(f"impact_velocity_model {impact_velocity_model} is not one of {predefined_models}. mean_impact_velocity not set.")
+
+            return
+        return np.float64(predefined[impact_velocity_model])
+            
        
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -908,8 +957,8 @@ if __name__ == "__main__":
         N1_coef_projectile, slope_projectile = params_projectile
 
         # Output the results
-        print("Crater Production Fit Parameters: N1_coef =", N1_coef_crater, ", slope =", slope_crater)
-        print("Projectile Production Fit Parameters: N1_coef =", N1_coef_projectile, ", slope =", slope_projectile)
+        print("Crater Production Fit Parameters N1_coef =", N1_coef_crater, ", slope =", slope_crater)
+        print("Projectile Production Fit Parameters N1_coef =", N1_coef_projectile, ", slope =", slope_projectile)
         
         # Create the fitted curve data
         fitted_curve_crater = power_law(Dc, *params_crater)

@@ -15,11 +15,9 @@ class TestTarget(unittest.TestCase):
             self.assertEqual(target.radius, v['radius'])
             self.assertEqual(target.gravity, v['gravity'])
             self.assertEqual(target.material_name, v['material_name'])
-            self.assertEqual(target.mean_impact_velocity, v['mean_impact_velocity'])
             self.assertEqual(target.transition_scale_type, v['transition_scale_type'])
             self.assertIsInstance(target.radius, np.float64)
             self.assertIsInstance(target.gravity, np.float64)
-            self.assertIsInstance(target.mean_impact_velocity, np.float64)
             self.assertIsInstance(target.material_name, str)
             self.assertIsInstance(target.transition_scale_type, str)
             
