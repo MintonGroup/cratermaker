@@ -36,8 +36,8 @@ class Crater:
                 transient_radius: FloatLike = None,
                 location: ArrayLike = None,
                 target: Target = None,
-                scale: Scale = None,
-                morphology: Morphology = None, 
+                scale_cls: Type[Scale] = None,
+                morphology_cls: Type[Morphology] = None, 
                 rng: Generator = None,
                 **kwargs):
         
@@ -46,12 +46,12 @@ class Crater:
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target")
         
-        if scale is None:
-            self.scale = Scale(target,rng) 
-        elif isinstance(scale, Scale):
-            self.scale = scale
+        if scale_cls is None:
+            self.scale_cls = Scale
+        elif issubclass(scale_cls, Scale):
+            self.scale_cls = scale_cls
         else:
-            raise TypeError("scale must be an instance of Scale") 
+            raise TypeError("scale must be a subclass of Scale") 
         
         if rng is None:
             self.rng = np.random.default_rng()
@@ -59,6 +59,7 @@ class Crater:
             self.rng = rng
         else:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        
         
         #  Evaluate and check diameter/radius values 
         values_set = sum(x is not None for x in [diameter, radius, transient_diameter, transient_radius])
@@ -73,6 +74,7 @@ class Crater:
         self._transient_diameter = transient_diameter
         self._transient_radius = transient_radius    
         self._location = location
+        self.scale = self.scale_cls(target=target, rng=rng, **kwargs)
         
         if diameter is not None:
             self.diameter = diameter
@@ -87,12 +89,11 @@ class Crater:
             self.location = location              
         self._initialize_location(self.rng) 
         
-        if morphology is None:
-            self.morphology = Morphology(self,target,self.rng) 
-        elif isinstance(morphology, Morphology):
-            self.morphology = morphology
-        else:
-            raise TypeError("morphology must be an instance of Morphology")
+        if morphology_cls is None:
+            morphology_cls = Morphology
+        elif not issubclass(morphology_cls, Morphology):
+            raise TypeError("morphology must be a subclass of Morphology")
+        morphology = morphology_cls(self, target=target, rng=self.rng, **kwargs)
             
         return
 
@@ -213,7 +214,7 @@ class Projectile:
                 vertical_velocity: FloatLike = None,
                 location: ArrayLike = None,
                 target: Target = None, 
-                scale = None,
+                scale_cls: Type[Scale] = None,
                 rng: Generator = None,
                 **kwargs):
         from .scale import Scale 
@@ -223,11 +224,9 @@ class Projectile:
             raise TypeError("target must be an instance of Target")        
         if rng and not isinstance(rng, Generator):
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        if scale is None:
-            self.scale = Scale(target, rng) 
-        elif isinstance(scale, Scale):
-            self.scale = scale
-        else:
+        if scale_cls is None:
+            scale_cls = Scale
+        elif not issubclass(scale_cls, Scale):
             raise TypeError("scale must be an instance of Scale") 
 
         # Evaluate and check diameter/radius inputs
@@ -291,7 +290,7 @@ class Projectile:
         self._initialize_velocities(target,rng)
         self._initialize_location(rng)
         
-        self.scale = scale 
+        self.scale  = scale_cls(target=target, rng=rng, **kwargs)
         
         return
 

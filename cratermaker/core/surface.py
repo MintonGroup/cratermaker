@@ -1,6 +1,7 @@
 import xarray as xr
+from xarray import DataArray, Dataset
 import uxarray as uxr
-from uxarray import UxDataset
+from uxarray import UxDataArray, UxDataset
 from glob import glob
 import os
 import numpy as np
@@ -11,7 +12,7 @@ from numpy.typing import NDArray
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
-from ..utils.custom_types import FloatLike
+from ..utils.custom_types import FloatLike, PairOfFloats
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
@@ -58,7 +59,7 @@ class Surface(UxDataset):
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
 
-        # Call the super class constructor with the dataset
+        # Call the super class constructor with the UxDataset
         super().__init__(*args, **kwargs)
         
         # Additional initialization for Surface
@@ -133,7 +134,8 @@ class Surface(UxDataset):
     
 
     def get_face_distance(self, 
-                        location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
+                        location: PairOfFloats
+                        ) -> UxDataArray:
         """
         Computes the distances between cell centers and a given location.
 
@@ -144,7 +146,7 @@ class Surface(UxDataset):
 
         Returns
         -------
-        UxArray.UxDataArray
+        UxDataArray
             DataArray of distances for each cell in meters.
         """
         lon1 = np.deg2rad(location[0])
@@ -155,7 +157,7 @@ class Surface(UxDataset):
     
 
     def get_node_distance(self, 
-                        location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
+                        location: Tuple[np.float64, np.float64]) -> UxDataArray:
         """
         Computes the distances between nodes and a given location.
 
@@ -166,7 +168,7 @@ class Surface(UxDataset):
 
         Returns
         -------
-        UxArray.UxDataArray
+        UxDataArray
             DataArray of distances for each cell in meters.
         """
         lon1 = np.deg2rad(location[0])
@@ -214,7 +216,7 @@ class Surface(UxDataset):
         return initial_bearing
 
 
-    def get_face_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
+    def get_face_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> UxDataArray:
         """
         Computes the initial bearing between cell centers and a given location.
 
@@ -225,7 +227,7 @@ class Surface(UxDataset):
 
         Returns
         -------
-        xarray.DataArray
+        DataArray
             DataArray of initial bearings for each cell in radians.
         """
         lon1 = np.deg2rad(location[0])
@@ -235,7 +237,7 @@ class Surface(UxDataset):
         return self.calculate_initial_bearing(lon1,lat1,lon2,lat2)
    
     
-    def get_node_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> uxr.UxDataArray:
+    def get_node_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> UxDataArray:
         """
         Computes the initial bearing between nodes and a given location.
 
@@ -246,7 +248,7 @@ class Surface(UxDataset):
 
         Returns
         -------
-        xarray.DataArray
+        DataArray
             DataArray of initial bearings for each cell in radians.
         """
         lon1 = np.deg2rad(location[0])
@@ -485,6 +487,9 @@ def initialize_surface(make_new_grid: bool = False,
         raise ValueError("Error loading grid and data files")
     surf = Surface(surf,uxgrid=surf.uxgrid,source_datasets=surf.source_datasets) 
     
+    # Compute face area needed future calculations
+    surf['face_areas'] = surf.uxgrid.face_areas
+    
     surf.grid_temp_dir = grid_temp_dir_path
     surf.data_dir = data_dir_path
     surf.grid_file = grid_file_path
@@ -634,7 +639,7 @@ def generate_data(grid_file: os.PathLike,
     else:
         if data.size != size:
             raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
-    uxda = uxr.UxDataArray(
+    uxda = UxDataArray(
             data=data,
             dims=dims,
             attrs=None if long_name is None else {"long_name": long_name},
@@ -688,9 +693,9 @@ def save_surface(surf: Surface,
     return
 
 
-def elevation_to_cartesian(position: xr.Dataset, 
-                           elevation: xr.DataArray
-                           ) -> xr.Dataset:
+def elevation_to_cartesian(position: Dataset, 
+                           elevation: DataArray
+                           ) -> Dataset:
     
     vars = list(position.data_vars)
     if len(vars) != 3:
@@ -700,11 +705,11 @@ def elevation_to_cartesian(position: xr.Dataset,
     rvec = np.column_stack((position[vars[0]], position[vars[1]], position[vars[2]]))
     runit = rvec / np.linalg.norm(rvec, axis=1, keepdims=True)
     
-    ds_new = xr.Dataset(
-                        {
-                            vars[0]: ((dim_var,), rvec[:,0] + elevation.values * runit[:,0]),
-                            vars[1]: ((dim_var,), rvec[:,1] + elevation.values * runit[:,1]),
-                            vars[2]: ((dim_var,), rvec[:,2] + elevation.values * runit[:,2]),
-                            }
-                        )
+    ds_new = Dataset(
+                     {
+                      vars[0]: ((dim_var,), rvec[:,0] + elevation.values * runit[:,0]),
+                      vars[1]: ((dim_var,), rvec[:,1] + elevation.values * runit[:,1]),
+                      vars[2]: ((dim_var,), rvec[:,2] + elevation.values * runit[:,2]),
+                     }
+                    )
     return ds_new

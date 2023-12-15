@@ -315,6 +315,7 @@ class Production():
             return self.valid_models[0]
         if not isinstance(model, str):
             raise ValueError("model must be a string")
+        model = model.capitalize()
         if model not in self.valid_models:
             raise ValueError(f"Invalid model {model}. Must be one of {self.valid_models}")
         return model

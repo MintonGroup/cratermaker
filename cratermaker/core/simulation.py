@@ -4,16 +4,19 @@ import xarray as xr
 import json
 import os
 import tempfile
-from typing import Any
+from typing import Any, Tuple, Type
 from .target import Target, Material
 from .crater import Crater, Projectile
 from .surface import initialize_surface, save_surface, elevation_to_cartesian
 from .scale import Scale
 from .morphology import Morphology
+from .production import Production, NeukumProduction
 from ..utils.general_utils import to_config, set_properties
-from ..utils.custom_types import FloatLike
+from ..utils.custom_types import FloatLike, PairOfFloats
 from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..perlin import apply_noise
+
+_POISSON_BATCH_SIZE = 1000
 
 class Simulation():
     """
@@ -36,8 +39,9 @@ class Simulation():
                 pix: FloatLike | None = None,
                 reset_surface: bool = True,
                 simdir: os.PathLike | None = None, 
-                scale: Scale | None = None,
-                morphology: Morphology | None = None,
+                scale_cls: Type[Scale] | None = None,
+                morphology_cls: Type[Morphology] | None = None,
+                production_cls: Type[Production] | None = None,
                 *args: Any,
                 **kwargs: Any):
         """
@@ -48,15 +52,27 @@ class Simulation():
         target: str or Target, optional, default "Moon"
             Name of the target body or Target object for the simulation, default is "Moon".
         material : str or Material, optional
-            Name of the material or Material object for the target body, if None is passed, the default material for the target body is used.
+            Name of the material or Material object for the target body, if None is passed, the default material for the target body 
+            is used.
         pix : float, optional
             Pixel resolution for the mesh, default is None.
         reset_surface : bool, optional
             Flag to reset the surface elevation, default is True.
         simdir: PathLike, optional
             Path to the simulation directory, default is current working directory.
+        scale_cls : Type[Scale], optional
+            The Scale class that defines the crater scaling law. If none provided, then the default will be 
+        morphology_cls : Type[Morphology], optional
+            The Morphology class that defines the model used to describe the morphology of the crater. If none provided, then the 
+            default will be based on the default morphology model.
+        production_cls: Type[Production], optional
+            The Production class that defines the production function used to populate the surface with craters. If none provided, 
+            then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
+            body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
+            Earth, and a simple power law model otherwise.
         **kwargs : Any
-            Additional keyword arguments.
+            Additional keyword arguments that can be passed to any of the method of the class, such as arguments to set the scale, 
+            morphology, or production function constructors.
         """
       
         if simdir is None:
@@ -70,7 +86,7 @@ class Simulation():
         if material:
             if isinstance(material, str):
                 try:
-                    material = Material(material)
+                    material = Material(material, **kwargs)
                 except:
                     raise ValueError(f"Invalid material name {material}")
             elif not isinstance(material, Material):
@@ -78,15 +94,15 @@ class Simulation():
             
         if not target:
             if material:
-                target = Target("Moon", material=material)
+                target = Target("Moon", material=material, **kwargs)
             else:
-                target = Target("Moon")
+                target = Target("Moon", **kwargs)
         elif isinstance(target, str):
             try:
                 if material:
-                    target = Target(target, material=material)
+                    target = Target(target, material=material, **kwargs)
                 else:
-                    target = Target(target)
+                    target = Target(target, **kwargs)
             except:
                 raise ValueError(f"Invalid target name {target}")
         elif isinstance(target, Target):
@@ -120,23 +136,38 @@ class Simulation():
         self._crater = None
         self._projectile = None
        
-        if scale is None:
-            self.scale = Scale(self.target, self.rng) 
-        elif isinstance(scale, Scale):
-            self.scale = scale
+        if scale_cls is None:
+            self.scale_cls = Scale
+        elif issubclass(scale_cls, Scale):
+            self.scale_cls = scale_cls
         else:
-            raise TypeError("scale must be an instance of Scale") 
-        
-        
-        if morphology is None or isinstance(morphology, Morphology):
-            self.morphology = morphology
+            raise TypeError("scale must be a subclass of Scale") 
+       
+        if morphology_cls is None:
+            self.morphology_cls = Morphology 
+        elif issubclass(morphology_cls, Morphology):
+            self.morphology_cls = morphology_cls
         else:
-            raise TypeError("morphology must be an instance of Morphology")
+            raise TypeError("morphology must be a subclass of Morphology")
+        
+        if production_cls is None:
+            if self.target.name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
+                self.production_cls = NeukumProduction
+            else:
+                self.production_cls = Production
+        elif issubclass(production_cls, Production):
+            self.production_cls = production_cls
+        else:
+            raise TypeError("production must be a subclass of Production")
+        
+        self._craterlist = []
 
         return
 
     
-    def set_properties(self, **kwargs):
+    def set_properties(self, 
+                       **kwargs: Any
+                      ) -> None:
         """
         Set properties of the current object based on the provided keyword arguments.
 
@@ -153,7 +184,9 @@ class Simulation():
         return 
 
     
-    def to_json(self, filename):
+    def to_json(self, 
+                filename: os.PathLike,
+                ) -> str:
         """
         Export the current simulation configuration to a JSON file.
 
@@ -175,7 +208,10 @@ class Simulation():
         return
     
 
-    def initialize_surface(self, *args, **kwargs):
+    def initialize_surface(self, 
+                           *args: Any, 
+                           **kwargs: Any
+                          ) -> None:
         """
         Initialize the surface mesh.
 
@@ -190,7 +226,9 @@ class Simulation():
         return
    
     
-    def generate_crater(self, **kwargs):
+    def generate_crater(self, 
+                        **kwargs: Any
+                       ) -> Tuple[Crater, Projectile]:
         """
         Create a new Crater object and its corresponding Projectile.
 
@@ -205,13 +243,15 @@ class Simulation():
             A tuple containing the newly created Crater and Projectile objects.
         """        
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(target=self.target, morphology=self.morphology, scale=self.scale, rng=self.rng, **kwargs)
+        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
         projectile = crater.scale.crater_to_projectile(crater)
         
         return crater, projectile
     
     
-    def generate_projectile(self, **kwargs):
+    def generate_projectile(self, 
+                            **kwargs: Any
+                           ) -> Tuple[Projectile, Crater]:
         """
         Create a new Projectile object and its corresponding Crater.
 
@@ -225,13 +265,16 @@ class Simulation():
         (Projectile, Crater)
             A tuple containing the newly created Projectile and Crater objects.
         """
-        projectile = Projectile(target=self.target, rng=self.rng, scale=self.scale, morphology=self.morphology, **kwargs)
-        crater = projectile.scale.projectile_to_crater(projectile, morphology=self.morphology)
+        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, morphology_cls=self.morphology_cls, **kwargs)
+        crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls)
         
         return projectile, crater
    
    
-    def emplace_crater(self, from_projectile=False, **kwargs):
+    def emplace_crater(self, 
+                       from_projectile: bool =False, 
+                       **kwargs: Any
+                      ) -> None:
         """
         Emplace a crater in the simulation, optionally based on a projectile.
 
@@ -239,7 +282,7 @@ class Simulation():
         ----------
         from_projectile : bool, optional
             Flag to create a crater based on a projectile, default is False.
-        **kwargs : dict
+        **kwargs : Any
             Keyword arguments for initializing the Crater or Projectile object.
         """        
         if from_projectile:
@@ -255,7 +298,51 @@ class Simulation():
         return  
 
 
-    def save(self, *args, **kwargs):
+    def populate(self, 
+                 age: FloatLike | None = None,
+                 reference_age: FloatLike | None = None,
+                 cumulative_number_at_diameter: PairOfFloats | None = None,
+                 reference_cumulative_number_at_diameter: PairOfFloats | None = None,
+                 **kwargs: Any,
+                ) -> None:
+        """
+        Populate the surface with craters over a specified interval using the current production function.
+        
+        
+        Parameters
+        ----------
+        age : FloatLike or ArrayLike, optional
+            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
+        reference_age, FloatLike or ArrayLike, optional
+            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
+            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
+            "4.0 Gy to 3.5 Gy ago". 
+        cumulative_number_at_diameter : PairOfFloats, optional
+            A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function convert this value
+            to a corresponding age and use the production function for a given age.
+        reference_cumulative_number_at_diameter : PairOfFloats, optional
+            A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function will convert this
+            value to a corresponding reference age and use the production function for a given age.        
+        """
+        
+        if not hasattr(self, 'production'):
+            raise RuntimeError("No production function defined for this simulation")
+        elif not hasattr(self.production, 'generator_type'):
+            raise RuntimeError("The production function is not properly defined. Missing 'generator_type' attribute")
+        elif self.production.generator_type not in ['crater', 'projectile']:
+            raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
+        
+        impacts_this_interval = self.production.sample(age=age, 
+                                                       reference_age=reference_age, 
+                                                       cumulative_number_at_diameter=cumulative_number_at_diameter, 
+                                                       reference_cumulative_number_at_diameter=reference_cumulative_number_at_diameter, 
+                                                       **kwargs)
+    
+         
+    def save(self, 
+             *args: Any, 
+             **kwargs: Any
+            ) -> None:
         """
         Save the current simulation state to a file.
         """
@@ -407,7 +494,10 @@ class Simulation():
         return
     
      
-    def set_elevation(self, *args, **kwargs) -> None:
+    def set_elevation(self, 
+                      *args: Any, 
+                      **kwargs: Any
+                     ) -> None:
         """
         Set the elevation on the surface. Delegates to the Surface object.
 
