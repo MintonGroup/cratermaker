@@ -242,9 +242,9 @@ body {
 
 .toc-entry > .nav-link.active {
   font-weight: 400;
-  color: #542437;
+  color: #314254;
   background-color: transparent;
-  border-left: 2px solid #563d7c;
+  border-left: 2px solid #A3B9C0;
 }
 
 .nav-link:hover {

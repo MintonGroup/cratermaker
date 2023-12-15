@@ -36,29 +36,19 @@ class Surface(UxDataset):
     
     The Surface class extends UxDataset for the cratermaker project.
 
-    Parameters
-    ----------
-    grid_temp_dir : str
-        Directory for temporary grid files.
-    data_dir : str
-        Directory for data files.
-    grid_file : str
-        Path to the grid file.
-    elevation_file : str
-        Path to the node elevation file.
-    target_radius : str
-        Radius of the target body.
-    pix : FloatLike
-        Approximate pixel size or resolution used to generate the mesh.
-    grid_type : str
-        Type of the grid used.
-
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description','grid_temp_dir','data_dir','grid_file','elevation_file','target_radius', 'pix', 'grid_type')
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_elevation_file', '_target_radius', '_pix', '_grid_type')    
     
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
-
+        self._grid_temp_dir = kwargs.pop('grid_temp_dir', None)
+        self._data_dir = kwargs.pop('data_dir', None)
+        self._grid_file = kwargs.pop('grid_file', None)
+        self._elevation_file = kwargs.pop('elevation_file', None)
+        self._target_radius = kwargs.pop('target_radius', None)
+        self._pix = kwargs.pop('pix', None)
+        self._grid_type = kwargs.pop('grid_type', None)
+        
         # Call the super class constructor with the UxDataset
         super().__init__(*args, **kwargs)
         
@@ -67,7 +57,6 @@ class Surface(UxDataset):
         self._description = "Surface class for cratermaker"
         
         
-
     def set_elevation(self, 
                       new_elev: NDArray[np.float64] | List[FloatLike] | None = None,
                       save_to_file: bool = False, 
@@ -372,6 +361,92 @@ class Surface(UxDataset):
         # radius = np.linalg.norm(center_vector)
         center_vector = None
         return center_vector 
+
+
+    @property
+    def grid_temp_dir(self):
+        """
+        Directory for temporary grid files.
+        """
+        return self._grid_temp_dir
+
+    @grid_temp_dir.setter
+    def grid_temp_dir(self, value):
+        self._grid_temp_dir = value
+        if not os.path.exists(self._grid_temp_dir):
+            os.makedirs(self._grid_temp_dir)
+
+    @property
+    def data_dir(self):
+        """
+        Directory for data files.
+        """
+        return self._data_dir
+
+    @data_dir.setter
+    def data_dir(self, value):
+        self._data_dir = value
+        if not os.path.exists(self._data_dir):
+            os.makedirs(self._data_dir)
+
+    @property
+    def grid_file(self):
+        """
+        Path to the grid file.
+        """
+        return self._grid_file
+
+    @grid_file.setter
+    def grid_file(self, value):
+        self._grid_file = value
+
+    @property
+    def elevation_file(self):
+        """
+        Path to the node elevation file.
+        """
+        return self._elevation_file
+
+    @elevation_file.setter
+    def elevation_file(self, value):
+        self._elevation_file = value
+
+    @property
+    def target_radius(self):
+        """
+        Radius of the target body.
+        """
+        return self._target_radius
+
+    @target_radius.setter
+    def target_radius(self, value):
+        if not isinstance(value, (float, int)):
+            raise TypeError("target_radius must be a float or an integer")
+        self._target_radius = value
+
+    @property
+    def pix(self):
+        """
+        Approximate pixel size or resolution used to generate the mesh.
+        """
+        return self._pix
+
+    @pix.setter
+    def pix(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("pix must be of type FloatLike")
+        self._pix = value
+
+    @property
+    def grid_type(self):
+        """
+        Type of the grid used.
+        """
+        return self._grid_type
+
+    @grid_type.setter
+    def grid_type(self, value):
+        self._grid_type = value
    
          
 def initialize_surface(make_new_grid: bool = False,
@@ -485,16 +560,18 @@ def initialize_surface(make_new_grid: bool = False,
         surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False)
     except:
         raise ValueError("Error loading grid and data files")
-    surf = Surface(surf,uxgrid=surf.uxgrid,source_datasets=surf.source_datasets) 
+    surf = Surface(surf,
+                   uxgrid=surf.uxgrid,
+                   source_datasets=surf.source_datasets,
+                   grid_temp_dir = grid_temp_dir_path,
+                   data_dir = data_dir_path,
+                   grid_file = grid_file_path,
+                   elevation_file = elevation_file_path,
+                   target_radius = target.radius ,
+                   ) 
     
     # Compute face area needed future calculations
     surf['face_areas'] = surf.uxgrid.face_areas
-    
-    surf.grid_temp_dir = grid_temp_dir_path
-    surf.data_dir = data_dir_path
-    surf.grid_file = grid_file_path
-    surf.elevation_file = elevation_file_path
-    surf.target_radius = target.radius
     
     return surf
 

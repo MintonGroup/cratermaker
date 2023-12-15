@@ -7,7 +7,7 @@ import tempfile
 from typing import Any, Tuple, Type
 from .target import Target, Material
 from .crater import Crater, Projectile
-from .surface import initialize_surface, save_surface, elevation_to_cartesian
+from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
@@ -18,32 +18,22 @@ from ..perlin import apply_noise
 
 _POISSON_BATCH_SIZE = 1000
 
-class Simulation():
+class Simulation:
     """
     This class orchestrates the processes involved in running a crater simulation.
 
-    Parameters
-    ----------
-    pix : float
-        Pixel resolution for the mesh.
-    target : Target
-        The target body for the impact simulation.
-    rng : numpy.random.Generator
-        Random number generator instance.
-
     """
-
     def __init__(self, 
-                target: str | Target = "Moon",
-                material: str | Material | None = None,
-                pix: FloatLike | None = None,
-                reset_surface: bool = True,
-                simdir: os.PathLike | None = None, 
-                scale_cls: Type[Scale] | None = None,
-                morphology_cls: Type[Morphology] | None = None,
-                production_cls: Type[Production] | None = None,
-                *args: Any,
-                **kwargs: Any):
+                 target: str | Target = "Moon",
+                 material: str | Material | None = None,
+                 pix: FloatLike | None = None,
+                 reset_surface: bool = True,
+                 simdir: os.PathLike | None = None, 
+                 scale_cls: Type[Scale] | None = None,
+                 morphology_cls: Type[Morphology] | None = None,
+                 production_cls: Type[Production] | None = None,
+                 *args: Any,
+                 **kwargs: Any):
         """
         Initialize the Simulation object.
 
@@ -74,20 +64,12 @@ class Simulation():
             Additional keyword arguments that can be passed to any of the method of the class, such as arguments to set the scale, 
             morphology, or production function constructors.
         """
-      
-        if simdir is None:
-            simdir = os.getcwd() 
-        if not os.path.isabs(simdir):
-            simdir = os.path.abspath(simdir)
-        if not os.path.exists(simdir):
-            os.makedirs(simdir) 
+     
         self.simdir = simdir
         
-        
-        # Set some default values for the simulation parameters
-        self.time_function = kwargs.get('time_function', None)
-        self.tstart = kwargs.get('tstart', 0.0)  # Simulation start time (in y)
-        self.tstop = kwargs.get('tstop', 4.31e9)    # Simulation stop time (in y)
+        # # Set some default values for the simulation parameters
+        # self.tstart = kwargs.get('tstart', 0.0)  # Simulation start time (in y)
+        # self.tstop = kwargs.get('tstop', 4.31e9)    # Simulation stop time (in y)
         
         # Set the random number generator seed
         self.seed = kwargs.get('seed', None) 
@@ -98,7 +80,6 @@ class Simulation():
         self._crater = None
         self._projectile = None        
         
-       
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
         #  
@@ -195,6 +176,7 @@ class Simulation():
       
         
         self._craterlist = []
+        
 
         return
 
@@ -548,24 +530,192 @@ class Simulation():
         return self.surf.set_elevation(*args, **kwargs)   
     
           
+
+    @property
+    def simdir(self):
+        """
+        Directory where the simulation data is stored. Set during initialization.
+        """
+        return self._simdir
+
+    @simdir.setter
+    def simdir(self, value):
+        if value is None:
+            self._simdir = os.getcwd() 
+        elif not os.path.isabs(value):
+            self._simdir = os.path.abspath(value)
+        else:
+            self._simdir = value
+            
+        if not os.path.exists(self._simdir):
+            os.makedirs(self._simdir)
+
+    @property
+    def seed(self):
+        """
+        Seed for the random number generator. Set during initialization.
+        """
+        return self._seed
+
+    @seed.setter
+    def seed(self, value):
+        self._seed = value
+
+    @property
+    def rng(self):
+        """
+        Random number generator instance. Set during initialization.
+        """
+        return self._rng
+
+    @rng.setter
+    def rng(self, value):
+        if not isinstance(value, Generator) and value is not None:
+            raise TypeError("rng must be a numpy.random.Generator instance or None")
+        self._rng = value
+
+    @property
+    def target(self):
+        """
+        The target body for the impact simulation. Set during initialization.
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        if not isinstance(value, Target):
+            raise TypeError("target must be an instance of Target")
+        self._target = value
+
+    @property
+    def pix(self):
+        """
+        Pixel resolution for the mesh. Set during initialization.
+        """
+        return self._pix
+
+    @pix.setter
+    def pix(self, value):
+        if value <= 0:
+            raise ValueError("pix must be greater than zero")
+        self._pix = value
+
+    @property
+    def surf(self):
+        """
+        Surface mesh data for the simulation. Set during initialization.
+        """
+        return self._surf
+    
+    @surf.setter
+    def surf(self, value):
+        if not isinstance(value, Surface):
+            raise TypeError("surf must be an instance of Surface")
+        self._surf = value
+
+    @property
+    def production(self):
+        """
+        The Production class instance used for crater production. Set during initialization.
+        """
+        return self._production
+
+    @production.setter
+    def production(self, value):
+        if not issubclass(value.__class__, Production):
+            raise TypeError("production must be a subclass of Production")
+        self._production = value
+
+    @property
+    def scale_cls(self):
+        """
+        The Scale class that defines the crater scaling law. Set during initialization.
+        """
+        return self._scale_cls
+
+    @scale_cls.setter
+    def scale_cls(self, value):
+        if not issubclass(value, Scale):
+            raise TypeError("scale_cls must be a subclass of Scale")
+        self._scale_cls = value
+
+    @property
+    def morphology_cls(self):
+        """
+        The Morphology class that defines the crater morphology model. Set during initialization.
+        """
+        return self._morphology_cls
+
+    @morphology_cls.setter
+    def morphology_cls(self, value):
+        if not issubclass(value, Morphology):
+            raise TypeError("morphology_cls must be a subclass of Morphology")
+        self._morphology_cls = value
+
+    @property
+    def crater(self):
+        """
+        The current Crater object in the simulation. Set during runtime.
+        """
+        return self._crater
+
+    @crater.setter
+    def crater(self, value):
+        if not isinstance(value, Crater):
+            raise TypeError("crater must be an instance of Crater")
+        self._crater = value
+
+    @property
+    def projectile(self):
+        """
+        The current Projectile object in the simulation. Set during runtime.
+        """
+        return self._projectile
+
+    @projectile.setter
+    def projectile(self, value):
+        if value is not None and not isinstance(value, Projectile):
+            raise TypeError("projectile must be an instance of Projectile")
+        self._projectile = value
+
     @property
     def data_dir(self):
+        """
+        Directory where the data files are stored. Dynamically set based on `surf` attribute.
+        """
         return self.surf.data_dir
-    
+
     @property
     def grid_file(self):
+        """
+        File path of the grid file. Dynamically set based on `surf` attribute.
+        """
         return self.surf.grid_file
-    
+
     @property
     def elevation_file(self):
+        """
+        File path of the elevation file. Dynamically set based on `surf` attribute.
+        """
         return self.surf.elevation_file
-    
+
     @property
     def n_node(self):
+        """
+        Number of nodes in the simulation mesh. Dynamically set based on `surf` attribute.
+        """
         return self.surf.uxgrid.n_node
-    
+   
+    @property
+    def n_node(self):
+        """
+        Number of nodes in the simulation mesh. Dynamically set based on `surf` attribute.
+        """
+        return self.surf.uxgrid.n_node
+
     @property
     def n_face(self):
+        """
+        Number of faces in the simulation mesh. Dynamically set based on `surf` attribute.
+        """
         return self.surf.uxgrid.n_face
-    
-

@@ -10,30 +10,17 @@ import warnings
 
 class Production():
     """
-    An operations class for computing the production function for craters and impactors.
+    An operations class for computing the production function for craters and impactors. This implements a very simple power law 
+    production function that can be used as either a crater or projectile production function. The production function is defined as
+    the cumulative number of craters greater than a given diameter per unit m^2 surface area.
 
-
-    Parameters
-    ----------
-    model : str
-        The specific model to use for the production function. Defaults to "Powerlaw".
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used.
-    **kwargs : Any
-        Additional keyword arguments to pass to the Production class. These are used to pass optional arguments
-        to set the parameters of the power law production function using the set_model_parameters method.
     """
     def __init__(self, 
                 rng: Generator | None = None,
                 **kwargs: Any):
           
-        if rng is None:
-            self.rng = np.random.default_rng()
-        elif isinstance(rng, Generator):
-            self.rng = rng
-        else:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        
+        self.valid_generator_types = ["crater", "projectile"]
+        self.rng = rng 
         self.set_model_parameters(**kwargs)
        
         return
@@ -62,12 +49,11 @@ class Production():
         if not hasattr(self, "valid_models"):
             self.valid_models = ["Powerlaw"] 
         model = kwargs.get("model", "Powerlaw")
-        self.model = self._validate_model(model)          
+        self.model = model
         
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
-        self.valid_generator_types = ["crater", "projectile"]
         generator_type = kwargs.get("generator_type", "crater")
-        self.generator_type = self._validate_generator_type(generator_type)        
+        self.generator_type = generator_type
         self.valid_time = (0,None)  # Range over which the production function is valid       
         
         # Default values that are approximately equal to the NPF for the Moon
@@ -340,63 +326,70 @@ class Production():
         
         return diameters    
     
+
+    @property
+    def N1_coef(self):
+        """Get the N1 coefficient of the power law production function."""
+        return self._N1_coef
+
+    @N1_coef.setter
+    def N1_coef(self, value):
+        """Set the N1 coefficient of the power law production function."""
+        if not isinstance(value, FloatLike):
+            raise TypeError("N1_coef must be a numeric value (float or int)")
+        if value < 0:
+            raise ValueError("N1_coef must be positive")
+        self._N1_coef = value
+
+    @property
+    def slope(self):
+        """Get the slope of the power law production function."""
+        return self._slope
+
+    @slope.setter
+    def slope(self, value):
+        """Set the slope of the power law production function."""
+        if not isinstance(value, FloatLike):
+            raise TypeError("slope must be a numeric value (float or int)")
+        self._slope = value
+
+    @property
+    def valid_generator_types(self):
+        """Get the list of valid generator types."""
+        return self._valid_generator_types
+
+    @valid_generator_types.setter
+    def valid_generator_types(self, value):
+        """Set the list of valid generator types."""
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise TypeError("valid_generator_types must be a list of strings")
+        self._valid_generator_types = value
+
+    @property
+    def impact_velocity_model(self):
+        """Get the impact velocity model name."""
+        return self._impact_velocity_model
+
+    @impact_velocity_model.setter
+    def impact_velocity_model(self, value):
+        """Set the impact velocity model name."""
+        if not isinstance(value, str):
+            raise TypeError("impact_velocity_model must be a string")
+        self._impact_velocity_model = value
+
+    @property
+    def valid_time(self):
+        """Get the valid time range for the production function."""
+        return self._valid_time
+
+    @valid_time.setter
+    def valid_time(self, value):
+        """Set the valid time range for the production function."""
+        if not (isinstance(value, tuple) and len(value) == 2):
+            raise ValueError("valid_time must be a tuple of two values")
+        self._valid_time = value
         
-    def _validate_model(self, model: str | None) -> str:
-        """
-        Validates the given model string against the list of valid models.
-
-        Parameters
-        ----------
-        model : str | None
-            The model name to validate. If None, the first model in the valid models list is returned.
-
-        Returns
-        -------
-        str
-            The validated model name. If the input model is None, returns the first model in the valid models list.
-
-        Raises
-        ------
-        ValueError
-            If the model is not a string or if the model is not in the list of valid models.
-        """       
-        if not model:
-            return self.valid_models[0]
-        if not isinstance(model, str):
-            raise ValueError("model must be a string")
-        model = model.capitalize()
-        if model not in self.valid_models:
-            raise ValueError(f"Invalid model {model}. Must be one of {self.valid_models}")
-        return model
-
     
-    def _validate_generator_type(self, generator_type: str | None) -> str:
-        """
-        Validates the given generator type against the list of valid generator types.
-
-        Parameters
-        ----------
-        generator_type : str | None
-            The generator type to validate. If None, the first type in the valid generator types list is returned.
-
-        Returns
-        -------
-        str
-            The validated generator type. If the input generator type is None, returns the first type in the valid generator types list.
-
-        Raises
-        ------
-        ValueError
-            If the generator type is not a string or if the generator type is not in the list of valid generator types.
-        """        
-        if not generator_type:
-            return self.valid_generator_types[0]
-        if not isinstance(generator_type, str):
-            raise ValueError("generator_type must be a string")
-        if generator_type not in self.valid_generator_types:
-            raise ValueError(f"Invalid generator_type {generator_type}. Must be one of {self.valid_generator_types}")
-        return generator_type
-
 
     def _validate_age(self, 
                        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -505,7 +498,90 @@ class Production():
             cumulative_number = cumulative_number_array
         return diameter, cumulative_number
             
+    @property
+    def rng(self):
+        """
+        A random number generator instance. If not provided, the default numpy RNG will be used.
+        """
+        return self._rng
+
+    @rng.setter
+    def rng(self, value):
+        if not isinstance(value, Generator) and value is not None:
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        self._rng = value or np.random.default_rng()
+
+    @property
+    def model(self):
+        """
+        The specific model to use for the production function. Defaults to 'Powerlaw'.
+        """
+        return self._model
+
+    @model.setter
+    def model(self, value):
+        """
+        Validates the given model string against the list of valid models.
+
+        Parameters
+        ----------
+        value : str | None
+            The model name to validate. If None, the first model in the valid models list is returned.
+
+        Raises
+        ------
+        ValueError
+            If the model is not a string or if the model is not in the list of valid models.
+        """       
+        if not value:
+            self._model = self.valid_models[0]
+            return
+        if not isinstance(value, str):
+            raise ValueError("model must be a string")
+        value = value.capitalize()
+        if value not in self.valid_models:
+            raise ValueError(f"Invalid model {value}. Must be one of {self.valid_models}")
+        self._model = value
     
+    @property
+    def valid_models(self):
+        """
+        A list of valid models for the production function. 
+        These models define the parameters used for calculating the size-frequency distribution 
+        of craters and impactors
+        """
+        return self._valid_models
+
+    @valid_models.setter
+    def valid_models(self, value):
+        if not isinstance(value, list):
+            raise TypeError("valid_models must be a list of strings")
+        if any(not isinstance(model, str) for model in value):
+            raise ValueError("All items in valid_models must be strings")
+        self._valid_models = value    
+       
+    @property
+    def generator_type(self):
+        """
+        The type of generator to use. This can be either "crater" or "projectile". 
+        This determines the nature of the production function, differentiating between
+        'crater' and 'projectile' types, which affect the calculations and interpretations
+        of the production function.
+        """
+        return self._generator_type
+
+    @generator_type.setter
+    def generator_type(self, value):
+        if not value:
+            self._generator_type = self.valid_generator_types[0]
+            return
+        if not isinstance(value, str):
+            raise ValueError("generator_type must be a string")
+        if value not in self.valid_generator_types:
+            raise ValueError(f"Invalid generator_type {value}. Must be one of {self.valid_generator_types}")
+        self._generator_type = value
+        return 
+        
 class NeukumProduction(Production):
     """
     An operations class for computing the the Neukum production function for the Moon and Mars.
@@ -563,7 +639,7 @@ class NeukumProduction(Production):
         if not hasattr(self, "valid_models"):
             self.valid_models = ["Moon", "Mars", "Projectile"]
         model = kwargs.get("model", "Moon")
-        self.model = self._validate_model(model)   
+        self.model = model
         
         if self.model == "Projectile":
             self.generator_type = "projectile"
@@ -854,7 +930,90 @@ class NeukumProduction(Production):
             
         return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
 
+    @property
+    def sfd_coef(self):
+        """
+        Coefficients for the size-frequency distribution function used in the Neukum production model.
+        """
+        return self._sfd_coef
 
+    @sfd_coef.setter
+    def sfd_coef(self, value):
+        """
+        Set the coefficients for the size-frequency distribution function used in the Neukum production model.
+        """
+        if not isinstance(value, np.ndarray):
+            raise TypeError("sfd_coef must be a numpy array")
+        self._sfd_coef = value
+
+    @property
+    def sfd_range(self):
+        """
+        Range of diameters over which the size-frequency distribution function is valid in the Neukum production model.
+        """
+        return self._sfd_range
+
+    @sfd_range.setter
+    def sfd_range(self, value):
+        """
+        Set the range of diameters over which the size-frequency distribution function is valid in the Neukum production model.
+        """
+        if not (isinstance(value, (list, tuple, np.ndarray)) and len(value) == 2):
+            raise ValueError("sfd_range must be a list, tuple, or numpy array of length 2")
+        self._sfd_range = value
+
+    @property
+    def valid_time(self):
+        """
+        Range of ages over which the chronology function is valid in the Neukum production model.
+        """
+        return self._valid_time
+
+    @valid_time.setter
+    def valid_time(self, value):
+        """
+        Set the range of ages over which the chronology function is valid in the Neukum production model.
+        """
+        if not (isinstance(value, tuple) and len(value) == 2):
+            raise ValueError("valid_time must be a tuple of two values")
+        self._valid_time = value
+
+    @property
+    def tau(self):
+        """Get the time constant for the chronology function."""
+        return self._tau
+
+    @tau.setter
+    def tau(self, value):
+        """Set the time constant for the chronology function."""
+        if not isinstance(value, (float, int)):
+            raise TypeError("tau must be a numeric value")
+        self._tau = value
+
+    @property
+    def Cexp(self):
+        """Get the coefficient for the exponential component of the chronology function."""
+        return self._Cexp
+
+    @Cexp.setter
+    def Cexp(self, value):
+        """Set the coefficient for the exponential component of the chronology function."""
+        if not isinstance(value, (float, int)):
+            raise TypeError("Cexp must be a numeric value")
+        self._Cexp = value
+
+    @property
+    def Clin(self):
+        """Get the coefficient for the linear component of the chronology function."""
+        return self._Clin
+
+    @Clin.setter
+    def Clin(self, value):
+        """Set the coefficient for the linear component of the chronology function."""
+        if not isinstance(value, (float, int)):
+            raise TypeError("Clin must be a numeric value")
+        self._Clin = value
+        
 if __name__ == "__main__":
     from scipy.optimize import curve_fit
     import matplotlib.pyplot as plt

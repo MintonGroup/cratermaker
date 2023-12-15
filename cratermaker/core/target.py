@@ -3,7 +3,7 @@ import os
 import xarray as xr
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import Tuple
+from typing import Tuple, Dict, Sequence
 import os
 from ..utils.general_utils import set_properties, create_catalogue, check_properties
 from ..utils.custom_types import FloatLike
@@ -17,15 +17,6 @@ class Material:
 
     This class defines various physical properties of the material involved in the cratering process.
     
-
-    Parameters
-    ----------
-    name : str
-        The name of the material. If the material is matched to one that is present in the catalogue, the rest of the properties will be retrieved for it unless specified. If the name is not known from the catalogue, then all other properties must be supplied and in order to build a custom material.
-    Ybar : float
-        The strength of the material, typically defined in Pa. 
-    other_properties : dict
-        Other relevant properties of the material.
     """
 
     # Define all valid properties for the Target object
@@ -34,10 +25,46 @@ class Material:
     mu: FloatLike | None = None
     Ybar: FloatLike | None = None
     density: FloatLike | None = None
-    catalogue: dict | None = None
+    catalogue: Dict[str, Dict[str, FloatLike]] | None = None
 
     config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
     def __post_init__(self):
+        """
+        Initialize the target object, setting properties from the provided arguments,
+        and creating a catalogue of known solar system targets if not provided.
+        
+        Parameters
+        ----------
+        name : str
+            The name of the material. If the material is matched to one that is present in the catalogue, the rest of the properties 
+            will be retrieved for it unless specified. If the name is not known from the catalogue, then all other properties must 
+            be supplied and in order to build a custom material.
+        K1 : FloatLike
+            Variable used in crater scaling (see _[1])
+        mu : FloatLike
+            Variable used in crater scaling (see _[1])
+        Ybar : FloatLike
+            The strength of the material, (Pa)
+        density : FloatLike
+            Volumentric density of material, (kg/m^2)
+        catalogue : Dict[str, Dict[str, FloatLike]]
+            An optional dictionary containing a catalogue of known materials to use for the simulation. The catalogue should be 
+            constructed using a nested dictionary, where the first level of keys are the names of the materials, and the second level
+            are the corresponding property names (K1, mu, Ybar, density). 
+            If not provided, a default catalogue will be used.
+            
+        Notes
+        -----
+        The material properties defined here include crater scaling relationship values that were used in CTEM from Richardson (2009) [1]_.
+        These values used are from Holsapple (1993) [2]_ and Kraus et al. (2011) [3]_.
+        
+        References
+        ----------
+        .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697–715. https://doi.org/10.1016/j.icarus.2009.07.029
+        .. [2] Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333–373. https://doi.org/10.1146/annurev.ea.21.050193.002001
+        .. [3] Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724–738. https://doi.org/10.1016/j.icarus.2011.05.016
+
+        """ 
         # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
         material_properties = [
             "name",       "K1",     "mu",   "Ybar",     "density" 
@@ -97,27 +124,6 @@ class Target:
 
     This class encapsulates the properties of the target that is impacted, including
     its material composition, size, and other relevant physical characteristics.
-
-    Attributes
-    ----------
-    name : str or None
-        Name of the target body.
-    radius : FloatLike or None
-        Radius of the target body in meters.
-    diameter : FloatLike or None
-        Diameter of the target body in meters.
-    gravity : FloatLike or None
-        Surface gravity of the target body in m/s^2.
-    material_name : str or None
-        Name of the material composition of the target body.
-    material : Material or None
-        Material composition of the target body.
-    mean_impact_velocity : FloatLike or None
-        Mean impact velocity in m/s.
-    transition_scale_type : str or None
-        Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
-    catalogue : dict or None
-        Optional input of catalogue solar system targets to replace the built-in catalogue.
     """
        
     # Set up instance variables
@@ -136,6 +142,28 @@ class Target:
         """
         Initialize the target object, setting properties from the provided arguments,
         and creating a catalogue of known solar system targets if not provided.
+
+        Attributes
+        ----------
+        name : str or None
+            Name of the target body.
+        radius : FloatLike or None
+            Radius of the target body in meters.
+        diameter : FloatLike or None
+            Diameter of the target body in meters.
+        gravity : FloatLike or None
+            Surface gravity of the target body in m/s^2.
+        material_name : str or None
+            Name of the material composition of the target body.
+        material : Material or None
+            Material composition of the target body.
+        mean_impact_velocity : FloatLike or None
+            Mean impact velocity in m/s.
+        transition_scale_type : str or None
+            Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
+        catalogue : dict or None
+            Optional input of catalogue solar system targets to replace the built-in catalogue.
+        
         """    
         
         # Define some built-in catalogue values for known solar system targets of interest
