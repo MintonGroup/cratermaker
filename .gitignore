@@ -37,3 +37,6 @@ docs/_build/
 docs/_build/**/*
 docs/generated/
 docs/generated/**/*
+docs/*.DS_Store
+docs/*.swp
+
