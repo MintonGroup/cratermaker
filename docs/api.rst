@@ -251,13 +251,35 @@ Attributes
     Material.mu
     Material.Ybar
 
-Crater
+Impact
 ======
 
-The Crater class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features.
+The ``Impact`` class is an abstract base class that provides a common framework for all impact-related entities in the simulation. It defines the basic attributes and methods shared by all types of impact events, such as diameter, radius, and location. This class is not intended for direct instantiation but should be subclassed by specific impact event classes.
+
+
+Subclasses of Impact include:
+-----------------------------
+
+- :class:`Crater`
+- :class:`Projectile`
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Impact.diameter
+    Impact.location
+    Impact.radius
+    Impact.rng
+    Impact.scale
+    Impact.scale_cls
+    Impact.target
 
 Creating a Crater
 -----------------
+The Crater subclass represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features.
 
 .. autosummary::
     :toctree: generated/
@@ -272,26 +294,16 @@ Attributes
     :toctree: generated/
 
     Crater.diameter
-    Crater.location
+    Crater.radius
     Crater.morphology
     Crater.morphology_cls
-    Crater.radius
-    Crater.rng
-    Crater.scale
-    Crater.scale_cls
-    Crater.target
     Crater.transient_diameter
     Crater.transient_radius
 
 
-
-Projectile
-==========
-
-The Projectile class represents a single projectile in the simulation. It defines the properties of the impacting object, such as its size, velocity, material, and angle of impact.
-
 Creating a Projectile
 ---------------------
+The Projectile subclass represents a single projectile in the simulation. It defines the properties of the impacting object, such as its size, velocity, material, and angle of impact.
 
 .. autosummary::
     :toctree: generated/
@@ -304,16 +316,12 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Projectile.angle
-    Projectile.density
     Projectile.diameter
-    Projectile.location
-    Projectile.mass
     Projectile.radius
+    Projectile.density
+    Projectile.mass
+    Projectile.angle
     Projectile.rng
-    Projectile.scale
-    Projectile.scale_cls
-    Projectile.target
     Projectile.velocity
     Projectile.vertical_velocity
 

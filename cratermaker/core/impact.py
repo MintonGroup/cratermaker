@@ -104,11 +104,25 @@ class Impact(ABC):
     @property
     @abstractmethod
     def diameter(self):
+        """
+        The diameter of the the impact object in m.
+        
+        Returns
+        -------
+        np.float64
+        """         
         pass
 
     @property
     @abstractmethod
     def radius(self):
+        """
+        The radius of the the impact object in m.
+        
+        Returns
+        -------
+        np.float64
+        """             
         pass
 
     @property
@@ -268,7 +282,7 @@ class Crater(Impact):
     @property
     def diameter(self):
         """
-        The diameter of the crater rim in m.
+        The diameter of the crater rim in m. Setting diameter automatically sets radius, transient_diameter, and transient_radius.
         
         Returns
         -------
@@ -289,7 +303,7 @@ class Crater(Impact):
     @property
     def radius(self):
         """
-        The diameter of the crater rim in m.
+        The radius of the crater rim in m. Setting radius automatically sets diameter, transient_diameter, and transient_radius.
         
         Returns
         -------
@@ -310,7 +324,7 @@ class Crater(Impact):
     @property
     def transient_diameter(self):
         """
-        The diameter of the transient crater in m.
+        The diameter of the transient crater in m. Setting transint diameter automatically sets transient radius, diameter, and radius.
         
         Returns
         -------
@@ -332,7 +346,7 @@ class Crater(Impact):
     @property
     def transient_radius(self):
         """
-        The radius the transient crater in m.
+        The radius the transient crater in m. Setting transint radius automatically sets transient diameter, diameter, and radius.
         
         Returns
         -------
@@ -478,7 +492,7 @@ class Projectile(Impact):
     @property
     def diameter(self):
         """
-        The diameter of the crater rim in m.
+        The diameter of the projectile in m. Setting the diameter automatically sets the radius. Mass and density are updated accordingly.
         
         Returns
         -------
@@ -499,7 +513,7 @@ class Projectile(Impact):
     @property
     def radius(self):
         """
-        The radius of the crater rim in m.
+        The radius of the projectile in m. Setting the radius automatically sets the diameter. Mass and density are updated accordingly.
         
         Returns
         -------
@@ -520,7 +534,7 @@ class Projectile(Impact):
     @property
     def mass(self):
         """
-        The mass of the projectile in kg.
+        The mass of the projectile in kg. Setting the mass automatically updates the diameter and radius from a given density.
         
         Returns
         -------
@@ -540,7 +554,7 @@ class Projectile(Impact):
     @property
     def density(self):
         """
-        The mass density of the projectile in kg/m**3.
+        The mass density of the projectile in kg/m**3. Setting the density automatically updates the mass from a given radius.
         
         Returns
         -------
@@ -569,7 +583,7 @@ class Projectile(Impact):
     @property
     def velocity(self):
         """
-        The velocity of the projectile upon impact, in m/s.
+        The velocity of the projectile upon impact, in m/s. Setting the velocity automatically updates the vertical velocity from a given angle.
         
         Returns
         -------
@@ -591,7 +605,8 @@ class Projectile(Impact):
     @property
     def vertical_velocity(self):
         """
-        The vertical component of the projectile velocity upon impact, in m/s.
+        The vertical component of the projectile velocity upon impact, in m/s. Setting the vertical velocity automatically updates the velocity from a given angle. 
+        The vertical velocity must be less than or equal to the velocity.
         
         Returns
         -------
@@ -617,7 +632,7 @@ class Projectile(Impact):
     @property
     def angle(self):
         """
-        The angle of impact, in degrees.
+        The angle of impact, in degrees. Setting the angle automatically updates the vertical velocity from a given velocity.
         
         Returns
         -------
