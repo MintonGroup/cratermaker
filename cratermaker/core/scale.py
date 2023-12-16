@@ -246,7 +246,7 @@ class Scale():
         Crater
             The crater resulting from the impact of the projectile.
         """
-        from .crater import Crater
+        from .impact import Crater
         transient_diameter = self.projectile_to_transient(projectile, target=self.target, rng=self.rng)
         crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng, **kwargs)
 
@@ -275,7 +275,7 @@ class Scale():
 
     @staticmethod
     def projectile_to_transient(projectile, target, rng: Generator) -> np.float64:
-        from .crater import Projectile
+        from .impact import Projectile
         if not isinstance(projectile, Projectile):
             raise TypeError("target must be an instance of Projectile")
         if not isinstance(target, Target):
@@ -310,7 +310,7 @@ class Scale():
 
 
     def transient_to_projectile(self, crater, target, rng: Generator = None):
-        from .crater import Crater, Projectile
+        from .impact import Crater, Projectile
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
         if not isinstance(target, Target):

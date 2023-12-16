@@ -184,16 +184,45 @@ Methods
     NeukumProduction.set_model_parameters
     NeukumProduction.function
 
+.. currentmodule:: cratermaker
+
 Target
 ======
 
-The Target class represents the target body for the simulation and its physical properties, such as radius, gravity, and surface composition.
+The Target class represents the target body in a crater simulation. It encapsulates properties of the target, such as its material composition, size, and other physical characteristics.
 
+Creating a Target
+-----------------
 
-.. autoclass:: cratermaker.core.target.Target
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. autosummary::
+    :toctree: generated/
+
+    Target
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.catalogue
+    Target.diameter
+    Target.escape_velocity
+    Target.gravity
+    Target.material
+    Target.material_name
+    Target.mean_impact_velocity
+    Target.name
+    Target.radius
+    Target.transition_scale_type
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.set_properties
 
 
 Material
@@ -201,33 +230,92 @@ Material
 
 The Material class represents a material that can be used in the simulation. The properties defined in a Material object are used in crater scaling calculations.
 
+Creating a matererial
+---------------------
 
-.. autoclass:: cratermaker.core.target.Material
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. autosummary::
+    :toctree: generated/
 
+    Material
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Material.name
+    Material.catalogue
+    Material.density
+    Material.K1
+    Material.mu
+    Material.Ybar
 
 Crater
 ======
 
-The Crater class represents a single crater in the simulation. 
+The Crater class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features.
 
-.. autoclass:: cratermaker.core.crater.Crater
-    :members:
-    :undoc-members:
-    :show-inheritance:
+Creating a Crater
+-----------------
+
+.. autosummary::
+    :toctree: generated/
+
+    Crater
+
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Crater.diameter
+    Crater.location
+    Crater.morphology
+    Crater.morphology_cls
+    Crater.radius
+    Crater.rng
+    Crater.scale
+    Crater.scale_cls
+    Crater.target
+    Crater.transient_diameter
+    Crater.transient_radius
+
+
 
 Projectile
 ==========
 
-The Projectile class represents a single projectile in the simulation. It is used to generate a crater of a given size.
+The Projectile class represents a single projectile in the simulation. It defines the properties of the impacting object, such as its size, velocity, material, and angle of impact.
 
+Creating a Projectile
+---------------------
 
-.. autoclass:: cratermaker.core.crater.Projectile
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. autosummary::
+    :toctree: generated/
+
+    Projectile
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Projectile.angle
+    Projectile.density
+    Projectile.diameter
+    Projectile.location
+    Projectile.mass
+    Projectile.radius
+    Projectile.rng
+    Projectile.scale
+    Projectile.scale_cls
+    Projectile.target
+    Projectile.velocity
+    Projectile.vertical_velocity
 
 
 Scale
@@ -235,26 +323,15 @@ Scale
 
 Scale is an operations class for computing the scaling relationships between impactors and craters.  This class encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
 
-.. autoclass:: cratermaker.core.scale.Scale
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 
 Morphology
 ==========
 
 The Morphology class represents the dimensions of different morphological characteristics of a crater.
 
-.. autoclass:: cratermaker.core.morphology.Morphology
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-
-
-Utility function
-================
+Utility functions
+=================
 
 Monte Carlo
 -----------

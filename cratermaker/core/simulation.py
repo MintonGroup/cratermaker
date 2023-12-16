@@ -6,7 +6,7 @@ import os
 import tempfile
 from typing import Any, Tuple, Type
 from .target import Target, Material
-from .crater import Crater, Projectile
+from .impact import Crater, Projectile
 from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
 from .scale import Scale
 from .morphology import Morphology

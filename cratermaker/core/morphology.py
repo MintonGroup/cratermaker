@@ -28,7 +28,7 @@ class Morphology:
     """
     
     def __init__(self, crater, target=None, rng=None) -> None:
-        from .crater import Crater
+        from .impact import Crater
 
         if isinstance(crater, Crater):
             self.crater = crater

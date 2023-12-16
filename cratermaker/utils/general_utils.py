@@ -92,11 +92,13 @@ def set_properties(obj,**kwargs):
             
         set_properties_from_catalogue(obj,catalogue=catalogue,name=name)
         set_properties_from_arguments(obj,name=name)
-        
-    if 'filename' in kwargs:
+       
+    filename = kwargs.get('filename') 
+    if filename:
         set_properties_from_file(obj,**kwargs)
-    
-    if 'catalogue' in kwargs: 
+   
+    catalogue = kwargs.get('catalogue') 
+    if catalogue:
         set_properties_from_catalogue(obj,**kwargs)
         
     set_properties_from_arguments(obj,**kwargs)

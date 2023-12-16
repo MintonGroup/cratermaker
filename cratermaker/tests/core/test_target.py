@@ -58,7 +58,9 @@ class TestTarget(unittest.TestCase):
         # Test incomplete custom target creation or invalid arguments
         with self.assertRaises(ValueError):
             Target("Arrakis", mean_impact_velocity=18000.0)
-        with self.assertRaises(ValueError):
+        
+        # Missing name
+        with self.assertRaises(TypeError):
             Target(radius=5995.0, gravity=0.9*gEarth, material_name="Sand", mean_impact_velocity=18000.0, transition_scale_type="silicate")
         with self.assertRaises(ValueError):
             Target("Moon",transition_scale_type="flubber")
