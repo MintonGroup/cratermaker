@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.random import Generator
-from typing import Tuple
+from typing import Tuple, Any
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
@@ -27,28 +27,15 @@ class Morphology:
         A random number generator instance. If not provided, the default numpy RNG will be used.
     """
     
-    def __init__(self, crater, target=None, rng=None) -> None:
-        from .impact import Crater
+    def __init__(self, 
+                 crater,  
+                 target: Target | None=None, 
+                 rng: Generator | None=None
+                 ):
 
-        if isinstance(crater, Crater):
-            self.crater = crater
-        else:
-            raise TypeError("crater must be an instance of Crater")
-        
-        if target is None:
-            target = Target(name="Moon")
-        elif isinstance(target, Target):
-            self.target = target
-        elif isinstance(target, str):
-            self.target = Target(name=target)
-        else:
-            raise TypeError("target must be an instance of Target or a name of a known target body") 
-        
-        if rng is None:
-            rng = np.random.default_rng()
-        elif not isinstance(rng, Generator):
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-
+        self.crater = crater 
+        self.target = target
+        self.rng = rng
         self.rimheight = None
         self.rimwidth = None
         self.floordepth = None
@@ -248,36 +235,95 @@ class Morphology:
     
     @floordiam.setter
     def floordiam(self, value: FloatLike) -> None:
-        """
-        Set the diameter of the crater floor in meters.
-        """
-        self.crater.floordiam = value
+        self.crater.floordiam = np.float64(value)
         
     @property
-    def floordepth(self) -> float:
+    def floordepth(self) -> np.float64:
         """
-        Return the depth of the crater floor in meters.
+        Return the depth of the crater floor in m
+        
+        Returns
+        -------
+        np.float64
         """
         return self.crater.floordepth
     
     @floordepth.setter
     def floordepth(self, value: FloatLike) -> None:
-        """
-        Set the depth of the crater floor in meters.
-        """
-        self.crater.floordepth = value 
+        self.crater.floordepth = np.float64(value)
         
     @property
-    def ejrim(self) -> float:
+    def ejrim(self) -> np.float64:
         """
-        Return the thickness of ejecta at the rim in meters.
+        The thickness of ejecta at the rim in m.
+        
+        Returns
+        -------
+        np.float64
         """
         return self.crater.ejrim
     
     @ejrim.setter
     def ejrim(self, value: FloatLike) -> None:
+        self.crater.ejrim = np.float64(value)
+        
+        
+    @property
+    def crater(self):
         """
-        Set the thickness of ejecta at the rim in meters.
+        The crater to be created.
+        
+        Returns
+        -------
+        Crater
+        """ 
+        return self._crater
+    
+    @crater.setter
+    def crater(self, value):
+        from .impact import Crater
+        if value is not None and not isinstance(value, Crater):
+            raise TypeError("crater must be an instance of Crater")
+        self._crater = value
+        return 
+        
+    @property
+    def target(self):
         """
-        self.crater.ejrim = value
+        The target body for the impact.
+        
+        Returns
+        -------
+        Target
+        """ 
+        return self._target
+    
+    @target.setter
+    def target(self, value):
+        from .target import Target
+        if value is None:
+            self._target = Target(name="Moon")
+            return
+        if not isinstance(value, Target):
+            raise TypeError("target must be an instance of Target")
+        self._target = value
+        return        
+        
+        
+    @property
+    def rng(self):
+        """
+        A random number generator instance.
+        
+        Returns
+        -------
+        Generator
+        """ 
+        return self._rng
+    
+    @rng.setter
+    def rng(self, value):
+        if not isinstance(value, Generator) and value is not None:
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        self._rng = value or np.random.default_rng()   
         

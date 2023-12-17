@@ -216,12 +216,9 @@ class Impact(ABC):
     
     @rng.setter
     def rng(self, value):
-        if value is None:
-            self._rng = np.random.default_rng()
-        elif not isinstance(value, Generator):
-            raise TypeError("rng must be an instance of Generator")
-        self._rng = value
-        return
+        if not isinstance(value, Generator) and value is not None:
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        self._rng = value or np.random.default_rng()
 
 
 class Crater(Impact):

@@ -329,13 +329,87 @@ Attributes
 Scale
 =====
 
-Scale is an operations class for computing the scaling relationships between impactors and craters.  This class encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
+The Scale class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
+
+Creating Scale
+--------------
+
+.. autosummary::
+    :toctree: generated/
+
+    Scale
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Scale.target
+    Scale.rng
+    Scale.transition_diameter
+    Scale.transition_nominal
+    Scale.simple_enlargement_factor
+    Scale.complex_enlargement_factor
+    Scale.final_exp
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Scale._compute_simple_to_complex_transition_factors
+    Scale.get_morphology_type
+    Scale.f2t_simple
+    Scale.f2t_complex
+    Scale.final_to_transient
+    Scale.transient_to_final
+    Scale.projectile_to_crater
+    Scale.crater_to_projectile
+    Scale.projectile_to_transient
+    Scale.transient_to_projectile
 
 
 Morphology
 ==========
 
-The Morphology class represents the dimensions of different morphological characteristics of a crater.
+The Morphology class is an operations class for computing the morphology of a crater based on its size and target properties. It encapsulates the logic for altering the topography of the surface based on the crater properties.
+
+Creating Morphology
+-------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    Morphology
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Morphology.diameter
+    Morphology.radius
+    Morphology.morphology_type
+    Morphology.rimheight
+    Morphology.rimwidth
+    Morphology.peakheight
+    Morphology.floordiam
+    Morphology.floordepth
+    Morphology.ejrim
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Morphology.set_morphology_parameters
+    Morphology.crater_profile
+    Morphology.ejecta_profile
+    Morphology.form_crater
 
 
 Utility functions

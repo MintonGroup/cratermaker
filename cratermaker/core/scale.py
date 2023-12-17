@@ -13,23 +13,21 @@ class Scale():
     This class encapsulates the logic for converting between projectile properties and crater properties, 
     as well as determining crater morphology based on size and target properties.
 
-    Parameters
-    ----------
-    target : Target
-        The target body for the impact simulation.
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used.
     """
 
     def __init__(self, target, rng: Generator | None = None):
-        if not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target")
-        if rng is None:
-            self.rng = np.random.default_rng()
-        elif isinstance(rng, Generator):
-            self.rng = rng
-        else:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        """
+        Create an operations class for computing the scaling relationships between impactors and craters.
+        
+        Parameters
+        ----------
+        target : Target
+            The target body for the impact simulation.
+        rng : Generator, optional
+            A random number generator instance. If not provided, the default numpy RNG will be used. 
+        """
+        
+        self.rng = rng
         self.target = target
         
         # Initialize additional attributes for simple->complex transition scale factors. These are set to None here just for clarity
@@ -337,4 +335,117 @@ class Scale():
         projectile = Projectile(diameter=sol.root, target=target, location=projectile.location, velocity=projectile.velocity, angle=projectile.angle, rng=rng)
         
         return projectile
-       
+
+    @property
+    def transition_diameter(self) -> np.float64:
+        """
+        The transition diameter between simple and complex craters in m.
+        
+        Returns
+        -------
+        np.float64
+        """
+        return self._transition_diameter
+    
+    @transition_diameter.setter
+    def transition_diameter(self, value: FloatLike) -> None:
+        self._transition_diameter = np.float64(value)
+        
+    @property
+    def transition_nominal(self) -> np.float64:
+        """
+        The nominal transition diameter for crater morphology in m.
+        
+        Returns
+        -------
+        np.float64
+        """
+        return self._transition_nominal
+    
+    @transition_nominal.setter
+    def transition_nominal(self, value: FloatLike) -> None:
+        self._transition_nominal = np.float64(value)
+
+    @property
+    def simple_enlargement_factor(self) -> np.float64:
+        """
+        The enlargement factor for simple craters.
+        
+        Returns
+        -------
+        np.float64
+        """
+        return self._simple_enlargement_factor
+    
+    @simple_enlargement_factor.setter
+    def simple_enlargement_factor(self, value: FloatLike) -> None:
+        self._simple_enlargement_factor = np.float64(value)
+
+    @property
+    def complex_enlargement_factor(self) -> np.float64:
+        """
+        The enlargement factor for complex craters.
+        
+        Returns
+        -------
+        np.float64
+        """
+        return self._complex_enlargement_factor
+    
+    @complex_enlargement_factor.setter
+    def complex_enlargement_factor(self, value: FloatLike) -> None:
+        self._complex_enlargement_factor = np.float64(value)
+
+    @property
+    def final_exp(self) -> np.float64:
+        """
+        The exponent used in the final rim radius to simple crater radius relationship.
+        
+        Returns
+        -------
+        np.float64
+        """
+        return self._final_exp
+    
+    @final_exp.setter
+    def final_exp(self, value: FloatLike) -> None:
+        self._final_exp = np.float64(value)
+
+    @property
+    def target(self):
+        """
+        The target body for the impact.
+        
+        Returns
+        -------
+        Target
+        """ 
+        return self._target
+    
+    @target.setter
+    def target(self, value):
+        if value is None:
+            self._target = Target(name="Moon")
+            return
+        if not isinstance(value, Target):
+            raise TypeError("target must be an instance of Target")
+        self._target = value
+        return 
+    
+    @property
+    def rng(self):
+        """
+        A random number generator instance.
+        
+        Returns
+        -------
+        Generator
+        """ 
+        return self._rng
+    
+    @rng.setter
+    def rng(self, value):
+        if not isinstance(value, Generator) and value is not None:
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        self._rng = value or np.random.default_rng()       
+      
