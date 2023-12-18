@@ -290,3 +290,27 @@ body {
   margin-right: auto;
   margin-top: 10px;
 }
+
+/* Hide ToC on mobile */
+@media (max-width: 1200px) {
+  .bd-sidebar-secondary {
+    display: none;
+  }
+
+  .bd-sidebar-secondary.active .bd-toc.active {
+    display: block;
+  }
+
+
+  .article-header-buttons .sidebar-toggle {
+    display: block;
+  }
+
+  label.sidebar-toggle.primary-toggle {
+    display: none;
+  }
+  label.sidebar-toggle.secondary-toggle {
+    display: inline-block; /* or 'block', depending on desired layout */
+  }
+
+}
