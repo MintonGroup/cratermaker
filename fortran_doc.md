@@ -2,15 +2,13 @@
 project: Cratermaker
 author: David A. Minton
 summary: High performance Fortran functions used by the Cratermaker project via ISO_C_BINDING interfaces and Cython.
-favicon: ./docs/_static/logos/Cratermaker_Icon.svg
 project_github: https://github.com/profminton/cratermaker
 project_download: https://github.com/profminton/cratermaker/releases
 project_website: https://cratermaker.readthedocs.io
 author: David A. Minton
 github: https://github.com/profminton/
 src_dir: fortran
-output_dir: ./docs/_build/html/fortran
-media_dir: ./docs/_static
+output_dir: ./docs/_static/fortran
 source: true
 graph: true
 sort: alpha
