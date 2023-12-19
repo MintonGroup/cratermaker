@@ -7,6 +7,7 @@ SPHINXBUILD     = sphinx-build
 SPHINXATUOBUILD = sphinx-autobuild
 PAPER           =
 BUILDDIR        = _build
+FORTRANDIR      = _static/fortran_docs
 
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4
@@ -50,7 +51,8 @@ help:
 
 .PHONY: clean
 clean:
-	rm -rf $(BUILDDIR)/*
+	rm -rf $(BUILDDIR)
+	rm -rf $(FORTRANDIR)
 	rm -rf generated/*
 	rm -rf auto_gallery/
 
