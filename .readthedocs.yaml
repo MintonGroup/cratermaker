@@ -19,8 +19,7 @@ build:
   jobs:
     post_create_environment: 
       - pip install .
-  commands:
-    - ford fortran_doc.md
+      - ford fortran_doc.md
 
 conda:
   environment: docs/environment.yml
