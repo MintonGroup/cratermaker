@@ -16,8 +16,10 @@ build:
     python: "mambaforge-22.9"  
   apt_packages:
     - graphviz    
+  jobs:
+    post_create_environment: 
+      - pip install .
   commands:
-    - pip install .
     - ford fortran_doc.md
 
 conda:
