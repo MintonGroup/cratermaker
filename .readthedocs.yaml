@@ -10,19 +10,15 @@ sphinx:
   configuration: docs/conf.py
   fail_on_warning: false  # Optional: Set to true if you want the build to fail on warnings.
 
-# Optionally set the OS, Python version and other tools
 build:
   os: ubuntu-22.04
   tools:
     python: "mambaforge-22.9"  
+  apt_packages:
+    - graphviz    
   jobs:
     post_create_environment: 
-      - pip install --config-settings=editable.rebuild=true --config-settings=build-dir="build/{wheel_tag}"  --config-settings=cmake.build-type="Release"  --no-build-isolation -ve .
-
-# Optionally build your docs in additional formats such as PDF and ePub
-# formats:
-#   - pdf
-#   - epub
+      - pip install .
 
 conda:
   environment: docs/environment.yml

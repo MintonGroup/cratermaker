@@ -27,3 +27,4 @@ dependencies:
   - gfortran
   - cmake
   - ipython
+  - ford

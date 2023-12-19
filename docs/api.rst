@@ -458,3 +458,9 @@ Custom type definitions
 
     cratermaker.utils.custom_types
 
+
+Fortran API Documentation
+=========================
+
+For detailed documentation of the Fortran API, see the `Fortran API <fortran/index.html>`_.
+

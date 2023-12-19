@@ -8,6 +8,7 @@
 !! If not, see: https://www.gnu.org/licenses. 
 
 module perlin_module
+   ! Module that contains the perlin noise functions
    use globals_module
    use bind_module
 

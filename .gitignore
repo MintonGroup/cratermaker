@@ -37,6 +37,7 @@ docs/_build/
 docs/_build/**/*
 docs/generated/
 docs/generated/**/*
-docs/*.DS_Store
-docs/*.swp
+docs/**/*.DS_Store
+docs/**/*.swp
+!fortran_doc.md
 
