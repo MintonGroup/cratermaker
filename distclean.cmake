@@ -37,6 +37,8 @@ MACRO(GET_PARENT_DIRECTORIES search_string return_list grandparents)
     SET(${return_list} ${dir_list})
 ENDMACRO()
 
+SET(DOC_DIR "docs/_build" "docs/_static/fortran_docs")
+
 # Find directories and files that we will want to remove
 FILE(GLOB_RECURSE CMAKECACHE "${TOPDIR}/*CMakeCache.txt")
 FILE(GLOB_RECURSE CMAKEINSTALL "${TOPDIR}/*cmake_install.cmake"
@@ -62,6 +64,7 @@ SET(DEL ${TOPDIRECTORIES}
         ${CMAKEFILES}
         ${CMAKETESTING}
         ${CMAKETESTFILES}
+        ${DOC_DIR}
 )
 
 # If we are not in the build dir, delete that as well

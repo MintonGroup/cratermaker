@@ -56,7 +56,7 @@ clean:
 
 .PHONY: fortran-doc
 fortran-doc:
-	cd .. && ford fortran_doc.md
+	cd .. && ford fortran_docs.md
 
 .PHONY: html
 html: fortran-doc

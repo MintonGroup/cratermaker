@@ -462,5 +462,5 @@ Custom type definitions
 Fortran API Documentation
 =========================
 
-For detailed documentation of the Fortran API, see the `Fortran API <_static/fortran/index.html>`_.
+For detailed documentation of the Fortran API, see the `Fortran API <_static/fortran_docs/index.html>`_.
 

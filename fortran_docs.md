@@ -8,7 +8,7 @@ project_website: https://cratermaker.readthedocs.io
 author: David A. Minton
 github: https://github.com/profminton/
 src_dir: fortran
-output_dir: ./docs/_static/fortran
+output_dir: ./docs/_static/fortran_docs
 source: true
 graph: true
 sort: alpha

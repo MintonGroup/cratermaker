@@ -39,7 +39,7 @@ docs/generated/
 docs/generated/**/*
 docs/**/*.DS_Store
 docs/**/*.swp
-docs/_static/fortran/
-docs/_static/fortran/*/**
-!fortran_doc.md
+docs/_static/fortran_docs/
+docs/_static/fortran_docs/*/**
+!fortran_docs.md
 
