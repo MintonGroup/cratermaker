@@ -4,6 +4,7 @@ import uxarray as uxr
 from uxarray import UxDataArray, UxDataset
 from glob import glob
 import os
+import sys
 import numpy as np
 import shutil
 import tempfile
@@ -641,10 +642,20 @@ def generate_grid(target: Target | str,
     logger = logging.getLogger("mpas_logger")
     file_handler = logging.FileHandler('mesh.log')
     logger.addHandler(file_handler)
-    logger.setLevel(logging.INFO)     
+    logger.setLevel(logging.INFO)   
+    
+    # We can't rely on the jigsaw executable being in the PATH, but the executable will be bundled with the cratermaker project, so 
+    # we'll look there first.
+    
+    # Store the original PATH
+    original_path = os.environ.get('PATH', '')  
 
-    print("Building grid with jigsaw...")
     try:
+        # Add the directory containing the jigsaw binary to PATH
+        jigsaw_bin_dir = os.path.join(sys.prefix, 'site-packages', 'cratermaker', 'bin')
+        os.environ['PATH'] = jigsaw_bin_dir + os.pathsep + original_path
+        
+        print("Building grid with jigsaw...")
         build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius, plot_cellWidth=False, logger=logger)
     except:
         print("Error building grid with jigsaw. See mesh.log for details.")

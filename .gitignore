@@ -42,4 +42,7 @@ docs/**/*.swp
 docs/_static/fortran_docs/
 docs/_static/fortran_docs/*/**
 !fortran_docs.md
+!external/
+!external/jigsaw-python/
+!external/jigsaw/
 
