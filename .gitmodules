@@ -1,0 +1,6 @@
+[submodule "external/jigsaw-python"]
+	path = external/jigsaw-python
+	url = https://github.com/dengwirda/jigsaw-python.git
+[submodule "external/jigsaw"]
+	path = external/jigsaw
+	url = https://github.com/dengwirda/jigsaw.git

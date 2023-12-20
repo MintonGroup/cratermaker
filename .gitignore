@@ -1,4 +1,7 @@
 *
+!external/
+!external/jigsaw-python/
+!external/jigsaw/
 !cratermaker/
 !cratermaker/core/
 !cratermaker/models/
@@ -42,7 +45,5 @@ docs/**/*.swp
 docs/_static/fortran_docs/
 docs/_static/fortran_docs/*/**
 !fortran_docs.md
-!external/
-!external/jigsaw-python/
-!external/jigsaw/
+
 
