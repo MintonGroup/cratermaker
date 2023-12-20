@@ -4,3 +4,6 @@
 [submodule "external/jigsaw"]
 	path = external/jigsaw
 	url = https://github.com/dengwirda/jigsaw.git
+[submodule "external/mpas-tools"]
+	path = external/mpas-tools
+	url = https://github.com/MPAS-Dev/MPAS-Tools
