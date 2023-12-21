@@ -7,16 +7,16 @@
 # You should have received a copy of the GNU General Public License along with cratermaker. 
 # If not, see: https://www.gnu.org/licenses. 
 
-# Add the source files
+# Add the source files for the Fortran library
 SET(SRC_FILES
-    ${FORTRAN_SRC}/globals/globals_module.f90
-    ${FORTRAN_SRC}/bind/bind_module.f90
-    ${FORTRAN_SRC}/surface/surface_module.f90
-    ${FORTRAN_SRC}/perlin/perlin_module.f90
-    ${FORTRAN_SRC}/perlin/perlin_submodule.f90
+    ${SRC}/globals/globals_module.f90
+    ${SRC}/bind/bind_module.f90
+    ${SRC}/surface/surface_module.f90
+    ${SRC}/perlin/perlin_module.f90
+    ${SRC}/perlin/perlin_submodule.f90
 )
 
-SET(DRIVER_src ${FORTRAN_SRC}/main.f90)
+SET(DRIVER_src ${SRC}/main.f90)
 
 # Combine all source files 
 SET(CRATERMAKER_src ${SRC_FILES})
@@ -86,4 +86,25 @@ ELSE ()
     MESSAGE(STATUS "Quad precision real is not supported")
 ENDIF ()
 
-INSTALL(TARGETS ${CRATERMAKER_LIBRARY} LIBRARY DESTINATION ${INSTALL_LIBDIR})
+# Now create the mesh conversion tools borrowed from MPAS
+FIND_PACKAGE(HDF5 COMPONENTS C HL REQUIRED)
+FIND_PACKAGE(NetCDF REQUIRED)
+
+SET(MESH_CONVERTER MpasMeshConverter.x)
+SET(MESH_CONVERTER_SRC ${SRC}/mesh_conversion_tools_netcdf_c/mpas_mesh_converter.cpp)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+ADD_EXECUTABLE (${MESH_CONVERTER} ${MESH_CONVERTER_SRC})
+SET_TARGET_PROPERTIES(${MESH_CONVERTER} PROPERTIES LINKER_LANGUAGE CXX)
+
+TARGET_INCLUDE_DIRECTORIES(${MESH_CONVERTER} PRIVATE ${NetCDF_INCLUDE_DIRS})
+TARGET_LINK_LIBRARIES(${MESH_CONVERTER} netCDF::netcdf)
+
+# Install all the targets
+INSTALL(TARGETS ${CRATERMAKER_LIBRARY} ${MESH_CONVERTER} 
+    LIBRARY DESTINATION ${INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${INSTALL_BINDIR}
+    ARCHIVE DESTINATION ${INSTALL_LIBDIR}
+    INCLUDES DESTINATION ${INSTALL_INCLUDEDIR}
+)
+

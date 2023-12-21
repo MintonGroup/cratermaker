@@ -88,10 +88,10 @@ ELSE()
 
 
     SET(CYTHON_SRC "${CMAKE_SOURCE_DIR}/cratermaker/cython")
-    SET(FORTRAN_SRC "${CMAKE_SOURCE_DIR}/fortran")
+    SET(SRC "${CMAKE_SOURCE_DIR}/src")
 
     # Make sure paths are correct for Unix or Windows style
-    FILE(TO_CMAKE_PATH ${FORTRAN_SRC} FORTRAN_SRC)
+    FILE(TO_CMAKE_PATH ${SRC} SRC)
     FILE(TO_CMAKE_PATH ${CYTHON_SRC} CYTHON_SRC)
 
     # Set the name of the cratermaker library
@@ -108,7 +108,6 @@ ELSE()
     ENDIF ()
     INCLUDE(SetCratermakerFlags) 
 
-
     # First build the external dependencies
     INCLUDE(externalproject)
 
@@ -119,11 +118,12 @@ ELSE()
             -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}
             -DCMAKE_INSTALL_BINDIR=${INSTALL_BINDIR}
             -DCMAKE_INSTALL_LIBDIR=${INSTALL_LIBDIR}
+            -DCMAKE_BUILD_TYPE=Release
         BUILD_ALWAYS 1
     )
 
-    # The source for the CRATERMAKER binary and have it placed in the bin folder
-    ADD_SUBDIRECTORY(${FORTRAN_SRC} ${CMAKE_INSTALL_BINDIR})
+    # Compile the project source code
+    ADD_SUBDIRECTORY(${SRC}) 
     ADD_SUBDIRECTORY(${CYTHON_SRC})
 
 ENDIF(DEFINED ENV{DOC_BUILD})

@@ -28,7 +28,6 @@ dependencies = [
     'uxarray>=2023.12',
     'cython>=3.0.0',
     'jigsawpy',
-    'mpas_tools>=0.29',
     'matplotlib>=3.8.2',
     'netCDF4>=1.6.5'
 ]
@@ -59,7 +58,7 @@ build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
 build-dir = "build/{wheel_tag}"
-sdist.include = ["cratermaker/*/*.py", "cratermaker/cython/*.pyx", "cratermaker/cython/*.h"]
+sdist.include = ["cratermaker/*/*.py"]
 cmake.verbose = true
 
 [tool.cibuildwheel.linux]

@@ -17,9 +17,9 @@
 !cratermaker/*/**.py
 !cratermaker/*/**.pyx
 !cratermaker/*/**.h
-!fortran/
-!fortran/*/
-!fortran/*/**.f90
+!src/
+!src/*/
+!src/*/**.f90
 !cmake/
 !cmake/Modules/
 !cmake/Modules/*.cmake

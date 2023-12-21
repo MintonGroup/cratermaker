@@ -6,7 +6,7 @@ project_github: https://github.com/profminton/cratermaker
 project_download: https://github.com/profminton/cratermaker/releases
 project_website: https://cratermaker.readthedocs.io
 github: https://github.com/profminton/
-src_dir: fortran
+src_dir: src
 output_dir: ./docs/_static/fortran_docs
 source: true
 graph: true
