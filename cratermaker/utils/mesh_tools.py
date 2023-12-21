@@ -593,3 +593,12 @@ def circumcenter(on_sphere, x1, y1, z1, x2, y2, z2, x3, y3, z3):
         # yv = yv / 3.0
     return point(xv, yv, zv)
 
+def extract_vtk(filename_pattern, variable_list='all', dimension_list=None,
+                mesh_filename=None, blocking=10000, output_32bit=False,
+                combine=False, append=False, out_dir='vtk_files', xtime='xtime',
+                lonlat=False, time=None, ignore_time=False, topo_dim=None,
+                topo_cell_index=None, include_mesh_vars=False,
+                fc_region_mask=None, temp_dir='./culled_region',
+                use_progress_bar=True):
+    
+    pass

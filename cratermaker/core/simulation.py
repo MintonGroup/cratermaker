@@ -13,7 +13,7 @@ from .morphology import Morphology
 from .production import Production, NeukumProduction
 from ..utils.general_utils import to_config, set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
-from mpas_tools.viz.paraview_extractor import extract_vtk
+from ..utils.mesh_tools import extract_vtk
 from ..cython.perlin import apply_noise
 
 _POISSON_BATCH_SIZE = 1000
