@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from typing import Tuple, List
 from numpy.typing import NDArray
-from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
+#from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
 from ..utils.custom_types import FloatLike, PairOfFloats
@@ -801,3 +801,4 @@ def elevation_to_cartesian(position: Dataset,
                      }
                     )
     return ds_new
+

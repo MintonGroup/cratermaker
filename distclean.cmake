@@ -19,6 +19,7 @@ ELSE()
     SET(TOPDIR "${CMAKE_SOURCE_DIR}")
 ENDIF()
 
+CMAKE_POLICY(SET CMP0009 NEW) # Don't follow symlinks
 MACRO(GET_PARENT_DIRECTORIES search_string return_list grandparents)
     FILE(GLOB_RECURSE new_list ${search_string})
     SET(dir_list "")

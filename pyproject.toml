@@ -30,6 +30,7 @@ dependencies = [
     'jigsawpy',
     'mpas_tools>=0.29',
     'matplotlib>=3.8.2',
+    'netCDF4>=1.6.5'
 ]
 
 [project.urls]
@@ -61,57 +62,7 @@ build-dir = "build/{wheel_tag}"
 sdist.include = ["cratermaker/*/*.py", "cratermaker/cython/*.pyx", "cratermaker/cython/*.h"]
 cmake.verbose = true
 
-[[tool.scikit-build.generate]]
-path = "version.txt"
-location = "source"
-template = '''${version}'''
-
-[tool.cibuildwheel]
-test-command = "pytest {package}/tests"
-test-requires = ['pytest']
-skip = "pp* *i686 *-manylinux_i686 *_ppc64le *_s390x *-musllinux* *-win32"
-build-verbosity = 1
-
-[tool.cibuildwheel.macos.environment]
-ROOT_DIR="$(pwd)"
-MACOSX_DEPLOYMENT_TARGET="$(sw_vers -productVersion)"
-PREFIX="build/{wheel_tag}"
-HOMEBREW_PREFIX="$(brew --prefix)"
-ARCH="$(uname -m)"
-LD_LIBRARY_PATH="/usr/local/lib:${PREFIX}/lib:${HOMEBREW_PREFIX}/lib"
-LDFLAGS="-Wl,-rpath,${ROOT_DIR}/lib  -Wl,-no_compact_unwind -L${PREFIX}/lib -L${HOMEBREW_PREFIX}/lib" 
-CPATH="/usr/local/include:${PREFIX}/include:${HOMEBREW_PREFIX}/include:${ROOT_DIR}/include"
-CPPFLAGS="-isystem ${PREFIX}/include -isystem /usr/local/include"
-LIBS="-lomp"
-FCFLAGS="-mmacos-version-min=${MACOSX_DEPLOYMENT_TARGET} -arch ${ARCH}"
-FFFLAGS="${FCFLAGS}"
-CFLAGS="${FCFLAGS} -Wno-deprecated-non-prototype -arch ${ARCH}"
-CXXFLAGS="${CFLAGS}"
-FC="$(command -v gfortran-12)"
-F77="${FC}"
-CC="/usr/bin/clang"
-CXX="/usr/bin/clang++"
-CPP="/usr/bin/cpp"
-AR="/usr/bin/ar"
-NM="/usr/bin/nm"
-RANLIB="/usr/bin/ranlib"
-PATH="${PATH}:${PREFIX}/bin:${HOMEBREW_PREFIX}/bin"
-
-[tool.cibuildwheel.macos]
-before-all = [
-    "brew install coreutils",
-    "LIBS=\"\" buildscripts/build_dependencies.sh -p ${PREFIX} -d ${HOME}/Downloads -m ${MACOSX_DEPLOYMENT_TARGET}"    
-]
-
-[tool.cibuildwheel.linux.environment]
-PREFIX="build/{wheel_tag}"
-LD_LIBRARY_PATH="${PREFIX}/lib:/project/lib"
-CPATH="${PREFIX}/include:/project/include"
-CMAKE_INSTALL_LIBDIR="lib"
-
 [tool.cibuildwheel.linux]
 skip = "cp312-* pp* -manylinux_i686* *-musllinux*"
-before-all = [
-    "yum install libcurl-devel -y",
-    "buildscripts/build_dependencies.sh -p ${PREFIX}"
-]
+
+

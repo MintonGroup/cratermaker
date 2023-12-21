@@ -45,18 +45,22 @@ ELSE()
 
     INCLUDE(GNUInstallDirs)
     IF (SKBUILD)
-        SET(INSTALL_BINDIR ${SKBUILD_PLATLIB_DIR}/${SKBUILD_PROJECT_NAME}) 
-        SET(INSTALL_LIBDIR ${SKBUILD_PLATLIB_DIR}/${SKBUILD_PROJECT_NAME}) 
+        SET(INSTALL_PREFIX ${SKBUILD_PLATLIB_DIR}/${SKBUILD_PROJECT_NAME})
+        SET(INSTALL_BINDIR ${INSTALL_PREFIX}/bin) 
+        SET(INSTALL_LIBDIR ${INSTALL_PREFIX}/lib) 
         SET(INSTALL_INCLUDEDIR ${INSTALL_LIBDIR}) 
+        SET(INSTALL_CYTHON ${INSTALL_PREFIX}/cython)
         IF (APPLE)
-            SET(CMAKE_INSTALL_RPATH "@loader_path")
+            SET(CMAKE_INSTALL_RPATH "@loader_path/../lib")
         ELSEIF (LINUX)
-            SET(CMAKE_INSTALL_RPATH $ORIGIN)
+            SET(CMAKE_INSTALL_RPATH $ORIGIN/../lib)
         ENDIF ()
     ELSE ()
+        SET(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
         SET(INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
         SET(INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
         SET(INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR})
+        SET(INSTALL_CYTHON ${INSTALL_LIBDIR})
     ENDIF ()
 
     # Have the .mod files placed in the include folder
@@ -82,20 +86,9 @@ ELSE()
     # Ensure scikit-build modules
     FIND_PACKAGE(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
 
+
     SET(CYTHON_SRC "${CMAKE_SOURCE_DIR}/cratermaker/cython")
     SET(FORTRAN_SRC "${CMAKE_SOURCE_DIR}/fortran")
-
-    #####################################
-    # Tell how to install this executable
-    #####################################
-    IF(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        SET(CMAKE_INSTALL_PREFIX "C:\\Program Files\\cratermaker")
-        FILE(TO_CMAKE_PATH ${CMAKE_INSTALL_PREFIX} CMAKE_INSTALL_PREFIX)
-        SET(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX} CACHE PATH "Path for install")
-    ELSE()
-        SET(CMAKE_INSTALL_PREFIX /usr/local CACHE PATH "Path for install")
-    ENDIF()
-
 
     # Make sure paths are correct for Unix or Windows style
     FILE(TO_CMAKE_PATH ${FORTRAN_SRC} FORTRAN_SRC)
@@ -115,9 +108,24 @@ ELSE()
     ENDIF ()
     INCLUDE(SetCratermakerFlags) 
 
+
+    # First build the external dependencies
+    INCLUDE(externalproject)
+
+    ExternalProject_Add(jigsaw
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/jigsaw
+        BINARY_DIR ${CMAKE_BINARY_DIR}/jigsaw-build
+        CMAKE_ARGS 
+            -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}
+            -DCMAKE_INSTALL_BINDIR=${INSTALL_BINDIR}
+            -DCMAKE_INSTALL_LIBDIR=${INSTALL_LIBDIR}
+        BUILD_ALWAYS 1
+    )
+
     # The source for the CRATERMAKER binary and have it placed in the bin folder
     ADD_SUBDIRECTORY(${FORTRAN_SRC} ${CMAKE_INSTALL_BINDIR})
     ADD_SUBDIRECTORY(${CYTHON_SRC})
+
 ENDIF(DEFINED ENV{DOC_BUILD})
 
 # Add a distclean target to the Makefile
