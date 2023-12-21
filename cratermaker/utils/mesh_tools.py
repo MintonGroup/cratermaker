@@ -10,6 +10,11 @@ import logging
 import subprocess
 from netCDF4 import Dataset as NetCDFFile
 import collections
+import importlib.resources
+
+jigsaw_exe = importlib.resources.files('cratermaker').joinpath('bin').joinpath('jigsaw')
+mpas_conversion_tool_exe = importlib.resources.files('cratermaker').joinpath('bin').joinpath('MpasMeshConverter.x')
+
 
 def build_spherical_mesh(cellWidth, lon, lat, earth_radius,
                          out_filename='base_mesh.nc', 
@@ -66,7 +71,7 @@ def build_spherical_mesh(cellWidth, lon, lat, earth_radius,
                          sphere_radius=earth_radius)
 
         logger.info('Step 3. Convert from triangles to MPAS mesh')
-        args = ['MpasMeshConverter.x',
+        args = [mpas_conversion_tool_exe,
                 'mesh_triangles.nc',
                 out_filename]
         check_call(args=args, logger=logger)
@@ -145,7 +150,7 @@ def jigsaw_driver(cellWidth, x, y, on_sphere=True, earth_radius=6371.0e3,
     opts.verbosity = +1
 
     savejig(opts.jcfg_file, opts)
-    check_call(['jigsaw', opts.jcfg_file], logger=logger)
+    check_call([jigsaw_exe, opts.jcfg_file], logger=logger)
 
 
 def check_call(args, logger=None, log_command=True, timeout=None, **kwargs):

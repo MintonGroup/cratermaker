@@ -20,6 +20,10 @@
 !src/
 !src/*/
 !src/*/**.f90
+!src/mesh_conversion_tools_netcdf_c/
+!src/mesh_conversion_tools_netcdf_c/*.h
+!src/mesh_conversion_tools_netcdf_c/*.cpp
+!src/mesh_conversion_tools_netcdf_c/README
 !cmake/
 !cmake/Modules/
 !cmake/Modules/*.cmake
@@ -45,5 +49,6 @@ docs/**/*.swp
 docs/_static/fortran_docs/
 docs/_static/fortran_docs/*/**
 !fortran_docs.md
+
 
 
