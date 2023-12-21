@@ -58,10 +58,13 @@ build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
 build-dir = "build/{wheel_tag}"
-sdist.include = ["cratermaker/*/*.py"]
+sdist.include = ["cratermaker/**/*.py"]
 cmake.verbose = true
 
-[tool.cibuildwheel.linux]
-skip = "cp312-* pp* -manylinux_i686* *-musllinux*"
+[tool.cibuildwheel]
+test-command = "pytest {package}/tests"
+test-requires = ['pytest']
+skip = "pp* *i686 *-manylinux_i686 *_ppc64le *_s390x *-musllinux* *-win32"
+build-verbosity = 1
 
 

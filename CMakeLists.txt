@@ -30,7 +30,7 @@ IF (DEFINED ENV{DOC_BUILD})
     MESSAGE(STATUS "DOC_BUILD is set. Skipping build process.")
     PROJECT(${SKBUILD_PROJECT_NAME} VERSION ${VERSION})
 ELSE()
-    PROJECT(${SKBUILD_PROJECT_NAME} LANGUAGES C Fortran VERSION ${VERSION})
+    PROJECT(${SKBUILD_PROJECT_NAME} LANGUAGES C CXX Fortran VERSION ${VERSION})
 
     # Use the old method to get Python packages, as that's what scikit-build uses
     IF (${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.27")
