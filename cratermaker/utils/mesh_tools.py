@@ -12,8 +12,8 @@ from netCDF4 import Dataset as NetCDFFile
 import collections
 import importlib.resources
 
-jigsaw_exe = importlib.resources.files('cratermaker').joinpath('bin').joinpath('jigsaw')
-mpas_conversion_tool_exe = importlib.resources.files('cratermaker').joinpath('bin').joinpath('MpasMeshConverter.x')
+jigsaw_exe = str(importlib.resources.files('jigsawpy').joinpath('_bin').joinpath('jigsaw'))
+mpas_conversion_tool_exe = str(importlib.resources.files('cratermaker').joinpath('bin').joinpath('MpasMeshConverter.x'))
 
 
 def build_spherical_mesh(cellWidth, lon, lat, earth_radius,
