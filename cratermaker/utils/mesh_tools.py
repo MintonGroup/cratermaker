@@ -18,7 +18,7 @@ mpas_conversion_tool_exe = importlib.resources.files('cratermaker').joinpath('bi
 
 def build_spherical_mesh(cellWidth, lon, lat, earth_radius,
                          out_filename='base_mesh.nc', 
-                         dir='./', logger=None):
+                         dir='./', logger=None, **kwargs):
     """
     Build an MPAS mesh using JIGSAW with the given cell sizes as a function of
     latitude and longitude.
@@ -43,13 +43,16 @@ def build_spherical_mesh(cellWidth, lon, lat, earth_radius,
 
     out_filename : str, optional
         The file name of the resulting MPAS mesh
-
+        
     dir : str, optional
         A directory in which a temporary directory will be added with files
         produced during mesh conversion and then deleted upon completion.
 
     logger : logging.Logger, optional
         A logger for the output if not stdout
+        
+    **kwargs : dict, optional
+        Additional keyword arguments used for backwards compatibility
     """
 
     with LoggingContext(__name__, logger=logger) as logger:

@@ -103,24 +103,21 @@ ELSE()
     ENDIF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
     INCLUDE(SetParallelizationLibrary)
 
-    IF (COMPILER_OPTIONS STREQUAL "Intel" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        FIND_PACKAGE(MKL REQUIRED)
-    ENDIF ()
     INCLUDE(SetCratermakerFlags) 
 
-    # First build the external dependencies
-    INCLUDE(externalproject)
+    # # First build the external dependencies
+    # INCLUDE(externalproject)
 
-    ExternalProject_Add(jigsaw
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/jigsaw
-        BINARY_DIR ${CMAKE_BINARY_DIR}/jigsaw-build
-        CMAKE_ARGS 
-            -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}
-            -DCMAKE_INSTALL_BINDIR=${INSTALL_BINDIR}
-            -DCMAKE_INSTALL_LIBDIR=${INSTALL_LIBDIR}
-            -DCMAKE_BUILD_TYPE=Release
-        BUILD_ALWAYS 1
-    )
+    # ExternalProject_Add(jigsaw
+    #     SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/jigsaw
+    #     BINARY_DIR ${CMAKE_BINARY_DIR}/jigsaw-build
+    #     CMAKE_ARGS 
+    #         -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}
+    #         -DCMAKE_INSTALL_BINDIR=${INSTALL_BINDIR}
+    #         -DCMAKE_INSTALL_LIBDIR=${INSTALL_LIBDIR}
+    #         -DCMAKE_BUILD_TYPE=Release
+    #     BUILD_ALWAYS 1
+    # )
 
     # Compile the project source code
     ADD_SUBDIRECTORY(${SRC}) 

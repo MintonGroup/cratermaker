@@ -6,11 +6,7 @@
 !cratermaker/core/
 !cratermaker/models/
 !cratermaker/plugins/
-!cratermaker/tests/
-!cratermaker/tests/core/
-!cratermaker/tests/utils/
-!cratermaker/tests/cython/
-!cratermaker/tests/*/*.py
+
 !cratermaker/utils/
 !cratermaker/cython/
 !cratermaker/**.py
@@ -27,8 +23,11 @@
 !cmake/
 !cmake/Modules/
 !cmake/Modules/*.cmake
-!tests
-!tests/**.py
+!tests/
+!tests/core/
+!tests/utils/
+!tests/cython/
+!tests/*/**.py
 !.gitignore
 !CMakeLists.txt
 !distclean.cmake
@@ -44,8 +43,8 @@ docs/_build/
 docs/_build/**/*
 docs/generated/
 docs/generated/**/*
-docs/**/*.DS_Store
-docs/**/*.swp
+docs/*/**.DS_Store
+docs/*/**.swp
 docs/_static/fortran_docs/
 docs/_static/fortran_docs/*/**
 !fortran_docs.md

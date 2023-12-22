@@ -656,7 +656,7 @@ def generate_grid(target: Target | str,
         os.environ['PATH'] = jigsaw_bin_dir + os.pathsep + original_path
         
         print("Building grid with jigsaw...")
-        build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius, plot_cellWidth=False, logger=logger)
+        build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius,logger=logger)
     except:
         print("Error building grid with jigsaw. See mesh.log for details.")
         raise
