@@ -283,7 +283,6 @@ def normalize_coords(loc):
     return normalized_lon, normalized_lat
 
 
-
 def R_to_CSFD(
               R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayLike]], 
               D: Union[FloatLike, ArrayLike],
