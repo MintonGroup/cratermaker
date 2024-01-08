@@ -45,6 +45,7 @@ requires = [
     "scikit-build-core>=0.7.0",
     "cython>=3.0.0",
     "numpy>=1.22",
+    "cmake",
     "pytest",
     "pyproject_metadata",
     "pathspec",    
@@ -87,7 +88,7 @@ ARCH="$(uname -m)"
 DYLD_LIBRARY_PATH="${HOMEBREW_PREFIX}/lib:/usr/local/lib:${PREFIX}/lib"
 LDFLAGS="-Wl,-rpath,${ROOT_DIR}/lib  -Wl,-no_compact_unwind -L${PREFIX}/lib -L${HOMEBREW_PREFIX}/lib" 
 CPATH="${HOMEBREW_PREFIX}/include:/usr/local/include:${PREFIX}/include:${ROOT_DIR}/include"
-CPPFLAGS="isystem ${HOMEBREW_PREFIX}/include -isystem ${PREFIX}/include -isystem /usr/local/include"
+CPPFLAGS="-isystem ${HOMEBREW_PREFIX}/include -isystem ${PREFIX}/include -isystem /usr/local/include"
 LIBS="-lomp"
 FCFLAGS="-mmacos-version-min=${MACOSX_DEPLOYMENT_TARGET} -arch ${ARCH}"
 FFFLAGS="${FCFLAGS}"

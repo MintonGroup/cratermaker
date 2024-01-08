@@ -11,7 +11,7 @@
 ##################################################
 # Define the project and the depencies that it has
 ##################################################
-CMAKE_MINIMUM_REQUIRED(VERSION 3.6.0...3.27.1)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.15.7...3.28.1)
 SET(SKBUILD_PROJECT_NAME "cratermaker" CACHE STRING "Name of project set by scikit-build")
 SET(SKBUILD_SCRIPTS_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE STRING "Install location of binary executable")
 
