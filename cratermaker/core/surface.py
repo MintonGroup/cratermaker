@@ -19,7 +19,6 @@ from ..utils.custom_types import FloatLike, PairOfFloats
 _DATA_DIR = "surface_data"
 _COMBINED_DATA_FILE_NAME = "surface_data.nc"
 _GRID_FILE_NAME = "grid.nc"
-_ELEVATION_FILE_NAME = "elevation.nc"
 _GRID_TEMP_DIR = ".grid"
 
 # Mapping from MPAS to UGRID dimension names
@@ -38,14 +37,13 @@ class Surface(UxDataset):
     The Surface class extends UxDataset for the cratermaker project.
 
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_elevation_file', '_target_radius', '_pix', '_grid_type')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type')    
     
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
         self._grid_temp_dir = kwargs.pop('grid_temp_dir', None)
         self._data_dir = kwargs.pop('data_dir', None)
         self._grid_file = kwargs.pop('grid_file', None)
-        self._elevation_file = kwargs.pop('elevation_file', None)
         self._target_radius = kwargs.pop('target_radius', None)
         self._pix = kwargs.pop('pix', None)
         self._grid_type = kwargs.pop('grid_type', None)
@@ -57,11 +55,71 @@ class Surface(UxDataset):
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
         
+
+    def generate_data(self,
+                      name: str,
+                      long_name: str | None = None,
+                      data: FloatLike | NDArray | None = None,
+                      isfacedata: bool = True,
+                      save_to_file: bool = False,
+                    ) -> None:
+        """
+        Generate a NetCDF data file using the provided grid file and save it to the specified path.
+
+
+        Parameters
+        ----------
+        name : str
+            Name of the data variable. This will also be used as the data file name.
+        long_name : str, optional
+            Long name of the data variable that will be saved as an attribute.
+        data : scalar or array-like
+            Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+        isfacedata : bool, optional
+            Flag to indicate whether the data is face data or node data. Default is True.
+        save_to_file: bool, optional
+            Specify whether the data should be saved to a file. Default is False.
+        Returns
+        -------
+        None
+        """    
+        uxgrid = uxr.open_grid(self.grid_file,latlon=True,use_dual=False)
+        if isfacedata: 
+            dims = ["n_face"]
+            size = uxgrid.n_face
+            dim_map = {'n_face': 'nCells'}
+        else:
+            dims = ["n_node"]
+            size = uxgrid.n_node
+            dim_map = {'n_node': 'nVertices'}
+    
+        if data is None:
+            data = np.zeros(size,dtype=np.float64) 
+        elif np.isscalar(data):
+            data = np.full(size,data)
+        else:
+            if data.size != size:
+                raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
+        uxda = UxDataArray(
+                data=data,
+                dims=dims,
+                attrs=None if long_name is None else {"long_name": long_name},
+                name=name,
+                uxgrid=uxgrid
+                ) 
+        if save_to_file:
+            data_file = os.path.join(self.data_dir, f"{name}.nc")
+            uxda.rename(dim_map).to_netcdf(data_file) 
+            uxda.close()
+            
+        self[name] = uxda
+        return 
+
         
     def set_elevation(self, 
-                      new_elev: NDArray[np.float64] | List[FloatLike] | None = None,
-                      save_to_file: bool = False, 
-                      ) -> None:
+                    new_elev: NDArray[np.float64] | List[FloatLike] | None = None,
+                    save_to_file: bool = False, 
+                    ) -> None:
         """
         Set elevation data for the target's surface mesh.
 
@@ -72,17 +130,34 @@ class Surface(UxDataset):
         save_to_file : bool, default False
             If True, save the elevation data to the elevation file.
         """
-        if new_elev is None or np.isscalar(new_elev) or new_elev.size == self.uxgrid.n_node:
-            self['elevation'] = generate_data(grid_file=self.grid_file,
-                                                           data_file=self.elevation_file,
-                                                           data=new_elev, 
-                                                           name="elevation",
-                                                           long_name="elevation of nodes",
-                                                           isfacedata=False,
-                                                           save_to_file=save_to_file)            
+        if new_elev is None or np.isscalar(new_elev):
+            gen_node = True
+            gen_face = True 
+        elif new_elev.size == self.uxgrid.n_node:
+            gen_node = True
+            gen_face = False
+        elif new_elev.size == self.uxgrid.n_face:
+            gen_node = False
+            gen_face = True
         else:
+            gen_node = False
+            gen_face = False
             raise ValueError("new_elev must be None, a scalar, or an array with the same size as the number of nodes in the grid")
-          
+    
+        if gen_node:
+            self.generate_data(data=new_elev, 
+                               name="node_elevation",
+                               long_name="elevation of nodes",
+                               isfacedata=False,
+                               save_to_file=save_to_file
+                              )   
+        if gen_face:
+            self.generate_data(data=new_elev, 
+                               name="face_elevation",
+                               long_name="elevation of faces",
+                               isfacedata=True,
+                               save_to_file=save_to_file
+                              )
         return 
 
 
@@ -225,7 +300,7 @@ class Surface(UxDataset):
         lon2 = np.deg2rad(self.uxgrid.face_lon)
         lat2 = np.deg2rad(self.uxgrid.face_lat)        
         return self.calculate_initial_bearing(lon1,lat1,lon2,lat2)
-   
+
     
     def get_node_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> UxDataArray:
         """
@@ -402,17 +477,6 @@ class Surface(UxDataset):
         self._grid_file = value
 
     @property
-    def elevation_file(self):
-        """
-        Path to the node elevation file.
-        """
-        return self._elevation_file
-
-    @elevation_file.setter
-    def elevation_file(self, value):
-        self._elevation_file = value
-
-    @property
     def target_radius(self):
         """
         Radius of the target body.
@@ -448,7 +512,7 @@ class Surface(UxDataset):
     @grid_type.setter
     def grid_type(self, value):
         self._grid_type = value
-   
+    
          
 def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
@@ -529,36 +593,27 @@ def initialize_surface(make_new_grid: bool = False,
                       grid_file=grid_file_path,
                       grid_temp_dir=grid_temp_dir_path)
     
-    # Now redo the elevation data files if necessary 
-    elevation_file_path = os.path.join(data_dir_path,_ELEVATION_FILE_NAME)
-    
-    # Load the grid and data files
+    # Get the names of all data files in the data directory that are not the grid file
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
     if grid_file_path in data_file_list:
         data_file_list.remove(grid_file_path)
-    
+        
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-    reset_surface = reset_surface or not os.path.exists(elevation_file_path) or make_new_grid  
+    reset_surface = reset_surface or make_new_grid or not data_file_list
     
     # If reset_surface is True, delete all data files except the grid file 
     if reset_surface:
         for f in data_file_list:
             os.remove(f)
-        data_file_list = []
-        generate_data(grid_file=grid_file_path,
-                      data_file=elevation_file_path,
-                      name="elevation",
-                      long_name="elevation of nodes",
-                      save_to_file = True,
-                      isfacedata=False,
-                      )
-
-    if elevation_file_path not in data_file_list:
-        data_file_list.append(elevation_file_path)
-        
+        data_file_list = []        
+    
     # Initialize UxDataset with the loaded data
     try:
-        surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False)
+        if data_file_list:
+            surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False)
+        else:
+            surf = uxr.UxDataset()
+            surf.uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
     except:
         raise ValueError("Error loading grid and data files")
     surf = Surface(surf,
@@ -567,10 +622,12 @@ def initialize_surface(make_new_grid: bool = False,
                    grid_temp_dir = grid_temp_dir_path,
                    data_dir = data_dir_path,
                    grid_file = grid_file_path,
-                   elevation_file = elevation_file_path,
                    target_radius = target.radius ,
                    ) 
     
+    if reset_surface:
+        surf.set_elevation(0.0,save_to_file=True)
+        
     # Compute face area needed future calculations
     surf['face_areas'] = surf.uxgrid.face_areas
     
@@ -676,68 +733,6 @@ def generate_grid(target: Target | str,
     shutil.move(temp_file.name,grid_file)    
   
     return 
-
-
-def generate_data(grid_file: os.PathLike,
-                  data_file: os.PathLike,
-                  name: str,
-                  long_name: str | None = None,
-                  data: FloatLike | NDArray | None = None,
-                  isfacedata: bool = True,
-                  save_to_file: bool = False,
-                  ) -> None:
-    """
-    Generate a NetCDF data file using the provided grid file and save it to the specified path.
-
-
-    Parameters
-    ----------
-    data_file : os.PathLike
-        Path where the grid file will be saved.
-    grid_file : os.PathLike
-        Path where the grid file can be found.
-    name : str
-        Name of the data variable.
-    long_name : str, optional
-        Long name of the data variable that will be saved as an attribute.
-    data : scalar or array-like
-        Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
-    isfacedata : bool, optional
-        Flag to indicate whether the data is face data or node data. Default is True.
-    save_to_file: bool, optional
-        Specify whether the data should be saved to a file. Default is False.
-    Returns
-    -------
-    None
-    """    
-    uxgrid = uxr.open_grid(grid_file,latlon=True,use_dual=False)
-    if isfacedata: 
-        dims = ["n_face"]
-        size = uxgrid.n_face
-        dim_map = {'n_face': 'nCells'}
-    else:
-        dims = ["n_node"]
-        size = uxgrid.n_node
-        dim_map = {'n_node': 'nVertices'}
-   
-    if data is None:
-        data = np.zeros(size,dtype=np.float64) 
-    elif np.isscalar(data):
-        data = np.full(size,data)
-    else:
-        if data.size != size:
-            raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
-    uxda = UxDataArray(
-            data=data,
-            dims=dims,
-            attrs=None if long_name is None else {"long_name": long_name},
-            name=name,
-            uxgrid=uxgrid
-            ) 
-    if save_to_file:
-        uxda.rename(dim_map).to_netcdf(data_file) 
-        uxda.close()
-    return uxda 
 
 
 def save_surface(surf: Surface, 

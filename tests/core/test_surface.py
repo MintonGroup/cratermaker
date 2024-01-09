@@ -4,7 +4,7 @@ import shutil
 import numpy as np
 import tempfile
 from cratermaker import Target
-from cratermaker import Surface, initialize_surface, generate_grid, generate_data
+from cratermaker import Surface, initialize_surface, generate_grid
 from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
@@ -108,7 +108,8 @@ class TestSurface(unittest.TestCase):
         surf.set_elevation(None)
 
         # Check if the elevation data is set to zero
-        np.testing.assert_array_equal(surf['elevation'].values, np.zeros(surf.uxgrid.n_node))
+        np.testing.assert_array_equal(surf['node_elevation'].values, np.zeros(surf.uxgrid.n_node))
+        np.testing.assert_array_equal(surf['face_elevation'].values, np.zeros(surf.uxgrid.n_face))
         
         return
     

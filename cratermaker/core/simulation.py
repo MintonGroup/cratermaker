@@ -395,16 +395,16 @@ class Simulation:
             # Use elevation data to modify the mesh for visualization purposes
             grid = xr.open_dataset(self.grid_file)
            
-            vert_vars = ['xVertex', 'yVertex', 'zVertex']
+            # vert_vars = ['xVertex', 'yVertex', 'zVertex']
             
-            ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['elevation'])
-            for var in vert_vars:
-                grid[var] = ds_new[var]
+            # ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['elevation'])
+            # for var in vert_vars:
+            #     grid[var] = ds_new[var]
                 
-            face_vars = ['xCell', 'yCell', 'zCell']
-            ds_new = elevation_to_cartesian(grid[face_vars], self.surf['elevation'].nodal_average())
-            for var in face_vars:
-                grid[var] = ds_new[var]
+            # face_vars = ['xCell', 'yCell', 'zCell']
+            # ds_new = elevation_to_cartesian(grid[face_vars], self.surf['elevation'].nodal_average())
+            # for var in face_vars:
+            #     grid[var] = ds_new[var]
             
             grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"))
             
@@ -421,7 +421,7 @@ class Simulation:
                     ignore_time=ignore_time, 
                     *args, **kwargs)
             except:
-                raise RuntimeError("Error in mpas_tools.viz.paraview_extractor.extract_vtk. Cannot export VTK files")
+                raise RuntimeError("Error in xtract_vtk. Cannot export VTK files")
         
         return
     
@@ -430,6 +430,8 @@ class Simulation:
                     model="turbulence",
                     noise_width=1000e3,
                     noise_height=20e3,
+                    to_nodes=True,
+                    to_faces=True,
                     **kwargs,
                     ) -> None:
         """
@@ -445,6 +447,10 @@ class Simulation:
             The width scale of the noise in meters. The default is 1000e3 (1000 km).
         noise_height : float, optional
             The height scale of the noise in meters. The default is 20e3 (20 km).
+        to_nodes : bool, optional
+            Flag to apply the noise to the nodes of the mesh. The default is True.
+        to_faces : bool, optional
+            Flag to apply the noise to the faces of the mesh. The default is False.
         **kwargs :
             Additional keyword arguments specific to the noise model. Common parameters include 'num_octaves' and 'anchor'. Model-specific parameters like 'freq', 'pers', 'slope', 'lacunarity', 'gain', etc., can also be set.
 
@@ -496,21 +502,39 @@ class Simulation:
         if "noise_height" in kwargs:
             kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
             
-        vars = ['node_x', 'node_y', 'node_z']
-        ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
-        x = ds_norm[vars[0]].values
-        y = ds_norm[vars[1]].values
-        z = ds_norm[vars[2]].values
-        noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
+        def _noisemaker(vars):
+            ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
+            x = ds_norm[vars[0]].values
+            y = ds_norm[vars[1]].values
+            z = ds_norm[vars[2]].values
+            noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         
-        # Make sure the noise is volume-conserving (i.e., the mean is zero)
-        # TODO: Take into account the nodes are not uniformly distributed on the sphere
-        noise = noise - np.mean(noise)
+            # Make sure the noise is volume-conserving (i.e., the mean is zero)
+            # TODO: Take into account the nodes are not uniformly distributed on the sphere
+            noise = noise - np.mean(noise)
+            return noise                
         
-        if model =="swiss" or model == "jordan":
-            self.surf['elevation'] += noise * noise_height
+        if to_nodes:
+            vars = ['node_x', 'node_y', 'node_z']
+            node_noise = _noisemaker(vars)
         else:
-            self.surf['elevation'] += noise * self.target.radius 
+            node_noise = None
+        if to_faces:
+            vars = ['face_x', 'face_y', 'face_z']
+            face_noise = _noisemaker(vars)
+        else:
+            face_noise = None
+            
+        if model =="swiss" or model == "jordan":
+            if node_noise is not None:
+                self.surf['node_elevation'] += node_noise * noise_height
+            if face_noise is not None:
+                self.surf['face_elevation'] += face_noise * noise_height
+        else:
+            if node_noise is not None:
+                self.surf['node_elevation'] += node_noise * self.target.radius 
+            if face_noise is not None:
+                self.surf['face_elevation'] += face_noise * self.target.radius
         
         return
     
@@ -691,12 +715,6 @@ class Simulation:
         """
         return self.surf.grid_file
 
-    @property
-    def elevation_file(self):
-        """
-        File path of the elevation file. Dynamically set based on `surf` attribute.
-        """
-        return self.surf.elevation_file
 
     @property
     def n_node(self):

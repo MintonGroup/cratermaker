@@ -6,7 +6,7 @@ import tempfile
 import os
 import numpy as np
 import xarray as xr
-from cratermaker.core.surface import  _COMBINED_DATA_FILE_NAME
+from cratermaker.core.surface import _COMBINED_DATA_FILE_NAME
 
 class TestSimulation(unittest.TestCase):
     
@@ -34,11 +34,14 @@ class TestSimulation(unittest.TestCase):
        
         # Test that variables are saved correctly
         sim.surf.set_elevation(1.0)
-        np.testing.assert_array_equal(sim.surf["elevation"].values, np.ones(sim.surf.uxgrid.n_node)) 
+        np.testing.assert_array_equal(sim.surf["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node)) 
+        np.testing.assert_array_equal(sim.surf["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face)) 
         sim.save()
         
-        with xr.open_dataset(sim.surf.elevation_file) as ds:
-            np.testing.assert_array_equal(ds["elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+        with xr.open_dataset(os.path.join(sim.data_dir,"node_elevation.nc")) as ds:
+            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+        with xr.open_dataset(os.path.join(sim.data_dir,"face_elevation.nc")) as ds:
+            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
         
         # Test saving combined data
         sim.save(combine_data_files=True)
@@ -46,7 +49,8 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.exists(combined_file))
         
         with xr.open_dataset(combined_file) as ds:
-            np.testing.assert_array_equal(ds["elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
        
         return 
         
