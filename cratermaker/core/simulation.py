@@ -402,7 +402,7 @@ class Simulation:
                 grid[var] = ds_new[var]
                 
             face_vars = ['xCell', 'yCell', 'zCell']
-            ds_new = elevation_to_cartesian(grid[face_vars], self.surf['node_elevation'].nodal_average())
+            ds_new = elevation_to_cartesian(grid[face_vars], self.surf['face_elevation'])
             for var in face_vars:
                 grid[var] = ds_new[var]
             
