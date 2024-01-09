@@ -146,7 +146,7 @@ class Morphology:
 
         This method forms the interior of the crater by altering the elevation variable of the surface mesh.
         """
-       
+      
         def _crater_profile(r):
             h = self.crater_profile(r) 
             if r > self.crater.radius:

@@ -395,16 +395,16 @@ class Simulation:
             # Use elevation data to modify the mesh for visualization purposes
             grid = xr.open_dataset(self.grid_file)
            
-            # vert_vars = ['xVertex', 'yVertex', 'zVertex']
+            vert_vars = ['xVertex', 'yVertex', 'zVertex']
             
-            # ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['elevation'])
-            # for var in vert_vars:
-            #     grid[var] = ds_new[var]
+            ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['node_elevation'])
+            for var in vert_vars:
+                grid[var] = ds_new[var]
                 
-            # face_vars = ['xCell', 'yCell', 'zCell']
-            # ds_new = elevation_to_cartesian(grid[face_vars], self.surf['elevation'].nodal_average())
-            # for var in face_vars:
-            #     grid[var] = ds_new[var]
+            face_vars = ['xCell', 'yCell', 'zCell']
+            ds_new = elevation_to_cartesian(grid[face_vars], self.surf['node_elevation'].nodal_average())
+            for var in face_vars:
+                grid[var] = ds_new[var]
             
             grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"))
             
