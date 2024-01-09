@@ -186,10 +186,10 @@ class TestSurface(unittest.TestCase):
         delta = 2*self.pix
 
         # Test distances
-        distances = surf.get_node_distance(location)
-        self.assertAlmostEqual(distances[north_idx], north_distance, delta=delta, msg=f"North node distance ratio: {distances[north_idx].item()/north_distance}")
-        self.assertAlmostEqual(distances[south_idx], south_distance, delta=delta, msg=f"South node distance ratio: {distances[south_idx].item()/south_distance}")
-        self.assertAlmostEqual(distances[antipode_idx], antipode_distance, delta=delta, msg=f"Antipode node distance ratio: {distances[antipode_idx].item()/antipode_distance}")
+        node_distances, face_distances = surf.get_distance(location)
+        self.assertAlmostEqual(node_distances[north_idx], north_distance, delta=delta, msg=f"North node distance ratio: {node_distances[north_idx].item()/north_distance}")
+        self.assertAlmostEqual(node_distances[south_idx], south_distance, delta=delta, msg=f"South node distance ratio: {node_distances[south_idx].item()/south_distance}")
+        self.assertAlmostEqual(node_distances[antipode_idx], antipode_distance, delta=delta, msg=f"Antipode node distance ratio: {node_distances[antipode_idx].item()/antipode_distance}")
         
         
     def test_calculate_initial_bearing(self):

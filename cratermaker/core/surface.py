@@ -198,11 +198,10 @@ class Surface(UxDataset):
         return radius * c
     
 
-    def get_face_distance(self, 
-                        location: PairOfFloats
-                        ) -> UxDataArray:
+    def get_distance(self, 
+                     location: Tuple[np.float64, np.float64]) -> UxDataArray:
         """
-        Computes the distances between cell centers and a given location.
+        Computes the distances between nodes and faces and a given location.
 
         Parameters
         ----------
@@ -212,35 +211,17 @@ class Surface(UxDataset):
         Returns
         -------
         UxDataArray
-            DataArray of distances for each cell in meters.
-        """
-        lon1 = np.deg2rad(location[0])
-        lat1 = np.deg2rad(location[1])
-        lon2 = np.deg2rad(self.uxgrid.face_lon)
-        lat2 = np.deg2rad(self.uxgrid.face_lat)
-        return self.calculate_haversine_distance(lon1,lat1,lon2,lat2,self.target_radius)
-    
-
-    def get_node_distance(self, 
-                        location: Tuple[np.float64, np.float64]) -> UxDataArray:
-        """
-        Computes the distances between nodes and a given location.
-
-        Parameters
-        ----------
-        location : Tuple[np.float64, np.float64]
-            Tuple containing the longitude and latitude of the location in radians.
-
-        Returns
-        -------
+            DataArray of distances for each node in meters.
         UxDataArray
-            DataArray of distances for each cell in meters.
+            DataArray of distances for each face in meters.
         """
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
-        lon2 = np.deg2rad(self.uxgrid.node_lon)
-        lat2 = np.deg2rad(self.uxgrid.node_lat)        
-        return self.calculate_haversine_distance(lon1,lat1,lon2,lat2,self.target_radius)
+        node_lon2 = np.deg2rad(self.uxgrid.node_lon)
+        node_lat2 = np.deg2rad(self.uxgrid.node_lat)        
+        face_lon2 = np.deg2rad(self.uxgrid.face_lon)
+        face_lat2 = np.deg2rad(self.uxgrid.face_lat)
+        return self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,self.target_radius), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,self.target_radius) 
     
 
     @staticmethod
@@ -280,10 +261,10 @@ class Surface(UxDataset):
 
         return initial_bearing
 
-
-    def get_face_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> UxDataArray:
+    
+    def get_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> UxDataArray:
         """
-        Computes the initial bearing between cell centers and a given location.
+        Computes the initial bearing between nodes and faces and a given location.
 
         Parameters
         ----------
@@ -293,71 +274,22 @@ class Surface(UxDataset):
         Returns
         -------
         DataArray
-            DataArray of initial bearings for each cell in radians.
-        """
-        lon1 = np.deg2rad(location[0])
-        lat1 = np.deg2rad(location[1])
-        lon2 = np.deg2rad(self.uxgrid.face_lon)
-        lat2 = np.deg2rad(self.uxgrid.face_lat)        
-        return self.calculate_initial_bearing(lon1,lat1,lon2,lat2)
-
-    
-    def get_node_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> UxDataArray:
-        """
-        Computes the initial bearing between nodes and a given location.
-
-        Parameters
-        ----------
-        location : Tuple[np.float64, np.float64]
-            Tuple containing the longitude and latitude of the location in radians.
-
-        Returns
-        -------
+            DataArray of initial bearings for each node in radians.
         DataArray
-            DataArray of initial bearings for each cell in radians.
+            DataArray of initial bearings for each face in radians.
         """
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
-        lon2 = np.deg2rad(self.uxgrid.node_lon)
-        lat2 = np.deg2rad(self.uxgrid.node_lat)             
-        return self.calculate_initial_bearing(lon1,lat1,lon2,lat2)  
+        node_lon2 = np.deg2rad(self.uxgrid.node_lon)
+        node_lat2 = np.deg2rad(self.uxgrid.node_lat)
+        face_lon2 = np.deg2rad(self.uxgrid.face_lon)
+        face_lat2 = np.deg2rad(self.uxgrid.face_lat)       
+        return self.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), self.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2)
     
     
-    # Function to find nearest cell index
-    def find_nearest_node_index(self,point):
+    def find_nearest_index(self,point):
         """
-        Find the index of the nearest node to a given point.
-
-        This method calculates the Haversine distance from the given point to each node in the grid,
-        and returns the index of the node with the minimum distance.
-
-        Parameters
-        ----------
-        point : tuple
-            A tuple containing two elements: (longitude, latitude) in degrees.
-
-        Returns
-        -------
-        int
-            The index of the nearest node in the grid to the given point.
-
-        Notes
-        -----
-        The method converts the longitude and latitude values from degrees to radians before
-        calculating distances. The Haversine formula is used to compute the distances on the
-        surface of a sphere with a radius of 1.0 unit.
-        """        
-        lon1 = np.deg2rad(point[0])
-        lat1 = np.deg2rad(point[1])
-        lon2 = np.deg2rad(self.uxgrid.node_lon)
-        lat2 = np.deg2rad(self.uxgrid.node_lat)        
-        distances = self.calculate_haversine_distance(lon1,lat1,lon2,lat2,radius=1.0)
-        return np.argmin(distances.data)    
-
-
-    def find_nearest_face_index(self,point):
-        """
-        Find the index of the nearest face to a given point.
+        Find the index of the nearest node and face to a given point.
 
         This method calculates the Haversine distance from the given point to each face in the grid,
         and returns the index of the face with the minimum distance.
@@ -370,6 +302,8 @@ class Surface(UxDataset):
         Returns
         -------
         int
+            The index of the nearest node in the grid to the given point.
+        int
             The index of the nearest face in the grid to the given point.
 
         Notes
@@ -381,10 +315,12 @@ class Surface(UxDataset):
         """        
         lon1 = np.deg2rad(point[0])
         lat1 = np.deg2rad(point[1])
-        lon2 = np.deg2rad(self.uxgrid.face_lon)
-        lat2 = np.deg2rad(self.uxgrid.face_lat)        
-        distances = self.calculate_haversine_distance(lon1,lat1,lon2,lat2,radius=1.0)
-        return np.argmin(distances.data)   
+        node_lon2 = np.deg2rad(self.uxgrid.node_lon)
+        node_lat2 = np.deg2rad(self.uxgrid.node_lat)          
+        face_lon2 = np.deg2rad(self.uxgrid.face_lon)
+        face_lat2 = np.deg2rad(self.uxgrid.face_lat)        
+        node_distances, face_distances = self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,radius=1.0), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,radius=1.0)
+        return np.argmin(node_distances.data), np.argmin(face_distances.data)
 
 
     def get_average_surface(self,

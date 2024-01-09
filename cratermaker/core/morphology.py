@@ -156,7 +156,8 @@ class Morphology:
             return h
     
         try: 
-            surf['node_elevation'] += np.vectorize(_crater_profile)(surf['crater_distance']) 
+            surf['node_elevation'] += np.vectorize(_crater_profile)(surf['node_crater_distance']) 
+            surf['face_elevation'] += np.vectorize(_crater_profile)(surf['face_crater_distance']) 
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
