@@ -345,33 +345,32 @@ class Surface(UxDataset):
         """
 
         # Find cells within the crater radius
-        # cells_within_radius = data['crater_distance'] <= radius
+        cells_within_radius = self['face_crater_distance'] <= radius
 
-        # bearings = data['crater_bearing'].where(cells_within_radius, drop=True)
-        # distances = data['crater_distance'].where(cells_within_radius, drop=True)
+        bearings = self['face_crater_bearing'].where(cells_within_radius, drop=True)
+        distances = self['face_crater_distance'].where(cells_within_radius, drop=True)
 
-        # # Convert bearings to vector components
-        # # Bearing is angle from north, positive clockwise, but we need standard mathematical angle, positive counter-clockwise
-        # angles = np.deg2rad(90) - bearings  # Convert bearing to angle in radians
-        # x_components = np.cos(angles) * distances
-        # y_components = np.sin(angles) * distances
+        # Convert bearings to vector components
+        # Bearing is angle from north, positive clockwise, but we need standard mathematical angle, positive counter-clockwise
+        angles = np.pi/2 - bearings  
+        x_components = np.cos(angles) * distances
+        y_components = np.sin(angles) * distances
 
-        # # Calculate the weighted average vector components
-        # # Weight by the area of each cell to give more importance to larger cells
-        # cell_areas = mesh['areaCell'].where(cells_within_radius, drop=True)
-        # weighted_x = (x_components * cell_areas).sum() / cell_areas.sum()
-        # weighted_y = (y_components * cell_areas).sum() / cell_areas.sum()
+        # Calculate the weighted average vector components
+        # Weight by the area of each cell to give more importance to larger cells
+        cell_areas = self['face_areas'].where(cells_within_radius, drop=True)
+        weighted_x = (x_components * cell_areas).sum() / cell_areas.sum()
+        weighted_y = (y_components * cell_areas).sum() / cell_areas.sum()
 
-        # # Calculate the weighted mean elevation to get the z-component
-        # elevation_values = data['elevation'].where(cells_within_radius, drop=True)
-        # weighted_z = (elevation_values * cell_areas).sum() / cell_areas.sum()
+        # Calculate the weighted mean elevation to get the z-component
+        elevation_values = self['face_elevation'].where(cells_within_radius, drop=True)
+        weighted_z = (elevation_values * cell_areas).sum() / cell_areas.sum()
 
-        # # Combine components to form the cap center vector
-        # center_vector = -np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
+        # Combine components to form the cap center vector
+        center_vector = -np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
 
-        # # The radius of the cap is the length of the cap center vector
-        # radius = np.linalg.norm(center_vector)
-        center_vector = None
+        # The radius of the cap is the length of the cap center vector
+        radius = np.linalg.norm(center_vector)
         return center_vector 
 
 
@@ -565,7 +564,7 @@ def initialize_surface(make_new_grid: bool = False,
         surf.set_elevation(0.0,save_to_file=True)
         
     # Compute face area needed future calculations
-    surf['face_areas'] = surf.uxgrid.face_areas
+    surf['face_areas'] = uxr.UxDataArray(surf.uxgrid.face_areas, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces'})
     
     return surf
 

@@ -313,7 +313,7 @@ class Simulation:
         self.surf['node_crater_distance'], self.surf['face_crater_distance'] = self.surf.get_distance(self.crater.location)
         self.surf['node_crater_bearing'], self.surf['face_crater_bearing'] = self.surf.get_initial_bearing(self.crater.location)
         
-        # self.crater.average_surface_normal_vector = self.surf.get_average_surface(self.crater.location, self.crater.radius)
+        self.crater.average_surface_normal_vector = self.surf.get_average_surface(self.crater.location, self.crater.radius)
         self.crater.morphology.form_crater(self.surf)
         
         return  
