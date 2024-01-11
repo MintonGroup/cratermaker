@@ -57,7 +57,7 @@ class TestMonteCarlo(unittest.TestCase):
         angles = get_random_impact_angle(size=size)
 
         # Check type and shape
-        self.assertIsInstance(angles, ArrayLike)
+        self.assertIsInstance(angles, np.ndarray)
         self.assertEqual(angles.shape, (size,))
 
         # Check range (0 to np.pi/2 radians)

@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import patch, MagicMock
 import cratermaker 
 from cratermaker import Target
 import tempfile
