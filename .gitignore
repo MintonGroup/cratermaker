@@ -16,10 +16,6 @@
 !src/
 !src/*/
 !src/*/**.f90
-!src/mesh_conversion_tools_netcdf_c/
-!src/mesh_conversion_tools_netcdf_c/*.h
-!src/mesh_conversion_tools_netcdf_c/*.cpp
-!src/mesh_conversion_tools_netcdf_c/README
 !cmake/
 !cmake/Modules/
 !cmake/Modules/*.cmake
@@ -36,6 +32,7 @@
 !pyproject.toml
 !LICENSE
 !.readthedocs.yaml
+!environment.yml
 !docs/
 !docs/**/*
 docs/**/*.ai
