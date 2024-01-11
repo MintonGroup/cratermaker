@@ -86,7 +86,6 @@ Attributes
     :toctree: generated/
 
     Surface.data_dir
-    Surface.elevation_file
     Surface.grid_file
     Surface.grid_temp_dir
     Surface.pix
@@ -100,13 +99,10 @@ Methods
 
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
-    Surface.find_nearest_face_index
-    Surface.find_nearest_node_index
+    Surface.find_nearest_index
     Surface.get_average_surface
-    Surface.get_face_distance
-    Surface.get_face_initial_bearing
-    Surface.get_node_distance
-    Surface.get_node_initial_bearing
+    Surface.get_distance
+    Surface.get_initial_bearing
     Surface.set_elevation
 
 Production
