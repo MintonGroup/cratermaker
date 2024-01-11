@@ -32,7 +32,6 @@ Attributes
 
     Simulation.crater
     Simulation.data_dir
-    Simulation.elevation_file
     Simulation.grid_file
     Simulation.morphology_cls
     Simulation.n_face
