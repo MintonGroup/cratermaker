@@ -442,7 +442,7 @@ Perlin noise
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.perlin.apply_noise
+    cratermaker.cython.perlin.apply_noise
 
 
 Custom type definitions
