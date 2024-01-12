@@ -55,11 +55,7 @@ Here’s a simple example demonstrating how to initialize a simulation for the M
 .. code-block:: python
 
     import cratermaker
-
-    # Initialize a simulation with default settings
     sim = cratermaker.Simulation()
-
-    # Emplace a crater with a 100 km diameter at a random location
     sim.emplace_crater(diameter=100e3)
 
 
