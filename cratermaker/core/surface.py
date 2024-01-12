@@ -14,7 +14,6 @@ from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
 from ..utils.custom_types import FloatLike, PairOfFloats
-import pandas as pd
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
@@ -207,7 +206,7 @@ class Surface(UxDataset):
         Parameters
         ----------
         location : Tuple[np.float64, np.float64]
-            Tuple containing the longitude and latitude of the location in radians.
+            Tuple containing the longitude and latitude of the location in degrees.
 
         Returns
         -------
@@ -270,7 +269,7 @@ class Surface(UxDataset):
         Parameters
         ----------
         location : Tuple[np.float64, np.float64]
-            Tuple containing the longitude and latitude of the location in radians.
+            Tuple containing the longitude and latitude of the location in degrees.
 
         Returns
         -------
@@ -332,7 +331,7 @@ class Surface(UxDataset):
         Parameters
         ----------
         location : Tuple[float, float]
-            Tuple containing the longitude and latitude of the reference location in radians.
+            Tuple containing the longitude and latitude of the reference location in degrees.
         region_radius : float
             The radius of the region to compute the average over in meters.
 
@@ -346,77 +345,37 @@ class Surface(UxDataset):
         cells_within_radius = self['face_crater_distance'] <= region_radius
        
         vert_vars = ['face_x', 'face_y', 'face_z'] 
-        region_grid = elevation_to_cartesian(self.uxgrid._ds[vert_vars], self['face_elevation'])
+        region_mesh = self.uxgrid._ds[vert_vars].where(cells_within_radius, drop=True)
+        region_elevation = self['face_elevation'].where(cells_within_radius, drop=True)
+        region_surf = elevation_to_cartesian(region_mesh, region_elevation)
 
         # Fetch x, y, z values of the mesh within the region
-        x_values = region_grid['face_x'].where(cells_within_radius, drop=True)
-        y_values = region_grid['face_y'].where(cells_within_radius, drop=True)
-        z_values = region_grid['face_z'].where(cells_within_radius, drop=True)
+        region_delta = region_surf - region_mesh
 
         # Fetch the areas of the cells within the region
         cell_areas = self['face_areas'].where(cells_within_radius, drop=True)
 
-        # Calculate the weighted average of the x, y, and z coordinates
-        weighted_x = (x_values * cell_areas).sum() / cell_areas.sum()
-        weighted_y = (y_values * cell_areas).sum() / cell_areas.sum()
-        weighted_z = (z_values * cell_areas).sum() / cell_areas.sum()
-
-        # Combine components to form the center vector
-        center_vector = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
-
-        # This will compute the surface normal vector that describes the orientation of the center of the center of the surface. 
-        # The cap should be drawn so that it its center is aligned with this vector and the cap is truncated at at the region_radius distance.
+        # Calculate the weighted average of the x, y, and z coordinates to get the average surface vector
+        weighted_x = (region_delta['face_x'] * cell_areas).sum() / cell_areas.sum()
+        weighted_y = (region_delta['face_y'] * cell_areas).sum() / cell_areas.sum()
+        weighted_z = (region_delta['face_z'] * cell_areas).sum() / cell_areas.sum()
+        average_region_elevation = ((region_elevation * cell_areas).sum() / cell_areas.sum()).item()
+        average_region_center = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
+       
+        # This will compute the vector that describes the orientation of the center of the center of the original mesh surface. 
         _, center_face_index, = self.find_nearest_index(location)
-        surface_normal_vector = np.array([self.uxgrid.face_x[center_face_index], self.uxgrid.face_y[center_face_index], self.uxgrid.face_z[center_face_index]])
-        surface_normal_vector /= np.linalg.norm(surface_normal_vector)
+        surface_vector = np.array([self.uxgrid.face_x[center_face_index], self.uxgrid.face_y[center_face_index], self.uxgrid.face_z[center_face_index]])
+        
+        # Normalize to get the unit vector
+        surface_vector = surface_vector / np.linalg.norm(surface_vector)
+        
+        # Sum the target radius and the average elevation to get the end point of the cap vector
+        surface_vector *= (self.target_radius + average_region_elevation)
+        
+        # Now we can get the vector pointing to the center of the cap from the generating sphere center
+        average_region_vector = surface_vector - average_region_center 
 
-        # Temporary code to output the cap and arrow data for visualization during testing. This will get moved to a separate function later.
-        cap_points, arrow_data = self.generate_hemispherical_cap_and_arrow(center_vector, self.target_radius, region_radius, surface_normal_vector)
-
-        # Export to CSV or other format as needed for ParaView
-        pd.DataFrame(cap_points, columns=['X', 'Y', 'Z']).to_csv('hemispherical_cap.csv', index=False)
-        pd.DataFrame(arrow_data, columns=['X', 'Y', 'Z']).to_csv('arrow_data.csv', index=False)
-            
-        return center_vector
-
-    @staticmethod
-    def generate_hemispherical_cap_and_arrow(center_vector, cap_radius, region_radius, surface_normal_vector, num_points=100):
-        """
-        Generate a mesh for a hemispherical cap and the data for an arrow in 3D space.
-
-        Parameters:
-        center_vector (np.ndarray): The vector pointing to the center of the cap from the sphere's center.
-        cap_radius (float): Radius of the sphere.
-        region_radius (float): Radius of the hemispherical cap.
-        surface_normal_vector (np.ndarray): Unit vector pointing in the direction of the cap center.
-        num_points (int): Number of points to generate for the hemispherical cap.
-
-        Returns:
-        cap_points (np.ndarray): Points representing the hemispherical cap.
-        arrow_data (np.ndarray): Start and end points of the arrow.
-        """
-        # Calculate cap_center
-        cap_center = center_vector + surface_normal_vector * (cap_radius - region_radius)
-
-        # Generate spherical coordinates for the cap
-        max_theta = np.arccos(region_radius / cap_radius)
-        theta = np.linspace(0, max_theta, num_points)
-        phi = np.linspace(0, 2 * np.pi, num_points)
-        theta, phi = np.meshgrid(theta, phi)
-
-        # Convert to Cartesian coordinates relative to cap_center
-        x = cap_radius * np.sin(theta) * np.cos(phi) + cap_center[0]
-        y = cap_radius * np.sin(theta) * np.sin(phi) + cap_center[1]
-        z = cap_radius * np.cos(theta) + cap_center[2]
-
-        cap_points = np.array([x.flatten(), y.flatten(), z.flatten()]).T
-
-        # Arrow data: start and end points
-        arrow_start = center_vector
-        arrow_end = cap_center
-
-        return cap_points, np.array([arrow_start, arrow_end])
-
+        return average_region_center, average_region_vector
 
 
     @property
