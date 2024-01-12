@@ -154,6 +154,9 @@ class Morphology:
             if h > self.floordepth:
                 h = self.floordepth
             return h
+        
+        # Compute the reference surface for the crater 
+        surf.get_average_surface(self.crater.location, self.crater.radius)        
     
         try: 
             surf['node_elevation'] += np.vectorize(_crater_profile)(surf['node_crater_distance']) 

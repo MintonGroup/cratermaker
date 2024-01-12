@@ -224,7 +224,7 @@ class TestSurface(unittest.TestCase):
         location = get_random_location()
         region_radius = 100e3
 
-        average_region_center, average_region_vector = sim.surf.get_average_surface(location, region_radius)
+        sim.surf.get_average_surface(location, region_radius)
         
 
         # Find cells within the crater radius
@@ -239,12 +239,12 @@ class TestSurface(unittest.TestCase):
         region_elevation = sim.surf['face_elevation'].where(cells_within_radius, drop=True) 
         region_surf = elevation_to_cartesian(region_mesh, region_elevation)
         
-        cap_mult = np.linalg.norm(average_region_vector) / sim.target.radius
+        cap_mult = np.linalg.norm(sim.surf.average_region_vector) / sim.target.radius
         
         region_mesh *= cap_mult 
-        region_mesh['face_x'] += average_region_center[0] 
-        region_mesh['face_y'] += average_region_center[1] 
-        region_mesh['face_z'] += average_region_center[2] 
+        region_mesh['face_x'] += sim.surf.average_region_center[0] 
+        region_mesh['face_y'] += sim.surf.average_region_center[1] 
+        region_mesh['face_z'] += sim.surf.average_region_center[2] 
 
         # Fetch x, y, z values of the mesh within the region
         region_delta = region_surf - region_mesh

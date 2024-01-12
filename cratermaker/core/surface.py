@@ -38,7 +38,7 @@ class Surface(UxDataset):
     The Surface class extends UxDataset for the cratermaker project.
 
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_average_region_center', '_average_region_vector')    
     
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
@@ -55,6 +55,8 @@ class Surface(UxDataset):
         # Additional initialization for Surface
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
+        self._average_region_center = np.zeros(3)
+        self._average_region_vector = np.array([0.0, 0.0, self.target_radius])
         
 
     def generate_data(self,
@@ -384,7 +386,10 @@ class Surface(UxDataset):
         # Now we can get the vector pointing to the center of the cap from the generating sphere center
         average_region_vector = surface_vector - average_region_center 
 
-        return average_region_center, average_region_vector
+        self.average_region_center = average_region_center
+        self.average_region_vector = average_region_vector
+
+        return
 
 
     @property
@@ -460,8 +465,31 @@ class Surface(UxDataset):
     @grid_type.setter
     def grid_type(self, value):
         self._grid_type = value
+        
+
+    @property
+    def average_region_center(self):
+        """
+        Center of the average region (used as a reference surface for crater morphology calculations).
+        """
+        return self._average_region_center
+
+    @average_region_center.setter
+    def average_region_center(self, value):
+        self._average_region_center = value
+        
+    @property
+    def average_region_vector(self):
+        """
+        Vector pointing from the center of the generating sphere to the center of the average region.
+        """
+        return self._average_region_vector
     
-         
+    @average_region_vector.setter
+    def average_region_vector(self, value):
+        self._average_region_vector = value
+    
+        
 def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
          pix: FloatLike | None = None,
