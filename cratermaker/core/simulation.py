@@ -293,7 +293,7 @@ class Simulation:
    
    
     def emplace_crater(self, 
-                       from_projectile: bool =False, 
+                       from_projectile: bool=False, 
                        **kwargs: Any
                       ) -> None:
         """

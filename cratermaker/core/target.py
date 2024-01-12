@@ -308,7 +308,7 @@ class Target:
         self._material_name = None
         self._mean_impact_velocity = None
         self._transition_scale_type = None
-        self._material = None
+        self._material = material
         
         # ensure that only either diamter of radius is passed
         values_set = sum(x is not None for x in [diameter, radius])
@@ -331,7 +331,8 @@ class Target:
                             transition_scale_type=transition_scale_type, 
                             catalogue=self.catalogue,
                             **kwargs)
-        self.material = Material(name=self.material_name)
+        if self.material is None:
+            self.material = Material(name=self.material_name)
         
         return
     

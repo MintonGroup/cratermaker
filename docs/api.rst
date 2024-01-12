@@ -8,6 +8,8 @@ Cratermaker API reference
 
 This section of the documentation provides a detailed reference for the Production classes in the Cratermaker project.
 
+.. _api-Simulation:
+
 Simulation
 ==========
 
@@ -64,6 +66,8 @@ Methods
     Simulation.set_properties
     Simulation.to_json
 
+.. _api-Surface:
+
 Surface
 =======
 
@@ -103,6 +107,8 @@ Methods
     Surface.get_distance
     Surface.get_initial_bearing
     Surface.set_elevation
+
+.. _api-Production:
 
 Production
 ==========
@@ -145,6 +151,8 @@ Methods
     Production.function_inverse
     Production.sample
 
+.. _api-NeukumProduction:
+
 NeukumProduction
 ================
 
@@ -180,6 +188,8 @@ Methods
     NeukumProduction.function
 
 .. currentmodule:: cratermaker
+
+.. _api-Target:
 
 Target
 ======
@@ -219,6 +229,7 @@ Methods
 
     Target.set_properties
 
+.. _api-Material:
 
 Material
 ========
@@ -245,6 +256,8 @@ Attributes
     Material.K1
     Material.mu
     Material.Ybar
+
+.. _api-Impact:
 
 Impact
 ======
@@ -320,6 +333,7 @@ Attributes
     Projectile.velocity
     Projectile.vertical_velocity
 
+.. _api-Scale:
 
 Scale
 =====
@@ -365,6 +379,7 @@ Methods
     Scale.projectile_to_transient
     Scale.transient_to_projectile
 
+.. _api-Morphology:
 
 Morphology
 ==========
@@ -406,6 +421,7 @@ Methods
     Morphology.ejecta_profile
     Morphology.form_crater
 
+.. _api-Utility:
 
 Utility functions
 =================
@@ -453,6 +469,7 @@ Custom type definitions
 
     cratermaker.utils.custom_types
 
+.. _api-Fortran:
 
 Fortran API Documentation
 =========================

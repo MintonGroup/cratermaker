@@ -344,29 +344,26 @@ class Surface(UxDataset):
 
         # Find cells within the crater radius
         cells_within_radius = self['face_crater_distance'] <= region_radius
-
-        bearings = self['face_crater_bearing'].where(cells_within_radius, drop=True)
-        distances = self['face_crater_distance'].where(cells_within_radius, drop=True)
-
-        # Convert bearings to vector components
-        # Bearing is angle from north, positive clockwise, but we need standard mathematical angle, positive counter-clockwise
-        angles = np.pi/2 - bearings  
-        x_components = np.cos(angles) * distances
-        y_components = np.sin(angles) * distances
-
-        # Calculate the weighted average vector components
-        # Weight by the area of each cell to give more importance to larger cells
-        cell_areas = self['face_areas'].where(cells_within_radius, drop=True)
-        weighted_x = (x_components * cell_areas).sum() / cell_areas.sum()
-        weighted_y = (y_components * cell_areas).sum() / cell_areas.sum()
-
-        # Calculate the weighted mean elevation to get the z-component
-        elevation_values = self['face_elevation'].where(cells_within_radius, drop=True)
-        weighted_z = (elevation_values * cell_areas).sum() / cell_areas.sum()
-
-        # Combine components to form the cap center vector
-        center_vector = -np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
        
+        vert_vars = ['face_x', 'face_y', 'face_z'] 
+        region_grid = elevation_to_cartesian(self.uxgrid._ds[vert_vars], self['face_elevation'])
+
+        # Fetch x, y, z values of the mesh within the region
+        x_values = region_grid['face_x'].where(cells_within_radius, drop=True)
+        y_values = region_grid['face_y'].where(cells_within_radius, drop=True)
+        z_values = region_grid['face_z'].where(cells_within_radius, drop=True)
+
+        # Fetch the areas of the cells within the region
+        cell_areas = self['face_areas'].where(cells_within_radius, drop=True)
+
+        # Calculate the weighted average of the x, y, and z coordinates
+        weighted_x = (x_values * cell_areas).sum() / cell_areas.sum()
+        weighted_y = (y_values * cell_areas).sum() / cell_areas.sum()
+        weighted_z = (z_values * cell_areas).sum() / cell_areas.sum()
+
+        # Combine components to form the center vector
+        center_vector = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
+
         # This will compute the surface normal vector that describes the orientation of the center of the center of the surface. 
         # The cap should be drawn so that it its center is aligned with this vector and the cap is truncated at at the region_radius distance.
         _, center_face_index, = self.find_nearest_index(location)
