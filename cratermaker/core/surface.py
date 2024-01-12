@@ -633,6 +633,7 @@ def generate_grid(target: Target | str,
     -------
     A cratermaker Surface object with the generated grid as the uxgrid attribute and with an elevation variable set to zero.
     """
+    from matplotlib._api.deprecation import MatplotlibDeprecationWarning
     if isinstance(target, str):
         try:
             target = Target(target)
@@ -662,7 +663,9 @@ def generate_grid(target: Target | str,
         os.environ['PATH'] = jigsaw_bin_dir + os.pathsep + original_path
         
         print("Building grid with jigsaw...")
-        build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius,logger=logger)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=MatplotlibDeprecationWarning)
+            build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius,logger=logger)
     except:
         print("Error building grid with jigsaw. See mesh.log for details.")
         raise

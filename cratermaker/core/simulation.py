@@ -385,6 +385,7 @@ class Simulation:
         out_dir : str, Default "vtk_files"
             Directory to store the VTK files.
         """
+        
         if out_dir is None:
             out_dir = os.path.join(self.simdir, "vtk_files")
             
@@ -392,6 +393,7 @@ class Simulation:
         # The API change does not affect the functionality of the code, so we can safely ignore the warning
         with warnings.catch_warnings(): 
             warnings.simplefilter("ignore", FutureWarning)
+            warnings.simplefilter("ignore", DeprecationWarning) # Ignores a warning issued in bar.py
             ignore_time = "time" not in self.surf.dims
         
             # Save the surface data to a combined netCDF file
