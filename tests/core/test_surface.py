@@ -8,7 +8,8 @@ from cratermaker import Surface, initialize_surface, generate_grid
 from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
-# Import other necessary modules and functions
+import warnings
+
 
 class TestSurface(unittest.TestCase):
     """
@@ -57,59 +58,67 @@ class TestSurface(unittest.TestCase):
         return
 
     def test_initialize_surface(self):
-        # Delete any existing surface data file and re-generate it
-        directory = os.path.join(os.getcwd(), _DATA_DIR)
-        if os.path.exists(directory) and os.path.isdir(directory):
-            try:
-                shutil.rmtree(directory)
-            except Exception as error:
-                print(f"Error: {directory} : {error}")
+        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+        # The API change does not affect the functionality of the code, so we can safely ignore the warning
+        with warnings.catch_warnings():        
+            warnings.simplefilter("ignore", FutureWarning)
+            # Delete any existing surface data file and re-generate it
+            directory = os.path.join(os.getcwd(), _DATA_DIR)
+            if os.path.exists(directory) and os.path.isdir(directory):
+                try:
+                    shutil.rmtree(directory)
+                except Exception as error:
+                    print(f"Error: {directory} : {error}")
 
-        # Initializing it first should run the jigsaw mesh generator
-        surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=True)
+            # Initializing it first should run the jigsaw mesh generator
+            surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=True)
+            
+            # Try initializing the surface again with the same parameters. This should find the existing grid file and load it 
+            surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=False)
+            
+            # Test regridding if the parameters change
+            n_face_orig = surf.uxgrid.n_face
         
-        # Try initializing the surface again with the same parameters. This should find the existing grid file and load it 
-        surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=False)
+            surf = initialize_surface(pix=2*self.pix, target=self.target, reset_surface=False)
+            self.assertGreater(n_face_orig, surf.uxgrid.n_face)
         
-        # Test regridding if the parameters change
-        n_face_orig = surf.uxgrid.n_face
-        
-        surf = initialize_surface(pix=2*self.pix, target=self.target, reset_surface=False)
-        self.assertGreater(n_face_orig, surf.uxgrid.n_face)
-       
-        # Test different target values
-        surf = initialize_surface(pix=self.pix, target=Target(name="Mars"), reset_surface=False)
-        surf = initialize_surface(pix=self.pix, target="Mercury", reset_surface=False)
-        
-        # Test bad values
-        with self.assertRaises(TypeError):
-            surf = initialize_surface(pix=self.pix, target=1, reset_surface=False)
-        with self.assertRaises(ValueError):
-            surf = initialize_surface(pix=self.pix, target="Arrakis", reset_surface=False)
-        with self.assertRaises(ValueError):
-            surf = initialize_surface(pix=self.pix, target=Target(name="Salusa Secundus"), reset_surface=False)
+            # Test different target values
+            surf = initialize_surface(pix=self.pix, target=Target(name="Mars"), reset_surface=False)
+            surf = initialize_surface(pix=self.pix, target="Mercury", reset_surface=False)
+            
+            # Test bad values
+            with self.assertRaises(TypeError):
+                surf = initialize_surface(pix=self.pix, target=1, reset_surface=False)
+            with self.assertRaises(ValueError):
+                surf = initialize_surface(pix=self.pix, target="Arrakis", reset_surface=False)
+            with self.assertRaises(ValueError):
+                surf = initialize_surface(pix=self.pix, target=Target(name="Salusa Secundus"), reset_surface=False)
         return
 
 
     def test_set_elevation(self):
-        surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=True)
-        # Test with valid elevation data
-        new_elev = np.random.rand(surf.uxgrid.n_node)  # Generate random elevation data
-        surf.set_elevation(new_elev)
-
-        # Test with invalid elevation data (wrong size)
-        new_elev = np.random.rand(surf.uxgrid.n_node + 1)  # Incorrect size
-
-        # Expect ValueError for incorrect size
-        with self.assertRaises(ValueError):
+        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+        # The API change does not affect the functionality of the code, so we can safely ignore the warning
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            surf = initialize_surface(pix=self.pix, target=self.target, reset_surface=True)
+            # Test with valid elevation data
+            new_elev = np.random.rand(surf.uxgrid.n_node)  # Generate random elevation data
             surf.set_elevation(new_elev)
 
-        # Test setting elevation to None (should set to zero)
-        surf.set_elevation(None)
+            # Test with invalid elevation data (wrong size)
+            new_elev = np.random.rand(surf.uxgrid.n_node + 1)  # Incorrect size
 
-        # Check if the elevation data is set to zero
-        np.testing.assert_array_equal(surf['node_elevation'].values, np.zeros(surf.uxgrid.n_node))
-        np.testing.assert_array_equal(surf['face_elevation'].values, np.zeros(surf.uxgrid.n_face))
+            # Expect ValueError for incorrect size
+            with self.assertRaises(ValueError):
+                surf.set_elevation(new_elev)
+
+            # Test setting elevation to None (should set to zero)
+            surf.set_elevation(None)
+
+            # Check if the elevation data is set to zero
+            np.testing.assert_array_equal(surf['node_elevation'].values, np.zeros(surf.uxgrid.n_node))
+            np.testing.assert_array_equal(surf['face_elevation'].values, np.zeros(surf.uxgrid.n_face))
         
         return
     
@@ -206,4 +215,5 @@ class TestSurface(unittest.TestCase):
 
 
 if __name__ == '__main__':
+     
     unittest.main()

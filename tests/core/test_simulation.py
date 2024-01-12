@@ -6,6 +6,16 @@ import os
 import numpy as np
 import xarray as xr
 from cratermaker.core.surface import _COMBINED_DATA_FILE_NAME
+import warnings
+
+import warnings
+
+def warning_with_breakpoint(message, category, filename, lineno, file=None, line=None):
+    print(f"{category} Warning in line {lineno} of {filename} : {message}")
+    return
+warnings.simplefilter("always")  # Always trigger the warnings
+warnings.showwarning = warning_with_breakpoint
+
 
 class TestSimulation(unittest.TestCase):
     
@@ -33,27 +43,33 @@ class TestSimulation(unittest.TestCase):
        
         # Test that variables are saved correctly
         sim.surf.set_elevation(1.0)
-        np.testing.assert_array_equal(sim.surf["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node)) 
-        np.testing.assert_array_equal(sim.surf["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face)) 
-        sim.save()
+        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+        # The API change does not affect the functionality of the code, so we can safely ignore the warning
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)          
+            np.testing.assert_array_equal(sim.surf["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node)) 
+            np.testing.assert_array_equal(sim.surf["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face)) 
+            
+            sim.save()
         
-        with xr.open_dataset(os.path.join(sim.data_dir,"node_elevation.nc")) as ds:
-            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-        with xr.open_dataset(os.path.join(sim.data_dir,"face_elevation.nc")) as ds:
-            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+            with xr.open_dataset(os.path.join(sim.data_dir,"node_elevation.nc")) as ds:
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+            with xr.open_dataset(os.path.join(sim.data_dir,"face_elevation.nc")) as ds:
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
         
-        # Test saving combined data
-        sim.save(combine_data_files=True)
-        combined_file = os.path.join(sim.surf.data_dir, _COMBINED_DATA_FILE_NAME)
-        self.assertTrue(os.path.exists(combined_file))
+            # Test saving combined data
+            sim.save(combine_data_files=True)
+            combined_file = os.path.join(sim.surf.data_dir, _COMBINED_DATA_FILE_NAME)
+            self.assertTrue(os.path.exists(combined_file))
         
-        with xr.open_dataset(combined_file) as ds:
-            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+            with xr.open_dataset(combined_file) as ds:
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
        
         return 
         
     def test_simulation_export_vtk(self):
+      
         sim = cratermaker.Simulation(pix=self.pix, target=self.target) 
         
         # Test with default parameters
@@ -70,7 +86,7 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.isdir(custom_out_dir))
         for f in expected_files:
             self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
-           
+        
     def test_emplace_crater(self):
         sim = cratermaker.Simulation(pix=self.pix)
         sim.emplace_crater(diameter=10e3)

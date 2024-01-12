@@ -14,6 +14,7 @@ from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
 from ..utils.custom_types import FloatLike, PairOfFloats
+import warnings
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
@@ -84,35 +85,39 @@ class Surface(UxDataset):
         None
         """    
         uxgrid = uxr.open_grid(self.grid_file,latlon=True,use_dual=False)
-        if isfacedata: 
-            dims = ["n_face"]
-            size = uxgrid.n_face
-            dim_map = {'n_face': 'nCells'}
-        else:
-            dims = ["n_node"]
-            size = uxgrid.n_node
-            dim_map = {'n_node': 'nVertices'}
-    
-        if data is None:
-            data = np.zeros(size,dtype=np.float64) 
-        elif np.isscalar(data):
-            data = np.full(size,data)
-        else:
-            if data.size != size:
-                raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
-        uxda = UxDataArray(
-                data=data,
-                dims=dims,
-                attrs=None if long_name is None else {"long_name": long_name},
-                name=name,
-                uxgrid=uxgrid
-                ) 
-        if save_to_file:
-            data_file = os.path.join(self.data_dir, f"{name}.nc")
-            uxda.rename(dim_map).to_netcdf(data_file) 
-            uxda.close()
-            
-        self[name] = uxda
+        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+        # The API change does not affect the functionality of the code, so we can safely ignore the warning        
+        with warnings.catch_warnings(): 
+            warnings.simplefilter("ignore", FutureWarning)        
+            if isfacedata: 
+                dims = ["n_face"]
+                size = uxgrid.n_face
+                dim_map = {'n_face': 'nCells'}
+            else:
+                dims = ["n_node"]
+                size = uxgrid.n_node
+                dim_map = {'n_node': 'nVertices'}
+        
+            if data is None:
+                data = np.zeros(size,dtype=np.float64) 
+            elif np.isscalar(data):
+                data = np.full(size,data)
+            else:
+                if data.size != size:
+                    raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
+            uxda = UxDataArray(
+                    data=data,
+                    dims=dims,
+                    attrs=None if long_name is None else {"long_name": long_name},
+                    name=name,
+                    uxgrid=uxgrid
+                    ) 
+            if save_to_file:
+                data_file = os.path.join(self.data_dir, f"{name}.nc")
+                uxda.rename(dim_map).to_netcdf(data_file) 
+                uxda.close()
+                
+            self[name] = uxda
         return 
 
         
@@ -568,7 +573,12 @@ def initialize_surface(make_new_grid: bool = False,
         surf.set_elevation(0.0,save_to_file=True)
         
     # Compute face area needed future calculations
-    surf['face_areas'] = uxr.UxDataArray(surf.uxgrid.face_areas, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces'})
+    # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+    # The API change does not affect the functionality of the code, so we can safely ignore the warning
+    # if self._face_areas is not None: it allows for using the cached result
+    with warnings.catch_warnings(): 
+        warnings.simplefilter("ignore", FutureWarning)         
+        surf['face_areas'] = uxr.UxDataArray(surf.uxgrid.face_areas, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces'})
     
     return surf
 
@@ -623,6 +633,7 @@ def generate_grid(target: Target | str,
     -------
     A cratermaker Surface object with the generated grid as the uxgrid attribute and with an elevation variable set to zero.
     """
+    from matplotlib._api.deprecation import MatplotlibDeprecationWarning
     if isinstance(target, str):
         try:
             target = Target(target)
@@ -652,7 +663,9 @@ def generate_grid(target: Target | str,
         os.environ['PATH'] = jigsaw_bin_dir + os.pathsep + original_path
         
         print("Building grid with jigsaw...")
-        build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius,logger=logger)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=MatplotlibDeprecationWarning)
+            build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius,logger=logger)
     except:
         print("Error building grid with jigsaw. See mesh.log for details.")
         raise
@@ -697,20 +710,25 @@ def save_surface(surf: Surface,
         
     surf.close()
     
-    if combine_data_files:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            outpath = os.path.join(temp_dir, _COMBINED_DATA_FILE_NAME)
-            dim_map = {k: _DIM_MAP[k] for k in surf.dims if k in _DIM_MAP}
-            surf.rename(dim_map).to_netcdf(outpath)
-            shutil.move(outpath,os.path.join(out_dir, _COMBINED_DATA_FILE_NAME)) 
-    else: 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            for var in surf.data_vars:
-                dim_map = {k: _DIM_MAP[k] for k in surf[var].dims if k in _DIM_MAP}  # only map dimensions that are in the variable
-                outname = var + ".nc" 
-                outpath =os.path.join(temp_dir, outname)
-                surf[var].rename(dim_map).to_netcdf(outpath)
-                shutil.move(outpath,os.path.join(out_dir, outname))
+    # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+    # The API change does not affect the functionality of the code, so we can safely ignore the warning
+    with warnings.catch_warnings(): 
+        warnings.simplefilter("ignore", FutureWarning)
+    
+        if combine_data_files:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                outpath = os.path.join(temp_dir, _COMBINED_DATA_FILE_NAME)
+                dim_map = {k: _DIM_MAP[k] for k in surf.dims if k in _DIM_MAP}
+                surf.rename(dim_map).to_netcdf(outpath)
+                shutil.move(outpath,os.path.join(out_dir, _COMBINED_DATA_FILE_NAME)) 
+        else: 
+            with tempfile.TemporaryDirectory() as temp_dir:
+                for var in surf.data_vars:
+                    dim_map = {k: _DIM_MAP[k] for k in surf[var].dims if k in _DIM_MAP}  # only map dimensions that are in the variable
+                    outname = var + ".nc" 
+                    outpath =os.path.join(temp_dir, outname)
+                    surf[var].rename(dim_map).to_netcdf(outpath)
+                    shutil.move(outpath,os.path.join(out_dir, outname))
         
     return
 
@@ -722,7 +740,12 @@ def elevation_to_cartesian(position: Dataset,
     vars = list(position.data_vars)
     if len(vars) != 3:
         raise ValueError("Dataset must contain exactly three coordinate variables")
-    dim_var = list(position.dims)[0]
+    
+    # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+    # The API change does not affect the functionality of the code, so we can safely ignore the warning
+    with warnings.catch_warnings(): 
+        warnings.simplefilter("ignore", FutureWarning)    
+        dim_var = list(position.dims)[0]
 
     rvec = np.column_stack((position[vars[0]], position[vars[1]], position[vars[2]]))
     runit = rvec / np.linalg.norm(rvec, axis=1, keepdims=True)
