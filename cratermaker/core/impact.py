@@ -88,6 +88,8 @@ class Impact(ABC):
         self._location = None
         self._diameter = None
         self._radius = None
+        self._face_index = None
+        self._node_index = None
         
         self.target = target
         self.rng = rng 
@@ -142,6 +144,45 @@ class Impact(ABC):
             self._location = mc.get_random_location(rng=self.rng)
         else:    
             self._location = validate_and_convert_location(value)
+            
+            
+    @property
+    def face_index(self):
+        """
+        The index of the face closest to the impact location.
+        
+        Returns
+        -------
+        int
+        """
+        return self._face_index
+    
+    @face_index.setter
+    def face_index(self, value):
+        if value is None:
+            self._face_index = None
+        else:
+            self._face_index = int(value)
+        return
+    
+    @property
+    def node_index(self):
+        """
+        The index of the node closest to the impact location.
+        
+        Returns
+        -------
+        int
+        """
+        return self._node_index
+    
+    @node_index.setter
+    def node_index(self, value):
+        if value is None:
+            self._node_index = None
+        else:
+            self._node_index = int(value)
+        return
 
     @property
     def target(self):

@@ -1,10 +1,11 @@
 import numpy as np
 from numpy.random import Generator
+import xarray as xr
 from typing import Tuple, Any
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
-from .surface import Surface
+from .surface import Surface, elevation_to_cartesian
 from .target import Target
 
 RIMDROP = 4.20
@@ -151,16 +152,43 @@ class Morphology:
             h = self.crater_profile(r) 
             if r > self.crater.radius:
                 h += self.ejecta_profile(r)
-            if h > self.floordepth:
-                h = self.floordepth
             return h
         
+        
+        def _compute_elevation(distance_var, elev_var, pos_vars, mean_elevation):
+            # Adjust the interior points of the crater
+            interior_mask = surf[distance_var].values <= self.crater.radius
+            
+            # Compute the reference sphere elevation at each node
+            reference_elevation = elevation_to_cartesian(surf.uxgrid._ds[pos_vars], surf[elev_var])
+            
+            # Scale the mesh to match the reference sphere
+            cap_mult = np.linalg.norm(surf.average_region_vector) / self.target.radius
+            reference_elevation *= cap_mult
+            
+            # Shift by the average region center to align with the actual sphere location
+            reference_elevation[pos_vars[0]] += surf.average_region_center[0] 
+            reference_elevation[pos_vars[1]] += surf.average_region_center[1] 
+            reference_elevation[pos_vars[2]] += surf.average_region_center[2] 
+
+            # Apply the crater profile to the interior
+            profile = np.vectorize(_crater_profile)(surf[distance_var])
+            
+            newdem = xr.where(interior_mask, 
+                              reference_elevation + profile,
+                              surf[elev_var] + profile)
+          
+            min_elevation = mean_elevation - self.floordepth 
+            newdem = xr.where(newdem < min_elevation, min_elevation, newdem)
+            return newdem
+        
         # Compute the reference surface for the crater 
-        surf.get_average_surface(self.crater.location, self.crater.radius)        
-    
-        try: 
-            surf['node_elevation'] += np.vectorize(_crater_profile)(surf['node_crater_distance']) 
-            surf['face_elevation'] += np.vectorize(_crater_profile)(surf['face_crater_distance']) 
+        surf.get_average_surface(self.crater.location, self.crater.radius)
+        mean_elevation = np.linalg.norm(surf.average_region_vector + surf.average_region_center) 
+        try:
+            surf["node_elevation"] = _compute_elevation("node_crater_distance", "node_elevation", ["node_x", "node_y", "node_z"], mean_elevation) 
+            surf["face_elevation"] = _compute_elevation("face_crater_distance", "face_elevation", ["face_x", "face_y", "face_z"], mean_elevation)
+            
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
