@@ -15,6 +15,7 @@ from ..utils.general_utils import to_config, set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..cython.perlin import apply_noise
+import warnings
 
 _POISSON_BATCH_SIZE = 1000
 
@@ -386,42 +387,47 @@ class Simulation:
         """
         if out_dir is None:
             out_dir = os.path.join(self.simdir, "vtk_files")
-        ignore_time = "time" not in self.surf.dims
+            
+        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+        # The API change does not affect the functionality of the code, so we can safely ignore the warning
+        with warnings.catch_warnings(): 
+            warnings.simplefilter("ignore", FutureWarning)
+            ignore_time = "time" not in self.surf.dims
         
-        # Save the surface data to a combined netCDF file
-        with tempfile.TemporaryDirectory() as temp_dir:
-            self.save(combine_data_files=True, out_dir=temp_dir)
-            
-            # Use elevation data to modify the mesh for visualization purposes
-            grid = xr.open_dataset(self.grid_file)
-           
-            vert_vars = ['xVertex', 'yVertex', 'zVertex']
-            
-            ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['node_elevation'])
-            for var in vert_vars:
-                grid[var] = ds_new[var]
+            # Save the surface data to a combined netCDF file
+            with tempfile.TemporaryDirectory() as temp_dir:
+                self.save(combine_data_files=True, out_dir=temp_dir)
                 
-            face_vars = ['xCell', 'yCell', 'zCell']
-            ds_new = elevation_to_cartesian(grid[face_vars], self.surf['face_elevation'])
-            for var in face_vars:
-                grid[var] = ds_new[var]
+                # Use elevation data to modify the mesh for visualization purposes
+                grid = xr.open_dataset(self.grid_file)
             
-            grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"))
-            
-            # Combine the grid and data into one file
-            try:
-                extract_vtk(
-                    filename_pattern=os.path.join(temp_dir, "*.nc"),
-                    mesh_filename=os.path.join(temp_dir, "surface_mesh.nc"),
-                    variable_list=['allOnVertices', 'allOnCells'] , 
-                    dimension_list=['maxEdges=','vertexDegree='], 
-                    combine=True,
-                    include_mesh_vars=True,
-                    out_dir=out_dir, 
-                    ignore_time=ignore_time, 
-                    *args, **kwargs)
-            except:
-                raise RuntimeError("Error in xtract_vtk. Cannot export VTK files")
+                vert_vars = ['xVertex', 'yVertex', 'zVertex']
+                
+                ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['node_elevation'])
+                for var in vert_vars:
+                    grid[var] = ds_new[var]
+                    
+                face_vars = ['xCell', 'yCell', 'zCell']
+                ds_new = elevation_to_cartesian(grid[face_vars], self.surf['face_elevation'])
+                for var in face_vars:
+                    grid[var] = ds_new[var]
+                
+                grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"))
+                
+                # Combine the grid and data into one file
+                try:
+                    extract_vtk(
+                        filename_pattern=os.path.join(temp_dir, "*.nc"),
+                        mesh_filename=os.path.join(temp_dir, "surface_mesh.nc"),
+                        variable_list=['allOnVertices', 'allOnCells'] , 
+                        dimension_list=['maxEdges=','vertexDegree='], 
+                        combine=True,
+                        include_mesh_vars=True,
+                        out_dir=out_dir, 
+                        ignore_time=ignore_time, 
+                        *args, **kwargs)
+                except:
+                    raise RuntimeError("Error in xtract_vtk. Cannot export VTK files")
         
         return
     
