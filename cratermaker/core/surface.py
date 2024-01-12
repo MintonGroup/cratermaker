@@ -347,7 +347,11 @@ class Surface(UxDataset):
         """
 
         # Find cells within the crater radius
-        cells_within_radius = self['face_crater_distance'] <= region_radius
+        if 'face_crater_distance' in self:
+            cells_within_radius = self['face_crater_distance'] <= region_radius
+        else:
+            _, cells_within_radius = self.get_distance(location)
+            cells_within_radius = cells_within_radius <= region_radius
        
         vert_vars = ['face_x', 'face_y', 'face_z'] 
         region_mesh = self.uxgrid._ds[vert_vars].where(cells_within_radius, drop=True)

@@ -3,8 +3,9 @@ import os
 import shutil
 import numpy as np
 import tempfile
+from cratermaker import Simulation
 from cratermaker import Target
-from cratermaker import Surface, initialize_surface, generate_grid
+from cratermaker import Surface, initialize_surface, generate_grid, elevation_to_cartesian
 from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
@@ -213,6 +214,52 @@ class TestSurface(unittest.TestCase):
         # Compare the expected and calculated bearings
         self.assertAlmostEqual(calculated_bearing, expected_bearing, places=1)
 
+
+    def test_average_surface(self):
+        """
+        Test the average_surface function. This will generate a random noisy surface, compute an average over a small region, and then test that the surface elevations relative to the average are close to zero.
+        """
+        sim = Simulation(pix=self.pix)
+        sim.apply_noise(model="ridged")
+        location = get_random_location()
+        region_radius = 100e3
+
+        average_region_center, average_region_vector = sim.surf.get_average_surface(location, region_radius)
+        
+
+        # Find cells within the crater radius
+        if 'face_crater_distance' in sim.surf:
+            cells_within_radius = sim.surf['face_crater_distance'] <= region_radius
+        else:
+            _, cells_within_radius = sim.surf.get_distance(location)
+            cells_within_radius = cells_within_radius <= region_radius
+        
+        vert_vars = ['face_x', 'face_y', 'face_z'] 
+        region_mesh = sim.surf.uxgrid._ds[vert_vars].where(cells_within_radius, drop=True)
+        region_elevation = sim.surf['face_elevation'].where(cells_within_radius, drop=True) 
+        region_surf = elevation_to_cartesian(region_mesh, region_elevation)
+        
+        cap_mult = np.linalg.norm(average_region_vector) / sim.target.radius
+        
+        region_mesh *= cap_mult 
+        region_mesh['face_x'] += average_region_center[0] 
+        region_mesh['face_y'] += average_region_center[1] 
+        region_mesh['face_z'] += average_region_center[2] 
+
+        # Fetch x, y, z values of the mesh within the region
+        region_delta = region_surf - region_mesh
+
+        # Fetch the areas of the cells within the region
+        cell_areas = sim.surf['face_areas'].where(cells_within_radius, drop=True)
+
+        # Calculate the weighted average of the x, y, and z coordinates to get the average surface vector
+        weighted_x = (region_delta['face_x'] * cell_areas).sum() / cell_areas.sum()
+        weighted_y = (region_delta['face_y'] * cell_areas).sum() / cell_areas.sum()
+        weighted_z = (region_delta['face_z'] * cell_areas).sum() / cell_areas.sum()
+        average_center = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
+        average_center = np.linalg.norm(average_center)
+        self.assertAlmostEqual(average_center / sim.target.radius, 0.0, delta=1e-5)
+        
 
 if __name__ == '__main__':
      
