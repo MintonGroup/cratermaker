@@ -313,6 +313,7 @@ class Simulation:
             self.crater, self.projectile = self.generate_crater(**kwargs)
         self.surf['node_crater_distance'], self.surf['face_crater_distance'] = self.surf.get_distance(self.crater.location)
         self.surf['node_crater_bearing'], self.surf['face_crater_bearing'] = self.surf.get_initial_bearing(self.crater.location)
+        self.crater.node_index, self.crater.face_index = self.surf.find_nearest_index(self.crater.location)
        
         self.crater.morphology.form_crater(self.surf)
         

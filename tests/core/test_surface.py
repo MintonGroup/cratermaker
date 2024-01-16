@@ -224,7 +224,7 @@ class TestSurface(unittest.TestCase):
         location = get_random_location()
         region_radius = 100e3
 
-        sim.surf.get_average_surface(location, region_radius)
+        sim.surf.get_reference_surface(location, region_radius)
         
 
         # Find cells within the crater radius

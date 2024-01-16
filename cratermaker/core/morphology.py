@@ -1,10 +1,11 @@
 import numpy as np
 from numpy.random import Generator
+import xarray as xr
 from typing import Tuple, Any
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
-from .surface import Surface
+from .surface import Surface, elevation_to_cartesian
 from .target import Target
 
 RIMDROP = 4.20
@@ -147,24 +148,25 @@ class Morphology:
         This method forms the interior of the crater by altering the elevation variable of the surface mesh.
         """
       
+        # Compute the reference surface for the crater 
+        surf.get_reference_surface(self.crater.location, self.crater.radius)
+        min_elevation = surf.reference_surface_elevation - self.floordepth
+        
         def _crater_profile(r):
             h = self.crater_profile(r) 
             if r > self.crater.radius:
                 h += self.ejecta_profile(r)
-            if h > self.floordepth:
-                h = self.floordepth
-            return h
-        
-        # Compute the reference surface for the crater 
-        surf.get_average_surface(self.crater.location, self.crater.radius)        
-    
-        try: 
-            surf['node_elevation'] += np.vectorize(_crater_profile)(surf['node_crater_distance']) 
-            surf['face_elevation'] += np.vectorize(_crater_profile)(surf['face_crater_distance']) 
+            return h    
+        try:
+            surf['node_elevation'] = surf['reference_node_elevation'] + np.vectorize(_crater_profile)(surf['node_crater_distance']) 
+            surf['face_elevation'] = surf['reference_face_elevation'] + np.vectorize(_crater_profile)(surf['face_crater_distance']) 
+            
+            surf['node_elevation'] = xr.where((surf['node_crater_distance'] < self.crater.radius) & (surf['node_elevation'] < min_elevation), min_elevation, surf['node_elevation'])
+            surf['face_elevation'] = xr.where((surf['face_crater_distance'] < self.crater.radius) & (surf['face_elevation'] < min_elevation), min_elevation, surf['face_elevation'])
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
-         
+                 
         return  
     
     @property
