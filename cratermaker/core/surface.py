@@ -38,7 +38,7 @@ class Surface(UxDataset):
     The Surface class extends UxDataset for the cratermaker project.
 
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_average_region_center', '_average_region_vector')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_reference_surface_elevation')    
     
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
@@ -55,8 +55,7 @@ class Surface(UxDataset):
         # Additional initialization for Surface
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
-        self._average_region_center = np.zeros(3)
-        self._average_region_vector = np.array([0.0, 0.0, self.target_radius])
+        self._reference_surface_elevation = 0.0
         
 
     def generate_data(self,
@@ -329,7 +328,7 @@ class Surface(UxDataset):
         return np.argmin(node_distances.data), np.argmin(face_distances.data)
 
 
-    def get_average_surface(self,
+    def get_reference_surface(self,
                             location: Tuple[FloatLike, FloatLike], 
                             region_radius: np.float64) -> NDArray[np.float64]:
         """
@@ -349,29 +348,31 @@ class Surface(UxDataset):
         """
 
         # Find cells within the crater radius
-        if 'face_crater_distance' in self:
-            cells_within_radius = self['face_crater_distance'] <= region_radius
+        if 'face_crater_distance' and 'node_crater_distance' in self:
+            faces_within_radius = self['face_crater_distance'] <= region_radius
+            nodes_within_radius = self['node_crater_distance'] <= region_radius
         else:
-            _, cells_within_radius = self.get_distance(location)
-            cells_within_radius = cells_within_radius <= region_radius
+            nodes_within_radius, faces_within_radius = self.get_distance(location)
+            faces_within_radius = faces_within_radius <= region_radius
+            nodes_within_radius = nodes_within_radius <= region_radius
        
-        vert_vars = ['face_x', 'face_y', 'face_z'] 
-        region_mesh = self.uxgrid._ds[vert_vars].where(cells_within_radius, drop=True)
-        region_elevation = self['face_elevation'].where(cells_within_radius, drop=True)
-        region_surf = elevation_to_cartesian(region_mesh, region_elevation)
+        face_vars = ['face_x', 'face_y', 'face_z'] 
+        region_faces = self.uxgrid._ds[face_vars].where(faces_within_radius, drop=False)
+        region_elevation = self['face_elevation'].where(faces_within_radius, drop=False)
+        region_surf = elevation_to_cartesian(region_faces, region_elevation)
 
         # Fetch x, y, z values of the mesh within the region
-        region_delta = region_surf - region_mesh
+        region_delta = region_surf - region_faces
 
         # Fetch the areas of the cells within the region
-        cell_areas = self['face_areas'].where(cells_within_radius, drop=True)
+        cell_areas = self['face_areas'].where(faces_within_radius, drop=False)
 
         # Calculate the weighted average of the x, y, and z coordinates to get the average surface vector
         weighted_x = (region_delta['face_x'] * cell_areas).sum() / cell_areas.sum()
         weighted_y = (region_delta['face_y'] * cell_areas).sum() / cell_areas.sum()
         weighted_z = (region_delta['face_z'] * cell_areas).sum() / cell_areas.sum()
-        average_region_elevation = ((region_elevation * cell_areas).sum() / cell_areas.sum()).item()
-        average_region_center = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
+        reference_surface_elevation = ((region_elevation * cell_areas).sum() / cell_areas.sum()).item()
+        reference_surface_center = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
        
         # This will compute the vector that describes the orientation of the center of the center of the original mesh surface. 
         _, center_face_index, = self.find_nearest_index(location)
@@ -381,16 +382,41 @@ class Surface(UxDataset):
         surface_vector = surface_vector / np.linalg.norm(surface_vector)
         
         # Sum the target radius and the average elevation to get the end point of the cap vector
-        surface_vector *= (self.target_radius + average_region_elevation)
+        surface_vector *= (self.target_radius + reference_surface_elevation)
         
         # Now we can get the vector pointing to the center of the cap from the generating sphere center
-        average_region_vector = surface_vector - average_region_center 
+        reference_surface_vector = surface_vector - reference_surface_center 
+        
+        # Calculate the radius of the reference sphere and normalize the unit vector
+        reference_sphere_radius = np.linalg.norm(reference_surface_vector)
+        reference_surface_vector /= reference_sphere_radius
+        
+        self.reference_surface_elevation = reference_surface_elevation
+        
+        # Calculate the distance from each face of the original surface to the reference sphere
+        face_vectors = np.vstack((region_faces.face_x, region_faces.face_y, region_faces.face_z)).T
+        face_vectors_normalized = face_vectors / np.linalg.norm(face_vectors, axis=1)[:, np.newaxis]
 
-        self.average_region_center = average_region_center
-        self.average_region_vector = average_region_vector
+        # Calculate the intersection points on the reference sphere along the direction of surface_vector
+        intersection_points = reference_surface_center + face_vectors_normalized * reference_sphere_radius
 
+        # Calculate the distances between the original face points and the intersection points
+        reference_face_elevation = np.linalg.norm(face_vectors - intersection_points, axis=1)
+        
+        self['reference_face_elevation'] = xr.where(faces_within_radius, reference_face_elevation, self['face_elevation'])
+       
+        # Now do the same thing to compute the nodal values 
+        node_vars = ['node_x', 'node_y', 'node_z'] 
+        region_nodes = self.uxgrid._ds[node_vars].where(nodes_within_radius, drop=False)
+        node_vectors = np.vstack((region_nodes.node_x, region_nodes.node_y, region_nodes.node_z)).T
+        node_vectors_normalized = node_vectors / np.linalg.norm(node_vectors, axis=1)[:, np.newaxis]
+        intersection_points = reference_surface_center + node_vectors_normalized * reference_sphere_radius
+        reference_node_elevation = np.linalg.norm(node_vectors - intersection_points, axis=1) 
+        
+        self['reference_node_elevation'] = xr.where(nodes_within_radius, reference_node_elevation, self['node_elevation'])
+        
         return
-
+   
 
     @property
     def grid_temp_dir(self):
@@ -466,28 +492,16 @@ class Surface(UxDataset):
     def grid_type(self, value):
         self._grid_type = value
         
-
     @property
-    def average_region_center(self):
+    def reference_surface_elevation(self):
         """
-        Center of the average region (used as a reference surface for crater morphology calculations).
+        Average elevation of the surface within the reference radius.
         """
-        return self._average_region_center
-
-    @average_region_center.setter
-    def average_region_center(self, value):
-        self._average_region_center = value
+        return self._reference_surface_elevation
         
-    @property
-    def average_region_vector(self):
-        """
-        Vector pointing from the center of the generating sphere to the center of the average region.
-        """
-        return self._average_region_vector
-    
-    @average_region_vector.setter
-    def average_region_vector(self, value):
-        self._average_region_vector = value
+    @reference_surface_elevation.setter
+    def reference_surface_elevation(self, value):
+        self._reference_surface_elevation = value
     
         
 def initialize_surface(make_new_grid: bool = False,

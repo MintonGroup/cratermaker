@@ -93,6 +93,7 @@ Attributes
     Surface.grid_temp_dir
     Surface.pix
     Surface.target_radius
+    Surface.reference_surface_elevation
 
 Methods
 -------
@@ -103,7 +104,7 @@ Methods
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
     Surface.find_nearest_index
-    Surface.get_average_surface
+    Surface.get_reference_surface
     Surface.get_distance
     Surface.get_initial_bearing
     Surface.set_elevation
