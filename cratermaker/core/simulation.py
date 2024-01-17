@@ -175,9 +175,12 @@ class Simulation:
         else:
             raise TypeError("morphology must be a subclass of Morphology")
       
-        
         self._craterlist = []
-        
+       
+        # Find the minimum and maximum possible crater diameter (will be roughly the area of the minimum face size)
+        self.smallest_crater = np.sqrt(self.surf['face_areas'].min().item() / np.pi) * 2
+        self.largest_crater = self.target.radius * 2
+        self.surface_area = 4 * np.pi * self.target.radius**2
 
         return
 
@@ -340,7 +343,7 @@ class Simulation:
             interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
             "4.0 Gy to 3.5 Gy ago". 
         cumulative_number_at_diameter : PairOfFloats, optional
-            A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function convert this value
+            A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function will convert this value
             to a corresponding age and use the production function for a given age.
         reference_cumulative_number_at_diameter : PairOfFloats, optional
             A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function will convert this
@@ -358,8 +361,13 @@ class Simulation:
                                                        reference_age=reference_age, 
                                                        cumulative_number_at_diameter=cumulative_number_at_diameter, 
                                                        reference_cumulative_number_at_diameter=reference_cumulative_number_at_diameter, 
+                                                       diameter_range=(self.smallest_crater, self.largest_crater),
+                                                       area=self.surface_area, 
                                                        **kwargs)
-    
+        for diameter in impacts_this_interval:
+            print(f"Emplacing crater of diameter {diameter*1e-3:.2f} km")
+            self.emplace_crater(diameter=diameter)
+        return 
          
     def save(self, 
              *args: Any, 

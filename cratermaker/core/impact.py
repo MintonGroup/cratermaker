@@ -292,6 +292,7 @@ class Crater(Impact):
         """ 
         self._transient_diameter = None
         self._transient_radius = None
+        self._morphology_type = None
         super().__init__(**kwargs)
         
         #  Evaluate and check diameter/radius values 
@@ -441,6 +442,23 @@ class Crater(Impact):
         self._morphology = value
         return 
 
+    @property
+    def morphology_type(self):
+        """
+        The type of morphology to use for the crater.
+        
+        Returns
+        -------
+        str
+        """ 
+        return self._morphology_type
+    
+    @morphology_type.setter
+    def morphology_type(self, value):
+        if not isinstance(value, str):
+            raise TypeError("morphology_type must be a string")
+        self._morphology_type = value
+        return
 
 class Projectile(Impact):
     """

@@ -22,6 +22,9 @@ _COMBINED_DATA_FILE_NAME = "surface_data.nc"
 _GRID_FILE_NAME = "grid.nc"
 _GRID_TEMP_DIR = ".grid"
 
+# This is a factor used to determine the smallest length scale in the grid
+_SMALLFAC = 1.0e-5
+
 # Mapping from MPAS to UGRID dimension names
 _DIM_MAP = {"n_node": "nVertices", 
             "n_face": "nCells",
@@ -38,7 +41,7 @@ class Surface(UxDataset):
     The Surface class extends UxDataset for the cratermaker project.
 
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_reference_surface_elevation')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_reference_surface_elevation', '_smallest_length')    
     
     """Surface class for cratermaker"""
     def __init__(self, *args, **kwargs):
@@ -61,6 +64,7 @@ class Surface(UxDataset):
     def generate_data(self,
                       name: str,
                       long_name: str | None = None,
+                      units: str | None = None,
                       data: FloatLike | NDArray | None = None,
                       isfacedata: bool = True,
                       save_to_file: bool = False,
@@ -68,13 +72,14 @@ class Surface(UxDataset):
         """
         Generate a NetCDF data file using the provided grid file and save it to the specified path.
 
-
         Parameters
         ----------
         name : str
             Name of the data variable. This will also be used as the data file name.
         long_name : str, optional
             Long name of the data variable that will be saved as an attribute.
+        units : str, optional
+            Units of the data variable that will be saved as an attribute.
         data : scalar or array-like
             Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
         isfacedata : bool, optional
@@ -86,6 +91,14 @@ class Surface(UxDataset):
         None
         """    
         uxgrid = uxr.open_grid(self.grid_file,latlon=True,use_dual=False)
+        if long_name is None and units is None:
+            attrs = None
+        else:
+            attrs = {}
+            if long_name:
+                attrs["long_name"] = long_name
+            if units:
+                attrs["units"] = units
         # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
         # The API change does not affect the functionality of the code, so we can safely ignore the warning        
         with warnings.catch_warnings(): 
@@ -109,7 +122,7 @@ class Surface(UxDataset):
             uxda = UxDataArray(
                     data=data,
                     dims=dims,
-                    attrs=None if long_name is None else {"long_name": long_name},
+                    attrs=attrs,
                     name=name,
                     uxgrid=uxgrid
                     ) 
@@ -154,6 +167,7 @@ class Surface(UxDataset):
             self.generate_data(data=new_elev, 
                                name="node_elevation",
                                long_name="elevation of nodes",
+                               units= "m",
                                isfacedata=False,
                                save_to_file=save_to_file
                               )   
@@ -161,6 +175,7 @@ class Surface(UxDataset):
             self.generate_data(data=new_elev, 
                                name="face_elevation",
                                long_name="elevation of faces",
+                               units="m",
                                isfacedata=True,
                                save_to_file=save_to_file
                               )
@@ -365,13 +380,13 @@ class Surface(UxDataset):
         region_delta = region_surf - region_faces
 
         # Fetch the areas of the cells within the region
-        cell_areas = self['face_areas'].where(faces_within_radius, drop=False)
+        face_areas = self['face_areas'].where(faces_within_radius, drop=False)
 
         # Calculate the weighted average of the x, y, and z coordinates to get the average surface vector
-        weighted_x = (region_delta['face_x'] * cell_areas).sum() / cell_areas.sum()
-        weighted_y = (region_delta['face_y'] * cell_areas).sum() / cell_areas.sum()
-        weighted_z = (region_delta['face_z'] * cell_areas).sum() / cell_areas.sum()
-        reference_surface_elevation = ((region_elevation * cell_areas).sum() / cell_areas.sum()).item()
+        weighted_x = (region_delta['face_x'] * face_areas).sum() / face_areas.sum()
+        weighted_y = (region_delta['face_y'] * face_areas).sum() / face_areas.sum()
+        weighted_z = (region_delta['face_z'] * face_areas).sum() / face_areas.sum()
+        reference_surface_elevation = ((region_elevation * face_areas).sum() / face_areas.sum()).item()
         reference_surface_center = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
        
         # This will compute the vector that describes the orientation of the center of the center of the original mesh surface. 
@@ -502,6 +517,21 @@ class Surface(UxDataset):
     @reference_surface_elevation.setter
     def reference_surface_elevation(self, value):
         self._reference_surface_elevation = value
+        
+        
+    @property
+    def smallest_length(self):
+        """
+        Smallest length value that is directly modeled on the grid. This is used to determine the maximum distance of ejecta to 
+        consider, for instance
+        """
+        return self._smallest_length
+
+    @smallest_length.setter
+    def smallest_length(self, value):
+        if not isinstance(value, float):
+            raise TypeError("smallest_length must be a float")
+        self._smallest_length = value        
     
         
 def initialize_surface(make_new_grid: bool = False,
@@ -624,7 +654,9 @@ def initialize_surface(make_new_grid: bool = False,
     # if self._face_areas is not None: it allows for using the cached result
     with warnings.catch_warnings(): 
         warnings.simplefilter("ignore", FutureWarning)         
-        surf['face_areas'] = uxr.UxDataArray(surf.uxgrid.face_areas, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces'})
+        surf['face_areas'] = uxr.UxDataArray(surf.uxgrid.face_areas * target.radius**2 , dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
+        
+    surf.smallest_length = np.sqrt(surf['face_areas'].min().item()) * _SMALLFAC
     
     return surf
 
