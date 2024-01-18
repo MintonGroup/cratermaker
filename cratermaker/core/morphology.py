@@ -149,31 +149,38 @@ class Morphology:
         """
       
         # Compute the reference surface for the crater 
-        surf.get_reference_surface(self.crater.location, self.crater.radius)
-        min_elevation = surf.reference_surface_elevation - self.floordepth
         
         def _crater_profile(r):
             h = self.crater_profile(r) 
-            if r > self.crater.radius:
+            if r > self.radius:
                 h += self.ejecta_profile(r)
-            return h    
+            return h
         
         def _profile_invert(r):
             return self.ejecta_profile(r) - surf.smallest_length
        
         # Get the maximum extent 
-        rmax = fsolve(_profile_invert, x0=self.crater.radius)[0]
+        rmax = fsolve(_profile_invert, x0=self.radius)[0]
+        if self.truncation_radius:
+            rmax = min(rmax, self.truncation_radius * self.radius)
+            
+        # Extract only the array data that we need to do the computations
+        inc_node = surf['n_node'].where(surf['node_crater_distance'] < rmax, drop=True).astype(int) 
+        inc_face = surf['n_face'].where(surf['face_crater_distance'] < rmax, drop=True).astype(int)
+        inc_surf = surf.sel(n_node=inc_node, n_face=inc_face)
+        
+        inc_surf.get_reference_surface(self.crater.location, self.crater.radius)
+        min_elevation = surf.reference_surface_elevation - self.floordepth
         
         try:
-            surf['node_elevation'] = xr.where(surf['node_crater_distance'] < rmax, 
-                                              surf['reference_node_elevation'] + np.vectorize(_crater_profile)(surf['node_crater_distance']), 
-                                              surf['reference_node_elevation']) 
-            surf['face_elevation'] = xr.where(surf['face_crater_distance'] < rmax,
-                                              surf['reference_face_elevation'] + np.vectorize(_crater_profile)(surf['face_crater_distance']),
-                                              surf['reference_face_elevation']) 
+            inc_surf['node_elevation'] = inc_surf['reference_node_elevation'] + np.vectorize(_crater_profile)(inc_surf['node_crater_distance'])
+            inc_surf['face_elevation'] = inc_surf['reference_face_elevation'] + np.vectorize(_crater_profile)(inc_surf['face_crater_distance'])
+        
+            inc_surf['node_elevation'] = xr.where((inc_surf['node_crater_distance'] < self.crater.radius) & (inc_surf['node_elevation'] < min_elevation), min_elevation, inc_surf['node_elevation'])
+            inc_surf['face_elevation'] = xr.where((inc_surf['face_crater_distance'] < self.crater.radius) & (inc_surf['face_elevation'] < min_elevation), min_elevation, inc_surf['face_elevation'])
             
-            surf['node_elevation'] = xr.where((surf['node_crater_distance'] < self.crater.radius) & (surf['node_elevation'] < min_elevation), min_elevation, surf['node_elevation'])
-            surf['face_elevation'] = xr.where((surf['face_crater_distance'] < self.crater.radius) & (surf['face_elevation'] < min_elevation), min_elevation, surf['face_elevation'])
+            surf['node_elevation'][inc_node] = inc_surf['node_elevation']
+            surf['face_elevation'][inc_face] = inc_surf['face_elevation']
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")

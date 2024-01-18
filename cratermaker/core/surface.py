@@ -39,28 +39,264 @@ class Surface(UxDataset):
     calculating distances and bearings, and other surface-related computations.
     
     The Surface class extends UxDataset for the cratermaker project.
+    
+    Parameters
+    ----------
+    grid_temp_dir : os.PathLike, optional
+        Directory for temporary grid files.
+    data_dir : os.PathLike, optional
+        Directory for data files.
+    grid_file : os.PathLike, optional
+        Path to the grid file.
+    target_radius : FloatLike, optional
+        Radius of the target body.
+    pix : FloatLike, optional
+        Approximate pixel size or resolution used to generate the mesh.
+    grid_type : str, optional
+        Type of the grid used (not implemented yet)
+    *args
+        Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
+    **kwargs
+        Arbitrary keyword arguments to pass to the ``uxarray.UxDataset`` class.
 
     """   
     __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_reference_surface_elevation', '_smallest_length')    
     
     """Surface class for cratermaker"""
-    def __init__(self, *args, **kwargs):
-        self._grid_temp_dir = kwargs.pop('grid_temp_dir', None)
-        self._data_dir = kwargs.pop('data_dir', None)
-        self._grid_file = kwargs.pop('grid_file', None)
-        self._target_radius = kwargs.pop('target_radius', None)
-        self._pix = kwargs.pop('pix', None)
-        self._grid_type = kwargs.pop('grid_type', None)
+    def __init__(self, 
+                 *args, 
+                 grid_temp_dir: os.PathLike | None = None,
+                 data_dir: os.PathLike | None = None, 
+                 grid_file: os.PathLike | None = None,
+                 target_radius: FloatLike | None = None,
+                 pix: FloatLike | None = None,
+                 grid_type: str | None = None,
+                 **kwargs):
+        # Process the Surface-specific keyword arguments 
+        self._grid_temp_dir = grid_temp_dir
+        self._data_dir = data_dir
+        self._grid_file = grid_file
+        self._target_radius = target_radius
+        self._pix = pix
+        self._grid_type = grid_type
+        
         
         # Call the super class constructor with the UxDataset
         super().__init__(*args, **kwargs)
-        
+       
         # Additional initialization for Surface
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
         self._reference_surface_elevation = 0.0
-        
 
+    def __getitem__(self, key):
+        """Override to make sure the result is an instance of ``cratermaker.Surface``"""
+
+        value = super().__getitem__(key)
+
+        if isinstance(value, uxr.UxDataset):
+            value = Surface(value,
+                            uxgrid=self.uxgrid,
+                            source_datasets=self.source_datasets,
+                            grid_temp_dir=self.grid_temp_dir,
+                            data_dir=self.data_dir,
+                            grid_file=self.grid_file,
+                            target_radius=self.target_radius,
+                            pix=self.pix,
+                            grid_type=self.grid_type,
+                            )
+            value.reference_surface_elevation = self.reference_surface_elevation
+
+        return value
+    
+    
+    def _calculate_binary_op(self, *args, **kwargs):
+        """Override to make the result a complete instance of ``cratermaker.Surface``."""
+        ds = super()._calculate_binary_op(*args, **kwargs)
+
+        if isinstance(ds, Surface):
+            ds._grid_temp_dir = self._grid_temp_dir
+            ds._data_dir = self._data_dir
+            ds._grid_file = self._grid_file
+            ds._target_radius = self._target_radius
+            ds._pix = self._pix
+            ds._grid_type = self._grid_type
+            ds._reference_surface_elevation = self._reference_surface_elevation
+        else:
+            ds = Surface(ds,
+                         uxgrid=self.uxgrid,
+                         source_datasets=self.source_datasets,
+                         grid_temp_dir=self.grid_temp_dir,
+                         data_dir=self.data_dir,
+                         grid_file=self.grid_file,
+                         target_radius=self.target_radius,
+                         pix=self.pix,
+                         grid_type=self.grid_type,
+                         )
+            ds._reference_surface_elevation = self._reference_surface_elevation
+
+        return ds
+    
+    @classmethod
+    def _construct_direct(cls, *args, **kwargs):
+        """Override to make the result a ``cratermaker.Surface`` class."""
+
+        return cls(uxr.UxDataset._construct_direct(*args, **kwargs))    
+    
+    def _copy(self, **kwargs):
+        """Override to make the result a complete instance of ``cratermaker.Surface``."""
+        copied = super()._copy(**kwargs)
+
+        deep = kwargs.get('deep', None)
+
+        if deep == True:
+            # Deep copy all of the properties
+            copied._grid_temp_dir = self._grid_temp_dir.copy()
+            copied._data_dir = self._data_dir.copy()
+            copied._grid_file = self._grid_file.copy()
+            copied._target_radius = self._target_radius.copy()
+            copied._pix = self._pix.copy()
+            copied._grid_type = self._grid_type.copy()
+            copied._reference_surface_elevation = self._reference_surface_elevation.copy()
+        else:
+            # Point to the existing properties
+            copied._grid_temp_dir = self._grid_temp_dir
+            copied._data_dir = self._data_dir
+            copied._grid_file = self._grid_file
+            copied._target_radius = self._target_radius
+            copied._pix = self._pix
+            copied._grid_type = self._grid_type
+            copied._reference_surface_elevation = self._reference_surface_elevation
+        return copied    
+   
+    def _replace(self, *args, **kwargs):
+        """Override to make the result a complete instance of ``cratermaker.Surface``."""
+        ds = super()._replace(*args, **kwargs)
+
+        if isinstance(ds, Surface):
+            ds._grid_temp_dir = self._grid_temp_dir
+            ds._data_dir = self._data_dir
+            ds._grid_file = self._grid_file
+            ds._target_radius = self._target_radius
+            ds._pix = self._pix
+            ds._grid_type = self._grid_type
+            ds._reference_surface_elevation = self._reference_surface_elevation
+        else:
+            ds = Surface(ds,
+                         uxgrid=self.uxgrid,
+                         source_datasets=self.source_datasets,
+                         grid_temp_dir=self.grid_temp_dir,
+                         data_dir=self.data_dir,
+                         grid_file=self.grid_file,
+                         target_radius=self.target_radius,
+                         pix=self.pix,
+                         grid_type=self.grid_type,
+                         )
+            ds._reference_surface_elevation = self._reference_surface_elevation
+
+        return ds   
+
+    @property
+    def grid_temp_dir(self):
+        """
+        Directory for temporary grid files.
+        """
+        return self._grid_temp_dir
+
+    @grid_temp_dir.setter
+    def grid_temp_dir(self, value):
+        self._grid_temp_dir = value
+        if not os.path.exists(self._grid_temp_dir):
+            os.makedirs(self._grid_temp_dir)
+
+    @property
+    def data_dir(self):
+        """
+        Directory for data files.
+        """
+        return self._data_dir
+
+    @data_dir.setter
+    def data_dir(self, value):
+        self._data_dir = value
+        if not os.path.exists(self._data_dir):
+            os.makedirs(self._data_dir)
+
+    @property
+    def grid_file(self):
+        """
+        Path to the grid file.
+        """
+        return self._grid_file
+
+    @grid_file.setter
+    def grid_file(self, value):
+        self._grid_file = value
+
+    @property
+    def target_radius(self):
+        """
+        Radius of the target body.
+        """
+        return self._target_radius
+
+    @target_radius.setter
+    def target_radius(self, value):
+        if not isinstance(value, (float, int)):
+            raise TypeError("target_radius must be a float or an integer")
+        self._target_radius = value
+
+    @property
+    def pix(self):
+        """
+        Approximate pixel size or resolution used to generate the mesh.
+        """
+        return self._pix
+
+    @pix.setter
+    def pix(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("pix must be of type FloatLike")
+        self._pix = value
+
+    @property
+    def grid_type(self):
+        """
+        Type of the grid used.
+        """
+        return self._grid_type
+
+    @grid_type.setter
+    def grid_type(self, value):
+        self._grid_type = value
+        
+    @property
+    def reference_surface_elevation(self):
+        """
+        Average elevation of the surface within the reference radius.
+        """
+        return self._reference_surface_elevation
+        
+    @reference_surface_elevation.setter
+    def reference_surface_elevation(self, value):
+        self._reference_surface_elevation = value
+        
+        
+    @property
+    def smallest_length(self):
+        """
+        Smallest length value that is directly modeled on the grid. This is used to determine the maximum distance of ejecta to 
+        consider, for instance
+        """
+        return self._smallest_length
+
+    @smallest_length.setter
+    def smallest_length(self, value):
+        if not isinstance(value, float):
+            raise TypeError("smallest_length must be a float")
+        self._smallest_length = value        
+    
+        
     def generate_data(self,
                       name: str,
                       long_name: str | None = None,
@@ -371,8 +607,10 @@ class Surface(UxDataset):
             faces_within_radius = faces_within_radius <= region_radius
             nodes_within_radius = nodes_within_radius <= region_radius
        
+        inc_face = self.n_face
         face_vars = ['face_x', 'face_y', 'face_z'] 
-        region_faces = self.uxgrid._ds[face_vars].where(faces_within_radius, drop=False)
+        face_grid = self.n_face.uxgrid._ds[face_vars].sel(n_face=inc_face)
+        region_faces = face_grid.where(faces_within_radius, drop=False)
         region_elevation = self['face_elevation'].where(faces_within_radius, drop=False)
         region_surf = elevation_to_cartesian(region_faces, region_elevation)
 
@@ -421,8 +659,10 @@ class Surface(UxDataset):
         self['reference_face_elevation'] = xr.where(faces_within_radius, reference_face_elevation, self['face_elevation'])
        
         # Now do the same thing to compute the nodal values 
+        inc_node = self.n_node
         node_vars = ['node_x', 'node_y', 'node_z'] 
-        region_nodes = self.uxgrid._ds[node_vars].where(nodes_within_radius, drop=False)
+        node_grid = self.n_node.uxgrid._ds[node_vars].sel(n_node=inc_node)
+        region_nodes = node_grid.where(nodes_within_radius, drop=False)
         node_vectors = np.vstack((region_nodes.node_x, region_nodes.node_y, region_nodes.node_z)).T
         node_vectors_normalized = node_vectors / np.linalg.norm(node_vectors, axis=1)[:, np.newaxis]
         intersection_points = reference_surface_center + node_vectors_normalized * reference_sphere_radius
@@ -433,107 +673,6 @@ class Surface(UxDataset):
         return
    
 
-    @property
-    def grid_temp_dir(self):
-        """
-        Directory for temporary grid files.
-        """
-        return self._grid_temp_dir
-
-    @grid_temp_dir.setter
-    def grid_temp_dir(self, value):
-        self._grid_temp_dir = value
-        if not os.path.exists(self._grid_temp_dir):
-            os.makedirs(self._grid_temp_dir)
-
-    @property
-    def data_dir(self):
-        """
-        Directory for data files.
-        """
-        return self._data_dir
-
-    @data_dir.setter
-    def data_dir(self, value):
-        self._data_dir = value
-        if not os.path.exists(self._data_dir):
-            os.makedirs(self._data_dir)
-
-    @property
-    def grid_file(self):
-        """
-        Path to the grid file.
-        """
-        return self._grid_file
-
-    @grid_file.setter
-    def grid_file(self, value):
-        self._grid_file = value
-
-    @property
-    def target_radius(self):
-        """
-        Radius of the target body.
-        """
-        return self._target_radius
-
-    @target_radius.setter
-    def target_radius(self, value):
-        if not isinstance(value, (float, int)):
-            raise TypeError("target_radius must be a float or an integer")
-        self._target_radius = value
-
-    @property
-    def pix(self):
-        """
-        Approximate pixel size or resolution used to generate the mesh.
-        """
-        return self._pix
-
-    @pix.setter
-    def pix(self, value):
-        if not isinstance(value, FloatLike):
-            raise TypeError("pix must be of type FloatLike")
-        self._pix = value
-
-    @property
-    def grid_type(self):
-        """
-        Type of the grid used.
-        """
-        return self._grid_type
-
-    @grid_type.setter
-    def grid_type(self, value):
-        self._grid_type = value
-        
-    @property
-    def reference_surface_elevation(self):
-        """
-        Average elevation of the surface within the reference radius.
-        """
-        return self._reference_surface_elevation
-        
-    @reference_surface_elevation.setter
-    def reference_surface_elevation(self, value):
-        self._reference_surface_elevation = value
-        
-        
-    @property
-    def smallest_length(self):
-        """
-        Smallest length value that is directly modeled on the grid. This is used to determine the maximum distance of ejecta to 
-        consider, for instance
-        """
-        return self._smallest_length
-
-    @smallest_length.setter
-    def smallest_length(self, value):
-        if not isinstance(value, float):
-            raise TypeError("smallest_length must be a float")
-        self._smallest_length = value        
-    
-        
 def initialize_surface(make_new_grid: bool = False,
          reset_surface: bool = True,
          pix: FloatLike | None = None,
