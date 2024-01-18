@@ -329,7 +329,7 @@ class Scale():
             transient_diameter = self.projectile_to_transient(projectile, target, rng)
             return transient_diameter - crater.transient_diameter 
         
-        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,crater.transient_diameter), args=(projectile, crater, target, self.rng))
+        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,1.2*crater.transient_diameter), args=(projectile, crater, target, self.rng))
         
         # Regenerate the projectile with the new diameter value
         projectile = Projectile(diameter=sol.root, target=target, location=projectile.location, velocity=projectile.velocity, angle=projectile.angle, rng=rng)

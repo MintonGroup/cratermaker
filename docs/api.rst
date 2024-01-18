@@ -94,6 +94,7 @@ Attributes
     Surface.pix
     Surface.target_radius
     Surface.reference_surface_elevation
+    Surface.smallest_length
 
 Methods
 -------
@@ -306,6 +307,7 @@ Attributes
     Crater.radius
     Crater.morphology
     Crater.morphology_cls
+    Crater.morphology_type
     Crater.transient_diameter
     Crater.transient_radius
 
@@ -410,6 +412,10 @@ Attributes
     Morphology.floordiam
     Morphology.floordepth
     Morphology.ejrim
+    Morphology.truncation_radius
+    Morphology.crater
+    Morphology.target
+    Morphology.rng
 
 Methods
 -------

@@ -1,11 +1,12 @@
 import numpy as np
 from numpy.random import Generator
 import xarray as xr
+from scipy.optimize import fsolve
 from typing import Tuple, Any
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
-from .surface import Surface, elevation_to_cartesian
+from .surface import Surface
 from .target import Target
 
 RIMDROP = 4.20
@@ -37,10 +38,7 @@ class Morphology:
         self.crater = crater 
         self.target = target
         self.rng = rng
-        self.rimheight = None
-        self.rimwidth = None
-        self.floordepth = None
-        self.floordiam = None
+        self.truncation_radius = None
 
         # Set the morphology based on crater type
         self.set_morphology_parameters()        
@@ -48,6 +46,7 @@ class Morphology:
     def __repr__(self):
         return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.diameter}, "
                 f"rimheight: {self.rimheight}, rimwidth: {self.rimwidth}, floordepth: {self.floordepth}, floordiam: {self.floordiam})") 
+    
                
     def set_morphology_parameters(self):
         """
@@ -140,6 +139,7 @@ class Morphology:
         r = np.abs(r) / self.radius
         thick = self.ejrim * (r)**(-ejprofile)
         return thick
+    
           
     def form_crater(self, surf: Surface) -> None:
         """
@@ -149,20 +149,38 @@ class Morphology:
         """
       
         # Compute the reference surface for the crater 
-        surf.get_reference_surface(self.crater.location, self.crater.radius)
-        min_elevation = surf.reference_surface_elevation - self.floordepth
         
         def _crater_profile(r):
             h = self.crater_profile(r) 
-            if r > self.crater.radius:
+            if r > self.radius:
                 h += self.ejecta_profile(r)
-            return h    
-        try:
-            surf['node_elevation'] = surf['reference_node_elevation'] + np.vectorize(_crater_profile)(surf['node_crater_distance']) 
-            surf['face_elevation'] = surf['reference_face_elevation'] + np.vectorize(_crater_profile)(surf['face_crater_distance']) 
+            return h
+        
+        def _profile_invert(r):
+            return self.ejecta_profile(r) - surf.smallest_length
+       
+        # Get the maximum extent 
+        rmax = fsolve(_profile_invert, x0=self.radius)[0]
+        if self.truncation_radius:
+            rmax = min(rmax, self.truncation_radius * self.radius)
             
-            surf['node_elevation'] = xr.where((surf['node_crater_distance'] < self.crater.radius) & (surf['node_elevation'] < min_elevation), min_elevation, surf['node_elevation'])
-            surf['face_elevation'] = xr.where((surf['face_crater_distance'] < self.crater.radius) & (surf['face_elevation'] < min_elevation), min_elevation, surf['face_elevation'])
+        # Extract only the array data that we need to do the computations
+        inc_node = surf['n_node'].where(surf['node_crater_distance'] < rmax, drop=True).astype(int) 
+        inc_face = surf['n_face'].where(surf['face_crater_distance'] < rmax, drop=True).astype(int)
+        inc_surf = surf.sel(n_node=inc_node, n_face=inc_face)
+        
+        inc_surf.get_reference_surface(self.crater.location, self.crater.radius)
+        min_elevation = surf.reference_surface_elevation - self.floordepth
+        
+        try:
+            inc_surf['node_elevation'] = inc_surf['reference_node_elevation'] + np.vectorize(_crater_profile)(inc_surf['node_crater_distance'])
+            inc_surf['face_elevation'] = inc_surf['reference_face_elevation'] + np.vectorize(_crater_profile)(inc_surf['face_crater_distance'])
+        
+            inc_surf['node_elevation'] = xr.where((inc_surf['node_crater_distance'] < self.crater.radius) & (inc_surf['node_elevation'] < min_elevation), min_elevation, inc_surf['node_elevation'])
+            inc_surf['face_elevation'] = xr.where((inc_surf['face_crater_distance'] < self.crater.radius) & (inc_surf['face_elevation'] < min_elevation), min_elevation, inc_surf['face_elevation'])
+            
+            surf['node_elevation'][inc_node] = inc_surf['node_elevation']
+            surf['face_elevation'][inc_face] = inc_surf['face_elevation']
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
@@ -170,77 +188,104 @@ class Morphology:
         return  
     
     @property
-    def diameter(self) -> float:
+    def diameter(self) -> np.float64:
         """
-        Return the diameter of the crater in meters.
+        The diameter of the crater in meters.
+        
+        Returns
+        -------
+        np.float64
         """
         return self.crater.diameter
 
     @property
-    def radius(self) -> float:
+    def radius(self) -> np.float64:
         """
-        Return the radius of the crater in meters.
+        The radius of the crater in meters.
+        
+        Returns
+        -------
+        np.float64
         """
         return self.crater.radius
    
     @property 
     def morphology_type(self) -> str:
         """
-        Return the morphology type of the crater.
+        The morphology type of the crater.
+        
+        Returns
+        -------
+        str 
         """
         return self.crater.morphology_type 
     
     @property
-    def rimheight(self) -> float:
+    def rimheight(self) -> np.float64:
         """
-        Return the height of the crater rim in meters.
+        The height of the crater rim in meters.
+        
+        Returns
+        -------
+        np.float64
         """
         return self.crater.rimheight
     
     @rimheight.setter
     def rimheight(self, value: FloatLike) -> None:
-        """
-        Set the height of the crater rim in meters.
-        """
-        self.crater.rimheight = value
+        if not isinstance(value, FloatLike):
+            raise TypeError("rimheight must be of type FloatLike")
+        self.crater.rimheight = np.float64(value)
         
     @property
-    def rimwidth(self) -> float:
+    def rimwidth(self) -> np.float64:
         """
-        Return the width of the crater rim in meters.
+        The width of the crater rim in meters.
+        
+        Returns
+        -------
+        np.float64
         """
         return self.crater.rimwidth
     
     @rimwidth.setter
     def rimwidth(self, value: FloatLike) -> None:
-        """
-        Set the width of the crater rim in meters.
-        """
-        self.crater.rimwidth = value
+        if not isinstance(value, FloatLike):
+            raise TypeError("rimwidth must be of type FloatLike") 
+        self.crater.rimwidth = np.float64(value)
         
     @property
-    def peakheight(self) -> float:
+    def peakheight(self) -> np.float64:
         """
-        Return the height of the central peak in meters.
+        The height of the central peak in meters.
+        
+        Returns
+        -------
+        np.float64
         """
         return self.crater.peakheight
     
     @peakheight.setter
     def peakheight(self, value: FloatLike) -> None:
-        """
-        Set the height of the central peak in meters.
-        """
-        self.crater.peakheight = value
+        if not isinstance(value, FloatLike):
+            raise TypeError("peakheight must be of type FloatLike") 
+        self.crater.peakheight = np.float64(value)
 
     @property
-    def floordiam(self) -> float:
+    def floordiam(self) -> np.float64:
         """
-        Return the diameter of the crater floor in meters.
+        The diameter of the crater floor in meters.
+        
+        Returns
+        -------
+        np.float64
         """
         return self.crater.floordiam
     
     @floordiam.setter
     def floordiam(self, value: FloatLike) -> None:
+        if not isinstance(value, FloatLike):
+            raise TypeError("floordiam must be of type FloatLike")
         self.crater.floordiam = np.float64(value)
         
     @property
@@ -256,6 +301,8 @@ class Morphology:
     
     @floordepth.setter
     def floordepth(self, value: FloatLike) -> None:
+        if not isinstance(value, FloatLike):
+            raise TypeError("floordepth must be of type FloatLike")
         self.crater.floordepth = np.float64(value)
         
     @property
@@ -271,8 +318,9 @@ class Morphology:
     
     @ejrim.setter
     def ejrim(self, value: FloatLike) -> None:
+        if not isinstance(value, FloatLike):
+            raise TypeError("ejrim must be of type FloatLike")
         self.crater.ejrim = np.float64(value)
-        
         
     @property
     def crater(self):
@@ -315,7 +363,6 @@ class Morphology:
         self._target = value
         return        
         
-        
     @property
     def rng(self):
         """
@@ -332,4 +379,23 @@ class Morphology:
         if not isinstance(value, Generator) and value is not None:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
         self._rng = value or np.random.default_rng()   
+       
+    @property
+    def truncation_radius(self) -> np.float64:
+        """
+        The radius at which the crater is truncated relative to the crater radius.
         
+        Returns
+        -------
+        np.float64 or None
+        """
+        return self.crater.truncation_radius 
+    
+    @truncation_radius.setter
+    def truncation_radius(self, value: FloatLike | None): 
+        if value:
+            if not isinstance(value, FloatLike):
+                raise TypeError("truction_radius must be of type FloatLike")
+            self.crater.truncation_radius = np.float64(value)
+        else:
+            self.crater.truncation_radius = None
