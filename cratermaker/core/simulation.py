@@ -308,17 +308,14 @@ class Simulation:
         from_projectile : bool, optional
             Flag to create a crater based on a projectile, default is False.
         **kwargs : Any
-            Keyword arguments for initializing the Crater or Projectile object.
+            Keyword arguments for initializing the Crater or Projectile object. 
         """        
         if from_projectile:
             self.projectile, self.crater = self.generate_projectile(**kwargs)
         else:
             self.crater, self.projectile = self.generate_crater(**kwargs)
-        self.surf['node_crater_distance'], self.surf['face_crater_distance'] = self.surf.get_distance(self.crater.location)
-        self.surf['node_crater_bearing'], self.surf['face_crater_bearing'] = self.surf.get_initial_bearing(self.crater.location)
-        self.crater.node_index, self.crater.face_index = self.surf.find_nearest_index(self.crater.location)
        
-        self.crater.morphology.form_crater(self.surf)
+        self.crater.morphology.form_crater(self.surf,**kwargs)
         
         return  
 
