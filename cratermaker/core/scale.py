@@ -246,7 +246,7 @@ class Scale():
         """
         from .impact import Crater
         transient_diameter = self.projectile_to_transient(projectile, target=self.target, rng=self.rng)
-        crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng, **kwargs)
+        crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng, **kwargs, location=projectile.location, age=projectile.age)
 
         return crater
 
@@ -366,7 +366,7 @@ class Scale():
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
                 
         # We'll create a Projectile object that will allow us to set velocity
-        projectile = Projectile(diameter=crater.transient_diameter, target=target, location=crater.location, rng=rng)
+        projectile = Projectile(diameter=crater.transient_diameter, target=target, location=crater.location, rng=rng, age=crater.age)
         
         def root_func(projectile_diameter: FloatLike, 
                       projectile: Projectile, 
@@ -381,7 +381,7 @@ class Scale():
         sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,1.2*crater.transient_diameter), args=(projectile, crater, target, self.rng))
         
         # Regenerate the projectile with the new diameter value
-        projectile = Projectile(diameter=sol.root, target=target, location=projectile.location, velocity=projectile.velocity, angle=projectile.angle, rng=rng)
+        projectile = Projectile(diameter=sol.root, target=target, location=projectile.location, velocity=projectile.velocity, angle=projectile.angle, direction=projectile.direction, rng=rng, age=projectile.age)
         
         return projectile
 

@@ -336,8 +336,8 @@ class Production():
             # Now sample uniformly from the subinterval
             ages[i] = self.rng.uniform(low=age_lo, high=age_hi)
             
-        # Sort the ages and diameters so that they are in order of increasing age
-        sort_indices = np.argsort(ages)
+        # Sort the ages and diameters so that they are in order of decreasing age
+        sort_indices = np.argsort(ages)[::-1]
         diameters = diameters[sort_indices]
         ages = ages[sort_indices]
         
