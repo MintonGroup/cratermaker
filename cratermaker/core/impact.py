@@ -328,10 +328,10 @@ class Crater(Impact):
 
     
     def __repr__(self):
-        return (f"Crater(diameter={self.diameter}, radius={self.radius}, "
-                f"transient_diameter={self.transient_diameter}, transient_radius={self.transient_radius}, "
+        return (f"Crater(diameter={self.diameter} m, radius={self.radius} m, "
+                f"transient_diameter={self.transient_diameter} m, transient_radius={self.transient_radius} m, "
                 f"morphology_type={self.morphology_type} "
-                f"location={self.location}")
+                f"lon: {self.location[0]}, lat {self.location[1]} age={self.age} My)")
         
     @property
     def diameter(self):
@@ -567,8 +567,8 @@ class Projectile(Impact):
         return (f"Projectile(diameter={self.diameter} m, radius={self.radius} m, "
                 f"mass={self.mass} kg, density={self.density} kg/m^3, "
                 f"velocity={self.velocity} m/s, angle={self.angle} deg, "
-                f"vertical_velocity={self.vertical_velocity} m/s, "
-                f"lon: {self.location[0]}, lat {self.location[1]}")
+                f"vertical_velocity={self.vertical_velocity} m/s, direction={self.direction} deg,"
+                f"lon: {self.location[0]}, lat {self.location[1]} age={self.age} My)")
 
 
     @property
