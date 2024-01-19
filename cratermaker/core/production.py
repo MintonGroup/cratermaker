@@ -250,6 +250,8 @@ class Production():
         -------
         numpy array
             The sampled diameter values
+        numpy array
+            The sampled age values
             
         Raises
         ------
@@ -318,7 +320,28 @@ class Production():
         expected_num = cdf[0] * area if area is not None else None
         diameters = get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng)
         
-        return diameters    
+        # Get the corresponding age values for the sampled diameters
+        ages = np.empty_like(diameters)
+        
+        # First divide up the interval into smaller subintervals to capture the curvature of the production function
+        age_subinterval = np.linspace(age_end, age, num=1000) 
+        for i, d in enumerate(diameters):
+            N_vs_age = self.function(diameter=d, age=age_subinterval) # Compute the chronology curve for this size crater over the interval
+            weights = N_vs_age - np.min(N_vs_age) # Shift the curve so that the minimum value is 0
+            weights = weights[:-1] # Remove the last value
+            weights /= np.sum(weights) # Normalize the weights so that they sum to 1
+            chosen_subinterval_index = self.rng.choice(range(len(age_subinterval) - 1), p=weights) # Choose a subinterval based on the weights
+            age_lo = age_subinterval[chosen_subinterval_index]
+            age_hi = age_subinterval[chosen_subinterval_index + 1]
+            # Now sample uniformly from the subinterval
+            ages[i] = self.rng.uniform(low=age_lo, high=age_hi)
+            
+        # Sort the ages and diameters so that they are in order of increasing age
+        sort_indices = np.argsort(ages)
+        diameters = diameters[sort_indices]
+        ages = ages[sort_indices]
+        
+        return diameters, ages
     
 
     @property

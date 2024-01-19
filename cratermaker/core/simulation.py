@@ -16,8 +16,7 @@ from ..utils.custom_types import FloatLike, PairOfFloats
 from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..cython.perlin import apply_noise
 import warnings
-
-_POISSON_BATCH_SIZE = 1000
+from tqdm import tqdm
 
 class Simulation:
     """
@@ -387,7 +386,6 @@ class Simulation:
         """
         Populate the surface with craters over a specified interval using the current production function.
         
-        
         Parameters
         ----------
         age : FloatLike or ArrayLike, optional
@@ -409,17 +407,17 @@ class Simulation:
         elif self.production.generator_type not in ['crater', 'projectile']:
             raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
         
-        impacts_this_interval = self.production.sample(age=age, 
-                                                       age_end=age_end, 
-                                                       cumulative_number_at_diameter=cumulative_number_at_diameter, 
-                                                       reference_cumulative_number_at_diameter=reference_cumulative_number_at_diameter, 
-                                                       diameter_range=(self.smallest_crater, self.largest_crater),
-                                                       area=self.surface_area, 
-                                                       **kwargs)
-        for diameter in impacts_this_interval:
-            print(f"Emplacing crater of diameter {diameter*1e-3:.2f} km")
-            self.emplace_crater(diameter=diameter)
+        impacts_this_interval, impact_ages = self.production.sample(age=age, 
+                                                                    age_end=age_end, 
+                                                                    cumulative_number_at_diameter=cumulative_number_at_diameter, 
+                                                                    reference_cumulative_number_at_diameter=reference_cumulative_number_at_diameter, 
+                                                                    diameter_range=(self.smallest_crater, self.largest_crater),
+                                                                    area=self.surface_area, 
+                                                                    **kwargs)
+        for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
+            self.emplace_crater(diameter=diameter, age=impact_ages[i])
         return 
+
          
     def save(self, 
              *args: Any, 

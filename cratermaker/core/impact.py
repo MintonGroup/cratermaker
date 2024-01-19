@@ -28,21 +28,14 @@ class Impact(ABC):
         The radius of the impact event in meters.
     location : PairOfFloats, optional
         The location (latitude, longitude) of the impact event.
+    age : FloatLike, optional
+        The age of the impact event in My before present.
     target : Target, optional
         The target body of the impact event.
     scale_cls : Type[Scale], optional
         The class used for scaling calculations.
     rng : Generator, optional
         Random number generator instance.
-
-    Attributes
-    ----------
-    _diameter : FloatLike
-        Diameter of the impact event.
-    _radius : FloatLike
-        Radius of the impact event.
-    _location : PairOfFloats
-        Location of the impact event.
 
     Abstract Methods
     ----------------
@@ -75,6 +68,7 @@ class Impact(ABC):
                  diameter: FloatLike = None,
                  radius: FloatLike = None,
                  location: PairOfFloats = None,
+                 age: FloatLike = None,
                  target: Target = None,
                  scale_cls: Type[Scale] = None,
                  rng: Generator = None,
@@ -86,6 +80,7 @@ class Impact(ABC):
         self._scale_cls = None
         self._scale = None
         self._location = None
+        self._age = None
         self._diameter = None
         self._radius = None
         self._face_index = None
@@ -96,6 +91,7 @@ class Impact(ABC):
         self.scale_cls = scale_cls 
         self.scale = self.scale_cls(target=self.target, rng=self.rng)
         self.location = location 
+        self.age = age
         self.diameter = diameter
         self.radius = radius
         
@@ -144,7 +140,25 @@ class Impact(ABC):
             self._location = mc.get_random_location(rng=self.rng)
         else:    
             self._location = validate_and_convert_location(value)
-            
+           
+    @property
+    def age(self):
+        """
+        The age of the impact in My before present.
+        
+        Returns
+        -------
+        np.float64
+        """
+        return self._age
+    
+    @age.setter
+    def age(self, value):
+        if value is None:
+            self._age = None
+        else:
+            self._age = np.float64(value)
+        return
             
     @property
     def face_index(self):
@@ -480,6 +494,8 @@ class Projectile(Impact):
         The vertical component of the projectile velocity upon impact, in m/s.
     angle : float
         The angle of impact, in degrees.
+    direction: float
+        The direction of impact in degrees relative to north (the bearing on the surface)
     **kwargs : Any
     
     Notes
@@ -497,6 +513,7 @@ class Projectile(Impact):
                 velocity: FloatLike = None,
                 vertical_velocity: FloatLike = None,
                 angle: FloatLike = None,
+                direction: FloatLike = None,
                 **kwargs):
         """
         
@@ -512,6 +529,7 @@ class Projectile(Impact):
         self._velocity = None
         self._vertical_velocity = None
         self._angle = None
+        self._direction = direction
         
         super().__init__(**kwargs)
         values_set = sum(x is not None for x in [self.diameter, self.radius, mass])
@@ -737,5 +755,29 @@ class Projectile(Impact):
                 self.angle = mc.get_random_impact_angle(rng=rng)
             else:
                 self.angle = mc.get_random_impact_angle()
+                
+        if self._direction is None:
+            if rng:
+                self.direction = rng.uniform(0.0, 360.0)
+            else:
+                self.direction = np.random.uniform(0.0, 360.0)
         return
 
+    @property
+    def direction(self):
+        """
+        The direction of impact in degrees relative to north (the bearing on the surface)
+        
+        Returns
+        -------
+        np.float64
+        """
+        return self._direction
+    
+    @direction.setter
+    def direction(self, value):
+        if value is not None:
+            if value < 0.0 or value > 360.0:
+                raise ValueError("Direction of impact must be between 0 and 360 degrees")
+            self._direction = np.float64(value)
+        return
