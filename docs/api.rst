@@ -32,21 +32,21 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    Simulation.surf
+    Simulation.production
     Simulation.crater
+    Simulation.projectile
+    Simulation.target
     Simulation.data_dir
     Simulation.grid_file
     Simulation.morphology_cls
     Simulation.n_face
     Simulation.n_node
     Simulation.pix
-    Simulation.production
-    Simulation.projectile
     Simulation.rng
     Simulation.scale_cls
     Simulation.seed
     Simulation.simdir
-    Simulation.surf
-    Simulation.target
 
 Methods
 -------
@@ -54,14 +54,14 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Simulation.apply_noise
+    Simulation.populate
     Simulation.emplace_crater
-    Simulation.export_vtk
     Simulation.generate_crater
     Simulation.generate_projectile
+    Simulation.apply_noise
     Simulation.initialize_surface
-    Simulation.populate
     Simulation.save
+    Simulation.export_vtk
     Simulation.set_elevation
     Simulation.set_properties
     Simulation.to_json

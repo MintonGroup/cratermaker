@@ -15,7 +15,7 @@ class Scale():
 
     """
 
-    def __init__(self, target, rng: Generator | None = None):
+    def __init__(self, target, rng: Generator | None = None, **kwargs):
         """
         Create an operations class for computing the scaling relationships between impactors and craters.
         
@@ -129,7 +129,7 @@ class Scale():
         return Df / (self.simple_enlargement_factor * self.complex_enlargement_factor) * (Df / self.transition_diameter)**-self.final_exp
     
     
-    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None) -> np.float64:
+    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64:
         """
         Computes the transient diameter of a crater based on its final diameter and morphology type.
 
@@ -272,7 +272,7 @@ class Scale():
 
 
     @staticmethod
-    def projectile_to_transient(projectile, target, rng: Generator) -> np.float64:
+    def projectile_to_transient(projectile, target, rng: Generator, **kwargs) -> np.float64:
         from .impact import Projectile
         if not isinstance(projectile, Projectile):
             raise TypeError("target must be an instance of Projectile")
@@ -307,7 +307,7 @@ class Scale():
         return transient_diameter
 
 
-    def transient_to_projectile(self, crater, target, rng: Generator = None):
+    def transient_to_projectile(self, crater, target, rng: Generator = None, **kwargs):
         from .impact import Crater, Projectile
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
