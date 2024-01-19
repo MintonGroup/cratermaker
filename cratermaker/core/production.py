@@ -135,7 +135,7 @@ class Production():
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             reference_age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+             age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
              **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]:
         """
@@ -147,11 +147,9 @@ class Production():
         diameter : FloatLike or ArrayLike
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
         age : FloatLike or ArrayLike, default=1.0
-            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
-        reference_age, FloatLike or ArrayLike, optional
-            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
-            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
-            "4.0 Gy to 3.5 Gy ago". 
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age_end, FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         **kwargs : Any
             Any additional keywords. These are not used in this base class, but included here so that any extended class can share
             the same function signature.
@@ -163,8 +161,8 @@ class Production():
             surface over the given age range.
         """         
         diameter, _ = self._validate_csfd(diameter=diameter)   
-        age, reference_age = self._validate_age(age, reference_age)
-        return self.N1_coef * diameter**self.slope * age # reference_age has no meaning in a constant production function, so we ignore it here.
+        age, age_end = self._validate_age(age, age_end)
+        return self.N1_coef * diameter**self.slope * (age - age_end) 
     
 
     def function_inverse(self,
@@ -219,7 +217,7 @@ class Production():
 
     def sample(self,
                age: FloatLike | None = None,
-               reference_age: FloatLike | None = None,
+               age_end: FloatLike | None = None,
                cumulative_number_at_diameter: PairOfFloats | None = None,
                reference_cumulative_number_at_diameter: PairOfFloats | None = None,
                diameter_range: PairOfFloats | None = None,
@@ -233,11 +231,9 @@ class Production():
         Parameters
         ----------
         age : FloatLike or ArrayLike, optional
-            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
-        reference_age, FloatLike or ArrayLike, optional
-            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
-            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
-            "4.0 Gy to 3.5 Gy ago". 
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age_end, FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         cumulative_number_at_diameter : PairOfFloats, optional
             A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function convert this value
             to a corresponding age and use the production function for a given age.
@@ -274,8 +270,8 @@ class Production():
             raise ValueError("Either the 'age' or 'cumulative_number_at_diameter' must be provided")
         elif age is not None and cumulative_number_at_diameter is not None:
             raise ValueError("Only one of the 'age' or 'cumulative_number_at_diameter' arguments can be provided")
-        if reference_age is not None and reference_cumulative_number_at_diameter is not None: 
-            raise ValueError("Only one of the 'reference_age' or 'reference_cumulative_number_at_diameter' arguments can be provided") 
+        if age_end is not None and reference_cumulative_number_at_diameter is not None: 
+            raise ValueError("Only one of the 'age_end' or 'reference_cumulative_number_at_diameter' arguments can be provided") 
         
         if age is not None and not np.isscalar(age):
             raise ValueError("The 'age' must be a scalar")
@@ -299,28 +295,26 @@ class Production():
             if len(reference_cumulative_number_at_diameter) != 2:
                 raise ValueError("The 'reference_cumulative_number_at_diameter' must be a pair of values")
             reference_cumulative_number_at_diameter = self._validate_csfd(*reference_cumulative_number_at_diameter)
-            reference_age = self.function_inverse(diameter=reference_cumulative_number_at_diameter[1], cumulative_number=reference_cumulative_number_at_diameter[0])
+            age_end = self.function_inverse(diameter=reference_cumulative_number_at_diameter[1], cumulative_number=reference_cumulative_number_at_diameter[0])
             # Check to be sure that the diameter in the reference_cumulative_number_at_diameter is the same as cumulative_number_at_diameter. 
             # If not, we need to adjust it so that they match 
             if cumulative_number_at_diameter is not None:
                 if len(cumulative_number_at_diameter) != 2:
                     raise ValueError("The 'cumulative_number_at_diameter' must be a pair of values")
                 if reference_cumulative_number_at_diameter[1] != cumulative_number_at_diameter[1]:
-                    reference_cumulative_number_at_diameter[0] = self.function(diameter=cumulative_number_at_diameter[1], age=reference_age)
+                    reference_cumulative_number_at_diameter[0] = self.function(diameter=cumulative_number_at_diameter[1], age=age_end)
                     reference_cumulative_number_at_diameter[1] = cumulative_number_at_diameter[1]
                 # Now adjust the N value so that when we convert it to age, we get the age value relative to the present
                 cumulative_number_at_diameter[0] += reference_cumulative_number_at_diameter[0] 
             
             cumulative_number_at_diameter = self._validate_csfd(*cumulative_number_at_diameter)
             age = self.function_inverse(diameter=cumulative_number_at_diameter[1], cumulative_number=cumulative_number_at_diameter[0])
-            # Convert the absolute age to a relative age
-            age -= reference_age
         
-        age, reference_age = self._validate_age(age, reference_age)
+        age, age_end = self._validate_age(age, age_end)
            
         # Build the cumulative distribution function from which we will sample 
         input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
-        cdf = self.function(diameter=input_diameters, age=age, reference_age=reference_age)
+        cdf = self.function(diameter=input_diameters, age=age, age_end=age_end)
         expected_num = cdf[0] * area if area is not None else None
         diameters = get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng)
         
@@ -393,19 +387,18 @@ class Production():
 
     def _validate_age(self, 
                        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-                       reference_age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+                       age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
                        ) -> Union[FloatLike, ArrayLike]:
         """
-        Processes the age argument and reference_age arguments. Checks that they are valid and returns a tuple of age and reference_age.
+        Processes the age argument and age_end arguments. Checks that they are valid and returns a tuple of age and age_end.
 
         Parameters
         ----------        
         age : FloatLike or ArrayLike, default=1.0
-            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
-        reference_age, FloatLike or ArrayLike, optional
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age_end, FloatLike or ArrayLike, optional
             The reference used when computing age in My. If none is passed, it will be set either 0 or an array of zeros, depending on 
-            the size of age.  If a non-zero value is passed, the `age` is interpreted as a delta on the reference age. So for instance, 
-            if `age=500` and `reference_age=3500`, then this means "4.0 Gy to 3.5 Gy ago". 
+            the size of age.  
 
         Returns
         ------- 
@@ -419,30 +412,36 @@ class Production():
         """
           
         if np.isscalar(age):
+            if not isinstance(age, FloatLike):
+                raise TypeError("age must be a numeric value (float or int)")
             age = np.float64(age)
-            if reference_age is None:
-                reference_age = np.float64(0.0)
+            
+            if age_end is None:
+                age_end = np.float64(0.0)
             else:
-                if not np.isscalar(reference_age):
-                    raise ValueError("If age is a scalar, reference_age must be a scalar")
-            if age < 0:
-                raise ValueError("Age must be positive")
+                if not np.isscalar(age_end):
+                    raise ValueError("If age is a scalar, age_end must be a scalar")
+                elif not isinstance(age_end, FloatLike):
+                    raise TypeError("age_end must be a numeric value (float or int)")
+                age_end = np.float64(age_end)
+            if age < age_end:
+                raise ValueError("age must be greater than or equal to the age_end")
         elif isinstance(age, (list, tuple, np.ndarray)):
-            age = np.array(age)
-            if reference_age is None:  
-                reference_age = np.zeros_like(age)
-            elif isinstance(reference_age, (list, tuple, np.ndarray)):
-                reference_age = np.array(reference_age)
+            age = np.array(age, dtype=np.float64)
+            if age_end is None:  
+                age_end = np.zeros_like(age)
+            elif isinstance(age_end, (list, tuple, np.ndarray)):
+                age_end = np.array(age_end, dtype=np.float64)
             else:
-                raise ValueError("If age is a sequence, reference_age must be a sequence")
-            if age.size != reference_age.size:
-                raise ValueError("If age is a sequence, reference_age must be a sequence of the same size")
-            if np.any(age < 0):
-                raise ValueError("All values in the 'age' argument must be greater than or equal to 0.0")
+                raise ValueError("If age is a sequence, age_end must be a sequence")
+            if age.size != age_end.size:
+                raise ValueError("If age is a sequence, age_end must be a sequence of the same size")
+            if np.any(age < age_end):
+                raise ValueError("age must be greater than the age_end")
         else:
             raise ValueError("age must be a scalar or a sequence")
        
-        return age, reference_age 
+        return age, age_end 
 
 
     def _validate_csfd(self,
@@ -726,7 +725,7 @@ class NeukumProduction(Production):
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             reference_age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+             age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
              check_valid_time: bool=True,
              **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]:
@@ -738,11 +737,9 @@ class NeukumProduction(Production):
         diameter : FloatLike or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
         age : FloatLike or ArrayLike, default=1.0
-            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
-        reference_age, FloatLike or ArrayLike, optional
-            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
-            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
-            "4.0 Gy to 3.5 Gy ago". 
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age_end, FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         check_valid_time : bool, optional (default=True)
             If True, return NaN for age values outside the valid age range
 
@@ -752,10 +749,10 @@ class NeukumProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
             surface over the given age range.
         """
-        age, reference_age = self._validate_age(age, reference_age) 
+        age, age_end = self._validate_age(age, age_end) 
         diameter, _ = self._validate_csfd(diameter=diameter)
 
-        return self._size_frequency_distribution(diameter) * (self._chronology(reference_age + age,check_valid_time) - self._chronology(reference_age,check_valid_time))
+        return self._size_frequency_distribution(diameter) * (self._chronology(age,check_valid_time) - self._chronology(age_end,check_valid_time))
     
      
     def _chronology(self,

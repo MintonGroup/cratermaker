@@ -33,9 +33,9 @@ class TestProduction(unittest.TestCase):
             with self.assertRaises(ValueError):
                 prod.sample(age=500, cumulative_number_at_diameter=(100, 10), diameter_range=(10, 100))
                
-            # Test providing both reference_age and reference_cumulative_number_at_diameter
+            # Test providing both age_end and reference_cumulative_number_at_diameter
             with self.assertRaises(ValueError):
-                prod.sample(age=500, reference_age=1000, reference_cumulative_number_at_diameter=(100, 10), diameter_range=(10, 100))
+                prod.sample(age=1500, age_end=1000, reference_cumulative_number_at_diameter=(100, 10), diameter_range=(10, 100))
 
             # Test missing diameter_range
             with self.assertRaises(ValueError):

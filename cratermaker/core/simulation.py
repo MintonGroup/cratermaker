@@ -325,7 +325,7 @@ class Simulation:
 
     def populate(self, 
                  age: FloatLike | None = None,
-                 reference_age: FloatLike | None = None,
+                 age_end: FloatLike | None = None,
                  cumulative_number_at_diameter: PairOfFloats | None = None,
                  reference_cumulative_number_at_diameter: PairOfFloats | None = None,
                  **kwargs: Any,
@@ -337,11 +337,9 @@ class Simulation:
         Parameters
         ----------
         age : FloatLike or ArrayLike, optional
-            Age in the past relative to the reference age to compute cumulative SFD in units of My. 
-        reference_age, FloatLike or ArrayLike, optional
-            The reference used when computing age in My. The default is 0 (present day). If a non-zero value is passed, the `age` is 
-            interpreted as a delta on the reference age. So for instance, if `age=500` and `reference_age=3500`, then this means 
-            "4.0 Gy to 3.5 Gy ago". 
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age_end, FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         cumulative_number_at_diameter : PairOfFloats, optional
             A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function will convert this value
             to a corresponding age and use the production function for a given age.
@@ -358,7 +356,7 @@ class Simulation:
             raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
         
         impacts_this_interval = self.production.sample(age=age, 
-                                                       reference_age=reference_age, 
+                                                       age_end=age_end, 
                                                        cumulative_number_at_diameter=cumulative_number_at_diameter, 
                                                        reference_cumulative_number_at_diameter=reference_cumulative_number_at_diameter, 
                                                        diameter_range=(self.smallest_crater, self.largest_crater),
