@@ -678,6 +678,7 @@ def initialize_surface(make_new_grid: bool = False,
          pix: FloatLike | None = None,
          target: Target | str | None = None,
          simdir: os.PathLike | None = None,
+         grid_type: str | None = None,
          *args, **kwargs) -> Surface:
     """
     Initialize a Surface object with specified parameters and directory structure.
@@ -695,6 +696,8 @@ def initialize_surface(make_new_grid: bool = False,
         Pixel size or resolution of the grid.
     target : Target | str | None, optional
         The target body for the surface, either as a Target object or a string name.
+    grid_type : str, optional
+        Type of the grid used (not implemented yet)
     *args
         Variable length argument list for additional parameters.
     **kwargs
@@ -750,7 +753,8 @@ def initialize_surface(make_new_grid: bool = False,
         generate_grid(target=target,
                       pix=pix,
                       grid_file=grid_file_path,
-                      grid_temp_dir=grid_temp_dir_path)
+                      grid_temp_dir=grid_temp_dir_path,
+                      grid_type=grid_type)
     
     # Get the names of all data files in the data directory that are not the grid file
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
@@ -781,7 +785,9 @@ def initialize_surface(make_new_grid: bool = False,
                    grid_temp_dir = grid_temp_dir_path,
                    data_dir = data_dir_path,
                    grid_file = grid_file_path,
-                   target_radius = target.radius ,
+                   target_radius = target.radius,
+                   pix=pix,
+                   grid_type=grid_type,
                    ) 
     
     if reset_surface:
@@ -829,7 +835,9 @@ def _make_uniform_face_size(cell_size: FloatLike) -> Tuple[NDArray,NDArray,NDArr
 def generate_grid(target: Target | str, 
                 pix: FloatLike, 
                 grid_file: os.PathLike,
-                grid_temp_dir: os.PathLike)  -> Surface:
+                grid_temp_dir: os.PathLike,
+                grid_type: str = "uniform"
+                )  -> Surface:
     """
     Generate a tessellated mesh of a sphere using the jigsaw-based mesh builder in MPAS-tools.
 
@@ -845,6 +853,8 @@ def generate_grid(target: Target | str,
         Path where the grid file will be saved.
     grid_temp_dir : os.PathLike
         Path to the directory for storing temporary grid files.
+    grid_type : str, optional
+        Type of the grid to be generated. Currently only "uniform" is supported.
 
     Returns
     -------

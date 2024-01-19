@@ -173,14 +173,15 @@ class Morphology:
         min_elevation = surf.reference_surface_elevation - self.floordepth
         
         try:
-            inc_surf['node_elevation'] = inc_surf['reference_node_elevation'] + np.vectorize(_crater_profile)(inc_surf['node_crater_distance'])
-            inc_surf['face_elevation'] = inc_surf['reference_face_elevation'] + np.vectorize(_crater_profile)(inc_surf['face_crater_distance'])
-        
-            inc_surf['node_elevation'] = xr.where((inc_surf['node_crater_distance'] < self.crater.radius) & (inc_surf['node_elevation'] < min_elevation), min_elevation, inc_surf['node_elevation'])
-            inc_surf['face_elevation'] = xr.where((inc_surf['face_crater_distance'] < self.crater.radius) & (inc_surf['face_elevation'] < min_elevation), min_elevation, inc_surf['face_elevation'])
+            if inc_node.size > 0:
+                inc_surf['node_elevation'] = inc_surf['reference_node_elevation'] + np.vectorize(_crater_profile)(inc_surf['node_crater_distance'])
+                inc_surf['node_elevation'] = xr.where((inc_surf['node_crater_distance'] < self.crater.radius) & (inc_surf['node_elevation'] < min_elevation), min_elevation, inc_surf['node_elevation'])
+                surf['node_elevation'][inc_node] = inc_surf['node_elevation']
             
-            surf['node_elevation'][inc_node] = inc_surf['node_elevation']
-            surf['face_elevation'][inc_face] = inc_surf['face_elevation']
+            if inc_face.size > 0:
+                inc_surf['face_elevation'] = inc_surf['reference_face_elevation'] + np.vectorize(_crater_profile)(inc_surf['face_crater_distance'])
+                inc_surf['face_elevation'] = xr.where((inc_surf['face_crater_distance'] < self.crater.radius) & (inc_surf['face_elevation'] < min_elevation), min_elevation, inc_surf['face_elevation'])
+                surf['face_elevation'][inc_face] = inc_surf['face_elevation']
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
