@@ -309,9 +309,7 @@ class Simulation:
         Notes
         -----
         The keyword arguments provided are passed to the constructor of 
-        :class:`Projectile`. Additionally, these arguments are used in 
-        :meth:`crater.scale.projectile_to_crater` method. Refer to the 
-        documentation of these classes and methods for a detailed description 
+        :class:`Projectile`. Refer to its documentation for a detailed description 
         of valid keyword arguments.    
         
         Examples
@@ -325,7 +323,7 @@ class Simulation:
         if self.target.mean_impact_velocity is None:
             raise RuntimeError("The mean impact velocity is not set for this simulation")
         projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, **kwargs)
-        crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls,**kwargs)
+        crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls)
         
         return projectile, crater
    

@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.random import Generator
-from typing import Tuple
+from typing import Tuple, Any
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
@@ -271,8 +271,31 @@ class Scale():
         return projectile
 
 
+
     @staticmethod
-    def projectile_to_transient(projectile, target, rng: Generator, **kwargs) -> np.float64:
+    def projectile_to_transient(projectile, 
+                                target: Target, 
+                                rng: Generator, 
+                                **kwargs: Any) -> np.float64:
+        """
+        Calculate the transient diameter of a crater based on the properties of the projectile and target.
+
+        Parameters
+        ----------
+        projectile : Projectile
+            The projectile responsible for the impact.
+        target : Target
+            The target body being impacted.
+        rng : Generator
+            Random number generator instance used for any probabilistic calculations.
+        **kwargs : Any
+            Additional keyword arguments that might influence the calculation.
+
+        Returns
+        -------
+        np.float64
+            The calculated transient diameter of the crater resulting from the impact.
+        """
         from .impact import Projectile
         if not isinstance(projectile, Projectile):
             raise TypeError("target must be an instance of Projectile")
@@ -307,7 +330,33 @@ class Scale():
         return transient_diameter
 
 
-    def transient_to_projectile(self, crater, target, rng: Generator = None, **kwargs):
+    def transient_to_projectile(self, 
+                                crater, 
+                                target: Target, 
+                                rng: Generator = None, 
+                                **kwargs: Any): 
+        """
+        Estimate the characteristics of the projectile that could have created a given crater.
+
+        This method approximates the properties of a hypothetical projectile based on the characteristics
+        of a known crater.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater for which to estimate the projectile.
+        target : Target
+            The target body where the crater is located.
+        rng : Generator, optional
+            Random number generator instance used for any probabilistic calculations.
+        **kwargs : Any
+            Additional keyword arguments that might influence the calculation.
+
+        Returns
+        -------
+        Projectile
+            The computed projectile for the crater.
+        """
         from .impact import Crater, Projectile
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
