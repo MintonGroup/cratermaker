@@ -254,20 +254,37 @@ class Simulation:
 
         Parameters
         ----------
-        **kwargs : dict
-            Keyword arguments for initializing the Crater object.
+        **kwargs : Any
+            Keyword arguments for initializing the :class:`Crater` object. Refer to 
+            its documentation for details on valid keyword arguments.
 
         Returns
         -------
-        (Crater, Projectile)
+        tuple of (Crater, Projectile)
             A tuple containing the newly created Crater and Projectile objects.
-        """        
+            
+        Notes
+        -----
+        The keyword arguments provided are passed to the constructor of 
+        :class:`Crater`. Additionally, these arguments are used in 
+        :meth:`crater.scale.crater_to_projectile` method. Refer to the 
+        documentation of these classes and methods for a detailed description 
+        of valid keyword arguments.
+
+        Examples
+        --------
+        # Create a crater and projectile pair with a specific diameter
+        crater, projectile = sim.generate_crater(diameter=1000.0)
+
+        # Create a crater with a specific transient diameter and location (but ignore the projectile)
+        crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
+        """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
         if self.target.mean_impact_velocity is None:
             projectile = None
         else:
-            projectile = crater.scale.crater_to_projectile(crater)
+            projectile = crater.scale.crater_to_projectile(crater,**kwargs)
         
         return crater, projectile
     
@@ -280,13 +297,28 @@ class Simulation:
 
         Parameters
         ----------
-        **kwargs : dict
-            Keyword arguments for initializing the Projectile object.
+        **kwargs : Any
+            Keyword arguments for initializing the :class:`Projectile` object. Refer to its documentation 
+            for details on valid keyword arguments.
 
         Returns
         -------
         (Projectile, Crater)
             A tuple containing the newly created Projectile and Crater objects.
+            
+        Notes
+        -----
+        The keyword arguments provided are passed to the constructor of 
+        :class:`Projectile`. Refer to its documentation for a detailed description 
+        of valid keyword arguments.    
+        
+        Examples
+        --------
+        # Create a projectile and crater pair with a specific diameter
+        projectile, crater = sim.generate_projectile(diameter=1000.0)
+
+        # Create a projectile and crater with a specific mass and velocity and impact angle
+        projectile, crater = sim.generate_projectile(mass=1e14, velocity=20e3, angle=10.0)       
         """
         if self.target.mean_impact_velocity is None:
             raise RuntimeError("The mean impact velocity is not set for this simulation")
@@ -303,22 +335,44 @@ class Simulation:
         """
         Emplace a crater in the simulation, optionally based on a projectile.
 
+        This method orchestrates the creation and placement of a crater in the
+        simulation. It can create a crater directly or based on the characteristics
+        of a projectile.
+
         Parameters
         ----------
         from_projectile : bool, optional
             Flag to create a crater based on a projectile, default is False.
         **kwargs : Any
-            Keyword arguments for initializing the Crater or Projectile object.
-        """        
+            Keyword arguments for initializing the :class:`Crater` or 
+            :class:`Projectile` object. Refer to the documentation of these 
+            classes for details on valid keyword arguments.
+
+        Notes
+        -----
+        The keyword arguments provided are passed down to :meth:`generate_crater` 
+        or :meth:`generate_projectile`, and subsequently to the constructors of 
+        :class:`Crater`, :class:`Projectile`, or :class:`Impact`. Refer to the 
+        documentation of these classes for a detailed description of valid 
+        keyword arguments.
+
+        Examples
+        --------
+        # Create a crater with specific diameter
+        sim.emplace_crater(diameter=1000.0)
+
+        # Create a crater based on a projectile with given mass and velocity
+        sim.emplace_crater(from_projectile=True, mass=1e14, velocity=20e3)
+        
+        # Create a crater with a specific transient diameter and location
+        sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
+        """ 
         if from_projectile:
             self.projectile, self.crater = self.generate_projectile(**kwargs)
         else:
             self.crater, self.projectile = self.generate_crater(**kwargs)
-        self.surf['node_crater_distance'], self.surf['face_crater_distance'] = self.surf.get_distance(self.crater.location)
-        self.surf['node_crater_bearing'], self.surf['face_crater_bearing'] = self.surf.get_initial_bearing(self.crater.location)
-        self.crater.node_index, self.crater.face_index = self.surf.find_nearest_index(self.crater.location)
        
-        self.crater.morphology.form_crater(self.surf)
+        self.crater.morphology.form_crater(self.surf,**kwargs)
         
         return  
 

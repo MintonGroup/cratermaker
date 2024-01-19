@@ -141,15 +141,25 @@ class Morphology:
         return thick
     
           
-    def form_crater(self, surf: Surface) -> None:
+    def form_crater(self, 
+                    surf: Surface,
+                    **kwargs) -> None:
         """
-        Form the interior of the crater.
-
         This method forms the interior of the crater by altering the elevation variable of the surface mesh.
+        
+        Parameters
+        ----------
+        surf : Surface
+            The surface to be altered.
+        **kwargs : dict
+            Additional keyword arguments to be passed to internal functions (not used here).
         """
       
-        # Compute the reference surface for the crater 
+        node_crater_distance, face_crater_distance = surf.get_distance(self.crater.location)
+        node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(self.crater.location)
+        self.crater.node_index, self.crater.face_index = np.argmin(node_crater_distance.data), np.argmin(face_crater_distance.data)
         
+        # Compute the reference surface for the crater 
         def _crater_profile(r):
             h = self.crater_profile(r) 
             if r > self.radius:
@@ -165,9 +175,15 @@ class Morphology:
             rmax = min(rmax, self.truncation_radius * self.radius)
             
         # Extract only the array data that we need to do the computations
-        inc_node = surf['n_node'].where(surf['node_crater_distance'] < rmax, drop=True).astype(int) 
-        inc_face = surf['n_face'].where(surf['face_crater_distance'] < rmax, drop=True).astype(int)
+        inc_node = surf['n_node'].where(node_crater_distance < rmax, drop=True).astype(int) 
+        inc_face = surf['n_face'].where(face_crater_distance < rmax, drop=True).astype(int)
         inc_surf = surf.sel(n_node=inc_node, n_face=inc_face)
+        
+        # Save distance and bearing information to the local surface object
+        inc_surf['node_crater_distance'] = node_crater_distance[inc_node]
+        inc_surf['node_crater_bearing'] = node_crater_bearing[inc_node]
+        inc_surf['face_crater_distance'] = face_crater_distance[inc_face]
+        inc_surf['face_crater_bearing'] = face_crater_bearing[inc_face]
         
         inc_surf.get_reference_surface(self.crater.location, self.crater.radius)
         min_elevation = surf.reference_surface_elevation - self.floordepth

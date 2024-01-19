@@ -269,6 +269,16 @@ class Crater(Impact):
     This class models the crater resulting from an impact, including its size,
     shape, depth, and other morphological features.
 
+    Parameters
+    ----------
+    transient_diameter : FloatLike
+        The diameter of the transient crater in m.
+    transient_radius : FloatLIke
+        The radius of the transient crater in m.    
+    morphology_cls : Type[Morphology]
+        The class to use for computing the crater morphology.
+    **kwargs : Any 
+        Additional keyword arguments to pass to the scale and morphology classes.
     """
 
     def __init__(self, 
@@ -279,16 +289,7 @@ class Crater(Impact):
         """
         Constructor for the Crater class.
         
-        Parameters
-        ----------
-        transient_diameter : FloatLike
-            The diameter of the transient crater in m.
-        transient_radius : FloatLIke
-            The radius of the transient crater in m.    
-        morphology_cls : Type[Morphology]
-            The class to use for computing the crater morphology.
-        **kwargs : Any 
-            Additional keyword arguments to pass to the scale and morphology classes.
+
         """ 
         self._transient_diameter = None
         self._transient_radius = None
@@ -466,7 +467,28 @@ class Projectile(Impact):
 
     This class defines the properties of the impacting object, such as its size,
     velocity, material, and angle of impact.
-
+    
+    Parameters
+    ----------
+    mass : float
+        The mass of the projectile in kg.
+    density : float
+        The mass density of the projectile in kg/m**3.            
+    velocity : float
+        The velocity of the projectile upon impact, in m/s.
+    vertical_velocity : float
+        The vertical component of the projectile velocity upon impact, in m/s.
+    angle : float
+        The angle of impact, in degrees.
+    **kwargs : Any
+    
+    Notes
+    -----
+    The Projectile class is initialized with at least one of diameter, radius, or mass, but only two of mass, density, or
+    radius or two of mass, density, and diameter, and only two of velocity, vertical_velocity, or angle.  If density cannot be
+    determined from the inputs, the density of the target body is used as a default. If the velocity cannot be determined from 
+    the inputs, the mean impact velocity of the target is used as an input to the get_random_velocity function. If the angle 
+    cannot be determined from the inputs, a random angle is generated using the get_random_impact_angle function.
     """
     
     def __init__(self, 
@@ -480,27 +502,7 @@ class Projectile(Impact):
         
         Constructor for the Projectile class.
         
-        Parameters
-        ----------
-        mass : float
-            The mass of the projectile in kg.
-        density : float
-            The mass density of the projectile in kg/m**3.            
-        velocity : float
-            The velocity of the projectile upon impact, in m/s.
-        vertical_velocity : float
-            The vertical component of the projectile velocity upon impact, in m/s.
-        angle : float
-            The angle of impact, in degrees.
-        **kwargs : Any
-        
-        Notes
-        -----
-        The Projectile class is initialized with at least one of diameter, radius, or mass, but only two of mass, density, or
-        radius or two of mass, density, and diameter, and only two of velocity, vertical_velocity, or angle.  If density cannot be
-        determined from the inputs, the density of the target body is used as a default. If the velocity cannot be determined from 
-        the inputs, the mean impact velocity of the target is used as an input to the get_random_velocity function. If the angle 
-        cannot be determined from the inputs, a random angle is generated using the get_random_impact_angle function.
+
         """ 
 
         # ensure that all related calculations and checks are performed
@@ -525,6 +527,12 @@ class Projectile(Impact):
         
         if self.mass is None or self.radius is None: # Default to target density if we are given no way to figure it out
             self.density = self.target.material.density 
+           
+        if self.radius is None: 
+            self._update_volume_based_properties()
+        
+        if self.mass is None:
+            self._update_mass()
         
         # Evaluate and check velocity/impact angle inputs
         values_set = sum(x is not None for x in [velocity, vertical_velocity, angle])
@@ -538,7 +546,7 @@ class Projectile(Impact):
         return
 
     def __repr__(self):
-        return (f"Projectile(diameter={self.diameter} mm, radius={self.radius} m, "
+        return (f"Projectile(diameter={self.diameter} m, radius={self.radius} m, "
                 f"mass={self.mass} kg, density={self.density} kg/m^3, "
                 f"velocity={self.velocity} m/s, angle={self.angle} deg, "
                 f"vertical_velocity={self.vertical_velocity} m/s, "
