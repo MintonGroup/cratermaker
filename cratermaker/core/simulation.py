@@ -423,8 +423,11 @@ class Simulation:
                                                                     **kwargs)
         
         if impacts_this_interval is not None:
-            for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
-                self.emplace_crater(diameter=diameter, age=impact_ages[i])
+            if impacts_this_interval.size == 1:
+                self.emplace_crater(diameter=impacts_this_interval, age=impact_ages)
+            else:
+                for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
+                    self.emplace_crater(diameter=diameter, age=impact_ages[i])
         return 
     
     
@@ -706,9 +709,9 @@ class Simulation:
         if out_dir is None:
             out_dir = os.path.join(self.simdir, "vtk_files")
             
-        data_file_list = glob(os.path.join(self.surf.data_dir, "*.nc"))
-        data_file_list.remove(self.surf.grid_file)
-            
+        data_file_list = glob(os.path.join(self.surf.data_dir, "*_*.nc"))
+        #data_file_list.remove(self.surf.grid_file)
+        
         # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
         # The API change does not affect the functionality of the code, so we can safely ignore the warning
         with warnings.catch_warnings(): 
@@ -717,7 +720,6 @@ class Simulation:
         
             # Save the surface data to a combined netCDF file
             with tempfile.TemporaryDirectory() as temp_dir:
-                #self.save(combine_data_files=True, out_dir=temp_dir, *args, **kwargs)
                 ds = xr.open_mfdataset(data_file_list)
                 
                 # Use elevation data to modify the mesh for visualization purposes
@@ -734,35 +736,34 @@ class Simulation:
                                'zCell': 'delta_zCell'}
 
                                         
-                # Loop over the time variable and compute the elevation change at each time step
-                delta_pos = []
-                for t in ds.Time: 
-                    ids = xr.Dataset()
-                    ids[vert_vars] = elevation_to_cartesian(grid[vert_vars], ds['node_elevation'].sel(Time=t))
-                    ids[face_vars] = elevation_to_cartesian(grid[face_vars], ds['face_elevation'].sel(Time=t))
-                    ids[vert_vars] -= grid[vert_vars]  
-                    ids[face_vars] -= grid[face_vars]
-                    delta_pos.append(ids)  
-                
-                delta_pos = xr.concat(delta_pos, dim='Time').rename(rename_vars)
-                ds = xr.merge([ds, delta_pos])
-                if 'elapsed_time' not in ds:
-                    ds['elapsed_time'] = ds.Time.astype(np.float64)
-                
-                grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"), unlimited_dims=["Time"])
-                ds.to_netcdf(os.path.join(temp_dir, "surface_data.nc"), unlimited_dims=["Time"])
+                # # Loop over the time variable and compute the elevation change at each time step
+                # delta_pos = []
+                # for i,t in enumerate(ds.Time): 
+                #     ids = xr.Dataset()
+                #     ids[vert_vars] = elevation_to_cartesian(grid[vert_vars], ds['node_elevation'].sel(Time=t))
+                #     ids[face_vars] = elevation_to_cartesian(grid[face_vars], ds['face_elevation'].sel(Time=t))
+                #     ids[vert_vars] -= grid[vert_vars]  
+                #     ids[face_vars] -= grid[face_vars]
+                #     ids = ids.rename(rename_vars).expand_dims('Time').assign_coords(Time=[i])
+                #     ids.to_netcdf(os.path.join(self.surf.data_dir, f"deltapos_{i:06d}.nc")) 
+                #     ids.close()
+               
+                 
+                filename_pattern = f"{self.surf.time_file}"
+                for f in data_file_list:
+                    filename_pattern += f";{f}"
                 
                 try:
                     extract_vtk(
-                        filename_pattern=os.path.join(temp_dir, "surface_data.nc"),
-                        mesh_filename=os.path.join(temp_dir, "surface_mesh.nc"),
+                        filename_pattern=filename_pattern,
+                        mesh_filename=self.surf.grid_file,
                         variable_list=['allOnVertices', 'allOnCells'] , 
                         dimension_list=['maxEdges=','vertexDegree='], 
                         combine=True,
                         include_mesh_vars=True,
                         ignore_time=False,
                         time="0:",
-                        xtime='elapsed_time',
+                        xtime='Time',
                         out_dir=out_dir)
                             
                 except:

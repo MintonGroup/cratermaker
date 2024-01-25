@@ -279,7 +279,7 @@ class Production():
         cdf = self.function(diameter=input_diameters, age=age, age_end=age_end)
         expected_num = cdf[0] * area if area is not None else None
         diameters = np.asarray(get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng))
-        if len(diameters) == 0:
+        if diameters.size == 0:
             return None, None
        
         if return_age: 
