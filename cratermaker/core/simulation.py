@@ -727,7 +727,7 @@ class Simulation:
                                'zVertex': 'delta_zVertex',
                                'xCell': 'delta_xCell',
                                'yCell': 'delta_yCell',
-                                'zCell': 'delta_zCell'}
+                               'zCell': 'delta_zCell'}
 
                                         
                 # Loop over the time variable and compute the elevation change at each time step
