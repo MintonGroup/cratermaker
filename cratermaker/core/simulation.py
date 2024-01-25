@@ -504,11 +504,11 @@ class Simulation:
         is_age_interval = arguments.pop('is_age_interval', None)
         
         
+        self.current_age = age
+        self.elapsed_time = 0.0
+        self.elapsed_n1 = 0.0
         for i in tqdm(range(ninterval+1), total=ninterval+1):
             self.interval_number = i
-            self.current_age = age
-            self.elapsed_time = 0.0
-            self.elapsed_n1 = 0.0
             if i > 0: # This allows us to save the initial state of the simulation
                 if is_age_interval:
                     current_age = age - (i-1) * age_interval
