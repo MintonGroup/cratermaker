@@ -3,11 +3,13 @@ from numpy.random import default_rng, Generator
 import xarray as xr
 import json
 import os
+import shutil
+from glob import glob
 import tempfile
 from typing import Any, Tuple, Type
 from .target import Target, Material
 from .impact import Crater, Projectile
-from .surface import Surface, initialize_surface, save_surface, elevation_to_cartesian
+from .surface import Surface, save, initialize_surface, elevation_to_cartesian
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
@@ -67,10 +69,6 @@ class Simulation:
      
         self.simdir = simdir
         
-        # # Set some default values for the simulation parameters
-        # self.tstart = kwargs.get('tstart', 0.0)  # Simulation start time (in y)
-        # self.tstop = kwargs.get('tstop', 4.31e9)    # Simulation stop time (in y)
-        
         # Set the random number generator seed
         self.seed = kwargs.get('seed', None) 
         self.rng = kwargs.get('rng', default_rng(seed=self.seed))
@@ -78,7 +76,11 @@ class Simulation:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
         
         self._crater = None
-        self._projectile = None        
+        self._projectile = None
+        self._interval_number = 0
+        self._elapsed_time = 0.0
+        self._current_age = 0.0
+        self._elapsed_n1 = 0.0
         
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
@@ -179,8 +181,7 @@ class Simulation:
         # Find the minimum and maximum possible crater diameter (will be roughly the area of the minimum face size)
         self.smallest_crater = np.sqrt(self.surf['face_areas'].min().item() / np.pi) * 2
         self.largest_crater = self.target.radius * 2
-        self.surface_area = 4 * np.pi * self.target.radius**2
-
+       
         return
 
     
@@ -272,11 +273,12 @@ class Simulation:
 
         Examples
         --------
-        # Create a crater and projectile pair with a specific diameter
-        crater, projectile = sim.generate_crater(diameter=1000.0)
-
-        # Create a crater with a specific transient diameter and location (but ignore the projectile)
-        crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
+        .. code-block:: python
+            # Create a crater and projectile pair with a specific diameter
+            crater, projectile = sim.generate_crater(diameter=1000.0)
+    
+            # Create a crater with a specific transient diameter and location (but ignore the projectile)
+            crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
@@ -313,11 +315,12 @@ class Simulation:
         
         Examples
         --------
-        # Create a projectile and crater pair with a specific diameter
-        projectile, crater = sim.generate_projectile(diameter=1000.0)
+        .. code-block:: python
+            # Create a projectile and crater pair with a specific diameter
+            projectile, crater = sim.generate_projectile(diameter=1000.0)
 
-        # Create a projectile and crater with a specific mass and velocity and impact angle
-        projectile, crater = sim.generate_projectile(mass=1e14, velocity=20e3, angle=10.0)       
+            # Create a projectile and crater with a specific mass and velocity and impact angle
+            projectile, crater = sim.generate_projectile(mass=1e14, velocity=20e3, angle=10.0)       
         """
         if self.target.mean_impact_velocity is None:
             raise RuntimeError("The mean impact velocity is not set for this simulation")
@@ -357,14 +360,15 @@ class Simulation:
 
         Examples
         --------
-        # Create a crater with specific diameter
-        sim.emplace_crater(diameter=1000.0)
+        .. code-block:: python        
+            # Create a crater with specific diameter
+            sim.emplace_crater(diameter=1000.0)
 
-        # Create a crater based on a projectile with given mass and velocity
-        sim.emplace_crater(from_projectile=True, mass=1e14, velocity=20e3)
-        
-        # Create a crater with a specific transient diameter and location
-        sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
+            # Create a crater based on a projectile with given mass and velocity
+            sim.emplace_crater(from_projectile=True, mass=1e14, velocity=20e3)
+            
+            # Create a crater with a specific transient diameter and location
+            sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """ 
         if from_projectile:
             self.projectile, self.crater = self.generate_projectile(**kwargs)
@@ -379,8 +383,8 @@ class Simulation:
     def populate(self, 
                  age: FloatLike | None = None,
                  age_end: FloatLike | None = None,
-                 cumulative_number_at_diameter: PairOfFloats | None = None,
-                 reference_cumulative_number_at_diameter: PairOfFloats | None = None,
+                 diameter_number: PairOfFloats | None = None,
+                 diameter_number_end: PairOfFloats | None = None,
                  **kwargs: Any,
                 ) -> None:
         """
@@ -388,18 +392,18 @@ class Simulation:
         
         Parameters
         ----------
-        age : FloatLike or ArrayLike, optional
+        age : FloatLike, optional
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike or ArrayLike, optional
+        age_end, FloatLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
-        cumulative_number_at_diameter : PairOfFloats, optional
-            A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function will convert this value
+        diameter_number : PairOfFloats, optional
+            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this value
             to a corresponding age and use the production function for a given age.
-        reference_cumulative_number_at_diameter : PairOfFloats, optional
-            A pair of cumulative number and diameter values, in the form of a (N, D). If provided, the function will convert this
+        diameter_number_end : PairOfFloats, optional
+            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this
             value to a corresponding reference age and use the production function for a given age.        
         """
-        
+
         if not hasattr(self, 'production'):
             raise RuntimeError("No production function defined for this simulation")
         elif not hasattr(self.production, 'generator_type'):
@@ -409,16 +413,266 @@ class Simulation:
         
         impacts_this_interval, impact_ages = self.production.sample(age=age, 
                                                                     age_end=age_end, 
-                                                                    cumulative_number_at_diameter=cumulative_number_at_diameter, 
-                                                                    reference_cumulative_number_at_diameter=reference_cumulative_number_at_diameter, 
+                                                                    diameter_number=diameter_number, 
+                                                                    diameter_number_end=diameter_number_end, 
                                                                     diameter_range=(self.smallest_crater, self.largest_crater),
-                                                                    area=self.surface_area, 
+                                                                    area=self.surf.area.item(), 
                                                                     **kwargs)
-        for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
-            self.emplace_crater(diameter=diameter, age=impact_ages[i])
+        
+        if impacts_this_interval is not None:
+            for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
+                self.emplace_crater(diameter=diameter, age=impact_ages[i])
         return 
+    
+    
+    def run(self,
+            age: FloatLike | None = None,
+            age_end: FloatLike | None = None,
+            age_interval: FloatLike | None = None,
+            diameter_number: PairOfFloats | None = None,
+            diameter_number_end: PairOfFloats | None = None,
+            diameter_number_interval: FloatLike | None = None,
+            ninterval: int | None = None,
+            **kwargs: Any,
+           ) -> None:
+        """
+        Run the simulation over a specified interval using the current production function.
 
+        Parameters
+        ----------
+        age : FloatLike, optional
+            Start age in My relative to the present for the simulation, used to compute the starting point of the production function.
+            Default is None, which requires `diameter_number` to be set.
+        age_end : FloatLike, optional
+            End age in My relative to the present for the simulation, used to compute the ending point of the production function.
+            Default is 0 (present day) if not provided.
+        age_interval : FloatLike, optional
+            Interval in My for outputting intermediate results. If not provided, calculated as `age - age_end` / `ninterval` if `ninterval` is provided, otherwise set to the total simulation duration.
+        diameter_number : PairOfFloats, optional
+            Starting cumulative number and diameter pair (D, N) to define the simulation start in terms of crater frequency. 
+            Default is None, which requires `age` to be set.
+        diameter_number_end : PairOfFloats, optional
+            Ending cumulative number and diameter pair (D, N) to define the simulation end in terms of crater frequency.
+            Default is the present-day values if not provided.
+        diameter_number_interval : PairOfFloats, optional
+            Interval for outputting results in terms of cumulative number and diameter (D, N). Calculated based on `ninterval` if provided.
+        ninterval : int, optional
+            Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output
+            in equal cumulative number intervals and vice versa.  
+
+        Notes
+        -----
+        This function allows defining the simulation parameters either in terms of age or crater frequency (cumulative number). The 
+        arguments `age`, `age_end`, `age_interval` are mutually exclusive with `diameter_number`, `diameter_number_end`, `diameter_number_interval`.
+        
+        The input diameter values used in diameter_number, diameter_number_end, and diameter_number_interval need not be the same.
+        However, the production function will be used to convert all numbers to a common diameter value on output.
+
+        Examples
+        --------
+        .. code-block:: python
+            # Create a simulation object with default parameters (Moon, NeukumProduction, etc.)
+            sim = cratermaker.Simulation()
+            
+            # Run the simulation for 3.8 billion years, saving the results every 100 million years
+            sim.run(age=3.8e3, age_interval=100.0)
+        
+            # Run the simulation to create 80 craters larger than 300 km in diameter and output the results after approximately 100 
+            # craters larger than 50km in diameter have formed
+            sim.run(diameter_number=(300e3, 80), diameter_number_interval=(50e3, 100))
+        
+            # Run the simulation for 3.8 billion years, saving 100 intervals with equal cumulative number intervals
+            sim.run(age=3.8e3, ninterval=100)
+        
+            # Run the simulation to create 80 craters larger than 300 km and output 100 intervals with equal age intervals
+            sim.run(diameter_number=(300e3, 80), ninterval=100)
+        
+            # Run the simulation from 3.8 billion years to 3.0 billion years, saving the results every 100 million years
+            sim.run(age=3.8e3, age_end=3.0e3, age_interval=100.0)
+
+        """
+        arguments = locals().copy()
+        arguments.pop('self')
+        arguments = self._validate_run_args(**arguments) 
+        age = arguments.pop('age', None)
+        age_end = arguments.pop('age_end', None)
+        age_interval = arguments.pop('age_interval', None)
+        diameter_number = arguments.pop('diameter_number', None)
+        diameter_number_end = arguments.pop('diameter_number_end', None)
+        diameter_number_interval = arguments.pop('diameter_number_interval', None)
+        ninterval = arguments.pop('ninterval', None)
+        is_age_interval = arguments.pop('is_age_interval', None)
+        
+        
+        for i in tqdm(range(ninterval+1), total=ninterval+1):
+            self.interval_number = i
+            self.current_age = age
+            self.elapsed_time = 0.0
+            self.elapsed_n1 = 0.0
+            if i > 0: # This allows us to save the initial state of the simulation
+                if is_age_interval:
+                    current_age = age - (i-1) * age_interval
+                    current_age_end = age - i * age_interval
+                    self.populate(age=current_age, age_end=current_age_end)
+                else:
+                    current_diameter_number = (diameter_number[0], diameter_number[1] - (i-1) * diameter_number_interval[1])
+                    current_diameter_number_end = (diameter_number[0], diameter_number[1] - i * diameter_number_interval[1])
+                    self.populate(diameter_number=current_diameter_number, diameter_number_end=current_diameter_number_end)
+                    current_age = self.production.function_inverse(*current_diameter_number)
+                    current_age_end = self.production.function_inverse(*current_diameter_number_end)
+                    age_interval = current_age - current_age_end 
+                self.elapsed_time += age_interval
+                self.elapsed_n1 += (self.production.function(diameter=1000.0, age=current_age)  - self.production.function(diameter=1000.0, age = current_age_end))
+                self.current_age = current_age_end
+                
+            time_variables = {
+                "current_age": self.current_age,
+                "elapsed_time": self.elapsed_time,
+                "elapsed_n1": self.elapsed_n1
+                }
          
+            self.save(interval_number=self.interval_number, time_variables=time_variables)
+        self.export_vtk()
+        return
+
+    def _validate_run_args(self,**kwargs) -> dict:
+        """
+        Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
+        It will also convert age arguments to diameter_number and vice versa.
+        
+        Parameters
+        ----------
+        age : FloatLike, optional
+            Start age in My relative to the present for the simulation, used to compute the starting point of the production function.
+            Default is None, which requires `diameter_number` to be set.
+        age_end : FloatLike, optional
+            End age in My relative to the present for the simulation, used to compute the ending point of the production function.
+            Default is 0 (present day) if not provided.
+        age_interval : FloatLike, optional
+            Interval in My for outputting intermediate results. If not provided, calculated as `age - age_end` / `ninterval` if `ninterval` is provided, otherwise set to the total simulation duration.
+        diameter_number : PairOfFloats, optional
+            Starting cumulative number and diameter pair (D, N) to define the simulation start in terms of crater frequency. 
+            Default is None, which requires `age` to be set.
+        diameter_number_end : PairOfFloats, optional
+            Ending cumulative number and diameter pair (D, N) to define the simulation end in terms of crater frequency.
+            Default is the present-day values if not provided.
+        diameter_number_interval : PairOfFloats, optional
+            Interval for outputting results in terms of cumulative number and diameter (D, N). Calculated based on `ninterval` if provided.
+        ninterval : int, optional
+            Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output
+            in equal cumulative number intervals and vice versa.  
+                
+        Returns
+        -------
+        A dict containing all arguments listed in Parameters above, as well as `is_age_interval`, which is a boolean flag indicating
+        whether or not the simulation is being run in equal age intervals or equal number intervals.
+            
+        Raises
+        ------
+        ValueError
+            If any of the following conditions are met:
+            - Neither the age nore the diameter_number argument is provided.
+            - Both the age and diameter_number arguments are provided.
+            - Both the age_end and diameter_number_end arguments are provided.
+            - The age argument is provided but is not a scalar.
+            - The age_end argument is provided but is not a scalar. 
+            - The age_interval is provided but is not a positive scalar
+            - The age_interval provided is negative, or is greater than age - age_end
+            - The diameter_number argument is not a pair of values, or any of them are less than 0
+            - The diameter_number_end argument is not a pair of values, or any of them are less than 0
+            - The diameter_number_interval argument is not a pair of values, or any of them are less than 0
+            - The age_interval and diameter_number_interval arguments are both provided.
+            - The diameter_number_interval provided is negative, or is greater than diameter_number - diameter_number_end
+            - The ninterval is provided but is not an integer or is less than 1.
+            - The ninterval is provided and either age_interval or diameter_number_interval is also provided
+        """         
+        # Determine whether we are going to do equal time intervals or equal number intervals
+        age = kwargs.get('age', None)
+        age_interval = kwargs.get('age_interval', None)
+        diameter_number_interval = kwargs.get('diameter_number_interval', None)
+        ninterval = kwargs.pop('ninterval', None)
+        if age_interval is not None and diameter_number_interval is not None:
+            raise ValueError("Cannot specify both ninterval and age_interval or diameter_number_interval")
+        if ninterval is not None:
+            if not isinstance(ninterval, int):
+                raise TypeError("ninterval must be an integer")
+            if ninterval < 1:
+                raise ValueError("ninterval must be greater than zero") 
+            if age_interval is not None or diameter_number_interval is not None:
+                raise ValueError("Cannot specify both ninterval and age_interval or diameter_number_interval")
+            
+        is_age_interval = age_interval is not None or (ninterval is not None and diameter_number_interval is None)
+        
+        # Validate arguments using the production function validator first 
+        if 'diameter_range' not in kwargs:
+            kwargs['diameter_range'] = (self.smallest_crater, self.largest_crater)
+        if 'area' not in kwargs:
+            kwargs['area'] = self.surf.area.item()
+        kwargs  = self.production._validate_sample_args(**kwargs)
+       
+        if is_age_interval:
+            age = kwargs.get('age', None)
+            if age is None:
+                raise ValueError("Something went wrong! age should be set by self.production_validate_sample_args")
+            age_end = kwargs.get('age_end', None)
+            if age_end is None:
+                raise ValueError("Something went wrong! age_end should be set by self.production_validate_sample_args")
+            if age_interval is None:
+                if ninterval is None:
+                    ninterval = 1
+                age_interval = (age - kwargs['age_end']) / ninterval
+            else:
+                if age_interval > age - age_end:
+                    raise ValueError("age_interval must be less than age - age_end")
+                elif age_interval <= 0:
+                    raise ValueError("age_interval must be greater than zero")
+                ninterval = int(np.ceil((age - age_end) / age_interval)) 
+            
+            kwargs['age_interval'] = age_interval
+            kwargs['ninterval'] = ninterval
+        else:
+            diameter_number = kwargs.get('diameter_number', None)
+            if diameter_number is None:
+                raise ValueError("Something went wrong! diameter_number should be set by self.production_validate_sample_args")
+            diameter_number_end = kwargs.get('diameter_number_end', None)
+            if diameter_number_end is None:
+                raise ValueError("Something went wrong! diameter_number_end should be set by self.production_validate_sample_args")
+            if diameter_number_interval is None:
+                if ninterval is None:
+                    ninterval = 1
+                diameter_number_interval = (diameter_number[0], (diameter_number[1] - diameter_number_end[1]) / ninterval)
+            else:
+                if len(diameter_number_interval) != 2:
+                    raise ValueError("The 'diameter_number_interval' must be a pair of values in the form (D,N)")
+                # Check to be sure that the diameter in the diameter_number_interval is the same as diameter_number. 
+                # If not, we need to adjust the end diameter value it so that they match 
+                diameter_number_interval = self.production._validate_csfd(*diameter_number_interval)
+                if diameter_number_interval[0] != diameter_number[0]:
+                    area = kwargs.get('area', None)
+                    if area is None:
+                        raise ValueError("Something went wrong! area should be set by self.production_validate_sample_args")
+                    diameter_number_density_interval = (diameter_number_interval[0], diameter_number_interval[1] / area)
+                    age_val = self.production.function_inverse(*diameter_number_density_interval)
+                    diameter_number_density_interval = (diameter_number[0], self.production.function(diameter=diameter_number[0], age=age_val))
+                    diameter_number_interval = (diameter_number[0], diameter_number_density_interval[1] * area)
+                    
+                if diameter_number_interval[1] >= diameter_number[1] - diameter_number_end[1]:
+                    raise ValueError("diameter_number_interval must be less than diameter_number - diameter_number_end")
+                if diameter_number_interval[1] <= 0:
+                    raise ValueError("diameter_number_interval must be greater than zero")
+                ninterval = int(np.ceil((diameter_number[1] - diameter_number_end[1]) / diameter_number_interval[1]))
+                kwargs['diameter_number_interval'] = diameter_number_interval
+                kwargs['ninterval'] = ninterval
+                
+        kwargs['is_age_interval'] = is_age_interval
+        
+        # Remove unecessary arguments that came out of the production._validate_sample_args method        
+        kwargs.pop('diameter_range')
+        kwargs.pop('area')
+        kwargs.pop('return_age')
+         
+        return kwargs
+    
     def save(self, 
              *args: Any, 
              **kwargs: Any
@@ -426,7 +680,8 @@ class Simulation:
         """
         Save the current simulation state to a file.
         """
-        save_surface(self.surf, *args, **kwargs)
+
+        save(self.surf, *args, **kwargs)
         
         return
     
@@ -447,47 +702,67 @@ class Simulation:
         if out_dir is None:
             out_dir = os.path.join(self.simdir, "vtk_files")
             
+        data_file_list = glob(os.path.join(self.surf.data_dir, "*.nc"))
+        data_file_list.remove(self.surf.grid_file)
+            
         # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
         # The API change does not affect the functionality of the code, so we can safely ignore the warning
         with warnings.catch_warnings(): 
             warnings.simplefilter("ignore", FutureWarning)
             warnings.simplefilter("ignore", DeprecationWarning) # Ignores a warning issued in bar.py
-            ignore_time = "time" not in self.surf.dims
         
             # Save the surface data to a combined netCDF file
             with tempfile.TemporaryDirectory() as temp_dir:
-                self.save(combine_data_files=True, out_dir=temp_dir)
+                #self.save(combine_data_files=True, out_dir=temp_dir, *args, **kwargs)
+                ds = xr.open_mfdataset(data_file_list)
                 
                 # Use elevation data to modify the mesh for visualization purposes
                 grid = xr.open_dataset(self.grid_file)
             
                 vert_vars = ['xVertex', 'yVertex', 'zVertex']
-                
-                ds_new = elevation_to_cartesian(grid[vert_vars], self.surf['node_elevation'])
-                for var in vert_vars:
-                    grid[var] = ds_new[var]
-                    
                 face_vars = ['xCell', 'yCell', 'zCell']
-                ds_new = elevation_to_cartesian(grid[face_vars], self.surf['face_elevation'])
-                for var in face_vars:
-                    grid[var] = ds_new[var]
                 
-                grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"))
+                rename_vars = {'xVertex': 'delta_xVertex',
+                               'yVertex': 'delta_yVertex',
+                               'zVertex': 'delta_zVertex',
+                               'xCell': 'delta_xCell',
+                               'yCell': 'delta_yCell',
+                                'zCell': 'delta_zCell'}
+
+                                        
+                # Loop over the time variable and compute the elevation change at each time step
+                delta_pos = []
+                for t in ds.Time: 
+                    ids = xr.Dataset()
+                    ids[vert_vars] = elevation_to_cartesian(grid[vert_vars], ds['node_elevation'].sel(Time=t))
+                    ids[face_vars] = elevation_to_cartesian(grid[face_vars], ds['face_elevation'].sel(Time=t))
+                    ids[vert_vars] -= grid[vert_vars]  
+                    ids[face_vars] -= grid[face_vars]
+                    delta_pos.append(ids)  
                 
-                # Combine the grid and data into one file
+                delta_pos = xr.concat(delta_pos, dim='Time').rename(rename_vars)
+                ds = xr.merge([ds, delta_pos])
+                if 'elapsed_time' not in ds:
+                    ds['elapsed_time'] = ds.Time.astype(np.float64)
+                
+                grid.to_netcdf(os.path.join(temp_dir, "surface_mesh.nc"), unlimited_dims=["Time"])
+                ds.to_netcdf(os.path.join(temp_dir, "surface_data.nc"), unlimited_dims=["Time"])
+                
                 try:
                     extract_vtk(
-                        filename_pattern=os.path.join(temp_dir, "*.nc"),
+                        filename_pattern=os.path.join(temp_dir, "surface_data.nc"),
                         mesh_filename=os.path.join(temp_dir, "surface_mesh.nc"),
                         variable_list=['allOnVertices', 'allOnCells'] , 
                         dimension_list=['maxEdges=','vertexDegree='], 
                         combine=True,
                         include_mesh_vars=True,
-                        out_dir=out_dir, 
-                        ignore_time=ignore_time, 
-                        *args, **kwargs)
+                        ignore_time=False,
+                        time="0:",
+                        xtime='elapsed_time',
+                        out_dir=out_dir)
+                            
                 except:
-                    raise RuntimeError("Error in xtract_vtk. Cannot export VTK files")
+                    raise RuntimeError("Error in extract_vtk. Cannot export VTK files")
         
         return
     
@@ -534,14 +809,13 @@ class Simulation:
 
         Examples
         --------
-        Apply default turbulence noise:
+        .. code-block:: python
+            # Apply default turbulence noise:
+            sim = cratermaker.Simulation()
+            sim.apply_noise()
 
-        >>> sim = cratermaker.Simulation()
-        >>> sim.apply_noise()
-
-        Apply ridged noise with custom Parameters
-
-        >>> sim.apply_noise(model="ridged", noise_width=500e3, num_octaves=10, freq=1.5)
+            #Apply ridged noise with custom Parameters
+            sim.apply_noise(model="ridged", noise_width=500e3, num_octaves=10, freq=1.5)
         """      
         scale = self.target.radius / noise_width
         num_octaves = kwargs.pop("num_octaves", 12)
@@ -802,3 +1076,60 @@ class Simulation:
         Number of faces in the simulation mesh. Dynamically set based on `surf` attribute.
         """
         return self.surf.uxgrid.n_face
+
+    @property
+    def interval_number(self):
+        """
+        The index of the current time step. 
+        """
+        return self._interval_number
+
+    @interval_number.setter
+    def interval_number(self, value):
+        if not isinstance(value, int):
+            raise TypeError("interval_number must be an integer")
+        if value < 0:
+            raise ValueError("interval_number must be greater than or equal to zero")
+        
+        self._interval_number = value    
+        
+    @property
+    def elapsed_time(self):
+        """
+        The elasped time in My since the start of the simulation.
+        """
+        return self._elapsed_time
+    
+    @elapsed_time.setter
+    def elapsed_time(self, value):
+        self._elapsed_time = np.float64(value)
+        
+    @property
+    def xtime(self):
+        """
+        The elapsed time in My since the start of the simulation.
+        """
+        return f"{self._elapsed_time}"
+        
+    @property
+    def current_age(self):
+        """
+        The age of the current time step in My relative to the present from the chronology of the production function.
+        """
+        return self._current_age
+    
+    @current_age.setter
+    def current_age(self, value):
+        self._current_age = np.float64(value)
+        
+    @property
+    def elapsed_n1(self):
+        """
+        The elapsed number of craters larger than 1 km in diameter.
+        """
+        return self._elapsed_n1
+    
+    @elapsed_n1.setter
+    def elapsed_n1(self, value):
+        self._elapsed_n1 = np.float64(value)
+        

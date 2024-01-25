@@ -52,17 +52,18 @@ class TestSimulation(unittest.TestCase):
             
             sim.save()
         
-            with xr.open_dataset(os.path.join(sim.data_dir,"node_elevation.nc")) as ds:
-                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-            with xr.open_dataset(os.path.join(sim.data_dir,"face_elevation.nc")) as ds:
-                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+            with xr.open_dataset(os.path.join(sim.data_dir,f"node_elevation_{sim.interval_number:06d}.nc")) as ds:
+                np.testing.assert_array_equal(ds["node_elevation"].isel(Time=-1).values, np.ones(sim.surf.uxgrid.n_node))
+            with xr.open_dataset(os.path.join(sim.data_dir,f"face_elevation_{sim.interval_number:06d}.nc")) as ds:
+                np.testing.assert_array_equal(ds["face_elevation"].isel(Time=-1).values, np.ones(sim.surf.uxgrid.n_face))
         
             # Test saving combined data
             sim.save(combine_data_files=True)
-            combined_file = os.path.join(sim.surf.data_dir, _COMBINED_DATA_FILE_NAME)
+            combined_file = os.path.join(sim.surf.data_dir, _COMBINED_DATA_FILE_NAME.replace(".nc", f"_{sim.interval_number:06d}.nc"))
             self.assertTrue(os.path.exists(combined_file))
         
             with xr.open_dataset(combined_file) as ds:
+                ds = ds.isel(Time=-1)
                 np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
                 np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
        
@@ -74,7 +75,7 @@ class TestSimulation(unittest.TestCase):
         
         # Test with default parameters
         default_out_dir = os.path.join(sim.simdir, "vtk_files")
-        expected_files = ["staticFieldsOnCells.vtp", "staticFieldsOnVertices.vtp"]
+        expected_files = ["fieldsOnCells.pvd", "fieldsOnVertices.pvd"]
         sim.export_vtk()
         self.assertTrue(os.path.isdir(default_out_dir))
         for f in expected_files:
@@ -100,6 +101,73 @@ class TestSimulation(unittest.TestCase):
         
         with self.assertRaises(RuntimeError): 
             sim.emplace_crater(diameter=1e3, from_projectile=True)
+        return
+    
+    def test_populate(self):
+        sim = cratermaker.Simulation(pix=self.pix)
+        # Test that populate will work even if no craters are returned
+        sim.populate(age=1e-6)
+        return
+    
+    def test_invalid_run_args(self):
+        sim = cratermaker.Simulation(pix=self.pix)
+
+        # Test case: Neither the age nor the diameter_number argument is provided
+        with self.assertRaises(ValueError):
+            sim.run()
+
+        # Test case: Both the age and diameter_number arguments are provided
+        with self.assertRaises(ValueError):
+            sim.run(age=3.8e3, diameter_number=(300e3, 80))
+
+        # Test case: Both the age_end and diameter_number_end arguments are provided
+        with self.assertRaises(ValueError):
+            sim.run(age_end=3.0e3, diameter_number_end=(300e3, 80))
+
+        # Test case: The age argument is provided but is not a scalar
+        with self.assertRaises(ValueError):
+            sim.run(age=[3.8e3])
+
+        # Test case: The age_end argument is provided but is not a scalar
+        with self.assertRaises(ValueError):
+            sim.run(age_end=[3.0e3])
+
+        # Test case: The age_interval is provided but is not a positive scalar
+        with self.assertRaises(ValueError):
+            sim.run(age=3.8e3, age_interval=-100.0)
+
+        # Test case: The age_interval provided is negative, or is greater than age - age_end
+        with self.assertRaises(ValueError):
+            sim.run(age=3.8e3, age_end=3.0e3, age_interval=1000.0)
+
+        # Test case: The diameter_number argument is not a pair of values, or any of them are less than 0
+        with self.assertRaises(ValueError):
+            sim.run(diameter_number=(300e3, -80))
+
+        # Test case: The diameter_number_end argument is not a pair of values, or any of them are less than 0
+        with self.assertRaises(ValueError):
+            sim.run(diameter_number_end=(300e3, -80))
+
+        # Test case: The diameter_number_interval argument is not a pair of values, or any of them are less than 0
+        with self.assertRaises(ValueError):
+            sim.run(diameter_number_interval=(300e3, -80))
+
+        # Test case: The age_interval and diameter_number_interval arguments are both provided
+        with self.assertRaises(ValueError):
+            sim.run(age=3.8e3, age_interval=100.0, diameter_number_interval=(300e3, 80))
+
+        # Test case: The diameter_number_interval provided is negative, or is greater than diameter_number - diameter_number_end
+        with self.assertRaises(ValueError):
+            sim.run(diameter_number=(300e3, 80), diameter_number_end=(300e3, 30), diameter_number_interval=(300e3, 100))
+
+        # Test case: The ninterval is provided but is not an integer or is less than 1
+        with self.assertRaises(ValueError):
+            sim.run(age=3.8e3, ninterval=0)
+
+        # Test case: The ninterval is provided and either age_interval or diameter_number_interval is also provided
+        with self.assertRaises(ValueError):
+            sim.run(age=3.8e3, ninterval=100, age_interval=100.0)
+
         return
 
 if __name__ == '__main__':
