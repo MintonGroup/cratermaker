@@ -274,6 +274,7 @@ class Simulation:
         Examples
         --------
         .. code-block:: python
+        
             # Create a crater and projectile pair with a specific diameter
             crater, projectile = sim.generate_crater(diameter=1000.0)
     
@@ -316,6 +317,7 @@ class Simulation:
         Examples
         --------
         .. code-block:: python
+        
             # Create a projectile and crater pair with a specific diameter
             projectile, crater = sim.generate_projectile(diameter=1000.0)
 
@@ -361,6 +363,7 @@ class Simulation:
         Examples
         --------
         .. code-block:: python        
+        
             # Create a crater with specific diameter
             sim.emplace_crater(diameter=1000.0)
 
@@ -471,6 +474,7 @@ class Simulation:
         Examples
         --------
         .. code-block:: python
+        
             # Create a simulation object with default parameters (Moon, NeukumProduction, etc.)
             sim = cratermaker.Simulation()
             
@@ -810,6 +814,7 @@ class Simulation:
         Examples
         --------
         .. code-block:: python
+        
             # Apply default turbulence noise:
             sim = cratermaker.Simulation()
             sim.apply_noise()
