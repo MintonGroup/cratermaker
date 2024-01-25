@@ -1104,12 +1104,6 @@ class Simulation:
     def elapsed_time(self, value):
         self._elapsed_time = np.float64(value)
         
-    @property
-    def xtime(self):
-        """
-        The elapsed time in My since the start of the simulation.
-        """
-        return f"{self._elapsed_time}"
         
     @property
     def current_age(self):

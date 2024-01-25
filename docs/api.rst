@@ -26,6 +26,25 @@ Creating a Simulation
 
     Simulation
 
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Simulation.run
+    Simulation.populate
+    Simulation.emplace_crater
+    Simulation.generate_crater
+    Simulation.generate_projectile
+    Simulation.apply_noise
+    Simulation.initialize_surface
+    Simulation.save
+    Simulation.export_vtk
+    Simulation.set_elevation
+    Simulation.set_properties
+
 Attributes
 ----------
 
@@ -47,24 +66,11 @@ Attributes
     Simulation.scale_cls
     Simulation.seed
     Simulation.simdir
+    Simulation.interval_number
+    Simulation.elapsed_time
+    Simulation.current_age
+    Simulation.elapsed_n1
 
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Simulation.populate
-    Simulation.emplace_crater
-    Simulation.generate_crater
-    Simulation.generate_projectile
-    Simulation.apply_noise
-    Simulation.initialize_surface
-    Simulation.save
-    Simulation.export_vtk
-    Simulation.set_elevation
-    Simulation.set_properties
-    Simulation.to_json
 
 .. _api-Surface:
 
@@ -82,20 +88,6 @@ Creating a surface
     Surface
     initialize_surface
 
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Surface.data_dir
-    Surface.grid_file
-    Surface.grid_temp_dir
-    Surface.pix
-    Surface.target_radius
-    Surface.reference_surface_elevation
-    Surface.smallest_length
-
 Methods
 -------
 
@@ -109,6 +101,20 @@ Methods
     Surface.get_distance
     Surface.get_initial_bearing
     Surface.set_elevation
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Surface.data_dir
+    Surface.grid_file
+    Surface.grid_temp_dir
+    Surface.pix
+    Surface.target_radius
+    Surface.reference_surface_elevation
+    Surface.smallest_length
 
 .. _api-Production:
 
@@ -124,6 +130,18 @@ Creating a Production Function
     :toctree: generated/
 
     Production
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Production.function
+    Production.function_inverse
+    Production.sample
+    Production.set_model_parameters
+    Production.set_mean_impact_velocity
 
 Attributes
 ----------
@@ -141,17 +159,6 @@ Attributes
     Production.valid_generator_types
     Production.valid_time
 
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Production.set_model_parameters
-    Production.set_mean_impact_velocity
-    Production.function
-    Production.function_inverse
-    Production.sample
 
 .. _api-NeukumProduction:
 
@@ -168,6 +175,17 @@ Creating a Neukum Production Function
 
     NeukumProduction
 
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    NeukumProduction.function
+    NeukumProduction.chronology
+    NeukumProduction.size_frequency_distribution
+    NeukumProduction.set_model_parameters
+
 Attributes
 ----------
 
@@ -176,18 +194,10 @@ Attributes
 
     NeukumProduction.sfd_coef
     NeukumProduction.sfd_range
+    NeukumProduction.valid_time
     NeukumProduction.tau
     NeukumProduction.Cexp
     NeukumProduction.Clin
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    NeukumProduction.set_model_parameters
-    NeukumProduction.function
 
 .. currentmodule:: cratermaker
 
@@ -351,20 +361,6 @@ Creating Scale
 
     Scale
 
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Scale.target
-    Scale.rng
-    Scale.transition_diameter
-    Scale.transition_nominal
-    Scale.simple_enlargement_factor
-    Scale.complex_enlargement_factor
-    Scale.final_exp
-
 Methods
 -------
 
@@ -382,6 +378,21 @@ Methods
     Scale.projectile_to_transient
     Scale.transient_to_projectile
 
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Scale.target
+    Scale.rng
+    Scale.transition_diameter
+    Scale.transition_nominal
+    Scale.simple_enlargement_factor
+    Scale.complex_enlargement_factor
+    Scale.final_exp
+
+
 .. _api-Morphology:
 
 Morphology
@@ -396,6 +407,17 @@ Creating Morphology
     :toctree: generated/
 
     Morphology
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Morphology.set_morphology_parameters
+    Morphology.crater_profile
+    Morphology.ejecta_profile
+    Morphology.form_crater
 
 Attributes
 ----------
@@ -417,16 +439,6 @@ Attributes
     Morphology.target
     Morphology.rng
 
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Morphology.set_morphology_parameters
-    Morphology.crater_profile
-    Morphology.ejecta_profile
-    Morphology.form_crater
 
 .. _api-Utility:
 
