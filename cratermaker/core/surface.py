@@ -19,6 +19,7 @@ import warnings
 # Default file names and directories
 _DATA_DIR = "surface_data"
 _COMBINED_DATA_FILE_NAME = "surface_data.nc"
+_TIME_DATA_FILE_NAME = "time.nc"
 _GRID_FILE_NAME = "grid.nc"
 _GRID_TEMP_DIR = ".grid"
 
@@ -60,7 +61,7 @@ class Surface(UxDataset):
         Arbitrary keyword arguments to pass to the ``uxarray.UxDataset`` class.
 
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_reference_surface_elevation', '_smallest_length', '_area')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_time_file','_target_radius', '_pix', '_grid_type', '_reference_surface_elevation', '_smallest_length', '_area')    
     
     """Surface class for cratermaker"""
     def __init__(self, 
@@ -68,6 +69,7 @@ class Surface(UxDataset):
                  grid_temp_dir: os.PathLike | None = None,
                  data_dir: os.PathLike | None = None, 
                  grid_file: os.PathLike | None = None,
+                 time_file: os.PathLike | None = None,
                  target_radius: FloatLike | None = None,
                  pix: FloatLike | None = None,
                  grid_type: str | None = None,
@@ -79,6 +81,7 @@ class Surface(UxDataset):
         self._target_radius = target_radius
         self._pix = pix
         self._grid_type = grid_type
+        self._time_file = time_file
         
         # Call the super class constructor with the UxDataset
         super().__init__(*args, **kwargs)
@@ -101,6 +104,7 @@ class Surface(UxDataset):
                             grid_temp_dir=self.grid_temp_dir,
                             data_dir=self.data_dir,
                             grid_file=self.grid_file,
+                            time_file=self.time_file,
                             target_radius=self.target_radius,
                             pix=self.pix,
                             grid_type=self.grid_type,
@@ -118,6 +122,7 @@ class Surface(UxDataset):
             ds._grid_temp_dir = self._grid_temp_dir
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
+            ds._time_file = self._time_file
             ds._target_radius = self._target_radius
             ds._pix = self._pix
             ds._grid_type = self._grid_type
@@ -129,6 +134,7 @@ class Surface(UxDataset):
                          grid_temp_dir=self.grid_temp_dir,
                          data_dir=self.data_dir,
                          grid_file=self.grid_file,
+                         time_file=self.time_file,
                          target_radius=self.target_radius,
                          pix=self.pix,
                          grid_type=self.grid_type,
@@ -154,6 +160,7 @@ class Surface(UxDataset):
             copied._grid_temp_dir = self._grid_temp_dir.copy()
             copied._data_dir = self._data_dir.copy()
             copied._grid_file = self._grid_file.copy()
+            copied._time_file = self._time_file.copy()
             copied._target_radius = self._target_radius.copy()
             copied._pix = self._pix.copy()
             copied._grid_type = self._grid_type.copy()
@@ -163,6 +170,7 @@ class Surface(UxDataset):
             copied._grid_temp_dir = self._grid_temp_dir
             copied._data_dir = self._data_dir
             copied._grid_file = self._grid_file
+            copied._time_file = self._time_file
             copied._target_radius = self._target_radius
             copied._pix = self._pix
             copied._grid_type = self._grid_type
@@ -177,6 +185,7 @@ class Surface(UxDataset):
             ds._grid_temp_dir = self._grid_temp_dir
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
+            ds._time_file = self._time_file
             ds._target_radius = self._target_radius
             ds._pix = self._pix
             ds._grid_type = self._grid_type
@@ -188,6 +197,7 @@ class Surface(UxDataset):
                          grid_temp_dir=self.grid_temp_dir,
                          data_dir=self.data_dir,
                          grid_file=self.grid_file,
+                         time_file=self.time_file,
                          target_radius=self.target_radius,
                          pix=self.pix,
                          grid_type=self.grid_type,
@@ -232,6 +242,18 @@ class Surface(UxDataset):
     @grid_file.setter
     def grid_file(self, value):
         self._grid_file = value
+        
+    @property
+    def time_file(self):
+        """
+        Path to the time file.
+        """
+        return self._time_file
+    
+    @time_file.setter
+    def time_file(self, value):
+        self._time_file = value
+        
 
     @property
     def target_radius(self):
@@ -755,6 +777,7 @@ def initialize_surface(make_new_grid: bool = False,
         os.mkdir(data_dir_path)
         
     grid_file_path = os.path.join(data_dir_path,_GRID_FILE_NAME)
+    time_file_path = os.path.join(data_dir_path,_TIME_DATA_FILE_NAME)
     
     # Check to see if the grid is correct for this particular set of parameters. If not, then delete it and regrid
     make_new_grid = make_new_grid or not os.path.exists(grid_file_path)
@@ -777,6 +800,8 @@ def initialize_surface(make_new_grid: bool = False,
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
     if grid_file_path in data_file_list:
         data_file_list.remove(grid_file_path)
+    if time_file_path in data_file_list:
+        data_file_list.remove(time_file_path)
         
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
     reset_surface = reset_surface or make_new_grid or not data_file_list
@@ -785,6 +810,8 @@ def initialize_surface(make_new_grid: bool = False,
     if reset_surface:
         for f in data_file_list:
             os.remove(f)
+        if os.path.exists(time_file_path):
+            os.remove(time_file_path)
         data_file_list = []        
     
     # Initialize UxDataset with the loaded data
@@ -803,6 +830,7 @@ def initialize_surface(make_new_grid: bool = False,
                    grid_temp_dir = grid_temp_dir_path,
                    data_dir = data_dir_path,
                    grid_file = grid_file_path,
+                   time_file = time_file_path,
                    target_radius = target.radius,
                    pix=pix,
                    grid_type=grid_type,
@@ -924,7 +952,7 @@ def generate_grid(target: Target | str,
     # Create a temporary file
     temp_file = tempfile.NamedTemporaryFile(delete=False)
     # Write to the temporary file
-    ds.to_netcdf(temp_file.name, unlimited_dims=["Time"])
+    ds.to_netcdf(temp_file.name) #, unlimited_dims=["Time"])
 
     # Replace the original file only if writing succeeded
     shutil.move(temp_file.name,grid_file)    
@@ -980,28 +1008,37 @@ def save(surf: Surface,
         drop_vars = [k for k in ds.data_vars if k in do_not_save]
         if len(drop_vars) > 0:
             ds = ds.drop_vars(drop_vars)
-         
-        if time_variables is not None:
-            for k, v in time_variables.items():
-                ds[k] = uxr.UxDataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
-    
-        if combine_data_files:
-            with tempfile.TemporaryDirectory() as temp_dir:
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            if time_variables is not None:
+
+                time_ds = xr.Dataset()
+                for k, v in time_variables.items():
+                    time_ds[k] = xr.DataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
+                    
+                if os.path.exists(surf.time_file):
+                    oldtime = xr.open_dataset(surf.time_file)
+                    time_ds = xr.concat([oldtime, time_ds], dim="Time")
+                outpath = os.path.join(temp_dir, _TIME_DATA_FILE_NAME)
+                time_ds.to_netcdf(outpath)
+                time_ds.close()
+                shutil.move(outpath, os.path.join(out_dir, _TIME_DATA_FILE_NAME))
+                
+            if combine_data_files:
                 outpath = os.path.join(temp_dir, _COMBINED_DATA_FILE_NAME).replace(".nc", f"_{interval_number:06d}.nc")
                 dim_map = {k: _DIM_MAP[k] for k in ds.dims if k in _DIM_MAP}
 
-                ds.rename(dim_map).to_netcdf(outpath, unlimited_dims=["Time"])
+                ds.rename(dim_map).to_netcdf(outpath) 
                 filename = os.path.basename(outpath)
                 shutil.move(outpath,os.path.join(out_dir, filename))
-        else: 
-            with tempfile.TemporaryDirectory() as temp_dir:
+            else: 
                 for var in ds.data_vars:
                     dim_map = {k: _DIM_MAP[k] for k in ds[var].dims if k in _DIM_MAP}  # only map dimensions that are in the variable
                     outname = var + f"_{interval_number:06d}.nc" 
                     outpath =os.path.join(temp_dir, outname)
-                    ds[var].rename(dim_map).to_netcdf(outpath, unlimited_dims=["Time"])
+                    ds[var].rename(dim_map).to_netcdf(outpath) 
                     shutil.move(outpath,os.path.join(out_dir, outname))
-    return
+        return
 
 
 def elevation_to_cartesian(position: Dataset, 
