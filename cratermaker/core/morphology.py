@@ -186,7 +186,7 @@ class Morphology:
         inc_surf['face_crater_bearing'] = face_crater_bearing[inc_face]
         
         inc_surf.get_reference_surface(self.crater.location, self.crater.radius)
-        min_elevation = surf.reference_surface_elevation - self.floordepth
+        min_elevation = inc_surf.reference_surface_elevation - self.floordepth
         
         try:
             if inc_node.size > 0:
