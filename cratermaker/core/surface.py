@@ -6,7 +6,7 @@ from glob import glob
 import os
 import sys
 import numpy as np
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
 from typing import Tuple, List
@@ -16,6 +16,7 @@ import logging
 from .target import Target
 from ..utils.custom_types import FloatLike, PairOfFloats
 import warnings
+
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
@@ -642,8 +643,6 @@ class Surface(UxDataset):
             x, y, z = coords.T
             return (x - x_c)**2 + (y - y_c)**2 + (z - z_c)**2 - r**2
    
-        
-
         # Find cells within the crater radius
         if 'face_crater_distance' and 'node_crater_distance' in self:
             faces_within_radius = self['face_crater_distance'] <= region_radius
@@ -652,6 +651,12 @@ class Surface(UxDataset):
             nodes_within_radius, faces_within_radius = self.get_distance(location)
             faces_within_radius = faces_within_radius <= region_radius
             nodes_within_radius = nodes_within_radius <= region_radius
+        
+        if np.sum(faces_within_radius) < 5 or not nodes_within_radius.any():
+            self['reference_face_elevation'] = self['face_elevation']
+            self['reference_node_elevation'] = self['node_elevation']
+            self.reference_surface_elevation = self['face_elevation'].mean().values.item()
+            return
        
         inc_face = self.n_face
         face_vars = ['face_x', 'face_y', 'face_z'] 
@@ -668,7 +673,9 @@ class Surface(UxDataset):
         initial_guess = [0, 0, 0, guess_radius]  
 
         # Perform the curve fitting
-        params, _ = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", OptimizeWarning)
+            params, _ = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess)
 
         # Extract the fitted sphere center and radius
         reference_sphere_center = params[:3]
@@ -680,8 +687,9 @@ class Surface(UxDataset):
             A = f_vec[:,0]**2 + f_vec[:,1]**2 + f_vec[:,2]**2
             B = -2 * (f_vec[:,0] * reference_sphere_center[0] + f_vec[:,1] * reference_sphere_center[1] + f_vec[:,2] * reference_sphere_center[2])
             C = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
-            t = (-B + np.sqrt(B**2 - 4 * A * C )) / (2 * A)
-            t = np.where(t < 0, (-B - np.sqrt(B**2 - 4 * A * C )) / (2 * A), t)
+            sqrt_term = B**2 - 4 * A * C
+            t = np.where(sqrt_term >= 0.0, (-B + np.sqrt(sqrt_term)) / (2 * A), 1.0)
+            t = np.where(t < 0, (-B - np.sqrt(sqrt_term)) / (2 * A), t)
             elevations = self.target_radius * (t * np.linalg.norm(f_vec, axis=1)  - 1)
             return elevations
         
