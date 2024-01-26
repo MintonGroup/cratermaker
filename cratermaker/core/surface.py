@@ -18,8 +18,7 @@ import warnings
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
-_COMBINED_DATA_FILE_NAME = "surface_data.nc"
-_TIME_DATA_FILE_NAME = "time.nc"
+_COMBINED_DATA_FILE_NAME = "surf.nc"
 _GRID_FILE_NAME = "grid.nc"
 _GRID_TEMP_DIR = ".grid"
 
@@ -61,7 +60,7 @@ class Surface(UxDataset):
         Arbitrary keyword arguments to pass to the ``uxarray.UxDataset`` class.
 
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_time_file','_target_radius', '_pix', '_grid_type', '_reference_surface_elevation', '_smallest_length', '_area')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_reference_surface_elevation', '_smallest_length', '_area')    
     
     """Surface class for cratermaker"""
     def __init__(self, 
@@ -69,7 +68,6 @@ class Surface(UxDataset):
                  grid_temp_dir: os.PathLike | None = None,
                  data_dir: os.PathLike | None = None, 
                  grid_file: os.PathLike | None = None,
-                 time_file: os.PathLike | None = None,
                  target_radius: FloatLike | None = None,
                  pix: FloatLike | None = None,
                  grid_type: str | None = None,
@@ -81,7 +79,6 @@ class Surface(UxDataset):
         self._target_radius = target_radius
         self._pix = pix
         self._grid_type = grid_type
-        self._time_file = time_file
         
         # Call the super class constructor with the UxDataset
         super().__init__(*args, **kwargs)
@@ -104,7 +101,6 @@ class Surface(UxDataset):
                             grid_temp_dir=self.grid_temp_dir,
                             data_dir=self.data_dir,
                             grid_file=self.grid_file,
-                            time_file=self.time_file,
                             target_radius=self.target_radius,
                             pix=self.pix,
                             grid_type=self.grid_type,
@@ -122,7 +118,6 @@ class Surface(UxDataset):
             ds._grid_temp_dir = self._grid_temp_dir
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
-            ds._time_file = self._time_file
             ds._target_radius = self._target_radius
             ds._pix = self._pix
             ds._grid_type = self._grid_type
@@ -134,7 +129,6 @@ class Surface(UxDataset):
                          grid_temp_dir=self.grid_temp_dir,
                          data_dir=self.data_dir,
                          grid_file=self.grid_file,
-                         time_file=self.time_file,
                          target_radius=self.target_radius,
                          pix=self.pix,
                          grid_type=self.grid_type,
@@ -160,7 +154,6 @@ class Surface(UxDataset):
             copied._grid_temp_dir = self._grid_temp_dir.copy()
             copied._data_dir = self._data_dir.copy()
             copied._grid_file = self._grid_file.copy()
-            copied._time_file = self._time_file.copy()
             copied._target_radius = self._target_radius.copy()
             copied._pix = self._pix.copy()
             copied._grid_type = self._grid_type.copy()
@@ -170,7 +163,6 @@ class Surface(UxDataset):
             copied._grid_temp_dir = self._grid_temp_dir
             copied._data_dir = self._data_dir
             copied._grid_file = self._grid_file
-            copied._time_file = self._time_file
             copied._target_radius = self._target_radius
             copied._pix = self._pix
             copied._grid_type = self._grid_type
@@ -185,7 +177,6 @@ class Surface(UxDataset):
             ds._grid_temp_dir = self._grid_temp_dir
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
-            ds._time_file = self._time_file
             ds._target_radius = self._target_radius
             ds._pix = self._pix
             ds._grid_type = self._grid_type
@@ -197,7 +188,6 @@ class Surface(UxDataset):
                          grid_temp_dir=self.grid_temp_dir,
                          data_dir=self.data_dir,
                          grid_file=self.grid_file,
-                         time_file=self.time_file,
                          target_radius=self.target_radius,
                          pix=self.pix,
                          grid_type=self.grid_type,
@@ -242,17 +232,6 @@ class Surface(UxDataset):
     @grid_file.setter
     def grid_file(self, value):
         self._grid_file = value
-        
-    @property
-    def time_file(self):
-        """
-        Path to the time file.
-        """
-        return self._time_file
-    
-    @time_file.setter
-    def time_file(self, value):
-        self._time_file = value
         
 
     @property
@@ -336,6 +315,7 @@ class Surface(UxDataset):
                       isfacedata: bool = True,
                       save_to_file: bool = False,
                       interval_number: int = 0,
+                      combine_data_files: bool = False,
                     ) -> None:
         """
         Generate either a node or face data variable and optionally save it to a file. If the data variable already exists, it will be overwritten.
@@ -356,6 +336,8 @@ class Surface(UxDataset):
             Specify whether the data should be saved to a file. Default is False.
         interval_number : int, optional, default 0
             The interval number to use when saving the data to the data file.
+        combine_data_files : bool, optional
+            If True, combine the current data with the existing data for previous intervals in the data file. Default is False.
             
         Returns
         -------
@@ -377,11 +359,9 @@ class Surface(UxDataset):
             if isfacedata: 
                 dims = ["n_face"]
                 size = uxgrid.n_face
-                dim_map = {'n_face': 'nCells'}
             else:
                 dims = ["n_node"]
                 size = uxgrid.n_node
-                dim_map = {'n_node': 'nVertices'}
         
             if data is None:
                 data = np.zeros(size,dtype=np.float64) 
@@ -397,19 +377,17 @@ class Surface(UxDataset):
                     name=name,
                     uxgrid=uxgrid
                     ) 
-                 
-            if save_to_file:
-                data_file = os.path.join(self.data_dir, f"{name}_{interval_number:06d}.nc")
-                uxda.rename(dim_map).expand_dims(["Time"]).assign_coords({"Time":[interval_number]}).to_netcdf(data_file) 
-                uxda.close()                
-                
             self[name] = uxda
+            
+            if save_to_file:
+                _save_data(uxda, self.data_dir, interval_number, combine_data_files)
         return 
 
         
     def set_elevation(self, 
                     new_elev: NDArray[np.float64] | List[FloatLike] | None = None,
                     save_to_file: bool = False, 
+                    combine_data_files: bool = False,
                     interval_number: int = 0,
                     ) -> None:
         """
@@ -421,6 +399,8 @@ class Surface(UxDataset):
             New elevation data to be set. If None, the elevation is set to zero. 
         save_to_file : bool, default False
             If True, save the elevation data to the elevation file.
+        combine_data_files : bool, default False
+            If True, combine the current data with the existing data for previous intervals in the data file.
         interval_number : int, default 0
             The interval number to use when saving the elevation data to the elevation file.
         """
@@ -444,7 +424,9 @@ class Surface(UxDataset):
                                long_name="elevation of nodes",
                                units= "m",
                                isfacedata=False,
-                               save_to_file=save_to_file
+                               save_to_file=save_to_file,
+                               combine_data_files=combine_data_files,
+                               interval_number=interval_number
                               )   
         if gen_face:
             self.generate_data(data=new_elev, 
@@ -452,7 +434,9 @@ class Surface(UxDataset):
                                long_name="elevation of faces",
                                units="m",
                                isfacedata=True,
-                               save_to_file=save_to_file
+                               save_to_file=save_to_file,
+                               combine_data_files=combine_data_files,
+                               interval_number=interval_number
                               )
         return 
 
@@ -777,7 +761,6 @@ def initialize_surface(make_new_grid: bool = False,
         os.mkdir(data_dir_path)
         
     grid_file_path = os.path.join(data_dir_path,_GRID_FILE_NAME)
-    time_file_path = os.path.join(data_dir_path,_TIME_DATA_FILE_NAME)
     
     # Check to see if the grid is correct for this particular set of parameters. If not, then delete it and regrid
     make_new_grid = make_new_grid or not os.path.exists(grid_file_path)
@@ -800,8 +783,6 @@ def initialize_surface(make_new_grid: bool = False,
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
     if grid_file_path in data_file_list:
         data_file_list.remove(grid_file_path)
-    if time_file_path in data_file_list:
-        data_file_list.remove(time_file_path)
         
     # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
     reset_surface = reset_surface or make_new_grid or not data_file_list
@@ -810,8 +791,6 @@ def initialize_surface(make_new_grid: bool = False,
     if reset_surface:
         for f in data_file_list:
             os.remove(f)
-        if os.path.exists(time_file_path):
-            os.remove(time_file_path)
         data_file_list = []        
     
     # Initialize UxDataset with the loaded data
@@ -830,7 +809,6 @@ def initialize_surface(make_new_grid: bool = False,
                    grid_temp_dir = grid_temp_dir_path,
                    data_dir = data_dir_path,
                    grid_file = grid_file_path,
-                   time_file = time_file_path,
                    target_radius = target.radius,
                    pix=pix,
                    grid_type=grid_type,
@@ -947,18 +925,73 @@ def generate_grid(target: Target | str,
     
     # Create the attribute dictionary that will enable the grid to be identified in case it needs to be regridded 
     with xr.open_dataset(grid_file) as ds:
-        ds = ds.assign_attrs(pix=pix, grid_type=grid_type) #.assign_coords({"Time":[0]})
+        ds = ds.assign_attrs(pix=pix, grid_type=grid_type) 
     
     # Create a temporary file
     temp_file = tempfile.NamedTemporaryFile(delete=False)
     # Write to the temporary file
-    ds.to_netcdf(temp_file.name) #, unlimited_dims=["Time"])
+    ds.to_netcdf(temp_file.name) 
 
     # Replace the original file only if writing succeeded
     shutil.move(temp_file.name,grid_file)    
   
     return 
 
+def _save_data(ds: xr.Dataset | xr.DataArray,
+               out_dir: os.PathLike,
+               interval_number: int = 0,
+               combine_data_files: bool = False
+               ) -> None:
+    """
+    Save the data to the specified directory. If `combine_data_files` is True, then all data variables are saved to a single NetCDF
+    file. If False, then only the data variables for the current interval are saved to a NetCDF file with the interval number
+    appended. 
+    
+    Parameters
+    ----------
+    ds : xr.Dataset or xr.DataArray
+        The data to be saved.
+    out_dir : PathLike
+        Directory to save the data.
+    interval_number : int, Default is 0.
+        Interval number to append to the data file name. Default is 0.
+    combine_data_files : bool, Default is False.
+        If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. 
+        
+    Notes
+    -----
+    This function first saves to a temporary file and then moves that file to the final destination. This is done to avoid file 
+    locking issues with NetCDF files.
+    """
+    with warnings.catch_warnings(): 
+        warnings.simplefilter("ignore", FutureWarning)
+        dim_map = {k: _DIM_MAP[k] for k in ds.dims if k in _DIM_MAP}
+        ds = ds.rename(dim_map)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            if combine_data_files:
+                filename = _COMBINED_DATA_FILE_NAME
+            else:
+                filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
+                
+            data_file = os.path.join(out_dir, filename)
+            if os.path.exists(data_file):
+                ds_file = xr.open_mfdataset(data_file)
+                ds_file = ds_file.merge(ds)
+            else:
+                ds_file = ds    
+                
+            if "Time" not in ds_file.dims:
+                ds_file = ds_file.expand_dims(["Time"])
+            if "Time" not in ds_file.coords:
+                ds_file = ds_file.assign_coords({"Time":[interval_number]})                   
+                
+            temp_file = os.path.join(temp_dir, filename)
+            ds_file.to_netcdf(temp_file) 
+            ds_file.close()     
+            shutil.move(temp_file, data_file)
+
+    return
+    
 
 def save(surf: Surface, 
          out_dir: os.PathLike | None = None,
@@ -1005,41 +1038,15 @@ def save(surf: Surface,
     with warnings.catch_warnings(): 
         warnings.simplefilter("ignore", FutureWarning)
         ds = surf.expand_dims(dim="Time").assign_coords({"Time":[interval_number]})
+        for k, v in time_variables.items():
+            ds[k] = xr.DataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
+                    
         drop_vars = [k for k in ds.data_vars if k in do_not_save]
         if len(drop_vars) > 0:
             ds = ds.drop_vars(drop_vars)
-        
-        with tempfile.TemporaryDirectory() as temp_dir:
-            if time_variables is not None:
+            
+        _save_data(ds, out_dir, interval_number, combine_data_files)
 
-                new_time_ds = xr.Dataset()
-                for k, v in time_variables.items():
-                    new_time_ds[k] = xr.DataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
-                    
-                if os.path.exists(surf.time_file):
-                    time_ds = xr.open_dataset(surf.time_file)
-                    time_ds = time_ds.combine_first(new_time_ds)
-                else:
-                    time_ds = new_time_ds
-                outpath = os.path.join(temp_dir, _TIME_DATA_FILE_NAME)
-                time_ds.to_netcdf(outpath)
-                time_ds.close()
-                shutil.move(outpath, os.path.join(out_dir, _TIME_DATA_FILE_NAME))
-                
-            if combine_data_files:
-                outpath = os.path.join(temp_dir, _COMBINED_DATA_FILE_NAME).replace(".nc", f"_{interval_number:06d}.nc")
-                dim_map = {k: _DIM_MAP[k] for k in ds.dims if k in _DIM_MAP}
-
-                ds.rename(dim_map).to_netcdf(outpath) 
-                filename = os.path.basename(outpath)
-                shutil.move(outpath,os.path.join(out_dir, filename))
-            else: 
-                for var in ds.data_vars:
-                    dim_map = {k: _DIM_MAP[k] for k in ds[var].dims if k in _DIM_MAP}  # only map dimensions that are in the variable
-                    outname = var + f"_{interval_number:06d}.nc" 
-                    outpath =os.path.join(temp_dir, outname)
-                    ds[var].rename(dim_map).to_netcdf(outpath) 
-                    shutil.move(outpath,os.path.join(out_dir, outname))
         return
 
 

@@ -711,8 +711,9 @@ class Simulation:
             shutil.rmtree(out_dir)
         os.makedirs(out_dir)
             
-        data_file_list = glob(os.path.join(self.surf.data_dir, "*_*.nc"))
-        data_file_list.append(self.surf.time_file)
+        data_file_list = glob(os.path.join(self.surf.data_dir, "*.nc"))
+        if self.surf.grid_file in data_file_list:
+            data_file_list.remove(self.surf.grid_file)
         
         # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
         # The API change does not affect the functionality of the code, so we can safely ignore the warning
