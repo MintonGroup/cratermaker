@@ -6,6 +6,7 @@ from glob import glob
 import os
 import sys
 import numpy as np
+from scipy.optimize import curve_fit
 import shutil
 import tempfile
 from typing import Tuple, List
@@ -620,6 +621,28 @@ class Surface(UxDataset):
         center_vector : ndarray
             The vector pointing to the center of the cap from the sphere's center.
         """
+        def sphere_function(coords, x_c, y_c, z_c, r):
+            """
+            Compute the sphere function.
+
+            Parameters
+            ----------
+            coords : ndarray
+                Array of x, y, and z coordinates.
+            x_c, y_c, z_c : float
+                Center coordinates of the sphere.
+            r : float
+                Radius of the sphere.
+
+            Returns
+            -------
+            ndarray
+                The values of the sphere function at the given coordinates.
+            """
+            x, y, z = coords.T
+            return (x - x_c)**2 + (y - y_c)**2 + (z - z_c)**2 - r**2
+   
+        
 
         # Find cells within the crater radius
         if 'face_crater_distance' and 'node_crater_distance' in self:
@@ -635,63 +658,46 @@ class Surface(UxDataset):
         face_grid = self.n_face.uxgrid._ds[face_vars].sel(n_face=inc_face)
         region_faces = face_grid.where(faces_within_radius, drop=False)
         region_elevation = self['face_elevation'].where(faces_within_radius, drop=False)
-        region_surf = elevation_to_cartesian(region_faces, region_elevation)
+        region_surf = elevation_to_cartesian(region_faces, region_elevation) / self.target_radius
 
-        # Fetch x, y, z values of the mesh within the region
-        region_delta = region_surf - region_faces
+        x, y, z = region_surf['face_x'], region_surf['face_y'], region_surf['face_z']
+        region_vectors = np.vstack((x, y, z)).T
 
-        # Fetch the areas of the cells within the region
-        face_areas = self['face_areas'].where(faces_within_radius, drop=False)
+        # Initial guess for the sphere center and radius
+        guess_radius = 1.0 + region_elevation.mean().values.item() / self.target_radius
+        initial_guess = [0, 0, 0, guess_radius]  
 
-        # Calculate the weighted average of the x, y, and z coordinates to get the average surface vector
-        weighted_x = (region_delta['face_x'] * face_areas).sum() / face_areas.sum()
-        weighted_y = (region_delta['face_y'] * face_areas).sum() / face_areas.sum()
-        weighted_z = (region_delta['face_z'] * face_areas).sum() / face_areas.sum()
-        reference_surface_elevation = ((region_elevation * face_areas).sum() / face_areas.sum()).item()
-        reference_surface_center = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
-       
-        # This will compute the vector that describes the orientation of the center of the center of the original mesh surface. 
-        _, center_face_index, = self.find_nearest_index(location)
-        surface_vector = np.array([self.uxgrid.face_x[center_face_index], self.uxgrid.face_y[center_face_index], self.uxgrid.face_z[center_face_index]])
-        
-        # Normalize to get the unit vector
-        surface_vector = surface_vector / np.linalg.norm(surface_vector)
-        
-        # Sum the target radius and the average elevation to get the end point of the cap vector
-        surface_vector *= (self.target_radius + reference_surface_elevation)
-        
-        # Now we can get the vector pointing to the center of the cap from the generating sphere center
-        reference_surface_vector = surface_vector - reference_surface_center 
-        
-        # Calculate the radius of the reference sphere and normalize the unit vector
-        reference_sphere_radius = np.linalg.norm(reference_surface_vector)
-        reference_surface_vector /= reference_sphere_radius
-        
-        self.reference_surface_elevation = reference_surface_elevation
-        
-        # Calculate the distance from each face of the original surface to the reference sphere
-        face_vectors = np.vstack((region_faces.face_x, region_faces.face_y, region_faces.face_z)).T
-        face_vectors_normalized = face_vectors / np.linalg.norm(face_vectors, axis=1)[:, np.newaxis]
+        # Perform the curve fitting
+        params, _ = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess)
 
-        # Calculate the intersection points on the reference sphere along the direction of surface_vector
-        intersection_points = reference_surface_center + face_vectors_normalized * reference_sphere_radius
-
+        # Extract the fitted sphere center and radius
+        reference_sphere_center = params[:3]
+        reference_sphere_radius = params[3]
+        
+        def find_reference_elevations(coords):
+            # Find the point along the original vector that intersects the sphere 
+            f_vec = coords / self.target_radius      
+            A = f_vec[:,0]**2 + f_vec[:,1]**2 + f_vec[:,2]**2
+            B = -2 * (f_vec[:,0] * reference_sphere_center[0] + f_vec[:,1] * reference_sphere_center[1] + f_vec[:,2] * reference_sphere_center[2])
+            C = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
+            t = (-B + np.sqrt(B**2 - 4 * A * C )) / (2 * A)
+            t = np.where(t < 0, (-B - np.sqrt(B**2 - 4 * A * C )) / (2 * A), t)
+            elevations = self.target_radius * (t * np.linalg.norm(f_vec, axis=1)  - 1)
+            return elevations
+        
         # Calculate the distances between the original face points and the intersection points
-        reference_face_elevation = np.linalg.norm(face_vectors - intersection_points, axis=1)
+        face_vectors  = np.vstack((region_faces.face_x, region_faces.face_y, region_faces.face_z)).T
+        self['reference_face_elevation'] = xr.where(faces_within_radius, find_reference_elevations(face_vectors), self['face_elevation'])
+        self.reference_surface_elevation = self['reference_face_elevation'].mean().values.item()
         
-        self['reference_face_elevation'] = xr.where(faces_within_radius, reference_face_elevation, self['face_elevation'])
-       
         # Now do the same thing to compute the nodal values 
         inc_node = self.n_node
         node_vars = ['node_x', 'node_y', 'node_z'] 
         node_grid = self.n_node.uxgrid._ds[node_vars].sel(n_node=inc_node)
-        region_nodes = node_grid.where(nodes_within_radius, drop=False)
-        node_vectors = np.vstack((region_nodes.node_x, region_nodes.node_y, region_nodes.node_z)).T
-        node_vectors_normalized = node_vectors / np.linalg.norm(node_vectors, axis=1)[:, np.newaxis]
-        intersection_points = reference_surface_center + node_vectors_normalized * reference_sphere_radius
-        reference_node_elevation = np.linalg.norm(node_vectors - intersection_points, axis=1) 
+        region_nodes = node_grid.where(nodes_within_radius, drop=False) 
+        node_vectors  = np.vstack((region_nodes.node_x, region_nodes.node_y, region_nodes.node_z)).T
         
-        self['reference_node_elevation'] = xr.where(nodes_within_radius, reference_node_elevation, self['node_elevation'])
+        self['reference_node_elevation'] = xr.where(nodes_within_radius, find_reference_elevations(node_vectors), self['node_elevation'])
         
         return
    
