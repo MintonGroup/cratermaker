@@ -107,10 +107,9 @@ class Morphology:
         
         r = np.abs(r) / self.radius
 
-        # Compute the height based on the relative radial distance
-        if r < flrad:
-            h = -self.floordepth
-        elif r >= 1.0:
+        # Compute the height based on the relative radial distance. The crater floor will be handled separately once the reference
+        # sphere is compuated.
+        if r >= 1.0:
             h = (self.rimheight - self.ejrim) * (r**(-RIMDROP))
         else:
             h = c0 + c1 * r + c2 * r**2 + c3 * r**3
