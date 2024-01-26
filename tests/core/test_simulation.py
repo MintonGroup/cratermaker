@@ -51,18 +51,21 @@ class TestSimulation(unittest.TestCase):
             np.testing.assert_array_equal(sim.surf["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face)) 
             
             sim.save()
-        
-            with xr.open_dataset(os.path.join(sim.data_dir,f"node_elevation_{sim.interval_number:06d}.nc")) as ds:
-                np.testing.assert_array_equal(ds["node_elevation"].isel(Time=-1).values, np.ones(sim.surf.uxgrid.n_node))
-            with xr.open_dataset(os.path.join(sim.data_dir,f"face_elevation_{sim.interval_number:06d}.nc")) as ds:
-                np.testing.assert_array_equal(ds["face_elevation"].isel(Time=-1).values, np.ones(sim.surf.uxgrid.n_face))
+            
+            filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc"))
+            self.assertTrue(os.path.exists(filename))
+            with xr.open_dataset(filename) as ds:
+                ds = ds.isel(Time=-1)
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
         
             # Test saving combined data
             sim.save(combine_data_files=True)
-            combined_file = os.path.join(sim.surf.data_dir, _COMBINED_DATA_FILE_NAME.replace(".nc", f"_{sim.interval_number:06d}.nc"))
-            self.assertTrue(os.path.exists(combined_file))
-        
-            with xr.open_dataset(combined_file) as ds:
+            filename = _COMBINED_DATA_FILE_NAME
+            
+            filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME)
+            self.assertTrue(os.path.exists(filename))
+            with xr.open_dataset(filename) as ds:
                 ds = ds.isel(Time=-1)
                 np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
                 np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
@@ -72,10 +75,9 @@ class TestSimulation(unittest.TestCase):
     def test_simulation_export_vtk(self):
       
         sim = cratermaker.Simulation(pix=self.pix, target=self.target) 
-        
         # Test with default parameters
         default_out_dir = os.path.join(sim.simdir, "vtk_files")
-        expected_files = ["fieldsOnCells.pvd", "fieldsOnVertices.pvd"]
+        expected_files = ["staticFieldsOnCells.vtp","staticFieldsOnVertices.vtp","timeDependentFieldsOnCells.pvd","timeDependentFieldsOnVertices.pvd"]
         sim.export_vtk()
         self.assertTrue(os.path.isdir(default_out_dir))
         for f in expected_files:
