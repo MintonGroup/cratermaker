@@ -532,13 +532,8 @@ class Simulation:
                 self.elapsed_n1 += (self.production.function(diameter=1000.0, age=current_age)  - self.production.function(diameter=1000.0, age = current_age_end))
                 self.current_age = current_age_end
                 
-            time_variables = {
-                "current_age": self.current_age,
-                "elapsed_time": self.elapsed_time,
-                "elapsed_n1": self.elapsed_n1
-                }
-         
-            self.save(interval_number=self.interval_number, time_variables=time_variables)
+            self.save()
+            
         self.export_vtk()
         return
 
@@ -680,15 +675,18 @@ class Simulation:
          
         return kwargs
     
-    def save(self, 
-             *args: Any, 
-             **kwargs: Any
-            ) -> None:
+    def save(self, **kwargs: Any) -> None:
         """
         Save the current simulation state to a file.
         """
 
-        save(self.surf, *args, **kwargs)
+        time_variables = {
+            "current_age": self.current_age,
+            "elapsed_time": self.elapsed_time,
+            "elapsed_n1": self.elapsed_n1
+            }
+         
+        save(self.surf, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
         
         return
     
@@ -706,11 +704,15 @@ class Simulation:
             Directory to store the VTK files.
         """
         
+        self.save()  
         if out_dir is None:
             out_dir = os.path.join(self.simdir, "vtk_files")
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+        os.makedirs(out_dir)
             
         data_file_list = glob(os.path.join(self.surf.data_dir, "*_*.nc"))
-        #data_file_list.remove(self.surf.grid_file)
+        data_file_list.append(self.surf.time_file)
         
         # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
         # The API change does not affect the functionality of the code, so we can safely ignore the warning
@@ -720,46 +722,16 @@ class Simulation:
         
             # Save the surface data to a combined netCDF file
             with tempfile.TemporaryDirectory() as temp_dir:
-                ds = xr.open_mfdataset(data_file_list)
-                
-                # Use elevation data to modify the mesh for visualization purposes
-                grid = xr.open_dataset(self.grid_file)
-            
-                vert_vars = ['xVertex', 'yVertex', 'zVertex']
-                face_vars = ['xCell', 'yCell', 'zCell']
-                
-                rename_vars = {'xVertex': 'delta_xVertex',
-                               'yVertex': 'delta_yVertex',
-                               'zVertex': 'delta_zVertex',
-                               'xCell': 'delta_xCell',
-                               'yCell': 'delta_yCell',
-                               'zCell': 'delta_zCell'}
-
-                                        
-                # # Loop over the time variable and compute the elevation change at each time step
-                # delta_pos = []
-                # for i,t in enumerate(ds.Time): 
-                #     ids = xr.Dataset()
-                #     ids[vert_vars] = elevation_to_cartesian(grid[vert_vars], ds['node_elevation'].sel(Time=t))
-                #     ids[face_vars] = elevation_to_cartesian(grid[face_vars], ds['face_elevation'].sel(Time=t))
-                #     ids[vert_vars] -= grid[vert_vars]  
-                #     ids[face_vars] -= grid[face_vars]
-                #     ids = ids.rename(rename_vars).expand_dims('Time').assign_coords(Time=[i])
-                #     ids.to_netcdf(os.path.join(self.surf.data_dir, f"deltapos_{i:06d}.nc")) 
-                #     ids.close()
-               
-                 
-                filename_pattern = f"{self.surf.time_file}"
+                filename_pattern = ""
                 for f in data_file_list:
-                    filename_pattern += f";{f}"
-                
+                    filename_pattern += f"{f};"
                 try:
                     extract_vtk(
                         filename_pattern=filename_pattern,
                         mesh_filename=self.surf.grid_file,
-                        variable_list=['allOnVertices', 'allOnCells'] , 
-                        dimension_list=['maxEdges=','vertexDegree='], 
-                        combine=True,
+                        variable_list=['allOnVertices', 'allOnCells'], 
+                        dimension_list=['maxEdges=','vertexDegree=','maxEdges2=','TWO='], 
+                        combine=False,
                         include_mesh_vars=True,
                         ignore_time=False,
                         time="0:",

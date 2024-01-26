@@ -1012,13 +1012,15 @@ def save(surf: Surface,
         with tempfile.TemporaryDirectory() as temp_dir:
             if time_variables is not None:
 
-                time_ds = xr.Dataset()
+                new_time_ds = xr.Dataset()
                 for k, v in time_variables.items():
-                    time_ds[k] = xr.DataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
+                    new_time_ds[k] = xr.DataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
                     
                 if os.path.exists(surf.time_file):
-                    oldtime = xr.open_dataset(surf.time_file)
-                    time_ds = xr.concat([oldtime, time_ds], dim="Time")
+                    time_ds = xr.open_dataset(surf.time_file)
+                    time_ds = time_ds.combine_first(new_time_ds)
+                else:
+                    time_ds = new_time_ds
                 outpath = os.path.join(temp_dir, _TIME_DATA_FILE_NAME)
                 time_ds.to_netcdf(outpath)
                 time_ds.close()
