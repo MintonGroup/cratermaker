@@ -967,6 +967,8 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
         warnings.simplefilter("ignore", FutureWarning)
         dim_map = {k: _DIM_MAP[k] for k in ds.dims if k in _DIM_MAP}
         ds = ds.rename(dim_map)
+        if isinstance(ds, xr.DataArray):
+            ds = ds.to_dataset()
         with tempfile.TemporaryDirectory() as temp_dir:
             if combine_data_files:
                 filename = _COMBINED_DATA_FILE_NAME
@@ -976,7 +978,7 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
             data_file = os.path.join(out_dir, filename)
             if os.path.exists(data_file):
                 ds_file = xr.open_mfdataset(data_file)
-                ds_file = ds_file.merge(ds)
+                ds_file = ds.merge(ds_file, compat="override")
             else:
                 ds_file = ds    
                 
