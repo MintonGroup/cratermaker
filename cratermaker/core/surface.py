@@ -688,8 +688,17 @@ class Surface(UxDataset):
             B = -2 * (f_vec[:,0] * reference_sphere_center[0] + f_vec[:,1] * reference_sphere_center[1] + f_vec[:,2] * reference_sphere_center[2])
             C = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
             sqrt_term = B**2 - 4 * A * C
-            t = np.where(sqrt_term >= 0.0, (-B + np.sqrt(sqrt_term)) / (2 * A), 1.0)
-            t = np.where(t < 0, (-B - np.sqrt(sqrt_term)) / (2 * A), t)
+            valid = (sqrt_term >= 0.0) & ~np.isnan(A)
+
+            # Initialize t with default value
+            t = np.full_like(A, 1.0)
+
+            # Calculate square root only for valid terms
+            sqrt_valid_term = np.sqrt(np.where(valid, sqrt_term, 0))
+
+            # Apply the formula only where valid
+            t = np.where(valid, (-B + sqrt_valid_term) / (2 * A), t)
+            
             elevations = self.target_radius * (t * np.linalg.norm(f_vec, axis=1)  - 1)
             return elevations
         
