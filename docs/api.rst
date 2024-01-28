@@ -113,7 +113,6 @@ Attributes
     Surface.grid_temp_dir
     Surface.pix
     Surface.target_radius
-    Surface.reference_surface_elevation
     Surface.smallest_length
 
 .. _api-Production:

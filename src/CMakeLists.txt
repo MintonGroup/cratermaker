@@ -14,6 +14,8 @@ SET(SRC_FILES
     ${SRC}/surface/surface_module.f90
     ${SRC}/perlin/perlin_module.f90
     ${SRC}/perlin/perlin_submodule.f90
+    ${SRC}/morphology/morphology_module.f90
+    ${SRC}/morphology/morphology_submodule.f90
 )
 
 # Combine all source files 

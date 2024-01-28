@@ -56,7 +56,7 @@ class TestMonteCarlo(unittest.TestCase):
         size = 10000
         angles = get_random_impact_angle(size=size)
 
-        # Check type and shape
+        # Check type and morphology
         self.assertIsInstance(angles, np.ndarray)
         self.assertEqual(angles.shape, (size,))
 
