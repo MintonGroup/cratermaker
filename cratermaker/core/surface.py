@@ -16,6 +16,7 @@ import logging
 from .target import Target
 from ..utils.custom_types import FloatLike, PairOfFloats
 import warnings
+from ..cython.perlin import apply_noise
 
 
 # Default file names and directories
@@ -62,7 +63,7 @@ class Surface(UxDataset):
         Arbitrary keyword arguments to pass to the ``uxarray.UxDataset`` class.
 
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_reference_surface_elevation', '_smallest_length', '_area')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_smallest_length', '_area')    
     
     """Surface class for cratermaker"""
     def __init__(self, 
@@ -88,7 +89,6 @@ class Surface(UxDataset):
         # Additional initialization for Surface
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
-        self._reference_surface_elevation = 0.0
         self._area = None
 
     def __getitem__(self, key):
@@ -107,8 +107,6 @@ class Surface(UxDataset):
                             pix=self.pix,
                             grid_type=self.grid_type,
                             )
-            value.reference_surface_elevation = self.reference_surface_elevation
-
         return value
     
     
@@ -123,7 +121,6 @@ class Surface(UxDataset):
             ds._target_radius = self._target_radius
             ds._pix = self._pix
             ds._grid_type = self._grid_type
-            ds._reference_surface_elevation = self._reference_surface_elevation
         else:
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
@@ -135,7 +132,6 @@ class Surface(UxDataset):
                          pix=self.pix,
                          grid_type=self.grid_type,
                          )
-            ds._reference_surface_elevation = self._reference_surface_elevation
 
         return ds
     
@@ -159,7 +155,6 @@ class Surface(UxDataset):
             copied._target_radius = self._target_radius.copy()
             copied._pix = self._pix.copy()
             copied._grid_type = self._grid_type.copy()
-            copied._reference_surface_elevation = self._reference_surface_elevation.copy()
         else:
             # Point to the existing properties
             copied._grid_temp_dir = self._grid_temp_dir
@@ -168,7 +163,6 @@ class Surface(UxDataset):
             copied._target_radius = self._target_radius
             copied._pix = self._pix
             copied._grid_type = self._grid_type
-            copied._reference_surface_elevation = self._reference_surface_elevation
         return copied    
    
     def _replace(self, *args, **kwargs):
@@ -182,7 +176,6 @@ class Surface(UxDataset):
             ds._target_radius = self._target_radius
             ds._pix = self._pix
             ds._grid_type = self._grid_type
-            ds._reference_surface_elevation = self._reference_surface_elevation
         else:
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
@@ -194,8 +187,6 @@ class Surface(UxDataset):
                          pix=self.pix,
                          grid_type=self.grid_type,
                          )
-            ds._reference_surface_elevation = self._reference_surface_elevation
-
         return ds   
 
     @property
@@ -272,18 +263,6 @@ class Surface(UxDataset):
     @grid_type.setter
     def grid_type(self, value):
         self._grid_type = value
-        
-    @property
-    def reference_surface_elevation(self):
-        """
-        Average elevation of the surface within the reference radius.
-        """
-        return self._reference_surface_elevation
-        
-    @reference_surface_elevation.setter
-    def reference_surface_elevation(self, value):
-        self._reference_surface_elevation = value
-        
         
     @property
     def smallest_length(self):
@@ -655,7 +634,6 @@ class Surface(UxDataset):
         if np.sum(faces_within_radius) < 5 or not nodes_within_radius.any():
             self['reference_face_elevation'] = self['face_elevation']
             self['reference_node_elevation'] = self['node_elevation']
-            self.reference_surface_elevation = self['face_elevation'].mean().values.item()
             return
        
         inc_face = self.n_face
@@ -675,7 +653,10 @@ class Surface(UxDataset):
         # Perform the curve fitting
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", OptimizeWarning)
-            params, _ = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess)
+            try:
+                params, _ = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess)
+            except:
+                params = initial_guess
 
         # Extract the fitted sphere center and radius
         reference_sphere_center = params[:3]
@@ -705,7 +686,6 @@ class Surface(UxDataset):
         # Calculate the distances between the original face points and the intersection points
         face_vectors  = np.vstack((region_faces.face_x, region_faces.face_y, region_faces.face_z)).T
         self['reference_face_elevation'] = xr.where(faces_within_radius, find_reference_elevations(face_vectors), self['face_elevation'])
-        self.reference_surface_elevation = self['reference_face_elevation'].mean().values.item()
         
         # Now do the same thing to compute the nodal values 
         inc_node = self.n_node

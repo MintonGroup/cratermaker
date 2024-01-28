@@ -3,11 +3,13 @@ from numpy.random import Generator
 import xarray as xr
 from scipy.optimize import fsolve
 from typing import Tuple, Any
+from numpy.typing import ArrayLike
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
 from .surface import Surface
 from .target import Target
+from ..cython import morphology
 
 RIMDROP = 4.20
 
@@ -41,7 +43,7 @@ class Morphology:
         self.truncation_radius = None
 
         # Set the morphology based on crater type
-        self.set_morphology_parameters()        
+        self.set_morphology_parameters()
        
     def __repr__(self):
         return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.diameter}, "
@@ -74,72 +76,20 @@ class Morphology:
             
         self.ejrim = 0.14 * (self.diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
-   
-    def crater_profile(self, r: FloatLike) -> np.float64:
-        """
-        Calculate the elevation of a crater as a function of distance from the center.
 
-        Parameters
-        -----------
-        r : float-like
-            Radial distance from the crater center in meters.
-        crater: Crater
-            The crater to be created.
-
-        Returns
-        --------
-        np.float64
-            Elevation of the crater relative to a reference surface.
-        """
-
-        # Constants
-        A = 4.0 / 11.0
-        B = -32.0 / 187.0
-
-        # Calculate the floor radius relative to the final crater radius
-        flrad = self.floordiam / self.diameter
-
-        # Use polynomial crater profile similar to that of Fassett et al. (2014), but the parameters are set by the crater dimensions
-        c1 = (-self.floordepth - self.rimheight) / (flrad - 1.0 + A * (flrad**2 - 1.0) + B * (flrad**3 - 1.0))
-        c0 = self.rimheight - c1 * (1.0 + A + B)
-        c2 = A * c1
-        c3 = B * c1
-        
-        r = np.abs(r) / self.radius
-
-        # Compute the height based on the relative radial distance. The crater floor will be handled separately once the reference
-        # sphere is compuated.
-        if r >= 1.0:
-            h = (self.rimheight - self.ejrim) * (r**(-RIMDROP))
-        else:
-            h = c0 + c1 * r + c2 * r**2 + c3 * r**3
-
-        return h        
-
+    def profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
+        elevation = morphology.profile(r,
+                                  r_ref,
+                                  self.diameter, 
+                                  self.floordepth, 
+                                  self.floordiam, 
+                                  self.rimheight, 
+                                  self.ejrim,
+                                  RIMDROP
+        )
+         
+        return np.array(elevation, dtype=np.float64)
     
-    def ejecta_profile(self, r: FloatLike) -> np.float64:
-        """
-        Calculate the thickness of ejecat as a function of distance from the center of the crater.
-
-        Parameters
-        ----------
-        r : float-like
-            Radial distance from the crater center in meters.
-        crater: Crater
-            The crater to be created.
-
-        Returns
-        -------
-        np.float64
-            Elevation of the crater relative to a reference surface.
-        """
-        
-        ejprofile = 3.0
-        r = np.abs(r) / self.radius
-        thick = self.ejrim * (r)**(-ejprofile)
-        return thick
-    
-          
     def form_crater(self, 
                     surf: Surface,
                     **kwargs) -> None:
@@ -155,18 +105,12 @@ class Morphology:
         """
       
         node_crater_distance, face_crater_distance = surf.get_distance(self.crater.location)
-        node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(self.crater.location)
+        #node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(self.crater.location)
         self.crater.node_index, self.crater.face_index = np.argmin(node_crater_distance.data), np.argmin(face_crater_distance.data)
         
         # Compute the reference surface for the crater 
-        def _crater_profile(r):
-            h = self.crater_profile(r) 
-            if r > self.radius:
-                h += self.ejecta_profile(r)
-            return h
-        
         def _profile_invert(r):
-            return self.ejecta_profile(r) - surf.smallest_length
+            return self.profile(r, np.zeros(1)) - surf.smallest_length
        
         # Get the maximum extent 
         rmax = fsolve(_profile_invert, x0=self.radius)[0]
@@ -180,23 +124,20 @@ class Morphology:
         
         # Save distance and bearing information to the local surface object
         inc_surf['node_crater_distance'] = node_crater_distance[inc_node]
-        inc_surf['node_crater_bearing'] = node_crater_bearing[inc_node]
+        #inc_surf['node_crater_bearing'] = node_crater_bearing[inc_node]
         inc_surf['face_crater_distance'] = face_crater_distance[inc_face]
-        inc_surf['face_crater_bearing'] = face_crater_bearing[inc_face]
+        #inc_surf['face_crater_bearing'] = face_crater_bearing[inc_face]
         
         inc_surf.get_reference_surface(self.crater.location, self.crater.radius)
-        min_elevation = inc_surf.reference_surface_elevation - self.floordepth
         
         try:
             if inc_node.size > 0:
-                inc_surf['node_elevation'] = inc_surf['reference_node_elevation'] + np.vectorize(_crater_profile)(inc_surf['node_crater_distance'])
-                inc_surf['node_elevation'] = xr.where((inc_surf['node_crater_distance'] < self.crater.radius) & (inc_surf['node_elevation'] < min_elevation), min_elevation, inc_surf['node_elevation'])
-                surf['node_elevation'][inc_node] = inc_surf['node_elevation']
+                node_elevation = self.profile(inc_surf['node_crater_distance'].values, inc_surf['reference_node_elevation'].values)
+                surf['node_elevation'].loc[{'n_node': inc_node}] = node_elevation
             
             if inc_face.size > 0:
-                inc_surf['face_elevation'] = inc_surf['reference_face_elevation'] + np.vectorize(_crater_profile)(inc_surf['face_crater_distance'])
-                inc_surf['face_elevation'] = xr.where((inc_surf['face_crater_distance'] < self.crater.radius) & (inc_surf['face_elevation'] < min_elevation), min_elevation, inc_surf['face_elevation'])
-                surf['face_elevation'][inc_face] = inc_surf['face_elevation']
+                face_elevation = self.profile(inc_surf['face_crater_distance'].values, inc_surf['reference_face_elevation'].values)
+                surf['face_elevation'].loc[{'n_face': inc_face}] = face_elevation
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")

@@ -200,7 +200,7 @@ contains
       
             f = t * t * t * (t * (t * 6._DP - 15._DP) + 10._DP)
             return
-            end function fade
+         end function fade
       
          pure function dfade(t) result(df)
             implicit none
