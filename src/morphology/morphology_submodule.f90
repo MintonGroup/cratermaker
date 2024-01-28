@@ -30,7 +30,7 @@ contains
       real(DP), intent(in) :: RIMDROP !! The exponent for the ejecta rim dropoff.
       real(DP), dimension(:), intent(out) :: elevation !! The elevation of the crater relative to a reference surface.
       ! Internals
-      integer(I4B) :: i
+      integer(I4B) :: i, ninc
       real(DP) :: r, flrad, radius, meanref, min_elevation
       real(DP) :: c0, c1, c2, c3
       real(DP), parameter :: A = 4.0_DP / 11.0_DP
@@ -46,7 +46,12 @@ contains
       c0 = rimheight - c1 * (1.0_DP + A + B)
       c2 = A * c1
       c3 = B * c1
-      meanref = sum(reference_elevation(:)) / size(reference_elevation(:))
+      ninc = count(radial_distance(:) <= radius)
+      if (ninc == 0) then
+         meanref = reference_elevation(minloc(radial_distance(:),dim=1))
+      else
+         meanref = sum(reference_elevation(:), radial_distance(:) <= radius) / ninc
+      end if
       min_elevation = meanref - floordepth
 
       elevation(:) = reference_elevation(:) + crater_profile(radial_distance(:)/radius)

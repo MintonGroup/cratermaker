@@ -654,13 +654,13 @@ class Surface(UxDataset):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", OptimizeWarning)
             try:
-                params, _ = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess)
+                popt, pcov, infodict, mesg, ier  = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess, full_output=True)
             except:
-                params = initial_guess
+                popt = initial_guess
 
         # Extract the fitted sphere center and radius
-        reference_sphere_center = params[:3]
-        reference_sphere_radius = params[3]
+        reference_sphere_center = popt[:3]
+        reference_sphere_radius = popt[3]
         
         def find_reference_elevations(coords):
             # Find the point along the original vector that intersects the sphere 
