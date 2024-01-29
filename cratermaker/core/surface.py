@@ -654,7 +654,8 @@ class Surface(UxDataset):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", OptimizeWarning)
             try:
-                popt, pcov, infodict, mesg, ier  = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess, full_output=True)
+                bounds =([-1.0, -1.0, -1.0, 0.5],[1.0, 1.0, 1.0, 2.0]) 
+                popt, _  = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess, bounds=bounds)
             except:
                 popt = initial_guess
 
@@ -669,7 +670,7 @@ class Surface(UxDataset):
             B = -2 * (f_vec[:,0] * reference_sphere_center[0] + f_vec[:,1] * reference_sphere_center[1] + f_vec[:,2] * reference_sphere_center[2])
             C = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
             sqrt_term = B**2 - 4 * A * C
-            valid = (sqrt_term >= 0.0) & ~np.isnan(A)
+            valid = ~np.isnan(A) & (sqrt_term >= 0.0) 
 
             # Initialize t with default value
             t = np.full_like(A, 1.0)
@@ -679,7 +680,9 @@ class Surface(UxDataset):
 
             # Apply the formula only where valid
             t = np.where(valid, (-B + sqrt_valid_term) / (2 * A), t)
-            
+            if np.any(t[valid] < 0):
+                t = np.where(valid & (t < 0), (-B - sqrt_valid_term) / (2 * A), t)
+                
             elevations = self.target_radius * (t * np.linalg.norm(f_vec, axis=1)  - 1)
             return elevations
         
