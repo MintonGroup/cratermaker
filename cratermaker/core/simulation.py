@@ -29,7 +29,6 @@ class Simulation:
                  target: str | Target = None,
                  surf: Surface | None = None,
                  reset_surface: bool | None = None,
-                 pix: FloatLike | None = None,
                  seed: int | None = None,
                  rng: Generator | None = None,
                  simdir: os.PathLike | None = None, 
@@ -47,8 +46,6 @@ class Simulation:
             Name of the target body or Target object for the simulation, default is "Moon".
         surf : Surface, optional
             Surface object to use for the simulation, default is None, which reads in a surface from file if it exists, or creates a new one.
-        pix : float, optional
-            Pixel resolution for the mesh, default is None.
         reset_surface : bool, optional
             Flag to reset the surface elevation, default is True.
         seed : int, optional
@@ -87,6 +84,7 @@ class Simulation:
         self._elapsed_time = 0.0
         self._current_age = 0.0
         self._elapsed_n1 = 0.0
+        self._ejecta_truncation = ejecta_truncation
         
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
@@ -139,12 +137,7 @@ class Simulation:
 
         self.target = target
 
-        if pix is not None:
-            self.pix = np.float64(pix)
-        else:    
-            self.pix = np.sqrt(4 * np.pi * self.target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
-
-        self.initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
+        self.initialize_surface(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
         
         # Set the scaling law model for this simulation 
         if scale_cls is None:
@@ -886,19 +879,6 @@ class Simulation:
         self._surf = value
 
     @property
-    def pix(self):
-        """
-        Pixel resolution for the mesh. Set during initialization.
-        """
-        return self._pix
-
-    @pix.setter
-    def pix(self, value):
-        if value <= 0:
-            raise ValueError("pix must be greater than zero")
-        self._pix = np.float64(value)
-
-    @property
     def seed(self):
         """
         Seed for the random number generator. Set during initialization.
@@ -1074,7 +1054,6 @@ class Simulation:
     def elapsed_time(self, value):
         self._elapsed_time = np.float64(value)
         
-        
     @property
     def current_age(self):
         """
@@ -1096,4 +1075,52 @@ class Simulation:
     @elapsed_n1.setter
     def elapsed_n1(self, value):
         self._elapsed_n1 = np.float64(value)
+       
+    @property
+    def ejecta_truncation(self):
+        """
+        The ejecta truncation distance in units of crater radii. Set during initialization.
+        """
+        return self._ejecta_truncation
+    
+    @ejecta_truncation.setter
+    def ejecta_truncation(self, value):
+        if value is not None:
+            if not isinstance(value, FloatLike):
+                raise TypeError("ejecta_truncation must be a scalar value")
+            if value < 1.0:
+                raise ValueError("ejecta_truncation must be greater than or equal to zero")
+            self._ejecta_truncation = np.float64(value) 
+        else:
+            self._ejecta_truncation = None
+            
+    @property
+    def smallest_crater(self):
+        """
+        The smallest crater diameter in meters. Set during initialization.
+        """
+        return self._smallest_crater
+    
+    @smallest_crater.setter
+    def smallest_crater(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("smallest_crater must be a scalar value")
+        if value <= 0:
+            raise ValueError("smallest_crater must be greater than zero")
+        self._smallest_crater = np.float64(value)
+        
+    @property
+    def largest_crater(self):
+        """
+        The largest crater diameter in meters. Set during initialization.
+        """
+        return self._largest_crater
+    
+    @largest_crater.setter
+    def largest_crater(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("largest_crater must be a scalar value")
+        if value <= 0:
+            raise ValueError("largest_crater must be greater than zero")
+        self._largest_crater = np.float64(value)
         

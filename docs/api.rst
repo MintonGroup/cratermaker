@@ -61,7 +61,6 @@ Attributes
     Simulation.morphology_cls
     Simulation.n_face
     Simulation.n_node
-    Simulation.pix
     Simulation.rng
     Simulation.scale_cls
     Simulation.seed
@@ -70,6 +69,9 @@ Attributes
     Simulation.elapsed_time
     Simulation.current_age
     Simulation.elapsed_n1
+    Simulation.ejecta_truncation
+    Simulation.smallest_crater
+    Simulation.largest_crater
 
 
 .. _api-Surface:

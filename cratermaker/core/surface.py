@@ -865,8 +865,10 @@ def initialize_surface(*,
     if grid_type not in valid_grid_types:
         raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
     
-    if pix is None or pix <= 0:
-        raise ValueError("pix must be a positive number")
+    if pix is not None:
+        pix = np.float64(pix)
+    else:    
+        pix = np.sqrt(4 * np.pi * target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
 
     if grid_type == "hires_local":
         if local_radius is None or local_radius <= 0:
@@ -897,7 +899,11 @@ def initialize_surface(*,
                       pix=pix,
                       grid_file=grid_file_path,
                       grid_temp_dir=grid_temp_dir_path,
-                      grid_type=grid_type)
+                      grid_type=grid_type,
+                      local_radius=local_radius,
+                      local_location=local_location,
+                      superdomain_scale_factor=superdomain_scale_factor
+                      )
     
     # Get the names of all data files in the data directory that are not the grid file
     data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
@@ -942,10 +948,13 @@ def initialize_surface(*,
 
 
 def generate_grid(target: Target | str, 
-                pix: FloatLike, 
-                grid_file: os.PathLike,
-                grid_temp_dir: os.PathLike,
-                grid_type: str = "uniform"
+                  pix: FloatLike, 
+                  grid_file: os.PathLike,
+                  grid_temp_dir: os.PathLike,
+                  grid_type: GridType = valid_grid_types[0],
+                  local_radius: FloatLike | None = None,
+                  local_location: PairOfFloats | None = None,
+                  superdomain_scale_factor: FloatLike | None = None
                 )  -> Surface:
     """
     Generate a tessellated mesh of a sphere using the jigsaw-based mesh builder in MPAS-tools.
@@ -963,7 +972,13 @@ def generate_grid(target: Target | str,
     grid_temp_dir : os.PathLike
         Path to the directory for storing temporary grid files.
     grid_type : str, optional
-        Type of the grid to be generated. Currently only "uniform" is supported.
+        Type of the grid to be generated. Options are "uniform" and "hires_local".
+    local_radius : FloatLike | None, optional
+        The radius of the local grid in meters. This is only used when grid_type is "hires_local".
+    local_location : Tuple[FloatLike, FloatLike] | None, optional
+        The longitude and latitude of the center of the local grid. This is only used when grid_type is "hires_local".
+    superdomain_scale_factor : FloatLike | None, optional
+        The scale factor for the superdomain. This is only used when grid_type is "hires_local".    
 
     Returns
     -------
@@ -1061,7 +1076,7 @@ def generate_grid(target: Target | str,
 
         return cellWidth, lon, lat
 
-    
+     
     from matplotlib._api.deprecation import MatplotlibDeprecationWarning
     if isinstance(target, str):
         try:
@@ -1070,8 +1085,14 @@ def generate_grid(target: Target | str,
             raise ValueError(f"Invalid target name {target}")
     elif not isinstance(target, Target):
         raise TypeError("target must be an instance of Target or a valid name of a target body")
-    
-    cellWidth, lon, lat = _make_uniform_face_size(pix)
+   
+    if grid_type not in valid_grid_types:
+        raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
+    if grid_type == "uniform": 
+        cellWidth, lon, lat = _make_uniform_face_size(pix)
+    elif grid_type == "hires_local":
+        cellWidth, lon, lat = _make_hires_local_face_size(pix, local_radius, local_location, superdomain_scale_factor) 
+        
     orig_dir = os.getcwd()
     os.chdir(grid_temp_dir)
     # Configure logger to suppress output
