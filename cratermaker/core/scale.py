@@ -1,11 +1,257 @@
 import numpy as np
 from numpy.random import Generator
-from typing import Tuple, Any
+from typing import Tuple, Any, Dict
+from scipy.optimize import root_scalar
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
-from scipy.optimize import root_scalar
+from ..utils.general_utils import set_properties, create_catalogue, check_properties
 
+
+class Material:
+    """
+    Represents the material properties relevant to the crater simulation.
+
+    This class defines various physical properties of the material involved in the cratering process.
+
+    """
+    config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
+    def __init__(self,
+                 name: str | None = None,
+                 K1: FloatLike | None = None,
+                 mu: FloatLike | None = None,
+                 Ybar: FloatLike | None = None,
+                 density: FloatLike | None = None,
+                 catalogue: Dict[str, Dict[str, FloatLike]] | None = None,
+                 **kwargs: Any,
+                 ):
+        """
+        Initialize the target object, setting properties from the provided arguments,
+        and creating a catalogue of known solar system targets if not provided.
+        
+        Parameters
+        ----------
+        name : str
+            The name of the material. If the material is matched to one that is present in the catalogue, the rest of the properties 
+            will be retrieved for it unless specified. If the name is not known from the catalogue, then all other properties must 
+            be supplied and in order to build a custom material.
+        K1 : FloatLike
+            Variable used in crater scaling (see _[1])
+        mu : FloatLike
+            Variable used in crater scaling (see _[1])
+        Ybar : FloatLike
+            The strength of the material, (Pa)
+        density : FloatLike
+            Volumentric density of material, (kg/m^3)
+        catalogue : Dict[str, Dict[str, FloatLike]]
+            An optional dictionary containing a catalogue of known materials to use for the simulation. The catalogue should be 
+            constructed using a nested dictionary, where the first level of keys are the names of the materials, and the second level
+            are the corresponding property names (K1, mu, Ybar, density). 
+            If not provided, a default catalogue will be used.
+        **kwargs : Any
+            Additional keyword argumments that could be set by the user.
+            
+        Notes
+        -----
+        The material properties defined here include crater scaling relationship values that were used in CTEM from Richardson (2009) [1]_.  These values used are from Holsapple (1993) [2]_ and Kraus et al. (2011) [3]_.
+        
+        References
+        ----------
+        .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697–715. https://doi.org/10.1016/j.icarus.2009.07.029
+        .. [2] Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333–373. https://doi.org/10.1146/annurev.ea.21.050193.002001
+        .. [3] Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724–738. https://doi.org/10.1016/j.icarus.2011.05.016        
+
+        """ 
+        # Set the attributes for this class
+        self._name = name
+        self._K1 = None
+        self._mu = None
+        self._Ybar = None
+        self._density = None
+        self._catalogue = None
+       
+        self.catalogue = catalogue
+        
+        # Set properties for the Material object based on the arguments passed to the function
+        self.set_properties(name=name,
+                            K1=K1,
+                            mu=mu,
+                            Ybar=Ybar,
+                            density=density,
+                            catalogue=self.catalogue,
+                            **kwargs) 
+        
+        # Check to make sure all required properties are set 
+        check_properties(self)
+        
+        return    
+
+    @property
+    def catalogue(self):
+        """
+        A nested dictionary containing a catalogue of known materials to use for the simulation. 
+        
+        Returns
+        -------
+        Dict[str, Dict[str, FloatLike]] or None
+            A catalogue of known materials to use for the simulation.
+        """
+        return self._catalogue
+    
+    @catalogue.setter
+    def catalogue(self, value):
+                      
+        if not isinstance(value, dict) and value is not None:
+            raise TypeError("catalogue must be a dict or None") 
+             
+        # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
+        material_properties = [
+            "name",       "K1",     "mu",   "Ybar",     "density" 
+        ]
+        material_values = [
+            ("Water",     2.30,     0.55,   0.0,        1000.0),
+            ("Sand",      0.24,     0.41,   0.0,        1750.0),
+            ("Dry Soil",  0.24,     0.41,   0.18e6,     1500.0),
+            ("Wet Soil",  0.20,     0.55,   1.14e6,     2000.0),
+            ("Soft Rock", 0.20,     0.55,   7.60e6,     2250.0),
+            ("Hard Rock", 0.20,     0.55,   18.0e6,     2500.0),
+            ("Ice",       15.625,   0.48,   0.0,        900.0), 
+        ]        
+       
+        if value is None: 
+            self._catalogue = create_catalogue(material_properties, material_values)
+        else:
+            self._catalogue = value    
+
+    @property
+    def name(self):
+        """
+        The name of the material.
+        
+        Returns
+        -------
+        str 
+            Name of the material.
+        """
+        return self._name
+    
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, str) and value is not None:
+            raise TypeError("name must be a string or None")
+        self._name = value
+        
+    @property
+    def K1(self):
+        """
+        K1 crater scaling relationship term. 
+        
+        Returns
+        -------
+        np.float64 
+        
+        References
+        ----------
+        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697–715. https://doi.org/10.1016/j.icarus.2009.07.029 
+        """
+        return self._K1
+    
+    @K1.setter
+    def K1(self, value):
+        if not isinstance(value, FloatLike) and value is not None:
+            raise TypeError("K1 must be a numeric value or None")
+        if value is not None and value < 0:
+            raise ValueError("K1 must be a positive number")
+        self._K1 = np.float64(value)
+        
+    @property
+    def mu(self):
+        """
+        mu crater scaling relationship term.
+        
+        Returns
+        -------
+        np.float64 
+        
+        References
+        ----------
+        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697–715. https://doi.org/10.1016/j.icarus.2009.07.029 
+        """
+        return self._mu
+    
+    @mu.setter
+    def mu(self, value):
+        if not isinstance(value, FloatLike) and value is not None:
+            raise TypeError("mu must be a numeric value or None")
+        if value is not None and value < 0:
+            raise ValueError("mu must be a positive number")
+        self._mu = np.float64(value)
+        
+    @property
+    def Ybar(self):
+        """
+        The strength of the material in Pa.
+        
+        Returns
+        -------
+        np.float64 
+            
+                    
+        References
+        ----------
+        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697–715. https://doi.org/10.1016/j.icarus.2009.07.029 
+        """
+        return self._Ybar
+    
+    @Ybar.setter
+    def Ybar(self, value):
+        if not isinstance(value, FloatLike) and value is not None:
+            raise TypeError("Ybar must be a numeric value or None")
+        if value is not None and value < 0:
+            raise ValueError("Ybar must be a positive number")
+        self._Ybar = np.float64(value)
+        
+    @property
+    def density(self):
+        """
+            Volumentric density of material in kg/m^3.
+        
+        Returns
+        -------
+        np.float64 
+        """
+        return self._density
+    
+    @density.setter
+    def density(self, value):
+        if not isinstance(value, FloatLike) and value is not None:
+            raise TypeError("density must be a numeric value or None")
+        if value is not None and value < 0:
+            raise ValueError("density must be a positive number")
+        self._density = np.float64(value)
+        
+    
+    def set_properties(self, **kwargs):
+        """
+        Set properties of the current object based on the provided keyword arguments.
+
+        This function is a utility to update the properties of the current object. The actual implementation of the 
+        property setting is handled by the `util.set_properties` method.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            A dictionary of keyword arguments that represent the properties to be set on the current object.
+
+        Returns
+        -------
+        None
+            The function does not return a value.
+        """         
+        set_properties(self,**kwargs)
+        return
+    
+      
 class Scale():
     """
     An operations class for computing the scaling relationships between impactors and craters.
@@ -15,7 +261,12 @@ class Scale():
 
     """
 
-    def __init__(self, target, rng: Generator | None = None, **kwargs):
+    def __init__(self, 
+                 target: Target,
+                 material: Material | None = None,
+                 material_name: str | None = None,                  
+                 rng: Generator | None = None, 
+                 **kwargs):
         """
         Create an operations class for computing the scaling relationships between impactors and craters.
         
@@ -23,12 +274,36 @@ class Scale():
         ----------
         target : Target
             The target body for the impact simulation.
+        material : Material or None
+            Material composition of the target body. This will override the material supplied by name given by the target object. 
+            Only one of material or material_name can be provided.
+        material_name : str or None
+            Name of the material composition of the target body. This will override the material supplied by name given by the
+            target object. Only one of material or material_name can be provided.
         rng : Generator, optional
             A random number generator instance. If not provided, the default numpy RNG will be used. 
         """
         
         self.rng = rng
         self.target = target
+        self._material = None
+        self._material_name = None
+        
+        if material is not None and material_name is not None:
+            raise ValueError("Only one of material or material_name can be provided")
+        
+        if self.target.material_name is None:
+            if material_name is None or material is None:
+                raise ValueError("The target does not provide a material name. Either material or material_name must be provided")
+       
+        if material is not None:
+            self.material = material
+        elif material_name is not None: 
+            self.material_name = material_name
+            self.material = Material(name=self.material_name)        
+        else:
+            self.material_name = self.target.material_name
+            self.material = Material(name=self.material_name)
         
         # Initialize additional attributes for simple->complex transition scale factors. These are set to None here just for clarity
         self.transition_diameter = None
@@ -245,7 +520,7 @@ class Scale():
             The crater resulting from the impact of the projectile.
         """
         from .impact import Crater
-        transient_diameter = self.projectile_to_transient(projectile, target=self.target, rng=self.rng)
+        transient_diameter = self.projectile_to_transient(projectile, target=self.target, material=self.material, rng=self.rng)
         crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng, **kwargs, location=projectile.location, age=projectile.age)
 
         return crater
@@ -266,16 +541,15 @@ class Scale():
         Projectile
             The estimated projectile that could have caused the crater.
         """
-        projectile = self.transient_to_projectile(crater, target=self.target, rng=self.rng)
+        projectile = self.transient_to_projectile(crater, rng=self.rng, **kwargs)
         
         return projectile
 
 
-
     @staticmethod
     def projectile_to_transient(projectile, 
-                                target: Target, 
-                                rng: Generator, 
+                                target: Target,
+                                material: Material,
                                 **kwargs: Any) -> np.float64:
         """
         Calculate the transient diameter of a crater based on the properties of the projectile and target.
@@ -285,9 +559,9 @@ class Scale():
         projectile : Projectile
             The projectile responsible for the impact.
         target : Target
-            The target body being impacted.
-        rng : Generator
-            Random number generator instance used for any probabilistic calculations.
+            The target body for the impact simulation.
+        material : Material
+            The material composition of the target body.
         **kwargs : Any
             Additional keyword arguments that might influence the calculation.
 
@@ -298,27 +572,29 @@ class Scale():
         """
         from .impact import Projectile
         if not isinstance(projectile, Projectile):
-            raise TypeError("target must be an instance of Projectile")
+            raise TypeError("projectile must be an instance of Projectile")
         if not isinstance(target, Target):
             raise TypeError("target must be an instance of Target")
+        if not isinstance(material, Material):
+            raise TypeError("material must be an instance of Material")
             
         # Compute some auxiliary quantites
         projectile.mass = 4.0/3.0 * np.pi * projectile.density * (projectile.radius)**3
-        mu = target.material.mu
-        kv = target.material.K1
+        mu = material.mu
+        kv = material.K1
         c1 = 1.0 + 0.5 * mu
         c2 = (-3 * mu)/(2.0 + mu)
 
         # Find dimensionless quantities
         pitwo = (target.gravity * projectile.radius)/(projectile.vertical_velocity**2)
-        pithree = target.material.Ybar / (target.material.density * (projectile.vertical_velocity**2))
-        pifour = target.material.density / projectile.density
+        pithree = material.Ybar / (material.density * (projectile.vertical_velocity**2))
+        pifour = material.density / projectile.density
         pivol = kv * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
         pivolg = kv * (pitwo * (pifour**(-1.0/3.0)))**c2
         
         # find transient crater volume and radii (depth = 1/3 diameter)
-        cvol = pivol * (projectile.mass / target.material.density)
-        cvolg = pivolg * (projectile.mass / target.material.density)
+        cvol = pivol * (projectile.mass / material.density)
+        cvolg = pivolg * (projectile.mass / material.density)
         transient_radius = (3 * cvol / np.pi)**(1.0/3.0)
         transient_radius_gravscale = (3 * cvolg / np.pi)**(1.0/3.0)
         
@@ -332,7 +608,6 @@ class Scale():
 
     def transient_to_projectile(self, 
                                 crater, 
-                                target: Target, 
                                 rng: Generator = None, 
                                 **kwargs: Any): 
         """
@@ -345,8 +620,6 @@ class Scale():
         ----------
         crater : Crater
             The crater for which to estimate the projectile.
-        target : Target
-            The target body where the crater is located.
         rng : Generator, optional
             Random number generator instance used for any probabilistic calculations.
         **kwargs : Any
@@ -360,28 +633,28 @@ class Scale():
         from .impact import Crater, Projectile
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target")
         if rng and not isinstance(rng, Generator):
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
                 
         # We'll create a Projectile object that will allow us to set velocity
-        projectile = Projectile(diameter=crater.transient_diameter, target=target, location=crater.location, rng=rng, age=crater.age)
+        # First pop off any pre-computed diamter value so that we use the transient_diameter alone
+        kwargs.pop("diameter",None)
+        projectile = Projectile(diameter=crater.transient_diameter, target=self.target, location=crater.location, rng=rng, age=crater.age, **kwargs)
         
         def root_func(projectile_diameter: FloatLike, 
                       projectile: Projectile, 
-                      crater: Crater,
                       target: Target,
-                      rng: Generator) -> np.float64:
+                      material: Material
+                      ) -> np.float64:
             
             projectile.diameter = projectile_diameter
-            transient_diameter = self.projectile_to_transient(projectile, target, rng)
+            transient_diameter = self.projectile_to_transient(projectile, target, material)
             return transient_diameter - crater.transient_diameter 
         
-        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,1.2*crater.transient_diameter), args=(projectile, crater, target, self.rng))
+        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,1.2*crater.transient_diameter), args=(projectile, self.target, self.material))
         
         # Regenerate the projectile with the new diameter value
-        projectile = Projectile(diameter=sol.root, target=target, location=projectile.location, velocity=projectile.velocity, angle=projectile.angle, direction=projectile.direction, rng=rng, age=projectile.age)
+        projectile = Projectile(diameter=sol.root, target=self.target, location=projectile.location, velocity=projectile.velocity, angle=projectile.angle, direction=projectile.direction, rng=rng, age=projectile.age)
         
         return projectile
 
@@ -480,6 +753,42 @@ class Scale():
             raise TypeError("target must be an instance of Target")
         self._target = value
         return 
+    
+
+    @property
+    def material_name(self):
+        """
+        The name of the material composition of the target body.
+        
+        Returns
+        -------
+        str 
+        """
+        return self._material_name
+
+    @material_name.setter
+    def material_name(self, value):
+        if not isinstance(value, str) and value is not None:
+            raise TypeError("material_name must be a string or None")
+        self._material_name = value
+        
+        
+    @property
+    def material(self):
+        """
+        The material properties associated with the target body.
+        
+        Returns
+        -------
+        Material
+        """
+        return self._material
+    
+    @material.setter
+    def material(self, value):
+        if not isinstance(value, Material) and value is not None:
+            raise TypeError("material must be a Material object or None")
+        self._material = value    
     
     @property
     def rng(self):

@@ -7,7 +7,7 @@ import shutil
 from glob import glob
 import tempfile
 from typing import Any, Tuple, Type
-from .target import Target, Material
+from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, save, initialize_surface, elevation_to_cartesian
 from .scale import Scale
@@ -27,7 +27,6 @@ class Simulation:
     """
     def __init__(self, 
                  target: str | Target = "Moon",
-                 material: str | Material | None = None,
                  pix: FloatLike | None = None,
                  reset_surface: bool = True,
                  simdir: os.PathLike | None = None, 
@@ -43,9 +42,6 @@ class Simulation:
         ----------
         target: str or Target, optional, default "Moon"
             Name of the target body or Target object for the simulation, default is "Moon".
-        material : str or Material, optional
-            Name of the material or Material object for the target body, if None is passed, the default material for the target body 
-            is used.
         pix : float, optional
             Pixel resolution for the mesh, default is None.
         reset_surface : bool, optional
@@ -87,7 +83,6 @@ class Simulation:
         #  
         # Check to see if the impact velocity model is set with an argument. If not, set it based on a combination of target body 
         # and production function 
-        impact_velocity_model = kwargs.get('impact_velocity_model', None)
         
         if not target:
             target_name = "Moon"
@@ -95,9 +90,17 @@ class Simulation:
             target_name = target
         elif isinstance(target, Target):
             target_name = target.name
-        
+       
+        # Process the impact velocity model and set defaults based on the target body 
+        impact_velocity_model = kwargs.get('impact_velocity_model', None)
+        if impact_velocity_model is None:
+            if target_name in ['Ceres', 'Vesta']:
+                impact_velocity_model = "MBA_MBA"
+            elif target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
+                impact_velocity_model = target_name + "_MBA"
+            kwargs['impact_velocity_model'] = impact_velocity_model
+                
         # Set the production function model for this simulation 
-        impact_velocity_model = None
         if production_cls is None:
             if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
                 production_cls = NeukumProduction
@@ -105,7 +108,6 @@ class Simulation:
                     self.production = production_cls(model=target_name, rng=self.rng, **kwargs) 
                 else:
                     self.production = production_cls(model='projectile', rng=self.rng, **kwargs)
-                impact_velocity_model = target_name + "_MBA"
             else:
                 self.production = Production(rng=self.rng, **kwargs)
         elif issubclass(production_cls, Production):
@@ -113,41 +115,14 @@ class Simulation:
         else:
             raise TypeError("production must be a subclass of Production")
        
-        impact_velocity_model = kwargs.get('impact_velocity_model', impact_velocity_model) 
-        if impact_velocity_model is None:
-            if target_name in ['Ceres', 'Vesta']:
-                impact_velocity_model = "MBA_MBA" 
-            
-        # Allow an argument to override the value from the production function 
-        mean_impact_velocity = kwargs.get("mean_impact_velocity",
-                                          self.production.set_mean_impact_velocity(impact_velocity_model=impact_velocity_model)
-                                          )
-        
-        if material:
-            if isinstance(material, str):
-                try:
-                    material = Material(material, **kwargs)
-                except:
-                    raise ValueError(f"Invalid material name {material}")
-            elif not isinstance(material, Material):
-                raise TypeError("materiat must be an instance of Material or a valid name of a material")        
             
         if not target:
-            if material:
-                target = Target("Moon", material=material, mean_impact_velocity=mean_impact_velocity, **kwargs)
-            else:
-                target = Target("Moon", mean_impact_velocity=mean_impact_velocity, **kwargs)
+            target = Target("Moon",**kwargs)
         elif isinstance(target, str):
             try:
-                if material:
-                    target = Target(target, material=material, mean_impact_velocity=mean_impact_velocity, **kwargs)
-                else:
-                    target = Target(target, mean_impact_velocity=mean_impact_velocity, **kwargs)
+                target = Target(target,**kwargs)
             except:
                 raise ValueError(f"Invalid target name {target}")
-        elif isinstance(target, Target):
-            if material:
-                target.material = material
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
 
@@ -217,15 +192,15 @@ class Simulation:
         """        
         #TODO: Re-do this once the dust settles a bit
         # Get the simulation configuration into the correct structure
-        material_config = to_config(self.target.material)
-        target_config = {**to_config(self.target), 'material' : material_config}
-        sim_config = {**to_config(self),'target' : target_config} 
+        # target_config = {**to_config(self.target)}
+        # sim_config = {**to_config(self),'target' : target_config} 
         
-        # Write the combined configuration to a JSON file
-        with open(filename, 'w') as f:
-            json.dump(sim_config, f, indent=4)
+        # # Write the combined configuration to a JSON file
+        # with open(filename, 'w') as f:
+        #     json.dump(sim_config, f, indent=4)
             
-        return
+        # return
+        pass
     
 
     def initialize_surface(self, 
@@ -283,10 +258,10 @@ class Simulation:
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
-        if self.target.mean_impact_velocity is None:
+        if self.production.mean_velocity is None:
             projectile = None
         else:
-            projectile = crater.scale.crater_to_projectile(crater,**kwargs)
+            projectile = crater.scale.crater_to_projectile(crater,mean_velocity=self.production.mean_velocity,**kwargs)
         
         return crater, projectile
     
@@ -324,9 +299,9 @@ class Simulation:
             # Create a projectile and crater with a specific mass and velocity and impact angle
             projectile, crater = sim.generate_projectile(mass=1e14, velocity=20e3, angle=10.0)       
         """
-        if self.target.mean_impact_velocity is None:
+        if self.production.mean_velocity is None:
             raise RuntimeError("The mean impact velocity is not set for this simulation")
-        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, **kwargs)
+        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, mean_velocity=self.production.mean_velocity, **kwargs)
         crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls)
         
         return projectile, crater
