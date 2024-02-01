@@ -414,8 +414,7 @@ Methods
     :toctree: generated/
 
     Morphology.set_morphology_parameters
-    Morphology.crater_profile
-    Morphology.ejecta_profile
+    Morphology.profile
     Morphology.form_crater
 
 Attributes
