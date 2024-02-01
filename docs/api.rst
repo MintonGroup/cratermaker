@@ -140,7 +140,6 @@ Methods
     Production.function_inverse
     Production.sample
     Production.set_model_parameters
-    Production.set_velocity
 
 Attributes
 ----------

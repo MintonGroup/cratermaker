@@ -22,7 +22,6 @@ class Production():
         self.valid_generator_types = ["crater", "projectile"]
         self.rng = rng 
         self.set_model_parameters(**kwargs)
-        self.set_velocity(**kwargs) 
        
         return
        
@@ -45,9 +44,15 @@ class Production():
         slope : float
             The slope of the power law production function. 
             Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
+        mean_velocity : float
+            The mean impact velocity to use for the impact simulation. Either mean_velocity or impact_velocity_model must be provided.
+        impact_velocity_model : str
+            The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
+            Either mean_velocity or impact_velocity_model must be provided.
         """
         if not hasattr(self, "valid_models"):
             self.valid_models = ["Powerlaw"] 
+            
         model = kwargs.get("model", "Powerlaw")
         self.model = model
         
@@ -82,30 +87,17 @@ class Production():
         elif slope > 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
             slope *= -1
         self.slope = slope 
-      
        
-    def set_velocity(self, **kwargs: Any) -> None:
-        """
-        Set the mean impact velocity for the production function. This function will set the mean impact velocity for the production
-        based on either a velocity model or a direct value. 
-        
-        Parameters
-        ----------
-        **kwargs : Any
-            This function accepts the following keyword arguments:
-        mean_velocity : float
-            The mean impact velocity to use for the impact simulation. If None, the mean_velocity is not set and a warning will be raised and Projectile <-> Crater scalings will not be performed. 
-        impact_velocity_model : str
-            The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
-            If None, the mean_velocity is not set and a warning will be raised and Projectile <-> Crater scalings will not be performed.
-        
-        """
+        if "mean_velocity" in kwargs and "impact_velocity_model" in kwargs:
+            raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
+         
         if "mean_velocity" in kwargs:
             self.mean_velocity = kwargs["mean_velocity"]
         elif "impact_velocity_model" in kwargs:
-            self.impact_velocity_model = kwargs.get("impact_velocity_model","Moon_MBA")
-        return
-        
+            self.impact_velocity_model = kwargs.get("impact_velocity_model")
+        else:
+            raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided")
+      
        
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -806,8 +798,13 @@ class NeukumProduction(Production):
         **kwargs : Any
             This function accepts the following keyword arguments:
           
-            model : str, {"Moon", "Mars", "Projectile"}
-                The specific model to use for the production function. Defaults to "Moon" 
+        model : str, {"Moon", "Mars", "Projectile"}
+            The specific model to use for the production function. Defaults to "Moon" 
+        mean_velocity : float
+            The mean impact velocity to use for the impact simulation. Either mean_velocity or impact_velocity_model must be provided.
+        impact_velocity_model : str
+            The name of the mean impact velocity model to use for the impact simulation. Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
+            For `model=="Moon"`, the default is "Moon_MBA". For `model=="Mars"`, the default is "Mars_MBA". If `model=="Projectile"` then either mean_velocity or impact_velocity_model must be provided. 
         """
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
         if not hasattr(self, "valid_models"):
@@ -895,6 +892,19 @@ class NeukumProduction(Production):
             }   
         self.Cexp = Cexp[self.model]
         self.Clin = Clin[self.model]
+        
+        if "mean_velocity" in kwargs and "impact_velocity_model" in kwargs:
+            raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
+        if "mean_velocity" in kwargs:
+            self.mean_velocity = kwargs["mean_velocity"]
+        elif "impact_velocity_model" in kwargs:
+            self.impact_velocity_model = kwargs.get("impact_velocity_model")
+        elif self.model=="Moon":
+            self.impact_velocity_model = "Moon_MBA"
+        elif self.model=="Mars":
+            self.impact_velocity_model = "Mars_MBA"
+        else: 
+            raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided for the projectile model")
         
 
     def function(self,
