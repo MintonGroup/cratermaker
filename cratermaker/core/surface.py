@@ -9,7 +9,9 @@ import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
-from typing import Tuple, List
+from typing import Tuple, List, Literal, get_args
+from typing_extensions import Type
+import hashlib
 from numpy.typing import NDArray
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
@@ -18,6 +20,11 @@ from ..utils.custom_types import FloatLike, PairOfFloats
 import warnings
 from ..cython.perlin import apply_noise
 
+# Define valid grid types
+GridType = Literal["uniform", "hires_local"]
+
+# Derive valid_grid_types list from GridType
+valid_grid_types: Type[List[str]] = list(get_args(GridType))
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
@@ -51,19 +58,17 @@ class Surface(UxDataset):
         Directory for data files.
     grid_file : os.PathLike, optional
         Path to the grid file.
-    target_radius : FloatLike, optional
-        Radius of the target body.
-    pix : FloatLike, optional
-        Approximate pixel size or resolution used to generate the mesh.
-    grid_type : str, optional
-        Type of the grid used (not implemented yet)
+    target : Target, optional
+        The target body for the impact simulation.
+    compute_face_areas : bool, optional
+        Flag to indicate whether to compute face areas. Default is False.    
     *args
         Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
     **kwargs
         Arbitrary keyword arguments to pass to the ``uxarray.UxDataset`` class.
 
     """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_target_radius', '_pix', '_grid_type', '_smallest_length', '_area')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_grid_hash')    
     
     """Surface class for cratermaker"""
     def __init__(self, 
@@ -71,17 +76,14 @@ class Surface(UxDataset):
                  grid_temp_dir: os.PathLike | None = None,
                  data_dir: os.PathLike | None = None, 
                  grid_file: os.PathLike | None = None,
-                 target_radius: FloatLike | None = None,
-                 pix: FloatLike | None = None,
-                 grid_type: str | None = None,
+                 target: Target | None = None,
+                 compute_face_areas: bool = False,
                  **kwargs):
         # Process the Surface-specific keyword arguments 
         self._grid_temp_dir = grid_temp_dir
         self._data_dir = data_dir
         self._grid_file = grid_file
-        self._target_radius = target_radius
-        self._pix = pix
-        self._grid_type = grid_type
+        self._target = target
         
         # Call the super class constructor with the UxDataset
         super().__init__(*args, **kwargs)
@@ -90,6 +92,20 @@ class Surface(UxDataset):
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
         self._area = None
+        self._grid_hash = None
+        self._smallest_length = None
+       
+        if compute_face_areas: 
+            # Compute face area needed future calculations
+            # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+            # The API change does not affect the functionality of the code, so we can safely ignore the warning
+            # if self._face_areas is not None: it allows for using the cached result
+            with warnings.catch_warnings(): 
+                warnings.simplefilter("ignore", FutureWarning)
+                if 'face_areas' not in self:
+                    self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas * self.target.radius**2, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
+                    self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
+        
 
     def __getitem__(self, key):
         """Override to make sure the result is an instance of ``cratermaker.Surface``"""
@@ -103,9 +119,7 @@ class Surface(UxDataset):
                             grid_temp_dir=self.grid_temp_dir,
                             data_dir=self.data_dir,
                             grid_file=self.grid_file,
-                            target_radius=self.target_radius,
-                            pix=self.pix,
-                            grid_type=self.grid_type,
+                            target=self.target,
                             )
         return value
     
@@ -118,9 +132,8 @@ class Surface(UxDataset):
             ds._grid_temp_dir = self._grid_temp_dir
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
-            ds._target_radius = self._target_radius
-            ds._pix = self._pix
-            ds._grid_type = self._grid_type
+            ds._target = self._target
+            ds._smallest_length = self._smallest_length
         else:
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
@@ -128,9 +141,7 @@ class Surface(UxDataset):
                          grid_temp_dir=self.grid_temp_dir,
                          data_dir=self.data_dir,
                          grid_file=self.grid_file,
-                         target_radius=self.target_radius,
-                         pix=self.pix,
-                         grid_type=self.grid_type,
+                         target=self.target,
                          )
 
         return ds
@@ -152,17 +163,15 @@ class Surface(UxDataset):
             copied._grid_temp_dir = self._grid_temp_dir.copy()
             copied._data_dir = self._data_dir.copy()
             copied._grid_file = self._grid_file.copy()
-            copied._target_radius = self._target_radius.copy()
-            copied._pix = self._pix.copy()
-            copied._grid_type = self._grid_type.copy()
+            copied._target = self._target.copy()
+            copied._smallest_length = self._smallest_length.copy()
         else:
             # Point to the existing properties
             copied._grid_temp_dir = self._grid_temp_dir
             copied._data_dir = self._data_dir
             copied._grid_file = self._grid_file
-            copied._target_radius = self._target_radius
-            copied._pix = self._pix
-            copied._grid_type = self._grid_type
+            copied._target = self._target
+            copied._smallest_length = self._smallest_length
         return copied    
    
     def _replace(self, *args, **kwargs):
@@ -173,9 +182,8 @@ class Surface(UxDataset):
             ds._grid_temp_dir = self._grid_temp_dir
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
-            ds._target_radius = self._target_radius
-            ds._pix = self._pix
-            ds._grid_type = self._grid_type
+            ds.target = self.target
+            ds._smallest_length = self._smallest_length
         else:
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
@@ -183,9 +191,7 @@ class Surface(UxDataset):
                          grid_temp_dir=self.grid_temp_dir,
                          data_dir=self.data_dir,
                          grid_file=self.grid_file,
-                         target_radius=self.target_radius,
-                         pix=self.pix,
-                         grid_type=self.grid_type,
+                         target=self.target,
                          )
         return ds   
 
@@ -228,43 +234,6 @@ class Surface(UxDataset):
         
 
     @property
-    def target_radius(self):
-        """
-        Radius of the target body.
-        """
-        return self._target_radius
-
-    @target_radius.setter
-    def target_radius(self, value):
-        if not isinstance(value, (float, int)):
-            raise TypeError("target_radius must be a float or an integer")
-        self._target_radius = value
-
-    @property
-    def pix(self):
-        """
-        Approximate pixel size or resolution used to generate the mesh.
-        """
-        return self._pix
-
-    @pix.setter
-    def pix(self, value):
-        if not isinstance(value, FloatLike):
-            raise TypeError("pix must be of type FloatLike")
-        self._pix = value
-
-    @property
-    def grid_type(self):
-        """
-        Type of the grid used.
-        """
-        return self._grid_type
-
-    @grid_type.setter
-    def grid_type(self, value):
-        self._grid_type = value
-        
-    @property
     def smallest_length(self):
         """
         Smallest length value that is directly modeled on the grid. This is used to determine the maximum distance of ejecta to 
@@ -286,7 +255,32 @@ class Surface(UxDataset):
         if self._area is None:
             self._area = self['face_areas'].sum().assign_attrs({'long_name': 'total surface area', 'units': 'm^2'})
         return self._area
+
+    @property
+    def target(self):
+        """
+        The target body for the impact simulation. Set during initialization.
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        if not isinstance(value, Target):
+            raise TypeError("target must be an instance of Target")
+        self._target = value    
+        
+    @property
+    def grid_hash(self):
+        """
+        The hash of the grid parameters.
+        """
+        return self._grid_hash
     
+    @grid_hash.setter
+    def grid_hash(self, value):
+        if not isinstance(value, str):
+            raise TypeError("grid_hash must be a string")
+        self._grid_hash = value
         
     def generate_data(self,
                       name: str,
@@ -482,7 +476,7 @@ class Surface(UxDataset):
         node_lat2 = np.deg2rad(self.uxgrid.node_lat)        
         face_lon2 = np.deg2rad(self.uxgrid.face_lon)
         face_lat2 = np.deg2rad(self.uxgrid.face_lat)
-        return self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,self.target_radius), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,self.target_radius) 
+        return self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,self.target.radius), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,self.target.radius) 
     
 
     @staticmethod
@@ -641,13 +635,13 @@ class Surface(UxDataset):
         face_grid = self.n_face.uxgrid._ds[face_vars].sel(n_face=inc_face)
         region_faces = face_grid.where(faces_within_radius, drop=False)
         region_elevation = self['face_elevation'].where(faces_within_radius, drop=False)
-        region_surf = elevation_to_cartesian(region_faces, region_elevation) / self.target_radius
+        region_surf = elevation_to_cartesian(region_faces, region_elevation) / self.target.radius
 
         x, y, z = region_surf['face_x'], region_surf['face_y'], region_surf['face_z']
         region_vectors = np.vstack((x, y, z)).T
 
         # Initial guess for the sphere center and radius
-        guess_radius = 1.0 + region_elevation.mean().values.item() / self.target_radius
+        guess_radius = 1.0 + region_elevation.mean().values.item() / self.target.radius
         initial_guess = [0, 0, 0, guess_radius]  
 
         # Perform the curve fitting
@@ -665,7 +659,7 @@ class Surface(UxDataset):
         
         def find_reference_elevations(coords):
             # Find the point along the original vector that intersects the sphere 
-            f_vec = coords / self.target_radius      
+            f_vec = coords / self.target.radius      
             A = f_vec[:,0]**2 + f_vec[:,1]**2 + f_vec[:,2]**2
             B = -2 * (f_vec[:,0] * reference_sphere_center[0] + f_vec[:,1] * reference_sphere_center[1] + f_vec[:,2] * reference_sphere_center[2])
             C = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
@@ -683,7 +677,7 @@ class Surface(UxDataset):
             if np.any(t[valid] < 0):
                 t = np.where(valid & (t < 0), (-B - sqrt_valid_term) / (2 * A), t)
                 
-            elevations = self.target_radius * (t * np.linalg.norm(f_vec, axis=1)  - 1)
+            elevations = self.target.radius * (t * np.linalg.norm(f_vec, axis=1)  - 1)
             return elevations
         
         # Calculate the distances between the original face points and the intersection points
@@ -700,15 +694,121 @@ class Surface(UxDataset):
         self['reference_node_elevation'] = xr.where(nodes_within_radius, find_reference_elevations(node_vectors), self['node_elevation'])
         
         return
-   
 
-def initialize_surface(make_new_grid: bool = False,
-         reset_surface: bool = True,
-         pix: FloatLike | None = None,
-         target: Target | str | None = None,
-         simdir: os.PathLike | None = None,
-         grid_type: str = "uniform",
-         *args, **kwargs) -> Surface:
+def generate_grid_hash(pix: FloatLike, 
+                       target_radius: FloatLike, 
+                       grid_type: GridType, 
+                       local_radius=None, 
+                       superdomain_scale_factor=None) -> str:
+    """
+    Generate a unique hash for a set of grid parameters.
+
+    This function creates a hash value based on the provided grid parameters. The hash is used to uniquely identify a grid configuration. If any of the parameters change, the generated hash will also change, indicating a different grid configuration.
+
+    Parameters
+    ----------
+    pix : float
+        The pixel size.
+    target_radius : float
+        The radius of the target body.
+    grid_type : str
+        The type of grid. Expected values are "uniform" or "hires_local".
+    local_radius : float, optional
+        The local radius for "hires_local" grid type. Required if `grid_type` is "hires_local".
+    superdomain_scale_factor : float, optional
+        The scale factor for the superdomain in "hires_local" grid type. Required if `grid_type` is "hires_local".
+
+    Returns
+    -------
+    str
+        A hexadecimal string representing the hash of the concatenated grid parameters.
+
+    Notes
+    -----
+    The hash is generated using SHA-256 algorithm, ensuring a unique hash value for each unique set of parameters. For "uniform" grid type, `local_radius` and `superdomain_scale_factor` are not used in hash generation.
+
+    Examples
+    --------
+    >>> generate_grid_hash(0.1, 6371, "uniform")
+    'c0a60924022d99603912f6913e4a45d101559d8cc61d54d0d4f5ff208016484c'
+
+    >>> generate_grid_hash(0.1, 6371, "hires_local", local_radius=100, superdomain_scale_factor=1.5)
+    '4dd093073fdca72c68e762ee52ca363b3ec09eec335a5361e0efc798a6f0a7c3'
+    """
+    # Function implementation
+
+    combined = f"{pix}:{target_radius}:{grid_type}"
+    if grid_type == "hires_local":
+        combined += f":{local_radius}:{superdomain_scale_factor}"
+    
+    # Use hashlib to generate a hash from the combined string
+    hash_object = hashlib.sha256(combined.encode())
+    return hash_object.hexdigest()
+
+
+def check_and_regrid(grid_file_path: str, 
+                     pix: float, 
+                     target_radius: float, 
+                     grid_type: str, 
+                     local_radius: FloatLike | None = None, 
+                     superdomain_scale_factor: FloatLike | None = None) -> Tuple[bool, str]:
+    """
+    Check if the existing grid matches the desired parameters and regrid if necessary.
+
+    This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. If the grid does not exist or does not match the parameters, a regridding operation is triggered.
+
+    Parameters
+    ----------
+    grid_file_path : str
+        The file path where the grid is saved or will be saved.
+    pix : float
+        The pixel size.
+    target_radius : float
+        The radius of the target body.
+    grid_type : str
+        The type of grid, expected to be either "uniform" or "hires_local".
+    local_radius : float, optional
+        The local radius for the "hires_local" grid type. This parameter is required if `grid_type` is "hires_local".
+    superdomain_scale_factor : float, optional
+        The scale factor for the superdomain in the "hires_local" grid type. This parameter is required if `grid_type` is "hires_local".
+
+    Returns
+    -------
+    bool
+        A boolean indicating whether a new grid needs to be generated. `True` if regridding is necessary, `False` otherwise.
+    Optional[str]
+        The hash of the grid parameters, which can be used to verify the grid configuration in future checks. Returns `None` if a new grid is not needed.
+
+    Notes
+    -----
+    The function generates a hash using the `generate_grid_hash` function based on the provided parameters. It compares this hash against the one stored in the existing grid's metadata to determine if the grid matches the desired configuration.
+
+    """
+    # Generate the hash for the current parameters
+    grid_hash = generate_grid_hash(pix, target_radius, grid_type, local_radius, superdomain_scale_factor)
+
+    # Find out if the file exists, if it does't we'll need to make a new grid
+    make_new_grid = not os.path.exists(grid_file_path)
+    
+    if not make_new_grid:
+        uxgrid = uxr.open_grid(grid_file_path)
+        old_hash = uxgrid.parsed_attrs.get("grid_hash")
+        make_new_grid = old_hash != grid_hash
+
+    return make_new_grid, grid_hash
+
+
+def initialize_surface(*, 
+                       make_new_grid: bool = False,
+                       reset_surface: bool = True, 
+                       target: Target | str | None = None, 
+                       simdir: os.PathLike | None = None, 
+                       grid_type: GridType = valid_grid_types[0],
+                       pix: FloatLike | None = None, 
+                       local_radius: FloatLike | None = None,
+                       local_location: PairOfFloats | None = None,
+                       superdomain_scale_factor: FloatLike | None = None,
+                       **kwargs) -> Surface:
     """
     Initialize a Surface object with specified parameters and directory structure.
 
@@ -721,14 +821,19 @@ def initialize_surface(make_new_grid: bool = False,
         If True, generate a new grid.
     reset_surface : bool, default True
         If True, reset the surface data.
-    pix : FloatLike | None, optional
-        Pixel size or resolution of the grid.
     target : Target | str | None, optional
         The target body for the surface, either as a Target object or a string name.
     grid_type : str, optional
-        Type of the grid used (not implemented yet)
-    *args
-        Variable length argument list for additional parameters.
+        Type of the grid used. Options are "uniform" and "hires_local".
+    pix : FloatLike | None, optional
+        Approximate resolution in meters of the grid. For the "uniform" grid_type this is roughly the size of all grid faces. 
+        For the "hires_local" grid_type, this is the size of the local grid.
+    local_radius : FloatLike | None, optional
+        The radius of the local grid in meters. This is only used when grid_type is "hires_local".
+    local_location : Tuple[FloatLike, FloatLike] | None, optional
+        The longitude and latitude of the center of the local grid. This is only used when grid_type is "hires_local".
+    superdomain_scale_factor : FloatLike | None, optional
+        The scale factor for the superdomain. This is only used when grid_type is "hires_local".
     **kwargs
         Arbitrary keyword arguments.
 
@@ -757,6 +862,22 @@ def initialize_surface(make_new_grid: bool = False,
     elif not isinstance(target, Target):
         raise TypeError("target must be an instance of Target or a valid name of a target body")
     
+    if grid_type not in valid_grid_types:
+        raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
+    
+    if pix is None or pix <= 0:
+        raise ValueError("pix must be a positive number")
+
+    if grid_type == "hires_local":
+        if local_radius is None or local_radius <= 0:
+            raise ValueError("local_radius must be a positive number")
+        if superdomain_scale_factor is None or superdomain_scale_factor <= 1:
+            raise ValueError("superdomain_scale_factor must be greater than 1") 
+        if local_location is None:
+            local_location = (0.0, 0.0)
+        if len(local_location) != 2:
+            raise ValueError("local_location must be a tuple of two numbers")       
+    
     # Verify directory structure exists and create it if not
     grid_temp_dir_path = os.path.join(simdir, _GRID_TEMP_DIR) 
     if not os.path.exists(grid_temp_dir_path):
@@ -767,15 +888,8 @@ def initialize_surface(make_new_grid: bool = False,
         os.mkdir(data_dir_path)
         
     grid_file_path = os.path.join(data_dir_path,_GRID_FILE_NAME)
-    
-    # Check to see if the grid is correct for this particular set of parameters. If not, then delete it and regrid
-    make_new_grid = make_new_grid or not os.path.exists(grid_file_path)
-    if not make_new_grid:
-        uxgrid = uxr.open_grid(grid_file_path) 
-        if "pix" not in uxgrid.parsed_attrs or uxgrid.parsed_attrs["pix"] != pix:
-            make_new_grid = True
-        elif "grid_type" not in uxgrid.parsed_attrs or uxgrid.parsed_attrs["grid_type"] != "uniform": # this will need to be updated when other grid types are added
-            make_new_grid = True
+   
+    make_new_grid, grid_hash = check_and_regrid(grid_file_path, pix, target.radius, grid_type, local_radius, superdomain_scale_factor) 
     
     if make_new_grid:
         reset_surface = True
@@ -815,51 +929,16 @@ def initialize_surface(make_new_grid: bool = False,
                    grid_temp_dir = grid_temp_dir_path,
                    data_dir = data_dir_path,
                    grid_file = grid_file_path,
-                   target_radius = target.radius,
-                   pix=pix,
-                   grid_type=grid_type,
+                   target = target,
+                   compute_face_areas = True,
                    ) 
+    surf.grid_hash = grid_hash
     
     if reset_surface:
         surf.set_elevation(0.0,save_to_file=True)
         
-    # Compute face area needed future calculations
-    # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-    # The API change does not affect the functionality of the code, so we can safely ignore the warning
-    # if self._face_areas is not None: it allows for using the cached result
-    with warnings.catch_warnings(): 
-        warnings.simplefilter("ignore", FutureWarning)         
-        surf['face_areas'] = uxr.UxDataArray(surf.uxgrid.face_areas * target.radius**2 , dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
-        
-    surf.smallest_length = np.sqrt(surf['face_areas'].min().item()) * _SMALLFAC
     
     return surf
-
-
-def _make_uniform_face_size(cell_size: FloatLike) -> Tuple[NDArray,NDArray,NDArray]:
-    """
-    Create cell width array for this mesh on a regular latitude-longitude grid.
-    Returns
-    -------
-    cellWidth : ndarray
-        m x n array of cell width in km
-    lon : ndarray
-        longitude in degrees (length n and between -180 and 180)
-    lat : ndarray
-        longitude in degrees (length m and between -90 and 90)
-    """
-    dlat = 10
-    dlon = 10
-    constantCellWidth = cell_size * 1e-3 # build_spherical_mesh assumes units of km, so must be converted
-
-    nlat = int(180/dlat) + 1
-    nlon = int(360/dlon) + 1
-
-    lat = np.linspace(-90., 90., nlat)
-    lon = np.linspace(-180., 180., nlon)
-
-    cellWidth = constantCellWidth * np.ones((lat.size, lon.size))
-    return cellWidth, lon, lat
 
 
 def generate_grid(target: Target | str, 
@@ -890,6 +969,99 @@ def generate_grid(target: Target | str,
     -------
     A cratermaker Surface object with the generated grid as the uxgrid attribute and with an elevation variable set to zero.
     """
+    def _make_uniform_face_size(cell_size: FloatLike) -> Tuple[NDArray,NDArray,NDArray]:
+        """
+        Create cell width array for this mesh on a regular latitude-longitude grid.
+        
+        Parameters
+        ----------
+        cell_size : FloatLike
+            The approximate cell size in meters.
+           
+        Returns
+        -------
+        cellWidth : ndarray
+            m x n array of cell width in km
+        lon : ndarray
+            longitude in degrees (length n and between -180 and 180)
+        lat : ndarray
+            longitude in degrees (length m and between -90 and 90)
+        """
+        dlat = 10
+        dlon = 10
+        constantCellWidth = cell_size * 1e-3 # build_spherical_mesh assumes units of km, so must be converted
+
+        nlat = int(180/dlat) + 1
+        nlon = int(360/dlon) + 1
+
+        lat = np.linspace(-90., 90., nlat)
+        lon = np.linspace(-180., 180., nlon)
+
+        cellWidth = constantCellWidth * np.ones((lat.size, lon.size))
+        return cellWidth, lon, lat
+    
+    def _make_hires_local_face_size(local_cell_size: FloatLike, 
+                                    local_radius: FloatLike, 
+                                    local_location: PairOfFloats,
+                                    superdomain_scale_factor: FloatLike) -> Tuple[NDArray, NDArray, NDArray]:
+        """
+        Create a cell width array for a high-resolution local mesh around a given location, with adaptive cell sizes outside the local region.
+        
+        Parameters
+        ----------
+        local_cell_size : FloatLike
+            The approximate cell size inside the local region in meters.
+        local_radius : FloatLike
+            The radius of the local region in meters.
+        local_location : PairOfFloats
+            The longitude and latitude of the location in degrees.
+        superdomain_scale_factor : FloatLike
+            A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
+            that are modeled outside the local region are those whose ejecta could just reach the boundary.
+            
+        Returns
+        -------
+        cellWidth : ndarray
+            m x n array of cell width in km
+        lon : ndarray
+            longitude in degrees (length n and between -180 and 180)
+        lat : ndarray
+            latitude in degrees (length m and between -90 and 90)
+        """
+        dlat = 10
+        dlon = 10
+
+        nlat = int(180 / dlat) + 1
+        nlon = int(360 / dlon) + 1
+
+        lat = np.linspace(-90., 90., nlat)
+        lon = np.linspace(-180., 180., nlon)
+        cellWidth = np.zeros((nlat, nlon))
+
+        # Convert location to radians for distance calculation
+        loc_lon_rad = np.radians(local_location[0])
+        loc_lat_rad = np.radians(local_location[1])
+
+        for i in range(nlat):
+            for j in range(nlon):
+                # Convert grid point to radians
+                lon_rad = np.radians(lon[j])
+                lat_rad = np.radians(lat[i])
+
+                # Calculate distance from the location to the grid point
+                distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad)
+
+                if distance <= local_radius:
+                    # Inside the local region
+                    cellWidth[i, j] = local_cell_size * 1e-3  # Convert to km
+                else:
+                    # Outside the local region, adapt cell size based on distance from boundary
+                    boundary_distance = distance - local_radius
+                    cellWidth[i, j] = (boundary_distance / superdomain_scale_factor + local_cell_size) * 1e-3  # Convert to km
+
+        return cellWidth, lon, lat
+
+    
     from matplotlib._api.deprecation import MatplotlibDeprecationWarning
     if isinstance(target, str):
         try:

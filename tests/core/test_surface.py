@@ -158,9 +158,9 @@ class TestSurface(unittest.TestCase):
         _,south_idx = surf.find_nearest_index(south)
         _,antipode_idx = surf.find_nearest_index(antipode)
         
-        north_distance = surf.target_radius * np.pi / 2 
-        south_distance = surf.target_radius * np.pi / 2
-        antipode_distance = surf.target_radius * np.pi
+        north_distance = surf.target.radius * np.pi / 2 
+        south_distance = surf.target.radius * np.pi / 2
+        antipode_distance = surf.target.radius * np.pi
         delta = 2*self.pix
 
         # Test distances
@@ -190,9 +190,9 @@ class TestSurface(unittest.TestCase):
         south_idx,_ = surf.find_nearest_index(south)
         antipode_idx,_ = surf.find_nearest_index(antipode)
 
-        north_distance = surf.target_radius * np.pi / 2 
-        south_distance = surf.target_radius * np.pi / 2
-        antipode_distance = surf.target_radius * np.pi
+        north_distance = surf.target.radius * np.pi / 2 
+        south_distance = surf.target.radius * np.pi / 2
+        antipode_distance = surf.target.radius * np.pi
         delta = 2*self.pix
 
         # Test distances
