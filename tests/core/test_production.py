@@ -6,7 +6,7 @@ class TestProduction(unittest.TestCase):
     
     def test_production_N_to_time(self):
 
-        plaw = Production()
+        plaw = Production(impact_velocity_model="Mercury_MBA")
         neukum = NeukumProduction(model="Moon")
 
         for age_orig in np.linspace(0,4500,num=10):
@@ -20,7 +20,7 @@ class TestProduction(unittest.TestCase):
             np.testing.assert_array_almost_equal(age_orig,age_new,decimal=2)
             
     def test_sample_arguments(self):
-        production = [Production(), NeukumProduction()]
+        production = [Production(impact_velocity_model="MBA_MBA"), NeukumProduction()]
         for prod in production:
 
             # Test valid arguments

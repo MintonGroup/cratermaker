@@ -34,7 +34,6 @@ class TestSimulation(unittest.TestCase):
     def test_simulation_defaults(self):
         sim = cratermaker.Simulation(pix=self.pix)
         self.assertEqual(sim.target.name, "Moon")
-        self.assertEqual(sim.target.material.name, "Soft Rock")
         
     def test_simulation_save(self):
         # Test basic save operation
@@ -91,18 +90,14 @@ class TestSimulation(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
         
     def test_emplace_crater(self):
+        
+        cdiam = 2*self.pix
         sim = cratermaker.Simulation(pix=self.pix)
-        sim.emplace_crater(diameter=2*self.pix)
+        sim.emplace_crater(diameter=cdiam)
         pdiam = sim.projectile.diameter
         
+        sim.emplace_crater(diameter=cdiam)
         sim.emplace_crater(diameter=pdiam, from_projectile=True)
-       
-        # # Now try with a simulation that does not contain a mean_impact_velocity in its target 
-        sim = cratermaker.Simulation(pix=self.pix, target=self.target)
-        sim.emplace_crater(diameter=10e3)
-        
-        with self.assertRaises(RuntimeError): 
-            sim.emplace_crater(diameter=1e3, from_projectile=True)
         return
     
     def test_populate(self):

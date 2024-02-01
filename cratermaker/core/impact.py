@@ -89,7 +89,7 @@ class Impact(ABC):
         self.target = target
         self.rng = rng 
         self.scale_cls = scale_cls 
-        self.scale = self.scale_cls(target=self.target, rng=self.rng)
+        self.scale = self.scale_cls(target=self.target, rng=self.rng,**kwargs)
         self.location = location 
         self.age = age
         self.diameter = diameter
@@ -475,6 +475,7 @@ class Crater(Impact):
         self._morphology_type = value
         return
 
+
 class Projectile(Impact):
     """
     Represents the projectile body in the crater simulation.
@@ -487,7 +488,10 @@ class Projectile(Impact):
     mass : float
         The mass of the projectile in kg.
     density : float
-        The mass density of the projectile in kg/m**3.            
+        The mass density of the projectile in kg/m**3.
+    mean_velocity : float
+        The mean impact velocity of the projectile population in m/s. The velocity will be computed from the get_random_velocity
+        function in the montecarlo module.  `mean_velocity` cannot be used with `velocity` or `vertical_velocity`.
     velocity : float
         The velocity of the projectile upon impact, in m/s.
     vertical_velocity : float
@@ -510,6 +514,7 @@ class Projectile(Impact):
     def __init__(self, 
                 mass: FloatLike = None,
                 density: FloatLike = None,
+                mean_velocity: FloatLike = None,
                 velocity: FloatLike = None,
                 vertical_velocity: FloatLike = None,
                 angle: FloatLike = None,
@@ -525,7 +530,7 @@ class Projectile(Impact):
         # ensure that all related calculations and checks are performed
         self._density = density
         self._mass = mass
-        
+        self._mean_velocity = None 
         self._velocity = None
         self._vertical_velocity = None
         self._angle = None
@@ -544,7 +549,7 @@ class Projectile(Impact):
             raise ValueError("Only two of mass, density, and diameter may be set")        
         
         if self.mass is None or self.radius is None: # Default to target density if we are given no way to figure it out
-            self.density = self.target.material.density 
+            self.density = self.scale.material.density 
            
         if self.radius is None: 
             self._update_volume_based_properties()
@@ -553,14 +558,20 @@ class Projectile(Impact):
             self._update_mass()
         
         # Evaluate and check velocity/impact angle inputs
-        values_set = sum(x is not None for x in [velocity, vertical_velocity, angle])
-        if values_set > 2:
-            raise ValueError("Only two of velocity, vertical_velocity, angle may be set")        
-        self._velocity = velocity    
-        self._angle = angle    
-        self._vertical_velocity = vertical_velocity
-        self._initialize_velocities(self.target,self.rng)
-        
+        if mean_velocity is not None:
+            if velocity is not None or vertical_velocity is not None:
+                raise ValueError("mean_velocity cannot be used with velocity or vertical_velocity")
+            self.mean_velocity = mean_velocity
+        else:    
+            values_set = sum(x is not None for x in [velocity, vertical_velocity, angle])
+            if values_set > 2:
+                raise ValueError("Only two of velocity, vertical_velocity, angle may be set")        
+            self._velocity = velocity    
+            self._angle = angle    
+            self._vertical_velocity = vertical_velocity
+            self._initialize_velocities()
+            
+         
         return
 
     def __repr__(self):
@@ -661,6 +672,30 @@ class Projectile(Impact):
             volume = self._mass / self._density
             self._radius = ((3.0 * volume) / (4.0 * np.pi))**(1.0/3.0)
             self._diameter = self._radius * 2
+            
+    @property
+    def mean_velocity(self):
+        """
+        The mean impact velocity of the projectile population in m/s. The velocity will be computed from the get_random_velocity
+        function in the montecarlo module.  `mean_velocity` cannot be used with `velocity` or `vertical_velocity`.
+        
+        Returns
+        -------
+        np.float64 
+        """
+        return self._mean_velocity
+   
+    @mean_velocity.setter 
+    def mean_velocity(self, value):
+        if value is not None:
+            if value <= 0.0:
+                raise ValueError("Mean velocity of projectile must be finite and positive!")            
+            self._velocity = None
+            self._vertical_velocity = None
+            self._mean_velocity = np.float64(value)
+            self._initialize_velocities()
+        return 
+    
 
     @property
     def velocity(self):
@@ -672,17 +707,19 @@ class Projectile(Impact):
         np.float64 
         """
         if self._velocity is None and self._vertical_velocity is not None and self._angle is not None:
-            self._velocity = self._vertical_velocity / np.sin(np.deg2rad(self._angle))
+            self._velocity = np.float64(self._vertical_velocity / np.sin(np.deg2rad(self._angle)))
         return self._velocity
 
     @velocity.setter
     def velocity(self, value):
-        if value is not None and value <= 0.0:
-            raise ValueError("Velocity of projectile must be finite and positive!")        
-        self._velocity = np.float64(value)
+        if value is not None:
+            if value <= 0.0:
+                raise ValueError("Velocity of projectile must be finite and positive!")        
+            self._velocity = np.float64(value)
             
-        if value is not None and self._angle is not None:
-            self._vertical_velocity = np.float64(value) * np.sin(np.deg2rad(self._angle))
+            if value is not None and self._angle is not None:
+                self._vertical_velocity = np.float64(value) * np.sin(np.deg2rad(self._angle))
+            self._initialize_velocities()
 
     @property
     def vertical_velocity(self):
@@ -695,21 +732,23 @@ class Projectile(Impact):
         np.float64 
         """
         if self._vertical_velocity is None and self._velocity is not None and self._angle is not None:
-            self._vertical_velocity = self._velocity * np.sin(np.deg2rad(self._angle))
+            self._vertical_velocity = np.float64(self._velocity * np.sin(np.deg2rad(self._angle)))
         return self._vertical_velocity
 
     @vertical_velocity.setter
     def vertical_velocity(self, value):
-        if value is not None and value <= 0.0:
-            raise ValueError("Vertical velocity of projectile must be finite and positive!")        
-        self._vertical_velocity = np.float64(value)
+        if value is not None:
+            if value <= 0.0:
+                raise ValueError("Vertical velocity of projectile must be finite and positive!")        
+            self._vertical_velocity = np.float64(value)
         
-        # Update velocity only if angle is already set
-        if self._angle is not None and value is not None:
-            try:
-                self._velocity = np.float64(value) / np.sin(np.deg2rad(self._angle))
-            except ValueError:
-                raise ValueError(f"Invalid vertical velocity value {value} for a given angle value {self._angle}!")
+            # Update velocity only if angle is already set
+            if self._angle is not None and value is not None:
+                try:
+                    self._velocity = np.float64(value) / np.sin(np.deg2rad(self._angle))
+                except ValueError:
+                    raise ValueError(f"Invalid vertical velocity value {value} for a given angle value {self._angle}!")
+            self._initialize_velocities()
 
     @property
     def angle(self):
@@ -731,36 +770,34 @@ class Projectile(Impact):
             # Update vertical_velocity only if velocity is already set
             if self._velocity is not None:
                 self._vertical_velocity = self._velocity * np.sin(np.deg2rad(self._angle))
+            self._initialize_velocities()
 
-    def _initialize_velocities(self, target: Target, rng: Generator | None = None):
+    def _initialize_velocities(self):
+        """
+        Initialize the impact velocity and angle of the projectile. 
+        """ 
         if self._velocity is None:
-            if target.mean_impact_velocity is None:
-                raise ValueError("No mean impact velocity is defined for target {target.name}. Projectiles will not be computed.")
+            if self._mean_velocity is None:
+                raise ValueError("No mean impact velocity is defined. Projectiles will not be computed.")
         
             # Check if the impact velocity is greater than the escape velocity. If so, be sure to add the escape velocity to the mean impact velocity in quadrature
             # Otherwise, just use the mean velocity value
-            if target.mean_impact_velocity > target.escape_velocity:
-                vencounter_mean = np.sqrt(target.mean_impact_velocity**2 - target.escape_velocity**2)
-                vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)
-                self.velocity = np.sqrt(vencounter**2 + target.escape_velocity**2)
+            if self._mean_velocity > self.target.escape_velocity:
+                vencounter_mean = np.sqrt(self._mean_velocity**2 - self.target.escape_velocity**2)
+                vencounter = mc.get_random_velocity(vencounter_mean, rng=self.rng)
+                self._velocity = np.sqrt(vencounter**2 + self.target.escape_velocity**2, dtype=np.float64)
             else: 
                 # Be sure not to generate velocities above escape in this scenario
                 while True:  
-                    self.velocity = mc.get_random_velocity(target.mean_impact_velocity, rng=rng)
-                    if self.velocity < target.escape_velocity:
+                    self._velocity = mc.get_random_velocity(self._mean_velocity, rng=self.rng)
+                    if self._velocity < self.target.escape_velocity:
                         break
 
         if self._angle is None:
-            if rng:
-                self.angle = mc.get_random_impact_angle(rng=rng)
-            else:
-                self.angle = mc.get_random_impact_angle()
+            self._angle = mc.get_random_impact_angle(rng=self.rng)
                 
         if self._direction is None:
-            if rng:
-                self.direction = rng.uniform(0.0, 360.0)
-            else:
-                self.direction = np.random.uniform(0.0, 360.0)
+            self._direction = np.float64(self.rng.uniform(0.0, 360.0))
         return
 
     @property
@@ -777,7 +814,7 @@ class Projectile(Impact):
     @direction.setter
     def direction(self, value):
         if value is not None:
-            if value < 0.0 or value > 360.0:
+            if value < 0.0 or value >= 360.0:
                 raise ValueError("Direction of impact must be between 0 and 360 degrees")
             self._direction = np.float64(value)
         return

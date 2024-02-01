@@ -32,13 +32,13 @@ class TestProjectile(unittest.TestCase):
 
     def test_non_default_target_and_rng(self):
         rng = default_rng()
-        target = Target("Mars", mean_impact_velocity=10e3)
-        projectile = Projectile(diameter=1000,target=target,rng=rng)
+        target = Target("Mars") 
+        projectile = Projectile(diameter=1000,target=target,rng=rng,mean_velocity=10e3)
         self.assertEqual(projectile.diameter, 1000)
 
     def test_invalid_target_or_rng_type(self):
         with self.assertRaises(TypeError):
-            Projectile(diameter=1000, target="invalid_target", mean_impact_velocity=10e3)
+            Projectile(diameter=1000, target="invalid_target", mean_velocity=10e3)
     
 if __name__ == '__main__':
     unittest.main()
