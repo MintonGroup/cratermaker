@@ -27,20 +27,24 @@ class Morphology:
         The target body for the impact simulation.
     surf : Surface
         The surface to be altered.
+    ejecta_truncation : float, optional
+        The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
+        truncation distance based on where the ejecta thickness reaches a small value.         
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used.
     """
     
     def __init__(self, 
                  crater,  
-                 target: Target | None=None, 
-                 rng: Generator | None=None
+                 target: Target | None = None, 
+                 rng: Generator | None = None,
+                 ejecta_truncation: FloatLike | None = None
                  ):
 
         self.crater = crater 
         self.target = target
         self.rng = rng
-        self.truncation_radius = None
+        self.ejecta_truncation = ejecta_truncation
 
         # Set the morphology based on crater type
         self.set_morphology_parameters()
@@ -78,14 +82,13 @@ class Morphology:
 
     def profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
         elevation = morphology.profile(r,
-                                  r_ref,
-                                  self.diameter, 
-                                  self.floordepth, 
-                                  self.floordiam, 
-                                  self.rimheight, 
-                                  self.ejrim,
-                                  RIMDROP
-        )
+                                       r_ref, 
+                                       self.diameter, 
+                                       self.floordepth, 
+                                       self.floordiam, 
+                                       self.rimheight, 
+                                       self.ejrim, 
+                                       RIMDROP)
          
         return np.array(elevation, dtype=np.float64)
     
@@ -107,14 +110,7 @@ class Morphology:
         #node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(self.crater.location)
         self.crater.node_index, self.crater.face_index = np.argmin(node_crater_distance.data), np.argmin(face_crater_distance.data)
         
-        # Compute the reference surface for the crater 
-        def _profile_invert(r):
-            return self.profile(r, np.zeros(1)) - surf.smallest_length
-       
-        # Get the maximum extent 
-        rmax = fsolve(_profile_invert, x0=self.radius)[0]
-        if self.truncation_radius:
-            rmax = min(rmax, self.truncation_radius * self.radius)
+        rmax = self.compute_rmax(minimum_thickness=surf.smallest_length)
             
         # Extract only the array data that we need to do the computations
         inc_node = surf['n_node'].where(node_crater_distance < rmax, drop=True).astype(int) 
@@ -142,7 +138,35 @@ class Morphology:
             raise ValueError("Something went wrong with this crater!")
                  
         return  
-    
+   
+    def compute_rmax(self,
+                     minimum_thickness: np.float64,
+                     ) -> np.float64:
+        """
+        Compute the maximum extent of the crater based on the minimum thickness of the ejecta blanket or the ejecta_truncation factor,
+        whichever is smaller.
+        
+        Parameters
+        ----------
+        minimum_thickness : np.float64
+            The minimum thickness of the ejecta blanket in meters.
+        """ 
+        
+        # Compute the reference surface for the crater 
+        def _profile_invert(r):
+            return self.profile(r, np.zeros(1)) - minimum_thickness
+       
+        # Get the maximum extent 
+        rmax = fsolve(_profile_invert, x0=self.radius)[0]
+        if self.ejecta_truncation:
+            rmax = min(rmax, self.ejecta_truncation * self.radius)        
+        # Get the maximum extent 
+        rmax = fsolve(_profile_invert, x0=self.radius)[0]
+        if self.ejecta_truncation:
+            rmax = min(rmax, self.ejecta_truncation * self.radius)
+            
+        return rmax
+
     @property
     def diameter(self) -> np.float64:
         """
@@ -337,7 +361,7 @@ class Morphology:
         self._rng = value or np.random.default_rng()   
        
     @property
-    def truncation_radius(self) -> np.float64:
+    def ejecta_truncation(self) -> np.float64:
         """
         The radius at which the crater is truncated relative to the crater radius.
         
@@ -345,13 +369,13 @@ class Morphology:
         -------
         np.float64 or None
         """
-        return self.crater.truncation_radius 
+        return self.crater.ejecta_truncation 
     
-    @truncation_radius.setter
-    def truncation_radius(self, value: FloatLike | None): 
+    @ejecta_truncation.setter
+    def ejecta_truncation(self, value: FloatLike | None): 
         if value:
             if not isinstance(value, FloatLike):
                 raise TypeError("truction_radius must be of type FloatLike")
-            self.crater.truncation_radius = np.float64(value)
+            self.crater.ejecta_truncation = np.float64(value)
         else:
-            self.crater.truncation_radius = None
+            self.crater.ejecta_truncation = None

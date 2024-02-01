@@ -415,6 +415,7 @@ Methods
     Morphology.set_morphology_parameters
     Morphology.profile
     Morphology.form_crater
+    Morphology.compute_rmax
 
 Attributes
 ----------
@@ -431,7 +432,7 @@ Attributes
     Morphology.floordiam
     Morphology.floordepth
     Morphology.ejrim
-    Morphology.truncation_radius
+    Morphology.truncation_factor
     Morphology.crater
     Morphology.target
     Morphology.rng

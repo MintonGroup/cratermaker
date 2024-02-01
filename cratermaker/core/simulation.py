@@ -36,6 +36,7 @@ class Simulation:
                  scale_cls: Type[Scale] | None = None,
                  morphology_cls: Type[Morphology] | None = None,
                  production_cls: Type[Production] | None = None,
+                 ejecta_truncation: FloatLike | None = None,
                  **kwargs: Any):
         """
         Initialize the Simulation object.
@@ -66,6 +67,9 @@ class Simulation:
             then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
             body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
             Earth, and a simple power law model otherwise.
+        ejecta_truncation : float, optional
+            The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
+            truncation distance based on where the ejecta thickness reaches a small value. 
         **kwargs : Any
             Additional keyword arguments that can be passed to any of the method of the class, such as arguments to set the scale, 
             morphology, or production function constructors.
