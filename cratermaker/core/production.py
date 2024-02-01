@@ -34,7 +34,6 @@ class Production():
         ----------
         **kwargs : Any
             This function accepts the following keyword arguments:
-          
         model : str
             The specific model to use for the production function. Defaults to "Powerlaw". 
         generator_type : str
@@ -45,9 +44,15 @@ class Production():
         slope : float
             The slope of the power law production function. 
             Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
+        mean_velocity : float
+            The mean impact velocity to use for the impact simulation. Either mean_velocity or impact_velocity_model must be provided.
+        impact_velocity_model : str
+            The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
+            Either mean_velocity or impact_velocity_model must be provided.
         """
         if not hasattr(self, "valid_models"):
             self.valid_models = ["Powerlaw"] 
+            
         model = kwargs.get("model", "Powerlaw")
         self.model = model
         
@@ -82,55 +87,17 @@ class Production():
         elif slope > 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
             slope *= -1
         self.slope = slope 
-        
-        self.impact_velocity_model = kwargs.get("impact_velocity_model", "Moon")
-        
-    
-    def set_mean_impact_velocity(self, 
-                                 **kwargs: Any
-                                ) -> None:
-        """
-        Sets an appropriate mean impact velocity for a target body.
-        
-        Parameters
-        ----------
-        **kwargs : Any
-            This function accepts the following keyword arguments:        
-        impact_velocity_model : str
-            The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". If None, the mean_impact_velocity is not set and a warning will be raised and Projectile <-> Crater scalings will not be performed.
-            
-        Returns
-        -------
-        np.float64 or None
-            The mean impact velocity in m/s. If the target_name is None, returns None.
-        
-        
-        Notes
-        ----- 
-        Mean velocities for terrestrial planets and the Moon are based on analysis of simulations of main-belt derived asteroids from Minton & Malhotra (2010) [1]_  and Yue et al. (2013) [2]_. Mean velocities for the asteroids are from Bottke et al. (1994) [3]_.
-        
-        References
-        ----------
-        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744–757. https://doi.org/10.1016/j.icarus.2009.12.008
-        .. [2] Yue, Z., Johnson, B.C., Minton, D.A., Melosh, H.J., Di, K., Hu, W., Liu, Y., 2013. Projectile remnants in central peaks of lunar impact craters. Nature Geosci 6, 435 EP-. https://doi.org/10.1038/ngeo1828
-        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255–268. https://doi.org/10.1006/icar.1994.1021
-        """
-     
-        predefined_models = ['Mercury_MBA', 'Venus_MBA', 'Earth_MBA', 'Moon_MBA', 'Mars_MBA', 'MBA_MBA']
-        predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
-        predefined = dict(zip(predefined_models, predefined_velocities))
        
-        impact_velocity_model = kwargs.get("impact_velocity_model", None) 
-        if impact_velocity_model is None:
-            warnings.warn("No impact_velocity_model provided. mean_impact_velocity not set.")
-            return
-        
-        if impact_velocity_model not in predefined_models:
-            warnings.warn(f"impact_velocity_model {impact_velocity_model} is not one of {predefined_models}. mean_impact_velocity not set.")
-
-            return
-        return np.float64(predefined[impact_velocity_model])
-            
+        if "mean_velocity" in kwargs and "impact_velocity_model" in kwargs:
+            raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
+         
+        if "mean_velocity" in kwargs:
+            self.mean_velocity = kwargs["mean_velocity"]
+        elif "impact_velocity_model" in kwargs:
+            self.impact_velocity_model = kwargs.get("impact_velocity_model")
+        else:
+            raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided")
+      
        
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -641,10 +608,48 @@ class Production():
 
     @impact_velocity_model.setter
     def impact_velocity_model(self, value):
-        """Set the impact velocity model name."""
-        if not isinstance(value, str):
+        """"
+        Set the name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
+            
+        Notes
+        ----- 
+        Mean velocities for terrestrial planets and the Moon are based on analysis of simulations of main-belt derived asteroids from Minton & Malhotra (2010) [1]_  and Yue et al. (2013) [2]_. Mean velocities for the asteroids are from Bottke et al. (1994) [3]_.
+        
+        References
+        ----------
+        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744–757. https://doi.org/10.1016/j.icarus.2009.12.008
+        .. [2] Yue, Z., Johnson, B.C., Minton, D.A., Melosh, H.J., Di, K., Hu, W., Liu, Y., 2013. Projectile remnants in central peaks of lunar impact craters. Nature Geosci 6, 435 EP-. https://doi.org/10.1038/ngeo1828
+        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255–268. https://doi.org/10.1006/icar.1994.1021
+        """
+     
+        predefined_models = ['Mercury_MBA', 'Venus_MBA', 'Earth_MBA', 'Moon_MBA', 'Mars_MBA', 'MBA_MBA']
+        predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
+        predefined = dict(zip(predefined_models, predefined_velocities))
+        if value is None:
+            if self._mean_velocity is None:
+                raise ValueError("impact_velocity_model must be set if mean_velocity is not set")
+        elif not isinstance(value, str):
             raise TypeError("impact_velocity_model must be a string")
+        elif value not in predefined_models:
+            raise ValueError(f"impact_velocity_model {value} is not one of {predefined_models}")
         self._impact_velocity_model = value
+        self._mean_velocity = np.float64(predefined[value])
+       
+    @property 
+    def mean_velocity(self):
+        """The mean impact velocity for the production function."""
+        return self._mean_velocity
+    
+    @mean_velocity.setter
+    def mean_velocity(self, value):
+        if value is None:
+            if self._impact_velocity_model is None:
+                raise ValueError("mean_velocity must be set if impact_velocity_model is not set")
+        if not isinstance(value, FloatLike):
+            raise TypeError("mean_velocity must be a numeric value (float or int)")
+        if value <= 0.0:
+            raise ValueError("mean_velocity must be finite and positive")
+        self._mean_velocity = np.float64(value)
 
     @property
     def valid_time(self):
@@ -793,8 +798,13 @@ class NeukumProduction(Production):
         **kwargs : Any
             This function accepts the following keyword arguments:
           
-            model : str, {"Moon", "Mars", "Projectile"}
-                The specific model to use for the production function. Defaults to "Moon" 
+        model : str, {"Moon", "Mars", "Projectile"}
+            The specific model to use for the production function. Defaults to "Moon" 
+        mean_velocity : float
+            The mean impact velocity to use for the impact simulation. Either mean_velocity or impact_velocity_model must be provided.
+        impact_velocity_model : str
+            The name of the mean impact velocity model to use for the impact simulation. Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
+            For `model=="Moon"`, the default is "Moon_MBA". For `model=="Mars"`, the default is "Mars_MBA". If `model=="Projectile"` then either mean_velocity or impact_velocity_model must be provided. 
         """
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
         if not hasattr(self, "valid_models"):
@@ -882,6 +892,19 @@ class NeukumProduction(Production):
             }   
         self.Cexp = Cexp[self.model]
         self.Clin = Clin[self.model]
+        
+        if "mean_velocity" in kwargs and "impact_velocity_model" in kwargs:
+            raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
+        if "mean_velocity" in kwargs:
+            self.mean_velocity = kwargs["mean_velocity"]
+        elif "impact_velocity_model" in kwargs:
+            self.impact_velocity_model = kwargs.get("impact_velocity_model")
+        elif self.model=="Moon":
+            self.impact_velocity_model = "Moon_MBA"
+        elif self.model=="Mars":
+            self.impact_velocity_model = "Mars_MBA"
+        else: 
+            raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided for the projectile model")
         
 
     def function(self,

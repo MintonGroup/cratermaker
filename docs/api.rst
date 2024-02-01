@@ -140,7 +140,6 @@ Methods
     Production.function_inverse
     Production.sample
     Production.set_model_parameters
-    Production.set_mean_impact_velocity
 
 Attributes
 ----------
@@ -150,6 +149,7 @@ Attributes
 
     Production.generator_type
     Production.impact_velocity_model
+    Production.mean_velocity
     Production.model
     Production.N1_coef
     Production.slope
@@ -225,9 +225,7 @@ Attributes
     Target.diameter
     Target.escape_velocity
     Target.gravity
-    Target.material
     Target.material_name
-    Target.mean_impact_velocity
     Target.name
     Target.radius
     Target.transition_scale_type
@@ -384,6 +382,8 @@ Attributes
     :toctree: generated/
 
     Scale.target
+    Scale.material
+    Scale.material_name
     Scale.rng
     Scale.transition_diameter
     Scale.transition_nominal
@@ -414,8 +414,7 @@ Methods
     :toctree: generated/
 
     Morphology.set_morphology_parameters
-    Morphology.crater_profile
-    Morphology.ejecta_profile
+    Morphology.profile
     Morphology.form_crater
 
 Attributes

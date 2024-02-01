@@ -76,7 +76,6 @@ class Morphology:
             
         self.ejrim = 0.14 * (self.diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
-
     def profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
         elevation = morphology.profile(r,
                                   r_ref,

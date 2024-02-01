@@ -7,7 +7,7 @@ import shutil
 from glob import glob
 import tempfile
 from typing import Any, Tuple, Type
-from .target import Target, Material
+from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, save, initialize_surface, elevation_to_cartesian
 from .scale import Scale
@@ -25,16 +25,17 @@ class Simulation:
     This class orchestrates the processes involved in running a crater simulation.
 
     """
-    def __init__(self, 
-                 target: str | Target = "Moon",
-                 material: str | Material | None = None,
+    def __init__(self, *, # Enforce keyword-only arguments
+                 target: str | Target = None,
+                 surf: Surface | None = None,
+                 reset_surface: bool | None = None,
                  pix: FloatLike | None = None,
-                 reset_surface: bool = True,
+                 seed: int | None = None,
+                 rng: Generator | None = None,
                  simdir: os.PathLike | None = None, 
                  scale_cls: Type[Scale] | None = None,
                  morphology_cls: Type[Morphology] | None = None,
                  production_cls: Type[Production] | None = None,
-                 *args: Any,
                  **kwargs: Any):
         """
         Initialize the Simulation object.
@@ -43,13 +44,16 @@ class Simulation:
         ----------
         target: str or Target, optional, default "Moon"
             Name of the target body or Target object for the simulation, default is "Moon".
-        material : str or Material, optional
-            Name of the material or Material object for the target body, if None is passed, the default material for the target body 
-            is used.
+        surf : Surface, optional
+            Surface object to use for the simulation, default is None, which reads in a surface from file if it exists, or creates a new one.
         pix : float, optional
             Pixel resolution for the mesh, default is None.
         reset_surface : bool, optional
             Flag to reset the surface elevation, default is True.
+        seed : int, optional
+            Seed for the random number generator, default is None.
+        rng : Generator, optional
+            Random number generator, default is None, which will generate a new np.random generator based on the seed.
         simdir: PathLike, optional
             Path to the simulation directory, default is current working directory.
         scale_cls : Type[Scale], optional
@@ -70,10 +74,8 @@ class Simulation:
         self.simdir = simdir
         
         # Set the random number generator seed
-        self.seed = kwargs.get('seed', None) 
-        self.rng = kwargs.get('rng', default_rng(seed=self.seed))
-        if not isinstance(self.rng, Generator):
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        self.seed = seed
+        self.rng = rng
         
         self._crater = None
         self._projectile = None
@@ -87,7 +89,6 @@ class Simulation:
         #  
         # Check to see if the impact velocity model is set with an argument. If not, set it based on a combination of target body 
         # and production function 
-        impact_velocity_model = kwargs.get('impact_velocity_model', None)
         
         if not target:
             target_name = "Moon"
@@ -95,9 +96,19 @@ class Simulation:
             target_name = target
         elif isinstance(target, Target):
             target_name = target.name
-        
+        else:
+            raise TypeError("target must be an instance of Target or a valid name of a target body")
+       
+        # Process the impact velocity model and set defaults based on the target body 
+        impact_velocity_model = kwargs.get('impact_velocity_model', None)
+        if impact_velocity_model is None:
+            if target_name in ['Ceres', 'Vesta']:
+                impact_velocity_model = "MBA_MBA"
+            elif target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
+                impact_velocity_model = target_name + "_MBA"
+            kwargs['impact_velocity_model'] = impact_velocity_model
+                
         # Set the production function model for this simulation 
-        impact_velocity_model = None
         if production_cls is None:
             if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
                 production_cls = NeukumProduction
@@ -105,49 +116,20 @@ class Simulation:
                     self.production = production_cls(model=target_name, rng=self.rng, **kwargs) 
                 else:
                     self.production = production_cls(model='projectile', rng=self.rng, **kwargs)
-                impact_velocity_model = target_name + "_MBA"
             else:
                 self.production = Production(rng=self.rng, **kwargs)
         elif issubclass(production_cls, Production):
             self.production = production_cls(rng=self.rng, **kwargs)
         else:
             raise TypeError("production must be a subclass of Production")
-       
-        impact_velocity_model = kwargs.get('impact_velocity_model', impact_velocity_model) 
-        if impact_velocity_model is None:
-            if target_name in ['Ceres', 'Vesta']:
-                impact_velocity_model = "MBA_MBA" 
-            
-        # Allow an argument to override the value from the production function 
-        mean_impact_velocity = kwargs.get("mean_impact_velocity",
-                                          self.production.set_mean_impact_velocity(impact_velocity_model=impact_velocity_model)
-                                          )
-        
-        if material:
-            if isinstance(material, str):
-                try:
-                    material = Material(material, **kwargs)
-                except:
-                    raise ValueError(f"Invalid material name {material}")
-            elif not isinstance(material, Material):
-                raise TypeError("materiat must be an instance of Material or a valid name of a material")        
             
         if not target:
-            if material:
-                target = Target("Moon", material=material, mean_impact_velocity=mean_impact_velocity, **kwargs)
-            else:
-                target = Target("Moon", mean_impact_velocity=mean_impact_velocity, **kwargs)
+            target = Target("Moon",**kwargs)
         elif isinstance(target, str):
             try:
-                if material:
-                    target = Target(target, material=material, mean_impact_velocity=mean_impact_velocity, **kwargs)
-                else:
-                    target = Target(target, mean_impact_velocity=mean_impact_velocity, **kwargs)
+                target = Target(target,**kwargs)
             except:
                 raise ValueError(f"Invalid target name {target}")
-        elif isinstance(target, Target):
-            if material:
-                target.material = material
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
 
@@ -158,7 +140,7 @@ class Simulation:
         else:    
             self.pix = np.sqrt(4 * np.pi * self.target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
 
-        self.initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, simdir=simdir, *args, **kwargs)
+        self.initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
         
         # Set the scaling law model for this simulation 
         if scale_cls is None:
@@ -217,15 +199,15 @@ class Simulation:
         """        
         #TODO: Re-do this once the dust settles a bit
         # Get the simulation configuration into the correct structure
-        material_config = to_config(self.target.material)
-        target_config = {**to_config(self.target), 'material' : material_config}
-        sim_config = {**to_config(self),'target' : target_config} 
+        # target_config = {**to_config(self.target)}
+        # sim_config = {**to_config(self),'target' : target_config} 
         
-        # Write the combined configuration to a JSON file
-        with open(filename, 'w') as f:
-            json.dump(sim_config, f, indent=4)
+        # # Write the combined configuration to a JSON file
+        # with open(filename, 'w') as f:
+        #     json.dump(sim_config, f, indent=4)
             
-        return
+        # return
+        pass
     
 
     def initialize_surface(self, 
@@ -283,10 +265,10 @@ class Simulation:
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
-        if self.target.mean_impact_velocity is None:
+        if self.production.mean_velocity is None:
             projectile = None
         else:
-            projectile = crater.scale.crater_to_projectile(crater,**kwargs)
+            projectile = crater.scale.crater_to_projectile(crater,mean_velocity=self.production.mean_velocity,**kwargs)
         
         return crater, projectile
     
@@ -324,9 +306,9 @@ class Simulation:
             # Create a projectile and crater with a specific mass and velocity and impact angle
             projectile, crater = sim.generate_projectile(mass=1e14, velocity=20e3, angle=10.0)       
         """
-        if self.target.mean_impact_velocity is None:
+        if self.production.mean_velocity is None:
             raise RuntimeError("The mean impact velocity is not set for this simulation")
-        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, **kwargs)
+        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, mean_velocity=self.production.mean_velocity, **kwargs)
         crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls)
         
         return projectile, crater
@@ -871,8 +853,77 @@ class Simulation:
         **kwargs: Arbitrary keyword arguments to pass to self.surf.set_elevation.
         """
         return self.surf.set_elevation(*args, **kwargs)   
-    
 
+
+    @property
+    def target(self):
+        """
+        The target body for the impact simulation. Set during initialization.
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        if not isinstance(value, Target):
+            raise TypeError("target must be an instance of Target")
+        self._target = value
+
+    @property
+    def surf(self):
+        """
+        Surface mesh data for the simulation. Set during initialization.
+        """
+        return self._surf
+    
+    @surf.setter
+    def surf(self, value):
+        if not isinstance(value, Surface):
+            raise TypeError("surf must be an instance of Surface")
+        self._surf = value
+
+    @property
+    def pix(self):
+        """
+        Pixel resolution for the mesh. Set during initialization.
+        """
+        return self._pix
+
+    @pix.setter
+    def pix(self, value):
+        if value <= 0:
+            raise ValueError("pix must be greater than zero")
+        self._pix = np.float64(value)
+
+    @property
+    def seed(self):
+        """
+        Seed for the random number generator. Set during initialization.
+        """
+        return self._seed
+
+    @seed.setter
+    def seed(self, value):
+        if value is None:
+            value = np.random.default_rng().integers(0, 2**32)
+        elif not isinstance(value, int):
+            raise TypeError("seed must be an integer or None")
+        self._seed = value
+
+    @property
+    def rng(self):
+        """
+        Random number generator instance. Set during initialization.
+        """
+        return self._rng
+
+    @rng.setter
+    def rng(self, value):
+        if value is None:
+            value = np.random.default_rng(seed=self.seed) 
+        elif not isinstance(value, Generator): 
+            raise TypeError("rng must be a numpy.random.Generator instance or None")
+        self._rng = value
+    
     @property
     def simdir(self):
         """
@@ -891,69 +942,6 @@ class Simulation:
             
         if not os.path.exists(self._simdir):
             os.makedirs(self._simdir)
-
-    @property
-    def seed(self):
-        """
-        Seed for the random number generator. Set during initialization.
-        """
-        return self._seed
-
-    @seed.setter
-    def seed(self, value):
-        self._seed = value
-
-    @property
-    def rng(self):
-        """
-        Random number generator instance. Set during initialization.
-        """
-        return self._rng
-
-    @rng.setter
-    def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("rng must be a numpy.random.Generator instance or None")
-        self._rng = value
-
-    @property
-    def target(self):
-        """
-        The target body for the impact simulation. Set during initialization.
-        """
-        return self._target
-
-    @target.setter
-    def target(self, value):
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
-        self._target = value
-
-    @property
-    def pix(self):
-        """
-        Pixel resolution for the mesh. Set during initialization.
-        """
-        return self._pix
-
-    @pix.setter
-    def pix(self, value):
-        if value <= 0:
-            raise ValueError("pix must be greater than zero")
-        self._pix = value
-
-    @property
-    def surf(self):
-        """
-        Surface mesh data for the simulation. Set during initialization.
-        """
-        return self._surf
-    
-    @surf.setter
-    def surf(self, value):
-        if not isinstance(value, Surface):
-            raise TypeError("surf must be an instance of Surface")
-        self._surf = value
 
     @property
     def production(self):
@@ -1033,7 +1021,6 @@ class Simulation:
         File path of the grid file. Dynamically set based on `surf` attribute.
         """
         return self.surf.grid_file
-
 
     @property
     def n_node(self):

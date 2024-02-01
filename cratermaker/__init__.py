@@ -10,9 +10,9 @@
 """
 
 from .core.simulation import Simulation
-from .core.target import Target, Material
+from .core.target import Target
 from .core.impact import Impact, Crater, Projectile
-from .core.scale import Scale
+from .core.scale import Scale, Material
 from .core.surface import Surface, initialize_surface, generate_grid, elevation_to_cartesian
 from .core.morphology import Morphology
 from .core.production import Production, NeukumProduction
