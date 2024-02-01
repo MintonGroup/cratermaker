@@ -637,8 +637,10 @@ class Scale():
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
                 
         # We'll create a Projectile object that will allow us to set velocity
-        # First pop off any pre-computed diamter value so that we use the transient_diameter alone
+        # First pop off any pre-computed values so that we use the transient_diameter alone
         kwargs.pop("diameter",None)
+        kwargs.pop("location",None)
+        kwargs.pop("age",None)
         projectile = Projectile(diameter=crater.transient_diameter, target=self.target, location=crater.location, rng=rng, age=crater.age, **kwargs)
         
         def root_func(projectile_diameter: FloatLike, 
