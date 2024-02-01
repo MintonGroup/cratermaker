@@ -1278,7 +1278,7 @@ if __name__ == "__main__":
        
         # Create the lunar crater and projectile production functions 
         crater_production = NeukumProduction(model="Moon")
-        projectile_production = NeukumProduction(model="Projectile")
+        projectile_production = NeukumProduction(model="Projectile",impact_velocity_model = "Moon_MBA")
 
         # Make a population of sizes that spans the size of interest
         Dc = np.logspace(-1,2)
@@ -1345,7 +1345,7 @@ if __name__ == "__main__":
         y_max = 1e13
         nD = 1000
         Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=nD)
-        production = NeukumProduction(model="Projectile")
+        production = NeukumProduction(model="Projectile",impact_velocity_model = "Moon_MBA")
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_ylabel('$\\mathregular{N_{>D}}$')
@@ -1379,7 +1379,7 @@ if __name__ == "__main__":
             'NPF (Moon)': fig.add_subplot(122)}
 
         production = {
-                    'Power Law': Production(),
+                    'Power Law': Production(impact_velocity_model = "Moon_MBA"),
                     'NPF (Moon)': NeukumProduction(model="Moon")
                     }
         

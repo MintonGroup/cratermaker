@@ -8,7 +8,8 @@ Like Cratermaker itself, this user guide is under development. More information 
 Using the Production Module
 ###########################
 
-Cratermaker's production module provides a robust way to compute the production function for craters and impactors. The production function is defined as the cumulative 
+Cratermaker's production module provides a robust way to compute the production function for craters and impactors. The production function is defined as the cumulative number of craters greater than a given diameter per unit m\ :sup:`2` surface area. 
+
 
 
 .. toctree::
