@@ -161,8 +161,17 @@ class Simulation:
         
         if not surf:
             grid_type = kwargs.get('grid_type', None)
-            #if grid_type is not None and grid_type == 'hires_local':
-            #    superdomain_scale_factor =  
+            if grid_type is not None and grid_type == 'hires_local':
+                if 'superdomain_scale_factor' not in kwargs:
+                    # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
+                    # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
+                    for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
+                        crater, _ = self.generate_crater(diameter=d, angle=90.0, velocity=self.production.mean_velocity*10)
+                        rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
+                        if rmax < self.target.radius * 2 * np.pi:
+                            superdomain_scale_factor = rmax / crater.radius
+                            break
+                    kwargs['superdomain_scale_factor'] = superdomain_scale_factor
             self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
         elif isinstance(surf, Surface):
             self.surf = surf
