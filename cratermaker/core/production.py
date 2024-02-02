@@ -201,7 +201,7 @@ class Production():
                ) -> np.ndarray:
         
         """
-        Sample crater diameters and ages from the production function. This function can either sample from a given age range or
+        Sample diameters and ages from the production function. This function can either sample from a given age range or
         from a given cumulative number/diameter pair (but not both). 
        
         Parameters

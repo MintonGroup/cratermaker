@@ -39,7 +39,6 @@ Methods
     Simulation.generate_crater
     Simulation.generate_projectile
     Simulation.apply_noise
-    Simulation.initialize_surface
     Simulation.save
     Simulation.export_vtk
     Simulation.set_elevation
@@ -61,7 +60,6 @@ Attributes
     Simulation.morphology_cls
     Simulation.n_face
     Simulation.n_node
-    Simulation.pix
     Simulation.rng
     Simulation.scale_cls
     Simulation.seed
@@ -70,6 +68,11 @@ Attributes
     Simulation.elapsed_time
     Simulation.current_age
     Simulation.elapsed_n1
+    Simulation.ejecta_truncation
+    Simulation.smallest_crater
+    Simulation.largest_crater
+    Simulation.smallest_projectile
+    Simulation.largest_projectile
 
 
 .. _api-Surface:
@@ -86,7 +89,6 @@ Creating a surface
     :toctree: generated/
 
     Surface
-    initialize_surface
 
 Methods
 -------
@@ -94,13 +96,16 @@ Methods
 .. autosummary::
     :toctree: generated/
 
+    Surface.initialize
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
     Surface.find_nearest_index
     Surface.get_reference_surface
     Surface.get_distance
     Surface.get_initial_bearing
+    Surface.generate_data
     Surface.set_elevation
+    Surface.elevation_to_cartesian
 
 Attributes
 ----------
@@ -110,10 +115,85 @@ Attributes
 
     Surface.data_dir
     Surface.grid_file
-    Surface.grid_temp_dir
-    Surface.pix
-    Surface.target_radius
     Surface.smallest_length
+    Surface.area
+    Surface.target
+
+
+.. _api-Grid:
+
+Generating grids
+----------------
+
+.. autosummary::
+    :toctree: generated/
+
+    GridStrategy
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    GridStrategy.generate_face_distribution
+    GridStrategy.generate_grid
+    GridStrategy.generate_hash
+    GridStrategy.check_and_regrid
+
+Generating a uniform grid
+-------------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    UniformGrid
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    UniformGrid.generate_face_distribution
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    UniformGrid.pix
+    UniformGrid.radius
+
+
+Generating a non-uniform grid with a high resolution local region
+-----------------------------------------------------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    HiResLocalGrid
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    HiResLocalGrid.generate_face_distribution
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    HiResLocalGrid.pix
+    HiResLocalGrid.radius
+    HiResLocalGrid.local_radius
+    HiResLocalGrid.local_location
+    HiResLocalGrid.superdomain_scale_factor
 
 .. _api-Production:
 
@@ -416,6 +496,7 @@ Methods
     Morphology.set_morphology_parameters
     Morphology.profile
     Morphology.form_crater
+    Morphology.compute_rmax
 
 Attributes
 ----------
@@ -432,7 +513,7 @@ Attributes
     Morphology.floordiam
     Morphology.floordepth
     Morphology.ejrim
-    Morphology.truncation_radius
+    Morphology.ejecta_truncation
     Morphology.crater
     Morphology.target
     Morphology.rng
