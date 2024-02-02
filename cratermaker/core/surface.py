@@ -19,6 +19,7 @@ from .target import Target
 from ..utils.custom_types import FloatLike, PairOfFloats
 import warnings
 from ..cython.perlin import apply_noise
+from abc import ABC, abstractmethod
 
 # Define valid grid types
 GridType = Literal["uniform", "hires_local"]
@@ -40,51 +41,298 @@ _DIM_MAP = {"n_node": "nVertices",
             "n_face": "nCells",
             "n_edge": "nEdges",
             }
-
-class Surface(UxDataset):
-    """
-
-    This class is used for handling surface-related data and operations in the 
-    cratermaker project. It provides methods for setting elevation data, 
-    calculating distances and bearings, and other surface-related computations.
+class GridStrategy(ABC):
+    @abstractmethod
+    def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
+        pass
     
-    The Surface class extends UxDataset for the cratermaker project.
+    def generate_grid(self): 
+        """
+        Generate a tessellated mesh of a sphere using the jigsaw-based mesh builder in MPAS-tools.
+
+        This function generates temporary files in the `grid_temp_dir` directory and saves the final mesh to `grid_file`.
+
+        Parameters
+        ----------
+        grid_file : os.PathLike
+            Path where the grid file will be saved.
+        grid_temp_dir : os.PathLike
+            Path to the directory for storing temporary grid files.
+
+        Notes
+        -----
+        The grid configuration is determined by the `grid_strategy` attribute of the Surface object. The `grid_strategy` attribute
+        determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific
+        to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
+        
+        This method does not return anything, but it saves the grid file to the specified location.
+        """
+        
+        from matplotlib._api.deprecation import MatplotlibDeprecationWarning
+        if not hasattr(self,"radius" ):
+            self.radius = 1.0
+            
+        # Verify directory structure exists and create it if not
+        orig_dir = os.getcwd()
+        cellWidth, lon, lat = self.generate_face_distribution()
+            
+        try:
+            grid_temp_dir = os.path.join(orig_dir, _GRID_TEMP_DIR) 
+            if not os.path.exists(grid_temp_dir):
+                os.mkdir(grid_temp_dir)
+            
+            data_dir_path = os.path.join(orig_dir, _DATA_DIR)     
+            if not os.path.exists(data_dir_path):
+                os.mkdir(data_dir_path)            
+            
+            os.chdir(grid_temp_dir)
+            # Configure logger to suppress output
+            logger = logging.getLogger("mpas_logger")
+            file_handler = logging.FileHandler('mesh.log')
+            logger.addHandler(file_handler)
+            logger.setLevel(logging.INFO)   
+        
+            # We can't rely on the jigsaw executable being in the PATH, but the executable will be bundled with the cratermaker project, so 
+            # we'll look there first.
+        
+            # Store the original PATH
+            original_path = os.environ.get('PATH', '')  
+
+            try:
+                # Add the directory containing the jigsaw binary to PATH
+                jigsaw_bin_dir = os.path.join(sys.prefix, 'site-packages', 'cratermaker', 'bin')
+                os.environ['PATH'] = jigsaw_bin_dir + os.pathsep + original_path
+                
+                print("Building grid with jigsaw...")
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=MatplotlibDeprecationWarning)
+                    build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=self.radius,logger=logger)
+            except:
+                print("Error building grid with jigsaw. See mesh.log for details.")
+                raise
+            os.chdir(orig_dir)
+            print("Done")
+            
+            with xr.open_dataset(grid_file) as ds:
+                # Create a temporary file
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    # Write to the temporary file
+                    ds.to_netcdf(temp_file.name) 
+                    temp_file.flush()
+                    os.fsync(temp_file.fileno())
+    
+            # Replace the original file only if writing succeeded
+            shutil.move(temp_file.name,grid_file)    
+        finally:
+            os.chdir(orig_dir)
+    
+        return 
+
+    def generate_hash(self) -> str:
+        """
+        Generate a hash of the grid parameters.
+
+        Returns
+        -------
+        str
+            Hash of the grid parameters.
+        """
+        attribute_pairs = []
+        for attr, value in vars(self).items():
+            attribute_pairs.append(f"{attr}:{value}")
+        combined = ":".join(attribute_pairs) 
+        return combined
+    
+class UniformGrid(GridStrategy):
+    """
+    Create a uniform grid configuration with the given pixel size.
     
     Parameters
     ----------
-    grid_temp_dir : os.PathLike, optional
-        Directory for temporary grid files.
-    data_dir : os.PathLike, optional
-        Directory for data files.
-    grid_file : os.PathLike, optional
-        Path to the grid file.
-    target : Target, optional
-        The target body for the impact simulation.
-    compute_face_areas : bool, optional
-        Flag to indicate whether to compute face areas. Default is False.    
-    *args
-        Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
-    **kwargs
-        Arbitrary keyword arguments to pass to the ``uxarray.UxDataset`` class.
+    pix : float
+        Desired pixel size for the mesh in meters.
+        
+    Returns
+    -------
+    UniformGrid
+        An instance of the UniformGrid class initialized with the given pixel size. 
+    """    
+    def __init__(self, pix, radius):
 
-    """   
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_grid_hash')    
+        self.pix = pix
+        self.radius = radius
+
+    def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
+        """
+        Create cell width array for this mesh on a regular latitude-longitude grid.
+        
+           
+        Returns
+        -------
+        cellWidth : ndarray
+            m x n array of cell width in km
+        lon : ndarray
+            longitude in degrees (length n and between -180 and 180)
+        lat : ndarray
+            longitude in degrees (length m and between -90 and 90)
+        """                
+        dlat = 10
+        dlon = 10
+        constantCellWidth = self.pix * 1e-3 # build_spherical_mesh assumes units of km, so must be converted
+
+        nlat = int(180/dlat) + 1
+        nlon = int(360/dlon) + 1
+
+        lat = np.linspace(-90., 90., nlat)
+        lon = np.linspace(-180., 180., nlon)
+
+        cellWidth = constantCellWidth * np.ones((lat.size, lon.size))
+        return cellWidth, lon, lat
+
+class HiResLocalGrid(GridStrategy):
+    """
+    Create a uniform grid configuration with the given pixel size.
     
-    """Surface class for cratermaker"""
+    Parameters
+    ----------
+    pix : FloatLike
+        The approximate cell size inside the local region in meters.
+    radius: FloatLike
+        The radius of the target body in meters.
+    local_radius : FloatLike
+        The radius of the local region in meters.
+    local_location : PairOfFloats
+        The longitude and latitude of the location in degrees.
+    superdomain_scale_factor : FloatLike
+        A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
+        that are modeled outside the local region are those whose ejecta could just reach the boundary.
+        
+    Returns
+    -------
+    UniformGrid
+        An instance of the UniformGrid class initialized with the given pixel size. 
+    """        
+    def __init__(self, 
+                 pix: FloatLike, 
+                 radius: FloatLike, 
+                 local_radius: FloatLike, 
+                 local_location: PairOfFloats,
+                 superdomain_scale_factor: FloatLike):
+        self.pix = pix
+        self.radius = radius
+        self.local_radius = local_radius
+        self.local_location = local_location
+        self.superdomain_scale_factor = superdomain_scale_factor
+
+    def generate_face_distribution(self) -> Tuple[NDArray, NDArray, NDArray]:
+        """
+        Create a cell width array for a high-resolution local mesh around a given location, with adaptive cell sizes outside the local region.
+
+            
+        Returns
+        -------
+        cellWidth : ndarray
+            m x n array of cell width in km
+        lon : ndarray
+            longitude in degrees (length n and between -180 and 180)
+        lat : ndarray
+            latitude in degrees (length m and between -90 and 90)
+        """
+        dlat = 10
+        dlon = 10
+
+        nlat = int(180 / dlat) + 1
+        nlon = int(360 / dlon) + 1
+
+        lat = np.linspace(-90., 90., nlat)
+        lon = np.linspace(-180., 180., nlon)
+        cellWidth = np.zeros((nlat, nlon))
+
+        # Convert location to radians for distance calculation
+        loc_lon_rad = np.radians(self.local_location[0])
+        loc_lat_rad = np.radians(self.local_location[1])
+
+        for i in range(nlat):
+            for j in range(nlon):
+                # Convert grid point to radians
+                lon_rad = np.radians(lon[j])
+                lat_rad = np.radians(lat[i])
+
+                # Calculate distance from the location to the grid point
+                distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad)
+
+                if distance <= self.local_radius:
+                    # Inside the local region
+                    cellWidth[i, j] = self.pix * 1e-3  # Convert to km
+                else:
+                    # Outside the local region, adapt cell size based on distance from boundary
+                    boundary_distance = distance - self.local_radius
+                    cellWidth[i, j] = (boundary_distance / self.superdomain_scale_factor + self.pix) * 1e-3  # Convert to km
+
+        return cellWidth, lon, lat
+
+class Surface(UxDataset):
+    """
+    Surface class for handling surface-related data and operations.
+
+    Extends UxDataset to utilize uxarray and xarray functionalities, providing methods for setting elevation data, 
+    calculating distances and bearings, and other surface-related computations.
+
+    Attributes
+    ----------
+    target : Target
+        The target body for the impact simulation.
+    """
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_grid_hash', '_grid_strategy')    
+
     def __init__(self, 
                  *args, 
-                 grid_temp_dir: os.PathLike | None = None,
-                 data_dir: os.PathLike | None = None, 
-                 grid_file: os.PathLike | None = None,
                  target: Target | None = None,
                  compute_face_areas: bool = False,
                  **kwargs):
+        """
+        This class is used for handling surface-related data and operations in the cratermaker project. It provides methods for 
+        setting elevation data, calculating distances and bearings, and other surface-related computations.
+        
+        The Surface class extends UxDataset for the cratermaker project.
+        
+        Parameters
+        ----------
+        *args
+            Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
+        target : Target, optional
+            The target body for the impact simulation.
+        compute_face_areas : bool, optional
+            Flag to indicate whether to compute face areas. Default is False.    
+        **kwargs
+            This must include the keyword arguments specific to the chosen `grid_type`, and could also include keyword arguments 
+            to pass to the ``uxarray.UxDataset`` class.
+            
+            
+        Notes
+        -----
+        The grid configuration is determined by `grid_type` and its associated parameters. For detailed information on the 
+        parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, 
+        `HiResLocalGrid`, etc.).
+
+        See Also
+        --------
+        cratermaker.core.surface.UniformGrid : Parameters for a uniform grid configuration.
+        cratermaker.core.surface.HiResLocalGrid : Parameters for a high-resolution local grid configuration.            
+        """   
         # Process the Surface-specific keyword arguments 
         self._grid_temp_dir = grid_temp_dir
         self._data_dir = data_dir
         self._grid_file = grid_file
         self._target = target
-        
+        if grid_type not in valid_grid_types:
+            raise ValueError(f"grid_type must be one of {valid_grid_types}")
+        if grid_type == "uniform":
+            self.grid_strategy = UniformGrid(**kwargs)
+        elif grid_type == "hires_local":
+            self.grid_strategy = HiResLocalGrid(**kwargs)
+            
+        self.grid_strategy.generate_grid(self.target, self.grid_file, self.grid_temp_dir) 
         # Call the super class constructor with the UxDataset
         super().__init__(*args, **kwargs)
        
@@ -106,7 +354,6 @@ class Surface(UxDataset):
                     self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas * self.target.radius**2, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
                     self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
         
-
     def __getitem__(self, key):
         """Override to make sure the result is an instance of ``cratermaker.Surface``"""
 
@@ -122,7 +369,6 @@ class Surface(UxDataset):
                             target=self.target,
                             )
         return value
-    
     
     def _calculate_binary_op(self, *args, **kwargs):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
@@ -151,7 +397,7 @@ class Surface(UxDataset):
         """Override to make the result a ``cratermaker.Surface`` class."""
 
         return cls(uxr.UxDataset._construct_direct(*args, **kwargs))    
-    
+
     def _copy(self, **kwargs):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
@@ -173,7 +419,7 @@ class Surface(UxDataset):
             copied._target = self._target
             copied._smallest_length = self._smallest_length
         return copied    
-   
+  
     def _replace(self, *args, **kwargs):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         ds = super()._replace(*args, **kwargs)
@@ -194,6 +440,128 @@ class Surface(UxDataset):
                          target=self.target,
                          )
         return ds   
+
+    @classmethod
+    def from_grid_file(cls, 
+                       target: Target, 
+                       data_dir: os.PathLike | None = None, 
+                       grid_file: os.PathLike | None = None, 
+                       grid_type: GridType = valid_grid_types[0], 
+                       **kwargs):
+        """
+        Factory method to create a Surface instance from a grid file.
+
+        Parameters
+        ----------
+        target : Target
+            Target body for the simulation.
+        grid_temp_dir : os.PathLike, optional
+            Directory for temporary grid files.
+        data_dir : os.PathLike, optional
+            Directory for data files.
+        grid_file : os.PathLike, optional
+            Path to the grid file.
+        grid_type : ["uniform", "hires_local"], optional
+            The type of grid to be generated. Default is "uniform".            
+        **kwargs : dict
+            Additional keyword arguments for initializing the Surface instance.
+
+        Returns
+        -------
+        Surface
+            An initialized Surface object.
+        """
+        if not target:
+            target = Target("Moon")
+        elif isinstance(target, str):
+            try:
+                target = Target(target)
+            except:
+                raise ValueError(f"Invalid target name {target}")
+        elif not isinstance(target, Target):
+            raise TypeError("target must be an instance of Target or a valid name of a target body")
+        
+        if grid_type not in valid_grid_types:
+            raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
+       
+        pix = kwargs.pop('pix', None) 
+        if pix is not None:
+            pix = np.float64(pix)
+        else:    
+            pix = np.sqrt(4 * np.pi * target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
+        kwargs['pix'] = pix
+
+        # Verify directory structure exists and create it if not
+        grid_temp_dir_path = os.path.join(simdir, _GRID_TEMP_DIR) 
+        if not os.path.exists(grid_temp_dir_path):
+            os.mkdir(grid_temp_dir_path)
+        
+        data_dir_path = os.path.join(simdir, _DATA_DIR)     
+        if not os.path.exists(data_dir_path):
+            os.mkdir(data_dir_path)
+            
+        grid_file_path = os.path.join(data_dir_path,_GRID_FILE_NAME)
+    
+        make_new_grid, grid_hash = Surface.check_and_regrid(grid_file_path, pix, target.radius, grid_type, local_radius, superdomain_scale_factor) 
+        
+        if make_new_grid:
+            reset_surface = True
+            generate_grid(target=target,
+                        pix=pix,
+                        grid_file=grid_file_path,
+                        grid_temp_dir=grid_temp_dir_path,
+                        grid_type=grid_type,
+                        local_radius=local_radius,
+                        local_location=local_location,
+                        superdomain_scale_factor=superdomain_scale_factor
+                        )
+        
+        # Get the names of all data files in the data directory that are not the grid file
+        data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
+        if grid_file_path in data_file_list:
+            data_file_list.remove(grid_file_path)
+            
+        # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
+        reset_surface = reset_surface or make_new_grid or not data_file_list
+        
+        # If reset_surface is True, delete all data files except the grid file 
+        if reset_surface:
+            for f in data_file_list:
+                os.remove(f)
+            data_file_list = []        
+        
+        # Initialize UxDataset with the loaded data
+        try:
+            if data_file_list:
+                surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False).isel(Time=-1)
+                surf.uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
+            else:
+                surf = uxr.UxDataset()
+                surf.uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
+        except:
+            raise ValueError("Error loading grid and data files")
+        surf = Surface(surf,
+                    uxgrid=surf.uxgrid,
+                    source_datasets=surf.source_datasets,
+                    grid_temp_dir = grid_temp_dir_path,
+                    data_dir = data_dir_path,
+                    grid_file = grid_file_path,
+                    target = target,
+                    compute_face_areas = True,
+                    ) 
+        surf.grid_hash = grid_hash
+        
+        if reset_surface:
+            surf.set_elevation(0.0,save_to_file=True)
+            
+        
+        return surf        
+        
+        
+        uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
+        surf = uxr.open_mfdataset(grid_file_path, latlon=True, use_dual=False).isel(Time=-1)
+        surf.uxgrid = uxgrid
+        return cls(surf, uxgrid=uxgrid, target=target, **kwargs)
 
     @property
     def grid_temp_dir(self):
@@ -232,7 +600,6 @@ class Surface(UxDataset):
     def grid_file(self, value):
         self._grid_file = value
         
-
     @property
     def smallest_length(self):
         """
@@ -281,6 +648,20 @@ class Surface(UxDataset):
         if not isinstance(value, str):
             raise TypeError("grid_hash must be a string")
         self._grid_hash = value
+    
+    @property
+    def grid_strategy(self):
+        """
+        The hash of the grid parameters.
+        """
+        return self._grid_strategy
+    
+    @grid_strategy.setter
+    def grid_strategy(self, value):
+        if not isinstance(value, GridStrategy):
+            raise TypeError("grid_strategy must be of type GridStrategy")
+        self._grid_strategy = value
+        
         
     def generate_data(self,
                       name: str,
@@ -357,7 +738,6 @@ class Surface(UxDataset):
             if save_to_file:
                 _save_data(uxda, self.data_dir, interval_number, combine_data_files)
         return 
-
         
     def set_elevation(self, 
                     new_elev: NDArray[np.float64] | List[FloatLike] | None = None,
@@ -415,7 +795,6 @@ class Surface(UxDataset):
                               )
         return 
 
-
     @staticmethod
     def calculate_haversine_distance(lon1: FloatLike, 
                     lat1: FloatLike, 
@@ -452,7 +831,6 @@ class Surface(UxDataset):
         c = 2 * np.arcsin(np.sqrt(a))
         return radius * c
     
-
     def get_distance(self, 
                      location: Tuple[np.float64, np.float64]) -> UxDataArray:
         """
@@ -477,7 +855,6 @@ class Surface(UxDataset):
         face_lon2 = np.deg2rad(self.uxgrid.face_lon)
         face_lat2 = np.deg2rad(self.uxgrid.face_lat)
         return self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,self.target.radius), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,self.target.radius) 
-    
 
     @staticmethod
     def calculate_initial_bearing(lon1: FloatLike, 
@@ -515,7 +892,6 @@ class Surface(UxDataset):
         initial_bearing = (initial_bearing + 2 * np.pi) % (2 * np.pi)
 
         return initial_bearing
-
     
     def get_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> UxDataArray:
         """
@@ -540,7 +916,6 @@ class Surface(UxDataset):
         face_lon2 = np.deg2rad(self.uxgrid.face_lon)
         face_lat2 = np.deg2rad(self.uxgrid.face_lat)       
         return self.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), self.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2)
-    
     
     def find_nearest_index(self,point):
         """
@@ -575,7 +950,6 @@ class Surface(UxDataset):
         face_lat2 = np.deg2rad(self.uxgrid.face_lat)        
         node_distances, face_distances = self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,radius=1.0), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,radius=1.0)
         return np.argmin(node_distances.data), np.argmin(face_distances.data)
-
 
     def get_reference_surface(self,
                             location: Tuple[FloatLike, FloatLike], 
@@ -695,446 +1069,60 @@ class Surface(UxDataset):
         
         return
 
-def generate_grid_hash(pix: FloatLike, 
-                       target_radius: FloatLike, 
-                       grid_type: GridType, 
-                       local_radius=None, 
-                       superdomain_scale_factor=None) -> str:
-    """
-    Generate a unique hash for a set of grid parameters.
 
-    This function creates a hash value based on the provided grid parameters. The hash is used to uniquely identify a grid configuration. If any of the parameters change, the generated hash will also change, indicating a different grid configuration.
-
-    Parameters
-    ----------
-    pix : float
-        The pixel size.
-    target_radius : float
-        The radius of the target body.
-    grid_type : str
-        The type of grid. Expected values are "uniform" or "hires_local".
-    local_radius : float, optional
-        The local radius for "hires_local" grid type. Required if `grid_type` is "hires_local".
-    superdomain_scale_factor : float, optional
-        The scale factor for the superdomain in "hires_local" grid type. Required if `grid_type` is "hires_local".
-
-    Returns
-    -------
-    str
-        A hexadecimal string representing the hash of the concatenated grid parameters.
-
-    Notes
-    -----
-    The hash is generated using SHA-256 algorithm, ensuring a unique hash value for each unique set of parameters. For "uniform" grid type, `local_radius` and `superdomain_scale_factor` are not used in hash generation.
-
-    Examples
-    --------
-    >>> generate_grid_hash(0.1, 6371, "uniform")
-    'c0a60924022d99603912f6913e4a45d101559d8cc61d54d0d4f5ff208016484c'
-
-    >>> generate_grid_hash(0.1, 6371, "hires_local", local_radius=100, superdomain_scale_factor=1.5)
-    '4dd093073fdca72c68e762ee52ca363b3ec09eec335a5361e0efc798a6f0a7c3'
-    """
-    # Function implementation
-
-    combined = f"{pix}:{target_radius}:{grid_type}"
-    if grid_type == "hires_local":
-        combined += f":{local_radius}:{superdomain_scale_factor}"
-    
-    # Use hashlib to generate a hash from the combined string
-    hash_object = hashlib.sha256(combined.encode())
-    return hash_object.hexdigest()
-
-
-def check_and_regrid(grid_file_path: str, 
-                     pix: float, 
-                     target_radius: float, 
-                     grid_type: str, 
-                     local_radius: FloatLike | None = None, 
-                     superdomain_scale_factor: FloatLike | None = None) -> Tuple[bool, str]:
-    """
-    Check if the existing grid matches the desired parameters and regrid if necessary.
-
-    This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. If the grid does not exist or does not match the parameters, a regridding operation is triggered.
-
-    Parameters
-    ----------
-    grid_file_path : str
-        The file path where the grid is saved or will be saved.
-    pix : float
-        The pixel size.
-    target_radius : float
-        The radius of the target body.
-    grid_type : str
-        The type of grid, expected to be either "uniform" or "hires_local".
-    local_radius : float, optional
-        The local radius for the "hires_local" grid type. This parameter is required if `grid_type` is "hires_local".
-    superdomain_scale_factor : float, optional
-        The scale factor for the superdomain in the "hires_local" grid type. This parameter is required if `grid_type` is "hires_local".
-
-    Returns
-    -------
-    bool
-        A boolean indicating whether a new grid needs to be generated. `True` if regridding is necessary, `False` otherwise.
-    Optional[str]
-        The hash of the grid parameters, which can be used to verify the grid configuration in future checks. Returns `None` if a new grid is not needed.
-
-    Notes
-    -----
-    The function generates a hash using the `generate_grid_hash` function based on the provided parameters. It compares this hash against the one stored in the existing grid's metadata to determine if the grid matches the desired configuration.
-
-    """
-    # Generate the hash for the current parameters
-    grid_hash = generate_grid_hash(pix, target_radius, grid_type, local_radius, superdomain_scale_factor)
-
-    # Find out if the file exists, if it does't we'll need to make a new grid
-    make_new_grid = not os.path.exists(grid_file_path)
-    
-    if not make_new_grid:
-        uxgrid = uxr.open_grid(grid_file_path)
-        old_hash = uxgrid.parsed_attrs.get("grid_hash")
-        make_new_grid = old_hash != grid_hash
-
-    return make_new_grid, grid_hash
-
-
-def initialize_surface(*, 
-                       make_new_grid: bool = False,
-                       reset_surface: bool = True, 
-                       target: Target | str | None = None, 
-                       simdir: os.PathLike | None = None, 
-                       grid_type: GridType = valid_grid_types[0],
-                       pix: FloatLike | None = None, 
-                       local_radius: FloatLike | None = None,
-                       local_location: PairOfFloats | None = None,
-                       superdomain_scale_factor: FloatLike | None = None,
-                       **kwargs) -> Surface:
-    """
-    Initialize a Surface object with specified parameters and directory structure.
-
-    This function creates necessary directories, generates grid and surface DEM if required,
-    and initializes a Surface object with the loaded data.
-
-    Parameters
-    ----------
-    make_new_grid : bool, default False
-        If True, generate a new grid.
-    reset_surface : bool, default True
-        If True, reset the surface data.
-    target : Target | str | None, optional
-        The target body for the surface, either as a Target object or a string name.
-    grid_type : str, optional
-        Type of the grid used. Options are "uniform" and "hires_local".
-    pix : FloatLike | None, optional
-        Approximate resolution in meters of the grid. For the "uniform" grid_type this is roughly the size of all grid faces. 
-        For the "hires_local" grid_type, this is the size of the local grid.
-    local_radius : FloatLike | None, optional
-        The radius of the local grid in meters. This is only used when grid_type is "hires_local".
-    local_location : Tuple[FloatLike, FloatLike] | None, optional
-        The longitude and latitude of the center of the local grid. This is only used when grid_type is "hires_local".
-    superdomain_scale_factor : FloatLike | None, optional
-        The scale factor for the superdomain. This is only used when grid_type is "hires_local".
-    **kwargs
-        Arbitrary keyword arguments.
-
-    Returns
-    -------
-    Surface
-        An initialized Surface object.
-
-    Raises
-    ------
-    ValueError
-        If the provided target name is invalid.
-    TypeError
-        If the target is neither a Target instance nor a valid string name.
-    """
-    
-    if simdir is None:
-        simdir = os.getcwd()
-    if not target:
-        target = Target("Moon")
-    elif isinstance(target, str):
-        try:
-            target = Target(target)
-        except:
-            raise ValueError(f"Invalid target name {target}")
-    elif not isinstance(target, Target):
-        raise TypeError("target must be an instance of Target or a valid name of a target body")
-    
-    if grid_type not in valid_grid_types:
-        raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
-    
-    if pix is not None:
-        pix = np.float64(pix)
-    else:    
-        pix = np.sqrt(4 * np.pi * target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
-
-    if grid_type == "hires_local":
-        if local_radius is None or local_radius <= 0:
-            raise ValueError("local_radius must be a positive number")
-        if superdomain_scale_factor is None or superdomain_scale_factor <= 1:
-            raise ValueError("superdomain_scale_factor must be greater than 1") 
-        if local_location is None:
-            local_location = (0.0, 0.0)
-        if len(local_location) != 2:
-            raise ValueError("local_location must be a tuple of two numbers")       
-    
-    # Verify directory structure exists and create it if not
-    grid_temp_dir_path = os.path.join(simdir, _GRID_TEMP_DIR) 
-    if not os.path.exists(grid_temp_dir_path):
-        os.mkdir(grid_temp_dir_path)
-    
-    data_dir_path = os.path.join(simdir, _DATA_DIR)     
-    if not os.path.exists(data_dir_path):
-        os.mkdir(data_dir_path)
-        
-    grid_file_path = os.path.join(data_dir_path,_GRID_FILE_NAME)
-   
-    make_new_grid, grid_hash = check_and_regrid(grid_file_path, pix, target.radius, grid_type, local_radius, superdomain_scale_factor) 
-    
-    if make_new_grid:
-        reset_surface = True
-        generate_grid(target=target,
-                      pix=pix,
-                      grid_file=grid_file_path,
-                      grid_temp_dir=grid_temp_dir_path,
-                      grid_type=grid_type,
-                      local_radius=local_radius,
-                      local_location=local_location,
-                      superdomain_scale_factor=superdomain_scale_factor
-                      )
-    
-    # Get the names of all data files in the data directory that are not the grid file
-    data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
-    if grid_file_path in data_file_list:
-        data_file_list.remove(grid_file_path)
-        
-    # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-    reset_surface = reset_surface or make_new_grid or not data_file_list
-    
-    # If reset_surface is True, delete all data files except the grid file 
-    if reset_surface:
-        for f in data_file_list:
-            os.remove(f)
-        data_file_list = []        
-    
-    # Initialize UxDataset with the loaded data
-    try:
-        if data_file_list:
-            surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False).isel(Time=-1)
-            surf.uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
-        else:
-            surf = uxr.UxDataset()
-            surf.uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
-    except:
-        raise ValueError("Error loading grid and data files")
-    surf = Surface(surf,
-                   uxgrid=surf.uxgrid,
-                   source_datasets=surf.source_datasets,
-                   grid_temp_dir = grid_temp_dir_path,
-                   data_dir = data_dir_path,
-                   grid_file = grid_file_path,
-                   target = target,
-                   compute_face_areas = True,
-                   ) 
-    surf.grid_hash = grid_hash
-    
-    if reset_surface:
-        surf.set_elevation(0.0,save_to_file=True)
-        
-    
-    return surf
-
-
-def generate_grid(target: Target | str, 
-                  pix: FloatLike, 
-                  grid_file: os.PathLike,
-                  grid_temp_dir: os.PathLike,
-                  grid_type: GridType = valid_grid_types[0],
-                  local_radius: FloatLike | None = None,
-                  local_location: PairOfFloats | None = None,
-                  superdomain_scale_factor: FloatLike | None = None
-                )  -> Surface:
-    """
-    Generate a tessellated mesh of a sphere using the jigsaw-based mesh builder in MPAS-tools.
-
-    This function generates temporary files in the `grid_temp_dir` directory and saves the final mesh to `grid_file`.
-
-    Parameters
-    ----------
-    target : str or Target
-        Name of target body or a Target object
-    pix : FloatLike
-        Desired cell size for the mesh.
-    grid_file : os.PathLike
-        Path where the grid file will be saved.
-    grid_temp_dir : os.PathLike
-        Path to the directory for storing temporary grid files.
-    grid_type : str, optional
-        Type of the grid to be generated. Options are "uniform" and "hires_local".
-    local_radius : FloatLike | None, optional
-        The radius of the local grid in meters. This is only used when grid_type is "hires_local".
-    local_location : Tuple[FloatLike, FloatLike] | None, optional
-        The longitude and latitude of the center of the local grid. This is only used when grid_type is "hires_local".
-    superdomain_scale_factor : FloatLike | None, optional
-        The scale factor for the superdomain. This is only used when grid_type is "hires_local".    
-
-    Returns
-    -------
-    A cratermaker Surface object with the generated grid as the uxgrid attribute and with an elevation variable set to zero.
-    """
-    def _make_uniform_face_size(cell_size: FloatLike) -> Tuple[NDArray,NDArray,NDArray]:
+    def check_and_regrid(self,
+                        grid_file_path: str, 
+                        grid_strategy: GridStrategy
+                        ) -> Tuple[bool, str]:
         """
-        Create cell width array for this mesh on a regular latitude-longitude grid.
-        
+        Check if the existing grid matches the desired parameters and regrid if necessary.
+
+        This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. If the grid does not exist or does not match the parameters, a regridding operation is triggered.
+
         Parameters
         ----------
-        cell_size : FloatLike
-            The approximate cell size in meters.
-           
+        grid_file_path : str
+            The file path where the grid is saved or will be saved.
+        pix : float
+            The pixel size.
+        target_radius : float
+            The radius of the target body.
+        grid_type : str
+            The type of grid, expected to be either "uniform" or "hires_local".
+        local_radius : float, optional
+            The local radius for the "hires_local" grid type. This parameter is required if `grid_type` is "hires_local".
+        superdomain_scale_factor : float, optional
+            The scale factor for the superdomain in the "hires_local" grid type. This parameter is required if `grid_type` is "hires_local".
+
         Returns
         -------
-        cellWidth : ndarray
-            m x n array of cell width in km
-        lon : ndarray
-            longitude in degrees (length n and between -180 and 180)
-        lat : ndarray
-            longitude in degrees (length m and between -90 and 90)
+        bool
+            A boolean indicating whether a new grid needs to be generated. `True` if regridding is necessary, `False` otherwise.
+        Optional[str]
+            The hash of the grid parameters, which can be used to verify the grid configuration in future checks. Returns `None` if a new grid is not needed.
+
+        Notes
+        -----
+        The function generates a hash using the `generate_grid_hash` function based on the provided parameters. It compares this hash against the one stored in the existing grid's metadata to determine if the grid matches the desired configuration.
+
         """
-        dlat = 10
-        dlon = 10
-        constantCellWidth = cell_size * 1e-3 # build_spherical_mesh assumes units of km, so must be converted
+        # Generate the hash for the current parameters
+        grid_hash = grid_strategy.generate_hash()
 
-        nlat = int(180/dlat) + 1
-        nlon = int(360/dlon) + 1
-
-        lat = np.linspace(-90., 90., nlat)
-        lon = np.linspace(-180., 180., nlon)
-
-        cellWidth = constantCellWidth * np.ones((lat.size, lon.size))
-        return cellWidth, lon, lat
-    
-    def _make_hires_local_face_size(local_cell_size: FloatLike, 
-                                    local_radius: FloatLike, 
-                                    local_location: PairOfFloats,
-                                    superdomain_scale_factor: FloatLike) -> Tuple[NDArray, NDArray, NDArray]:
-        """
-        Create a cell width array for a high-resolution local mesh around a given location, with adaptive cell sizes outside the local region.
+        # Find out if the file exists, if it does't we'll need to make a new grid
+        make_new_grid = not os.path.exists(grid_file_path)
         
-        Parameters
-        ----------
-        local_cell_size : FloatLike
-            The approximate cell size inside the local region in meters.
-        local_radius : FloatLike
-            The radius of the local region in meters.
-        local_location : PairOfFloats
-            The longitude and latitude of the location in degrees.
-        superdomain_scale_factor : FloatLike
-            A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
-            that are modeled outside the local region are those whose ejecta could just reach the boundary.
-            
-        Returns
-        -------
-        cellWidth : ndarray
-            m x n array of cell width in km
-        lon : ndarray
-            longitude in degrees (length n and between -180 and 180)
-        lat : ndarray
-            latitude in degrees (length m and between -90 and 90)
-        """
-        dlat = 10
-        dlon = 10
+        if not make_new_grid:
+            uxgrid = uxr.open_grid(grid_file_path)
+            old_hash = uxgrid.parsed_attrs.get("grid_hash")
+            make_new_grid = old_hash != grid_hash
 
-        nlat = int(180 / dlat) + 1
-        nlon = int(360 / dlon) + 1
+        return make_new_grid, grid_hash
 
-        lat = np.linspace(-90., 90., nlat)
-        lon = np.linspace(-180., 180., nlon)
-        cellWidth = np.zeros((nlat, nlon))
 
-        # Convert location to radians for distance calculation
-        loc_lon_rad = np.radians(local_location[0])
-        loc_lat_rad = np.radians(local_location[1])
 
-        for i in range(nlat):
-            for j in range(nlon):
-                # Convert grid point to radians
-                lon_rad = np.radians(lon[j])
-                lat_rad = np.radians(lat[i])
 
-                # Calculate distance from the location to the grid point
-                distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad)
 
-                if distance <= local_radius:
-                    # Inside the local region
-                    cellWidth[i, j] = local_cell_size * 1e-3  # Convert to km
-                else:
-                    # Outside the local region, adapt cell size based on distance from boundary
-                    boundary_distance = distance - local_radius
-                    cellWidth[i, j] = (boundary_distance / superdomain_scale_factor + local_cell_size) * 1e-3  # Convert to km
-
-        return cellWidth, lon, lat
-
-     
-    from matplotlib._api.deprecation import MatplotlibDeprecationWarning
-    if isinstance(target, str):
-        try:
-            target = Target(target)
-        except:
-            raise ValueError(f"Invalid target name {target}")
-    elif not isinstance(target, Target):
-        raise TypeError("target must be an instance of Target or a valid name of a target body")
-   
-    if grid_type not in valid_grid_types:
-        raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
-    if grid_type == "uniform": 
-        cellWidth, lon, lat = _make_uniform_face_size(pix)
-    elif grid_type == "hires_local":
-        cellWidth, lon, lat = _make_hires_local_face_size(pix, local_radius, local_location, superdomain_scale_factor) 
-        
-    orig_dir = os.getcwd()
-    os.chdir(grid_temp_dir)
-    # Configure logger to suppress output
-    logger = logging.getLogger("mpas_logger")
-    file_handler = logging.FileHandler('mesh.log')
-    logger.addHandler(file_handler)
-    logger.setLevel(logging.INFO)   
-    
-    # We can't rely on the jigsaw executable being in the PATH, but the executable will be bundled with the cratermaker project, so 
-    # we'll look there first.
-    
-    # Store the original PATH
-    original_path = os.environ.get('PATH', '')  
-
-    try:
-        # Add the directory containing the jigsaw binary to PATH
-        jigsaw_bin_dir = os.path.join(sys.prefix, 'site-packages', 'cratermaker', 'bin')
-        os.environ['PATH'] = jigsaw_bin_dir + os.pathsep + original_path
-        
-        print("Building grid with jigsaw...")
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=MatplotlibDeprecationWarning)
-            build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=target.radius,logger=logger)
-    except:
-        print("Error building grid with jigsaw. See mesh.log for details.")
-        raise
-    os.chdir(orig_dir)
-    print("Done")
-    
-    # Create the attribute dictionary that will enable the grid to be identified in case it needs to be regridded 
-    with xr.open_dataset(grid_file) as ds:
-        ds = ds.assign_attrs(pix=pix, grid_type=grid_type) 
-    
-    # Create a temporary file
-    temp_file = tempfile.NamedTemporaryFile(delete=False)
-    # Write to the temporary file
-    ds.to_netcdf(temp_file.name) 
-
-    # Replace the original file only if writing succeeded
-    shutil.move(temp_file.name,grid_file)    
-  
-    return 
 
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,

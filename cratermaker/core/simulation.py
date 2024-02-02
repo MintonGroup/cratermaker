@@ -208,7 +208,6 @@ class Simulation:
     
 
     def initialize_surface(self, 
-                           *args: Any, 
                            **kwargs: Any
                           ) -> None:
         """
@@ -216,12 +215,10 @@ class Simulation:
 
         Parameters
         ----------
-        *args : dict
-            Variable length argument list to pass to initialize_surface.
         **kwargs : dict
             Keyword arguments for initializing the surface mesh.
         """        
-        self.surf = initialize_surface(*args, **kwargs)
+        self.surf = initialize_surface(**kwargs)
         return
    
     
@@ -516,6 +513,7 @@ class Simulation:
         self.export_vtk()
         return
 
+
     def _validate_run_args(self,**kwargs) -> dict:
         """
         Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
@@ -653,6 +651,7 @@ class Simulation:
         kwargs.pop('return_age')
          
         return kwargs
+   
     
     def save(self, **kwargs: Any) -> None:
         """
