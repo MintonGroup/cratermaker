@@ -13,7 +13,7 @@ from .core.simulation import Simulation
 from .core.target import Target
 from .core.impact import Impact, Crater, Projectile
 from .core.scale import Scale, Material
-from .core.surface import Surface
+from .core.surface import Surface, GridStrategy, UniformGrid, HiResLocalGrid
 from .core.morphology import Morphology
 from .core.production import Production, NeukumProduction
 from .utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, normalize_coords, R_to_CSFD

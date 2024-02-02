@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
+from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 import warnings
 from ..cython.perlin import apply_noise
@@ -252,6 +253,33 @@ class UniformGrid(GridStrategy):
 
         cellWidth = constantCellWidth * np.ones((lat.size, lon.size))
         return cellWidth, lon, lat
+    
+    @property
+    def pix(self):
+        """
+        The approximate face size for the mesh in meters.
+        """
+        return self._pix
+    
+    @pix.setter
+    def pix(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("pix must be a positive float")
+        self._pix = value
+        
+    @property
+    def radius(self):
+        """
+        The radius of the target body in meters.
+        """
+        return self._radius
+    
+    @radius.setter
+    def radius(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("radius must be a positive float")
+        self._radius = value
+        
 
 class HiResLocalGrid(GridStrategy):
     """
@@ -336,6 +364,74 @@ class HiResLocalGrid(GridStrategy):
 
         return cellWidth, lon, lat
 
+    @property
+    def pix(self):
+        """
+        The approximate face size for the mesh inside the local region in meters.
+        """
+        return self._pix
+    
+    @pix.setter
+    def pix(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("pix must be a positive float")
+        self._pix = value
+        
+    @property
+    def radius(self):
+        """
+        The radius of the target body in meters.
+        """
+        return self._radius
+    
+    @radius.setter
+    def radius(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("radius must be a positive float")
+        self._radius = value
+    
+    @property
+    def local_radius(self):
+        """
+        The radius of the local region in meters.
+        """
+        return self._local_radius
+
+    @local_radius.setter
+    def local_radius(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("local_radius must be a positive float")
+        if value > 2 * np.pi * self.radius:
+            raise ValueError("local_radius must be less than 2 * pi * radius of the target body")
+        self._local_radius = value
+        
+    @property
+    def local_location(self):
+        """
+        The longitude and latitude of the location in degrees.
+        """
+        return self._local_location
+    
+    @local_location.setter
+    def local_location(self, value: PairOfFloats):
+        if not isinstance(value, tuple) or len(value) != 2:
+            raise TypeError("local_location must be a tuple of two floats")
+        self._local_location = validate_and_convert_location(value)
+        
+    @property
+    def superdomain_scale_factor(self):
+        """
+        A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters that are 
+        modeled outside the local region are those whose ejecta could just reach the boundary.
+        """
+        return self._superdomain_scale_factor
+    
+    @superdomain_scale_factor.setter
+    def superdomain_scale_factor(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
+            raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
+        self._superdomain_scale_factor = value
+    
 class Surface(UxDataset):
     """
     This class is used for handling surface-related data and operations in the cratermaker project. It provides methods for 
@@ -358,7 +454,7 @@ class Surface(UxDataset):
     **kwargs
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
     """
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_grid_hash')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target')    
 
     def __init__(self, 
                  *args, 
@@ -378,7 +474,6 @@ class Surface(UxDataset):
         self._grid_file = grid_file
         self._target = target
         self._area = None
-        self._grid_hash = None
         self._smallest_length = None
        
         if compute_face_areas: 
@@ -409,11 +504,11 @@ class Surface(UxDataset):
         target : Target, optional
             Target object or name of known body for the simulation. Default is Target("Moon")
         data_dir : os.PathLike
-            The directory for data files. Default is set to `${PWD}/surface_data`.
+            The directory for data files. Default is set to ``${PWD}/surface_data``.
         grid_file : os.PathLike
-            The file path to the grid file. Default is set to be from the current workding directory, to `{data_dir}/grid.nc'.
+            The file path to the grid file. Default is set to be from the current working directory, to ``{data_dir}/grid.nc``.
         grid_temp_dir : os.PathLike
-            The directory for temporary grid files. Default is set to `${PWD}/.grid`.
+            The directory for temporary grid files. Default is set to ``${PWD}/.grid``.
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
         grid_type : ["uniform", "hires_local"], optional
@@ -580,7 +675,6 @@ class Surface(UxDataset):
             copied._target = self._target.copy()
             copied._smallest_length = self._smallest_length.copy()
             copied._area = self._area.copy()
-            copied._grid_hash = self._grid_hash.copy()
         else:
             # Point to the existing properties
             copied._name = self._name
@@ -590,7 +684,6 @@ class Surface(UxDataset):
             copied._target = self._target
             copied._smallest_length = self._smallest_length
             copied._area = self._area
-            copied._grid_hash = self._grid_hash
         return copied    
   
     def _replace(self, *args, **kwargs):
@@ -605,7 +698,6 @@ class Surface(UxDataset):
             ds._target = self._target
             ds._smallest_length = self._smallest_length
             ds._area = self._area
-            ds._grid_hash = self._grid_hash
         else:
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
@@ -617,21 +709,7 @@ class Surface(UxDataset):
                          )
             ds._smallest_length = self._smallest_length
             ds._area = self._area
-            ds._grid_hash = self._grid_hash
         return ds   
-
-    @property
-    def grid_temp_dir(self):
-        """
-        Directory for temporary grid files.
-        """
-        return self._grid_temp_dir
-
-    @grid_temp_dir.setter
-    def grid_temp_dir(self, value):
-        self._grid_temp_dir = value
-        if not os.path.exists(self._grid_temp_dir):
-            os.makedirs(self._grid_temp_dir)
 
     @property
     def data_dir(self):
@@ -692,32 +770,6 @@ class Surface(UxDataset):
         if not isinstance(value, Target):
             raise TypeError("target must be an instance of Target")
         self._target = value    
-        
-    @property
-    def grid_hash(self):
-        """
-        The hash of the grid parameters.
-        """
-        return self._grid_hash
-    
-    @grid_hash.setter
-    def grid_hash(self, value):
-        if not isinstance(value, str):
-            raise TypeError("grid_hash must be a string")
-        self._grid_hash = value
-    
-    @property
-    def grid_strategy(self):
-        """
-        The hash of the grid parameters.
-        """
-        return self._grid_strategy
-    
-    @grid_strategy.setter
-    def grid_strategy(self, value):
-        if not isinstance(value, GridStrategy):
-            raise TypeError("grid_strategy must be of type GridStrategy")
-        self._grid_strategy = value
         
     def generate_data(self,
                       name: str,

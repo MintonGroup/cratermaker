@@ -68,8 +68,13 @@ class Simulation:
             The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
             truncation distance based on where the ejecta thickness reaches a small value. 
         **kwargs : Any
-            Additional keyword arguments that can be passed to any of the method of the class, such as arguments to set the scale, 
-            morphology, or production function constructors.
+            Additional keyword arguments that can be passed to other the methods of the class, such as arguments to set the scale, 
+            morphology, or production function constructors. These also include the grid configuration parameters, such as 
+            `grid_type`, and its associated parameters. Refer to the documentation of the surface module for details.
+            
+        See Also
+        --------
+        cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
         """
      
         self.simdir = simdir
@@ -134,16 +139,8 @@ class Simulation:
                 raise ValueError(f"Invalid target name {target}")
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
-
         self.target = target
 
-        if not surf:
-            self.initialize_surface(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
-        elif isinstance(surf, Surface):
-            self.surf = surf
-        else:
-            raise TypeError("surf must be an instance of Surface or None")
-        
         # Set the scaling law model for this simulation 
         if scale_cls is None:
             self.scale_cls = Scale
@@ -161,6 +158,13 @@ class Simulation:
             raise TypeError("morphology must be a subclass of Morphology")
       
         self._craterlist = []
+        
+        if not surf:
+            self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
+        elif isinstance(surf, Surface):
+            self.surf = surf
+        else:
+            raise TypeError("surf must be an instance of Surface or None")        
        
         # Find the minimum and maximum possible crater diameter (will be roughly the area of the minimum face size)
         self.smallest_crater = np.sqrt(self.surf['face_areas'].min().item() / np.pi) * 2
@@ -212,21 +216,6 @@ class Simulation:
         pass
     
 
-    def initialize_surface(self, 
-                           **kwargs: Any
-                          ) -> None:
-        """
-        Initialize the surface mesh.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            Keyword arguments for initializing the surface mesh.
-        """        
-        self.surf = Surface.initialize(**kwargs)
-        return
-   
-    
     def generate_crater(self, 
                         **kwargs: Any
                        ) -> Tuple[Crater, Projectile]:

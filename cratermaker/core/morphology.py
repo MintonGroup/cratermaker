@@ -53,7 +53,6 @@ class Morphology:
         return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.diameter}, "
                 f"rimheight: {self.rimheight}, rimwidth: {self.rimwidth}, floordepth: {self.floordepth}, floordiam: {self.floordiam})") 
     
-               
     def set_morphology_parameters(self):
         """
         Sets the morphology parameters based on the crater type.
