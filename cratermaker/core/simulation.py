@@ -9,7 +9,7 @@ import tempfile
 from typing import Any, Tuple, Type
 from .target import Target
 from .impact import Crater, Projectile
-from .surface import Surface, save, initialize_surface, elevation_to_cartesian
+from .surface import Surface, save
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
@@ -29,13 +29,13 @@ class Simulation:
                  target: str | Target = None,
                  surf: Surface | None = None,
                  reset_surface: bool | None = None,
-                 pix: FloatLike | None = None,
                  seed: int | None = None,
                  rng: Generator | None = None,
                  simdir: os.PathLike | None = None, 
                  scale_cls: Type[Scale] | None = None,
                  morphology_cls: Type[Morphology] | None = None,
                  production_cls: Type[Production] | None = None,
+                 ejecta_truncation: FloatLike | None = None,
                  **kwargs: Any):
         """
         Initialize the Simulation object.
@@ -46,8 +46,6 @@ class Simulation:
             Name of the target body or Target object for the simulation, default is "Moon".
         surf : Surface, optional
             Surface object to use for the simulation, default is None, which reads in a surface from file if it exists, or creates a new one.
-        pix : float, optional
-            Pixel resolution for the mesh, default is None.
         reset_surface : bool, optional
             Flag to reset the surface elevation, default is True.
         seed : int, optional
@@ -66,9 +64,17 @@ class Simulation:
             then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
             body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
             Earth, and a simple power law model otherwise.
+        ejecta_truncation : float, optional
+            The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
+            truncation distance based on where the ejecta thickness reaches a small value. 
         **kwargs : Any
-            Additional keyword arguments that can be passed to any of the method of the class, such as arguments to set the scale, 
-            morphology, or production function constructors.
+            Additional keyword arguments that can be passed to other the methods of the class, such as arguments to set the scale, 
+            morphology, or production function constructors. These also include the grid configuration parameters, such as 
+            `grid_type`, and its associated parameters. Refer to the documentation of the surface module for details.
+            
+        See Also
+        --------
+        cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
         """
      
         self.simdir = simdir
@@ -83,6 +89,7 @@ class Simulation:
         self._elapsed_time = 0.0
         self._current_age = 0.0
         self._elapsed_n1 = 0.0
+        self._ejecta_truncation = ejecta_truncation
         
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
@@ -132,16 +139,8 @@ class Simulation:
                 raise ValueError(f"Invalid target name {target}")
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
-
         self.target = target
 
-        if pix is not None:
-            self.pix = np.float64(pix)
-        else:    
-            self.pix = np.sqrt(4 * np.pi * self.target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
-
-        self.initialize_surface(pix=self.pix, target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
-        
         # Set the scaling law model for this simulation 
         if scale_cls is None:
             self.scale_cls = Scale
@@ -159,10 +158,37 @@ class Simulation:
             raise TypeError("morphology must be a subclass of Morphology")
       
         self._craterlist = []
+        
+        if not surf:
+            grid_type = kwargs.get('grid_type', None)
+            if grid_type is not None and grid_type == 'hires_local':
+                if 'superdomain_scale_factor' not in kwargs:
+                    # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
+                    # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
+                    for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
+                        crater, _ = self.generate_crater(diameter=d, angle=90.0, velocity=self.production.mean_velocity*10)
+                        rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
+                        if rmax < self.target.radius * 2 * np.pi:
+                            superdomain_scale_factor = rmax / crater.radius
+                            break
+                    kwargs['superdomain_scale_factor'] = superdomain_scale_factor
+            self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
+        elif isinstance(surf, Surface):
+            self.surf = surf
+        else:
+            raise TypeError("surf must be an instance of Surface or None")        
        
         # Find the minimum and maximum possible crater diameter (will be roughly the area of the minimum face size)
         self.smallest_crater = np.sqrt(self.surf['face_areas'].min().item() / np.pi) * 2
+        
+        # If this is a projectile-based production function, then we need to determine the smallest projectile that would at least
+        # produce the smallest crater. 
+        _, projectile = self.generate_crater(diameter=self.smallest_crater, angle=90.0, velocity=self.production.mean_velocity*10)
+        self.smallest_projectile = projectile.diameter
+                
         self.largest_crater = self.target.radius * 2
+        _, projectile = self.generate_crater(diameter=self.largest_crater, angle=1.0, velocity=self.production.mean_velocity/10.0)
+        self.largest_projectile = projectile.diameter
        
         return
 
@@ -210,24 +236,6 @@ class Simulation:
         pass
     
 
-    def initialize_surface(self, 
-                           *args: Any, 
-                           **kwargs: Any
-                          ) -> None:
-        """
-        Initialize the surface mesh.
-
-        Parameters
-        ----------
-        *args : dict
-            Variable length argument list to pass to initialize_surface.
-        **kwargs : dict
-            Keyword arguments for initializing the surface mesh.
-        """        
-        self.surf = initialize_surface(*args, **kwargs)
-        return
-   
-    
     def generate_crater(self, 
                         **kwargs: Any
                        ) -> Tuple[Crater, Projectile]:
@@ -265,10 +273,13 @@ class Simulation:
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
-        if self.production.mean_velocity is None:
-            projectile = None
-        else:
-            projectile = crater.scale.crater_to_projectile(crater,mean_velocity=self.production.mean_velocity,**kwargs)
+        
+        if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
+            if self.production.mean_velocity is None:
+                projectile = None
+                return crater, projectile
+            kwargs['mean_velocity'] = self.production.mean_velocity
+        projectile = crater.scale.crater_to_projectile(crater,**kwargs)
         
         return crater, projectile
     
@@ -306,9 +317,12 @@ class Simulation:
             # Create a projectile and crater with a specific mass and velocity and impact angle
             projectile, crater = sim.generate_projectile(mass=1e14, velocity=20e3, angle=10.0)       
         """
-        if self.production.mean_velocity is None:
-            raise RuntimeError("The mean impact velocity is not set for this simulation")
-        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls, mean_velocity=self.production.mean_velocity, **kwargs)
+        if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
+            if self.production.mean_velocity is None:
+                raise RuntimeError("No velocity value is set for this projectile")
+            kwargs['mean_velocity'] = self.production.mean_velocity        
+        
+        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls,**kwargs)
         crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls)
         
         return projectile, crater
@@ -395,21 +409,27 @@ class Simulation:
             raise RuntimeError("The production function is not properly defined. Missing 'generator_type' attribute")
         elif self.production.generator_type not in ['crater', 'projectile']:
             raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
-        
+       
+        from_projectile = self.production.generator_type == 'projectile'
+        if from_projectile:
+            diameter_range = (self.smallest_projectile, self.largest_projectile)
+        else:
+            diameter_range = (self.smallest_crater, self.largest_crater)
+         
         impacts_this_interval, impact_ages = self.production.sample(age=age, 
                                                                     age_end=age_end, 
                                                                     diameter_number=diameter_number, 
                                                                     diameter_number_end=diameter_number_end, 
-                                                                    diameter_range=(self.smallest_crater, self.largest_crater),
+                                                                    diameter_range=diameter_range,
                                                                     area=self.surf.area.item(), 
                                                                     **kwargs)
         
         if impacts_this_interval is not None:
             if impacts_this_interval.size == 1:
-                self.emplace_crater(diameter=impacts_this_interval, age=impact_ages)
+                self.emplace_crater(diameter=impacts_this_interval, age=impact_ages, from_projectile=from_projectile)
             else:
                 for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
-                    self.emplace_crater(diameter=diameter, age=impact_ages[i])
+                    self.emplace_crater(diameter=diameter, age=impact_ages[i], from_projectile=from_projectile)
         return 
     
     
@@ -518,6 +538,7 @@ class Simulation:
             
         self.export_vtk()
         return
+
 
     def _validate_run_args(self,**kwargs) -> dict:
         """
@@ -656,6 +677,7 @@ class Simulation:
         kwargs.pop('return_age')
          
         return kwargs
+   
     
     def save(self, **kwargs: Any) -> None:
         """
@@ -882,19 +904,6 @@ class Simulation:
         self._surf = value
 
     @property
-    def pix(self):
-        """
-        Pixel resolution for the mesh. Set during initialization.
-        """
-        return self._pix
-
-    @pix.setter
-    def pix(self, value):
-        if value <= 0:
-            raise ValueError("pix must be greater than zero")
-        self._pix = np.float64(value)
-
-    @property
     def seed(self):
         """
         Seed for the random number generator. Set during initialization.
@@ -1070,7 +1079,6 @@ class Simulation:
     def elapsed_time(self, value):
         self._elapsed_time = np.float64(value)
         
-        
     @property
     def current_age(self):
         """
@@ -1092,4 +1100,83 @@ class Simulation:
     @elapsed_n1.setter
     def elapsed_n1(self, value):
         self._elapsed_n1 = np.float64(value)
+       
+    @property
+    def ejecta_truncation(self):
+        """
+        The ejecta truncation distance in units of crater radii. Set during initialization.
+        """
+        return self._ejecta_truncation
+    
+    @ejecta_truncation.setter
+    def ejecta_truncation(self, value):
+        if value is not None:
+            if not isinstance(value, FloatLike):
+                raise TypeError("ejecta_truncation must be a scalar value")
+            if value < 1.0:
+                raise ValueError("ejecta_truncation must be greater than or equal to zero")
+            self._ejecta_truncation = np.float64(value) 
+        else:
+            self._ejecta_truncation = None
+            
+    @property
+    def smallest_crater(self):
+        """
+        The smallest crater diameter in meters. Set during initialization.
+        """
+        return self._smallest_crater
+    
+    @smallest_crater.setter
+    def smallest_crater(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("smallest_crater must be a scalar value")
+        if value <= 0:
+            raise ValueError("smallest_crater must be greater than zero")
+        self._smallest_crater = np.float64(value)
         
+    @property
+    def largest_crater(self):
+        """
+        The largest crater diameter in meters. Set during initialization.
+        """
+        return self._largest_crater
+    
+    @largest_crater.setter
+    def largest_crater(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("largest_crater must be a scalar value")
+        if value <= 0:
+            raise ValueError("largest_crater must be greater than zero")
+        self._largest_crater = np.float64(value)
+       
+       
+    @property
+    def smallest_projectile(self):
+        """
+        The smallest projectile diameter in meters. Set during initialization.
+        """
+        return self._smallest_projectile
+    
+    @smallest_projectile.setter
+    def smallest_projectile(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("smallest_projectile must be a scalar value")
+        if value <= 0:
+            raise ValueError("smallest_projectile must be greater than zero")
+        self._smallest_projectile = np.float64(value)
+        
+    @property
+    def largest_projectile(self):
+        """
+        The largest projectile diameter in meters. Set during initialization.
+        """
+        return self._largest_projectile
+    
+    @largest_projectile.setter
+    def largest_projectile(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("largest_projectile must be a scalar value")
+        if value <= 0:
+            raise ValueError("largest_projectile must be greater than zero")
+        self._largest_projectile = np.float64(value)
+         
