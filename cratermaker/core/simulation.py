@@ -9,7 +9,7 @@ import tempfile
 from typing import Any, Tuple, Type
 from .target import Target
 from .impact import Crater, Projectile
-from .surface import Surface, save, initialize_surface, elevation_to_cartesian
+from .surface import Surface, save
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
@@ -137,7 +137,12 @@ class Simulation:
 
         self.target = target
 
-        self.initialize_surface(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
+        if not surf:
+            self.initialize_surface(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
+        elif isinstance(surf, Surface):
+            self.surf = surf
+        else:
+            raise TypeError("surf must be an instance of Surface or None")
         
         # Set the scaling law model for this simulation 
         if scale_cls is None:
@@ -218,7 +223,7 @@ class Simulation:
         **kwargs : dict
             Keyword arguments for initializing the surface mesh.
         """        
-        self.surf = initialize_surface(**kwargs)
+        self.surf = Surface.initialize(**kwargs)
         return
    
     

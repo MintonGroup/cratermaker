@@ -9,7 +9,7 @@ import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
-from typing import Tuple, List, Literal, get_args
+from typing import Tuple, List, Literal, get_args, Any
 from typing_extensions import Type
 import hashlib
 from numpy.typing import NDArray
@@ -46,7 +46,11 @@ class GridStrategy(ABC):
     def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
         pass
     
-    def generate_grid(self): 
+    def generate_grid(self, 
+                      grid_file: os.PathLike,
+                      grid_temp_dir: os.PathLike,
+                      grid_hash: str | None = None,
+                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]: 
         """
         Generate a tessellated mesh of a sphere using the jigsaw-based mesh builder in MPAS-tools.
 
@@ -55,35 +59,32 @@ class GridStrategy(ABC):
         Parameters
         ----------
         grid_file : os.PathLike
-            Path where the grid file will be saved.
+            The file path to the grid file.
         grid_temp_dir : os.PathLike
-            Path to the directory for storing temporary grid files.
-
+            The directory for temporary grid files. 
+        grid_hash : str, optional
+            Hash of the grid parameters. Default is None, which will generate a new hash.
+            
         Notes
         -----
         The grid configuration is determined by the `grid_strategy` attribute of the Surface object. The `grid_strategy` attribute
         determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific
         to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
         
-        This method does not return anything, but it saves the grid file to the specified location.
         """
         
         from matplotlib._api.deprecation import MatplotlibDeprecationWarning
         if not hasattr(self,"radius" ):
-            self.radius = 1.0
+            raise ValueError("radius must be set in the grid strategy")
             
         # Verify directory structure exists and create it if not
         orig_dir = os.getcwd()
         cellWidth, lon, lat = self.generate_face_distribution()
             
         try:
-            grid_temp_dir = os.path.join(orig_dir, _GRID_TEMP_DIR) 
+            # verify directory structure, and create anything that's missing.
             if not os.path.exists(grid_temp_dir):
                 os.mkdir(grid_temp_dir)
-            
-            data_dir_path = os.path.join(orig_dir, _DATA_DIR)     
-            if not os.path.exists(data_dir_path):
-                os.mkdir(data_dir_path)            
             
             os.chdir(grid_temp_dir)
             # Configure logger to suppress output
@@ -113,11 +114,14 @@ class GridStrategy(ABC):
             os.chdir(orig_dir)
             print("Done")
             
+            if not grid_hash:
+                grid_hash = self.generate_hash() 
+            
             with xr.open_dataset(grid_file) as ds:
                 # Create a temporary file
                 with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                     # Write to the temporary file
-                    ds.to_netcdf(temp_file.name) 
+                    ds.assign_attrs({"grid_hash":grid_hash}).to_netcdf(temp_file.name) 
                     temp_file.flush()
                     os.fsync(temp_file.fileno())
     
@@ -141,7 +145,62 @@ class GridStrategy(ABC):
         for attr, value in vars(self).items():
             attribute_pairs.append(f"{attr}:{value}")
         combined = ":".join(attribute_pairs) 
-        return combined
+        hash_object = hashlib.sha256(combined.encode())
+        return hash_object.hexdigest()
+    
+    def check_and_regrid(self,
+                         grid_file: os.PathLike,
+                         grid_temp_dir: os.PathLike,
+                         **kwargs: Any,
+                        ) -> bool:
+        """
+        Check if the existing grid matches the desired parameters and regrid if necessary.
+
+        This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these 
+        parameters. If the grid does not exist or does not match the parameters, a new grid is generated. The hash of the grid 
+        parameters is also returned so that it can be stored in the new grid
+
+        Parameters
+        ----------
+        grid_file : PathLike
+            The file path where the grid is saved or will be saved. 
+        grid_file : os.PathLike
+            The file path to the grid file. 
+        grid_temp_dir : os.PathLike
+            The directory for temporary grid files. 
+
+        Returns
+        -------
+        bool
+            A boolean indicating whether a new grid was generated. `True` if regridding was necessary, `False` otherwise.
+
+        """
+    
+        # Generate the hash for the current parameters
+        grid_hash = self.generate_hash()
+
+        # Find out if the file exists, if it does't we'll need to make a new grid
+        make_new_grid = not os.path.exists(grid_file)
+        
+        if not make_new_grid:
+            uxgrid = uxr.open_grid(grid_file)
+            try: 
+                old_hash = uxgrid.parsed_attrs.get("grid_hash")
+                make_new_grid = old_hash != grid_hash
+            except:
+                make_new_grid = True
+            
+        if make_new_grid:
+            if os.path.exists(grid_file):
+                os.remove(grid_file)
+            self.generate_grid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, grid_hash=grid_hash, **kwargs) 
+            
+            # Check to make sure we can open the grid file, then store the hash in the metadata
+            uxgrid = uxr.open_grid(grid_file)
+            new_hash = uxgrid.parsed_attrs.get("grid_hash")
+            assert(new_hash == grid_hash)
+
+        return make_new_grid
     
 class UniformGrid(GridStrategy):
     """
@@ -150,14 +209,19 @@ class UniformGrid(GridStrategy):
     Parameters
     ----------
     pix : float
-        Desired pixel size for the mesh in meters.
+        The approximate face size for the mesh in meters.
+    radius: FloatLike
+        The radius of the target body in meters.
         
     Returns
     -------
     UniformGrid
         An instance of the UniformGrid class initialized with the given pixel size. 
     """    
-    def __init__(self, pix, radius):
+    def __init__(self, 
+                 pix: FloatLike, 
+                 radius: FloatLike,
+                 **kwargs: Any):
 
         self.pix = pix
         self.radius = radius
@@ -196,7 +260,7 @@ class HiResLocalGrid(GridStrategy):
     Parameters
     ----------
     pix : FloatLike
-        The approximate cell size inside the local region in meters.
+        The approximate face size inside the local region in meters.
     radius: FloatLike
         The radius of the target body in meters.
     local_radius : FloatLike
@@ -217,7 +281,8 @@ class HiResLocalGrid(GridStrategy):
                  radius: FloatLike, 
                  local_radius: FloatLike, 
                  local_location: PairOfFloats,
-                 superdomain_scale_factor: FloatLike):
+                 superdomain_scale_factor: FloatLike,
+                 **kwargs: Any):
         self.pix = pix
         self.radius = radius
         self.local_radius = local_radius
@@ -273,72 +338,45 @@ class HiResLocalGrid(GridStrategy):
 
 class Surface(UxDataset):
     """
-    Surface class for handling surface-related data and operations.
-
-    Extends UxDataset to utilize uxarray and xarray functionalities, providing methods for setting elevation data, 
-    calculating distances and bearings, and other surface-related computations.
-
-    Attributes
+    This class is used for handling surface-related data and operations in the cratermaker project. It provides methods for 
+    setting elevation data, calculating distances and bearings, and other surface-related computations.
+    
+    The Surface class extends UxDataset for the cratermaker project.
+    
+    Parameters
     ----------
-    target : Target
-        The target body for the impact simulation.
+    *args
+        Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
+    target : Target, optional
+        The target body or name of a known target body for the impact simulation. 
+    data_dir : os.PathLike, optional
+        The directory for data files.
+    grid_file : os.PathLike, optional
+        The file path to the grid file.
+    compute_face_areas : bool, optional
+        Flag to indicate whether to compute face areas. Default is False.    
+    **kwargs
+        This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
     """
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_grid_temp_dir', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_grid_hash', '_grid_strategy')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_grid_hash')    
 
     def __init__(self, 
                  *args, 
-                 target: Target | None = None,
+                 target: Target | None = None, 
+                 data_dir: os.PathLike | None = None,
+                 grid_file: os.PathLike | None = None,
                  compute_face_areas: bool = False,
                  **kwargs):
-        """
-        This class is used for handling surface-related data and operations in the cratermaker project. It provides methods for 
-        setting elevation data, calculating distances and bearings, and other surface-related computations.
-        
-        The Surface class extends UxDataset for the cratermaker project.
-        
-        Parameters
-        ----------
-        *args
-            Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
-        target : Target, optional
-            The target body for the impact simulation.
-        compute_face_areas : bool, optional
-            Flag to indicate whether to compute face areas. Default is False.    
-        **kwargs
-            This must include the keyword arguments specific to the chosen `grid_type`, and could also include keyword arguments 
-            to pass to the ``uxarray.UxDataset`` class.
-            
-            
-        Notes
-        -----
-        The grid configuration is determined by `grid_type` and its associated parameters. For detailed information on the 
-        parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, 
-        `HiResLocalGrid`, etc.).
 
-        See Also
-        --------
-        cratermaker.core.surface.UniformGrid : Parameters for a uniform grid configuration.
-        cratermaker.core.surface.HiResLocalGrid : Parameters for a high-resolution local grid configuration.            
-        """   
-        # Process the Surface-specific keyword arguments 
-        self._grid_temp_dir = grid_temp_dir
-        self._data_dir = data_dir
-        self._grid_file = grid_file
-        self._target = target
-        if grid_type not in valid_grid_types:
-            raise ValueError(f"grid_type must be one of {valid_grid_types}")
-        if grid_type == "uniform":
-            self.grid_strategy = UniformGrid(**kwargs)
-        elif grid_type == "hires_local":
-            self.grid_strategy = HiResLocalGrid(**kwargs)
-            
-        self.grid_strategy.generate_grid(self.target, self.grid_file, self.grid_temp_dir) 
         # Call the super class constructor with the UxDataset
         super().__init__(*args, **kwargs)
        
         # Additional initialization for Surface
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
+        self._data_dir = data_dir
+        self._grid_file = grid_file
+        self._target = target
         self._area = None
         self._grid_hash = None
         self._smallest_length = None
@@ -353,6 +391,135 @@ class Surface(UxDataset):
                 if 'face_areas' not in self:
                     self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas * self.target.radius**2, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
                     self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
+
+    @classmethod
+    def initialize(cls, 
+                   target: Target | None,
+                   data_dir: os.PathLike | None = None,
+                   grid_file: os.PathLike | None = None,
+                   grid_temp_dir: os.PathLike | None = None,
+                   reset_surface: bool = True, 
+                   grid_type: GridType = valid_grid_types[0], 
+                   **kwargs):
+        """
+        Factory method to create a Surface instance from a grid file.
+
+        Parameters
+        ----------
+        target : Target, optional
+            Target object or name of known body for the simulation. Default is Target("Moon")
+        data_dir : os.PathLike
+            The directory for data files. Default is set to `${PWD}/surface_data`.
+        grid_file : os.PathLike
+            The file path to the grid file. Default is set to be from the current workding directory, to `{data_dir}/grid.nc'.
+        grid_temp_dir : os.PathLike
+            The directory for temporary grid files. Default is set to `${PWD}/.grid`.
+        reset_surface : bool, optional
+            Flag to indicate whether to reset the surface. Default is True.
+        grid_type : ["uniform", "hires_local"], optional
+            The type of grid to be generated. Default is "uniform".            
+        **kwargs : dict
+            Additional keyword arguments for initializing the Surface instance based on the specific grid_type.
+
+        Returns
+        -------
+        Surface
+            An initialized Surface object.
+                   
+        Notes
+        -----
+        The grid configuration is determined by `grid_type` and its associated parameters. For detailed information on the 
+        parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, 
+        `HiResLocalGrid`, etc.).
+
+        See Also
+        --------
+        cratermaker.core.surface.UniformGrid : Parameters for a uniform grid configuration.
+        cratermaker.core.surface.HiResLocalGrid : Parameters for a high-resolution local grid configuration.  
+        """
+        if not target:
+            target = Target("Moon")
+        elif isinstance(target, str):
+            try:
+                target = Target(target)
+            except:
+                raise ValueError(f"Invalid target name {target}")
+        elif not isinstance(target, Target):
+            raise TypeError("target must be an instance of Target or a valid name of a target body")
+        
+        if grid_type not in valid_grid_types:
+            raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
+         
+        pix = kwargs.pop('pix', None) 
+        if pix is not None:
+            pix = np.float64(pix)
+        else:    
+            pix = np.sqrt(4 * np.pi * target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
+
+        # Verify directory structure exists and create it if not
+        if not data_dir:
+            data_dir = os.path.join(os.getcwd(), _DATA_DIR)
+            
+        if not os.path.exists(data_dir):
+            os.mkdir(data_dir)
+            reset_surface = True
+      
+        if not grid_temp_dir:   
+            grid_temp_dir = os.path.join(os.getcwd(), _GRID_TEMP_DIR) 
+            
+        if not os.path.exists(grid_temp_dir):
+            os.mkdir(grid_temp_dir)
+       
+        if not grid_file: 
+            grid_file = os.path.join(data_dir,_GRID_FILE_NAME)
+            
+        # Process the grid parameters from the arguments and build the strategy object 
+        if grid_type == "uniform":
+            grid_strategy = UniformGrid(pix=pix, radius=target.radius)
+        elif grid_type == "hires_local":
+            grid_strategy = HiResLocalGrid(pix=pix, radius=target.radius, **kwargs)       
+   
+        # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
+        make_new_grid = grid_strategy.check_and_regrid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, **kwargs)
+        
+        # Get the names of all data files in the data directory that are not the grid file
+        data_file_list = glob(os.path.join(data_dir, "*.nc"))
+        if grid_file in data_file_list:
+            data_file_list.remove(grid_file)
+            
+        # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
+        reset_surface = reset_surface or make_new_grid or not data_file_list
+        
+        # If reset_surface is True, delete all data files except the grid file 
+        if reset_surface:
+            for f in data_file_list:
+                os.remove(f)
+            data_file_list = []        
+        
+        # Initialize UxDataset with the loaded data
+        try:
+            if data_file_list:
+                surf = uxr.open_mfdataset(grid_file, data_file_list, latlon=True, use_dual=False).isel(Time=-1)
+                surf.uxgrid = uxr.open_grid(grid_file, latlon=True, use_dual=False)
+            else:
+                surf = uxr.UxDataset()
+                surf.uxgrid = uxr.open_grid(grid_file, latlon=True, use_dual=False)
+        except:
+            raise ValueError("Error loading grid and data files")
+        
+        surf = cls(surf,
+                   uxgrid=surf.uxgrid,
+                   source_datasets=surf.source_datasets,
+                   target = target,
+                   data_dir = data_dir,
+                   grid_file = grid_file,
+                   compute_face_areas = True,
+                    ) 
+        
+        if reset_surface:
+            surf.set_elevation(0.0,save_to_file=True)
+        
+        return surf        
         
     def __getitem__(self, key):
         """Override to make sure the result is an instance of ``cratermaker.Surface``"""
@@ -363,10 +530,10 @@ class Surface(UxDataset):
             value = Surface(value,
                             uxgrid=self.uxgrid,
                             source_datasets=self.source_datasets,
-                            grid_temp_dir=self.grid_temp_dir,
-                            data_dir=self.data_dir,
-                            grid_file=self.grid_file,
                             target=self.target,
+                            grid_file=self.grid_file,
+                            data_dir=self.data_dir,
+                            compute_face_areas=False,
                             )
         return value
     
@@ -375,7 +542,8 @@ class Surface(UxDataset):
         ds = super()._calculate_binary_op(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._grid_temp_dir = self._grid_temp_dir
+            ds._name = self._name
+            ds._description = self._description
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
             ds._target = self._target
@@ -384,12 +552,11 @@ class Surface(UxDataset):
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
                          source_datasets=self.source_datasets,
-                         grid_temp_dir=self.grid_temp_dir,
-                         data_dir=self.data_dir,
-                         grid_file=self.grid_file,
                          target=self.target,
+                         grid_file=self.grid_file,
+                         data_dir=self.data_dir,
+                         compute_face_areas=False,
                          )
-
         return ds
     
     @classmethod
@@ -406,18 +573,24 @@ class Surface(UxDataset):
 
         if deep == True:
             # Deep copy all of the properties
-            copied._grid_temp_dir = self._grid_temp_dir.copy()
+            copied._name = self._name.copy()
+            copied._description = self._description()
             copied._data_dir = self._data_dir.copy()
             copied._grid_file = self._grid_file.copy()
             copied._target = self._target.copy()
             copied._smallest_length = self._smallest_length.copy()
+            copied._area = self._area.copy()
+            copied._grid_hash = self._grid_hash.copy()
         else:
             # Point to the existing properties
-            copied._grid_temp_dir = self._grid_temp_dir
+            copied._name = self._name
+            copied._description = self._description
             copied._data_dir = self._data_dir
             copied._grid_file = self._grid_file
             copied._target = self._target
             copied._smallest_length = self._smallest_length
+            copied._area = self._area
+            copied._grid_hash = self._grid_hash
         return copied    
   
     def _replace(self, *args, **kwargs):
@@ -425,143 +598,27 @@ class Surface(UxDataset):
         ds = super()._replace(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._grid_temp_dir = self._grid_temp_dir
+            ds._name = self._name
+            ds._description = self._description
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
-            ds.target = self.target
+            ds._target = self._target
             ds._smallest_length = self._smallest_length
+            ds._area = self._area
+            ds._grid_hash = self._grid_hash
         else:
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
                          source_datasets=self.source_datasets,
-                         grid_temp_dir=self.grid_temp_dir,
-                         data_dir=self.data_dir,
-                         grid_file=self.grid_file,
                          target=self.target,
+                         grid_file=self.grid_file,
+                         data_dir=self.data_dir,
+                         compute_face_areas=False,
                          )
+            ds._smallest_length = self._smallest_length
+            ds._area = self._area
+            ds._grid_hash = self._grid_hash
         return ds   
-
-    @classmethod
-    def from_grid_file(cls, 
-                       target: Target, 
-                       data_dir: os.PathLike | None = None, 
-                       grid_file: os.PathLike | None = None, 
-                       grid_type: GridType = valid_grid_types[0], 
-                       **kwargs):
-        """
-        Factory method to create a Surface instance from a grid file.
-
-        Parameters
-        ----------
-        target : Target
-            Target body for the simulation.
-        grid_temp_dir : os.PathLike, optional
-            Directory for temporary grid files.
-        data_dir : os.PathLike, optional
-            Directory for data files.
-        grid_file : os.PathLike, optional
-            Path to the grid file.
-        grid_type : ["uniform", "hires_local"], optional
-            The type of grid to be generated. Default is "uniform".            
-        **kwargs : dict
-            Additional keyword arguments for initializing the Surface instance.
-
-        Returns
-        -------
-        Surface
-            An initialized Surface object.
-        """
-        if not target:
-            target = Target("Moon")
-        elif isinstance(target, str):
-            try:
-                target = Target(target)
-            except:
-                raise ValueError(f"Invalid target name {target}")
-        elif not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target or a valid name of a target body")
-        
-        if grid_type not in valid_grid_types:
-            raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
-       
-        pix = kwargs.pop('pix', None) 
-        if pix is not None:
-            pix = np.float64(pix)
-        else:    
-            pix = np.sqrt(4 * np.pi * target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
-        kwargs['pix'] = pix
-
-        # Verify directory structure exists and create it if not
-        grid_temp_dir_path = os.path.join(simdir, _GRID_TEMP_DIR) 
-        if not os.path.exists(grid_temp_dir_path):
-            os.mkdir(grid_temp_dir_path)
-        
-        data_dir_path = os.path.join(simdir, _DATA_DIR)     
-        if not os.path.exists(data_dir_path):
-            os.mkdir(data_dir_path)
-            
-        grid_file_path = os.path.join(data_dir_path,_GRID_FILE_NAME)
-    
-        make_new_grid, grid_hash = Surface.check_and_regrid(grid_file_path, pix, target.radius, grid_type, local_radius, superdomain_scale_factor) 
-        
-        if make_new_grid:
-            reset_surface = True
-            generate_grid(target=target,
-                        pix=pix,
-                        grid_file=grid_file_path,
-                        grid_temp_dir=grid_temp_dir_path,
-                        grid_type=grid_type,
-                        local_radius=local_radius,
-                        local_location=local_location,
-                        superdomain_scale_factor=superdomain_scale_factor
-                        )
-        
-        # Get the names of all data files in the data directory that are not the grid file
-        data_file_list = glob(os.path.join(data_dir_path, "*.nc"))
-        if grid_file_path in data_file_list:
-            data_file_list.remove(grid_file_path)
-            
-        # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-        reset_surface = reset_surface or make_new_grid or not data_file_list
-        
-        # If reset_surface is True, delete all data files except the grid file 
-        if reset_surface:
-            for f in data_file_list:
-                os.remove(f)
-            data_file_list = []        
-        
-        # Initialize UxDataset with the loaded data
-        try:
-            if data_file_list:
-                surf = uxr.open_mfdataset(grid_file_path, data_file_list, latlon=True, use_dual=False).isel(Time=-1)
-                surf.uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
-            else:
-                surf = uxr.UxDataset()
-                surf.uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
-        except:
-            raise ValueError("Error loading grid and data files")
-        surf = Surface(surf,
-                    uxgrid=surf.uxgrid,
-                    source_datasets=surf.source_datasets,
-                    grid_temp_dir = grid_temp_dir_path,
-                    data_dir = data_dir_path,
-                    grid_file = grid_file_path,
-                    target = target,
-                    compute_face_areas = True,
-                    ) 
-        surf.grid_hash = grid_hash
-        
-        if reset_surface:
-            surf.set_elevation(0.0,save_to_file=True)
-            
-        
-        return surf        
-        
-        
-        uxgrid = uxr.open_grid(grid_file_path, latlon=True, use_dual=False)
-        surf = uxr.open_mfdataset(grid_file_path, latlon=True, use_dual=False).isel(Time=-1)
-        surf.uxgrid = uxgrid
-        return cls(surf, uxgrid=uxgrid, target=target, **kwargs)
 
     @property
     def grid_temp_dir(self):
@@ -661,7 +718,6 @@ class Surface(UxDataset):
         if not isinstance(value, GridStrategy):
             raise TypeError("grid_strategy must be of type GridStrategy")
         self._grid_strategy = value
-        
         
     def generate_data(self,
                       name: str,
@@ -1009,7 +1065,7 @@ class Surface(UxDataset):
         face_grid = self.n_face.uxgrid._ds[face_vars].sel(n_face=inc_face)
         region_faces = face_grid.where(faces_within_radius, drop=False)
         region_elevation = self['face_elevation'].where(faces_within_radius, drop=False)
-        region_surf = elevation_to_cartesian(region_faces, region_elevation) / self.target.radius
+        region_surf = self.elevation_to_cartesian(region_faces, region_elevation) / self.target.radius
 
         x, y, z = region_surf['face_x'], region_surf['face_y'], region_surf['face_z']
         region_vectors = np.vstack((x, y, z)).T
@@ -1069,61 +1125,33 @@ class Surface(UxDataset):
         
         return
 
-
-    def check_and_regrid(self,
-                        grid_file_path: str, 
-                        grid_strategy: GridStrategy
-                        ) -> Tuple[bool, str]:
-        """
-        Check if the existing grid matches the desired parameters and regrid if necessary.
-
-        This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. If the grid does not exist or does not match the parameters, a regridding operation is triggered.
-
-        Parameters
-        ----------
-        grid_file_path : str
-            The file path where the grid is saved or will be saved.
-        pix : float
-            The pixel size.
-        target_radius : float
-            The radius of the target body.
-        grid_type : str
-            The type of grid, expected to be either "uniform" or "hires_local".
-        local_radius : float, optional
-            The local radius for the "hires_local" grid type. This parameter is required if `grid_type` is "hires_local".
-        superdomain_scale_factor : float, optional
-            The scale factor for the superdomain in the "hires_local" grid type. This parameter is required if `grid_type` is "hires_local".
-
-        Returns
-        -------
-        bool
-            A boolean indicating whether a new grid needs to be generated. `True` if regridding is necessary, `False` otherwise.
-        Optional[str]
-            The hash of the grid parameters, which can be used to verify the grid configuration in future checks. Returns `None` if a new grid is not needed.
-
-        Notes
-        -----
-        The function generates a hash using the `generate_grid_hash` function based on the provided parameters. It compares this hash against the one stored in the existing grid's metadata to determine if the grid matches the desired configuration.
-
-        """
-        # Generate the hash for the current parameters
-        grid_hash = grid_strategy.generate_hash()
-
-        # Find out if the file exists, if it does't we'll need to make a new grid
-        make_new_grid = not os.path.exists(grid_file_path)
+    @staticmethod
+    def elevation_to_cartesian(position: Dataset, 
+                            elevation: DataArray
+                            ) -> Dataset:
         
-        if not make_new_grid:
-            uxgrid = uxr.open_grid(grid_file_path)
-            old_hash = uxgrid.parsed_attrs.get("grid_hash")
-            make_new_grid = old_hash != grid_hash
+        vars = list(position.data_vars)
+        if len(vars) != 3:
+            raise ValueError("Dataset must contain exactly three coordinate variables")
+        
+        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+        # The API change does not affect the functionality of the code, so we can safely ignore the warning
+        with warnings.catch_warnings(): 
+            warnings.simplefilter("ignore", FutureWarning)    
+            dim_var = list(position.dims)[0]
 
-        return make_new_grid, grid_hash
-
-
-
-
-
-
+        rvec = np.column_stack((position[vars[0]], position[vars[1]], position[vars[2]]))
+        runit = rvec / np.linalg.norm(rvec, axis=1, keepdims=True)
+        
+        ds_new = Dataset(
+                        {
+                        vars[0]: ((dim_var,), rvec[:,0] + elevation.values * runit[:,0]),
+                        vars[1]: ((dim_var,), rvec[:,1] + elevation.values * runit[:,1]),
+                        vars[2]: ((dim_var,), rvec[:,2] + elevation.values * runit[:,2]),
+                        }
+                        )
+        return ds_new    
+    
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,
                interval_number: int = 0,
@@ -1239,29 +1267,5 @@ def save(surf: Surface,
         return
 
 
-def elevation_to_cartesian(position: Dataset, 
-                           elevation: DataArray
-                           ) -> Dataset:
-    
-    vars = list(position.data_vars)
-    if len(vars) != 3:
-        raise ValueError("Dataset must contain exactly three coordinate variables")
-    
-    # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-    # The API change does not affect the functionality of the code, so we can safely ignore the warning
-    with warnings.catch_warnings(): 
-        warnings.simplefilter("ignore", FutureWarning)    
-        dim_var = list(position.dims)[0]
 
-    rvec = np.column_stack((position[vars[0]], position[vars[1]], position[vars[2]]))
-    runit = rvec / np.linalg.norm(rvec, axis=1, keepdims=True)
-    
-    ds_new = Dataset(
-                     {
-                      vars[0]: ((dim_var,), rvec[:,0] + elevation.values * runit[:,0]),
-                      vars[1]: ((dim_var,), rvec[:,1] + elevation.values * runit[:,1]),
-                      vars[2]: ((dim_var,), rvec[:,2] + elevation.values * runit[:,2]),
-                     }
-                    )
-    return ds_new
 
