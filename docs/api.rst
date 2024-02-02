@@ -71,6 +71,8 @@ Attributes
     Simulation.ejecta_truncation
     Simulation.smallest_crater
     Simulation.largest_crater
+    Simulation.smallest_projectile
+    Simulation.largest_projectile
 
 
 .. _api-Surface:
