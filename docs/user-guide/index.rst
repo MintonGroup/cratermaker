@@ -13,7 +13,7 @@ Cratermaker's production module provides a robust way to compute the production 
 The Production class
 ====================
 
-The ``Production`` class implements a simple power law production function that can be used as either a crater or projectile production function. It has the following parameters:
+The :ref:`api-Production` class implements a simple power law production function that can be used as either a crater or projectile production function. It has the following parameters:
 
 - **generator_type**: Can be either ``crater`` (default) or ``projectile``.
 - **N1_coef**: The coefficient for the power law at 1m diameter per 1 My. Default depends on generator type: It is ``7.9e-3`` for craters or ``2.2e-8`` for impactors. These are both based on fits to the lunar production function.
