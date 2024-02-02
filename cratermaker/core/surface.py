@@ -352,7 +352,7 @@ class HiResLocalGrid(GridStrategy):
                 lat_rad = np.radians(lat[i])
 
                 # Calculate distance from the location to the grid point
-                distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad)
+                distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius)
 
                 if distance <= self.local_radius:
                     # Inside the local region
