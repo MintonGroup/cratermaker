@@ -97,7 +97,7 @@ For this example, we are going to use ``Production.function_inverse()`` to plot 
 Using the NeukumProduction class
 ================================
 
-The ``NeukumProduction`` class can compute the Neukum production function for the Moon and Mars. The Neukum production function is  is computed using the model of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 for the Moon and Mars, with minor changes. See :ref:`api-NeukumProduction`.
+The :ref:`api-NeukumProduction` class can compute the Neukum production function for the Moon and Mars. The Neukum production function is  is computed using the model of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 for the Moon and Mars, with minor changes.
 
 The main parameter is **model**, which is the specific model to use for the production function. Defaults to ``Moon``, but could also be ``Mars`` or ``Projectile``. The choice of ``model`` sets a number of parameters for the Neukum production. See :ref:`api-NeukumProduction` for more.
 
