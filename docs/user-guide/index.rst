@@ -15,10 +15,10 @@ The Production class
 
 The :ref:`api-Production` class implements a simple power law production function that can be used as either a crater or projectile production function. It has the following parameters:
 
-- **generator_type**: Can be either ``crater`` (default) or ``projectile``.
+- **generator_type**: Can be either ``"crater"`` (default) or ``"projectile"``.
 - **N1_coef**: The coefficient for the power law at 1m diameter per 1 My. Default depends on generator type: It is ``7.9e-3`` for craters or ``2.2e-8`` for impactors. These are both based on fits to the lunar production function.
 - **slope**: This is the slope of the power law. Like N1, it differs based on craters or impactors and is based on fits to the lunar production function. Default for craters is ``-3.33`` and for impactors is ``-2.26``.
-- **impact_velocity_model**: The mean impact velocity model to use in the impact simulation. Valid option are ``Mercury_MBA``, ``Venus_MBA``, ``Earth_MBA``, ``Moon_MBA``, ``Mars_MBA``, and ``MBA_MBA``.
+- **impact_velocity_model**: The mean impact velocity model to use in the impact simulation. Valid option are ``"Mercury_MBA"``", ``"Venus_MBA"``, ``"Earth_MBA"``, ``"Moon_MBA"``, ``"Mars_MBA"``, and ``"MBA_MBA"``.
 - **mean_velocity**: Instead of using a mean impact velocity model for an Inner Solar System planet or Main Asteroid Belt, you can use this parameter to manually define a mean impact velocity. Either ``mean_velocity`` or ``impact_velocity_model`` must be provided.
 
 ``Production.function()`` returns the CSFD of craters over a given age range and crater diameter for a simple power law model. It has the following parameters:
