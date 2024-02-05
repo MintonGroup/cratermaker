@@ -478,14 +478,9 @@ class Surface(UxDataset):
        
         if compute_face_areas: 
             # Compute face area needed future calculations
-            # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-            # The API change does not affect the functionality of the code, so we can safely ignore the warning
-            # if self._face_areas is not None: it allows for using the cached result
-            with warnings.catch_warnings(): 
-                warnings.simplefilter("ignore", FutureWarning)
-                if 'face_areas' not in self:
-                    self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas * self.target.radius**2, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
-                    self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
+            if 'face_areas' not in self:
+                self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas * self.target.radius**2, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
+                self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
 
     @classmethod
     def initialize(cls, 
@@ -816,35 +811,32 @@ class Surface(UxDataset):
                 attrs["long_name"] = long_name
             if units:
                 attrs["units"] = units
-        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-        # The API change does not affect the functionality of the code, so we can safely ignore the warning        
-        with warnings.catch_warnings(): 
-            warnings.simplefilter("ignore", FutureWarning)        
-            if isfacedata: 
-                dims = ["n_face"]
-                size = uxgrid.n_face
-            else:
-                dims = ["n_node"]
-                size = uxgrid.n_node
+                
+        if isfacedata: 
+            dims = ["n_face"]
+            size = uxgrid.n_face
+        else:
+            dims = ["n_node"]
+            size = uxgrid.n_node
+    
+        if data is None:
+            data = np.zeros(size,dtype=np.float64) 
+        elif np.isscalar(data):
+            data = np.full(size,data)
+        else:
+            if data.size != size:
+                raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
+        uxda = UxDataArray(
+                data=data,
+                dims=dims,
+                attrs=attrs,
+                name=name,
+                uxgrid=uxgrid
+                ) 
+        self[name] = uxda
         
-            if data is None:
-                data = np.zeros(size,dtype=np.float64) 
-            elif np.isscalar(data):
-                data = np.full(size,data)
-            else:
-                if data.size != size:
-                    raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
-            uxda = UxDataArray(
-                    data=data,
-                    dims=dims,
-                    attrs=attrs,
-                    name=name,
-                    uxgrid=uxgrid
-                    ) 
-            self[name] = uxda
-            
-            if save_to_file:
-                _save_data(uxda, self.data_dir, interval_number, combine_data_files)
+        if save_to_file:
+            _save_data(uxda, self.data_dir, interval_number, combine_data_files)
         return 
         
     def set_elevation(self, 
@@ -1186,11 +1178,7 @@ class Surface(UxDataset):
         if len(vars) != 3:
             raise ValueError("Dataset must contain exactly three coordinate variables")
         
-        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-        # The API change does not affect the functionality of the code, so we can safely ignore the warning
-        with warnings.catch_warnings(): 
-            warnings.simplefilter("ignore", FutureWarning)    
-            dim_var = list(position.dims)[0]
+        dim_var = list(position.dims)[0]
 
         rvec = np.column_stack((position[vars[0]], position[vars[1]], position[vars[2]]))
         runit = rvec / np.linalg.norm(rvec, axis=1, keepdims=True)
@@ -1230,34 +1218,32 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
     This function first saves to a temporary file and then moves that file to the final destination. This is done to avoid file 
     locking issues with NetCDF files.
     """
-    with warnings.catch_warnings(): 
-        warnings.simplefilter("ignore", FutureWarning)
-        dim_map = {k: _DIM_MAP[k] for k in ds.dims if k in _DIM_MAP}
-        ds = ds.rename(dim_map)
-        if isinstance(ds, xr.DataArray):
-            ds = ds.to_dataset()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            if combine_data_files:
-                filename = _COMBINED_DATA_FILE_NAME
-            else:
-                filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
-                
-            data_file = os.path.join(out_dir, filename)
-            if os.path.exists(data_file):
-                ds_file = xr.open_mfdataset(data_file)
-                ds_file = ds.merge(ds_file, compat="override")
-            else:
-                ds_file = ds    
-                
-            if "Time" not in ds_file.dims:
-                ds_file = ds_file.expand_dims(["Time"])
-            if "Time" not in ds_file.coords:
-                ds_file = ds_file.assign_coords({"Time":[interval_number]})                   
-                
-            temp_file = os.path.join(temp_dir, filename)
-            ds_file.to_netcdf(temp_file) 
-            ds_file.close()     
-            shutil.move(temp_file, data_file)
+    dim_map = {k: _DIM_MAP[k] for k in ds.dims if k in _DIM_MAP}
+    ds = ds.rename(dim_map)
+    if isinstance(ds, xr.DataArray):
+        ds = ds.to_dataset()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        if combine_data_files:
+            filename = _COMBINED_DATA_FILE_NAME
+        else:
+            filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
+            
+        data_file = os.path.join(out_dir, filename)
+        if os.path.exists(data_file):
+            ds_file = xr.open_mfdataset(data_file)
+            ds_file = ds.merge(ds_file, compat="override")
+        else:
+            ds_file = ds    
+            
+        if "Time" not in ds_file.dims:
+            ds_file = ds_file.expand_dims(["Time"])
+        if "Time" not in ds_file.coords:
+            ds_file = ds_file.assign_coords({"Time":[interval_number]})                   
+            
+        temp_file = os.path.join(temp_dir, filename)
+        ds_file.to_netcdf(temp_file) 
+        ds_file.close()     
+        shutil.move(temp_file, data_file)
 
     return
     
@@ -1302,21 +1288,17 @@ def save(surf: Surface,
         
     surf.close()
     
-    # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-    # The API change does not affect the functionality of the code, so we can safely ignore the warning
-    with warnings.catch_warnings(): 
-        warnings.simplefilter("ignore", FutureWarning)
-        ds = surf.expand_dims(dim="Time").assign_coords({"Time":[interval_number]})
-        for k, v in time_variables.items():
-            ds[k] = xr.DataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
-                    
-        drop_vars = [k for k in ds.data_vars if k in do_not_save]
-        if len(drop_vars) > 0:
-            ds = ds.drop_vars(drop_vars)
-            
-        _save_data(ds, out_dir, interval_number, combine_data_files)
+    ds = surf.expand_dims(dim="Time").assign_coords({"Time":[interval_number]})
+    for k, v in time_variables.items():
+        ds[k] = xr.DataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
+                
+    drop_vars = [k for k in ds.data_vars if k in do_not_save]
+    if len(drop_vars) > 0:
+        ds = ds.drop_vars(drop_vars)
+        
+    _save_data(ds, out_dir, interval_number, combine_data_files)
 
-        return
+    return
 
 
 

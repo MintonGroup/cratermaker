@@ -6,9 +6,11 @@ import os
 import numpy as np
 import xarray as xr
 from cratermaker.core.surface import _COMBINED_DATA_FILE_NAME
+# This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+# The API change does not affect the functionality of the code, so we can safely ignore the warning
 import warnings
-
-import warnings
+warnings.filterwarnings("ignore",category=FutureWarning,module="xarray")
+warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 
 def warning_with_breakpoint(message, category, filename, lineno, file=None, line=None):
     print(f"{category} Warning in line {lineno} of {filename} : {message}")
@@ -42,33 +44,29 @@ class TestSimulation(unittest.TestCase):
        
         # Test that variables are saved correctly
         sim.surf.set_elevation(1.0)
-        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-        # The API change does not affect the functionality of the code, so we can safely ignore the warning
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", FutureWarning)          
-            np.testing.assert_array_equal(sim.surf["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node)) 
-            np.testing.assert_array_equal(sim.surf["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face)) 
-            
-            sim.save()
-            
-            filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc"))
-            self.assertTrue(os.path.exists(filename))
-            with xr.open_dataset(filename) as ds:
-                ds = ds.isel(Time=-1)
-                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+        np.testing.assert_array_equal(sim.surf["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node)) 
+        np.testing.assert_array_equal(sim.surf["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face)) 
         
-            # Test saving combined data
-            sim.save(combine_data_files=True)
-            filename = _COMBINED_DATA_FILE_NAME
-            
-            filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME)
-            self.assertTrue(os.path.exists(filename))
-            with xr.open_dataset(filename) as ds:
-                ds = ds.isel(Time=-1)
-                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
-       
+        sim.save()
+        
+        filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc"))
+        self.assertTrue(os.path.exists(filename))
+        with xr.open_dataset(filename) as ds:
+            ds = ds.isel(Time=-1)
+            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+    
+        # Test saving combined data
+        sim.save(combine_data_files=True)
+        filename = _COMBINED_DATA_FILE_NAME
+        
+        filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME)
+        self.assertTrue(os.path.exists(filename))
+        with xr.open_dataset(filename) as ds:
+            ds = ds.isel(Time=-1)
+            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
+            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+    
         return 
         
     def test_simulation_export_vtk(self):

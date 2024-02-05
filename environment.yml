@@ -3,11 +3,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - pip>=20.1 
+  - python>=3.10
   - numpy>=1.22
   - scipy>=1.11.3
-  - xarray>=2023.11
-  - uxarray>=2023.12
+  - xarray>=2024.1
+  - uxarray>=2024.2
   - numba>=0.58.1
   - holoviews>=1.18.1
   - cartopy>=0.22.0
@@ -20,9 +20,12 @@ dependencies:
   - matplotlib>=3.8.2
   - scikit-build-core>=0.7.0
   - pytest
-  - gfortran
   - cmake
   - libnetcdf 
   - jigsaw>=0.9
   - jigsawpy
   - mpas_tools>=0.29
+  - gfortran>=13.2
+  - pip>=20.1 
+  - pip:
+    - -no-build-isolation -e .
