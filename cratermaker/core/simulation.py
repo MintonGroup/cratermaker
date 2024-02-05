@@ -374,7 +374,10 @@ class Simulation:
         else:
             self.crater, self.projectile = self.generate_crater(**kwargs)
        
-        self.crater.morphology.form_crater(self.surf,**kwargs)
+        _, location_index = self.surf.find_nearest_index(self.crater.location)
+        crater_area = np.pi * self.crater.radius**2
+        if self.surf['face_areas'].isel(n_face=location_index) > crater_area:
+            self.crater.morphology.form_crater(self.surf,**kwargs)
         
         return  
 
@@ -403,6 +406,7 @@ class Simulation:
             value to a corresponding reference age and use the production function for a given age.        
         """
 
+        _MAX_N_PER_INTERVAL = 100000
         if not hasattr(self, 'production'):
             raise RuntimeError("No production function defined for this simulation")
         elif not hasattr(self.production, 'generator_type'):
@@ -415,21 +419,32 @@ class Simulation:
             diameter_range = (self.smallest_projectile, self.largest_projectile)
         else:
             diameter_range = (self.smallest_crater, self.largest_crater)
-         
-        impacts_this_interval, impact_ages = self.production.sample(age=age, 
-                                                                    age_end=age_end, 
-                                                                    diameter_number=diameter_number, 
-                                                                    diameter_number_end=diameter_number_end, 
-                                                                    diameter_range=diameter_range,
-                                                                    area=self.surf.area.item(), 
-                                                                    **kwargs)
+            
+        Nexpected = self.production.function(diameter=diameter_range[0], age=age, age_end=age_end, **kwargs) * self.surf.area.item()
         
-        if impacts_this_interval is not None:
-            if impacts_this_interval.size == 1:
-                self.emplace_crater(diameter=impacts_this_interval, age=impact_ages, from_projectile=from_projectile)
-            else:
-                for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
-                    self.emplace_crater(diameter=diameter, age=impact_ages[i], from_projectile=from_projectile)
+        Nsubinterval = int(np.ceil(Nexpected / _MAX_N_PER_INTERVAL))
+        if Nsubinterval > 1:
+            age_subintervals, age_step = np.linspace(age, age_end, Nsubinterval, retstep=True)
+        else:
+            age_subintervals = [age]
+            age_step = age_end - age
+        
+        for age_subinterval in age_subintervals:
+         
+            impacts_this_interval, impact_ages = self.production.sample(age=age_subinterval, 
+                                                                        age_end=age_subinterval+age_step, 
+                                                                        diameter_number=diameter_number, 
+                                                                        diameter_number_end=diameter_number_end, 
+                                                                        diameter_range=diameter_range,
+                                                                        area=self.surf.area.item(), 
+                                                                        **kwargs)
+        
+            if impacts_this_interval is not None:
+                if impacts_this_interval.size == 1:
+                    self.emplace_crater(diameter=impacts_this_interval, age=impact_ages, from_projectile=from_projectile)
+                else:
+                    for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
+                        self.emplace_crater(diameter=diameter, age=impact_ages[i], from_projectile=from_projectile)
         return 
     
     
@@ -722,7 +737,6 @@ class Simulation:
         # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
         # The API change does not affect the functionality of the code, so we can safely ignore the warning
         with warnings.catch_warnings(): 
-            warnings.simplefilter("ignore", FutureWarning)
             warnings.simplefilter("ignore", DeprecationWarning) # Ignores a warning issued in bar.py
         
             # Save the surface data to a combined netCDF file
