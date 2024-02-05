@@ -427,7 +427,10 @@ class Simulation:
             age_subintervals, age_step = np.linspace(age, age_end, Nsubinterval, retstep=True)
         else:
             age_subintervals = [age]
-            age_step = age_end - age
+            if age_end is None:
+                age_step = -age
+            else:
+                age_step = age_end - age
         
         for age_subinterval in age_subintervals:
          
