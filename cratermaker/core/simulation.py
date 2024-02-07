@@ -376,7 +376,7 @@ class Simulation:
        
         _, location_index = self.surf.find_nearest_index(self.crater.location)
         crater_area = np.pi * self.crater.radius**2
-        if self.surf['face_areas'].isel(n_face=location_index) > crater_area:
+        if self.surf['face_areas'].isel(n_face=location_index) < crater_area:
             self.crater.morphology.form_crater(self.surf,**kwargs)
         
         return  
