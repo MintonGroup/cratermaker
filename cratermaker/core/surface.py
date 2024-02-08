@@ -659,26 +659,14 @@ class Surface(UxDataset):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
 
-        deep = kwargs.get('deep', None)
 
-        if deep == True:
-            # Deep copy all of the properties
-            copied._name = self._name.copy()
-            copied._description = self._description()
-            copied._data_dir = self._data_dir.copy()
-            copied._grid_file = self._grid_file.copy()
-            copied._target = self._target.copy()
-            copied._smallest_length = self._smallest_length.copy()
-            copied._area = self._area.copy()
-        else:
-            # Point to the existing properties
-            copied._name = self._name
-            copied._description = self._description
-            copied._data_dir = self._data_dir
-            copied._grid_file = self._grid_file
-            copied._target = self._target
-            copied._smallest_length = self._smallest_length
-            copied._area = self._area
+        copied._name = self._name
+        copied._description = self._description
+        copied._data_dir = self._data_dir
+        copied._grid_file = self._grid_file
+        copied._smallest_length = self._smallest_length
+        copied._area = self._area
+        copied._target = self._target
         return copied    
   
     def _replace(self, *args, **kwargs):
@@ -1191,7 +1179,39 @@ class Surface(UxDataset):
                         }
                         )
         return ds_new    
-    
+   
+    def extract_region(self,
+                       location: Tuple[FloatLike, FloatLike],
+                       region_radius: FloatLike): 
+        
+        """
+        Extract a regional grid based on a given location and radius.
+        
+        Parameters
+        ----------
+        location : Tuple[float, float]
+            Tuple containing the longitude and latitude of the location in degrees.
+        region_radius : float
+            The radius of the region to extract in meters.
+            
+        Returns
+        -------
+        Surface
+            A new Surface object containing the regional grid.
+            
+        """ 
+        
+        region_angle = np.rad2deg(region_radius / self.target.radius)
+        try:
+            region_grid = self.uxgrid.subset.bounding_circle(center_coord=location, r=region_angle,element="face centers")
+        except ValueError:
+            return None
+        
+        region_surf = self.isel(n_face=region_grid._ds["subgrid_face_indices"], n_node=region_grid._ds["subgrid_node_indices"])
+        region_surf.uxgrid = region_grid
+      
+        return region_surf
+       
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,
                interval_number: int = 0,

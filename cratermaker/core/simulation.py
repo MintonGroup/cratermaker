@@ -375,7 +375,9 @@ class Simulation:
             self.crater, self.projectile = self.generate_crater(**kwargs)
        
         _, location_index = self.surf.find_nearest_index(self.crater.location)
-        crater_area = np.pi * self.crater.radius**2
+        # Test if the crater is big enough to modify the surface
+        rmax = self.crater.morphology.compute_rmax(minimum_thickness=self.surf.smallest_length)
+        crater_area = np.pi * rmax**2
         if self.surf['face_areas'].isel(n_face=location_index) < crater_area:
             self.crater.morphology.form_crater(self.surf,**kwargs)
         
