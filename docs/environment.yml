@@ -6,8 +6,8 @@ dependencies:
   - pip>=20.1 
   - numpy>=1.22
   - scipy>=1.11.3
-  - xarray>=2023.11
-  - uxarray>=2023.12
+  - xarray>=2024.1
+  - uxarray>=2024.2
   - numba>=0.58.1
   - holoviews>=1.18.1
   - cartopy>=0.22.0
