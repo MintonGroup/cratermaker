@@ -2,7 +2,7 @@
 #
 
 # You can set these variables from the command line.
-SPHINXOPTS      =
+SPHINXOPTS      = 
 SPHINXBUILD     = sphinx-build
 SPHINXATUOBUILD = sphinx-autobuild
 PAPER           =
@@ -68,7 +68,7 @@ html: fortran-doc
 
 .PHONY: rtdhtml
 rtdhtml: fortran-doc
-	$(SPHINXBUILD) -T -j auto -E -W --keep-going -b html -d $(BUILDDIR)/doctrees -D language=en . $(BUILDDIR)/html
+	$(SPHINXBUILD) -T -j 1 -E -W --keep-going -b html -d $(BUILDDIR)/doctrees -D language=en . $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
