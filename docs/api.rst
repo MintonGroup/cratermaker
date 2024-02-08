@@ -106,6 +106,7 @@ Methods
     Surface.generate_data
     Surface.set_elevation
     Surface.elevation_to_cartesian
+    Surface.extract_region
 
 Attributes
 ----------

@@ -1197,7 +1197,21 @@ class Surface(UxDataset):
         Returns
         -------
         Surface
-            A new Surface object containing the regional grid.
+            A new Surface object containing the regional grid. 
+            
+        Notes
+        -----
+        Though not well documented, the mapping from the region grid back to the original grid can be done using the variables
+        "subgrid_face_indices" and "subgrid_node_indices" in the region grid. For example, the following will extract a region
+        surface, modify the face elevation, then insert the modified values back onto the original surface:
+        
+        .. code-block:: python    
+              
+            import xarray as xr
+                
+            region_surf = surf.extract_region(location, region_radius)
+            region_surf['face_elevation'] = xr.full_like(region_surf['face_elevation'], 1.0)
+            surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] = region_surf['face_elevation']
             
         """ 
         

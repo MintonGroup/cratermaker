@@ -21,7 +21,7 @@ The :ref:`api-Production` class implements a simple power law production functio
 - **impact_velocity_model**: The mean impact velocity model to use in the impact simulation. Valid option are ``"Mercury_MBA"``", ``"Venus_MBA"``, ``"Earth_MBA"``, ``"Moon_MBA"``, ``"Mars_MBA"``, and ``"MBA_MBA"``.
 - **mean_velocity**: Instead of using a mean impact velocity model for an Inner Solar System planet or Main Asteroid Belt, you can use this parameter to manually define a mean impact velocity. Either ``mean_velocity`` or ``impact_velocity_model`` must be provided.
 
-``Production.function()`` returns the CSFD of craters over a given age range and crater diameter for a simple power law model. It has the following parameters:
+:func:`cratermaker.Production.function` returns the CSFD of craters over a given age range and crater diameter for a simple power law model. It has the following parameters:
 
 - **diameter**: Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
 - **age**: Age in units of My relative to the present, used to compute the CSFD. Default is ``1.0``, corresponding to 1 Ma.
@@ -30,7 +30,7 @@ The :ref:`api-Production` class implements a simple power law production functio
 Example: Using Production.function
 ==================================
 
-For this example, we are going to use ``Production.function()`` to find the cumulative number of craters greater than 1 km per square meter expected to form on a surface in 3 Ga using a power law with a slope of -2. We will use ``Moon_MBA`` for the impactor velocity model.
+For this example, we are going to use :func:`cratermaker.Production.function` to find the cumulative number of craters greater than 1 km per square meter expected to form on a surface in 3 Ga using a power law with a slope of -2. We will use ``"Moon_MBA"`` for the impactor velocity model.
 
 .. code-block:: python
 
@@ -62,7 +62,7 @@ Example: Plot a production function with a slope of -3 for craters 1m to 100km o
    :scale: 50 %
    :align: center 
 
-``function_inverse`` returns the age in My for a given crater number density and diameter. It has the following parameters:
+:func:`cratermaker.Production.function_inverse` returns the age in My for a given crater number density and diameter. It has the following parameters:
 
 - **diameter**: Diameter of the crater in m
 - **cumulative_number_density**: Number density of craters per m\ :sup:`2` surface area greater than the input diameter.
@@ -70,7 +70,7 @@ Example: Plot a production function with a slope of -3 for craters 1m to 100km o
 Example: Using Production.function_inverse
 ==========================================
 
-For this example, we are going to use ``Production.function_inverse()`` to plot the age in Ma for a number density of 1e-6 for craters from 1 m to 1 km in diameter. 
+For this example, we are going to use :func:`cratermaker.Production.function_inverse` to plot the age in Ma for a number density of 1e-6 for craters from 1 m to 1 km in diameter. 
 
 .. code-block:: python
 
@@ -97,9 +97,9 @@ For this example, we are going to use ``Production.function_inverse()`` to plot 
 Using the NeukumProduction class
 ================================
 
-The ``NeukumProduction`` class can compute the Neukum production function for the Moon and Mars. The Neukum production function is  is computed using the model of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 for the Moon and Mars, with minor changes. See :ref:`api-NeukumProduction`.
+The :ref:`api-NeukumProduction` class can compute the Neukum production function for the Moon and Mars. The Neukum production function is  is computed using the model of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 for the Moon and Mars, with minor changes.
 
-The main parameter is **model**, which is the specific model to use for the production function. Defaults to ``Moon``, but could also be ``Mars`` or ``Projectile``. The choice of ``model`` sets a number of parameters for the Neukum production. See :ref:`api-NeukumProduction` for more.
+The main parameter is **model**, which is the specific model to use for the production function. Defaults to ``Moon``, but could also be ``Mars`` or ``Projectile``. The choice of ``model`` sets a number of parameters for the Neukum production. See :class:`cratermaker.NeukumProduction` for more, including references.
 
 Example: Plot the Neukum projectile CSFD
 ========================================
@@ -153,7 +153,7 @@ Example: Plot the Neukum projectile CSFD
    :scale: 50 %
    :align: center
 
-``function`` works similar to the power law function described above, and ``chronology`` returns the  relative number of craters produced over a given age range. Note that these functions take the age argument in the Cratermaker unit of My instead of Gy.
+:func:`cratermaker.NeukumProduction.function` works similar to the power law function described above, and :func:`cratermaker.NeukumProduction.chronology` returns the  relative number of craters produced over a given age range. Note that these functions take the age argument in the Cratermaker unit of My instead of Gy.
 
 Example: Plot the NPF Chronology function for the Moon and Mars
 ===============================================================
@@ -241,7 +241,7 @@ Example: Plot the NPF CSFD with isochrons at 1 Ma, 1 Ga, and 4 Ga
    :scale: 50 %
    :align: center
 
-``sample`` allows you to sample crater diameters and ages from the production function (either power law or Neukum). This function can either sample from a given age range or from a given cumulative number/diameter pair, but not both. See {sample} for more. 
+:func:`cratermaker.Production.sample` allows you to sample crater diameters and ages from the production function (either power law or Neukum). This function can either sample from a given age range or from a given cumulative number/diameter pair, but not both. 
 
 Example: Sample a power law and lunar Neukum Production Function
 ================================================================
