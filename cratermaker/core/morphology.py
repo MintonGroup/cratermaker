@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.random import Generator
 import xarray as xr
+import uxarray as uxr
 from scipy.optimize import fsolve
 from typing import Tuple, Any
 from numpy.typing import ArrayLike
@@ -105,33 +106,21 @@ class Morphology:
             Additional keyword arguments to be passed to internal functions (not used here).
         """
       
-        node_crater_distance, face_crater_distance = surf.get_distance(self.crater.location)
-        #node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(self.crater.location)
-        self.crater.node_index, self.crater.face_index = np.argmin(node_crater_distance.data), np.argmin(face_crater_distance.data)
-        
         rmax = self.compute_rmax(minimum_thickness=surf.smallest_length)
-            
-        # Extract only the array data that we need to do the computations
-        inc_node = surf['n_node'].where(node_crater_distance < rmax, drop=True).astype(int) 
-        inc_face = surf['n_face'].where(face_crater_distance < rmax, drop=True).astype(int)
-        inc_surf = surf.sel(n_node=inc_node, n_face=inc_face)
-        
-        # Save distance and bearing information to the local surface object
-        inc_surf['node_crater_distance'] = node_crater_distance[inc_node]
-        #inc_surf['node_crater_bearing'] = node_crater_bearing[inc_node]
-        inc_surf['face_crater_distance'] = face_crater_distance[inc_face]
-        #inc_surf['face_crater_bearing'] = face_crater_bearing[inc_face]
-        
-        inc_surf.get_reference_surface(self.crater.location, self.crater.radius)
+        region_surf = surf.extract_region(self.crater.location, rmax)
+        if not region_surf: # The crater is too small to change the surface
+            return
+
+        region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
+        #region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = surf.get_initial_bearing(self.crater.location)
+        region_surf.get_reference_surface(self.crater.location, self.crater.radius)
         
         try:
-            if inc_node.size > 0:
-                node_elevation = self.profile(inc_surf['node_crater_distance'].values, inc_surf['reference_node_elevation'].values)
-                surf['node_elevation'].loc[{'n_node': inc_node}] = node_elevation
+            node_elevation = self.profile(region_surf['node_crater_distance'].values, region_surf['reference_node_elevation'].values)
+            surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] = node_elevation
             
-            if inc_face.size > 0:
-                face_elevation = self.profile(inc_surf['face_crater_distance'].values, inc_surf['reference_face_elevation'].values)
-                surf['face_elevation'].loc[{'n_face': inc_face}] = face_elevation
+            face_elevation = self.profile(region_surf['face_crater_distance'].values, region_surf['reference_face_elevation'].values)
+            surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] = face_elevation
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
