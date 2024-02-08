@@ -1,6 +1,6 @@
 [project]
 name = "cratermaker"
-version = "0.0.1rc0"
+version = "0.0.2rc0"
 authors=[
     {name = 'David A. Minton', email='daminton@purdue.edu'},
 ]
