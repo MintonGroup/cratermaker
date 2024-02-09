@@ -477,9 +477,9 @@ class Surface(UxDataset):
         self._data_dir = data_dir
         self._grid_file = grid_file
         self._target = target
-        self._rng = rng
         self._area = None
         self._smallest_length = None
+        self.rng = rng
        
         if compute_face_areas: 
             # Compute face area needed future calculations
@@ -1284,29 +1284,26 @@ class Surface(UxDataset):
         node_indices = node_indices[node_indices >= 0]
         
         # Retrieve the lon and lat values for these nodes
-        node_lons = self.uxgrid.node_lon[node_indices]
-        node_lats = self.uxgrid.node_lat[node_indices]
-        
-        # Choose a reference point - the first node's coordinates
-        ref_lon, ref_lat = node_lons[0], node_lats[0]
+        x = self.uxgrid.node_x[node_indices]
+        y = self.uxgrid.node_y[node_indices]
+        z = self.uxgrid.node_z[node_indices]
         
         # Generate two random indices to define a triangle with the reference point
-        idx1, idx2 = np.random.choice(range(1, len(node_indices)), 2, replace=False)
+        idx1, idx2 = self.rng.choice(range(1, len(node_indices)), 2, replace=False)
+        p1, p2 = np.array([x[idx1], y[idx1], z[idx1]]), np.array([x[idx2], y[idx2], z[idx2]])
         
-        # Get the lon and lat for the two random points
-        lon1, lat1 = node_lons[idx1], node_lats[idx1]
-        lon2, lat2 = node_lons[idx2], node_lats[idx2]
-        
-        # Generate random barycentric coordinates
-        r1, r2 = np.random.random(), np.random.random()
+        # Generate random barycentric coordinates for interpolation within the triangle
+        r1, r2 = self.rng.random(), self.rng.random()
         if r1 + r2 > 1:
             r1, r2 = 1 - r1, 1 - r2
         
-        # Convert barycentric coordinates to lon and lat
-        lon = ref_lon + r1 * (lon1 - ref_lon) + r2 * (lon2 - ref_lon)
-        lat = r1 * (lat1 - ref_lat) + r2 * (lat2 - ref_lat)
+        # Interpolate in Cartesian space
+        p_random = r1 * p1 + r2 * p2 + (1 - r1 - r2) * np.array([x[0], y[0], z[0]])
         
-        return np.float64(lon.values.item()),np.float64(lat.values.item())
+        lon_lat = uxr.grid.coordinates.node_xyz_to_lonlat_rad(p_random.tolist())
+        lon_lat = np.float64(np.rad2deg(lon_lat))
+        
+        return lon_lat[0], lon_lat[1]
         
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,
