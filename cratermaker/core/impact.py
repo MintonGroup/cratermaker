@@ -138,7 +138,9 @@ class Impact(ABC):
     def location(self, value):
         if value is None:
             self._location = mc.get_random_location(rng=self.rng)
-        else:    
+        else:   
+            if len(value) == 1:
+                value = value.item() 
             self._location = validate_and_convert_location(value)
            
     @property

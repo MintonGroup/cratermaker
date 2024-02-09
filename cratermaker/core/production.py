@@ -247,7 +247,9 @@ class Production():
         expected_num = cdf[0] * area if area is not None else None
         diameters = np.asarray(get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng))
         if diameters.size == 0:
-            return None, None
+            return np.empty(0), np.empty(0)
+        elif diameters.size == 1:
+            diameters = np.array([diameters])
        
         if return_age: 
             age_subinterval = np.linspace(age_end, age, num=1000) 
@@ -296,7 +298,7 @@ class Production():
                 diameters = diameters[sort_indices]
                 ages = ages[sort_indices]
         else:
-            ages = None
+            ages = np.empty(0)
             
         return diameters, ages
     

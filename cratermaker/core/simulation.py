@@ -229,12 +229,15 @@ class Simulation:
         pass
    
     def get_smallest_diameter(self, 
-                              face_areas: ArrayLike, 
+                              face_areas: ArrayLike | None = None, 
                               from_projectile: bool = False) -> float:
         """
         Get the smallest possible crater or projectile be formed on the surface.
         """
-        face_areas = np.asarray(face_areas)
+        if face_areas is None:
+            face_areas = self.surf['face_areas'].values
+        else:
+            face_areas = np.asarray(face_areas)
         smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2        
         if from_projectile:
             _, projectile = self.generate_crater(diameter=smallest_crater, angle=90.0, velocity=self.production.mean_velocity*10)
@@ -436,33 +439,77 @@ class Simulation:
        
         from_projectile = self.production.generator_type == 'projectile'
         Dmax = self.get_largest_diameter(from_projectile=from_projectile)
+        Dmin = self.get_smallest_diameter(from_projectile=from_projectile)
         
         # Loop over each face in the mesh to build up a population of craters in this interval. This is done because faces may
         # not all have the same surface area, the range of crater sizes that can be formed on each face may be different.
-        impacts_this_interval = np.empty(0)
-        impact_ages = np.empty(0)
-        impact_locations = np.empty(0)
-        for i in self.surf.n_face:
-            face_index = i.values.item()
-            face_area = self.surf['face_areas'].isel(n_face=face_index).item()
+        impact_diameters = []
+        impact_ages = []
+        impact_locations = []
+        face_areas = self.surf['face_areas'].values
+        min_area = face_areas.min()
+        n_face = face_areas.size
+        surface_area = self.surf.area.item() 
+         
+
+        # Group surfaces into bins based on their area. All bins within a factor of 2 in surface area are grouped together.
+        max_bin_index = np.ceil(np.log2(face_areas.max() / min_area)).astype(int)
+        bins = {i: [] for i in range(max_bin_index + 1)}
+        
+        for face_index, area in enumerate(face_areas):
+            bin_index = np.floor(np.log2(area / min_area)).astype(int)
+            bins[bin_index].append(face_index)        
+            
+        # Process each bin
+        for bin_index, face_indices in bins.items():
+            if not face_indices:
+                continue  # Skip empty bins
+            bin_areas = face_areas[face_indices]
+            total_bin_area = bin_areas.sum()
+            area_ratio = total_bin_area / surface_area 
              
-            Dmin = self.get_smallest_diameter(face_area, from_projectile=from_projectile)
+            Dmin = self.get_smallest_diameter(bin_areas, from_projectile=from_projectile)
+            if diameter_number is not None:
+                diameter_number_local = (diameter_number[0], diameter_number[1] * area_ratio)
+            else:
+                diameter_number_local = None
+            if diameter_number_end is not None:
+                diameter_number_end_local = (diameter_number_end[0], diameter_number_end[1] * area_ratio)
+            else:
+                diameter_number_end_local = None
         
             diameters, ages= self.production.sample(age=age, 
                                                     age_end=age_end, 
-                                                    diameter_number=diameter_number, 
-                                                    diameter_number_end=diameter_number_end, 
+                                                    diameter_number=diameter_number_local, 
+                                                    diameter_number_end=diameter_number_end_local, 
                                                     diameter_range=(Dmin, Dmax),
-                                                    area=self.surf.area.item(), 
+                                                    area=total_bin_area,
                                                     **kwargs)
+            if diameters.size > 0:
+                impact_diameters.extend(diameters.tolist())
+                impact_ages.extend(ages.tolist())
+                
+                # Get the probability of impact onto any particular face then get the locations of the impacts
+                p = bin_areas / total_bin_area
+                locations = []
+                for i, d in enumerate(diameters): 
+                    face_index = self.rng.choice(face_indices, p=p)
+                    locations = self.surf.get_random_location_on_face(face_index)
+                    impact_locations.append(locations) 
             
-        
-            if impacts_this_interval is not None:
-                if impacts_this_interval.size == 1:
-                    self.emplace_crater(diameter=impacts_this_interval, age=impact_ages, from_projectile=from_projectile)
-                else:
-                    for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
-                        self.emplace_crater(diameter=diameter, age=impact_ages[i], from_projectile=from_projectile)
+        if len(impact_diameters) > 0: 
+            if len(impact_diameters) == 1:
+                self.emplace_crater(diameter=impact_diameters[0], age=impact_ages[0], location=impact_locations[0], from_projectile=from_projectile)
+            else:
+                # Sort the ages, diameters, and locations so that they are in order of decreasing age
+                sort_indices = np.argsort(impact_ages)[::-1]
+                impact_diameters = np.asarray(impact_diameters)[sort_indices]
+                impact_ages = np.asarray(impact_ages)[sort_indices] 
+                impact_locations = np.array(impact_locations, dtype=[('lon', 'float64'), ('lat', 'float64')])[sort_indices]
+                
+                for i, diameter in tqdm(enumerate(impact_diameters), total=len(impact_diameters)):
+                    location = impact_locations[i][0], impact_locations[i][1]
+                    self.emplace_crater(diameter=diameter, age=impact_ages[i], location=location, from_projectile=from_projectile)
         return 
     
     
@@ -643,7 +690,7 @@ class Simulation:
         
         # Validate arguments using the production function validator first 
         if 'diameter_range' not in kwargs:
-            kwargs['diameter_range'] = (self.smallest_crater, self.largest_crater)
+            kwargs['diameter_range'] = (self.get_smallest_diameter(), self.get_largest_diameter())
         if 'area' not in kwargs:
             kwargs['area'] = self.surf.area.item()
         kwargs  = self.production._validate_sample_args(**kwargs)
@@ -699,8 +746,9 @@ class Simulation:
                 if diameter_number_interval[1] <= 0:
                     raise ValueError("diameter_number_interval must be greater than zero")
                 ninterval = int(np.ceil((diameter_number[1] - diameter_number_end[1]) / diameter_number_interval[1]))
-                kwargs['diameter_number_interval'] = diameter_number_interval
-                kwargs['ninterval'] = ninterval
+                
+            kwargs['diameter_number_interval'] = diameter_number_interval
+            kwargs['ninterval'] = ninterval
                 
         kwargs['is_age_interval'] = is_age_interval
         
