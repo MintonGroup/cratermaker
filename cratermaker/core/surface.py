@@ -13,6 +13,7 @@ from typing import Tuple, List, Literal, get_args, Any
 from typing_extensions import Type
 import hashlib
 from numpy.typing import NDArray
+from numpy.random import Generator
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
@@ -451,10 +452,12 @@ class Surface(UxDataset):
         The file path to the grid file.
     compute_face_areas : bool, optional
         Flag to indicate whether to compute face areas. Default is False.    
+    rng : Generator, optional
+        A random number generator instance. If not provided, the default numpy RNG will be used.        
     **kwargs
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
     """
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_rng')    
 
     def __init__(self, 
                  *args, 
@@ -462,6 +465,7 @@ class Surface(UxDataset):
                  data_dir: os.PathLike | None = None,
                  grid_file: os.PathLike | None = None,
                  compute_face_areas: bool = False,
+                 rng: Generator | None = None, 
                  **kwargs):
 
         # Call the super class constructor with the UxDataset
@@ -473,6 +477,7 @@ class Surface(UxDataset):
         self._data_dir = data_dir
         self._grid_file = grid_file
         self._target = target
+        self._rng = rng
         self._area = None
         self._smallest_length = None
        
@@ -490,6 +495,7 @@ class Surface(UxDataset):
                    grid_temp_dir: os.PathLike | None = None,
                    reset_surface: bool = True, 
                    grid_type: GridType = valid_grid_types[0], 
+                   rng: Generator | None = None,
                    **kwargs):
         """
         Factory method to create a Surface instance from a grid file.
@@ -508,6 +514,8 @@ class Surface(UxDataset):
             Flag to indicate whether to reset the surface. Default is True.
         grid_type : ["uniform", "hires_local"], optional
             The type of grid to be generated. Default is "uniform".            
+        rng : Generator, optional
+            A random number generator instance. If not provided, the default numpy RNG will be used. 
         **kwargs : dict
             Additional keyword arguments for initializing the Surface instance based on the specific grid_type.
 
@@ -603,8 +611,9 @@ class Surface(UxDataset):
                    target = target,
                    data_dir = data_dir,
                    grid_file = grid_file,
+                   rng = rng,
                    compute_face_areas = True,
-                    ) 
+                  ) 
         
         if reset_surface:
             surf.set_elevation(0.0,save_to_file=True)
@@ -623,6 +632,7 @@ class Surface(UxDataset):
                             target=self.target,
                             grid_file=self.grid_file,
                             data_dir=self.data_dir,
+                            rng=self.rng,
                             compute_face_areas=False,
                             )
         return value
@@ -637,6 +647,7 @@ class Surface(UxDataset):
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
             ds._target = self._target
+            ds._rng = self._rng
             ds._smallest_length = self._smallest_length
         else:
             ds = Surface(ds,
@@ -645,6 +656,7 @@ class Surface(UxDataset):
                          target=self.target,
                          grid_file=self.grid_file,
                          data_dir=self.data_dir,
+                         rng=self.rng,
                          compute_face_areas=False,
                          )
         return ds
@@ -659,7 +671,6 @@ class Surface(UxDataset):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
 
-
         copied._name = self._name
         copied._description = self._description
         copied._data_dir = self._data_dir
@@ -667,6 +678,8 @@ class Surface(UxDataset):
         copied._smallest_length = self._smallest_length
         copied._area = self._area
         copied._target = self._target
+        copied._rng = self._rng
+        
         return copied    
   
     def _replace(self, *args, **kwargs):
@@ -679,6 +692,7 @@ class Surface(UxDataset):
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
             ds._target = self._target
+            ds._rng = self._rng
             ds._smallest_length = self._smallest_length
             ds._area = self._area
         else:
@@ -689,6 +703,7 @@ class Surface(UxDataset):
                          grid_file=self.grid_file,
                          data_dir=self.data_dir,
                          compute_face_areas=False,
+                         rng=self.rng,
                          )
             ds._smallest_length = self._smallest_length
             ds._area = self._area
@@ -753,6 +768,23 @@ class Surface(UxDataset):
         if not isinstance(value, Target):
             raise TypeError("target must be an instance of Target")
         self._target = value    
+        
+    @property
+    def rng(self):
+        """
+        A random number generator instance.
+        
+        Returns
+        -------
+        Generator
+        """ 
+        return self._rng
+    
+    @rng.setter
+    def rng(self, value):
+        if not isinstance(value, Generator) and value is not None:
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        self._rng = value or np.random.default_rng()           
         
     def generate_data(self,
                       name: str,
@@ -1005,7 +1037,8 @@ class Surface(UxDataset):
         face_lat2 = np.deg2rad(self.uxgrid.face_lat)       
         return self.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), self.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2)
     
-    def find_nearest_index(self,point):
+    
+    def find_nearest_index(self, location):
         """
         Find the index of the nearest node and face to a given point.
 
@@ -1014,7 +1047,7 @@ class Surface(UxDataset):
 
         Parameters
         ----------
-        point : tuple
+        location : tuple
             A tuple containing two elements: (longitude, latitude) in degrees.
 
         Returns
@@ -1026,18 +1059,17 @@ class Surface(UxDataset):
 
         Notes
         -----
-        The method converts the longitude and latitude values from degrees to radians before
-        calculating distances. The Haversine formula is used to compute the distances on the
-        surface of a sphere with a radius of 1.0 unit. 
-        """        
-        lon1 = np.deg2rad(point[0])
-        lat1 = np.deg2rad(point[1])
-        node_lon2 = np.deg2rad(self.uxgrid.node_lon)
-        node_lat2 = np.deg2rad(self.uxgrid.node_lat)          
-        face_lon2 = np.deg2rad(self.uxgrid.face_lon)
-        face_lat2 = np.deg2rad(self.uxgrid.face_lat)        
-        node_distances, face_distances = self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,radius=1.0), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,radius=1.0)
-        return np.argmin(node_distances.data), np.argmin(face_distances.data)
+        The method uses the ball tree query method that is included in the UxArray.Grid class.
+        """          
+        
+        coords = np.asarray(location)
+
+        node_tree = self.uxgrid.get_ball_tree("nodes")
+        node_ind = node_tree.query(coords=coords, k=1, return_distance=False)
+        
+        face_tree = self.uxgrid.get_ball_tree("face centers")
+        face_ind = face_tree.query(coords=coords, k=1, return_distance=False)
+        return node_ind.item(), face_ind.item()
 
     def get_reference_surface(self,
                             location: Tuple[FloatLike, FloatLike], 
@@ -1225,7 +1257,57 @@ class Surface(UxDataset):
         region_surf.uxgrid = region_grid
       
         return region_surf
-       
+    
+    def get_random_location_on_face(self, face_index):
+        """
+        Generate a random coordinate within a given face of an unstructured mesh.
+
+        Parameters
+        ----------
+        grid : uxarray.Grid
+            The grid object containing the mesh information.
+        face_index : int
+            The index of the face within the mesh.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the random longitude and latitude (lon, lat) in degrees.
+
+        Notes
+        -----
+        This function assumes that the face is a polygon and generates a random point
+        within it by subdividing it into triangles and selecting a point within one randomly chosen triangle.
+        """
+        # Extract node indices for the given face
+        node_indices = self.uxgrid.face_node_connectivity[face_index, :]
+        node_indices = node_indices[node_indices >= 0]
+        
+        # Retrieve the lon and lat values for these nodes
+        node_lons = self.uxgrid.node_lon[node_indices]
+        node_lats = self.uxgrid.node_lat[node_indices]
+        
+        # Choose a reference point - the first node's coordinates
+        ref_lon, ref_lat = node_lons[0], node_lats[0]
+        
+        # Generate two random indices to define a triangle with the reference point
+        idx1, idx2 = np.random.choice(range(1, len(node_indices)), 2, replace=False)
+        
+        # Get the lon and lat for the two random points
+        lon1, lat1 = node_lons[idx1], node_lats[idx1]
+        lon2, lat2 = node_lons[idx2], node_lats[idx2]
+        
+        # Generate random barycentric coordinates
+        r1, r2 = np.random.random(), np.random.random()
+        if r1 + r2 > 1:
+            r1, r2 = 1 - r1, 1 - r2
+        
+        # Convert barycentric coordinates to lon and lat
+        lon = ref_lon + r1 * (lon1 - ref_lon) + r2 * (lon2 - ref_lon)
+        lat = r1 * (lat1 - ref_lat) + r2 * (lat2 - ref_lat)
+        
+        return np.float64(lon.values.item()),np.float64(lat.values.item())
+        
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,
                interval_number: int = 0,

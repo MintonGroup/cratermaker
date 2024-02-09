@@ -172,7 +172,7 @@ class Simulation:
                             superdomain_scale_factor = rmax / crater.radius
                             break
                     kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-            self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
+            self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir, rng=self.rng, **kwargs)
         elif isinstance(surf, Surface):
             self.surf = surf
         else:

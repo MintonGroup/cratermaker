@@ -45,7 +45,7 @@ def get_random_location(
     lat = np.rad2deg(phi - np.pi / 2.0)
     
     if size == 1: 
-        return (np.float64(lon.item()),np.float64(lat.item()))
+        return np.float64(lon.item()),np.float64(lat.item())
     else:
         # Reshape lat and lon to the original size if necessary
         lon = lon.reshape(size)
