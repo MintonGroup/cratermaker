@@ -9,16 +9,17 @@ import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
-from typing import Tuple, List, Literal, get_args, Any
+from typing import Tuple, List, Literal, get_args, Any, Union
 from typing_extensions import Type
 import hashlib
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
 from numpy.random import Generator
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
+from ..utils.montecarlo import get_random_location_on_face
 import warnings
 from ..cython.perlin import apply_noise
 from abc import ABC, abstractmethod
@@ -1037,7 +1038,6 @@ class Surface(UxDataset):
         face_lat2 = np.deg2rad(self.uxgrid.face_lat)       
         return self.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), self.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2)
     
-    
     def find_nearest_index(self, location):
         """
         Find the index of the nearest node and face to a given point.
@@ -1258,7 +1258,10 @@ class Surface(UxDataset):
       
         return region_surf
     
-    def get_random_location_on_face(self, face_index):
+    def get_random_location_on_face(self, 
+                                    face_index: int, 
+                                    size: int = 1
+                                    ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
         """
         Generate a random coordinate within a given face of an unstructured mesh.
 
@@ -1267,43 +1270,22 @@ class Surface(UxDataset):
         grid : uxarray.Grid
             The grid object containing the mesh information.
         face_index : int
-            The index of the face within the mesh.
-
+            The index of the face within the grid to obtain the random sample.
+        size : int or tuple of ints, optional
+            The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1, 
+            then a structured array with fields 'lon' and 'lat' is returned.
+                
         Returns
         -------
-        tuple
-            A tuple containing the random longitude and latitude (lon, lat) in degrees.
+        (lon,lat) or ndarray[(lon,lat)] of given size
+            A pair or array of pairs of longitude and latitude values in degrees.
 
         Notes
         -----
-        This function assumes that the face is a polygon and generates a random point
-        within it by subdividing it into triangles and selecting a point within one randomly chosen triangle.
+        This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
         """
-        # Extract node indices for the given face
-        node_indices = self.uxgrid.face_node_connectivity[face_index, :]
-        node_indices = node_indices[node_indices >= 0]
         
-        # Retrieve the lon and lat values for these nodes
-        x = self.uxgrid.node_x[node_indices]
-        y = self.uxgrid.node_y[node_indices]
-        z = self.uxgrid.node_z[node_indices]
-        
-        # Generate two random indices to define a triangle with the reference point
-        idx1, idx2 = self.rng.choice(range(1, len(node_indices)), 2, replace=False)
-        p1, p2 = np.array([x[idx1], y[idx1], z[idx1]]), np.array([x[idx2], y[idx2], z[idx2]])
-        
-        # Generate random barycentric coordinates for interpolation within the triangle
-        r1, r2 = self.rng.random(), self.rng.random()
-        if r1 + r2 > 1:
-            r1, r2 = 1 - r1, 1 - r2
-        
-        # Interpolate in Cartesian space
-        p_random = r1 * p1 + r2 * p2 + (1 - r1 - r2) * np.array([x[0], y[0], z[0]])
-        
-        lon_lat = uxr.grid.coordinates.node_xyz_to_lonlat_rad(p_random.tolist())
-        lon_lat = np.float64(np.rad2deg(lon_lat))
-        
-        return lon_lat[0], lon_lat[1]
+        return get_random_location_on_face(self.uxgrid, face_index, size)
         
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,

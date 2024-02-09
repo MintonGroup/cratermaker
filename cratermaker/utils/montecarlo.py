@@ -5,9 +5,11 @@ from typing import Union, Optional, Tuple
 from numpy.typing import NDArray
 from scipy.stats import truncnorm
 from scipy.stats import maxwell
+from uxarray import Grid
+from uxarray.grid.coordinates import node_xyz_to_lonlat_rad
 
 def get_random_location(
-                        size: int | Tuple[int, ...]=1, 
+                        size: int=1, 
                         rng: Generator | None=None
                         ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
     """
@@ -18,9 +20,11 @@ def get_random_location(
     Parameters
     ----------
     size : int or tuple of ints, optional
-        The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
+        The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1, 
+        then a structured array with fields 'lon' and 'lat' is returned.
     rng : numpy.random.Generator, optional
-        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used to create a new instance.
+        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used 
+        to create a new instance.
     
     Returns
     -------
@@ -58,6 +62,76 @@ def get_random_location(
     
     return lonlat_arr
 
+
+def get_random_location_on_face(grid: Grid, 
+                                face_index: int, 
+                                size: int=1, 
+                                rng: Generator | None=None
+                                ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
+    """
+    Generate a random coordinate within a given face of an unstructured mesh.
+
+    Parameters
+    ----------
+    grid : uxarray.Grid
+        The grid object containing the mesh information.
+    face_index : int
+        The index of the face within the grid to obtain the random sample.
+    size : int or tuple of ints, optional
+        The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1, 
+        then a structured array with fields 'lon' and 'lat' is returned.
+    rng : numpy.random.Generator, optional
+        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used
+        
+    Returns
+    -------
+    (lon,lat) or ndarray[(lon,lat)] of given size
+        A pair or array of pairs of longitude and latitude values in degrees.
+    """
+
+    if rng and not isinstance(rng, Generator):
+        raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+    if rng is None:
+        rng = np.random.default_rng() 
+        
+    # Extract node indices for the given face
+    node_indices = grid.face_node_connectivity[face_index, :]
+    node_indices = node_indices[node_indices >= 0]
+    
+    # Initialize the array for storing locations
+    locations = np.empty(size, dtype=[('lon', 'float64'), ('lat', 'float64')])
+
+    for i in range(size):
+        # Retrieve the x, y, z values for these nodes
+        x = grid.node_x[node_indices]
+        y = grid.node_y[node_indices]
+        z = grid.node_z[node_indices]
+        
+        # Generate two random indices to define a triangle with the reference point
+        idx1, idx2 = rng.choice(range(1, len(node_indices)), 2, replace=False)
+        p1, p2 = np.array([x[idx1], y[idx1], z[idx1]]), np.array([x[idx2], y[idx2], z[idx2]])
+        
+        # Generate random barycentric coordinates for interpolation within the triangle
+        r1, r2 = rng.random(), rng.random()
+        if r1 + r2 > 1:
+            r1, r2 = 1 - r1, 1 - r2
+        
+        # Interpolate in Cartesian space
+        p_random = r1 * p1 + r2 * p2 + (1 - r1 - r2) * np.array([x[0], y[0], z[0]])
+        
+        # Convert the random Cartesian point back to lon/lat
+        lon_lat = node_xyz_to_lonlat_rad(p_random.tolist())
+        lon_lat = np.rad2deg(lon_lat)  # Convert from radians to degrees
+        
+        # Store the generated lon/lat values in the structured array
+        locations['lon'][i] = lon_lat[0]
+        locations['lat'][i] = lon_lat[1]
+
+    # Return the appropriate format based on 'size'
+    if size == 1:
+        return locations['lon'][0], locations['lat'][0]
+    else:
+        return locations
 
 def get_random_impact_angle(
                             size: int | Tuple[int, ...]=1, 
