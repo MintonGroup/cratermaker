@@ -38,8 +38,8 @@ class Morphology:
     def __init__(self, 
                  crater,  
                  target: Target | None = None, 
+                 ejecta_truncation: FloatLike | None = None,
                  rng: Generator | None = None,
-                 ejecta_truncation: FloatLike | None = None
                  ):
 
         self.crater = crater 
