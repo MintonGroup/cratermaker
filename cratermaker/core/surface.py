@@ -9,15 +9,17 @@ import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
-from typing import Tuple, List, Literal, get_args, Any
+from typing import Tuple, List, Literal, get_args, Any, Union
 from typing_extensions import Type
 import hashlib
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
+from numpy.random import Generator
 from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
+from ..utils.montecarlo import get_random_location_on_face
 import warnings
 from ..cython.perlin import apply_noise
 from abc import ABC, abstractmethod
@@ -451,10 +453,12 @@ class Surface(UxDataset):
         The file path to the grid file.
     compute_face_areas : bool, optional
         Flag to indicate whether to compute face areas. Default is False.    
+    rng : Generator, optional
+        A random number generator instance. If not provided, the default numpy RNG will be used.        
     **kwargs
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
     """
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_rng')    
 
     def __init__(self, 
                  *args, 
@@ -462,6 +466,7 @@ class Surface(UxDataset):
                  data_dir: os.PathLike | None = None,
                  grid_file: os.PathLike | None = None,
                  compute_face_areas: bool = False,
+                 rng: Generator | None = None, 
                  **kwargs):
 
         # Call the super class constructor with the UxDataset
@@ -475,6 +480,7 @@ class Surface(UxDataset):
         self._target = target
         self._area = None
         self._smallest_length = None
+        self.rng = rng
        
         if compute_face_areas: 
             # Compute face area needed future calculations
@@ -490,6 +496,7 @@ class Surface(UxDataset):
                    grid_temp_dir: os.PathLike | None = None,
                    reset_surface: bool = True, 
                    grid_type: GridType = valid_grid_types[0], 
+                   rng: Generator | None = None,
                    **kwargs):
         """
         Factory method to create a Surface instance from a grid file.
@@ -508,6 +515,8 @@ class Surface(UxDataset):
             Flag to indicate whether to reset the surface. Default is True.
         grid_type : ["uniform", "hires_local"], optional
             The type of grid to be generated. Default is "uniform".            
+        rng : Generator, optional
+            A random number generator instance. If not provided, the default numpy RNG will be used. 
         **kwargs : dict
             Additional keyword arguments for initializing the Surface instance based on the specific grid_type.
 
@@ -603,8 +612,9 @@ class Surface(UxDataset):
                    target = target,
                    data_dir = data_dir,
                    grid_file = grid_file,
+                   rng = rng,
                    compute_face_areas = True,
-                    ) 
+                  ) 
         
         if reset_surface:
             surf.set_elevation(0.0,save_to_file=True)
@@ -623,6 +633,7 @@ class Surface(UxDataset):
                             target=self.target,
                             grid_file=self.grid_file,
                             data_dir=self.data_dir,
+                            rng=self.rng,
                             compute_face_areas=False,
                             )
         return value
@@ -637,6 +648,7 @@ class Surface(UxDataset):
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
             ds._target = self._target
+            ds._rng = self._rng
             ds._smallest_length = self._smallest_length
         else:
             ds = Surface(ds,
@@ -645,6 +657,7 @@ class Surface(UxDataset):
                          target=self.target,
                          grid_file=self.grid_file,
                          data_dir=self.data_dir,
+                         rng=self.rng,
                          compute_face_areas=False,
                          )
         return ds
@@ -659,7 +672,6 @@ class Surface(UxDataset):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
 
-
         copied._name = self._name
         copied._description = self._description
         copied._data_dir = self._data_dir
@@ -667,6 +679,8 @@ class Surface(UxDataset):
         copied._smallest_length = self._smallest_length
         copied._area = self._area
         copied._target = self._target
+        copied._rng = self._rng
+        
         return copied    
   
     def _replace(self, *args, **kwargs):
@@ -679,6 +693,7 @@ class Surface(UxDataset):
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
             ds._target = self._target
+            ds._rng = self._rng
             ds._smallest_length = self._smallest_length
             ds._area = self._area
         else:
@@ -689,6 +704,7 @@ class Surface(UxDataset):
                          grid_file=self.grid_file,
                          data_dir=self.data_dir,
                          compute_face_areas=False,
+                         rng=self.rng,
                          )
             ds._smallest_length = self._smallest_length
             ds._area = self._area
@@ -753,6 +769,23 @@ class Surface(UxDataset):
         if not isinstance(value, Target):
             raise TypeError("target must be an instance of Target")
         self._target = value    
+        
+    @property
+    def rng(self):
+        """
+        A random number generator instance.
+        
+        Returns
+        -------
+        Generator
+        """ 
+        return self._rng
+    
+    @rng.setter
+    def rng(self, value):
+        if not isinstance(value, Generator) and value is not None:
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        self._rng = value or np.random.default_rng()           
         
     def generate_data(self,
                       name: str,
@@ -1005,7 +1038,7 @@ class Surface(UxDataset):
         face_lat2 = np.deg2rad(self.uxgrid.face_lat)       
         return self.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), self.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2)
     
-    def find_nearest_index(self,point):
+    def find_nearest_index(self, location):
         """
         Find the index of the nearest node and face to a given point.
 
@@ -1014,7 +1047,7 @@ class Surface(UxDataset):
 
         Parameters
         ----------
-        point : tuple
+        location : tuple
             A tuple containing two elements: (longitude, latitude) in degrees.
 
         Returns
@@ -1026,18 +1059,17 @@ class Surface(UxDataset):
 
         Notes
         -----
-        The method converts the longitude and latitude values from degrees to radians before
-        calculating distances. The Haversine formula is used to compute the distances on the
-        surface of a sphere with a radius of 1.0 unit. 
-        """        
-        lon1 = np.deg2rad(point[0])
-        lat1 = np.deg2rad(point[1])
-        node_lon2 = np.deg2rad(self.uxgrid.node_lon)
-        node_lat2 = np.deg2rad(self.uxgrid.node_lat)          
-        face_lon2 = np.deg2rad(self.uxgrid.face_lon)
-        face_lat2 = np.deg2rad(self.uxgrid.face_lat)        
-        node_distances, face_distances = self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,radius=1.0), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,radius=1.0)
-        return np.argmin(node_distances.data), np.argmin(face_distances.data)
+        The method uses the ball tree query method that is included in the UxArray.Grid class.
+        """          
+        
+        coords = np.asarray(location)
+
+        node_tree = self.uxgrid.get_ball_tree("nodes")
+        node_ind = node_tree.query(coords=coords, k=1, return_distance=False)
+        
+        face_tree = self.uxgrid.get_ball_tree("face centers")
+        face_ind = face_tree.query(coords=coords, k=1, return_distance=False)
+        return node_ind.item(), face_ind.item()
 
     def get_reference_surface(self,
                             location: Tuple[FloatLike, FloatLike], 
@@ -1225,7 +1257,36 @@ class Surface(UxDataset):
         region_surf.uxgrid = region_grid
       
         return region_surf
-       
+    
+    def get_random_location_on_face(self, 
+                                    face_index: int, 
+                                    size: int = 1
+                                    ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
+        """
+        Generate a random coordinate within a given face of an unstructured mesh.
+
+        Parameters
+        ----------
+        grid : uxarray.Grid
+            The grid object containing the mesh information.
+        face_index : int
+            The index of the face within the grid to obtain the random sample.
+        size : int or tuple of ints, optional
+            The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1, 
+            then a structured array with fields 'lon' and 'lat' is returned.
+                
+        Returns
+        -------
+        (lon,lat) or ndarray[(lon,lat)] of given size
+            A pair or array of pairs of longitude and latitude values in degrees.
+
+        Notes
+        -----
+        This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
+        """
+        
+        return get_random_location_on_face(self.uxgrid, face_index, size)
+        
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,
                interval_number: int = 0,

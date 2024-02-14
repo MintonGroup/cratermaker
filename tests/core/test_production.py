@@ -81,8 +81,8 @@ class TestProduction(unittest.TestCase):
         neukum = NeukumProduction(model="Moon")
         # Test that the number of craters is zero when the age and area are ridiculously tiny
         diameter, age = neukum.sample(age=1e-6, diameter_range=(300e3, 1000e3), area=1e-6)
-        self.assertIsNone(diameter)
-        self.assertIsNone(age) 
+        self.assertEqual(diameter.size, 0)
+        self.assertEqual(age.size, 0) 
         
 if __name__ == '__main__':
     unittest.main()

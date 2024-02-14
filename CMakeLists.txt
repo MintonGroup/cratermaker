@@ -43,12 +43,14 @@ ELSE()
     OPTION(USE_SIMD "Use SIMD vectorization" ON)
     OPTION(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
+    SET(CYTHON_SRC "${CMAKE_SOURCE_DIR}/cratermaker/cython")
+    SET(SRC "${CMAKE_SOURCE_DIR}/src")
     INCLUDE(GNUInstallDirs)
     IF (SKBUILD)
         SET(INSTALL_PREFIX ${SKBUILD_PLATLIB_DIR}/${SKBUILD_PROJECT_NAME})
-        SET(INSTALL_BINDIR ${INSTALL_PREFIX}/bin) 
-        SET(INSTALL_LIBDIR ${INSTALL_PREFIX}/lib) 
-        SET(INSTALL_INCLUDEDIR ${INSTALL_LIBDIR}) 
+        SET(INSTALL_BINDIR ${SKBUILD_SCRIPTS_DIR}) 
+        SET(INSTALL_LIBDIR ${SKBUILD_DATA_DIR}/lib) 
+        SET(INSTALL_INCLUDEDIR ${SKBUILD_HEADERS_DIR}) 
         SET(INSTALL_CYTHON ${INSTALL_PREFIX}/cython)
         IF (APPLE)
             SET(CMAKE_INSTALL_RPATH "@loader_path/../lib")
@@ -87,8 +89,6 @@ ELSE()
     FIND_PACKAGE(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
 
 
-    SET(CYTHON_SRC "${CMAKE_SOURCE_DIR}/cratermaker/cython")
-    SET(SRC "${CMAKE_SOURCE_DIR}/src")
 
     # Make sure paths are correct for Unix or Windows style
     FILE(TO_CMAKE_PATH ${SRC} SRC)

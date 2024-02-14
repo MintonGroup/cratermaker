@@ -107,6 +107,7 @@ Methods
     Surface.set_elevation
     Surface.elevation_to_cartesian
     Surface.extract_region
+    Surface.get_random_location_on_face
 
 Attributes
 ----------
@@ -119,6 +120,7 @@ Attributes
     Surface.smallest_length
     Surface.area
     Surface.target
+    Surface.rng
 
 
 .. _api-Grid:
