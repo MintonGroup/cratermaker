@@ -11,7 +11,7 @@
 submodule (perlin_module) s_perlin
     use globals_module
 contains
-   module pure elemental subroutine perlin_noise(xx,yy,zz,noise,dx,dy,dz)
+   pure module elemental subroutine perlin_noise(xx,yy,zz,noise,dx,dy,dz)
       ! Perlin noise with derivatives. Adapted from Ken Perlin's original code, with derivatives
       ! that are used in the noise functions by Giliam de Carpentier
       implicit none
@@ -267,7 +267,7 @@ contains
    end subroutine perlin_noise
 
 
-   module pure function perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+   pure module function perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
       real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
       integer(I4B), intent(in) :: num_octaves
@@ -297,7 +297,7 @@ contains
    end function perlin_turbulence
 
 
-   module pure function perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+   pure module function perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
       real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
       integer(I4B), intent(in) :: num_octaves
@@ -310,7 +310,7 @@ contains
    end function perlin_billowedNoise
       
       
-   module pure function perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
+   pure module function perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
       implicit none
       real(DP), intent(in) ::  x, y, z, noise_height, freq, pers,slope
       integer(I4B), intent(in) :: num_octaves
@@ -324,7 +324,7 @@ contains
    end function perlin_plawNoise
       
       
-   module pure function perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+   pure module function perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
       implicit none
       real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
       integer(I4B), intent(in) :: num_octaves
@@ -337,7 +337,7 @@ contains
    end function perlin_ridgedNoise
       
       
-   module pure function perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
+   pure module function perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
       implicit none
       ! Arguments
       real(DP), intent(in) ::  x, y, z, lacunarity, gain, warp
@@ -375,7 +375,7 @@ contains
    end function perlin_swissTurbulence
    
       
-   module pure function perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
+   pure module function perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
             num_octaves, anchor) result(noise)
       ! Fortran implementation of noise function by Giliam de Carpentier
       implicit none
@@ -421,7 +421,7 @@ contains
    end function perlin_jordanTurbulence
 
 
-   module pure function perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
+   pure module function perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
                                           lacunarity, noise_height, pers, slope, warp, warp0) result(noise)
       implicit none
       character(len=*), intent(in) :: model !! The specific turbulence model to apply

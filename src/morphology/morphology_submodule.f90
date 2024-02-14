@@ -12,7 +12,7 @@ submodule (morphology_module) s_morphology
     use globals_module
 contains
 
-   module pure subroutine morphology_profile(radial_distance, reference_elevation, diameter, floordepth, floordiam, &
+   pure module subroutine morphology_profile(radial_distance, reference_elevation, diameter, floordepth, floordiam, &
       rimheight, ejrim, RIMDROP, elevation)
       !! author: David A. Minton
       !!

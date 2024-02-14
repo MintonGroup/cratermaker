@@ -208,17 +208,9 @@ IF (USE_SIMD)
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "/Qx${MACHINE_CODE_VALUE}" # Intel
             )
-            # Generate an extended set of vector functions
-            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
-                Fortran "/Qvecabi:cmdtarget" # Intel Windows
-            )
         ELSE ()
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "-x${MACHINE_CODE_VALUE}" # Intel
-            )
-            # Generate an extended set of vector functions
-            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
-                Fortran "-vecabi=cmdtarget" # Intel
             )
         ENDIF ()
 
@@ -570,15 +562,9 @@ IF (CMAKE_BUILD_TYPE STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE STREQUAL "PROFILE")
             )
             # Tells the compiler to link to certain libraries in the Intel oneAPI Math Kernel Library (oneMKL). 
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "-mkl=cluster" 
-                        "-mkl"
-                        "-qmkl=cluster"
+                Fortran "-qmkl=cluster"
                         "-qmkl"     
             ) 
-            # Enables additional interprocedural optimizations for a single file compilation
-            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "-ip"  # Intel
-            )
     ENDIF ()
 
     ELSEIF(COMPILER_OPTIONS STREQUAL "GNU")
