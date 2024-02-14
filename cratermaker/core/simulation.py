@@ -7,6 +7,7 @@ import shutil
 from glob import glob
 import tempfile
 from typing import Any, Tuple, Type
+from numpy.typing import ArrayLike
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, save
@@ -90,7 +91,11 @@ class Simulation:
         self._current_age = 0.0
         self._elapsed_n1 = 0.0
         self._ejecta_truncation = ejecta_truncation
-        
+        self._smallest_crater = 0.0 # The smallest crater will be determined by the smallest face area
+        self._smallest_projectile = 0.0 # The smallest crater will be determined by the smallest face area
+        self._largest_crater = np.inf # The largest crater will be determined by the target body radius
+        self._largest_projectile = np.inf # The largest projectile will be determined by the target body radius
+         
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
         #  
@@ -172,23 +177,11 @@ class Simulation:
                             superdomain_scale_factor = rmax / crater.radius
                             break
                     kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-            self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir,  **kwargs)
+            self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir, rng=self.rng, **kwargs)
         elif isinstance(surf, Surface):
             self.surf = surf
         else:
             raise TypeError("surf must be an instance of Surface or None")        
-       
-        # Find the minimum and maximum possible crater diameter (will be roughly the area of the minimum face size)
-        self.smallest_crater = np.sqrt(self.surf['face_areas'].min().item() / np.pi) * 2
-        
-        # If this is a projectile-based production function, then we need to determine the smallest projectile that would at least
-        # produce the smallest crater. 
-        _, projectile = self.generate_crater(diameter=self.smallest_crater, angle=90.0, velocity=self.production.mean_velocity*10)
-        self.smallest_projectile = projectile.diameter
-                
-        self.largest_crater = self.target.radius * 2
-        _, projectile = self.generate_crater(diameter=self.largest_crater, angle=1.0, velocity=self.production.mean_velocity/10.0)
-        self.largest_projectile = projectile.diameter
        
         return
 
@@ -234,7 +227,36 @@ class Simulation:
             
         # return
         pass
+   
+    def get_smallest_diameter(self, 
+                              face_areas: ArrayLike | None = None, 
+                              from_projectile: bool = False) -> float:
+        """
+        Get the smallest possible crater or projectile be formed on the surface.
+        """
+        if face_areas is None:
+            face_areas = self.surf['face_areas'].values
+        else:
+            face_areas = np.asarray(face_areas)
+        smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2        
+        if from_projectile:
+            _, projectile = self.generate_crater(diameter=smallest_crater, angle=90.0, velocity=self.production.mean_velocity*10)
+            return projectile.diameter 
+        else:
+            return smallest_crater 
+        
     
+    def get_largest_diameter(self,
+                             from_projectile: bool = False) -> float:
+        """
+        Get the largest possible crater or projectile that can be formed on the surface.
+        """
+        largest_crater = self.target.radius * 2
+        if from_projectile:
+            _, projectile = self.generate_crater(diameter=largest_crater, angle=1.0, velocity=self.production.mean_velocity/10.0)
+            return projectile.diameter
+        else:
+            return largest_crater
 
     def generate_crater(self, 
                         **kwargs: Any
@@ -408,7 +430,6 @@ class Simulation:
             value to a corresponding reference age and use the production function for a given age.        
         """
 
-        _MAX_N_PER_INTERVAL = 100000
         if not hasattr(self, 'production'):
             raise RuntimeError("No production function defined for this simulation")
         elif not hasattr(self.production, 'generator_type'):
@@ -417,39 +438,78 @@ class Simulation:
             raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
        
         from_projectile = self.production.generator_type == 'projectile'
-        if from_projectile:
-            diameter_range = (self.smallest_projectile, self.largest_projectile)
-        else:
-            diameter_range = (self.smallest_crater, self.largest_crater)
-            
-        Nexpected = self.production.function(diameter=diameter_range[0], age=age, age_end=age_end, **kwargs) * self.surf.area.item()
+        Dmax = self.get_largest_diameter(from_projectile=from_projectile)
+        Dmin = self.get_smallest_diameter(from_projectile=from_projectile)
         
-        Nsubinterval = int(np.ceil(Nexpected / _MAX_N_PER_INTERVAL))
-        if Nsubinterval > 1:
-            age_subintervals, age_step = np.linspace(age, age_end, Nsubinterval, retstep=True)
-        else:
-            age_subintervals = [age]
-            if age_end is None:
-                age_step = -age
-            else:
-                age_step = age_end - age
-        
-        for age_subinterval in age_subintervals:
+        # Loop over each face in the mesh to build up a population of craters in this interval. This is done because faces may
+        # not all have the same surface area, the range of crater sizes that can be formed on each face may be different.
+        impact_diameters = []
+        impact_ages = []
+        impact_locations = []
+        face_areas = self.surf['face_areas'].values
+        min_area = face_areas.min()
+        n_face = face_areas.size
+        surface_area = self.surf.area.item() 
          
-            impacts_this_interval, impact_ages = self.production.sample(age=age_subinterval, 
-                                                                        age_end=age_subinterval+age_step, 
-                                                                        diameter_number=diameter_number, 
-                                                                        diameter_number_end=diameter_number_end, 
-                                                                        diameter_range=diameter_range,
-                                                                        area=self.surf.area.item(), 
-                                                                        **kwargs)
+
+        # Group surfaces into bins based on their area. All bins within a factor of 2 in surface area are grouped together.
+        max_bin_index = np.ceil(np.log2(face_areas.max() / min_area)).astype(int)
+        bins = {i: [] for i in range(max_bin_index + 1)}
         
-            if impacts_this_interval is not None:
-                if impacts_this_interval.size == 1:
-                    self.emplace_crater(diameter=impacts_this_interval, age=impact_ages, from_projectile=from_projectile)
-                else:
-                    for i, diameter in tqdm(enumerate(impacts_this_interval), total=len(impacts_this_interval)):
-                        self.emplace_crater(diameter=diameter, age=impact_ages[i], from_projectile=from_projectile)
+        for face_index, area in enumerate(face_areas):
+            bin_index = np.floor(np.log2(area / min_area)).astype(int)
+            bins[bin_index].append(face_index)        
+            
+        # Process each bin
+        for bin_index, face_indices in bins.items():
+            if not face_indices:
+                continue  # Skip empty bins
+            bin_areas = face_areas[face_indices]
+            total_bin_area = bin_areas.sum()
+            area_ratio = total_bin_area / surface_area 
+             
+            Dmin = self.get_smallest_diameter(bin_areas, from_projectile=from_projectile)
+            if diameter_number is not None:
+                diameter_number_local = (diameter_number[0], diameter_number[1] * area_ratio)
+            else:
+                diameter_number_local = None
+            if diameter_number_end is not None:
+                diameter_number_end_local = (diameter_number_end[0], diameter_number_end[1] * area_ratio)
+            else:
+                diameter_number_end_local = None
+        
+            diameters, ages= self.production.sample(age=age, 
+                                                    age_end=age_end, 
+                                                    diameter_number=diameter_number_local, 
+                                                    diameter_number_end=diameter_number_end_local, 
+                                                    diameter_range=(Dmin, Dmax),
+                                                    area=total_bin_area,
+                                                    **kwargs)
+            if diameters.size > 0:
+                impact_diameters.extend(diameters.tolist())
+                impact_ages.extend(ages.tolist())
+                
+                # Get the probability of impact onto any particular face then get the locations of the impacts
+                p = bin_areas / total_bin_area
+                locations = []
+                for i, d in enumerate(diameters): 
+                    face_index = self.rng.choice(face_indices, p=p)
+                    locations = self.surf.get_random_location_on_face(face_index)
+                    impact_locations.append(locations) 
+            
+        if len(impact_diameters) > 0: 
+            if len(impact_diameters) == 1:
+                self.emplace_crater(diameter=impact_diameters[0], age=impact_ages[0], location=impact_locations[0], from_projectile=from_projectile)
+            else:
+                # Sort the ages, diameters, and locations so that they are in order of decreasing age
+                sort_indices = np.argsort(impact_ages)[::-1]
+                impact_diameters = np.asarray(impact_diameters)[sort_indices]
+                impact_ages = np.asarray(impact_ages)[sort_indices] 
+                impact_locations = np.array(impact_locations, dtype=[('lon', 'float64'), ('lat', 'float64')])[sort_indices]
+                
+                for i, diameter in tqdm(enumerate(impact_diameters), total=len(impact_diameters)):
+                    location = impact_locations[i][0], impact_locations[i][1]
+                    self.emplace_crater(diameter=diameter, age=impact_ages[i], location=location, from_projectile=from_projectile)
         return 
     
     
@@ -630,7 +690,7 @@ class Simulation:
         
         # Validate arguments using the production function validator first 
         if 'diameter_range' not in kwargs:
-            kwargs['diameter_range'] = (self.smallest_crater, self.largest_crater)
+            kwargs['diameter_range'] = (self.get_smallest_diameter(), self.get_largest_diameter())
         if 'area' not in kwargs:
             kwargs['area'] = self.surf.area.item()
         kwargs  = self.production._validate_sample_args(**kwargs)
@@ -686,8 +746,9 @@ class Simulation:
                 if diameter_number_interval[1] <= 0:
                     raise ValueError("diameter_number_interval must be greater than zero")
                 ninterval = int(np.ceil((diameter_number[1] - diameter_number_end[1]) / diameter_number_interval[1]))
-                kwargs['diameter_number_interval'] = diameter_number_interval
-                kwargs['ninterval'] = ninterval
+                
+            kwargs['diameter_number_interval'] = diameter_number_interval
+            kwargs['ninterval'] = ninterval
                 
         kwargs['is_age_interval'] = is_age_interval
         
@@ -1147,10 +1208,15 @@ class Simulation:
     
     @smallest_crater.setter
     def smallest_crater(self, value):
-        if not isinstance(value, FloatLike):
+        if value is None:
+            self._smallest_crater = 0.0
+            return
+        elif not isinstance(value, FloatLike):
             raise TypeError("smallest_crater must be a scalar value")
-        if value <= 0:
-            raise ValueError("smallest_crater must be greater than zero")
+        elif value < 0:
+            raise ValueError("smallest_crater must be greater than or equal to zero")
+        elif self._largest_crater is not None and value > self._largest_crater:
+            raise ValueError("smallest_crater must be less than or equal to largest_crater")
         self._smallest_crater = np.float64(value)
         
     @property
@@ -1162,12 +1228,16 @@ class Simulation:
     
     @largest_crater.setter
     def largest_crater(self, value):
-        if not isinstance(value, FloatLike):
+        if value is None or np.isinf(value):
+            self._largest_crater = np.inf
+            return
+        elif not isinstance(value, FloatLike):
             raise TypeError("largest_crater must be a scalar value")
-        if value <= 0:
+        elif value <= 0:
             raise ValueError("largest_crater must be greater than zero")
+        elif self._smallest_crater is not None and value < self._smallest_crater:
+            raise ValueError("largest_crater must be greater than or equal to smallest_crater")
         self._largest_crater = np.float64(value)
-       
        
     @property
     def smallest_projectile(self):
@@ -1178,10 +1248,15 @@ class Simulation:
     
     @smallest_projectile.setter
     def smallest_projectile(self, value):
-        if not isinstance(value, FloatLike):
+        if value is None:
+            self._smallest_projectile = 0.0
+            return
+        elif not isinstance(value, FloatLike):
             raise TypeError("smallest_projectile must be a scalar value")
-        if value <= 0:
-            raise ValueError("smallest_projectile must be greater than zero")
+        elif value < 0:
+            raise ValueError("smallest_projectile must be greater or equal to zero")
+        elif self._largest_projectile is not None and value > self._largest_projectile:
+            raise ValueError("smallest_projectile must be less than or equal to largest_projectile")  
         self._smallest_projectile = np.float64(value)
         
     @property
@@ -1193,9 +1268,14 @@ class Simulation:
     
     @largest_projectile.setter
     def largest_projectile(self, value):
-        if not isinstance(value, FloatLike):
+        if value is None or np.isinf(value):
+            self._largest_projectile = np.inf
+            return
+        elif not isinstance(value, FloatLike):
             raise TypeError("largest_projectile must be a scalar value")
-        if value <= 0:
+        elif value <= 0:
             raise ValueError("largest_projectile must be greater than zero")
+        elif self._smallest_projectile is not None and value < self._smallest_projectile:
+            raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
         self._largest_projectile = np.float64(value)
          

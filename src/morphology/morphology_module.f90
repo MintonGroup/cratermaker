@@ -13,7 +13,7 @@ module morphology_module
    use bind_module
 
    interface
-      module pure subroutine morphology_profile(radial_distance, reference_elevation, diameter, &
+      pure module subroutine morphology_profile(radial_distance, reference_elevation, diameter, &
          floordepth, floordiam, rimheight, ejrim, RIMDROP, elevation)
          implicit none
          real(DP),dimension(:), intent(in) :: radial_distance, reference_elevation

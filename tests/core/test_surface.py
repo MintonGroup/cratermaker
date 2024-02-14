@@ -202,6 +202,18 @@ class TestSurface(unittest.TestCase):
 
         # Compare the expected and calculated bearings
         self.assertAlmostEqual(calculated_bearing, expected_bearing, places=1)
+        
+    def test_get_random_on_face(self):
+        # Tests that the random location is within the face we expect
+        surf = Surface.initialize(pix=self.pix*2, target=self.target, reset_surface=True)
+        n_per_face = 10
+        for i in surf.n_face:
+            original_face_index = i.values.item()
+            for j in range(n_per_face):
+                location = surf.get_random_location_on_face(original_face_index)
+                _, new_face_index = surf.find_nearest_index(location)
+                self.assertEqual(original_face_index, new_face_index) 
+            
 
 
     #TODO: Fix this test case since the method waws
