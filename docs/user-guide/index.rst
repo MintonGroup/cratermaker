@@ -2,7 +2,7 @@
 User Guide
 ###########
 
-Like Cratermaker itself, this user guide is under development. More information will be added over time and as Cratermaker evolves.
+Like Cratermaker itself, this user guide is under development.. More information will be added over time and as Cratermaker evolves.
 
 ###########################
 Using the Production Module
