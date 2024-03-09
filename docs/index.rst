@@ -72,3 +72,4 @@ Simulate the evolution of a landscape dominated by impact bombardment.
    :caption: Community
 
    GitHub discussions <https://github.com/profminton/cratermaker/discussions>
+   Publications <publications>
