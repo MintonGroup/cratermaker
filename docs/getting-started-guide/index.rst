@@ -61,10 +61,9 @@ Here’s a simple example demonstrating how to initialize a simulation for the M
 
 This example uses the default Moon target and emplaces a crater of 100 km in diameter. The ``emplace_crater`` method handles the complexities of crater formation, including the selection of a random location and the necessary calculations to model the impact.
 
-Mesh Generation
-===============
+.. note::
 
-Upon the first run in a given directory, Cratermaker generates a surface mesh using Jigsaw, which can take several minutes at the default resolution. The generated mesh is stored in the ``surface_data`` directory for quick loading in subsequent runs.
+      The first time you run a simulation in a given directory, Cratermaker generates a surface mesh using Jigsaw, which can take several minutes at the default resolution. The generated mesh is stored in the ``surface_data`` directory for quick loading in subsequent runs, provided that you don't change the grid parameters. 
 
 
 #####################################################################
