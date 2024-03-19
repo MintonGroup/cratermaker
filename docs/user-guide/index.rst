@@ -308,3 +308,235 @@ Example: Sample a power law and lunar Neukum Production Function
 .. toctree::
    :maxdepth: 2
    :hidden:
+..
+
+###########################
+Using the Materials Module
+###########################
+The Material class represents the method for speciying a material type in a crater simulation. The properties defined in 
+a Material object are used in crater scaling calculations. 
+ 
+
+Example: Creating a Material 
+==================================
+
+.. code-block:: python
+
+   import cratermaker 
+   water = cratermaker.Material(name="Water") 
+   
+..
+
+
+
+###########################
+Using the Target Module
+###########################
+The Target class implements a method for representing a target body in a crater simulation. There are a list of available
+target objects that may be specified. This data is stored within the catalogue attribute of the target class can be easily
+accessed as an attribute of the target class. 
+
+
+The Target class
+====================
+
+The :ref:`api-Target` class takes the following parameter: 
+- **name**: string , input as name. See :ref:`api-Target'.  
+
+The :ref:`api-Target` class has the following attributes:
+
+- **Catalogue**: Mars, represented by the ``target`` parameter. Other bodies can be specified. See :ref:`api-Target`.
+- **name** :  The ``name`` attribute gives the name of the target body. 
+- **diameter**: The ``Diameter`` is specfic to the ``target`` that is chosen. 
+- **escape velocity**: The escape velocity is determined by the radius and gravity of the target object.
+- **gravity**: The ``gravity`` is the surface gravity of the target object and is defined by the target that is chosen. 
+- **material_name** : The ``material_name`` specifies the material composition of the target body.
+- **transition_scale_type** : The type of simple-to-complex transition scaling used for the surface, either 'silicate' or 'ice'.
+
+
+Example: Specifying a Target body 
+==================================
+
+.. code-block:: python
+
+   import cratermaker 
+   mars = cratermaker.Target(name="Mars") 
+   scale_mars = cratermaker.Scale(mars)
+..
+
+Example:  
+==================================
+
+
+
+
+
+###########################
+Using the Scale Module
+###########################
+
+The Scale class implements a method for computing scaling relationships between impactors and craters 
+This module modeled after the work in (source), to convert between  projectile properties to crater properties. 
+In addition, taking into account crater morphology based on size and target properties.
+The material properties as well as scaling relationships between impactor and target were adopted from work done done 
+(Melosh, 1989) , (Pike, 1980),  (Croft 1985), (Schenk et al. 2004)
+(Richardson 2009), (Holsapple 1993), (Kraus, 2011). 
+
+
+The Scale class
+====================
+
+The :ref:`api-Scale` class has the following parameters:
+
+- **Target**: Mars, represented by the ``target`` parameter. Other bodies can be specified. See :ref:`api-Target`.
+- **Material**: (default) value of None. See :ref:`api-Material`.
+- **Material_name**: (default) value of None. Optional input of ``material`` parameter. See :ref:`api-Material`.
+- **rng**: (default) value of None. Optional random number generator. 
+
+
+Example: Initiating Scale class 
+==================================
+
+For this example, In order to initiate the Scale class, first an instance of the ``target class`` must be initiated.
+ we are going to use :func:`cratermaker.Target()` to implement the necessary imput parameter for :func:`cratermaker.Scale()`. We will do
+ the following example for Mars. 
+
+.. code-block:: python
+
+   import cratermaker 
+   mars = cratermaker.Target(name="Mars") 
+   scale_mars = cratermaker.Scale(mars)
+..
+
+Example: Accessing attributes of the Scale Class :
+========================================================================================
+
+To see the Target options for the Scale class 
+
+.. code-block:: python
+
+   print(Target.catalogue)
+   print(scale_mars.transition_diameter) #Gives the simple to complex transition diameter , See Holsapple (1993) eq. 28
+   print(scale_mars.transition_nominal)
+   print(scale_mars.simple_enlargement_factor) 
+   print(scale_mars.complex_enlargement_factor)
+   print(scale_mars.final_exp)
+.. 
+
+
+Example : Visualizing relationship between projectile diameter and crater diameter 
+========================================================================================
+
+.. code-block:: python
+
+   import numpy as np
+   import matplotlib.pyplot as plt
+   import cratermaker 
+   
+   def generate_projectile_crater_data(num_samples=1000, Dlo=1e1, Dhi=50e3):
+    # Initialize the simulation
+    sim = cratermaker.Simulation(pix=24e3)
+
+    projectile_diameters = np.logspace(np.log10(Dlo), np.log10(Dhi), num_samples)
+
+    # Arrays to store projectile and crater diameters
+    final_diameters = np.zeros(num_samples)
+    transient_diameters = np.zeros(num_samples)
+
+    # Generate projectiles and corresponding craters
+    for i, diameter in enumerate(projectile_diameters):
+        projectile, crater = sim.generate_projectile(diameter=diameter)
+        final_diameters[i] = crater.diameter
+        transient_diameters[i] = crater.transient_diameter
+
+    return projectile_diameters, final_diameters, transient_diameters
+
+..
+
+.. code-block:: python
+
+   def plot_diameters(projectile_diameters, final_diameters, transient_diameters):
+      plt.figure(figsize=(10, 6))
+      plt.scatter(projectile_diameters*1e-3, final_diameters*1e-3, color='blue', alpha=0.5, label="Final")
+      plt.scatter(projectile_diameters*1e-3, transient_diameters*1e-3, color='orange', alpha=0.5, label="Transient")
+      plt.xscale('log')
+      plt.yscale('log')
+      plt.xlabel('Projectile Diameter (km)')
+      plt.ylabel('Crater Diameter (km)')
+      plt.title('Projectile Diameter vs Crater Diameter')
+      plt.grid(True)
+      plt.legend(loc="lower right")
+      plt.show()
+.. image:: ../_static/scale1.png
+   :alt: .
+   :scale: 50 %
+   :align: center
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+..
+
+.. code-block:: python
+
+   def plot_transcale(final_diameters, transient_diameters):
+      plt.figure(figsize=(10, 6))
+      plt.scatter(final_diameters*1e-3, final_diameters/transient_diameters, color='blue', alpha=0.5, label="Final")
+      plt.xscale('log')
+      plt.yscale('log')
+      plt.xlabel('Final Diameter (km)')
+      plt.ylabel('Final Diameter / Transient Diameter')
+      plt.title('Final vs Transient Crater Diameter')
+      plt.grid(True)
+      plt.show()
+      
+.. image:: ../_static/scale2.png
+   :alt: .
+   :scale: 50 %
+   :align: center
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+.. 
+
+.. code-block:: python
+
+   def plot_efficiency(projectile_diameters, final_diameters)
+    plt.figure(figsize=(10, 6))
+    plt.scatter(projectile_diameters*1e-3, final_diameters/projectile_diameters, color='blue', alpha=0.5, label="Final")
+    plt.xscale('log')
+    plt.xlabel('Projectile Diameter (km)')
+    plt.ylabel('Final Diameter / Projectile Diameter')
+    plt.title('Cratering Efficiency')
+    plt.grid(True)
+    plt.show()  
+.. image:: ../_static/scale3.png
+   :alt: .
+   :scale: 50 %
+   :align: center
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+..
+.. 
+
+.. code-block:: python
+
+   if __name__ == "__main__":
+    projectile_diameters, final_diameters, transient_diameters = generate_projectile_crater_data()
+    plot_diameters(projectile_diameters, final_diameters, transient_diameters)
+    plot_transcale(final_diameters, transient_diameters)
+    plot_efficiency(projectile_diameters, final_diameters)
+
+
+   
+
+
+
+
+
+
+
+
