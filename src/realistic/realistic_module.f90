@@ -12,68 +12,6 @@ module realistic
    use bind
 
    interface
-      pure module elemental subroutine realistic_perlin_noise(xx, yy, zz, noise, dx, dy, dz)
-         implicit none
-         real(DP),intent(in) :: xx,yy,zz
-         real(DP),intent(out) :: noise
-         real(DP),intent(out),optional :: dx, dy, dz
-      end subroutine realistic_perlin_noise
-
-
-      pure module function realistic_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
-         implicit none
-         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
-         integer(I4B), intent(in) :: num_octaves
-         real(DP), dimension(:,:),intent(in) :: anchor
-         real(DP) :: noise
-      end function realistic_perlin_turbulence
-   
-   
-      pure module function realistic_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
-         implicit none
-         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
-         integer(I4B), intent(in) :: num_octaves
-         real(DP),dimension(:,:),intent(in) :: anchor
-         real(DP) :: noise
-      end function realistic_perlin_billowedNoise
-         
-         
-      pure module function realistic_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
-         implicit none
-         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers,slope
-         integer(I4B), intent(in) :: num_octaves
-         real(DP),dimension(:,:),intent(in) :: anchor
-         real(DP) :: noise
-      end function realistic_perlin_plawNoise
-         
-         
-      pure module function realistic_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
-         implicit none
-         real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
-         integer(I4B), intent(in) :: num_octaves
-         real(DP),dimension(:,:),intent(in) :: anchor
-         real(DP) :: noise
-      end function realistic_perlin_ridgedNoise
-         
-         
-      pure module function realistic_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
-         implicit none
-         real(DP), intent(in) ::  x, y, z, lacunarity, gain, warp
-         integer(I4B), intent(in) :: num_octaves
-         real(DP),dimension(:,:), intent(in) :: anchor
-         real(DP) :: noise
-      end function realistic_perlin_swissTurbulence
-      
-         
-      pure module function realistic_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
-               num_octaves, anchor) result(noise)
-         implicit none
-         real(DP),intent(in) :: x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
-         integer(I4B),intent(in) :: num_octaves
-         real(DP), dimension(:,:), intent(in) :: anchor
-         real(DP) :: noise
-      end function realistic_perlin_jordanTurbulence
-
       pure module function realistic_perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
                                             lacunarity, noise_height, pers, slope, warp, warp0) result(noise)
          implicit none
@@ -97,8 +35,6 @@ module realistic
          real(DP), dimension(:), intent(out) :: noise
       end subroutine realistic_perlin_noise_all
 
-
-         
    end interface
 
 contains

@@ -13,11 +13,19 @@ module ejecta
  
     interface
         pure module subroutine ejecta_profile(radial_distance, diameter, ejrim, elevation)
-        implicit none
-        real(DP),dimension(:), intent(in) :: radial_distance
-        real(DP), intent(in) :: diameter, ejrim
-        real(DP), dimension(:), intent(out) :: elevation
+            implicit none
+            real(DP),dimension(:), intent(in) :: radial_distance
+            real(DP), intent(in) :: diameter, ejrim
+            real(DP), dimension(:), intent(out) :: elevation
         end subroutine ejecta_profile
+
+        module subroutine ejecta_ray_pattern(radial_distance, initial_bearing, crater_radius, ejecta_truncation, ejecta_thickness)
+            implicit none
+            real(DP), dimension(:), intent(in) :: radial_distance, initial_bearing
+            real(DP), intent(in) :: crater_radius, ejecta_truncation
+            real(DP), dimension(:), intent(out) :: ejecta_thickness
+        end subroutine ejecta_ray_pattern
+
     end interface
 
 contains
@@ -49,4 +57,37 @@ contains
        return
     end subroutine bind_ejecta_profile
 
+    subroutine bind_ejecta_ray_pattern(c_radial_distance, c_initial_bearing, num_elements, crater_radius, ejecta_truncation, &
+                                        c_ejecta_thickness) bind(c)
+      ! Arguments
+      type(c_ptr), intent(in), value :: c_radial_distance, c_initial_bearing
+      integer(I4B), intent(in), value :: num_elements
+      real(DP), intent(in), value :: crater_radius, ejecta_truncation
+      type(c_ptr), intent(in), value :: c_ejecta_thickness
+      ! Internals
+      real(DP), dimension(:), pointer :: radial_distance, initial_bearing, ejecta_thickness
+
+      if (c_associated(c_radial_distance)) then
+         call c_f_pointer(c_radial_distance, radial_distance, shape=[num_elements]) 
+      else
+         return
+      end if
+
+    if (c_associated(c_initial_bearing)) then
+         call c_f_pointer(c_initial_bearing, initial_bearing, shape=[num_elements]) 
+      else
+         return
+      end if
+
+      allocate(ejecta_thickness(num_elements))
+      if (c_associated(c_ejecta_thickness)) then
+         call c_f_pointer(c_ejecta_thickness, ejecta_thickness,shape=[num_elements]) 
+      else
+         return
+      end if
+
+      call ejecta_ray_pattern(radial_distance, initial_bearing, crater_radius, ejecta_truncation, ejecta_thickness)
+
+      return
+   end subroutine bind_ejecta_ray_pattern
 end module ejecta

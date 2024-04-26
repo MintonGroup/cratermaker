@@ -10,13 +10,13 @@
 !! The implementations for the Perlin noise procedures.
 submodule (ejecta) s_ejecta
     use globals
+    integer(I4B), parameter :: Nraymax = 5
 contains
 
     pure module subroutine ejecta_profile(radial_distance, diameter, ejrim, elevation)
         !! author: David A. Minton
         !!
         !! Calculate the elevation of a crater as a function of distance from the center.
-        !!
         implicit none
         ! Arguments
         real(DP),dimension(:), intent(in) :: radial_distance  
@@ -60,5 +60,146 @@ contains
 
         end function ejecta_profile_func
 
-   end subroutine ejecta_profile
+    end subroutine ejecta_profile
+
+
+    module subroutine ejecta_ray_pattern(radial_distance, initial_bearing, crater_radius, ejecta_truncation, ejecta_thickness)
+        !! author: David A. Minton
+        !!
+        !! Calculate the spatial distribution of ejecta in distal rays given a radial distance and initial bearing array.
+        implicit none
+        ! Arguments
+        real(DP), dimension(:), intent(in) :: radial_distance
+            !! Radial distance from the crater center in meters. 
+        real(DP), dimension(:), intent(in) :: initial_bearing
+            !! The initial bearing of the ray in radians.
+        real(DP), intent(in) :: crater_radius
+            !! The final crater radius in meters.
+        real(DP), intent(in) :: ejecta_truncation
+            !! The distance relative to the crater radius at which to truncate the ejecta pattern 
+        real(DP), dimension(:), intent(out) :: ejecta_thickness
+            !! The thickness of the ejecta layer at each radial_distance, initial_bearing pair
+
+        ! Internals
+        real(DP) :: l1, rmax, rmin, rn, theta
+        real(DP),dimension(Nraymax) :: thetari
+        integer(I4B) :: i, N
+
+        N = size(radial_distance)
+        if (size(initial_bearing) /= N) then
+            print *, "Error: initial_bearing and radial_distance arrays must be the same size."
+            stop
+        end if
+
+        l1 = (5.32_DP*(crater_radius/1000)**1.27)/(crater_radius/1000)
+        rmax = ejecta_truncation
+        rmin = 2.348_DP * crater_radius**(0.006_DP)  ! The continuous ejecta blanket thickness relative to the crater radius
+
+        do concurrent (i = 1:Nraymax)
+            thetari(i) = 2 * pi * i / Nraymax
+        end do
+        call shuffle(thetari) ! randomize the ray pattern
+        call random_number(rn) ! randomize the ray orientation
+
+        do concurrent (i = 1:N)
+            theta = mod(initial_bearing(i) + rn * 2 * PI, 2 * PI)
+            ejecta_thickness(i) = ejecta_ray_pattern_func(theta,radial_distance(i),rmin,rmax,thetari,l1)
+        end do
+
+        contains
+            subroutine shuffle(a)
+                real(DP), intent(inout) :: a(:)
+                integer :: i, randpos
+                real(DP) :: r,temp
+             
+                do i = size(a), 2, -1
+                    call random_number(r)
+                    randpos = int(r * i) + 1
+                    temp = a(randpos)
+                    a(randpos) = a(i)
+                    a(i) = temp
+                end do
+                return
+           end subroutine shuffle
+
+    end subroutine ejecta_ray_pattern
+
+
+    pure function ejecta_ray_pattern_func(theta,r,rmin,rmax,thetari,l1) result(ans)
+        !! author: David A. Minton
+        !!
+        !! Calculate the spatial distribution of ejecta in distal rays.
+        implicit none
+        ! Arguments
+        real(DP),intent(in) :: r,rmin,rmax,theta
+        real(DP),dimension(:),intent(in) :: thetari
+        real(DP),intent(in) :: l1
+        ! Result
+        real(DP) :: ans
+        ! Internals
+        real(DP), parameter :: fpeak = 8000.0_DP ! narrow ray: rw0 propto 1/4
+        real(DP), parameter :: rayp = 2.0_DP 
+        integer(I4B), parameter :: rayq = 4
+        real(DP), parameter :: rayfmult = (5)**(-4.0_DP / (1.2_DP))
+        real(DP) :: a,c
+        real(DP) :: thetar,rw,rw0,rw1
+        real(DP) :: f,rtrans,length,rpeak,minray,FF
+        integer(I4B) :: n,i
+        real(DP) :: tmp
+     
+        minray = l1
+     
+        if (r > rmax) then
+            ans = 0._DP
+        else if (r < 1.0_DP) then
+            ans = 1.0_DP
+        else
+            rw0 = rmin * pi / Nraymax / 2
+            rw1 = 2 * pi / Nraymax
+            rw = rw0 * (1._DP - (1.0_DP - rw1 / rw0) * exp(1._DP - (r / rmin)**2)) ! equation 40 Minton et al. 2019
+            tmp = (Nraymax**rayp - (Nraymax**rayp - 1) * log(r/minray) / log(rmax/minray))
+            if (tmp < 0.0_DP) then
+               n = Nraymax ! "Nrays" in Minton et al. (2019)
+            else ! Exponential decay of ray number with distance
+               n = max(min(floor((Nraymax**rayp - (Nraymax**rayp - 1) * log(r/minray) / log(rmax/minray))**(1._DP/rayp)),Nraymax),1)
+            end if
+            ans = 0._DP
+            rtrans = r - 1.0_DP
+            c = rw / r
+            a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) !equation 39 Minton et al., 2019
+            do i = 1,Nraymax
+                length = minray * exp(log(rmax/minray) * ((Nraymax - i + 1)**rayp - 1.0_DP) / ((Nraymax**rayp - 1)))
+                rpeak = (length - 1.0_DP) * 0.5_DP
+                FF = 1.0_DP
+                if (r > length) then
+                    cycle ! Don't add any material beyond the length of the ray
+                else
+                    f = a 
+                end if
+                tmp = ejecta_ray_func(theta,thetari(i),r,n,rw)
+                if (tmp > epsilon(ans) .and. (f/a > epsilon(ans))) ans = ans + tmp * f / a  ! Ensure that we don't get an underflow
+           end do
+        end if 
+    end function ejecta_ray_pattern_func    
+
+    pure function ejecta_ray_func(theta,thetar,r,n,w) result(ans)
+        implicit none
+        real(DP) :: ans
+        real(DP),intent(in) :: theta,thetar,r,w
+        integer(I4B),intent(in) :: n
+        real(DP) :: thetap,thetapp,a,b,c,dtheta,logval
+    
+        c = w / r
+        b = thetar 
+        dtheta = min(2*pi - abs(theta - b),abs(theta - b))
+        logval = -dtheta**2 / (2 * c**2)
+        if (logval < LOGVSMALL) then
+            ans = 0.0_DP
+        else
+            a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) !this is the intensity function
+            ans = a * exp(logval)
+        end if
+    
+        return
+    end function ejecta_ray_func
 end submodule s_ejecta

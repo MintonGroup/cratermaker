@@ -36,5 +36,9 @@ module globals
     real(DP), parameter :: THIRD    = 1.0_DP / 3.0_DP 
     real(DP), parameter :: SIXTH    = 1.0_DP / 6.0_DP 
     real(DP), parameter :: DEG2RAD  = PI / 180.0_DP 
-    
+
+    real(DP),parameter :: VSMALL  = 10*tiny(1._DP)    ! Very small number
+    real(DP),parameter :: LOGVSMALL = log(VSMALL)  ! log of a very small number
+    real(DP),parameter :: VBIG    = huge(1._DP)    ! Very big number
+    real(DP),parameter :: SMALLFAC = 1e-5_DP       ! Smallest unit of measurement proportional to pixel size   
 end module globals
