@@ -21,7 +21,7 @@ from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils.montecarlo import get_random_location_on_face
 import warnings
-from ..cython.perlin import apply_noise
+from ..fortran_bindings.perlin import apply_noise
 from abc import ABC, abstractmethod
 
 # Define valid grid types

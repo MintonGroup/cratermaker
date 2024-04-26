@@ -8,7 +8,7 @@
 !cratermaker/plugins/
 
 !cratermaker/utils/
-!cratermaker/cython/
+!cratermaker/fortran_bindings/
 !cratermaker/**.py
 !cratermaker/*/**.py
 !cratermaker/*/**.pyx
@@ -22,7 +22,7 @@
 !tests/
 !tests/core/
 !tests/utils/
-!tests/cython/
+!tests/fortran_bindings/
 !tests/*/**.py
 !.gitignore
 !CMakeLists.txt

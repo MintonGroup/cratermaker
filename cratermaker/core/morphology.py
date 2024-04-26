@@ -10,7 +10,7 @@ from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
 from .surface import Surface
 from .target import Target
-from ..cython import morphology
+from ..fortran_bindings import morphology
 
 RIMDROP = 4.20
 
