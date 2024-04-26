@@ -336,13 +336,15 @@ class Scale():
             simple_complex_exp = -1.0303 
             simple_complex_mean = 2*16533.8 
             simple_complex_std = 0.04
+            print('here 1')
         elif self.target.transition_scale_type == "ice":
             simple_complex_exp = -1.22486
             simple_complex_mean = 2*3081.39
             simple_complex_std = 0.04
+            print('here2')
         
         # The nominal value will be used for determining the range of the "transitional" morphology type
-        transition_nominal= simple_complex_mean * self.target.gravity**simple_complex_exp
+        transition_nominal= simple_complex_mean * self.target.gravity**simple_complex_exp   
         
         # Draw from a truncated normal distribution for each component of the model
         simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)
