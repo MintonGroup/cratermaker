@@ -9,7 +9,7 @@
 
 !! Type definitions and global parameters for Cratermaker project. All types are defined using ISO_C_BINDING types to ensure that
 !! the types are compatible with the Cython interface.
-module globals_module
+module globals
     !! author: David A. Minton
     !!
     !! Basic parameters, definitions, and global type definitions used throughout the Cratermaker project
@@ -37,4 +37,4 @@ module globals_module
     real(DP), parameter :: SIXTH    = 1.0_DP / 6.0_DP 
     real(DP), parameter :: DEG2RAD  = PI / 180.0_DP 
     
-end module globals_module
+end module globals
