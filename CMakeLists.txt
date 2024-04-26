@@ -43,7 +43,7 @@ ELSE()
     OPTION(USE_SIMD "Use SIMD vectorization" ON)
     OPTION(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
-    SET(CYTHON_SRC "${CMAKE_SOURCE_DIR}/cratermaker/cython")
+    SET(FORTRAN_BINDINGS_SRC "${CMAKE_SOURCE_DIR}/cratermaker/fortran_bindings")
     SET(SRC "${CMAKE_SOURCE_DIR}/src")
     INCLUDE(GNUInstallDirs)
     IF (SKBUILD)
@@ -51,7 +51,7 @@ ELSE()
         SET(INSTALL_BINDIR ${SKBUILD_SCRIPTS_DIR}) 
         SET(INSTALL_LIBDIR ${SKBUILD_DATA_DIR}/lib) 
         SET(INSTALL_INCLUDEDIR ${SKBUILD_HEADERS_DIR}) 
-        SET(INSTALL_CYTHON ${INSTALL_PREFIX}/cython)
+        SET(INSTALL_FORTRAN_BINDINGS ${INSTALL_PREFIX}/fortran_bindings)
         IF (APPLE)
             SET(CMAKE_INSTALL_RPATH "@loader_path/../lib")
         ELSEIF (LINUX)
@@ -62,7 +62,7 @@ ELSE()
         SET(INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
         SET(INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
         SET(INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR})
-        SET(INSTALL_CYTHON ${INSTALL_LIBDIR})
+        SET(INSTALL_FORTRAN_BINDINGS ${INSTALL_LIBDIR})
     ENDIF ()
 
     # Have the .mod files placed in the include folder
@@ -92,7 +92,7 @@ ELSE()
 
     # Make sure paths are correct for Unix or Windows style
     FILE(TO_CMAKE_PATH ${SRC} SRC)
-    FILE(TO_CMAKE_PATH ${CYTHON_SRC} CYTHON_SRC)
+    FILE(TO_CMAKE_PATH ${FORTRAN_BINDINGS_SRC} FORTRAN_BINDINGS_SRC)
 
     # Set the name of the cratermaker library
     SET(CRATERMAKER_LIBRARY "${SKBUILD_PROJECT_NAME}")
@@ -105,23 +105,9 @@ ELSE()
 
     INCLUDE(SetCratermakerFlags) 
 
-    # # First build the external dependencies
-    # INCLUDE(externalproject)
-
-    # ExternalProject_Add(jigsaw
-    #     SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/jigsaw
-    #     BINARY_DIR ${CMAKE_BINARY_DIR}/jigsaw-build
-    #     CMAKE_ARGS 
-    #         -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}
-    #         -DCMAKE_INSTALL_BINDIR=${INSTALL_BINDIR}
-    #         -DCMAKE_INSTALL_LIBDIR=${INSTALL_LIBDIR}
-    #         -DCMAKE_BUILD_TYPE=Release
-    #     BUILD_ALWAYS 1
-    # )
-
     # Compile the project source code
     ADD_SUBDIRECTORY(${SRC}) 
-    ADD_SUBDIRECTORY(${CYTHON_SRC})
+    ADD_SUBDIRECTORY(${FORTRAN_BINDINGS_SRC})
 
 ENDIF(DEFINED ENV{DOC_BUILD})
 

@@ -1,6 +1,5 @@
 import numpy as np
 from numpy.random import Generator
-from numpy.typing import ArrayLike
 from typing import Type, Any
 from .target import Target
 from .scale import Scale 
@@ -8,7 +7,6 @@ from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..utils.custom_types import FloatLike, PairOfFloats
 from .morphology import Morphology
-from .production import Production
 from abc import ABC, abstractmethod
 
 class Impact(ABC):
