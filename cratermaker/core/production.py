@@ -6,7 +6,6 @@ from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import R_to_CSFD
 from numpy.typing import ArrayLike
 from typing import Union, Sequence, Tuple, Any
-import warnings
 
 class Production():
     """

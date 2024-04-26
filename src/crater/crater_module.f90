@@ -8,22 +8,22 @@
 ! If not, see: https://www.gnu.org/licenses. 
 
 !! The interfaces for the Perlin noise routines.
-module morphology_module
-   use globals_module
-   use bind_module
+module crater
+   use globals
+   use bind
 
    interface
-      pure module subroutine morphology_profile(radial_distance, reference_elevation, diameter, &
+      pure module subroutine crater_profile(radial_distance, reference_elevation, diameter, &
          floordepth, floordiam, rimheight, ejrim, RIMDROP, elevation)
          implicit none
          real(DP),dimension(:), intent(in) :: radial_distance, reference_elevation
          real(DP), intent(in) :: diameter, floordepth, floordiam, rimheight, ejrim, RIMDROP
          real(DP), dimension(:), intent(out) :: elevation
-      end subroutine morphology_profile
+      end subroutine crater_profile
    end interface
 
 contains
-   subroutine bind_morphology_profile(c_radial_distance, c_reference_elevation, num_elements, diameter, &
+   subroutine bind_crater_profile(c_radial_distance, c_reference_elevation, num_elements, diameter, &
                                              floordepth, floordiam, rimheight, ejrim, RIMDROP, c_elevation)  &
                                              bind(C)
       ! Arguments
@@ -54,9 +54,9 @@ contains
          return
       end if
 
-      call morphology_profile(radial_distance, reference_elevation, diameter, floordepth, &
+      call crater_profile(radial_distance, reference_elevation, diameter, floordepth, &
                               floordiam, rimheight, ejrim, RIMDROP, elevation)
       return
-   end subroutine bind_morphology_profile
+   end subroutine bind_crater_profile
 
-end module morphology_module
+end module crater

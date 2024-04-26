@@ -560,11 +560,6 @@ IF (CMAKE_BUILD_TYPE STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE STREQUAL "PROFILE")
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 Fortran "-fma"  # Intel
             )
-            # Tells the compiler to link to certain libraries in the Intel oneAPI Math Kernel Library (oneMKL). 
-            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                Fortran "-qmkl=cluster"
-                        "-qmkl"     
-            ) 
     ENDIF ()
 
     ELSEIF(COMPILER_OPTIONS STREQUAL "GNU")

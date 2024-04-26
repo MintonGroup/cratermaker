@@ -7,7 +7,6 @@ from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
 from ..utils.general_utils import set_properties, create_catalogue, check_properties
 
-
 class Material:
     """
     Represents the material properties relevant to the crater simulation.

@@ -1,1 +1,0 @@
-void bind_morphology_profile(double *r, double *reference_elevation, int num_elements, double diameter, double floordepth, double floordiam, double rimheight, double ejrim, double RIMDROP, double *elevation);
