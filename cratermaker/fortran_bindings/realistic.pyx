@@ -4,7 +4,7 @@ cimport numpy as cnp
 import numpy as np
 from libc.stdlib cimport malloc, free
 
-cdef extern from "perlin.h":
+cdef extern from "realistic.h":
     ctypedef struct PerlinArguments:
         double damp
         double damp0
@@ -19,9 +19,9 @@ cdef extern from "perlin.h":
         double warp
         double warp0
 
-    double bind_perlin_noise_one(const char *model, double x, double y, double z, int num_octaves, double *anchor, double damp, double damp0, double damp_scale, double freq, double gain, double gain0, double lacunarity, double noise_height, double pers, double slope, double warp, double warp0)
+    double bind_realistic_perlin_noise_one(const char *model, double x, double y, double z, int num_octaves, double *anchor, double damp, double damp0, double damp_scale, double freq, double gain, double gain0, double lacunarity, double noise_height, double pers, double slope, double warp, double warp0)
 
-    void bind_perlin_noise_all(const char *model, double *x, double *y, double *z, int num_elements, int num_octaves, double *anchor, double damp, double damp0, double damp_scale, double freq, double gain, double gain0, double lacunarity, double noise_height, double pers, double slope, double warp, double warp0, double *noise)
+    void bind_realistic_perlin_noise_all(const char *model, double *x, double *y, double *z, int num_elements, int num_octaves, double *anchor, double damp, double damp0, double damp_scale, double freq, double gain, double gain0, double lacunarity, double noise_height, double pers, double slope, double warp, double warp0, double *noise)
 
 cdef void _to_fortran_2D_double_array(cnp.ndarray[cnp.float64_t, ndim=2] src, double* dest, int rows, int cols):
     """
@@ -133,7 +133,7 @@ def apply_noise(str model,
             for arg in required_kwargs[model]:
                 kw[arg] = kwargs[arg]
 
-            bind_perlin_noise_all(model, &x[0], &y[0], &z[0], num_elements, num_octaves, f_anchor, kw['damp'], kw['damp0'], kw['damp_scale'], kw['freq'], kw['gain'], kw['gain0'], kw['lacunarity'], kw['noise_height'], kw['pers'], kw['slope'], kw['warp'], kw['warp0'], &noise[0] )
+            bind_realistic_perlin_noise_all(model, &x[0], &y[0], &z[0], num_elements, num_octaves, f_anchor, kw['damp'], kw['damp0'], kw['damp_scale'], kw['freq'], kw['gain'], kw['gain0'], kw['lacunarity'], kw['noise_height'], kw['pers'], kw['slope'], kw['warp'], kw['warp0'], &noise[0] )
         else:
             missing_args = set(required_kwargs[model]) - kwargs.keys()
             raise ValueError(f"The {model} model requires the following missing keywords: {', '.join(missing_args)}")

@@ -1,16 +1,12 @@
 import numpy as np
 from numpy.random import Generator
-import xarray as xr
-import uxarray as uxr
 from scipy.optimize import fsolve
-from typing import Tuple, Any
 from numpy.typing import ArrayLike
 from .target import Target
 from ..utils.custom_types import FloatLike
-from ..utils import montecarlo as mc
 from .surface import Surface
 from .target import Target
-from ..fortran_bindings import morphology
+from ..fortran_bindings import crater, ejecta
 
 RIMDROP = 4.20
 
@@ -81,16 +77,24 @@ class Morphology:
         self.ejrim = 0.14 * (self.diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
     def profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
-        elevation = morphology.profile(r,
-                                       r_ref, 
-                                       self.diameter, 
-                                       self.floordepth, 
-                                       self.floordiam, 
-                                       self.rimheight, 
-                                       self.ejrim, 
-                                       RIMDROP)
-         
-        return np.array(elevation, dtype=np.float64)
+        elevation = np.array(crater.profile(
+                                r,
+                                r_ref, 
+                                self.diameter, 
+                                self.floordepth, 
+                                self.floordiam, 
+                                self.rimheight, 
+                                self.ejrim, 
+                                RIMDROP
+                            ), dtype=np.float64
+                        )
+        elevation += np.array(ejecta.profile(
+                                r,
+                                self.diameter, 
+                                self.ejrim
+                                ), dtype=np.float64
+                            )
+        return elevation
     
     def form_crater(self, 
                     surf: Surface,
