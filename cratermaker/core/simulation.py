@@ -1,7 +1,5 @@
 import numpy as np
-from numpy.random import default_rng, Generator
-import xarray as xr
-import json
+from numpy.random import Generator
 import os
 import shutil
 from glob import glob
@@ -14,10 +12,10 @@ from .surface import Surface, save
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import to_config, set_properties
+from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from mpas_tools.viz.paraview_extractor import extract_vtk
-from ..cython.perlin import apply_noise
+from ..fortran_bindings.realistic import apply_noise
 import warnings
 from tqdm import tqdm
 

@@ -11,11 +11,12 @@
 SET(SRC_FILES
     ${SRC}/globals/globals_module.f90
     ${SRC}/bind/bind_module.f90
-    ${SRC}/surface/surface_module.f90
-    ${SRC}/perlin/perlin_module.f90
-    ${SRC}/perlin/perlin_submodule.f90
-    ${SRC}/morphology/morphology_module.f90
-    ${SRC}/morphology/morphology_submodule.f90
+    ${SRC}/realistic/realistic_module.f90
+    ${SRC}/realistic/realistic_submodule.f90
+    ${SRC}/crater/crater_module.f90
+    ${SRC}/crater/crater_submodule.f90
+    ${SRC}/ejecta/ejecta_module.f90
+    ${SRC}/ejecta/ejecta_submodule.f90
 )
 
 # Combine all source files 
