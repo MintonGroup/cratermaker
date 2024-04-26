@@ -4,8 +4,8 @@ cimport numpy as cnp
 import numpy as np
 from libc.stdlib cimport malloc, free
 
-cdef extern from "morphology.h":
-    void bind_morphology_profile(double *r, double *reference_elevation, int num_elements, double diameter, double floordepth, double floordiam, double rimheight, double ejrim, double RIMDROP, double *elevation)
+cdef extern from "crater.h":
+    void bind_crater_profile(double *r, double *reference_elevation, int num_elements, double diameter, double floordepth, double floordiam, double rimheight, double ejrim, double RIMDROP, double *elevation)
 
 
 def profile(cnp.ndarray[cnp.float64_t, ndim=1] r_array, 
@@ -63,6 +63,6 @@ def profile(cnp.ndarray[cnp.float64_t, ndim=1] r_array,
     cdef cnp.float64_t[::1] reference_elevation = reference_elevation_array
     cdef cnp.float64_t[::1] elevation = elevation_array
 
-    bind_morphology_profile(&r[0], &reference_elevation[0], num_elements, diameter, floordepth, floordiam, rimheight, ejrim, RIMDROP, &elevation[0])
+    bind_crater_profile(&r[0], &reference_elevation[0], num_elements, diameter, floordepth, floordiam, rimheight, ejrim, RIMDROP, &elevation[0])
 
     return elevation  

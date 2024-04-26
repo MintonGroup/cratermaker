@@ -1,0 +1,1 @@
+void bind_ejecta_profile(double *r, int num_elements, double diameter, double ejrim, double *elevation);

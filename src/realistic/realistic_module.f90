@@ -7,75 +7,74 @@
 ! You should have received a copy of the GNU General Public License along with cratermaker. 
 ! If not, see: https://www.gnu.org/licenses. 
 
-!! The interfaces for the Perlin noise routines.
-module perlin_module
-   use globals_module
-   use bind_module
+module realistic
+   use globals
+   use bind
 
    interface
-      pure module elemental subroutine perlin_noise(xx, yy, zz, noise, dx, dy, dz)
+      pure module elemental subroutine realistic_perlin_noise(xx, yy, zz, noise, dx, dy, dz)
          implicit none
          real(DP),intent(in) :: xx,yy,zz
          real(DP),intent(out) :: noise
          real(DP),intent(out),optional :: dx, dy, dz
-      end subroutine perlin_noise
+      end subroutine realistic_perlin_noise
 
 
-      pure module function perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      pure module function realistic_perlin_turbulence(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP), dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
-      end function perlin_turbulence
+      end function realistic_perlin_turbulence
    
    
-      pure module function perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      pure module function realistic_perlin_billowedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
-      end function perlin_billowedNoise
+      end function realistic_perlin_billowedNoise
          
          
-      pure module function perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
+      pure module function realistic_perlin_plawNoise(x, y, z, noise_height, freq, pers, slope, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, noise_height, freq, pers,slope
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
-      end function perlin_plawNoise
+      end function realistic_perlin_plawNoise
          
          
-      pure module function perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
+      pure module function realistic_perlin_ridgedNoise(x, y, z, noise_height, freq, pers, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, noise_height, freq, pers
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:),intent(in) :: anchor
          real(DP) :: noise
-      end function perlin_ridgedNoise
+      end function realistic_perlin_ridgedNoise
          
          
-      pure module function perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
+      pure module function realistic_perlin_swissTurbulence(x, y, z, lacunarity, gain, warp, num_octaves, anchor) result(noise)
          implicit none
          real(DP), intent(in) ::  x, y, z, lacunarity, gain, warp
          integer(I4B), intent(in) :: num_octaves
          real(DP),dimension(:,:), intent(in) :: anchor
          real(DP) :: noise
-      end function perlin_swissTurbulence
+      end function realistic_perlin_swissTurbulence
       
          
-      pure module function perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
+      pure module function realistic_perlin_jordanTurbulence(x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale,&
                num_octaves, anchor) result(noise)
          implicit none
          real(DP),intent(in) :: x, y, z, lacunarity, gain0, gain, warp0, warp, damp0, damp, damp_scale
          integer(I4B),intent(in) :: num_octaves
          real(DP), dimension(:,:), intent(in) :: anchor
          real(DP) :: noise
-      end function perlin_jordanTurbulence
+      end function realistic_perlin_jordanTurbulence
 
-      pure module function perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
+      pure module function realistic_perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
                                             lacunarity, noise_height, pers, slope, warp, warp0) result(noise)
          implicit none
          character(len=*), intent(in) :: model !! The specific turbulence model to apply
@@ -84,10 +83,10 @@ module perlin_module
          real(DP), dimension(:,:), intent(in) :: anchor
          real(DP), intent(in) :: damp, damp0, damp_scale, freq, gain, gain0, lacunarity, noise_height, pers, slope, warp, warp0
          real(DP) :: noise
-      end function perlin_noise_one
+      end function realistic_perlin_noise_one
 
 
-      module subroutine perlin_noise_all(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
+      module subroutine realistic_perlin_noise_all(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0,&
                                             lacunarity, noise_height, pers, slope, warp, warp0,noise)
          implicit none
          character(len=*), intent(in) :: model !! The specific turbulence model to apply
@@ -96,14 +95,14 @@ module perlin_module
          real(DP), dimension(:,:), intent(in) :: anchor
          real(DP), intent(in) :: damp, damp0, damp_scale, freq, gain, gain0, lacunarity, noise_height, pers, slope, warp, warp0
          real(DP), dimension(:), intent(out) :: noise
-      end subroutine perlin_noise_all
+      end subroutine realistic_perlin_noise_all
 
 
          
    end interface
 
 contains
-   function bind_perlin_noise_one(c_model, x, y, z, num_octaves, c_anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
+   function bind_realistic_perlin_noise_one(c_model, x, y, z, num_octaves, c_anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
                                  noise_height, pers, slope, warp, warp0) bind(c) result(noise)
       ! Arguments
       character(kind=c_char), dimension(*), intent(in) :: c_model !! The specific turbulence model to apply
@@ -126,12 +125,12 @@ contains
          return
       end if
 
-      noise = perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
+      noise = realistic_perlin_noise_one(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
                                  noise_height, pers, slope, warp, warp0)
-   end function bind_perlin_noise_one
+   end function bind_realistic_perlin_noise_one
 
 
-   subroutine bind_perlin_noise_all(c_model, c_x, c_y, c_z, num_elements, num_octaves, c_anchor, damp, damp0, damp_scale, freq, &
+   subroutine bind_realistic_perlin_noise_all(c_model, c_x, c_y, c_z, num_elements, num_octaves, c_anchor, damp, damp0, damp_scale, freq, &
                                  gain, gain0, lacunarity, noise_height, pers, slope, warp, warp0, c_noise) bind(c) 
       ! Arguments
       character(kind=c_char), dimension(*), intent(in) :: c_model !! The specific turbulence model to apply
@@ -179,10 +178,10 @@ contains
          return
       end if
 
-      call perlin_noise_all(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
+      call realistic_perlin_noise_all(model, x, y, z, num_octaves, anchor, damp, damp0, damp_scale, freq, gain, gain0, lacunarity, &
                                  noise_height, pers, slope, warp, warp0, noise)
 
       return
-   end subroutine bind_perlin_noise_all
+   end subroutine bind_realistic_perlin_noise_all
 
-end module perlin_module
+end module realistic
