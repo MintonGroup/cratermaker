@@ -124,8 +124,8 @@ contains
         do concurrent (i = 1:N, radial_distance(i) >= crater_radius)
             do concurrent (j = 1:Npatt)
                 theta = mod(initial_bearing(i) + rn(j) * 2 * PI, 2 * PI)
-                ray_pattern_thickness(j) = frayreduction**(j-1) * ejecta_ray_pattern_func(radial_distance(i),theta,rmin,rmax, &
-                                                                                          thetari,l1)
+                ray_pattern_thickness(j) = frayreduction**(j-1) * ejecta_ray_pattern_func(radial_distance(i) / crater_radius,&
+                                                                                            theta,rmin,rmax, thetari,l1)
             end do
             ejecta_thickness(i) = sum(ray_pattern_thickness(:))
             ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
