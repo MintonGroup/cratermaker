@@ -617,7 +617,13 @@ class Surface(UxDataset):
                   ) 
         
         if reset_surface:
+            surf.generate_data(data=0.0,
+                               name="ejecta_thickness",
+                               long_name="ejecta thickness",
+                               units= "m"
+                              )               
             surf.set_elevation(0.0,save_to_file=True)
+            
         
         return surf        
         
