@@ -12,28 +12,29 @@ module ejecta
     use bind
  
     interface
-        pure module subroutine ejecta_profile(radial_distance, diameter, ejrim, elevation)
+        pure module subroutine ejecta_profile(radial_distance, crater_diameter, ejrim, elevation)
             implicit none
             real(DP),dimension(:), intent(in) :: radial_distance
-            real(DP), intent(in) :: diameter, ejrim
-            real(DP), dimension(:), intent(out) :: elevation
+            real(DP), intent(in) :: crater_diameter, ejrim
+            real(DP), dimension(:), intent(inout) :: elevation
         end subroutine ejecta_profile
 
-        module subroutine ejecta_ray_pattern(radial_distance, initial_bearing, crater_radius, ejecta_truncation, ejecta_thickness)
+        module subroutine ejecta_ray_pattern(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, &
+                                              ejecta_thickness)
             implicit none
             real(DP), dimension(:), intent(in) :: radial_distance, initial_bearing
-            real(DP), intent(in) :: crater_radius, ejecta_truncation
+            real(DP), intent(in) :: crater_diameter, ejrim, ejecta_truncation
             real(DP), dimension(:), intent(out) :: ejecta_thickness
         end subroutine ejecta_ray_pattern
 
     end interface
 
 contains
-    subroutine bind_ejecta_profile(c_radial_distance, num_elements, diameter, ejrim, c_elevation) bind(C)
+    subroutine bind_ejecta_profile(c_radial_distance, num_elements, crater_diameter, ejrim, c_elevation) bind(C)
        ! Arguments
        type(c_ptr), intent(in), value :: c_radial_distance
        integer(I4B), intent(in), value :: num_elements
-       real(DP), intent(in), value :: diameter, ejrim
+       real(DP), intent(in), value :: crater_diameter, ejrim
        type(c_ptr), intent(in), value :: c_elevation
        ! Internals
        real(DP), dimension(:), pointer :: radial_distance,elevation
@@ -45,24 +46,24 @@ contains
           return
        end if
  
-       allocate(elevation(num_elements))
        if (c_associated(c_elevation)) then
           call c_f_pointer(c_elevation, elevation, shape=[num_elements]) 
        else
           return
        end if
  
-       call ejecta_profile(radial_distance, diameter, ejrim, elevation)
+       call ejecta_profile(radial_distance, crater_diameter, ejrim, elevation)
 
        return
     end subroutine bind_ejecta_profile
 
-    subroutine bind_ejecta_ray_pattern(c_radial_distance, c_initial_bearing, num_elements, crater_radius, ejecta_truncation, &
-                                        c_ejecta_thickness) bind(c)
+
+    subroutine bind_ejecta_ray_pattern(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, ejecta_truncation, &
+                                       ejrim, c_ejecta_thickness) bind(c)
       ! Arguments
       type(c_ptr), intent(in), value :: c_radial_distance, c_initial_bearing
       integer(I4B), intent(in), value :: num_elements
-      real(DP), intent(in), value :: crater_radius, ejecta_truncation
+      real(DP), intent(in), value :: crater_diameter, ejrim, ejecta_truncation
       type(c_ptr), intent(in), value :: c_ejecta_thickness
       ! Internals
       real(DP), dimension(:), pointer :: radial_distance, initial_bearing, ejecta_thickness
@@ -86,7 +87,7 @@ contains
          return
       end if
 
-      call ejecta_ray_pattern(radial_distance, initial_bearing, crater_radius, ejecta_truncation, ejecta_thickness)
+      call ejecta_ray_pattern(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, ejecta_thickness)
 
       return
    end subroutine bind_ejecta_ray_pattern

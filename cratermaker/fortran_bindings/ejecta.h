@@ -1,1 +1,2 @@
-void bind_ejecta_profile(double *r, int num_elements, double diameter, double ejrim, double *elevation);
+void bind_ejecta_profile(double *radial_distance, int num_elements, double crater_diameter, double ejrim, double *elevation);
+void bind_ejecta_ray_pattern(double *radial_distance, double *initial_bearing, int num_elements, double crater_diameter, double ejrim, double ejecta_truncation, double *ejecta_thickness);

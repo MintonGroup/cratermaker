@@ -394,12 +394,10 @@ class Simulation:
         else:
             self.crater, self.projectile = self.generate_crater(**kwargs)
        
-        _, location_index = self.surf.find_nearest_index(self.crater.location)
-        # Test if the crater is big enough to modify the surface
-        rmax = self.crater.morphology.compute_rmax(minimum_thickness=self.surf.smallest_length)
-        crater_area = np.pi * rmax**2
-        if self.surf['face_areas'].isel(n_face=location_index) < crater_area:
-            self.crater.morphology.form_crater(self.surf,**kwargs)
+        self.crater.node_index, self.crater.face_index = self.surf.find_nearest_index(self.crater.location)
+        self.projectile.node_index, self.projectile.face_index = self.crater.node_index, self.crater.face_index
+        self.crater.morphology.form_crater(self.surf,**kwargs)
+        self.crater.morphology.form_ejecta(self.surf,**kwargs)
         
         return  
 
@@ -449,7 +447,6 @@ class Simulation:
         n_face = face_areas.size
         surface_area = self.surf.area.item() 
          
-
         # Group surfaces into bins based on their area. All bins within a factor of 2 in surface area are grouped together.
         max_bin_index = np.ceil(np.log2(face_areas.max() / min_area)).astype(int)
         bins = {i: [] for i in range(max_bin_index + 1)}

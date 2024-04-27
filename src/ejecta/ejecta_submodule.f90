@@ -13,7 +13,7 @@ submodule (ejecta) s_ejecta
     integer(I4B), parameter :: Nraymax = 5
 contains
 
-    pure module subroutine ejecta_profile(radial_distance, diameter, ejrim, elevation)
+    pure module subroutine ejecta_profile(radial_distance, crater_diameter, ejrim, elevation)
         !! author: David A. Minton
         !!
         !! Calculate the elevation of a crater as a function of distance from the center.
@@ -21,49 +21,50 @@ contains
         ! Arguments
         real(DP),dimension(:), intent(in) :: radial_distance  
             !! Radial distance from the crater center in meters. 
-        real(DP), intent(in) :: diameter 
+        real(DP), intent(in) :: crater_diameter 
             !! The final crater diameter in meters.
         real(DP), intent(in) :: ejrim 
             !! The final ejecta rim height in meters.
-        real(DP), dimension(:), intent(out) :: elevation 
+        real(DP), dimension(:), intent(inout) :: elevation 
             !! The elevation of the crater relative to a reference surface.
         ! Internals
-        real(DP) :: r, radius
+        real(DP) :: r, crater_radius
 
         ! Calculate the floor radius relative to the final crater radius
-        radius = diameter / 2
+        crater_radius = crater_diameter / 2
 
-        where(radial_distance(:) >= radius)
-            elevation(:) = elevation(:) + ejecta_profile_func(radial_distance(:)/radius)
+        where(radial_distance(:) >= crater_radius)
+            elevation(:) = elevation(:) + ejecta_profile_func(radial_distance(:) / crater_radius, ejrim)
         end where
 
         return         
-
-        contains
-
-        pure elemental function ejecta_profile_func(r) result(h)
-            !! author: David A. Minton
-            !!
-            !! Calculate the elevation of the ejecta layer as a function of distance from the center.
-            !!                                
-            implicit none
-            ! Arguments
-            real(DP), intent(in) :: r 
-                !! Radial distance from the crater center in meters. 
-            real(DP) :: h
-                !! Results
-
-            ! Internals
-            real(DP), parameter :: ejprofile = 3.0_DP
-
-            h = ejrim * (r)**(-ejprofile)
-
-        end function ejecta_profile_func
-
     end subroutine ejecta_profile
 
 
-    module subroutine ejecta_ray_pattern(radial_distance, initial_bearing, crater_radius, ejecta_truncation, ejecta_thickness)
+    pure elemental function ejecta_profile_func(r, ejrim) result(h)
+        !! author: David A. Minton
+        !!
+        !! Calculate the elevation of the ejecta layer as a function of distance from the center.
+        !!                                
+        implicit none
+        ! Arguments
+        real(DP), intent(in) :: r 
+            !! Radial distance from the crater center in meters. 
+        real(DP), intent(in) :: ejrim
+            !! The final ejecta rim height in meters.
+        real(DP) :: h
+            !! Results
+
+        ! Internals
+        real(DP), parameter :: ejprofile = 3.0_DP
+
+        h = ejrim * (r)**(-ejprofile)
+
+    end function ejecta_profile_func
+
+
+    module subroutine ejecta_ray_pattern(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, &
+                                        ejecta_thickness)
         !! author: David A. Minton
         !!
         !! Calculate the spatial distribution of ejecta in distal rays given a radial distance and initial bearing array.
@@ -73,15 +74,17 @@ contains
             !! Radial distance from the crater center in meters. 
         real(DP), dimension(:), intent(in) :: initial_bearing
             !! The initial bearing of the ray in radians.
-        real(DP), intent(in) :: crater_radius
-            !! The final crater radius in meters.
+        real(DP), intent(in) :: crater_diameter
+            !! The final crater diameter in meters.
+        real(DP), intent(in) :: ejrim 
+            !! The final ejecta rim height in meters.
         real(DP), intent(in) :: ejecta_truncation
             !! The distance relative to the crater radius at which to truncate the ejecta pattern 
         real(DP), dimension(:), intent(out) :: ejecta_thickness
             !! The thickness of the ejecta layer at each radial_distance, initial_bearing pair
 
         ! Internals
-        real(DP) :: l1, rmax, rmin, rn, theta
+        real(DP) :: l1, rmax, rmin, rn, theta, crater_radius
         real(DP),dimension(Nraymax) :: thetari
         integer(I4B) :: i, N
 
@@ -90,7 +93,7 @@ contains
             print *, "Error: initial_bearing and radial_distance arrays must be the same size."
             stop
         end if
-
+        crater_radius = crater_diameter / 2
         l1 = (5.32_DP*(crater_radius/1000)**1.27)/(crater_radius/1000)
         rmax = ejecta_truncation
         rmin = 2.348_DP * crater_radius**(0.006_DP)  ! The continuous ejecta blanket thickness relative to the crater radius
@@ -104,6 +107,7 @@ contains
         do concurrent (i = 1:N)
             theta = mod(initial_bearing(i) + rn * 2 * PI, 2 * PI)
             ejecta_thickness(i) = ejecta_ray_pattern_func(theta,radial_distance(i),rmin,rmax,thetari,l1)
+            ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
         end do
 
         contains
