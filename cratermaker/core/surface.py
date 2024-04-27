@@ -623,7 +623,6 @@ class Surface(UxDataset):
                                units= "m"
                               )               
             surf.set_elevation(0.0,save_to_file=True)
-            
         
         return surf        
         
