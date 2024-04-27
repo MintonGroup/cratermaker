@@ -27,7 +27,7 @@ class Simulation:
     def __init__(self, *, # Enforce keyword-only arguments
                  target: str | Target = None,
                  surf: Surface | None = None,
-                 reset_surface: bool | None = None,
+                 reset_surface: bool = True,
                  seed: int | None = None,
                  rng: Generator | None = None,
                  simdir: os.PathLike | None = None, 

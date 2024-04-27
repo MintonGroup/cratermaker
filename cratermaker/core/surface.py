@@ -204,6 +204,7 @@ class GridStrategy(ABC):
             assert(new_hash == grid_hash)
 
         return make_new_grid
+
     
 class UniformGrid(GridStrategy):
     """
@@ -433,6 +434,7 @@ class HiResLocalGrid(GridStrategy):
         if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
             raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
         self._superdomain_scale_factor = value
+   
     
 class Surface(UxDataset):
     """
@@ -1291,6 +1293,7 @@ class Surface(UxDataset):
         """
         
         return get_random_location_on_face(self.uxgrid, face_index, size)
+
         
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,

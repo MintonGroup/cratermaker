@@ -96,12 +96,13 @@ class Morphology:
         return np.array(elevation, dtype=np.float64)
     
     def ejecta_ray_pattern(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
-        thickness = ejecta.ray_pattern(r,
+        thickness = ejecta.ray_pattern(r, theta,
                                        self.diameter, 
                                        self.ejrim, 
                                        self.ejecta_truncation
                                     )
-        return np.array(thickness, dtype=np.float64)
+        thickness = np.array(thickness, dtype=np.float64)
+        return thickness
     
     def form_crater(self, 
                     surf: Surface,
@@ -134,7 +135,7 @@ class Morphology:
             # Get the maximum extent 
             rmax = fsolve(_profile_invert, x0=self.radius)[0]
             if self.ejecta_truncation:
-                rmax = min(rmax, self.ejecta_truncation * self.radius)        
+                rmax = min(rmax, self.ejecta_truncation * self.radius)      
 
             return rmax        
         
@@ -144,7 +145,9 @@ class Morphology:
         if not region_surf: # The crater is too small to change the surface
             return
         crater_area = np.pi * rmax**2
-        if surf['face_areas'].isel(n_face=self.crater.face_index) < crater_area:
+        
+        # Check to make sure that the face at the crater location is not smaller than the crater area
+        if surf['face_areas'].isel(n_face=self.crater.face_index) > crater_area:
             return
         
         region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
@@ -191,7 +194,7 @@ class Morphology:
                 return self.ejecta_profile(r) - minimum_thickness
         
             # Get the maximum extent 
-            rmax = fsolve(_profile_invert, x0=self.radius)[0]
+            rmax = fsolve(_profile_invert, x0=self.radius*1.1)[0]
             if self.ejecta_truncation:
                 rmax = min(rmax, self.ejecta_truncation * self.radius)        
 
@@ -199,18 +202,23 @@ class Morphology:
                  
         # Test if the ejecta is big enough to modify the surface
         rmax = compute_rmax(minimum_thickness=surf.smallest_length)
+        if not self.ejecta_truncation:
+            self.ejecta_truncation = rmax / self.radius
         region_surf = surf.extract_region(self.crater.location, rmax)
         if not region_surf: # The crater is too small to change the surface
             return
         ejecta_area = np.pi * rmax**2
-        if surf['face_areas'].isel(n_face=self.crater.face_index) < ejecta_area:
+        
+        # Check to make sure that the face at the crater location is not smaller than the ejecta blanket area
+        if surf['face_areas'].isel(n_face=self.crater.face_index) > ejecta_area:
             return                  
         
         region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
-        region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = surf.get_initial_bearing(self.crater.location)
+        region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = region_surf.get_initial_bearing(self.crater.location)
         
         try:
-            node_thickness = self.ejecta_ray_pattern(region_surf['node_crater_distance'].values, region_surf['reference_node_elevation'].values)
+            node_thickness = self.ejecta_ray_pattern(region_surf['node_crater_distance'].values, 
+                                                     region_surf['node_crater_bearing'].values)
             surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] += node_thickness
             
             face_thickness = self.ejecta_ray_pattern(region_surf['face_crater_distance'].values, region_surf['face_crater_bearing'].values)

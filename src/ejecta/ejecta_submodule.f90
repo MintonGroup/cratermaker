@@ -129,13 +129,13 @@ contains
     end subroutine ejecta_ray_pattern
 
 
-    pure function ejecta_ray_pattern_func(theta,r,rmin,rmax,thetari,l1) result(ans)
+    pure function ejecta_ray_pattern_func(r,theta,rmin,rmax,thetari,l1) result(ans)
         !! author: David A. Minton
         !!
         !! Calculate the spatial distribution of ejecta in distal rays.
         implicit none
         ! Arguments
-        real(DP),intent(in) :: r,rmin,rmax,theta
+        real(DP),intent(in) :: r,theta,rmin,rmax
         real(DP),dimension(:),intent(in) :: thetari
         real(DP),intent(in) :: l1
         ! Result
