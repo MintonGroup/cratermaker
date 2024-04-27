@@ -10,7 +10,7 @@
 !! The implementations for the Perlin noise procedures.
 submodule (ejecta) s_ejecta
     use globals
-    integer(I4B), parameter :: Nraymax = 5 
+    integer(I4B), parameter :: Nraymax = 11
         !! Maximum number of rays in a given pattern
     real(DP), parameter :: rayfmult = (Nraymax)**(-4.0_DP / (1.2_DP)) 
         !! The factor by which to multiply the ray intensity
@@ -107,9 +107,9 @@ contains
             stop
         end if
         crater_radius = crater_diameter / 2
-        l1 = (5.32_DP*(crater_radius/1000)**1.27)/(crater_radius/1000)
         rmax = ejecta_truncation
         rmin = 2.348_DP * crater_radius**(0.006_DP)  ! The continuous ejecta blanket thickness relative to the crater radius
+        l1 = (5.32_DP*(crater_radius/1000)**1.27)/(crater_radius/1000)
 
         do concurrent (i = 1:Nraymax)
             thetari(i) = 2 * pi * i / Nraymax
@@ -125,7 +125,7 @@ contains
             do concurrent (j = 1:Npatt)
                 theta = mod(initial_bearing(i) + rn(j) * 2 * PI, 2 * PI)
                 ray_pattern_thickness(j) = frayreduction**(j-1) * ejecta_ray_pattern_func(radial_distance(i) / crater_radius,&
-                                                                                            theta,rmin,rmax, thetari,l1)
+                                                                                            theta,rmin,rmax,thetari,l1)
             end do
             ejecta_thickness(i) = sum(ray_pattern_thickness(:))
             ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
@@ -164,9 +164,10 @@ contains
         ! Internals
         real(DP) :: a,c
         real(DP) :: thetar,rw,rw0,rw1
-        real(DP) :: rtrans,length,rpeak,minray,FF
+        real(DP) :: rtrans,length,minray,FF
         integer(I4B) :: n,i
         real(DP) :: tmp
+        real(DP) :: width_factor
      
         minray = l1
      
@@ -175,9 +176,6 @@ contains
         else if (r < 1.0_DP) then
             ans = 1.0_DP
         else
-            rw0 = rmin * pi / Nraymax / 2
-            rw1 = 2 * pi / Nraymax
-            rw = rw0 * (1._DP - (1.0_DP - rw1 / rw0) * exp(1._DP - (r / rmin)**2)) ! equation 40 Minton et al. 2019
             tmp = (Nraymax**rayp - (Nraymax**rayp - 1) * log(r/minray) / log(rmax/minray))
             if (tmp < 0.0_DP) then
                n = Nraymax ! "Nrays" in Minton et al. (2019)
@@ -186,11 +184,14 @@ contains
             end if
             ans = 0._DP
             rtrans = r - 1.0_DP
-            c = rw / r
-            a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) !equation 39 Minton et al., 2019
+            rw1 = 2 * pi / Nraymax
             do i = 1,Nraymax
                 length = minray * exp(log(rmax/minray) * ((Nraymax - i + 1)**rayp - 1.0_DP) / ((Nraymax**rayp - 1)))
-                rpeak = (length - 1.0_DP) * 0.5_DP
+                width_factor = log(rmax / (0.99_DP * length)) / log(2 * rmax/rmin)
+                rw0 = (rmin * pi / Nraymax) * width_factor
+                rw = rw0 * (1._DP - (1.0_DP - rw1 / rw0) * exp(1._DP - (r / rmin)**2)) ! equation 40 Minton et al. 2019
+                c = rw / r
+                a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) !equation 39 Minton et al., 2019
                 if (r > length) cycle ! Don't add any material beyond the length of the ray
                 tmp = ejecta_ray_func(theta,thetari(i),a,n,rw)
                 if (tmp > epsilon(ans)) ans = ans + tmp  ! Ensure that we don't get an underflow
