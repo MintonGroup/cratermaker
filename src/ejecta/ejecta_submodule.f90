@@ -10,7 +10,18 @@
 !! The implementations for the Perlin noise procedures.
 submodule (ejecta) s_ejecta
     use globals
-    integer(I4B), parameter :: Nraymax = 5
+    integer(I4B), parameter :: Nraymax = 5 
+        !! Maximum number of rays in a given pattern
+    real(DP), parameter :: rayfmult = (Nraymax)**(-4.0_DP / (1.2_DP)) 
+        !! The factor by which to multiply the ray intensity
+    real(DP), parameter :: fpeak = 8000.0_DP 
+        !! Factor that sets the peak intensity of a ray 
+    real(DP), parameter :: rayp = 2.0_DP 
+        !! Another ray intensity factor
+    integer(I4B), parameter :: Npatt = 8 
+        !! Number of different ray patterns
+    real(DP), parameter :: ejprofile = 3.0_DP 
+        !! Ejecta profile power law index
 contains
 
     pure module subroutine ejecta_profile(radial_distance, crater_diameter, ejrim, ejecta_thickness)
@@ -51,14 +62,11 @@ contains
         implicit none
         ! Arguments
         real(DP), intent(in) :: r 
-            !! Radial distance from the crater center in meters. 
+            !! Radial distance from the crater centerin meters. 
         real(DP), intent(in) :: ejrim
-            !! The final ejecta rim height in meters.
+            !! The final ejecta rim height 
         real(DP) :: h
-            !! Results
-
-        ! Internals
-        real(DP), parameter :: ejprofile = 3.0_DP
+            !! The ejecta thickness at the given radial distance 
 
         h = ejrim * (r)**(-ejprofile)
 
@@ -84,6 +92,7 @@ contains
             !! The distance relative to the crater radius at which to truncate the ejecta pattern 
         real(DP), dimension(:), intent(out) :: ejecta_thickness
             !! The thickness of the ejecta layer at each radial_distance, initial_bearing pair
+        integer(I4B), parameter :: rayq = 4
 
         ! Internals
         real(DP) :: l1, rmax, rmin, rn, theta, crater_radius
@@ -106,9 +115,12 @@ contains
         call shuffle(thetari) ! randomize the ray pattern
         call random_number(rn) ! randomize the ray orientation
 
-        do concurrent (i = 1:N)
+        where(radial_distance(:) < crater_radius)
+            ejecta_thickness(:) = 0.0_DP
+        endwhere
+        do concurrent (i = 1:N, radial_distance(i) >= crater_radius)
             theta = mod(initial_bearing(i) + rn * 2 * PI, 2 * PI)
-            ejecta_thickness(i) = ejecta_ray_pattern_func(theta,radial_distance(i),rmin,rmax,thetari,l1)
+            ejecta_thickness(i) = ejecta_ray_pattern_func(radial_distance(i),theta,rmin,rmax,thetari,l1)
             ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
         end do
 
@@ -143,13 +155,9 @@ contains
         ! Result
         real(DP) :: ans
         ! Internals
-        real(DP), parameter :: fpeak = 8000.0_DP ! narrow ray: rw0 propto 1/4
-        real(DP), parameter :: rayp = 2.0_DP 
-        integer(I4B), parameter :: rayq = 4
-        real(DP), parameter :: rayfmult = (5)**(-4.0_DP / (1.2_DP))
         real(DP) :: a,c
         real(DP) :: thetar,rw,rw0,rw1
-        real(DP) :: f,rtrans,length,rpeak,minray,FF
+        real(DP) :: rtrans,length,rpeak,minray,FF
         integer(I4B) :: n,i
         real(DP) :: tmp
      
@@ -176,19 +184,15 @@ contains
             do i = 1,Nraymax
                 length = minray * exp(log(rmax/minray) * ((Nraymax - i + 1)**rayp - 1.0_DP) / ((Nraymax**rayp - 1)))
                 rpeak = (length - 1.0_DP) * 0.5_DP
-                if (r > length) then
-                    cycle ! Don't add any material beyond the length of the ray
-                else
-                    FF = rayfmult * (20 / rmax)**(0.5_DP) * 0.25_DP 
-
-                    !equation 42 Minton et al. 2019
-                    f = FF * fpeak * (rtrans / rpeak)**rayq * exp(1._DP / rayq * (1.0_DP - (rtrans / rpeak)**rayq)) 
-                end if
-                tmp = ejecta_ray_func(theta,thetari(i),r,n,rw)
-                if (tmp > epsilon(ans) .and. (f/a > epsilon(ans))) ans = ans + tmp * f / a  ! Ensure that we don't get an underflow
+                if (r > length) cycle ! Don't add any material beyond the length of the ray
+                tmp = ejecta_ray_func(theta,thetari(i),a,n,rw)
+                if (tmp > epsilon(ans)) ans = ans + tmp  ! Ensure that we don't get an underflow
            end do
-        end if 
+        end if
+
+        return
     end function ejecta_ray_pattern_func    
+
 
     pure function ejecta_ray_func(theta,thetar,r,n,w) result(ans)
         !! author: David A. Minton

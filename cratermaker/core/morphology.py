@@ -154,10 +154,12 @@ class Morphology:
         region_surf.get_reference_surface(self.crater.location, self.crater.radius)
         
         try:
-            node_elevation = self.crater_profile(region_surf['node_crater_distance'].values, region_surf['reference_node_elevation'].values)
+            node_elevation = self.crater_profile(region_surf['node_crater_distance'].values, 
+                                                 region_surf['reference_node_elevation'].values)
             surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] = node_elevation
             
-            face_elevation = self.crater_profile(region_surf['face_crater_distance'].values, region_surf['reference_face_elevation'].values)
+            face_elevation = self.crater_profile(region_surf['face_crater_distance'].values, 
+                                                 region_surf['reference_face_elevation'].values)
             surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] = face_elevation
         except:
             print(self)
@@ -221,7 +223,8 @@ class Morphology:
                                                      region_surf['node_crater_bearing'].values)
             surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] += node_thickness
             
-            face_thickness = self.ejecta_ray_pattern(region_surf['face_crater_distance'].values, region_surf['face_crater_bearing'].values)
+            face_thickness = self.ejecta_ray_pattern(region_surf['face_crater_distance'].values, 
+                                                     region_surf['face_crater_bearing'].values)
             surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
             surf['ejecta_thickness'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
         except:
@@ -230,8 +233,6 @@ class Morphology:
                  
         return  
             
-        
-
     @property
     def diameter(self) -> np.float64:
         """
