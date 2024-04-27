@@ -20,6 +20,8 @@ submodule (ejecta) s_ejecta
         !! Another ray intensity factor
     integer(I4B), parameter :: Npatt = 8 
         !! Number of different ray patterns
+    real(DP), parameter :: frayreduction = 0.5_DP
+        !! Factor by which to reduce the relative thickness of the ray for each subsequent pattern
     real(DP), parameter :: ejprofile = 3.0_DP 
         !! Ejecta profile power law index
 contains
@@ -92,12 +94,12 @@ contains
             !! The distance relative to the crater radius at which to truncate the ejecta pattern 
         real(DP), dimension(:), intent(out) :: ejecta_thickness
             !! The thickness of the ejecta layer at each radial_distance, initial_bearing pair
-        integer(I4B), parameter :: rayq = 4
 
         ! Internals
-        real(DP) :: l1, rmax, rmin, rn, theta, crater_radius
-        real(DP),dimension(Nraymax) :: thetari
-        integer(I4B) :: i, N
+        real(DP) :: l1, rmax, rmin, theta, crater_radius
+        real(DP), dimension(Nraymax) :: thetari
+        real(DP), dimension(Npatt)   :: rn, ray_pattern_thickness
+        integer(I4B) :: i, j, N
 
         N = size(radial_distance)
         if (size(initial_bearing) /= N) then
@@ -118,9 +120,14 @@ contains
         where(radial_distance(:) < crater_radius)
             ejecta_thickness(:) = 0.0_DP
         endwhere
+
         do concurrent (i = 1:N, radial_distance(i) >= crater_radius)
-            theta = mod(initial_bearing(i) + rn * 2 * PI, 2 * PI)
-            ejecta_thickness(i) = ejecta_ray_pattern_func(radial_distance(i),theta,rmin,rmax,thetari,l1)
+            do concurrent (j = 1:Npatt)
+                theta = mod(initial_bearing(i) + rn(j) * 2 * PI, 2 * PI)
+                ray_pattern_thickness(j) = frayreduction**(j-1) * ejecta_ray_pattern_func(radial_distance(i),theta,rmin,rmax, &
+                                                                                          thetari,l1)
+            end do
+            ejecta_thickness(i) = sum(ray_pattern_thickness(:))
             ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
         end do
 
