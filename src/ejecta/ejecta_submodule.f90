@@ -13,10 +13,10 @@ submodule (ejecta) s_ejecta
     integer(I4B), parameter :: Nraymax = 5
 contains
 
-    pure module subroutine ejecta_profile(radial_distance, crater_diameter, ejrim, elevation)
+    pure module subroutine ejecta_profile(radial_distance, crater_diameter, ejrim, ejecta_thickness)
         !! author: David A. Minton
         !!
-        !! Calculate the elevation of a crater as a function of distance from the center.
+        !! Calculate the thickness of an ejecta blanket as a function of distance from the crater center.
         implicit none
         ! Arguments
         real(DP),dimension(:), intent(in) :: radial_distance  
@@ -25,8 +25,8 @@ contains
             !! The final crater diameter in meters.
         real(DP), intent(in) :: ejrim 
             !! The final ejecta rim height in meters.
-        real(DP), dimension(:), intent(inout) :: elevation 
-            !! The elevation of the crater relative to a reference surface.
+        real(DP), dimension(:), intent(out) :: ejecta_thickness 
+            !! The thicknes of the ejecta relativ
         ! Internals
         real(DP) :: r, crater_radius
 
@@ -34,7 +34,9 @@ contains
         crater_radius = crater_diameter / 2
 
         where(radial_distance(:) >= crater_radius)
-            elevation(:) = elevation(:) + ejecta_profile_func(radial_distance(:) / crater_radius, ejrim)
+            ejecta_thickness(:) = ejecta_profile_func(radial_distance(:) / crater_radius, ejrim)
+        elsewhere
+            ejecta_thickness(:) = 0.0_DP
         end where
 
         return         
@@ -44,7 +46,7 @@ contains
     pure elemental function ejecta_profile_func(r, ejrim) result(h)
         !! author: David A. Minton
         !!
-        !! Calculate the elevation of the ejecta layer as a function of distance from the center.
+        !! Calculate the thickness of the ejecta layer as a function of distance from the center.
         !!                                
         implicit none
         ! Arguments
@@ -174,11 +176,13 @@ contains
             do i = 1,Nraymax
                 length = minray * exp(log(rmax/minray) * ((Nraymax - i + 1)**rayp - 1.0_DP) / ((Nraymax**rayp - 1)))
                 rpeak = (length - 1.0_DP) * 0.5_DP
-                FF = 1.0_DP
                 if (r > length) then
                     cycle ! Don't add any material beyond the length of the ray
                 else
-                    f = a 
+                    FF = rayfmult * (20 / rmax)**(0.5_DP) * 0.25_DP 
+
+                    !equation 42 Minton et al. 2019
+                    f = FF * fpeak * (rtrans / rpeak)**rayq * exp(1._DP / rayq * (1.0_DP - (rtrans / rpeak)**rayq)) 
                 end if
                 tmp = ejecta_ray_func(theta,thetari(i),r,n,rw)
                 if (tmp > epsilon(ans) .and. (f/a > epsilon(ans))) ans = ans + tmp * f / a  ! Ensure that we don't get an underflow
@@ -187,6 +191,10 @@ contains
     end function ejecta_ray_pattern_func    
 
     pure function ejecta_ray_func(theta,thetar,r,n,w) result(ans)
+        !! author: David A. Minton
+        !!
+        !! Calculate the spatial distribution of ejecta in a single ray. The intensity function is a Gaussian centered on the 
+        !! midline of the ray.
         implicit none
         real(DP) :: ans
         real(DP),intent(in) :: theta,thetar,r,w
@@ -200,7 +208,7 @@ contains
         if (logval < LOGVSMALL) then
             ans = 0.0_DP
         else
-            a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) !this is the intensity function
+            a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) 
             ans = a * exp(logval)
         end if
     
