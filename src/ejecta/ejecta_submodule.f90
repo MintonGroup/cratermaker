@@ -192,7 +192,6 @@ contains
                 rw = rw0 * (1._DP - (1.0_DP - rw1 / rw0) * exp(1._DP - (r / rmin)**2)) ! equation 40 Minton et al. 2019
                 c = rw / r
                 a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) !equation 39 Minton et al., 2019
-                rpeak = (length - 1.0_DP) * 0.5_DP
                 if (r > length) cycle ! Don't add any material beyond the length of the ray
                 tmp = ejecta_ray_func(theta,thetari(i),a,n,rw)
                 if (tmp > epsilon(ans)) ans = ans + tmp  ! Ensure that we don't get an underflow
