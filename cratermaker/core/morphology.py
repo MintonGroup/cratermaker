@@ -74,6 +74,7 @@ class Morphology:
             
         self.ejrim = 0.14 * (self.diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
+
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
         elevation = crater.profile(r,
                                    r_ref, 
@@ -94,6 +95,7 @@ class Morphology:
                                    self.ejrim
                                 )
         return np.array(elevation, dtype=np.float64)
+   
     
     def ejecta_ray_pattern(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
         thickness = ejecta.ray_pattern(r, theta,
@@ -103,7 +105,45 @@ class Morphology:
                                     )
         thickness = np.array(thickness, dtype=np.float64)
         return thickness
+   
+    def compute_rmax(self, 
+                     minimum_thickness: np.float64,
+                     feature: str = "ejecta") -> np.float64:
+        """
+        Compute the maximum extent of the crater based on the minimum thickness of a feature, or the ejecta_truncation factor,
+        whichever is smaller.
+        
+        Parameters
+        ----------
+        minimum_thickness : np.float64
+            The minimum thickness of the feature blanket in meters.
+        feature : str, optional, default = "ejecta"
+            The feature to compute the maximum extent. Either "crater" or "ejecta". If "crater" is chosen, the rmax is based
+            on where the raised rim is smaller than minimum thickness. 
+        """ 
+        
+        # Compute the reference surface for the crater 
+
+        if feature == "ejecta":
+            def _profile_invert(r):
+                return self.ejecta_profile(r) - minimum_thickness
+        elif feature == "crater":
+            def _profile_invert(r):
+                return self.crater_profile(r, np.zeros(1)) - minimum_thickness
+        else:
+            raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
     
+        # Get the maximum extent 
+        rmax = fsolve(_profile_invert, x0=self.radius*1.01)[0]
+        
+        if self.ejecta_truncation:
+            rmax = min(rmax, self.ejecta_truncation * self.radius)
+            
+        if feature == "crater":
+            rmax = max(rmax, self.radius)
+
+        return rmax     
+     
     def form_crater(self, 
                     surf: Surface,
                     **kwargs) -> None:
@@ -117,30 +157,9 @@ class Morphology:
         **kwargs : dict
             Additional keyword arguments to be passed to internal functions (not used here).
         """
-        def compute_rmax(minimum_thickness: np.float64) -> np.float64:
-            """
-            Compute the maximum extent of the crater based on the minimum thickness of the ejecta blanket or the ejecta_truncation factor,
-            whichever is smaller.
-            
-            Parameters
-            ----------
-            minimum_thickness : np.float64
-                The minimum thickness of the ejecta blanket in meters.
-            """ 
-            
-            # Compute the reference surface for the crater 
-            def _profile_invert(r):
-                return self.crater_profile(r, np.zeros(1)) - minimum_thickness
-        
-            # Get the maximum extent 
-            rmax = fsolve(_profile_invert, x0=self.radius)[0]
-            if self.ejecta_truncation:
-                rmax = min(rmax, self.ejecta_truncation * self.radius)      
-
-            return rmax        
         
         # Test if the crater is big enough to modify the surface
-        rmax = compute_rmax(minimum_thickness=surf.smallest_length)
+        rmax = self.compute_rmax(minimum_thickness=surf.smallest_length)
         region_surf = surf.extract_region(self.crater.location, rmax)
         if not region_surf: # The crater is too small to change the surface
             return
@@ -167,6 +186,7 @@ class Morphology:
                  
         return  
     
+     
     def form_ejecta(self,
                     surf: Surface,
                     **kwargs) -> None:
@@ -180,30 +200,9 @@ class Morphology:
         **kwargs : dict
             Additional keyword arguments to be passed to internal functions (not used here). 
         """
-        def compute_rmax(minimum_thickness: np.float64) -> np.float64:
-            """
-            Compute the maximum extent of the crater based on the minimum thickness of the ejecta blanket or the ejecta_truncation factor,
-            whichever is smaller.
-            
-            Parameters
-            ----------
-            minimum_thickness : np.float64
-                The minimum thickness of the ejecta blanket in meters.
-            """ 
-            
-            # Compute the reference surface for the crater 
-            def _profile_invert(r):
-                return self.ejecta_profile(r) - minimum_thickness
-        
-            # Get the maximum extent 
-            rmax = fsolve(_profile_invert, x0=self.radius*1.1)[0]
-            if self.ejecta_truncation:
-                rmax = min(rmax, self.ejecta_truncation * self.radius)        
-
-            return rmax    
                  
         # Test if the ejecta is big enough to modify the surface
-        rmax = compute_rmax(minimum_thickness=surf.smallest_length)
+        rmax = self.compute_rmax(minimum_thickness=surf.smallest_length)
         if not self.ejecta_truncation:
             self.ejecta_truncation = rmax / self.radius
         region_surf = surf.extract_region(self.crater.location, rmax)
