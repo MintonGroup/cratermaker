@@ -14,8 +14,8 @@ def distribution(cnp.ndarray[cnp.float64_t, ndim=1] radial_distance,
                 cnp.ndarray[cnp.float64_t, ndim=1] initial_bearing,
                 cnp.float64_t crater_diameter,
                 cnp.float64_t ejrim,
-                bint dorays,
-                cnp.float64_t ejecta_truncation):
+                cnp.float64_t ejecta_truncation,
+                bint dorays):
     """
     Generate an ejecta profile.
 
