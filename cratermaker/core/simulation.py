@@ -35,6 +35,7 @@ class Simulation:
                  morphology_cls: Type[Morphology] | None = None,
                  production_cls: Type[Production] | None = None,
                  ejecta_truncation: FloatLike | None = None,
+                 dorays: bool = True,
                  **kwargs: Any):
         """
         Initialize the Simulation object.
@@ -66,6 +67,8 @@ class Simulation:
         ejecta_truncation : float, optional
             The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
             truncation distance based on where the ejecta thickness reaches a small value. 
+        dorays : bool, optional
+            Flag to enable or disable the ejecta ray pattern model, default is True.
         **kwargs : Any
             Additional keyword arguments that can be passed to other the methods of the class, such as arguments to set the scale, 
             morphology, or production function constructors. These also include the grid configuration parameters, such as 
@@ -93,6 +96,7 @@ class Simulation:
         self._smallest_projectile = 0.0 # The smallest crater will be determined by the smallest face area
         self._largest_crater = np.inf # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf # The largest projectile will be determined by the target body radius
+        self._dorays = True
          
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
@@ -292,7 +296,7 @@ class Simulation:
             crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
+        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, dorays=self.dorays, **kwargs)
         
         if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
             if self.production.mean_velocity is None:
@@ -1273,4 +1277,16 @@ class Simulation:
         elif self._smallest_projectile is not None and value < self._smallest_projectile:
             raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
         self._largest_projectile = np.float64(value)
-         
+        
+    @property
+    def dorays(self):
+        """
+        Flag to enable the ray pattern model for the ejecta. Set during initialization.
+        """
+        return self._dorays 
+    
+    @dorays.setter
+    def dorays(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("dorays must be a boolean value")
+        self._dorays = value

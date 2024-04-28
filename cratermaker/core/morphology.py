@@ -2,6 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from scipy.optimize import fsolve
 from numpy.typing import ArrayLike
+from typing import Any
 from .target import Target
 from ..utils.custom_types import FloatLike
 from .surface import Surface
@@ -25,6 +26,10 @@ class Morphology:
         truncation distance based on where the ejecta thickness reaches a small value.         
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used.
+    dorays : bool, optional
+        A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket, default is True.
+    **kwargs : Any
+        Additional keyword arguments to be passed to internal functions.
     """
     
     def __init__(self, 
@@ -32,12 +37,15 @@ class Morphology:
                  target: Target | None = None, 
                  ejecta_truncation: FloatLike | None = None,
                  rng: Generator | None = None,
+                 dorays: bool = True,
+                 **kwargs: Any 
                  ):
 
         self.crater = crater 
         self.target = target
         self.rng = rng
         self.ejecta_truncation = ejecta_truncation
+        self.dorays = dorays
 
         # Set the morphology based on crater type
         self.set_morphology_parameters()
@@ -94,11 +102,12 @@ class Morphology:
         return np.array(elevation, dtype=np.float64)
    
     
-    def ejecta_ray_pattern(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
-        thickness = ejecta.ray_pattern(r, theta,
+    def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
+        thickness = ejecta.distribution(r, theta,
                                        self.diameter, 
                                        self.ejrim, 
-                                       self.ejecta_truncation
+                                       self.ejecta_truncation,
+                                       self.dorays
                                     )
         thickness = np.array(thickness, dtype=np.float64)
         return thickness
@@ -215,11 +224,11 @@ class Morphology:
         region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = region_surf.get_initial_bearing(self.crater.location)
         
         try:
-            node_thickness = self.ejecta_ray_pattern(region_surf['node_crater_distance'].values, 
+            node_thickness = self.ejecta_distribution(region_surf['node_crater_distance'].values, 
                                                      region_surf['node_crater_bearing'].values)
             surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] += node_thickness
             
-            face_thickness = self.ejecta_ray_pattern(region_surf['face_crater_distance'].values, 
+            face_thickness = self.ejecta_distribution(region_surf['face_crater_distance'].values, 
                                                      region_surf['face_crater_bearing'].values)
             surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
             surf['ejecta_thickness'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
@@ -441,3 +450,21 @@ class Morphology:
             self.crater.ejecta_truncation = np.float64(value)
         else:
             self.crater.ejecta_truncation = None
+            
+    @property
+    def dorays(self) -> bool:
+        """
+        A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket.
+        
+        Returns
+        -------
+        bool
+        """
+        return self._dorays
+    
+    @dorays.setter
+    def dorays(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("dorays must be of type bool")
+        self._dorays = value
+        return

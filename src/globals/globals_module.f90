@@ -25,6 +25,7 @@ module globals
     integer, parameter :: SP = c_float  !! Symbolic name for kind types of single-precision reals
     integer, parameter :: DP = c_double  !! Symbolic name for kind types of double-precision reals
     integer, parameter :: QP = c_long_double !! Symbolic name for kind types of quad-precision reals
+    integer, parameter :: LGT = c_bool !! Symbolic name for kind types of logicals
 
     integer(I4B), parameter :: STRMAX = 512 !! Maximum size of character strings 
 

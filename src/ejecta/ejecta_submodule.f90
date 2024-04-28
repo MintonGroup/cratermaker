@@ -12,12 +12,6 @@ submodule (ejecta) s_ejecta
     use globals
     integer(I4B), parameter :: Nraymax = 11
         !! Maximum number of rays in a given pattern
-    real(DP), parameter :: rayfmult = (Nraymax)**(-4.0_DP / (1.2_DP)) 
-        !! The factor by which to multiply the ray intensity
-    real(DP), parameter :: fpeak = 8000.0_DP 
-        !! Factor that sets the peak intensity of a ray 
-    real(DP), parameter :: rayp = 2.0_DP 
-        !! Another ray intensity factor
     integer(I4B), parameter :: Npatt = 8 
         !! Number of different ray patterns
     real(DP), parameter :: frayreduction = 0.5_DP
@@ -26,10 +20,53 @@ submodule (ejecta) s_ejecta
         !! Ejecta profile power law index
 contains
 
+    module subroutine ejecta_distribution(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, dorays, &
+                                            ejecta_thickness)
+        !! author: David A. Minton
+        !!
+        !! Calculate the spatial distribution of ejecta in distal rays given a radial distance and initial bearing array.
+        !! If dorays is true, calculate the ejecta distribution using the ray pattern. If false, use a homogenous power law profile.
+        implicit none
+        ! Arguments
+        real(DP), dimension(:), intent(in) :: radial_distance
+            !! Radial distance from the crater center in meters. 
+        real(DP), dimension(:), intent(in) :: initial_bearing
+            !! The initial bearing of the ray in radians.
+        real(DP), intent(in) :: crater_diameter
+            !! The final crater diameter in meters.
+        real(DP), intent(in) :: ejrim 
+            !! The final ejecta rim height in meters.
+        real(DP), intent(in) :: ejecta_truncation
+            !! The distance relative to the crater radius at which to truncate the ejecta pattern 
+        logical(LGT), intent(in) :: dorays
+            !! If true, calculate the ejecta distribution using the ray pattern. If false, use a homogenous power law profile.
+        real(DP), dimension(:), intent(out) :: ejecta_thickness
+            !! The thickness of the ejecta layer at each radial_distance, initial_bearing pair
+        ! Internals
+        real(DP) :: crater_radius
+        integer(I4B) :: i, N
+
+        N = size(radial_distance)
+
+        if (dorays) then
+            call ejecta_ray_pattern(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, ejecta_thickness)
+            crater_radius = crater_diameter / 2
+            do concurrent (i = 1:N, radial_distance(i) >= crater_radius)
+                ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
+            end do
+        else
+            call ejecta_profile(radial_distance, crater_diameter, ejrim, ejecta_thickness)
+        end if
+
+        return
+    end subroutine ejecta_distribution
+
+
     pure module subroutine ejecta_profile(radial_distance, crater_diameter, ejrim, ejecta_thickness)
         !! author: David A. Minton
         !!
-        !! Calculate the thickness of an ejecta blanket as a function of distance from the crater center.
+        !! Calculate a homongenous power law profile of an ejecta blanket as a function of distance from the crater center.
+        !! Follows the power law formula given by  McGetchin et al. (1973). 
         implicit none
         ! Arguments
         real(DP),dimension(:), intent(in) :: radial_distance  
@@ -111,10 +148,11 @@ contains
         rmin = 2.348_DP * crater_radius**(0.006_DP)  ! The continuous ejecta blanket thickness relative to the crater radius
         l1 = (5.32_DP*(crater_radius/1000)**1.27)/(crater_radius/1000)
 
+        ! Distribute ray patterns evenly around the crater
         do concurrent (i = 1:Nraymax)
             thetari(i) = 2 * pi * i / Nraymax
         end do
-        call shuffle(thetari) ! randomize the ray pattern
+        call shuffle(thetari) ! randomize the ray pattern so that the ray lengths are randomly distributed
         call random_number(rn) ! randomize the ray orientation
 
         where(radial_distance(:) < crater_radius)
@@ -127,9 +165,11 @@ contains
                 ray_pattern_thickness(j) = frayreduction**(j-1) * ejecta_ray_pattern_func(radial_distance(i) / crater_radius,&
                                                                                             theta,rmin,rmax,thetari,l1)
             end do
-            ejecta_thickness(i) = sum(ray_pattern_thickness(:))
-            ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
+            ejecta_thickness(i) = sum(ray_pattern_thickness(:)) 
         end do
+
+        ! Normalize the thickness of the ejecta pattern
+        ejecta_thickness(:) = ejecta_thickness(:) / maxval(ejecta_thickness(:))
 
         contains
             subroutine shuffle(a)
@@ -168,6 +208,7 @@ contains
         integer(I4B) :: n,i
         real(DP) :: tmp
         real(DP) :: width_factor
+        real(DP), parameter :: rayp = 2.0_DP ! Factor that controls how the lengths of rays are distributed
      
         minray = l1
      
