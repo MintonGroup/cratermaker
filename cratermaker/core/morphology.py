@@ -8,8 +8,6 @@ from .surface import Surface
 from .target import Target
 from ..fortran_bindings import crater, ejecta
 
-RIMDROP = 4.20
-
 class Morphology:
     """
     An operations class for computing the morphology of a crater based on its size and target properties.
@@ -82,8 +80,7 @@ class Morphology:
                                    self.floordepth, 
                                    self.floordiam, 
                                    self.rimheight, 
-                                   self.ejrim, 
-                                    RIMDROP
+                                   self.ejrim
                                 )
         
         return np.array(elevation, dtype=np.float64)
