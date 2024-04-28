@@ -169,7 +169,9 @@ contains
         end do
 
         ! Normalize the thickness of the ejecta pattern
-        ejecta_thickness(:) = ejecta_thickness(:) / maxval(ejecta_thickness(:))
+        where(radial_distance(:) >= crater_radius)
+            ejecta_thickness(:) = ejecta_thickness(:) / maxval(ejecta_thickness(:))
+        end where
 
         contains
             subroutine shuffle(a)

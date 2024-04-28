@@ -42,8 +42,8 @@ module ejecta
     end interface
 
 contains
-    subroutine bind_ejecta_distribution(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, ejecta_truncation, &
-                                       ejrim, dorays, c_ejecta_thickness) bind(c)
+    subroutine bind_ejecta_distribution(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, ejrim, &
+                                       ejecta_truncation, dorays, c_ejecta_thickness) bind(c)
         ! Argumentsdistribution
         type(c_ptr), intent(in), value :: c_radial_distance, c_initial_bearing
         integer(I4B), intent(in), value :: num_elements
@@ -108,8 +108,8 @@ contains
     end subroutine bind_ejecta_profile
 
 
-    subroutine bind_ejecta_ray_pattern(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, ejecta_truncation, &
-                                       ejrim, c_ejecta_thickness) bind(c)
+    subroutine bind_ejecta_ray_pattern(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, ejrim, &
+                                       ejecta_truncation, c_ejecta_thickness) bind(c)
         ! Arguments
         type(c_ptr), intent(in), value :: c_radial_distance, c_initial_bearing
         integer(I4B), intent(in), value :: num_elements
