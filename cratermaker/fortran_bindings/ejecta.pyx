@@ -7,7 +7,7 @@ from libc.stdlib cimport malloc, free
 cdef extern from "ejecta.h":
     void bind_ejecta_distribution(double *radial_distance, double *initial_bearing, int num_elements, double crater_diameter, double ejrim, double ejecta_truncation, int dorays, double *ejecta_thickness);
     void bind_ejecta_profile(double *radial_distance, int num_elements, double crater_diameter, double ejrim, double *elevation)
-    void bind_ejecta_ray_pattern(double *radial_distance, double *initial_bearing, int num_elements, double crater_diameter, double ejrim, double ejecta_truncation, double *ejecta_thickness);
+    void bind_ejecta_ray_intensity(double *radial_distance, double *initial_bearing, int num_elements, double crater_diameter, double ejrim, double ejecta_truncation, double *ejecta_thickness);
 
 
 def distribution(cnp.ndarray[cnp.float64_t, ndim=1] radial_distance, 
@@ -101,7 +101,7 @@ def profile(cnp.ndarray[cnp.float64_t, ndim=1] radial_distance,
 
     return elevation  
 
-def ray_pattern(cnp.ndarray[cnp.float64_t, ndim=1] radial_distance, 
+def ray_intensity(cnp.ndarray[cnp.float64_t, ndim=1] radial_distance, 
                 cnp.ndarray[cnp.float64_t, ndim=1] initial_bearing,
                 cnp.float64_t crater_diameter,
                 cnp.float64_t ejrim,
@@ -144,7 +144,7 @@ def ray_pattern(cnp.ndarray[cnp.float64_t, ndim=1] radial_distance,
     cdef cnp.float64_t[::1] theta = initial_bearing
     cdef cnp.float64_t[::1] ejecta_thickness = thickness_array
 
-    bind_ejecta_ray_pattern(&r[0], &theta[0], num_elements, crater_diameter, ejrim, ejecta_truncation, &ejecta_thickness[0])
+    bind_ejecta_ray_intensity(&r[0], &theta[0], num_elements, crater_diameter, ejrim, ejecta_truncation, &ejecta_thickness[0])
 
     return ejecta_thickness  
 

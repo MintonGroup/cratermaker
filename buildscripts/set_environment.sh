@@ -86,13 +86,14 @@ NPROC=$(nproc)
 
 OMPI_FC="$(${SCRIPT_DIR}/get_gfortran_path.sh)"
 GFORTRAN_VERSION="$(${SCRIPT_DIR}/get_gfortran_version.sh)"
-CC="$(command -v mpicc)"
-CXX="$(command -v mpic++)"
-FC="$(command -v mpifort)"
-F77="$(command -v mpifort)"
-F95="$(command -v mpifort)"
+
 
 if [ $OS = "Darwin" ]; then
+    CC="/usr/bin/clang"
+    CXX="/usr/bin/clang++"
+    FC="${OMPI_FC}"
+    F77="${FC}"
+    F95="${FC}"
     MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-"$(${SCRIPT_DIR}/get_macosx_deployment_target.sh)"}
     ARCH="$(uname -m)"
     HOMEBREW_PREFIX=${HOMEBREW_PREFIX:-"$(brew --prefix)"}
@@ -110,6 +111,11 @@ if [ $OS = "Darwin" ]; then
     CXXFLAGS="${CFLAGS}"
     PATH="${HOMEBREW_PREFIX}/opt/coreutils/libexec/gnubin:${HOMEBREW_PREFIX}/bin:${PATH}"
 else
+    CC="$(command -v mpicc)"
+    CXX="$(command -v mpic++)"
+    FC="$(command -v mpifort)"
+    F77="$(command -v mpifort)"
+    F95="$(command -v mpifort)"
     LIBS="-lgomp"
     CFLAGS="-Wa,--noexecstack -fPIC"
     FCFLAGS="${CFLAGS}"

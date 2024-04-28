@@ -99,7 +99,8 @@ class Morphology:
                                    self.diameter, 
                                    self.ejrim
                                 )
-        return np.array(elevation, dtype=np.float64)
+        elevation = np.array(elevation, dtype=np.float64)
+        return elevation
    
     
     def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
@@ -111,7 +112,16 @@ class Morphology:
                                     )
         thickness = np.array(thickness, dtype=np.float64)
         return thickness
-   
+  
+    def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
+        intensity = ejecta.ray_intensity(r, theta,
+                                       self.diameter, 
+                                       self.ejrim, 
+                                       self.ejecta_truncation,
+                                    )
+        intensity = np.array(intensity, dtype=np.float64)
+        return intensity
+           
     def compute_rmax(self, 
                      minimum_thickness: np.float64,
                      feature: str = "ejecta") -> np.float64:
@@ -232,6 +242,10 @@ class Morphology:
                                                      region_surf['face_crater_bearing'].values)
             surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
             surf['ejecta_thickness'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
+            
+            face_intensity = self.ray_intensity(region_surf['face_crater_distance'].values, 
+                                                     region_surf['face_crater_bearing'].values)
+            surf['ray_intensity'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_intensity
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")

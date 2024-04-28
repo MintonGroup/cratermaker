@@ -31,13 +31,13 @@ module ejecta
              real(DP), dimension(:), intent(out) :: ejecta_thickness
          end subroutine ejecta_profile
 
-         module subroutine ejecta_ray_pattern(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, &
-                                              ejecta_thickness)
+         module subroutine ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, &
+                                              intensity)
              implicit none
              real(DP), dimension(:), intent(in) :: radial_distance, initial_bearing
              real(DP), intent(in) :: crater_diameter, ejrim, ejecta_truncation
-             real(DP), dimension(:), intent(out) :: ejecta_thickness
-         end subroutine ejecta_ray_pattern
+             real(DP), dimension(:), intent(out) :: intensity
+         end subroutine ejecta_ray_intensity
 
     end interface
 
@@ -108,15 +108,15 @@ contains
     end subroutine bind_ejecta_profile
 
 
-    subroutine bind_ejecta_ray_pattern(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, ejrim, &
-                                       ejecta_truncation, c_ejecta_thickness) bind(c)
+    subroutine bind_ejecta_ray_intensity(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, ejrim, &
+                                       ejecta_truncation, c_intensity) bind(c)
         ! Arguments
         type(c_ptr), intent(in), value :: c_radial_distance, c_initial_bearing
         integer(I4B), intent(in), value :: num_elements
         real(DP), intent(in), value :: crater_diameter, ejrim, ejecta_truncation
-        type(c_ptr), intent(in), value :: c_ejecta_thickness
+        type(c_ptr), intent(in), value :: c_intensity
         ! Internals
-        real(DP), dimension(:), pointer :: radial_distance, initial_bearing, ejecta_thickness
+        real(DP), dimension(:), pointer :: radial_distance, initial_bearing, intensity
 
         if (c_associated(c_radial_distance)) then
             call c_f_pointer(c_radial_distance, radial_distance, shape=[num_elements]) 
@@ -130,15 +130,15 @@ contains
             return
         end if
 
-        allocate(ejecta_thickness(num_elements))
-        if (c_associated(c_ejecta_thickness)) then
-            call c_f_pointer(c_ejecta_thickness, ejecta_thickness,shape=[num_elements]) 
+        allocate(intensity(num_elements))
+        if (c_associated(c_intensity)) then
+            call c_f_pointer(c_intensity, intensity,shape=[num_elements]) 
         else
             return
         end if
 
-        call ejecta_ray_pattern(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, ejecta_thickness)
+        call ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, intensity) 
  
         return
-    end subroutine bind_ejecta_ray_pattern
+    end subroutine bind_ejecta_ray_intensity
 end module ejecta

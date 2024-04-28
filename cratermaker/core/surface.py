@@ -623,7 +623,12 @@ class Surface(UxDataset):
                                name="ejecta_thickness",
                                long_name="ejecta thickness",
                                units= "m"
-                              )               
+                              )     
+            surf.generate_data(data=0.0,
+                               name="ray_intensity",
+                               long_name="ray intensity value",
+                               units= ""
+                              )                         
             surf.set_elevation(0.0,save_to_file=True)
         
         return surf        
