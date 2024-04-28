@@ -10,7 +10,7 @@
 !! The implementations for the Perlin noise procedures.
 submodule (ejecta) s_ejecta
     use globals
-    integer(I4B), parameter :: Nraymax = 5
+    integer(I4B), parameter :: Nraymax = 5 
         !! Maximum number of rays in a given pattern
     integer(I4B), parameter :: Npatt = 8 
         !! Number of different ray patterns
@@ -134,9 +134,10 @@ contains
             !! The intensity value of the ray pattern at each radial_distance, initial_bearing pair
 
         ! Internals
-        real(DP) :: l1, rmax, rmin, theta, crater_radius
+        real(DP) :: minray, rmax, rmin, theta, crater_radius
         real(DP), dimension(Nraymax) :: thetari
-        real(DP), dimension(Npatt)   :: rn, ray_intensity_intensity
+        real(DP), dimension(Npatt)   :: rn, ray_pattern_intensity
+        real(DP) :: r_pattern
         integer(I4B) :: i, j, N
 
         N = size(radial_distance)
@@ -147,7 +148,7 @@ contains
         crater_radius = crater_diameter / 2
         rmax = ejecta_truncation
         rmin = 1.0_DP 
-        l1 = 2.348_DP * crater_radius**(0.006_DP)  ! The continuous ejecta blanket radius relative to the crater radius
+        minray = 2.348_DP * crater_radius**(0.006_DP)  ! The continuous ejecta blanket radius relative to the crater radius
 
         ! Distribute ray patterns evenly around the crater
         do concurrent (i = 1:Nraymax)
@@ -164,10 +165,13 @@ contains
             ! Layer the ray patterns on top of each other
             do concurrent (j = 1:Npatt)
                 theta = mod(initial_bearing(i) + rn(j) * 2 * PI, 2 * PI)
-                ray_intensity_intensity(j) = frayreduction**(j-1) * ejecta_ray_intensity_func(radial_distance(i) / crater_radius,&
-                                                                                            theta,rmin,rmax,thetari,l1)
+
+                ! Make a slight random adjustment to the r values so that the indivdual rays on different patterns 
+                r_pattern = radial_distance(i) / crater_radius - rn(j)
+                ray_pattern_intensity(j) = frayreduction**(j-1) * ejecta_ray_intensity_func(r_pattern,theta,rmin,rmax,thetari, &
+                                                                                                minray)
             end do
-            intensity(i) = sum(ray_intensity_intensity(:)) 
+            intensity(i) = sum(ray_pattern_intensity(:)) 
         end do
 
         ! Normalize the intensity values so they span from 0 to 1
@@ -194,7 +198,7 @@ contains
     end subroutine ejecta_ray_intensity
 
 
-    pure function ejecta_ray_intensity_func(r,theta,rmin,rmax,thetari,l1) result(ans)
+    pure function ejecta_ray_intensity_func(r,theta,rmin,rmax,thetari,minray) result(ans)
         !! author: David A. Minton
         !!
         !! Calculate the spatial distribution of ejecta in distal rays.
@@ -202,18 +206,15 @@ contains
         ! Arguments
         real(DP),intent(in) :: r,theta,rmin,rmax
         real(DP),dimension(:),intent(in) :: thetari
-        real(DP),intent(in) :: l1
+        real(DP),intent(in) :: minray
         ! Result
         real(DP) :: ans
         ! Internals
         real(DP) :: thetar,rw, w
-        real(DP) :: rtrans,length,minray,FF
+        real(DP) :: length,minray,FF
         integer(I4B) :: n,i
         real(DP) :: tmp
-        real(DP) :: width_factor
-        real(DP), parameter :: rayp = 2.0_DP ! Factor that controls how the lengths of rays are distributed
-     
-        minray = l1
+        real(DP), parameter :: rayp = 4.0_DP ! Factor that controls how the lengths of rays are distributed
      
         if (r > rmax) then
             ans = 0._DP
@@ -227,16 +228,13 @@ contains
                n = max(min(floor((Nraymax**rayp - (Nraymax**rayp - 1) * log(r/minray) / log(rmax/minray))**(1._DP/rayp)),Nraymax),1)
             end if
             ans = 0._DP
-            rtrans = r - 1.0_DP
-            w = 2.0_DP 
             do i = 1,Nraymax
                 length = minray * exp(log(rmax/minray) * ((Nraymax - i + 1)**rayp - 1.0_DP) / ((Nraymax**rayp - 1)))
                 if (r > length) cycle ! Don't add any material beyond the length of the ray
-                width_factor = 1.0_DP - ((rmax - (0.99_DP * length)) / (rmax - rmin))
-                w = w / width_factor
+                w = (rmax / length) ** (1.0_DP)
                 ! equation 41 Minton et al. 2019
-                rw = PI / (w * Nraymax) * rmin * (1._DP - (1.0_DP - w / rmin) * exp(1._DP - (r / rmin)**2)) 
-                tmp = ejecta_ray_func(theta,thetari(i),r,n,rw)
+                rw = PI / (w * Nraymax) * (rmin / r) * (1._DP - (1.0_DP - w / rmin) * exp(1._DP - (r / rmin)**2)) 
+                tmp = ejecta_ray_func(theta,thetari(i),r,n,rw) 
                 if (tmp > epsilon(ans)) ans = ans + tmp  ! Ensure that we don't get an underflow
            end do
         end if
