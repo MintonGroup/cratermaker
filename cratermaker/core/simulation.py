@@ -402,6 +402,8 @@ class Simulation:
         self.projectile.node_index, self.projectile.face_index = self.crater.node_index, self.crater.face_index
         self.crater.morphology.form_crater(self.surf,**kwargs)
         self.crater.morphology.form_ejecta(self.surf,**kwargs)
+        if self.dorays:
+            self.crater.morphology.form_secondaries(self.surf,**kwargs)
         
         return  
 

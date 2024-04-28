@@ -218,7 +218,7 @@ class Morphology:
         """
                  
         # Test if the ejecta is big enough to modify the surface
-        rmax = self.compute_rmax(minimum_thickness=surf.smallest_length)
+        rmax = self.compute_rmax(minimum_thickness=surf.smallest_length) 
         if not self.ejecta_truncation:
             self.ejecta_truncation = rmax / self.radius
         region_surf = surf.extract_region(self.crater.location, rmax)
@@ -243,14 +243,63 @@ class Morphology:
             surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
             surf['ejecta_thickness'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
             
-            face_intensity = self.ray_intensity(region_surf['face_crater_distance'].values, 
+            if self.dorays: 
+                face_intensity = self.ray_intensity(region_surf['face_crater_distance'].values, 
                                                      region_surf['face_crater_bearing'].values)
-            surf['ray_intensity'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_intensity
+                surf['ray_intensity'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_intensity
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
                  
         return  
+    
+    def form_secondaries(self,
+                         surf: Surface,
+                         **kwargs) -> None:
+        """
+        This method forms secondary craters around the primary crater. Currently it only generates the ray intensity function.
+        Maximum ray length formula is from [1]_.
+       
+        Parameters
+        ----------
+        surf : Surface
+            The surface to be altered.
+        **kwargs : dict
+            Additional keyword arguments to be passed to internal functions (not used here). 
+            
+        References
+        ----------
+        .. [1] Elliott, J.R., Huang, Y.-H., Minton, D.A., Freed, A.M., 2018. The length of lunar crater rays explained using secondary crater scaling. Icarus 312, 231–246. https://doi.org/10.1016/j.icarus.2018.04.015
+
+        """
+        
+        # Elliott et al. (2018) eq. 2
+        A = 6.59 + self.rng.normal(loc=0.0,scale=1.45) 
+        p = 1.27 + self.rng.normal(loc=0.0,scale=0.06)
+        rmax = A * (self.radius / 1000) **p * 1000
+        if not self.ejecta_truncation:
+            self.ejecta_truncation = rmax / self.radius
+        region_surf = surf.extract_region(self.crater.location, rmax)
+        if not region_surf: # The crater is too small to change the surface
+            return
+        ray_area = np.pi * rmax**2
+        
+        # Check to make sure that the face at the crater location is not smaller than the ray effectt area
+        if surf['face_areas'].isel(n_face=self.crater.face_index) > ray_area:
+            return                  
+        
+        region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
+        region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = region_surf.get_initial_bearing(self.crater.location)
+        
+        try:
+            face_intensity = self.ray_intensity(region_surf['face_crater_distance'].values, 
+                                                region_surf['face_crater_bearing'].values)
+            surf['ray_intensity'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_intensity
+        except:
+            print(self)
+            raise ValueError("Something went wrong with this crater!")
+                 
+        return      
             
     @property
     def diameter(self) -> np.float64:
