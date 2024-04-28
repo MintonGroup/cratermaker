@@ -167,6 +167,7 @@ contains
         real(DP) :: rtrans,length,rpeak,minray,FF
         integer(I4B) :: n,i
         real(DP) :: tmp
+        real(DP) :: width_factor
      
         minray = l1
      
@@ -175,9 +176,6 @@ contains
         else if (r < 1.0_DP) then
             ans = 1.0_DP
         else
-            rw0 = rmin * pi / Nraymax / 2
-            rw1 = 2 * pi / Nraymax
-            rw = rw0 * (1._DP - (1.0_DP - rw1 / rw0) * exp(1._DP - (r / rmin)**2)) ! equation 40 Minton et al. 2019
             tmp = (Nraymax**rayp - (Nraymax**rayp - 1) * log(r/minray) / log(rmax/minray))
             if (tmp < 0.0_DP) then
                n = Nraymax ! "Nrays" in Minton et al. (2019)
@@ -186,10 +184,14 @@ contains
             end if
             ans = 0._DP
             rtrans = r - 1.0_DP
-            c = rw / r
-            a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) !equation 39 Minton et al., 2019
+            rw1 = 2 * pi / Nraymax
             do i = 1,Nraymax
                 length = minray * exp(log(rmax/minray) * ((Nraymax - i + 1)**rayp - 1.0_DP) / ((Nraymax**rayp - 1)))
+                width_factor = (rmax - 0.99_DP * length) / (rmax - rmin)
+                rw0 = (rmin * pi / Nraymax) * width_factor
+                rw = rw0 * (1._DP - (1.0_DP - rw1 / rw0) * exp(1._DP - (r / rmin)**2)) ! equation 40 Minton et al. 2019
+                c = rw / r
+                a = sqrt(2 * pi) / (n * c * erf(pi / (2 *sqrt(2._DP) * c))) !equation 39 Minton et al., 2019
                 rpeak = (length - 1.0_DP) * 0.5_DP
                 if (r > length) cycle ! Don't add any material beyond the length of the ray
                 tmp = ejecta_ray_func(theta,thetari(i),a,n,rw)
@@ -198,9 +200,9 @@ contains
         end if
 
         return
-    end function ejecta_ray_pattern_func    
+    end function ejecta_ray_pattern_func 
 
-
+    
     pure function ejecta_ray_func(theta,thetar,r,n,w) result(ans)
         !! author: David A. Minton
         !!

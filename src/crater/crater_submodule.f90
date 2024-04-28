@@ -14,7 +14,7 @@ submodule (crater) s_crater
 contains
 
     pure module subroutine crater_profile(radial_distance, reference_elevation, diameter, floordepth, floordiam, &
-        rimheight, ejrim, RIMDROP, elevation)
+        rimheight, ejrim, elevation)
         !! author: David A. Minton
         !!
         !! Calculate the elevation of a crater as a function of distance from the center.
@@ -35,8 +35,6 @@ contains
             !! The final crater rim height in meters.
         real(DP), intent(in) :: ejrim 
             !! The final ejecta rim height in meters.
-        real(DP), intent(in) :: RIMDROP 
-            !! The exponent for the uplifted rim dropoff.
         real(DP), dimension(:), intent(out) :: elevation 
             !! The elevation of the crater relative to a reference surface.
         ! Internals
@@ -45,6 +43,7 @@ contains
         real(DP) :: c0, c1, c2, c3
         real(DP), parameter :: A = 4.0_DP / 11.0_DP
         real(DP), parameter :: B = -32.0_DP / 187.0_DP
+        real(DP), parameter :: RIMDROP = 4.20_DP ! The exponent for the uplifted rim dropoff.
   
         ! Calculate the floor radius relative to the final crater radius
         flrad = floordiam / diameter
