@@ -187,7 +187,7 @@ contains
             rw1 = 2 * pi / Nraymax
             do i = 1,Nraymax
                 length = minray * exp(log(rmax/minray) * ((Nraymax - i + 1)**rayp - 1.0_DP) / ((Nraymax**rayp - 1)))
-                width_factor = (rmax - 0.99_DP * length) / (rmax - rmin)
+                width_factor = log(rmax / (0.99_DP * length)) / log(rmax / rmin)
                 rw0 = (rmin * pi / Nraymax) * width_factor
                 rw = rw0 * (1._DP - (1.0_DP - rw1 / rw0) * exp(1._DP - (r / rmin)**2)) ! equation 40 Minton et al. 2019
                 c = rw / r
