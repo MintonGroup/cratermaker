@@ -10,7 +10,7 @@
 !! The implementations for the Perlin noise procedures.
 submodule (ejecta) s_ejecta
     use globals
-    integer(I4B), parameter :: Nraymax = 5 
+    integer(I4B), parameter :: Nraymax = 11
         !! Maximum number of rays in a given pattern
     real(DP), parameter :: rayfmult = (Nraymax)**(-4.0_DP / (1.2_DP)) 
         !! The factor by which to multiply the ray intensity
@@ -107,9 +107,9 @@ contains
             stop
         end if
         crater_radius = crater_diameter / 2
-        l1 = (5.32_DP*(crater_radius/1000)**1.27)/(crater_radius/1000)
         rmax = ejecta_truncation
         rmin = 2.348_DP * crater_radius**(0.006_DP)  ! The continuous ejecta blanket thickness relative to the crater radius
+        l1 = (5.32_DP*(crater_radius/1000)**1.27)/(crater_radius/1000)
 
         do concurrent (i = 1:Nraymax)
             thetari(i) = 2 * pi * i / Nraymax
@@ -125,7 +125,7 @@ contains
             do concurrent (j = 1:Npatt)
                 theta = mod(initial_bearing(i) + rn(j) * 2 * PI, 2 * PI)
                 ray_pattern_thickness(j) = frayreduction**(j-1) * ejecta_ray_pattern_func(radial_distance(i) / crater_radius,&
-                                                                                            theta,rmin,rmax, thetari,l1)
+                                                                                            theta,rmin,rmax,thetari,l1)
             end do
             ejecta_thickness(i) = sum(ray_pattern_thickness(:))
             ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
@@ -164,7 +164,7 @@ contains
         ! Internals
         real(DP) :: a,c
         real(DP) :: thetar,rw,rw0,rw1
-        real(DP) :: rtrans,length,rpeak,minray,FF
+        real(DP) :: rtrans,length,minray,FF
         integer(I4B) :: n,i
         real(DP) :: tmp
         real(DP) :: width_factor
