@@ -8,8 +8,7 @@ from scipy.stats import maxwell
 from uxarray import Grid
 from uxarray.grid.coordinates import node_xyz_to_lonlat_rad
 
-def get_random_location(
-                        size: int=1, 
+def get_random_location(size: int=1, 
                         rng: Generator | None=None
                         ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
     """
@@ -133,8 +132,7 @@ def get_random_location_on_face(grid: Grid,
     else:
         return locations
 
-def get_random_impact_angle(
-                            size: int | Tuple[int, ...]=1, 
+def get_random_impact_angle(size: int | Tuple[int, ...]=1, 
                             rng: Generator | None=None
                             ) -> Union[np.float64,NDArray[np.float64]]:
     """
@@ -298,8 +296,7 @@ def get_random_size(diameters: NDArray[np.float64],
         return new_diameters
 
 
-def get_random_velocity(
-                        vmean: np.float64, 
+def get_random_velocity(vmean: np.float64, 
                         size: int | Tuple[int, ...]=1, 
                         rng: Generator | None=None
                         ) -> Union[np.float64,NDArray[np.float64]]:

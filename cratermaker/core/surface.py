@@ -9,6 +9,7 @@ import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
+from abc import ABC, abstractmethod
 from typing import Tuple, List, Literal, get_args, Any, Union
 from typing_extensions import Type
 import hashlib
@@ -21,8 +22,6 @@ from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils.montecarlo import get_random_location_on_face
 import warnings
-from ..fortran_bindings.realistic import apply_noise
-from abc import ABC, abstractmethod
 
 # Define valid grid types
 GridType = Literal["uniform", "hires_local"]
@@ -1299,7 +1298,7 @@ class Surface(UxDataset):
         
         return get_random_location_on_face(self.uxgrid, face_index, size)
 
-        
+
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,
                interval_number: int = 0,

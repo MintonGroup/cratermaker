@@ -4,7 +4,7 @@ import os
 import shutil
 from glob import glob
 import tempfile
-from typing import Any, Tuple, Type
+from typing import Any, Tuple, Type, Sequence
 from numpy.typing import ArrayLike
 from .target import Target
 from .impact import Crater, Projectile
@@ -12,12 +12,13 @@ from .surface import Surface, save
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import set_properties
+from ..utils.general_utils import set_properties, validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..fortran_bindings.realistic import apply_noise
 import warnings
 from tqdm import tqdm
+import vtk
 
 class Simulation:
     """
@@ -96,7 +97,7 @@ class Simulation:
         self._smallest_projectile = 0.0 # The smallest crater will be determined by the smallest face area
         self._largest_crater = np.inf # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf # The largest projectile will be determined by the target body radius
-        self._dorays = True
+        self._dorays = dorays
          
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
@@ -786,7 +787,7 @@ class Simulation:
 
         Parameters
         ----------
-        out_dir : str, Default "vtk_files"
+        out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
         
@@ -828,6 +829,123 @@ class Simulation:
                     raise RuntimeError("Error in extract_vtk. Cannot export VTK files")
         
         return
+    
+    def make_circle_file(self,
+                         diameters: FloatLike | Sequence[FloatLike] | ArrayLike ,
+                         longitudes: FloatLike | ArrayLike,
+                         latitudes: FloatLike | ArrayLike,
+                         output_filename: os.PathLike | None = None,
+                         *args, **kwargs
+                        ) -> None:
+        """
+        Plot circles of diameter D centered at the given location.
+    
+        Parameters
+        ----------
+        diameters : FloatLike or ArrayLike
+            Diameters of the circles in m.
+        longitudes : FloatLike or ArrayLike of Floats
+            Longitudes of the circle centers in degrees.
+        latitudes : FloatLike or ArrayLike of Floats
+            Latitudes of the circle centers in degrees.
+        out_dir : str, Default "vtk_files" in the simulation directory
+            Directory to store the VTK files.
+        """ 
+       
+        if output_filename is None:
+            output_filename = os.path.join(self.simdir, "circles.vtp") 
+        else:
+            output_filename = os.path.join(self.simdir, output_filename)
+        
+        diameters = np.atleast_1d(diameters)
+        longitudes = np.atleast_1d(longitudes)
+        latitudes = np.atleast_1d(latitudes)
+        # Check for length consistency
+        if len(diameters) != len(longitudes) or len(diameters) != len(latitudes):
+                raise ValueError("The diameters, latitudes, and longitudes, arguments must have the same length")
+            
+        # Validate non-negative values
+        if np.any(diameters < 0):
+            raise ValueError("All values in 'diameters' must be non-negative")
+        
+        sphere_radius = self.target.radius 
+        def create_circle(lon, lat, circle_radius, num_points=360):
+            """
+            Create a circle on the sphere's surface with a given radius and center.
+            
+            Parameters
+            ----------
+            lon : float
+                Longitude of the circle's center in degrees.
+            lat : float
+                Latitude of the circle's center in degrees.
+            circle_radius : float
+                Radius of the circle in meters.
+            num_points : int, optional
+                Number of points to use to approximate the circle. The default is 360. 
+            """
+            # Create an array of angle steps for the circle
+            radians = np.linspace(0, 2 * np.pi, num_points)
+            # Convert latitude and longitude to radians
+            lat_rad = np.deg2rad(lat)
+            lon_rad = np.deg2rad(lon)
+
+            # Calculate the Cartesian coordinates for the circle's center
+            center_x = sphere_radius * np.cos(lat_rad) * np.cos(lon_rad)
+            center_y = sphere_radius * np.cos(lat_rad) * np.sin(lon_rad)
+            center_z = sphere_radius * np.sin(lat_rad)
+
+            # Calculate the vectors for the local east and north directions on the sphere's surface
+            east = np.array([-np.sin(lon_rad), np.cos(lon_rad), 0])
+            north = np.array([-np.cos(lon_rad)*np.sin(lat_rad), -np.sin(lon_rad)*np.sin(lat_rad), np.cos(lat_rad)])
+            
+            # Initialize arrays to hold the circle points
+            x = np.zeros_like(radians)
+            y = np.zeros_like(radians)
+            z = np.zeros_like(radians)
+
+            # Calculate the points around the circle
+            for i in range(num_points):
+                x[i] = center_x + circle_radius * np.cos(radians[i]) * east[0] + circle_radius * np.sin(radians[i]) * north[0]
+                y[i] = center_y + circle_radius * np.cos(radians[i]) * east[1] + circle_radius * np.sin(radians[i]) * north[1]
+                z[i] = center_z + circle_radius * np.cos(radians[i]) * east[2] + circle_radius * np.sin(radians[i]) * north[2]
+
+            return x, y, z 
+
+        points = vtk.vtkPoints()
+        lines = vtk.vtkCellArray()
+        point_id = 0  # Keep track of the point ID across all circles
+        
+        for lon, lat, diameter in zip(longitudes, latitudes, diameters):
+            circle_radius = diameter / 2
+            x, y, z = create_circle(lon, lat, circle_radius)
+            
+            for i in range(len(x)):
+                points.InsertNextPoint(x[i], y[i], z[i])
+            
+            polyline = vtk.vtkPolyLine()
+            polyline.GetPointIds().SetNumberOfIds(len(x))
+            for i in range(len(x)):
+                polyline.GetPointIds().SetId(i, point_id)
+                point_id += 1
+            
+            lines.InsertNextCell(polyline)
+        
+        # Create a polydata object and add points and lines to it
+        polydata = vtk.vtkPolyData()
+        polydata.SetPoints(points)
+        polydata.SetLines(lines)
+        
+        # Write the polydata to a VTK file
+        writer = vtk.vtkXMLPolyDataWriter()
+        writer.SetFileName(output_filename)
+        writer.SetInputData(polydata)
+        
+        # Optional: set the data mode to binary to save disk space
+        writer.SetDataModeToBinary()
+        writer.Write()
+        
+        return    
     
 
     def apply_noise(self, 

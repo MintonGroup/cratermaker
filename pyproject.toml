@@ -34,7 +34,8 @@ dependencies = [
     'scikit-learn>=1.3.2',
     'cython>=3.0.0',
     'matplotlib>=3.8.2',
-    'netCDF4>=1.6.5'
+    'netCDF4>=1.6.5',
+    'vtk>=9.2.6'
 ]
 
 [project.urls]
