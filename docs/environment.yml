@@ -7,6 +7,7 @@ dependencies:
   - scipy>=1.14.0
   - xarray>=2024.7.0
   - uxarray>=2024.7.1
+  - pandas>=2.0.3
   - numba>=0.60.0
   - holoviews>=1.19.1
   - cartopy>=0.23.0
