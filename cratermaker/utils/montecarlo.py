@@ -6,10 +6,10 @@ from numpy.typing import NDArray
 from scipy.stats import truncnorm
 from scipy.stats import maxwell
 from uxarray import Grid
-from uxarray.grid.coordinates import node_xyz_to_lonlat_rad
+import uxarray as uxr
 
-def get_random_location(
-                        size: int=1, 
+
+def get_random_location(size: int=1, 
                         rng: Generator | None=None
                         ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
     """
@@ -120,8 +120,7 @@ def get_random_location_on_face(grid: Grid,
         p_random = r1 * p1 + r2 * p2 + (1 - r1 - r2) * np.array([x[0], y[0], z[0]])
         
         # Convert the random Cartesian point back to lon/lat
-        lon_lat = node_xyz_to_lonlat_rad(p_random.tolist())
-        lon_lat = np.rad2deg(lon_lat)  # Convert from radians to degrees
+        lon_lat = uxr.grid.coordinates._xyz_to_lonlat_deg(p_random[0],p_random[1],p_random[2])
         
         # Store the generated lon/lat values in the structured array
         locations['lon'][i] = lon_lat[0]
@@ -133,8 +132,7 @@ def get_random_location_on_face(grid: Grid,
     else:
         return locations
 
-def get_random_impact_angle(
-                            size: int | Tuple[int, ...]=1, 
+def get_random_impact_angle(size: int | Tuple[int, ...]=1, 
                             rng: Generator | None=None
                             ) -> Union[np.float64,NDArray[np.float64]]:
     """
@@ -298,8 +296,7 @@ def get_random_size(diameters: NDArray[np.float64],
         return new_diameters
 
 
-def get_random_velocity(
-                        vmean: np.float64, 
+def get_random_velocity(vmean: np.float64, 
                         size: int | Tuple[int, ...]=1, 
                         rng: Generator | None=None
                         ) -> Union[np.float64,NDArray[np.float64]]:

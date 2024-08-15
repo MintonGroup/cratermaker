@@ -1,0 +1,55 @@
+{% set pyproject = load_file_data('pyproject.toml') %}
+{% set version = pyproject.get('project').get('version') %}
+
+channels:
+  - conda-forge
+  - defaults  
+channel_priority: strict
+
+package:
+  name: cratermaker
+  version: "{{ version }}"
+
+source:
+  path: ..  
+
+build:
+  script: |
+    {{ PYTHON }} -m pip install . --no-deps -vv
+  number: 0
+
+requirements:
+  host:
+    - python>=3.9
+    - numpy<2
+    - scikit-build-core
+    - cython
+    - cmake
+    - ninja
+    - gfortran
+    - jinja2
+  run:
+    - numpy<2
+    - scipy
+    - matplotlib
+    - xarray
+    - uxarray
+    - dask
+    - vtk
+    - jigsaw
+    - mpas_tools
+test:
+  imports:
+    - cratermaker  
+  requires:
+    - pytest
+
+about:
+  home: https://cratermaker.readthedocs.io
+  license: GPL-3.0-or-later  
+  summary: "A package for simulating crater formation on planetary bodies"  
+  license_file: LICENSE  
+
+extra:
+  recipe-maintainers:
+    - profminton 
