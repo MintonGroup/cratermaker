@@ -28,7 +28,7 @@ dependencies:
   - libnetcdf>=4.9.2
   - jigsaw>=0.9.14
   - jigsawpy>=0.3.3
-  - mpas_tools>=0.34.1
+  - mpas_tools>=0.33.0
   - gfortran>=13.2
   - pip>=24.2
   - sphinx
