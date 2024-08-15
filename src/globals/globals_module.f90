@@ -25,6 +25,7 @@ module globals
     integer, parameter :: SP = c_float  !! Symbolic name for kind types of single-precision reals
     integer, parameter :: DP = c_double  !! Symbolic name for kind types of double-precision reals
     integer, parameter :: QP = c_long_double !! Symbolic name for kind types of quad-precision reals
+    integer, parameter :: LGT = c_bool !! Symbolic name for kind types of logicals
 
     integer(I4B), parameter :: STRMAX = 512 !! Maximum size of character strings 
 
@@ -36,5 +37,9 @@ module globals
     real(DP), parameter :: THIRD    = 1.0_DP / 3.0_DP 
     real(DP), parameter :: SIXTH    = 1.0_DP / 6.0_DP 
     real(DP), parameter :: DEG2RAD  = PI / 180.0_DP 
-    
+
+    real(DP),parameter :: VSMALL  = 10*tiny(1._DP)    ! Very small number
+    real(DP),parameter :: LOGVSMALL = log(VSMALL)  ! log of a very small number
+    real(DP),parameter :: VBIG    = huge(1._DP)    ! Very big number
+    real(DP),parameter :: SMALLFAC = 1e-5_DP       ! Smallest unit of measurement proportional to pixel size   
 end module globals

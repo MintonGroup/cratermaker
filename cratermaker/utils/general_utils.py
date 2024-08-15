@@ -167,22 +167,22 @@ def validate_and_convert_location(location):
     This function checks the input location data and converts it into a 
     consistent structured array format if it is a valid location representation.
     Valid formats for location include a tuple, a dictionary, or a structured 
-    array with latitude ('lat') and longitude ('lon').
+    array with latitude ('lon') and longitude ('lat').
 
     Parameters
     ----------
     location : tuple, dict, ArrayLike
         The input location data. It can be:
-        - A tuple with two elements (latitude, longitude).
-        - A dictionary with keys 'lat' and 'lon'.
-        - A structured numpy array with 'lat' and 'lon' fields.
-        - A list or an unstructured numpy array with two elements.
+        - A tuple with two elements (longitude, latitude).
+        - A dictionary with keys 'lon' and 'lat'.
+        - A structured numpy array with 'lon' and 'lon' fields.
+        - A list or an unstructured numpy array with two elements or an array of pairs of elements.
 
     Returns
     -------
     ArrayLike
         A structured numpy array with the location data in the format 
-        [('lat', 'f8'), ('lon', 'f8')].
+        [('lon', 'f8'), ('lat', 'f8')].
 
     Raises
     ------
@@ -191,40 +191,40 @@ def validate_and_convert_location(location):
 
     Examples
     --------
-    >>> validate_and_convert_location((45.0, -120.0))
-    array([(45., -120.)], dtype=[('lat', '<f8'), ('lon', '<f8')])
+    >>> validate_and_convert_location((-120.0, -45.0))
+    array([(-120., 45.)], dtype=[('lon', '<f8'), ('lat', '<f8')])
 
-    >>> validate_and_convert_location({'lat': 45.0, 'lon': -120.0})
-    array([(45., -120.)], dtype=[('lat', '<f8'), ('lon', '<f8')])
+    >>> validate_and_convert_location({'lon': -120.0, 'lat': -45.0})
+    array([(-120, 45.)], dtype=[('lon', '<f8'), ('lat', '<f8')])
 
-    >>> validate_and_convert_location(np.array([(45.0, -120.0)], dtype=[('lat', 'f8'), ('lon', 'f8')]))
-    array([(45., -120.)], dtype=[('lat', '<f8'), ('lon', '<f8')])
+    >>> validate_and_convert_location(np.array([(45.0, -120.0)], dtype=[('lon', 'f8'), ('lat', 'f8')]))
+    array([(-120., 45.)], dtype=[('lon', '<f8'), ('lat', '<f8')])
 
     Notes
     -----
     The function ensures that the output is always a structured numpy array with 
-    'lat' and 'lon' fields for consistent handling of location data across different
+    'lon' and 'lat' fields for consistent handling of location data across different
     input formats.
     """    
     # Check if it's already a tuple
     if isinstance(location, tuple) and len(location) == 2:
         return location
     
-    # Check if it's already a structured array with 'lat' and 'lon'
-    if isinstance(location, ArrayLike) and location.dtype.names == ('lat', 'lon'):
+    # Check if it's already a structured array with 'lon' and 'lat'
+    if isinstance(location, ArrayLike) and location.dtype.names == ('lon', 'lat'):
         return location
     
-    # Check if it's a dictionary with 'lat' and 'lon' keys
+    # Check if it's a dictionary with 'lon' and 'lat' keys
     if isinstance(location, dict):
-        if "lat" in location and "lon" in location:
-            return np.array([(location['lat'], location['lon'])], dtype=[('lat', 'f8'), ('lon', 'f8')])
+        if "lon" in location and "lat" in location:
+            return np.array([(location['lon'], location['lon'])], dtype=[('lon', 'f8'), ('lat', 'f8')])
     
     # Check if it's a tuple, list, or array of the correct shape
     if isinstance(location, (tuple, list, ArrayLike)):
         if len(location) == 2:
-            return np.array([(location[0], location[1])], dtype=[('lat', 'f8'), ('lon', 'f8')])
+            return np.array([(location[0], location[1])], dtype=[('lon', 'f8'), ('lat', 'f8')])
     
-    raise ValueError("location must be a dict with 'lat' and 'lon', a 2-element tuple/list, or a structured array with 'lat' and 'lon'")
+    raise ValueError("location must be a dict with 'lon' and 'lat', a 2-element tuple/list, or a structured array with 'lon' and 'lat'")
 
 
 def normalize_coords(loc):
@@ -283,8 +283,7 @@ def normalize_coords(loc):
     return normalized_lon, normalized_lat
 
 
-def R_to_CSFD(
-              R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayLike]], 
+def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayLike]], 
               D: Union[FloatLike, ArrayLike],
               Dlim: FloatLike = 1e6,
               *args: Any,
@@ -327,3 +326,4 @@ def R_to_CSFD(
         return N
     
     return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
+
