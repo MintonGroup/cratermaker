@@ -24,18 +24,9 @@ keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'land
 dependencies = [
     'numpy==1.26.4',
     'scipy>=1.14.0',
-    'xarray>=2024.5.0',
-    'uxarray>=2024.5.0',
-    'pandas>=2',
-    'numba>=0.60.0',
-    'holoviews>=1.19.1',
-    'cartopy>=0.22.0',
-    'dask>=2024.8.0',
-    'datashader>=0.16.3',
-    'scikit-learn>=1.5.1',
-    'cython>=3.0.11',
-    'matplotlib>=3.9.1',
-    'netCDF4>=1.7.1'
+    'xarray>=2024.7.0',
+    'uxarray>=2024.7.1',
+    'mpas_tools>=0.33.0'
 ]
 
 [project.urls]
