@@ -109,7 +109,7 @@ class GridStrategy(ABC):
                 print("Building grid with jigsaw...")
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=MatplotlibDeprecationWarning)
-                    build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=self.radius,logger=logger)
+                    build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=self.radius,logger=logger,plot_cellWidth=False)
             except:
                 print("Error building grid with jigsaw. See mesh.log for details.")
                 raise
