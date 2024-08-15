@@ -187,7 +187,7 @@ class GridStrategy(ABC):
         if not make_new_grid:
             uxgrid = uxr.open_grid(grid_file)
             try: 
-                old_hash = uxgrid.parsed_attrs.get("grid_hash")
+                old_hash = uxgrid.attrs.get("grid_hash")
                 make_new_grid = old_hash != grid_hash
             except:
                 make_new_grid = True
@@ -199,7 +199,7 @@ class GridStrategy(ABC):
             
             # Check to make sure we can open the grid file, then store the hash in the metadata
             uxgrid = uxr.open_grid(grid_file)
-            new_hash = uxgrid.parsed_attrs.get("grid_hash")
+            new_hash = uxgrid.attrs.get("grid_hash")
             assert(new_hash == grid_hash)
 
         return make_new_grid
