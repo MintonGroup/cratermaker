@@ -88,16 +88,6 @@ AR="/usr/bin/ar"
 NM="/usr/bin/nm"
 RANLIB="/usr/bin/ranlib"
 
-[tool.cibuildwheel.macos]
-before-all = [
-    "brew install coreutils netcdf",
-]
-before-build = [
-    "buildscripts/install_jigsaw.sh"
-]
-before-test = [
-    "buildscripts/install_jigsaw.sh"
-]
 
 [tool.cibuildwheel.linux.environment]
 PREFIX="/usr/local"
@@ -116,11 +106,4 @@ CMAKE_INSTALL_LIBDIR="lib"
 skip = "cp312-* pp* -manylinux_i686* *-musllinux*"
 before-all = [
     "yum install libcurl-devel netcdf-devel -y",
-]
-before-build = [
-    "buildscripts/install_jigsaw.sh"
-]
-
-before-test = [
-    "buildscripts/install_jigsaw.sh"
 ]
