@@ -5,7 +5,7 @@ import numpy as np
 from libc.stdlib cimport malloc, free
 
 cdef extern from "crater.h":
-    void bind_crater_profile(double *r, double *reference_elevation, int num_elements, double diameter, double floordepth, double floordiam, double rimheight, double ejrim, double RIMDROP, double *elevation)
+    void bind_crater_profile(double *r, double *reference_elevation, int num_elements, double diameter, double floordepth, double floordiam, double rimheight, double ejrim, double *elevation)
 
 
 def profile(cnp.ndarray[cnp.float64_t, ndim=1] r_array, 
@@ -14,8 +14,7 @@ def profile(cnp.ndarray[cnp.float64_t, ndim=1] r_array,
             cnp.float64_t floordepth,
             cnp.float64_t floordiam,
             cnp.float64_t rimheight,
-            cnp.float64_t ejrim,
-            cnp.float64_t RIMDROP):
+            cnp.float64_t ejrim):
     """
     Generate a crater profile.
 
@@ -34,9 +33,7 @@ def profile(cnp.ndarray[cnp.float64_t, ndim=1] r_array,
     rimheight : float
         height of the crater rim.
     ejrim : float
-        ejecta riom height.
-    RIMDROP : float
-        rim drop exponent
+        ejecta rim height.
 
     Returns
     -------
@@ -63,6 +60,6 @@ def profile(cnp.ndarray[cnp.float64_t, ndim=1] r_array,
     cdef cnp.float64_t[::1] reference_elevation = reference_elevation_array
     cdef cnp.float64_t[::1] elevation = elevation_array
 
-    bind_crater_profile(&r[0], &reference_elevation[0], num_elements, diameter, floordepth, floordiam, rimheight, ejrim, RIMDROP, &elevation[0])
+    bind_crater_profile(&r[0], &reference_elevation[0], num_elements, diameter, floordepth, floordiam, rimheight, ejrim, &elevation[0])
 
     return elevation  
