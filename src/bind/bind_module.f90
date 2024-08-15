@@ -8,7 +8,7 @@
 ! If not, see: https://www.gnu.org/licenses. 
 
 !! Interfaces for the Cython-Fortran bindings.
-module bind_module
+module bind
    !! author: David A. Minton
    !!
    !! This module defines the set of routines that connect the Cython code to the Fortran. Because Fortran derived types with
@@ -20,51 +20,10 @@ module bind_module
    !! The following implementation was adapted from _Modern Fortran Explained: Incorporating Fortran 2018_ by Metcalf, Reid, & 
    !! Cohen (see Fig. 19.8)
    use iso_c_binding
-   use globals_module
-   use surface_module
+   use globals
    implicit none
    
 contains
-
-   type(c_ptr) function bind_surface_init(n_node,n_face) bind(c)
-      !! author: David A. Minton
-      !!
-      !! This function is used to initialize the surface_type derived type object in Fortran and return a pointer to the object 
-      !! that can be used as a struct in C, and ultimately to the Python class object via Cython.
-      implicit none
-      ! Arguments
-      integer(I4B), intent(in), value   :: n_node !! The number of nodes in the surface mesh
-      integer(I4B), intent(in), value   :: n_face !! The number of faces in the surface mesh
-      ! Internals
-      type(surface_type), pointer :: f_surf !! A pointer to the surface_type variable that will be passed to Cython
-
-      nullify(f_surf)
-      allocate(f_surf)
-      call f_surf%allocate(n_node, n_face)
-      bind_surface_init = c_loc(f_surf)
-
-      return
-   end function bind_surface_init
-
-
-   subroutine bind_surface_final(sim) bind(c)
-      !! author: David A. Minton
-      !!
-      !! This subroutine is used to deallocate the pointer that links the C struct to the Fortran derived type object. 
-      implicit none
-      ! Arguments
-      type(c_ptr), intent(in), value :: sim !! C pointer to the Fortran body object
-      ! Internals
-      type(surface_type), pointer :: f_surf
-
-      if (c_associated(sim)) then
-         call c_f_pointer(sim, f_surf)
-         deallocate(f_surf)
-      end if
-
-      return
-   end subroutine bind_surface_final
-
 
    subroutine bind_c2f_string(c_string, f_string) 
       !! author: David A. Minton
@@ -116,4 +75,4 @@ contains
    end subroutine bind_f2c_string
 
 
-end module bind_module
+end module bind
