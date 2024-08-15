@@ -33,6 +33,8 @@
 !LICENSE
 !.readthedocs.yaml
 !environment.yml
+!recipe/
+!recipe/meta.yaml
 !docs/
 !docs/**/*
 docs/**/*.ai

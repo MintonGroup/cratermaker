@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = 'https://github.com/profminton/cratermaker.git'
+Repository = 'https://github.com/MintonGroup/cratermaker'
 
 [build-system]
 requires = [
