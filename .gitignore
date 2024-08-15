@@ -45,6 +45,8 @@ docs/*/**.swp
 docs/_static/fortran_docs/
 docs/_static/fortran_docs/*/**
 !fortran_docs.md
+!buildscripts/
+!buildscripts/*.sh
 
 
 

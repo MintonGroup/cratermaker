@@ -4,7 +4,7 @@ import os
 import shutil
 from glob import glob
 import tempfile
-from typing import Any, Tuple, Type
+from typing import Any, Tuple, Type, Sequence
 from numpy.typing import ArrayLike
 from .target import Target
 from .impact import Crater, Projectile
@@ -12,12 +12,13 @@ from .surface import Surface, save
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import set_properties
+from ..utils.general_utils import set_properties, validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..fortran_bindings.realistic import apply_noise
 import warnings
 from tqdm import tqdm
+import vtk
 
 class Simulation:
     """
@@ -27,7 +28,7 @@ class Simulation:
     def __init__(self, *, # Enforce keyword-only arguments
                  target: str | Target = None,
                  surf: Surface | None = None,
-                 reset_surface: bool | None = None,
+                 reset_surface: bool = True,
                  seed: int | None = None,
                  rng: Generator | None = None,
                  simdir: os.PathLike | None = None, 
@@ -35,6 +36,7 @@ class Simulation:
                  morphology_cls: Type[Morphology] | None = None,
                  production_cls: Type[Production] | None = None,
                  ejecta_truncation: FloatLike | None = None,
+                 dorays: bool = True,
                  **kwargs: Any):
         """
         Initialize the Simulation object.
@@ -66,6 +68,8 @@ class Simulation:
         ejecta_truncation : float, optional
             The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
             truncation distance based on where the ejecta thickness reaches a small value. 
+        dorays : bool, optional
+            Flag to enable or disable the ejecta ray pattern model, default is True.
         **kwargs : Any
             Additional keyword arguments that can be passed to other the methods of the class, such as arguments to set the scale, 
             morphology, or production function constructors. These also include the grid configuration parameters, such as 
@@ -93,6 +97,7 @@ class Simulation:
         self._smallest_projectile = 0.0 # The smallest crater will be determined by the smallest face area
         self._largest_crater = np.inf # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf # The largest projectile will be determined by the target body radius
+        self._dorays = dorays
          
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
@@ -292,7 +297,7 @@ class Simulation:
             crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, **kwargs)
+        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, dorays=self.dorays, **kwargs)
         
         if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
             if self.production.mean_velocity is None:
@@ -394,12 +399,12 @@ class Simulation:
         else:
             self.crater, self.projectile = self.generate_crater(**kwargs)
        
-        _, location_index = self.surf.find_nearest_index(self.crater.location)
-        # Test if the crater is big enough to modify the surface
-        rmax = self.crater.morphology.compute_rmax(minimum_thickness=self.surf.smallest_length)
-        crater_area = np.pi * rmax**2
-        if self.surf['face_areas'].isel(n_face=location_index) < crater_area:
-            self.crater.morphology.form_crater(self.surf,**kwargs)
+        self.crater.node_index, self.crater.face_index = self.surf.find_nearest_index(self.crater.location)
+        self.projectile.node_index, self.projectile.face_index = self.crater.node_index, self.crater.face_index
+        self.crater.morphology.form_crater(self.surf,**kwargs)
+        self.crater.morphology.form_ejecta(self.surf,**kwargs)
+        if self.dorays:
+            self.crater.morphology.form_secondaries(self.surf,**kwargs)
         
         return  
 
@@ -449,7 +454,6 @@ class Simulation:
         n_face = face_areas.size
         surface_area = self.surf.area.item() 
          
-
         # Group surfaces into bins based on their area. All bins within a factor of 2 in surface area are grouped together.
         max_bin_index = np.ceil(np.log2(face_areas.max() / min_area)).astype(int)
         bins = {i: [] for i in range(max_bin_index + 1)}
@@ -783,7 +787,7 @@ class Simulation:
 
         Parameters
         ----------
-        out_dir : str, Default "vtk_files"
+        out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
         
@@ -825,6 +829,123 @@ class Simulation:
                     raise RuntimeError("Error in extract_vtk. Cannot export VTK files")
         
         return
+    
+    def make_circle_file(self,
+                         diameters: FloatLike | Sequence[FloatLike] | ArrayLike ,
+                         longitudes: FloatLike | ArrayLike,
+                         latitudes: FloatLike | ArrayLike,
+                         output_filename: os.PathLike | None = None,
+                         *args, **kwargs
+                        ) -> None:
+        """
+        Plot circles of diameter D centered at the given location.
+    
+        Parameters
+        ----------
+        diameters : FloatLike or ArrayLike
+            Diameters of the circles in m.
+        longitudes : FloatLike or ArrayLike of Floats
+            Longitudes of the circle centers in degrees.
+        latitudes : FloatLike or ArrayLike of Floats
+            Latitudes of the circle centers in degrees.
+        out_dir : str, Default "vtk_files" in the simulation directory
+            Directory to store the VTK files.
+        """ 
+       
+        if output_filename is None:
+            output_filename = os.path.join(self.simdir, "circles.vtp") 
+        else:
+            output_filename = os.path.join(self.simdir, output_filename)
+        
+        diameters = np.atleast_1d(diameters)
+        longitudes = np.atleast_1d(longitudes)
+        latitudes = np.atleast_1d(latitudes)
+        # Check for length consistency
+        if len(diameters) != len(longitudes) or len(diameters) != len(latitudes):
+                raise ValueError("The diameters, latitudes, and longitudes, arguments must have the same length")
+            
+        # Validate non-negative values
+        if np.any(diameters < 0):
+            raise ValueError("All values in 'diameters' must be non-negative")
+        
+        sphere_radius = self.target.radius 
+        def create_circle(lon, lat, circle_radius, num_points=360):
+            """
+            Create a circle on the sphere's surface with a given radius and center.
+            
+            Parameters
+            ----------
+            lon : float
+                Longitude of the circle's center in degrees.
+            lat : float
+                Latitude of the circle's center in degrees.
+            circle_radius : float
+                Radius of the circle in meters.
+            num_points : int, optional
+                Number of points to use to approximate the circle. The default is 360. 
+            """
+            # Create an array of angle steps for the circle
+            radians = np.linspace(0, 2 * np.pi, num_points)
+            # Convert latitude and longitude to radians
+            lat_rad = np.deg2rad(lat)
+            lon_rad = np.deg2rad(lon)
+
+            # Calculate the Cartesian coordinates for the circle's center
+            center_x = sphere_radius * np.cos(lat_rad) * np.cos(lon_rad)
+            center_y = sphere_radius * np.cos(lat_rad) * np.sin(lon_rad)
+            center_z = sphere_radius * np.sin(lat_rad)
+
+            # Calculate the vectors for the local east and north directions on the sphere's surface
+            east = np.array([-np.sin(lon_rad), np.cos(lon_rad), 0])
+            north = np.array([-np.cos(lon_rad)*np.sin(lat_rad), -np.sin(lon_rad)*np.sin(lat_rad), np.cos(lat_rad)])
+            
+            # Initialize arrays to hold the circle points
+            x = np.zeros_like(radians)
+            y = np.zeros_like(radians)
+            z = np.zeros_like(radians)
+
+            # Calculate the points around the circle
+            for i in range(num_points):
+                x[i] = center_x + circle_radius * np.cos(radians[i]) * east[0] + circle_radius * np.sin(radians[i]) * north[0]
+                y[i] = center_y + circle_radius * np.cos(radians[i]) * east[1] + circle_radius * np.sin(radians[i]) * north[1]
+                z[i] = center_z + circle_radius * np.cos(radians[i]) * east[2] + circle_radius * np.sin(radians[i]) * north[2]
+
+            return x, y, z 
+
+        points = vtk.vtkPoints()
+        lines = vtk.vtkCellArray()
+        point_id = 0  # Keep track of the point ID across all circles
+        
+        for lon, lat, diameter in zip(longitudes, latitudes, diameters):
+            circle_radius = diameter / 2
+            x, y, z = create_circle(lon, lat, circle_radius)
+            
+            for i in range(len(x)):
+                points.InsertNextPoint(x[i], y[i], z[i])
+            
+            polyline = vtk.vtkPolyLine()
+            polyline.GetPointIds().SetNumberOfIds(len(x))
+            for i in range(len(x)):
+                polyline.GetPointIds().SetId(i, point_id)
+                point_id += 1
+            
+            lines.InsertNextCell(polyline)
+        
+        # Create a polydata object and add points and lines to it
+        polydata = vtk.vtkPolyData()
+        polydata.SetPoints(points)
+        polydata.SetLines(lines)
+        
+        # Write the polydata to a VTK file
+        writer = vtk.vtkXMLPolyDataWriter()
+        writer.SetFileName(output_filename)
+        writer.SetInputData(polydata)
+        
+        # Optional: set the data mode to binary to save disk space
+        writer.SetDataModeToBinary()
+        writer.Write()
+        
+        return    
     
 
     def apply_noise(self, 
@@ -1276,4 +1397,16 @@ class Simulation:
         elif self._smallest_projectile is not None and value < self._smallest_projectile:
             raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
         self._largest_projectile = np.float64(value)
-         
+        
+    @property
+    def dorays(self):
+        """
+        Flag to enable the ray pattern model for the ejecta. Set during initialization.
+        """
+        return self._dorays 
+    
+    @dorays.setter
+    def dorays(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("dorays must be a boolean value")
+        self._dorays = value

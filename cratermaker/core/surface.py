@@ -9,6 +9,7 @@ import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
+from abc import ABC, abstractmethod
 from typing import Tuple, List, Literal, get_args, Any, Union
 from typing_extensions import Type
 import hashlib
@@ -21,8 +22,6 @@ from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils.montecarlo import get_random_location_on_face
 import warnings
-from ..fortran_bindings.realistic import apply_noise
-from abc import ABC, abstractmethod
 
 # Define valid grid types
 GridType = Literal["uniform", "hires_local"]
@@ -204,6 +203,7 @@ class GridStrategy(ABC):
             assert(new_hash == grid_hash)
 
         return make_new_grid
+
     
 class UniformGrid(GridStrategy):
     """
@@ -433,6 +433,7 @@ class HiResLocalGrid(GridStrategy):
         if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
             raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
         self._superdomain_scale_factor = value
+   
     
 class Surface(UxDataset):
     """
@@ -617,6 +618,16 @@ class Surface(UxDataset):
                   ) 
         
         if reset_surface:
+            surf.generate_data(data=0.0,
+                               name="ejecta_thickness",
+                               long_name="ejecta thickness",
+                               units= "m"
+                              )     
+            surf.generate_data(data=0.0,
+                               name="ray_intensity",
+                               long_name="ray intensity value",
+                               units= ""
+                              )                         
             surf.set_elevation(0.0,save_to_file=True)
         
         return surf        
@@ -1286,7 +1297,8 @@ class Surface(UxDataset):
         """
         
         return get_random_location_on_face(self.uxgrid, face_index, size)
-        
+
+
 def _save_data(ds: xr.Dataset | xr.DataArray,
                out_dir: os.PathLike,
                interval_number: int = 0,

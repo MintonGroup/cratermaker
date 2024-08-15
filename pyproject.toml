@@ -27,6 +27,7 @@ dependencies = [
     'xarray>=2024.7.0',
     'uxarray>=2024.7.1',
     'mpas_tools>=0.33.0'
+    'vtk>=9.2.6'
 ]
 
 [project.urls]

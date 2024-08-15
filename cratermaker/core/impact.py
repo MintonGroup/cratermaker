@@ -302,7 +302,6 @@ class Crater(Impact):
                 **kwargs: Any):
         """
         Constructor for the Crater class.
-        
 
         """ 
         self._transient_diameter = None
@@ -322,7 +321,12 @@ class Crater(Impact):
         self.transient_radius = transient_radius    
         
         self.morphology_cls = morphology_cls
-        self.morphology = self.morphology_cls(crater=self, target=self.target, rng=self.rng)
+        
+        # Make sure kwargs don't get duplicated
+        kwargs.pop('crater', None)
+        kwargs.pop('target', None)
+        kwargs.pop('rng', None)
+        self.morphology = self.morphology_cls(crater=self, target=self.target, rng=self.rng, **kwargs)
             
         return
 
