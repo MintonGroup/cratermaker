@@ -12,6 +12,7 @@
 # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
 # The API change does not affect the functionality of the code, so we can safely ignore the warning
 import warnings
+from ._version import version as __version__
 warnings.filterwarnings("ignore",category=FutureWarning,module="xarray")
 warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 
@@ -25,4 +26,3 @@ from .core.production import Production, NeukumProduction
 from .utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, normalize_coords, R_to_CSFD
 from .utils.montecarlo import get_random_location, get_random_location_on_face, get_random_impact_angle, get_random_velocity, get_random_size, bounded_norm
 from .fortran_bindings import realistic, crater, ejecta
-from ._version import version as __version__

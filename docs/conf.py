@@ -77,7 +77,7 @@ html_title =""
 html_static_path = ["_static"]
 
 html_context = {
-    "github_user": "profminton",
+    "github_user": "MintonGroup",
     "github_repo": "cratermaker",
     "github_version": "main",
     "doc_path": "docs",
@@ -89,7 +89,7 @@ html_context = {
 html_theme_options = dict(
     # analytics_id=''  this is configured in rtfd.io
     # canonical_url="",
-    repository_url="https://github.com/profminton/cratermaker",
+    repository_url="https://github.com/MintonGroup/cratermaker",
     repository_branch="main",
     navigation_with_keys=False,  # pydata/pydata-sphinx-theme#1492
     path_to_docs="docs",
@@ -100,7 +100,7 @@ html_theme_options = dict(
     extra_footer="""<p>Development of Cratermaker is supported by NASA Lunar Data Analysis Program Grant #80NSSC21K1719<br>
     Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a></p>""",
     icon_links=[],  # workaround for pydata/pydata-sphinx-theme#1220
-    announcement="🍾 <a href='https://github.com/profminton/cratermaker/discussions/1'>Cratermaker is currently under development</a> 🎉",
+    announcement="🍾 <a href='https://github.com/MintonGroup/cratermaker/discussions/1'>Cratermaker is currently under development</a> 🎉",
 )
 
 
