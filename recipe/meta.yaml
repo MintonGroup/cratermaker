@@ -28,6 +28,8 @@ requirements:
     - ninja
     - gfortran
     - jinja2
+    - setuptools
+    - setuptools_scm
   run:
     - numpy<2
     - scipy
