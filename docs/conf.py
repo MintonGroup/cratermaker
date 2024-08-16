@@ -16,8 +16,7 @@ import cratermaker
 project = 'Cratermaker'
 copyright = f'{datetime.datetime.now().year}, David A. Minton'
 author = 'David A. Minton'
-with open(os.path.join(os.path.dirname(__file__), os.pardir, "version.txt"), 'r') as file:
-    version = file.read().strip() 
+version = cratermaker.__version__
 release = version
 
 # -- General configuration ---------------------------------------------------

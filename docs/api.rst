@@ -496,10 +496,14 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Morphology.set_morphology_parameters
-    Morphology.profile
-    Morphology.form_crater
     Morphology.compute_rmax
+    Morphology.crater_profile
+    Morphology.ejecta_profile
+    Morphology.ejecta_distribution
+    Morphology.form_crater
+    Morphology.form_ejecta
+    Morphology.form_secondaries
+    Morphology.ray_intensity
 
 Attributes
 ----------
@@ -507,17 +511,18 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    Morphology.crater
     Morphology.diameter
-    Morphology.radius
+    Morphology.dorays
+    Morphology.ejrim
+    Morphology.ejecta_truncation
+    Morphology.floordepth
+    Morphology.floordiam
     Morphology.morphology_type
+    Morphology.radius
     Morphology.rimheight
     Morphology.rimwidth
     Morphology.peakheight
-    Morphology.floordiam
-    Morphology.floordepth
-    Morphology.ejrim
-    Morphology.ejecta_truncation
-    Morphology.crater
     Morphology.target
     Morphology.rng
 
@@ -553,13 +558,13 @@ General utilities
     cratermaker.utils.general_utils.normalize_coords
     cratermaker.utils.general_utils.R_to_CSFD
 
-Perlin noise
-------------
+Realism
+-------
 
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.cython.perlin.apply_noise
+    cratermaker.realistic.apply_noise
 
 
 Custom type definitions

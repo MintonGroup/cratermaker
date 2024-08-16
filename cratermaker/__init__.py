@@ -25,3 +25,4 @@ from .core.production import Production, NeukumProduction
 from .utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, normalize_coords, R_to_CSFD
 from .utils.montecarlo import get_random_location, get_random_location_on_face, get_random_impact_angle, get_random_velocity, get_random_size, bounded_norm
 from .fortran_bindings import realistic, crater, ejecta
+from ._version import version as __version__

@@ -11,26 +11,21 @@
 ##################################################
 # Define the project and the depencies that it has
 ##################################################
-CMAKE_MINIMUM_REQUIRED(VERSION 3.15.7...3.28.1)
-SET(SKBUILD_PROJECT_NAME "cratermaker" CACHE STRING "Name of project set by scikit-build")
-SET(SKBUILD_SCRIPTS_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE STRING "Install location of binary executable")
-
-# Get version stored in text file
-FILE(READ "version.txt" VERSION_STRING)
-
-# Regular expression to extract major, minor, and patch numbers
-STRING(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" _ ${VERSION_STRING})
-
-# Set the project version
-SET(VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
-
+CMAKE_MINIMUM_REQUIRED(VERSION 3.23.1...3.30.2)
+IF (SKBUILD)
+    SET(VERSION ${SKBUILD_PROJECT_VERSION})
+    SET(PROJECT_NAME ${SKBUILD_PROJECT_NAME})
+ELSE ()
+    SET(VERSION "0.0.0")
+    SET(PROJECT_NAME "cratermaker" CACHE STRING "Name of project")
+ENDIF()
 
 # Check if DOC_BUILD environment variable is set and skip build if it is
 IF (DEFINED ENV{DOC_BUILD})
     MESSAGE(STATUS "DOC_BUILD is set. Skipping build process.")
-    PROJECT(${SKBUILD_PROJECT_NAME} VERSION ${VERSION})
+    PROJECT(${PROJECT_NAME} VERSION ${VERSION})
 ELSE()
-    PROJECT(${SKBUILD_PROJECT_NAME} LANGUAGES C CXX Fortran VERSION ${VERSION})
+    PROJECT(${PROJECT_NAME} LANGUAGES C CXX Fortran VERSION ${VERSION})
 
     # Use the old method to get Python packages, as that's what scikit-build uses
     IF (${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.27")
@@ -95,7 +90,7 @@ ELSE()
     FILE(TO_CMAKE_PATH ${FORTRAN_BINDINGS_SRC} FORTRAN_BINDINGS_SRC)
 
     # Set the name of the cratermaker library
-    SET(CRATERMAKER_LIBRARY "${SKBUILD_PROJECT_NAME}")
+    SET(CRATERMAKER_LIBRARY "${PROJECT_NAME}")
 
     # Determine compiler options
     IF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
