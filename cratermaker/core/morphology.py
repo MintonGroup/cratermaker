@@ -48,13 +48,13 @@ class Morphology:
         self.dorays = dorays
 
         # Set the morphology based on crater type
-        self.set_morphology_parameters()
+        self._set_morphology_parameters()
        
     def __repr__(self):
         return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.diameter}, "
                 f"rimheight: {self.rimheight}, rimwidth: {self.rimwidth}, floordepth: {self.floordepth}, floordiam: {self.floordiam})") 
     
-    def set_morphology_parameters(self):
+    def _set_morphology_parameters(self):
         """
         Sets the morphology parameters based on the crater type.
         """
