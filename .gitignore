@@ -6,7 +6,6 @@
 !cratermaker/core/
 !cratermaker/models/
 !cratermaker/plugins/
-
 !cratermaker/utils/
 !cratermaker/fortran_bindings/
 !cratermaker/**.py
@@ -28,9 +27,9 @@
 !CMakeLists.txt
 !distclean.cmake
 !README.md
-!version.txt
 !pyproject.toml
 !LICENSE
+cratermaker/_version.py
 !.readthedocs.yaml
 !environment.yml
 !recipe/

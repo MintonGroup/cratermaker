@@ -6,10 +6,10 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
 **Useful links**:
 `Home <https://cratermaker.readthedocs.io/en/latest/>`__ |
-`Code Repository <https://github.com/profminton/cratermaker>`__ |
-`Issues <https://github.com/profminton/cratermaker/issues>`__ |
-`Discussions <https://github.com/profminton/cratermaker/discussions>`__ |
-`Releases <https://github.com/profminton/cratermaker/releases>`__ |
+`Code Repository <https://github.com/MintonGroup/cratermaker>`__ |
+`Issues <https://github.com/MintonGroup/cratermaker/issues>`__ |
+`Discussions <https://github.com/MintonGroup/cratermaker/discussions>`__ |
+`Releases <https://github.com/MintonGroup/cratermaker/releases>`__ |
 
 
 .. grid:: 1 1 2 2
@@ -64,12 +64,12 @@ Simulate the evolution of a landscape dominated by impact bombardment.
    :caption: For developers/contributors
 
    Contributing Guide <contributing>
-   GitHub repository <https://github.com/profminton/cratermaker>
+   GitHub repository <https://github.com/MintonGroup/cratermaker>
 
 .. toctree::
    :maxdepth: 1
    :hidden:
    :caption: Community
 
-   GitHub discussions <https://github.com/profminton/cratermaker/discussions>
+   GitHub discussions <https://github.com/MintonGroup/cratermaker/discussions>
    Publications <publications>
