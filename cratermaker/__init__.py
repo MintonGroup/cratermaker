@@ -12,6 +12,7 @@
 # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
 # The API change does not affect the functionality of the code, so we can safely ignore the warning
 import warnings
+from ._version import version as __version__
 warnings.filterwarnings("ignore",category=FutureWarning,module="xarray")
 warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 
