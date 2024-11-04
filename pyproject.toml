@@ -9,7 +9,7 @@ maintainers = [
 ]
 
 readme = "README.md"
-requires-python=">=3.9"
+requires-python=">=3.10"
 license={file = "LICENSE"}
 classifiers=[
 'Development Status :: 3 - Alpha',
@@ -23,12 +23,17 @@ classifiers=[
 ]
 keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'landscape evolution']
 dependencies = [
-    'numpy==1.26.4',
-    'scipy>=1.14.0',
-    'xarray>=2024.7.0',
-    'uxarray>=2024.7.1',
-    'mpas_tools>=0.33.0',
-    'vtk>=9.3.1'
+    'numpy',
+    'xarray>=2024.10.0',
+    'uxarray>=2024.10.1',
+    'scipy',
+    'pandas',
+    'matplotlib',
+    'vtk',
+    'jigsaw',
+    'jigsawpy',
+    'mpas_tools',
+    'tqdm'
 ]
 
 [project.urls]
@@ -36,11 +41,11 @@ Repository = 'https://github.com/MintonGroup/cratermaker'
 
 [build-system]
 requires = [
-    "scikit-build-core>=0.10.3",
-    "cython>=3.0.11",
-    "numpy==1.26.4",
-    "setuptools>=64", 
-    "setuptools_scm>=8"
+    'cython>=3',
+    'numpy',
+    'scikit-build-core',
+    'setuptools>=64', 
+    'setuptools_scm>=8'
 ]
 build-backend = "scikit_build_core.build"
 
@@ -57,7 +62,7 @@ write_to = "cratermaker/_version.py"
 
 [tool.cibuildwheel]
 test-command = "pytest {package}/tests"
-test-requires = ['pytest>=8.3.2']
+test-requires = ['pytest']
 skip = "pp* *i686 *-manylinux_i686 *_ppc64le *_s390x *-musllinux* *-win32"
 build-verbosity = 1
 
@@ -67,8 +72,19 @@ MACOSX_DEPLOYMENT_TARGET="$(sw_vers -productVersion)"
 PREFIX="/usr/local"
 HOMEBREW_PREFIX="$(brew --prefix)"
 ARCH="$(uname -m)"
-DYLD_LIBRARY_PATH="${HOMEBREW_PREFIX}/lib:/usr/local/lib:${PREFIX}/lib"
-LDFLAGS="-Wl,-rpath,${ROOT_DIR}/lib  -Wl,-no_compact_unwind -L${PREFIX}/lib -L${HOMEBREW_PREFIX}/lib" 
+GFORTRAN_VERSION="$(buildscripts/get_gfortran_version.sh)"
+FC="$(buildscripts/get_gfortran_path.sh)"
+F77="${FC}"
+CC="/usr/bin/clang"
+CXX="/usr/bin/clang++"
+CPP="/usr/bin/cpp"
+AR="/usr/bin/ar"
+NM="/usr/bin/nm"
+RANLIB="/usr/bin/ranlib"
+LD_LIBRARY_PATH="${PREFIX}/lib:${HOMEBREW_PREFIX}/lib:${HOMEBREW_PREFIX}/lib/gcc/${GFORTRAN_VERSION}"
+DYLD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+REPAIR_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+LDFLAGS="-Wl,-no_compact_unwind -L${PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib/gcc/${GFORTRAN_VERSION}" 
 CPATH="${HOMEBREW_PREFIX}/include:/usr/local/include:${PREFIX}/include:${ROOT_DIR}/include"
 CPPFLAGS="-isystem ${HOMEBREW_PREFIX}/include -isystem ${PREFIX}/include -isystem /usr/local/include"
 LIBS="-lomp"
@@ -81,14 +97,6 @@ HDF5_LIBDIR="${HDF5_ROOT}/lib"
 HDF5_INCLUDE_DIR="${HDF5_ROOT}/include"
 HDF5_PLUGIN_PATH="${HDF5_LIBDIR}/plugin"
 NCDIR="${HOMEBREW_PREFIX}"
-FC="$(command -v gfortran-12)"
-F77="${FC}"
-CC="/usr/bin/clang"
-CXX="/usr/bin/clang++"
-CPP="/usr/bin/cpp"
-AR="/usr/bin/ar"
-NM="/usr/bin/nm"
-RANLIB="/usr/bin/ranlib"
 
 [tool.cibuildwheel.linux.environment]
 PREFIX="/usr/local"

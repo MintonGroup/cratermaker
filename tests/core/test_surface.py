@@ -214,53 +214,14 @@ class TestSurface(unittest.TestCase):
                 _, new_face_index = surf.find_nearest_index(location)
                 self.assertEqual(original_face_index, new_face_index) 
             
-
-
-    #TODO: Fix this test case since the method waws
-    # def test_average_surface(self):
-    #     """
-    #     Test the average_surface function. This will generate a random noisy surface, compute an average over a small region, and then test that the surface elevations relative to the average are close to zero.
-    #     """
-    #     sim = Simulation(pix=self.pix)
-    #     sim.apply_noise(model="ridged")
-    #     location = get_random_location()
-    #     region_radius = 100e3
-
-    #     sim.surf.get_reference_surface(location, region_radius)
-        
-    #     # Find cells within the crater radius
-    #     if 'face_crater_distance' in sim.surf:
-    #         cells_within_radius = sim.surf['face_crater_distance'] <= region_radius
-    #     else:
-    #         _, cells_within_radius = sim.surf.get_distance(location)
-    #         cells_within_radius = cells_within_radius <= region_radius
-        
-    #     vert_vars = ['face_x', 'face_y', 'face_z'] 
-    #     region_mesh = sim.surf.uxgrid._ds[vert_vars].where(cells_within_radius, drop=True)
-    #     region_elevation = sim.surf['face_elevation'].where(cells_within_radius, drop=True) 
-    #     region_surf = elevation_to_cartesian(region_mesh, region_elevation)
-        
-    #     cap_mult = np.linalg.norm(sim.surf.reference_surface_vector) / sim.target.radius
-        
-    #     region_mesh *= cap_mult 
-    #     region_mesh['face_x'] += sim.surf.reference_surface_center[0] 
-    #     region_mesh['face_y'] += sim.surf.reference_surface_center[1] 
-    #     region_mesh['face_z'] += sim.surf.reference_surface_center[2] 
-
-    #     # Fetch x, y, z values of the mesh within the region
-    #     region_delta = region_surf - region_mesh
-
-    #     # Fetch the areas of the cells within the region
-    #     cell_areas = sim.surf['face_areas'].where(cells_within_radius, drop=True)
-
-    #     # Calculate the weighted average of the x, y, and z coordinates to get the average surface vector
-    #     weighted_x = (region_delta['face_x'] * cell_areas).sum() / cell_areas.sum()
-    #     weighted_y = (region_delta['face_y'] * cell_areas).sum() / cell_areas.sum()
-    #     weighted_z = (region_delta['face_z'] * cell_areas).sum() / cell_areas.sum()
-    #     average_center = np.array([weighted_x.item(), weighted_y.item(), weighted_z.item()])
-    #     average_center = np.linalg.norm(average_center)
-    #     self.assertAlmostEqual(average_center / sim.target.radius, 0.0, delta=1e-5)
-        
+    def test_face_surface_values(self):
+        # Tests that the face_surface generates the correct values
+        surf = Surface.initialize(pix=self.pix, target=self.target, reset_surface=True) 
+        total_area_1 = surf.uxgrid.calculate_total_face_area()
+        total_area_2 = surf.face_areas.sum().item()
+        ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius
+        self.assertAlmostEqual(ratio, 1.0, places=2)
+        self.assertAlmostEqual(total_area_2/ (4*np.pi*self.target.radius**2), 1.0, places=2)
 
 if __name__ == '__main__':
      
