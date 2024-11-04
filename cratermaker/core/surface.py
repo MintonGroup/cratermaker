@@ -486,7 +486,7 @@ class Surface(UxDataset):
         if compute_face_areas: 
             # Compute face area needed future calculations
             if 'face_areas' not in self:
-                self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas * self.target.radius**2, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
+                self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
                 self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
 
     @classmethod
