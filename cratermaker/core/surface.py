@@ -36,7 +36,7 @@ _GRID_FILE_NAME = "grid.nc"
 _GRID_TEMP_DIR = ".grid"
 
 # This is a factor used to determine the smallest length scale in the grid
-_SMALLFAC = 1.0e-9
+_SMALLFAC = 1.0e-5
 
 # Mapping from MPAS to UGRID dimension names
 _DIM_MAP = {"n_node": "nVertices", 
@@ -486,7 +486,7 @@ class Surface(UxDataset):
         if compute_face_areas: 
             # Compute face area needed future calculations
             if 'face_areas' not in self:
-                self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas * self.target.radius**2, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
+                self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
                 self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
 
     @classmethod
