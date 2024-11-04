@@ -36,7 +36,7 @@ _GRID_FILE_NAME = "grid.nc"
 _GRID_TEMP_DIR = ".grid"
 
 # This is a factor used to determine the smallest length scale in the grid
-_SMALLFAC = 1.0e-5
+_SMALLFAC = 1.0e-9
 
 # Mapping from MPAS to UGRID dimension names
 _DIM_MAP = {"n_node": "nVertices", 
