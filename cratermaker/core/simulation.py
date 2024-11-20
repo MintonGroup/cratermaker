@@ -14,11 +14,15 @@ from .morphology import Morphology
 from .production import Production, NeukumProduction
 from ..utils.general_utils import set_properties, validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
-from mpas_tools.viz.paraview_extractor import extract_vtk
 from ..fortran_bindings.realistic import apply_noise
 import warnings
 from tqdm import tqdm
 import vtk
+try:
+    from mpas_tools.viz.paraview_extractor import extract_vtk
+    MPAS_TOOLS_AVAILABLE = True
+except ModuleNotFoundError:
+    MPAS_TOOLS_AVAILABLE = False
 
 class Simulation:
     """
@@ -790,6 +794,8 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
+        if not MPAS_TOOLS_AVAILABLE:
+            raise ModuleNotFoundError("The 'mpas_tools' package is required to export VTK files.")
         
         self.save()  
         if out_dir is None:
