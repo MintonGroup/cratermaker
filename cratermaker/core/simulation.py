@@ -14,7 +14,7 @@ from .morphology import Morphology
 from .production import Production, NeukumProduction
 from ..utils.general_utils import set_properties, validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..fortran_bindings.realistic import apply_noise
+from ..realistic import apply_noise
 import warnings
 from tqdm import tqdm
 import vtk

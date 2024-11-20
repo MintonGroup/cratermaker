@@ -20,6 +20,15 @@ ELSE ()
     SET(PROJECT_NAME "cratermaker" CACHE STRING "Name of project")
 ENDIF()
 
+SET(SKBUILD_SCRIPTS_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE STRING "Install location of binary executable")
+IF (SKBUILD)
+    set(ENV_PREFIX "$ENV{PREFIX}")
+    string(REPLACE "<ENV_PREFIX>" "${ENV_PREFIX}" CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+ENDIF ()
+IF(DEFINED ENV{CIBUILDWHEEL})
+    SET(CIBUILDWHEEL ON)
+ENDIF()
+
 # Check if DOC_BUILD environment variable is set and skip build if it is
 IF (DEFINED ENV{DOC_BUILD})
     MESSAGE(STATUS "DOC_BUILD is set. Skipping build process.")
@@ -38,30 +47,54 @@ ELSE()
     OPTION(USE_SIMD "Use SIMD vectorization" ON)
     OPTION(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
-    SET(FORTRAN_BINDINGS_SRC "${CMAKE_SOURCE_DIR}/cratermaker/fortran_bindings")
     SET(SRC "${CMAKE_SOURCE_DIR}/src")
+    SET(PY "${CMAKE_SOURCE_DIR}/cratermaker")
+    SET(FORTRAN_BINDINGS_SRC "${CMAKE_SOURCE_DIR}/cratermaker/fortran_bindings")
+    FILE(TO_CMAKE_PATH ${SRC} SRC)
+    FILE(TO_CMAKE_PATH ${PY} PY)
+    FILE(TO_CMAKE_PATH ${FORTRAN_BINDINGS_SRC} FORTRAN_BINDINGS_SRC)
+
     INCLUDE(GNUInstallDirs)
     IF (SKBUILD)
-        SET(INSTALL_PREFIX ${SKBUILD_PLATLIB_DIR}/${SKBUILD_PROJECT_NAME})
-        SET(INSTALL_BINDIR ${SKBUILD_SCRIPTS_DIR}) 
-        SET(INSTALL_LIBDIR ${SKBUILD_DATA_DIR}/lib) 
+        SET(CMAKE_LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}/deps/usr/lib")
         SET(INSTALL_INCLUDEDIR ${SKBUILD_HEADERS_DIR}) 
-        SET(INSTALL_FORTRAN_BINDINGS ${INSTALL_PREFIX}/fortran_bindings)
-        IF (APPLE)
-            SET(CMAKE_INSTALL_RPATH "@loader_path/../lib")
-        ELSEIF (LINUX)
-            SET(CMAKE_INSTALL_RPATH $ORIGIN/../lib)
-        ENDIF ()
+        SET(INSTALL_PYPROJ ${SKBUILD_PLATLIB_DIR}/${PROJECT_NAME}) 
+        SET(INSTALL_BINDIR ${INSTALL_PYPROJ})
+        # The following is needed so that the shared libraries get installed into the correct place. cibuildwheel behaves differently 
+        # than just running pip install directly. When running pip install directly, the libraries will be installed to the environment's
+        # lib directory by specifing ${SKBUILD_DATA_DIR}/lib as the library directory. 
+        # However, when running cibuildwheel, the libraries are repaired and placed in a special directory of all libraries
+        # that are packed up into the wheel. Currently, cibuildwheel cannot find the compiled libraries if they are installed to there,
+        # so we need to make sure the rpath is set to the original build directory so that the library repair step can reset the rpaths
+        # when running cibuildwheel.
+        IF (CIBUILDWHEEL)
+            SET(INSTALL_LIBDIR ${CMAKE_BINARY_DIR}/lib)
+            SET(CMAKE_INSTALL_RPATH "${CMAKE_BINARY_DIR}/bin")
+        ELSE()
+            SET(INSTALL_LIBDIR ${INSTALL_BINDIR})
+            IF (APPLE)
+                SET(CMAKE_INSTALL_RPATH "@loader_path;${INSTALL_LIBDIR}")
+            ELSEIF (LINUX)
+                SET(CMAKE_INSTALL_RPATH "$ORIGIN;${INSTALL_LIBDIR}")
+            ENDIF ()
+        ENDIF()
     ELSE ()
-        SET(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+        SET(INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR})
+        SET(INSTALL_PYPROJ ${PY})
         SET(INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
         SET(INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
-        SET(INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR})
-        SET(INSTALL_FORTRAN_BINDINGS ${INSTALL_LIBDIR})
     ENDIF ()
+    SET(INSTALL_FORTRAN_BINDINGS ${INSTALL_PYPROJ})
+
+    MESSAGE(STATUS "INSTALL_BINDIR: ${INSTALL_BINDIR}")
+    MESSAGE(STATUS "INSTALL_LIBDIR: ${INSTALL_LIBDIR}")
+    MESSAGE(STATUS "INSTALL_INCLUDEDIR: ${INSTALL_INCLUDEDIR}")
+    MESSAGE(STATUS "INSTALL_PYPROJ: ${INSTALL_PYPROJ}")
+    MESSAGE(STATUS "CMAKE_INSTALL_RPATH: ${CMAKE_INSTALL_RPATH}")
+    SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
     # Have the .mod files placed in the include folder
-    SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/mod)
+    SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/mod)
 
     # Add our local modules to the module ldpath
     FILE(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules" LOCAL_MODULE_PATH)
@@ -82,8 +115,6 @@ ELSE()
 
     # Ensure scikit-build modules
     FIND_PACKAGE(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
-
-
 
     # Make sure paths are correct for Unix or Windows style
     FILE(TO_CMAKE_PATH ${SRC} SRC)
