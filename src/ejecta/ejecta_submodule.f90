@@ -48,7 +48,7 @@ contains
         N = size(radial_distance)
 
         if (dorays) then
-            call ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, ejecta_thickness)
+            call ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejecta_truncation, ejecta_thickness)
             crater_radius = crater_diameter / 2
             do concurrent (i = 1:N, radial_distance(i) >= crater_radius)
                 ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
