@@ -20,26 +20,27 @@ build:
 
 requirements:
   host:
-    - python>=3.9
-    - numpy<2
+    - python>=3.10
+    - numpy
     - scikit-build-core
     - cython
     - cmake
     - ninja
-    - gfortran
     - jinja2
     - setuptools
     - setuptools_scm
   run:
-    - numpy<2
+    - numpy
+    - xarray>=2024.10.0
+    - uxarray>=2024.10.1
     - scipy
+    - pandas
     - matplotlib
-    - xarray
-    - uxarray
-    - dask
     - vtk
     - jigsaw
+    - jigsawpy
     - mpas_tools
+    - tqdm
 test:
   imports:
     - cratermaker  
