@@ -2,6 +2,12 @@ import unittest
 import cratermaker 
 import tempfile
 import os
+import warnings
+try:
+    import mpas_tools
+    MPAS_TOOLS_AVAILABLE = True
+except ModuleNotFoundError:
+    MPAS_TOOLS_AVAILABLE = False
 
 class TestRealistic(unittest.TestCase):
 
@@ -18,8 +24,11 @@ class TestRealistic(unittest.TestCase):
         return           
 
     def test_realistic(self):
-        sim = cratermaker.Simulation(pix=self.pix)
-        sim.apply_noise(model="ridged")
+        if MPAS_TOOLS_AVAILABLE:
+            sim = cratermaker.Simulation(pix=self.pix)
+            sim.apply_noise(model="ridged")
+        else:
+            warnings.warn("mpas_tools not available. Skipping test_realistic.")
         
 
 if __name__ == '__main__':
