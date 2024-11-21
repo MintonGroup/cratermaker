@@ -1,7 +1,4 @@
 *
-!external/
-!external/jigsaw-python/
-!external/jigsaw/
 !cratermaker/
 !cratermaker/core/
 !cratermaker/models/

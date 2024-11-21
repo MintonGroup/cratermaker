@@ -31,7 +31,7 @@ TARGET_REV=`echo $MACOSX_DEPLOYMENT_TARGET | cut -d. -f3`
 
 #Figure out which version to get
 case $TARGET_MAJOR in
-   14)
+   14|15)
       OMPVER="16.0.4"
       DVER="20"
       ;;
