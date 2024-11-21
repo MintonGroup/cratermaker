@@ -95,27 +95,16 @@ FCFLAGS="-mmacos-version-min=${MACOSX_DEPLOYMENT_TARGET} -arch ${ARCH}"
 FFFLAGS="${FCFLAGS}"
 CFLAGS="${FCFLAGS} -Wno-deprecated-non-prototype -arch ${ARCH}"
 CXXFLAGS="${CFLAGS}"
-HDF5_ROOT="${HOMEBREW_PREFIX}"
-HDF5_LIBDIR="${HDF5_ROOT}/lib"
-HDF5_INCLUDE_DIR="${HDF5_ROOT}/include"
-HDF5_PLUGIN_PATH="${HDF5_LIBDIR}/plugin"
-NCDIR="${HOMEBREW_PREFIX}"
 
 [tool.cibuildwheel.linux.environment]
 PREFIX="/usr/local"
 NCDIR="${PREFIX}"
-HDF5_ROOT="${PREFIX}"
-HDF5_LIBDIR="${HDF5_ROOT}/lib"
-HDF5_INCLUDE_DIR="${HDF5_ROOT}/include"
-HDF5_PLUGIN_PATH="${HDF5_LIBDIR}/plugin"
-LD_LIBRARY_PATH="${PREFIX}/lib:/project/lib:${HDF5_LIBDIR}"
-CPATH="${PREFIX}/include:/project/include:${HDF5_INCLUDE_DIR}"
-HDF5_DIR="${HDF5_ROOT}/cmake"
-PATH="${HDF5_ROOT}/bin:${PATH}"
+LD_LIBRARY_PATH="${PREFIX}/lib:/project/lib}"
+CPATH="${PREFIX}/include:/project/include}"
 CMAKE_INSTALL_LIBDIR="lib"
 
 [tool.cibuildwheel.linux]
 skip = "cp312-* pp* -manylinux_i686* *-musllinux*"
 before-all = [
-    "yum install libcurl-devel netcdf-devel -y",
+    "yum install libcurl-devel -y",
 ]
