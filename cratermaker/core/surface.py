@@ -15,13 +15,17 @@ from typing_extensions import Type
 import hashlib
 from numpy.typing import NDArray, ArrayLike
 from numpy.random import Generator
-from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
 import logging
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils.montecarlo import get_random_location_on_face
 import warnings
+try:
+    from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
+    MPAS_TOOLS_AVAILABLE = True
+except ModuleNotFoundError:
+    MPAS_TOOLS_AVAILABLE = False
 
 # Define valid grid types
 GridType = Literal["uniform", "hires_local"]
@@ -74,7 +78,9 @@ class GridStrategy(ABC):
         to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
         
         """
-        
+        if not MPAS_TOOLS_AVAILABLE:
+            raise ModuleNotFoundError("MPAS-tools is not available. Please install MPAS-tools to use this function.")
+         
         from matplotlib._api.deprecation import MatplotlibDeprecationWarning
         if not hasattr(self,"radius" ):
             raise ValueError("radius must be set in the grid strategy")
