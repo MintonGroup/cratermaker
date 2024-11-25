@@ -101,8 +101,7 @@ SKBUILD_CMAKE_ARGS=["-DMACHINE_CODE_VALUE=generic"]
 PREFIX="/usr/local"
 NCDIR="${PREFIX}"
 LD_LIBRARY_PATH="${PREFIX}/lib:/project/lib}"
-LIBS="-ldl"
-CFLAGS="-Wa,--noexecstack"
+
 CPATH="${PREFIX}/include:/project/include}"
 CMAKE_INSTALL_LIBDIR="lib"
 CC="$(command -v gcc)"

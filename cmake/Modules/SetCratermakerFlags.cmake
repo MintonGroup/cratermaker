@@ -181,7 +181,6 @@ IF (NOT BUILD_SHARED_LIBS AND NOT WINOPT)
         ENDIF (USE_OPENMP)
     ENDIF ()
 ENDIF ()
-
 IF (USE_SIMD)
     IF (COMPILER_OPTIONS STREQUAL "Intel")
         SET(MACHINE_CODE_VALUE "Host" CACHE STRING "Tells the compiler which processor features it may target, including which instruction sets and optimizations it may generate.")
@@ -192,30 +191,42 @@ IF (USE_SIMD)
 
         # Enables OpenMP SIMD compilation when OpenMP parallelization is disabled. 
         IF (NOT USE_OPENMP)
-                IF (WINOPT) 
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
-                        Fortran "/Qopenmp- /Qopenmp-simd" # Intel
-                )
-                ELSE ()
-                SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
-                        Fortran "-qno-openmp -qopenmp-simd>" # Intel
-                )
-                ENDIF ()     
+            IF (WINOPT) 
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+                Fortran "/Qopenmp- /Qopenmp-simd" # Intel
+            )
+            ELSE ()
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+                Fortran "-qno-openmp -qopenmp-simd" # Intel
+            )
+            ENDIF ()     
         ENDIF (NOT USE_OPENMP)
 
-        # Optimize for an old enough processor that it should run on most computers
         IF (WINOPT)
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "/Qx${MACHINE_CODE_VALUE}" # Intel
+            )
+            # Generate an extended set of vector functions
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+                Fortran "/Qvecabi:cmdtarget" # Intel Windows
+            )
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+                Fortran "/Qsimd-honor-fp-model" # Intel
             )
         ELSE ()
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                 Fortran "-x${MACHINE_CODE_VALUE}" # Intel
             )
+            # Generate an extended set of vector functions
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+                Fortran "-vecabi=cmdtarget" # Intel
+            )
+            SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+                Fortran "-qsimd-honor-fp-model" # Intel
+            )
         ENDIF ()
 
     ELSEIF (COMPILER_OPTIONS STREQUAL "GNU")
-        SET(MACHINE_CODE_VALUE "native" CACHE STRING "Tells the compiler which processor features it may target, including which instruction sets and optimizations it may generate.")
         # Enables OpenMP SIMD compilation when OpenMP parallelization is disabled. 
         IF (NOT USE_OPENMP)
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
@@ -223,24 +234,36 @@ IF (USE_SIMD)
             )     
         ENDIF (NOT USE_OPENMP)
 
-        IF (MACHINE_CODE_VALUE STREQUAL "Host")
-            SET(MACHINE_CODE_VALUE "native" CACHE STRING "native is the GNU equivalent of Host" FORCE)
+        SET(MACHINE_CODE_VALUE "native" CACHE STRING "Tells the compiler which processor features it may target, including which instruction sets and optimizations it may generate.")
+        IF (MACHINE_CODE_VALUE STREQUAL "Host" OR MACHINE_CODE_VALUE STREQUAL "native")
+            SET(MARCH_VALUE "native" CACHE STRING "value passed to -march=")
+            SET(MTUNE_VALUE "native" CACHE STRING "value passed to -mtune=")
+        ELSEIF (MACHINE_CODE_VALUE STREQUAL "generic")
+            IF (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+                SET(MARCH_VALUE "x86-64" CACHE STRING "value passed to -march=")
+                SET(MTUNE_VALUE "generic" CACHE STRING "value passed to -mtune=")
+            ELSEIF (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+                SET(MARCH_VALUE "armv8-a" CACHE STRING "value passed to -march=")
+                SET(MTUNE_VALUE "generic" CACHE STRING "value passed to -mtune=")
+            ENDIF ()
+        ELSE () 
+            SET(MARCH_VALUE "${MACHINE_CODE_VALUE}" CACHE STRING "value passed to -march=" )
+            SET(MTUNE_VALUE "${MACHINE_CODE_VALUE}" CACHE STRING "value passed to -mtune=")
         ENDIF ()
         
         IF (APPLE)
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
-                Fortran "-mtune=${MACHINE_CODE_VALUE}" 
+                Fortran "-mtune=${MTUNE_VALUE}" 
             )
         ELSE ()
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
-                Fortran "-march=${MACHINE_CODE_VALUE}" 
+                Fortran "-march=${MARCH_VALUE}" 
             )
             SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
-                Fortran "-mtune=${MACHINE_CODE_VALUE}" 
+                Fortran "-mtune=${MTUNE_VALUE}" 
             )
         ENDIF ()
     ENDIF ()
-    SET(MACHINE_CODE_VALUE ${MACHINE_CODE_VALUE} CACHE STRING "Tells the compiler which processor features it may target, including which instruction sets and optimizations it may generate.")
 ENDIF (USE_SIMD)    
 
 ###################
