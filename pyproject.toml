@@ -114,7 +114,7 @@ before-all = [
 ]
 
 [tool.cibuildwheel.linux]
-skip = "pp* -manylinux_i686* *-musllinux*"
+skip = "pp* *-manylinux_i686* *-musllinux*" 
 before-all = [
     "yum install epel-release -y",
     "yum install libcurl-devel -y",
