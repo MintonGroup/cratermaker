@@ -71,10 +71,10 @@ build-verbosity = 1
 
 [tool.cibuildwheel.macos.environment]
 ROOT_DIR="$(pwd)"
-MACOSX_DEPLOYMENT_TARGET="$(sw_vers -productVersion)"
 PREFIX="/usr/local"
 HOMEBREW_PREFIX="$(brew --prefix)"
 ARCH="$(uname -m)"
+MACOSX_DEPLOYMENT_TARGET="$(buildscripts/get_macosx_deployment_target.sh)"
 GFORTRAN_VERSION="$(buildscripts/get_gfortran_version.sh)"
 FC="$(buildscripts/get_gfortran_path.sh)"
 F77="${FC}"
@@ -88,19 +88,21 @@ LD_LIBRARY_PATH="${PREFIX}/lib:${HOMEBREW_PREFIX}/lib:${HOMEBREW_PREFIX}/lib/gcc
 DYLD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
 REPAIR_LIBRARY_PATH="${LD_LIBRARY_PATH}"
 LDFLAGS="-Wl,-no_compact_unwind -L${PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib/gcc/${GFORTRAN_VERSION}" 
-CPATH="${HOMEBREW_PREFIX}/include:/usr/local/include:${PREFIX}/include:${ROOT_DIR}/include"
-CPPFLAGS="-isystem ${HOMEBREW_PREFIX}/include -isystem ${PREFIX}/include -isystem /usr/local/include"
-LIBS="-lomp"
-FCFLAGS="-mmacos-version-min=${MACOSX_DEPLOYMENT_TARGET} -arch ${ARCH}"
-FFFLAGS="${FCFLAGS}"
+CPATH="${PREFIX}/include:${HOMEBREW_PREFIX}/include"
+CPPFLAGS="-isystem ${PREFIX}/include"
+FCFLAGS="-arch ${ARCH}"
+FFLAGS="${FCFLAGS}"
 CFLAGS="${FCFLAGS} -Wno-deprecated-non-prototype -arch ${ARCH}"
 CXXFLAGS="${CFLAGS}"
+FFFLAGS="${FCFLAGS}"
 
 [tool.cibuildwheel.linux.environment]
 SKBUILD_CMAKE_ARGS=["-DMACHINE_CODE_VALUE=generic"]
 PREFIX="/usr/local"
 NCDIR="${PREFIX}"
 LD_LIBRARY_PATH="${PREFIX}/lib:/project/lib}"
+LIBS="-ldl"
+CFLAGS="-Wa,--noexecstack"
 CPATH="${PREFIX}/include:/project/include}"
 CMAKE_INSTALL_LIBDIR="lib"
 CC="$(command -v gcc)"
