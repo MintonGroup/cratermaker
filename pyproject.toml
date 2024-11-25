@@ -97,14 +97,26 @@ CFLAGS="${FCFLAGS} -Wno-deprecated-non-prototype -arch ${ARCH}"
 CXXFLAGS="${CFLAGS}"
 
 [tool.cibuildwheel.linux.environment]
+SKBUILD_CMAKE_ARGS=["-DMACHINE_CODE_VALUE=generic"]
 PREFIX="/usr/local"
 NCDIR="${PREFIX}"
 LD_LIBRARY_PATH="${PREFIX}/lib:/project/lib}"
 CPATH="${PREFIX}/include:/project/include}"
 CMAKE_INSTALL_LIBDIR="lib"
+CC="$(command -v gcc)"
+CXX="$(command -v g++)"
+FC="$(buildscripts/get_gfortran_path.sh)"
+
+[tool.cibuildwheel.macos]
+before-all = [
+    "brew install coreutils vecLibFort cmake",
+]
 
 [tool.cibuildwheel.linux]
-skip = "cp312-* pp* -manylinux_i686* *-musllinux*"
+skip = "pp* -manylinux_i686* *-musllinux*"
 before-all = [
+    "yum install epel-release -y",
     "yum install libcurl-devel -y",
 ]
+
+
