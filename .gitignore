@@ -38,6 +38,7 @@ docs/_build/
 docs/_build/**/*
 docs/generated/
 docs/generated/**/*
+docs/.DS_Store
 docs/*/**.DS_Store
 docs/*/**.swp
 docs/_static/fortran_docs/
@@ -45,8 +46,6 @@ docs/_static/fortran_docs/*/**
 !fortran_docs.md
 !buildscripts/
 !buildscripts/*.sh
-
-
-
-
-docs/.DS_Store
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
