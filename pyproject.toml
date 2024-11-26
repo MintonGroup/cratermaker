@@ -29,7 +29,8 @@ dependencies = [
     'scipy',
     'matplotlib',
     'vtk',
-    'tqdm'
+    'tqdm',
+    'pyogrio'
 ]
 
 [project.optional-dependencies]
