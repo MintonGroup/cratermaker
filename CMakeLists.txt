@@ -11,7 +11,7 @@
 ##################################################
 # Define the project and the depencies that it has
 ##################################################
-CMAKE_MINIMUM_REQUIRED(VERSION 3.23.1...3.31.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.23.1...3.31.1)
 IF (SKBUILD)
     SET(VERSION ${SKBUILD_PROJECT_VERSION})
     SET(PROJECT_NAME ${SKBUILD_PROJECT_NAME})
@@ -21,6 +21,7 @@ ELSE ()
     SET(SKBUILD_PROJECT_VERSION_FULL "CUSTOM BUILD ${DATESTR}")
     SET(PROJECT_NAME "cratermaker" CACHE STRING "Name of project")
 ENDIF()
+MESSAGE(STATUS "Building ${PROJECT_NAME} version ${SKBUILD_PROJECT_VERSION_FULL}")
 
 SET(SKBUILD_SCRIPTS_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE STRING "Install location of binary executable")
 
@@ -133,8 +134,9 @@ ELSE()
 
     INCLUDE(GNUInstallDirs)
     IF (SKBUILD)
-        SET(INSTALL_INCLUDEDIR ${SKBUILD_HEADERS_DIR})
-        SET(INSTALL_PYPROJ ${SKBUILD_PLATLIB_DIR}/${PROJECT_NAME})
+        SET(CMAKE_LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}/deps/usr/lib")
+        SET(INSTALL_INCLUDEDIR ${SKBUILD_HEADERS_DIR}) 
+        SET(INSTALL_PYPROJ ${SKBUILD_PLATLIB_DIR}/${PROJECT_NAME}) 
         SET(INSTALL_BINDIR ${INSTALL_PYPROJ})
         # The following is needed so that the shared libraries get installed into the correct place. cibuildwheel behaves differently 
         # than just running pip install directly. When running pip install directly, the libraries will be installed to the environment's
@@ -145,7 +147,7 @@ ELSE()
         # when running cibuildwheel.
         IF (CIBUILDWHEEL)
             SET(INSTALL_LIBDIR ${CMAKE_BINARY_DIR}/lib)
-            SET(CMAKE_INSTALL_RPATH "${CMAKE_BINARY_DIR}/lib")
+            SET(CMAKE_INSTALL_RPATH "${INSTALL_LIBDIR}")
         ELSE()
             SET(INSTALL_LIBDIR ${INSTALL_BINDIR})
             IF (APPLE)
@@ -160,6 +162,11 @@ ELSE()
         SET(INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
         SET(INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
     ENDIF ()
+
+    IF (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        SET(INSTALL_LIBDIR ${INSTALL_BINDIR})
+        SET(CMAKE_INSTALL_RPATH "$ORIGIN")
+    ENDIF()
 
     MESSAGE(STATUS "INSTALL_BINDIR: ${INSTALL_BINDIR}")
     MESSAGE(STATUS "INSTALL_LIBDIR: ${INSTALL_LIBDIR}")
@@ -187,7 +194,7 @@ ELSE()
     #####################################
     # Tell how to install this executable
     #####################################
-    IF(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    IF(MSVC)
         SET(CMAKE_INSTALL_PREFIX "C:\\Program Files\\swiftest")
         FILE(TO_CMAKE_PATH ${CMAKE_INSTALL_PREFIX} CMAKE_INSTALL_PREFIX)
         SET(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX} CACHE PATH "Path for install")
