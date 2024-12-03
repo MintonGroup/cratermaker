@@ -34,9 +34,70 @@ IF(DEFINED ENV{CIBUILDWHEEL})
     SET(CIBUILDWHEEL ON)
 ENDIF()
 
+# Check for a Fortran compiler 
+IF(NOT CMAKE_Fortran_COMPILER)
+    FIND_PROGRAM(Fortran_COMPILER
+               NAMES ENV{FC} gfortran-14 gfortran-13 gfortran-12 gfortran ifort mpiifort
+               DOC "Fortran compiler")
+
+    # If a compiler is found, set it as the Fortran compiler.
+    IF(Fortran_COMPILER)
+        SET(CMAKE_Fortran_COMPILER ${Fortran_COMPILER} CACHE STRING "Fortran compiler")
+    ELSE()
+        MESSAGE(FATAL_ERROR "No suitable Fortran compiler was found.")
+    ENDIF()
+ENDIF()
 MESSAGE(STATUS "Using Fortran compiler: ${CMAKE_Fortran_COMPILER}")
+
+IF(NOT CMAKE_C_COMPILER)
+    # If CC is not set, search for the C compilers in the specified order.
+    IF (APPLE)
+        FIND_PROGRAM(C_COMPILER
+               NAMES ENV{CC} clang gcc
+               DOC "C compiler")
+    ELSEIF(UNIX)
+        FIND_PROGRAM(C_COMPILER
+               NAMES ENV{CC} gcc clang icc mpiicc
+               DOC "C compiler")
+    ELSE()
+        FIND_PROGRAM(C_COMPILER
+               NAMES ENV{CC} cl gcc clang icc mpiicc
+               DOC "C compiler")
+    ENDIF()
+    # If a compiler is found, set it as the C compiler.
+    IF(C_COMPILER)
+        SET(CMAKE_C_COMPILER ${C_COMPILER} CACHE STRING "C compiler")
+
+    ELSE()
+        MESSAGE(FATAL_ERROR "No suitable C compiler was found.")
+    ENDIF()
+ENDIF()
 MESSAGE(STATUS "Using C compiler: ${CMAKE_C_COMPILER}")
+
+IF(NOT CMAKE_CXX_COMPILER)
+    # If CXX is not set, search for the C++ compilers in the specified order.
+    IF (APPLE)
+        FIND_PROGRAM(CXX_COMPILER
+               NAMES ENV{CXX} clang++ g++
+               DOC "C++ compiler")
+    ELSEIF(UNIX)
+        FIND_PROGRAM(CXX_COMPILER
+               NAMES ENV{CXX} g++ clang++ icpc mpiicpc
+               DOC "C++ compiler")
+    ELSE()
+        FIND_PROGRAM(CXX_COMPILER
+               NAMES ENV{CXX} cl g++ clang++ icpc mpiicpc
+               DOC "C++ compiler")
+    ENDIF()
+    # If a compiler is found, set it as the C++ compiler.
+    IF(CXX_COMPILER)
+        SET(CMAKE_CXX_COMPILER ${CXX_COMPILER} CACHE STRING "C++ compiler")
+    ELSE()
+        MESSAGE(FATAL_ERROR "No suitable C++ compiler was found.")
+    ENDIF()
+ENDIF()
 MESSAGE(STATUS "Using C++ compiler: ${CMAKE_CXX_COMPILER}")
+
 
 # Check if DOC_BUILD environment variable is set and skip build if it is
 IF (DEFINED ENV{DOC_BUILD})
