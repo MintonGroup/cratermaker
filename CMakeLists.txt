@@ -51,7 +51,6 @@ IF(NOT CMAKE_C_COMPILER)
         NAMES cl icc mpiicc clang gcc
         DOC "C compiler"
         REQUIRED)
-    ENDIF()
 ENDIF()
 MESSAGE(STATUS "Using C compiler: ${CMAKE_C_COMPILER}")
 
