@@ -43,6 +43,11 @@ IF(NOT CMAKE_Fortran_COMPILER)
         REQUIRED)
 ENDIF()
 MESSAGE(STATUS "Using Fortran compiler: ${CMAKE_Fortran_COMPILER}")
+IF (CMAKE_Fortran_COMPILER MATCHES "^ifx.exe")
+    SET(CMAKE_GENERATOR_TOOLSET="Intel C++ Compiler 2024,fortran=ifx")
+ELSEIF(CMAKE_Fortran_COMPILER MATCHES "^ifort.exe")
+    SET(CMAKE_GENERATOR_TOOLSET="Intel C++ Compiler 2024,fortran=ifort")
+ENDIF()
 
 IF(NOT CMAKE_C_COMPILER)
     # If CC is not set, search for the C compilers in the specified order.
