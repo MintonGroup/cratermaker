@@ -109,11 +109,6 @@ CC="$(command -v gcc)"
 CXX="$(command -v g++)"
 FC="$(buildscripts/get_gfortran_path.sh)"
 
-[tool.cibuildwheel.windows.environment]
-CC="${CC}.exe"
-CXX="${CXX}.exe"
-FC="${FC}.exe"
-
 [tool.cibuildwheel.macos]
 before-all = [
     "brew install coreutils vecLibFort cmake",
