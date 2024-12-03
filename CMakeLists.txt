@@ -53,7 +53,7 @@ IF(NOT CMAKE_C_COMPILER)
     # If CC is not set, search for the C compilers in the specified order.
     FIND_PROGRAM(CMAKE_C_COMPILER
         HINTS ENV CC
-        NAMES cl icc mpiicc clang gcc
+        NAMES icc mpiicc cl clang gcc
         DOC "C compiler"
         REQUIRED)
 ENDIF()
@@ -63,7 +63,7 @@ IF(NOT CMAKE_CXX_COMPILER)
     # If CXX is not set, search for the C++ compilers in the specified order.
     FIND_PROGRAM(CMAKE_CXX_COMPILER
                HINTS ENV CXX
-               NAMES cl icpc mpiicpc clang++ g++
+               NAMES icpc mpiicpc cl clang++ g++
                DOC "C++ compiler"
                REQUIRED)
 ENDIF()
