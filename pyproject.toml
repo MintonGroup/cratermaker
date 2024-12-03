@@ -109,6 +109,16 @@ CC="$(command -v gcc)"
 CXX="$(command -v g++)"
 FC="$(buildscripts/get_gfortran_path.sh)"
 
+[tool.cibuildwheel.windows.environment]
+CFLAGS="-DMS_WIN64"
+FCFLAGS="${CFLAGS}"
+FFLAGS="${FCFLAGS}"
+CXXFLAGS="${CFLAGS}"
+LIBS="-ldl" 
+CC="cc"
+CXX="c++"
+FC="gfortran"
+
 [tool.cibuildwheel.macos]
 before-all = [
     "brew install coreutils vecLibFort cmake",
@@ -120,6 +130,7 @@ before-all = [
     "yum install epel-release -y",
     "yum install libcurl-devel -y",
 ]
+
 
 [tool.cibuildwheel.windows]
 before-build = "pip install delvewheel"
