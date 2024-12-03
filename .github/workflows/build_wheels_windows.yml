@@ -14,16 +14,17 @@ jobs:
       matrix:
         os: [windows-latest]
     steps:
-      - uses: fortran-lang/setup-fortran@v1
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name : Install Fortran compiler and build wheels
+        uses: fortran-lang/setup-fortran@v1
         id: setup-fortran
         with:
           compiler: intel
           version: 2024.1
-
-      - uses: actions/checkout@v4
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.22.0     
+        run: |
+          pipx run cibuildwheel 
 
       - uses: actions/upload-artifact@v4
         with:
