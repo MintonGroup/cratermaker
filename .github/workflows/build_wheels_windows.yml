@@ -17,7 +17,7 @@ jobs:
       - uses: fortran-lang/setup-fortran@v1
         id: setup-fortran
         with:
-          compiler: intel
+          compiler: gcc
           version: 13
 
       - uses: actions/checkout@v4
