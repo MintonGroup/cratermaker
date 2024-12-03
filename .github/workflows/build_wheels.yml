@@ -26,43 +26,6 @@ jobs:
           path: ./wheelhouse/*.whl
           retention-days: 1
 
-  build_windows_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest]
-    defaults:
-      run:
-        shell: msys2 {0}
-    steps:
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          path-type: inherit
-          install: >-
-            mingw-w64-ucrt-x86_64-toolchain
-            mingw-w64-ucrt-x86_64-gcc-fortran 
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja
-      
-      - uses: actions/checkout@v4
-
-      - name: Get history and tags for SCM versioning to work
-        run: |
-          git fetch --prune --unshallow
-          git fetch --depth=1 origin +refs/tags/*:refs/tags/*          
-
-      - name: Build wheels
-        run: pipx run cibuildwheel 
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
-          retention-days: 1
-
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
