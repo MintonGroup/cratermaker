@@ -75,8 +75,11 @@ class GridStrategy(ABC):
         to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
         
         """       
-        mesh = trimesh.creation.icosphere(subdivisions=9)
+        print("Generating an icosphere point cloud...")
+        mesh = trimesh.creation.icosphere(subdivisions=7)
         points = mesh.vertices.T*self.radius
+        
+        print("Making a spherical voronoi mesh from the point cloud")
         grid = uxr.Grid.from_points(points, method="spherical_voronoi")
         if not grid_hash:
             grid_hash = self.generate_hash() 
@@ -87,6 +90,7 @@ class GridStrategy(ABC):
             
         # Replace the original file only if writing succeeded
         shutil.move(temp_file.name,grid_file)            
+        print("Mesh generation complete")
     
         return         
                          

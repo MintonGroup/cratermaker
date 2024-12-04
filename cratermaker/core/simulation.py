@@ -12,17 +12,13 @@ from .surface import Surface, save
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import set_properties, validate_and_convert_location
+from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 import warnings
 from tqdm import tqdm
-import vtk
-try:
-    from mpas_tools.viz.paraview_extractor import extract_vtk
-    MPAS_TOOLS_AVAILABLE = True
-except ModuleNotFoundError:
-    MPAS_TOOLS_AVAILABLE = False
+
+    
 
 class Simulation:
     """
@@ -794,8 +790,7 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
-        if not MPAS_TOOLS_AVAILABLE:
-            raise ModuleNotFoundError("The 'mpas_tools' package is required to export VTK files.")
+        from vtk import vtkUnstructuredGrid, vtkPoints, vtkDoubleArray, VTK_QUADRATIC_HEXAHEDRON, vtkXMLUnstructuredGridWriter
         
         self.save()  
         if out_dir is None:
@@ -807,32 +802,48 @@ class Simulation:
         data_file_list = glob(os.path.join(self.surf.data_dir, "*.nc"))
         if self.surf.grid_file in data_file_list:
             data_file_list.remove(self.surf.grid_file)
+       
+        # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
+        n_node = self.surf.uxgrid.n_node
+        n_face = self.surf.uxgrid.n_face
+        node_x = self.surf.uxgrid.node_x.values 
+        node_y = self.surf.uxgrid.node_x.values 
+        node_z = self.surf.uxgrid.node_x.values 
+        n_nodes_per_face = self.surf.uxgrid.n_nodes_per_face.values
+        face_node_connectivity = self.surf.uxgrid.face_node_connectivity.values
         
-        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-        # The API change does not affect the functionality of the code, so we can safely ignore the warning
-        with warnings.catch_warnings(): 
-            warnings.simplefilter("ignore", DeprecationWarning) # Ignores a warning issued in bar.py
+        vtk_data = vtkUnstructuredGrid()
+        nodes = vtkPoints()
+        for i in range(n_node):
+            nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
+        vtk_data.SetPoints(nodes)
+        vtk_data.Allocate(n_face)
+        for i,n in enumerate(n_nodes_per_face):
+            point_ids=face_node_connectivity[i][0:n]
+            vtk_data.InsertNextCell(VTK_QUADRATIC_HEXAHEDRON, n, point_ids) 
         
-            # Save the surface data to a combined netCDF file
-            with tempfile.TemporaryDirectory() as temp_dir:
-                filename_pattern = ""
-                for f in data_file_list:
-                    filename_pattern += f"{f};"
-                try:
-                    extract_vtk(
-                        filename_pattern=filename_pattern,
-                        mesh_filename=self.surf.grid_file,
-                        variable_list=['allOnVertices', 'allOnCells'], 
-                        dimension_list=['maxEdges=','vertexDegree=','maxEdges2=','TWO='], 
-                        combine=False,
-                        include_mesh_vars=True,
-                        ignore_time=False,
-                        time="0:",
-                        xtime='Time',
-                        out_dir=out_dir)
-                            
-                except:
-                    raise RuntimeError("Error in extract_vtk. Cannot export VTK files")
+        for v in self.surf.variables:
+            array = vtkDoubleArray()
+            n = len(self.surf[v])
+            if self.surf[v].dims[0] == 'n_face':
+                if n != n_face:
+                    raise RuntimeError(f"Size of array {v} of {n} does not match expected n_face {n_face}")
+            elif self.surf[v].dims[0] == 'n_node':
+                if n != n_node:
+                    raise RuntimeError(f"Size of array {v} of {n} does not match expected n_node {n_node}")
+            array.SetNumberOfTuples(n)
+            array.SetName(v)
+            values = self.surf[v].values
+            for id in range(n):
+                array.SetTuple(id, [values[id]])
+            if n == n_face:
+                vtk_data.GetCellData().AddArray(array)
+            elif n == n_node:
+                vtk_data.GetPointData().AddArray(array)
+            writer = vtkXMLUnstructuredGridWriter()
+            writer.SetFileName(os.path.join(out_dir,"surf.vtu"))
+            writer.SetInputData(vtk_data)
+            writer.Write()
         
         return
     
