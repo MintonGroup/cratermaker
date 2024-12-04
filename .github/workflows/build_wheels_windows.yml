@@ -19,7 +19,7 @@ jobs:
         id: setup-fortran
         with:
           compiler: intel
-          version: 2024.1
+          version: 2023.2
 
       - name: Checkout source
         uses: actions/checkout@v4
