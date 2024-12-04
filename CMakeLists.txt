@@ -38,7 +38,7 @@ ENDIF()
 IF(NOT CMAKE_Fortran_COMPILER)
     FIND_PROGRAM(CMAKE_Fortran_COMPILER
         HINTS ENV CMPLR_ROOT
-        NAMES ifx ifort mpiifort gfortran-14 gfortran-13 gfortran-12 gfortran 
+        NAMES ENV FC ifx ifort mpiifort gfortran-14 gfortran-13 gfortran-12 gfortran 
         DOC "Fortran compiler"
         REQUIRED)
 ENDIF()
@@ -53,7 +53,7 @@ IF(NOT CMAKE_C_COMPILER)
     # If CC is not set, search for the C compilers in the specified order.
     FIND_PROGRAM(CMAKE_C_COMPILER
         HINTS ENV CMPLR_ROOT
-        NAMES icx icc mpiicc cl clang gcc
+        NAMES ENV CC icx icc mpiicc cl clang gcc
         DOC "C compiler"
         REQUIRED)
 ENDIF()
@@ -63,7 +63,7 @@ IF(NOT CMAKE_CXX_COMPILER)
     # If CXX is not set, search for the C++ compilers in the specified order.
     FIND_PROGRAM(CMAKE_CXX_COMPILER
         HINTS ENV CMPLR_ROOT
-        NAMES icpx icpc mpiicpc cl clang++ g++
+        NAMES ENV CXX icpx icpc mpiicpc cl clang++ g++
         DOC "C++ compiler"
         REQUIRED)
 ENDIF()

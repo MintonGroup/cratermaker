@@ -25,12 +25,14 @@ keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'land
 dependencies = [
     'numpy',
     'xarray>=2024.10.0',
-    'uxarray>=2024.10.1',
+    'uxarray>=2024.11.0',
     'scipy',
     'matplotlib',
     'vtk',
     'tqdm',
-    'pyogrio'
+    'pyogrio',
+    'trimesh',
+    'pyglet<2'
 ]
 
 [project.optional-dependencies]

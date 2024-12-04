@@ -21,6 +21,7 @@ from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils.montecarlo import get_random_location_on_face
 import warnings
+import trimesh
 try:
     from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
     MPAS_TOOLS_AVAILABLE = True
@@ -52,7 +53,45 @@ class GridStrategy(ABC):
     def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
         pass
     
-    def generate_grid(self, 
+    def generate_grid(self,
+                      grid_file: os.PathLike,
+                      grid_hash: str | None = None,
+                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:                       
+        """
+        Generate a tessellated mesh of a sphere using trimesh
+
+
+        Parameters
+        ----------
+        grid_file : os.PathLike
+            The file path to the grid file.
+        grid_hash : str, optional
+            Hash of the grid parameters. Default is None, which will generate a new hash.
+            
+        Notes
+        -----
+        The grid configuration is determined by the `grid_strategy` attribute of the Surface object. The `grid_strategy` attribute
+        determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific
+        to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
+        
+        """       
+        mesh = trimesh.creation.icosphere(subdivisions=9)
+        points = mesh.vertices.T*self.radius
+        grid = uxr.Grid.from_points(points, method="spherical_voronoi")
+        if not grid_hash:
+            grid_hash = self.generate_hash() 
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            grid.to_xarray().assign_attrs({"grid_hash":grid_hash}).to_netcdf(temp_file.name)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+            
+        # Replace the original file only if writing succeeded
+        shutil.move(temp_file.name,grid_file)            
+    
+        return         
+                         
+    
+    def generate_grid_mpas(self, 
                       grid_file: os.PathLike,
                       grid_temp_dir: os.PathLike,
                       grid_hash: str | None = None,
