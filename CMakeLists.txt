@@ -34,40 +34,40 @@ IF(DEFINED ENV{CIBUILDWHEEL})
     SET(CIBUILDWHEEL ON)
 ENDIF()
 
-# # Check for a Fortran compiler 
-# IF(NOT CMAKE_Fortran_COMPILER)
-#     FIND_PROGRAM(CMAKE_Fortran_COMPILER
-#         HINTS ENV FC
-#         NAMES ifx ifort mpiifort gfortran-14 gfortran-13 gfortran-12 gfortran 
-#         DOC "Fortran compiler"
-#         REQUIRED)
-# ENDIF()
-# MESSAGE(STATUS "Using Fortran compiler: ${CMAKE_Fortran_COMPILER}")
-# IF (CMAKE_Fortran_COMPILER MATCHES "^ifx.exe")
-#     SET(CMAKE_GENERATOR_TOOLSET="Intel C++ Compiler 2024,fortran=ifx")
-# ELSEIF(CMAKE_Fortran_COMPILER MATCHES "^ifort.exe")
-#     SET(CMAKE_GENERATOR_TOOLSET="Intel C++ Compiler 2024,fortran=ifort")
-# ENDIF()
+# Check for a Fortran compiler 
+IF(NOT CMAKE_Fortran_COMPILER)
+    FIND_PROGRAM(CMAKE_Fortran_COMPILER
+        HINTS ENV CMPLR_ROOT
+        NAMES ifx ifort mpiifort gfortran-14 gfortran-13 gfortran-12 gfortran 
+        DOC "Fortran compiler"
+        REQUIRED)
+ENDIF()
+MESSAGE(STATUS "Using Fortran compiler: ${CMAKE_Fortran_COMPILER}")
+IF (CMAKE_Fortran_COMPILER MATCHES "^ifx.exe")
+    SET(CMAKE_GENERATOR_TOOLSET="Intel C++ Compiler 2024,fortran=ifx")
+ELSEIF(CMAKE_Fortran_COMPILER MATCHES "^ifort.exe")
+    SET(CMAKE_GENERATOR_TOOLSET="Intel C++ Compiler 2024,fortran=ifort")
+ENDIF()
 
-# IF(NOT CMAKE_C_COMPILER)
-#     # If CC is not set, search for the C compilers in the specified order.
-#     FIND_PROGRAM(CMAKE_C_COMPILER
-#         HINTS ENV CC
-#         NAMES icc mpiicc cl clang gcc
-#         DOC "C compiler"
-#         REQUIRED)
-# ENDIF()
-# MESSAGE(STATUS "Using C compiler: ${CMAKE_C_COMPILER}")
+IF(NOT CMAKE_C_COMPILER)
+    # If CC is not set, search for the C compilers in the specified order.
+    FIND_PROGRAM(CMAKE_C_COMPILER
+        HINTS ENV CMPLR_ROOT
+        NAMES icx icc mpiicc cl clang gcc
+        DOC "C compiler"
+        REQUIRED)
+ENDIF()
+MESSAGE(STATUS "Using C compiler: ${CMAKE_C_COMPILER}")
 
-# IF(NOT CMAKE_CXX_COMPILER)
-#     # If CXX is not set, search for the C++ compilers in the specified order.
-#     FIND_PROGRAM(CMAKE_CXX_COMPILER
-#                HINTS ENV CXX
-#                NAMES icpc mpiicpc cl clang++ g++
-#                DOC "C++ compiler"
-#                REQUIRED)
-# ENDIF()
-# MESSAGE(STATUS "Using C++ compiler: ${CMAKE_CXX_COMPILER}")
+IF(NOT CMAKE_CXX_COMPILER)
+    # If CXX is not set, search for the C++ compilers in the specified order.
+    FIND_PROGRAM(CMAKE_CXX_COMPILER
+        HINTS ENV CMPLR_ROOT
+        NAMES icpx icpc mpiicpc cl clang++ g++
+        DOC "C++ compiler"
+        REQUIRED)
+ENDIF()
+MESSAGE(STATUS "Using C++ compiler: ${CMAKE_CXX_COMPILER}")
 
 
 # Check if DOC_BUILD environment variable is set and skip build if it is

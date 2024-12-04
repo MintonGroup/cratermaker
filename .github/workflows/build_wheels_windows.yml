@@ -31,7 +31,7 @@ jobs:
 
       - name: Build wheels
         run: |
-          ${{ env.FC }} --version
+          ${{ env.FC }} /QV
           pipx run cibuildwheel 
 
       - name: Upload artifacts
