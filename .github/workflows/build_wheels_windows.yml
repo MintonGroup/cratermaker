@@ -30,7 +30,9 @@ jobs:
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*          
 
       - name: Build wheels
-        run: pipx run cibuildwheel 
+        run: |
+          ${{ env.FC }} --version
+          pipx run cibuildwheel 
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
