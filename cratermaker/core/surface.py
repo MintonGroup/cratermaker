@@ -240,7 +240,7 @@ class UniformGrid(GridStrategy):
         An instance of the UniformGrid class initialized with the given pixel size. 
     """    
 
-    def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
+    def generate_face_distribution(self) -> NDArray:
         """
         Creates the points that define the mesh centers.
            
@@ -253,6 +253,7 @@ class UniformGrid(GridStrategy):
 
         print(f"Generating a mesh with uniformly distributed faces of size ~{self.pix} m.")
         return distribute_points(distance=self.pix/self.radius)
+   
     
     def generate_grid(self,
                       grid_file: os.PathLike,
@@ -300,53 +301,135 @@ class HiResLocalGrid(GridStrategy):
         self.local_radius = local_radius
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
-
-    def generate_face_distribution(self) -> Tuple[NDArray, NDArray, NDArray]:
+        
+    
+    def _generate_variable_size_array(self) -> Tuple[NDArray, NDArray, NDArray]:
         """
-        Create a cell width array for a high-resolution local mesh around a given location, with adaptive cell sizes outside the local region.
-
+        Create an array of target pixel sizes for pairs of longitude and latitude values for a high-resolution local mesh around a 
+        given location, with adaptive cell sizes outside the local region.
+        
             
         Returns
         -------
-        cellWidth : ndarray
-            m x n array of cell width in km
+        pix_array: ndarray
+            m x n array of pixel sizes
         lon : ndarray
             longitude in degrees (length n and between -180 and 180)
         lat : ndarray
             latitude in degrees (length m and between -90 and 90)
         """
-        dlat = 10
-        dlon = 10
+        
+        def _pix_func(lon,lat):
+            lon_rad = np.radians(lon)
+            lat_rad = np.radians(lat)
+            loc_lon_rad = np.radians(self.local_location[0])
+            loc_lat_rad = np.radians(self.local_location[1])
 
-        nlat = int(180 / dlat) + 1
-        nlon = int(360 / dlon) + 1
+            # Calculate distance from the location to the grid point
+            distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius)
+            ans = np.where(distance <= self.local_radius, self.pix, (distance - self.local_radius) / self.superdomain_scale_factor + self.pix)
+            return ans
+        
+        from scipy.interpolate import interp1d
 
-        lat = np.linspace(-90., 90., nlat)
-        lon = np.linspace(-180., 180., nlon)
-        cellWidth = np.zeros((nlat, nlon))
+        # Suppose we know pix(lat, lon)
+        # Step 1: Construct a fine preliminary grid to estimate integrals
+       
+        Lat = np.linspace(-90., 90., 1000)
+        Lon = np.linspace(-180., 180., 1000)
+        LAT, LON = np.meshgrid(Lat, Lon, indexing='ij')
 
-        # Convert location to radians for distance calculation
-        loc_lon_rad = np.radians(self.local_location[0])
-        loc_lat_rad = np.radians(self.local_location[1])
+        pix_values = _pix_func(LON, LAT)   # Evaluate pix on this fine grid
+        w = 1.0 / pix_values
 
-        for i in range(nlat):
-            for j in range(nlon):
-                # Convert grid point to radians
-                lon_rad = np.radians(lon[j])
-                lat_rad = np.radians(lat[i])
+        # Step 2: Integrate w over longitude to get W_lat(lat)
+        W_lat_vals = np.trapz(w, x=Lon, axis=1)  # integrate along lon dimension
+        W_lat_cumulative = np.cumsum(W_lat_vals)
+        W_lat_cumulative /= W_lat_cumulative[-1]  # normalize from 0 to 1
 
-                # Calculate distance from the location to the grid point
-                distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius)
+        # Create a function to invert W_lat(lat)
+        f_lat = interp1d(W_lat_cumulative, Lat, bounds_error=False, fill_value='extrapolate')
 
-                if distance <= self.local_radius:
-                    # Inside the local region
-                    cellWidth[i, j] = self.pix * 1e-3  # Convert to km
-                else:
-                    # Outside the local region, adapt cell size based on distance from boundary
-                    boundary_distance = distance - self.local_radius
-                    cellWidth[i, j] = (boundary_distance / self.superdomain_scale_factor + self.pix) * 1e-3  # Convert to km
+        M = 50  # number of lat lines
+        lat_lines = f_lat(np.linspace(0, 1, M))
 
-        return cellWidth, lon, lat
+        # Step 3: For each lat interval, choose lon lines similarly
+        N = 50  # number of lon lines
+        lon_lines = np.zeros((M-1, N))
+
+        for i in range(M-1):
+            lat_low, lat_high = lat_lines[i], lat_lines[i+1]
+            # Extract w in this lat band
+            mask = (LAT >= lat_low) & (LAT <= lat_high)
+            w_band = w[mask].reshape(-1, len(Lon))  
+            # Integrate this band over lat
+            w_band_vals = np.trapz(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
+            W_lon_band_cumulative = np.cumsum(w_band_vals)
+            W_lon_band_cumulative /= W_lon_band_cumulative[-1]
+            f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
+            lon_lines[i,:] = f_lon(np.linspace(0, 1, N))
+            
+        LAT = np.zeros((M, N))
+        LON = np.zeros((M, N))
+        
+        for i in range(M):
+            LAT[i, :] = lat_lines[i]  # every point on this horizontal line has the same lat
+
+        for i in range(1, N):
+            LON[i, :] = lon_lines[i-1, :]
+            
+        pix_array = _pix_func(LON, LAT) 
+
+        return pix_array, LON, LAT
+
+
+    def generate_face_distribution(self) -> NDArray:
+        """
+        Creates the points that define the mesh centers.
+           
+        Returns
+        -------
+        (3,n) ndarray of np.float64
+            Array of points on a unit sphere.
+        
+        """                
+        
+        print(f"Generating a mesh with variable resolution faces")
+        print(f"Center of local region: {self.local_location}")
+        print(f"Size of local region: {self.local_radius:.2f} m")
+        print(f"Hires region pixel size: {self.pix:.2f} m")
+        print(f"Lores region pixel size: {self.pix * self.superdomain_scale_factor:.2f} m")
+        pix_array, lon, lat = self._generate_variable_size_array()
+        
+        points = []
+        n = lon.shape[0]
+        m = lat.shape[1]
+       
+        for i in range(n-1):
+            for j in range(m-1):
+                lon_range = (lon[i,j], lon[i,j+1])
+                lat_range = (lat[i,j], lat[i+1,j])
+                p = distribute_points(distance=pix_array[i,j]/self.radius, lon_range=lon_range, lat_range=lat_range) 
+                if p is not None:
+                    points.append(p)
+                
+        points = np.concatenate(points, axis=1)
+        
+        return points
+
+
+    def generate_grid(self,
+                      grid_file: os.PathLike,
+                      grid_hash: str | None = None,
+                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:        
+        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
+        face_areas = self.grid.face_areas 
+        face_sizes = np.sqrt(face_areas / (4 * np.pi))
+        pix_min = face_sizes.min().item() * self.radius
+        pix_max = face_sizes.max().item() * self.radius
+        print(f"Generated {self.grid.n_face} faces")
+        print(f"Effective pixel size range: {pix_min:.2f},{pix_max:.2f} m")
+        return
 
     @property
     def local_radius(self):
@@ -1317,7 +1400,10 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
     return
 
 
-def distribute_points(distance,radius=1.0, lon_range=(-180,180), lat_range=(-90,90)):
+def distribute_points(distance: FloatLike,
+                      radius: FloatLike=1.0, 
+                      lon_range: PairOfFloats=(-180,180), 
+                      lat_range: PairOfFloats=(-90,90)):
     """
     Distributes points on a sphere using Deserno's algorithm [1]_.
         
@@ -1364,10 +1450,12 @@ def distribute_points(distance,radius=1.0, lon_range=(-180,180), lat_range=(-90,
     
     phi_range = np.deg2rad(lon_range) + np.pi 
     theta_range = np.deg2rad(lat_range) + np.pi/2 
+    points = []
        
     n = int(1/distance**2)
-    points = []
-
+    if n < 1: 
+        return 
+        
     a = 4 * np.pi / n
     d = np.sqrt(a)
     Mtheta = int(np.round(np.pi / d))
@@ -1375,15 +1463,17 @@ def distribute_points(distance,radius=1.0, lon_range=(-180,180), lat_range=(-90,
     dphi = a / dtheta
     
     thetavals = np.pi * (np.arange(Mtheta) + 0.5) / Mtheta
-    thetavals = thetavals[(thetavals >= theta_range[0]) & (thetavals <= theta_range[1])]
+    thetavals = thetavals[(thetavals >= theta_range[0]) & (thetavals < theta_range[1])]
     
     for theta in thetavals:
         Mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
         phivals = 2 * np.pi * np.arange(Mphi) / Mphi
-        phivals = phivals[(phivals >= phi_range[0]) & (phivals <= phi_range[1])]
+        phivals = phivals[(phivals >= phi_range[0]) & (phivals < phi_range[1])]
         for phi in phivals:
             points.append(_sph2cart(theta, phi, radius))
-        
+    if len(points) == 0:
+        return
+    
     points = np.array(points,dtype=np.float64)
     points = points.T
 
