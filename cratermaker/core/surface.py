@@ -250,9 +250,9 @@ class UniformGrid(GridStrategy):
             Array of points on a unit sphere.
         
         """                
-        n = int(self.radius**2 / self.pix**2)
-        print(f"Generating a mesh with {n} uniformly distributed faces.")
-        return distribute_points(n=n)
+
+        print(f"Generating a mesh with uniformly distributed faces of size ~{self.pix} m.")
+        return distribute_points(distance=self.pix/self.radius)
     
     def generate_grid(self,
                       grid_file: os.PathLike,
@@ -1317,21 +1317,25 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
     return
 
 
-def distribute_points(n=1000,radius=1.0):
+def distribute_points(distance,radius=1.0, lon_range=(-180,180), lat_range=(-90,90)):
     """
     Distributes points on a sphere using Deserno's algorithm [1]_.
         
     Parameters
     ----------
-    n : int
-        Number of points to distribute on the sphere.
-    radius : float
-        Radius of the sphere.
+    distance : float
+        Approximate distance between points, used to determine the number of points, where n = 1/distance**2 when distributed over the whole sphere.
+    radius : float, optional
+        Radius of the sphere. Default is 1.0
+    lon_range : tuple, optional
+        Range of longitudes in degrees. Default is (-180,180).
+    lat_range : tuple, optional
+        Range of latitudes in degrees. Default is (-90,90).
         
     Returns
     -------
     (3,n) ndarray of np.float64
-        Array of points on the sphere.
+        Array of cartesian points on the sphere.
         
     
     References
@@ -1356,7 +1360,12 @@ def distribute_points(n=1000,radius=1.0):
         y = r * np.sin(theta) * np.sin(phi)
         z = r * np.cos(theta)
         return x, y, z
+ 
     
+    phi_range = np.deg2rad(lon_range) + np.pi 
+    theta_range = np.deg2rad(lat_range) + np.pi/2 
+       
+    n = int(1/distance**2)
     points = []
 
     a = 4 * np.pi / n
@@ -1365,11 +1374,14 @@ def distribute_points(n=1000,radius=1.0):
     dtheta = np.pi / Mtheta
     dphi = a / dtheta
     
-    for m in range(Mtheta):
-        theta = np.pi *(m + 0.5) / Mtheta
+    thetavals = np.pi * (np.arange(Mtheta) + 0.5) / Mtheta
+    thetavals = thetavals[(thetavals >= theta_range[0]) & (thetavals <= theta_range[1])]
+    
+    for theta in thetavals:
         Mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
-        for n in range(Mphi):
-            phi = 2*np.pi * n / Mphi
+        phivals = 2 * np.pi * np.arange(Mphi) / Mphi
+        phivals = phivals[(phivals >= phi_range[0]) & (phivals <= phi_range[1])]
+        for phi in phivals:
             points.append(_sph2cart(theta, phi, radius))
         
     points = np.array(points,dtype=np.float64)
