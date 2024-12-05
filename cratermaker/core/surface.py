@@ -343,7 +343,7 @@ class HiResLocalGrid(GridStrategy):
         w = 1.0 / pix_values
 
         # Step 2: Integrate w over longitude to get W_lat(lat)
-        W_lat_vals = np.trapz(w, x=Lon, axis=1)  # integrate along lon dimension
+        W_lat_vals = np.trapezoid(w, x=Lon, axis=1)  # integrate along lon dimension
         W_lat_cumulative = np.cumsum(W_lat_vals)
         W_lat_cumulative /= W_lat_cumulative[-1]  # normalize from 0 to 1
 
@@ -363,7 +363,7 @@ class HiResLocalGrid(GridStrategy):
             mask = (LAT >= lat_low) & (LAT <= lat_high)
             w_band = w[mask].reshape(-1, len(Lon))  
             # Integrate this band over lat
-            w_band_vals = np.trapz(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
+            w_band_vals = np.trapezoid(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
             W_lon_band_cumulative = np.cumsum(w_band_vals)
             W_lon_band_cumulative /= W_lon_band_cumulative[-1]
             f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
