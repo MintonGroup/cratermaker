@@ -22,4 +22,4 @@ build:
       - ford fortran_docs.md 
 
 conda:
-  environment: docs/environment.yml
+  environment: environments/cratermaker-docs.yml

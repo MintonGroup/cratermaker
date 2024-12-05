@@ -29,7 +29,8 @@
 !COPYING
 cratermaker/_version.py
 !.readthedocs.yaml
-!environment.yml
+!environments/
+!environments/*.yml
 !docs/
 !docs/**/*
 docs/**/*.ai

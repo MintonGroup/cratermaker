@@ -132,6 +132,7 @@ def get_random_location_on_face(grid: Grid,
     else:
         return locations
 
+
 def get_random_impact_angle(size: int | Tuple[int, ...]=1, 
                             rng: Generator | None=None
                             ) -> Union[np.float64,NDArray[np.float64]]:
@@ -149,7 +150,7 @@ def get_random_impact_angle(size: int | Tuple[int, ...]=1,
         
     Returns
     ----------
-    np.float64 or ndarray of np.float 64 
+    np.float64 or ndarray of np.float64 
         A scalar or array of impact angles (in degrees).
     """    
     

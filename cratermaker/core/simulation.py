@@ -825,26 +825,31 @@ class Simulation:
         writer.SetInputData(vtk_data)
         writer.Write()           
     
-        for i,file in enumerate(data_file_list): 
-            with xr.open_dataset(file) as ds:
-                for v in ds.variables:
-                    array = vtkDoubleArray()
-                    n = len(ds[v])
-                    if ds[v].dims[0] == 'n_face':
-                        if n != n_face:
-                            raise RuntimeError(f"Size of array {v} of {n} does not match expected n_face {n_face}")
-                    elif ds[v].dims[0] == 'n_node':
-                        if n != n_node:
-                            raise RuntimeError(f"Size of array {v} of {n} does not match expected n_node {n_node}")
-                    array.SetNumberOfTuples(n)
-                    array.SetName(v)
-                    values = ds[v].values
-                    for id in range(n):
-                        array.SetTuple(id, [values[id]])
-                    if n == n_face:
-                        vtk_data.GetCellData().AddArray(array)
-                    elif n == n_node:
-                        vtk_data.GetPointData().AddArray(array)
+        with xr.open_mfdataset(data_file_list) as ds_t:
+            if 'Time' in ds_t.dims:
+                timevars = [v for v in ds_t.variables if ds_t[v].dims == ('Time',)]
+                ds = ds_t.drop_vars(timevars).isel(Time=-1)
+            else:
+                ds = ds_t
+                
+            for v in ds.variables:
+                array = vtkDoubleArray()
+                n = len(ds[v])
+                if 'n_face' in ds[v].dims:
+                    if n != n_face:
+                        raise RuntimeError(f"Size of array {v} of {n} does not match expected n_face {n_face}")
+                elif 'n_node' in ds[v].dims:
+                    if n != n_node:
+                        raise RuntimeError(f"Size of array {v} of {n} does not match expected n_node {n_node}")
+                array.SetNumberOfTuples(n)
+                array.SetName(v)
+                values = ds[v].values
+                for id in range(n):
+                    array.SetTuple(id, [values[id]])
+                if n == n_face:
+                    vtk_data.GetCellData().AddArray(array)
+                elif n == n_node:
+                    vtk_data.GetPointData().AddArray(array)
 
         
         return

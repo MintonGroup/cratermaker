@@ -26,13 +26,11 @@ dependencies = [
     'numpy',
     'xarray>=2024.10.0',
     'uxarray>=2024.11.0',
+    'vtk>=9.4',
     'scipy',
     'matplotlib',
-    'vtk',
     'tqdm',
     'pyogrio',
-    'trimesh',
-    'pyglet<2'
 ]
 
 [project.urls]
