@@ -1,9 +1,9 @@
 import numpy as np
 from numpy.random import Generator
+import xarray as xr
 import os
 import shutil
 from glob import glob
-import tempfile
 from typing import Any, Tuple, Type, Sequence
 from numpy.typing import ArrayLike
 from .target import Target
@@ -15,10 +15,8 @@ from .production import Production, NeukumProduction
 from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
-import warnings
 from tqdm import tqdm
 
-    
 
 class Simulation:
     """
@@ -822,29 +820,32 @@ class Simulation:
         for i,n in enumerate(n_nodes_per_face):
             point_ids=face_node_connectivity[i][0:n]
             vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
-        
-        for v in self.surf.variables:
-            array = vtkDoubleArray()
-            n = len(self.surf[v])
-            if self.surf[v].dims[0] == 'n_face':
-                if n != n_face:
-                    raise RuntimeError(f"Size of array {v} of {n} does not match expected n_face {n_face}")
-            elif self.surf[v].dims[0] == 'n_node':
-                if n != n_node:
-                    raise RuntimeError(f"Size of array {v} of {n} does not match expected n_node {n_node}")
-            array.SetNumberOfTuples(n)
-            array.SetName(v)
-            values = self.surf[v].values
-            for id in range(n):
-                array.SetTuple(id, [values[id]])
-            if n == n_face:
-                vtk_data.GetCellData().AddArray(array)
-            elif n == n_node:
-                vtk_data.GetPointData().AddArray(array)
-            writer = vtkXMLUnstructuredGridWriter()
-            writer.SetFileName(os.path.join(out_dir,"surf.vtu"))
-            writer.SetInputData(vtk_data)
-            writer.Write()
+        writer = vtkXMLUnstructuredGridWriter()
+        writer.SetFileName(os.path.join(out_dir,"surf.vtu"))
+        writer.SetInputData(vtk_data)
+        writer.Write()           
+    
+        for i,file in enumerate(data_file_list): 
+            with xr.open_dataset(file) as ds:
+                for v in ds.variables:
+                    array = vtkDoubleArray()
+                    n = len(ds[v])
+                    if ds[v].dims[0] == 'n_face':
+                        if n != n_face:
+                            raise RuntimeError(f"Size of array {v} of {n} does not match expected n_face {n_face}")
+                    elif ds[v].dims[0] == 'n_node':
+                        if n != n_node:
+                            raise RuntimeError(f"Size of array {v} of {n} does not match expected n_node {n_node}")
+                    array.SetNumberOfTuples(n)
+                    array.SetName(v)
+                    values = ds[v].values
+                    for id in range(n):
+                        array.SetTuple(id, [values[id]])
+                    if n == n_face:
+                        vtk_data.GetCellData().AddArray(array)
+                    elif n == n_node:
+                        vtk_data.GetPointData().AddArray(array)
+
         
         return
     

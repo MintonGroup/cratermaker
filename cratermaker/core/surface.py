@@ -4,7 +4,6 @@ import uxarray as uxr
 from uxarray import UxDataArray, UxDataset
 from glob import glob
 import os
-import sys
 import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
@@ -15,7 +14,6 @@ from typing_extensions import Type
 import hashlib
 from numpy.typing import NDArray, ArrayLike
 from numpy.random import Generator
-import logging
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
