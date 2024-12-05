@@ -36,11 +36,20 @@ _GRID_TEMP_DIR = ".grid"
 _SMALLFAC = 1.0e-5
 
 class GridStrategy(ABC):
+    def __init__(self, 
+                 pix: FloatLike, 
+                 radius: FloatLike,
+                 **kwargs: Any):
+
+        self.pix = pix
+        self.radius = radius    
+        self._grid = None
+    
     @abstractmethod
     def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
         pass
-
     
+
     def generate_grid(self,
                       grid_file: os.PathLike,
                       grid_hash: str | None = None,
@@ -63,26 +72,23 @@ class GridStrategy(ABC):
         to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
         
         """       
-        #points = mesh.vertices.T
-        n = int(4*self.radius**2 / self.pix**2)
-        print(f"Generating a mesh with {n} faces.")
-        points = distribute_points(n=n,radius=self.radius,method="deserno")
-        
-        print("Making a spherical voronoi mesh from the point cloud")
+
+        points = self.generate_face_distribution() 
         grid = uxr.Grid.from_points(points, method="spherical_voronoi")
         if not grid_hash:
             grid_hash = self.generate_hash() 
+        grid.attrs["grid_hash"] = grid_hash
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            grid.to_xarray().assign_attrs({"grid_hash":grid_hash}).to_netcdf(temp_file.name)
+            grid.to_xarray().to_netcdf(temp_file.name)
             temp_file.flush()
             os.fsync(temp_file.fileno())
             
         # Replace the original file only if writing succeeded
         shutil.move(temp_file.name,grid_file)            
         print("Mesh generation complete")
-        
-    
+        self.grid = grid 
         return         
+    
                          
     def generate_hash(self) -> str:
         """
@@ -99,18 +105,18 @@ class GridStrategy(ABC):
         combined = ":".join(attribute_pairs) 
         hash_object = hashlib.sha256(combined.encode())
         return hash_object.hexdigest()
-    
-    def check_and_regrid(self,
+
+
+    def check_if_regrid(self,
                          grid_file: os.PathLike,
                          grid_temp_dir: os.PathLike,
                          **kwargs: Any,
                         ) -> bool:
         """
-        Check if the existing grid matches the desired parameters and regrid if necessary.
+        Check if the existing grid matches the desired parameters determine if regridding is necessary.
 
         This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these 
-        parameters. If the grid does not exist or does not match the parameters, a new grid is generated. The hash of the grid 
-        parameters is also returned so that it can be stored in the new grid
+        parameters. If the grid does not exist or does not match the parameters it returns True. 
 
         Parameters
         ----------
@@ -124,8 +130,7 @@ class GridStrategy(ABC):
         Returns
         -------
         bool
-            A boolean indicating whether a new grid was generated. `True` if regridding was necessary, `False` otherwise.
-
+            A boolean indicating whether the grid should be regenerated. 
         """
     
         # Generate the hash for the current parameters
@@ -141,75 +146,47 @@ class GridStrategy(ABC):
                 make_new_grid = old_hash != grid_hash
             except:
                 make_new_grid = True
-            
-        if make_new_grid:
-            if os.path.exists(grid_file):
-                os.remove(grid_file)
-            self.generate_grid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, grid_hash=grid_hash, **kwargs) 
-            
-            # Check to make sure we can open the grid file, then store the hash in the metadata
-            uxgrid = uxr.open_grid(grid_file)
-            new_hash = uxgrid.attrs.get("grid_hash")
-            assert(new_hash == grid_hash)
-
+                
         return make_new_grid
 
     
-class UniformGrid(GridStrategy):
-    """
-    Create a uniform grid configuration with the given pixel size.
-    
-    Parameters
-    ----------
-    pix : float
-        The approximate face size for the mesh in meters.
-    radius: FloatLike
-        The radius of the target body in meters.
-        
-    Returns
-    -------
-    UniformGrid
-        An instance of the UniformGrid class initialized with the given pixel size. 
-    """    
-    def __init__(self, 
-                 pix: FloatLike, 
-                 radius: FloatLike,
-                 **kwargs: Any):
-
-        self.pix = pix
-        self.radius = radius
-
-    def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
+    def create_grid(self,
+                     grid_file: os.PathLike,
+                     grid_temp_dir: os.PathLike,
+                     **kwargs: Any,
+                     ) -> bool:
         """
-        Create cell width array for this mesh on a regular latitude-longitude grid.
+
+        Creates a new grid file based on the grid parameters and stores the new grid as the grid property of the object. 
+
+        Parameters
+        ----------
+        grid_file : PathLike
+            The file path where the grid will be saved. 
+        grid_file : os.PathLike
+            The file path to the grid file. 
+        grid_temp_dir : os.PathLike
+            The directory for temporary grid files. 
+        """
+    
+        # Generate the hash for the current parameters
+        grid_hash = self.generate_hash()
+
+        if os.path.exists(grid_file):
+            os.remove(grid_file)
+        self.generate_grid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, grid_hash=grid_hash, **kwargs) 
         
-           
-        Returns
-        -------
-        cellWidth : ndarray
-            m x n array of cell width in km
-        lon : ndarray
-            longitude in degrees (length n and between -180 and 180)
-        lat : ndarray
-            longitude in degrees (length m and between -90 and 90)
-        """                
-        dlat = 10
-        dlon = 10
-        constantCellWidth = self.pix * 1e-3 # build_spherical_mesh assumes units of km, so must be converted
+        # Check to make sure we can open the grid file, then store the hash in the metadata
+        uxgrid = uxr.open_grid(grid_file)
+        new_hash = uxgrid.attrs.get("grid_hash")
+        assert(new_hash == grid_hash)
 
-        nlat = int(180/dlat) + 1
-        nlon = int(360/dlon) + 1
-
-        lat = np.linspace(-90., 90., nlat)
-        lon = np.linspace(-180., 180., nlon)
-
-        cellWidth = constantCellWidth * np.ones((lat.size, lon.size))
-        return cellWidth, lon, lat
+        return 
     
     @property
     def pix(self):
         """
-        The approximate face size for the mesh in meters.
+        The approximate face size for the mesh inside the local region in meters.
         """
         return self._pix
     
@@ -232,6 +209,62 @@ class UniformGrid(GridStrategy):
             raise TypeError("radius must be a positive float")
         self._radius = value
         
+    @property
+    def grid(self):
+        """
+        The grid object.
+        """
+        return self._grid
+    
+    @grid.setter
+    def grid(self, value: uxr.Grid):
+        if not isinstance(value, uxr.Grid):
+            raise TypeError("grid must be an instance of uxarray.Grid")
+        self._grid = value
+    
+    
+class UniformGrid(GridStrategy):
+    """
+    Create a uniform grid configuration with the given pixel size.
+    
+    Parameters
+    ----------
+    pix : float
+        The approximate face size for the mesh in meters.
+    radius: FloatLike
+        The radius of the target body in meters.
+        
+    Returns
+    -------
+    UniformGrid
+        An instance of the UniformGrid class initialized with the given pixel size. 
+    """    
+
+    def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
+        """
+        Creates the points that define the mesh centers.
+           
+        Returns
+        -------
+        (3,n) ndarray of np.float64
+            Array of points on a unit sphere.
+        
+        """                
+        n = int(self.radius**2 / self.pix**2)
+        print(f"Generating a mesh with {n} uniformly distributed faces.")
+        return distribute_points(n=n)
+    
+    def generate_grid(self,
+                      grid_file: os.PathLike,
+                      grid_hash: str | None = None,
+                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:        
+        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
+        face_areas = self.grid.face_areas 
+        face_sizes = np.sqrt(face_areas / (4 * np.pi))
+        pix_mean = face_sizes.mean().item() * self.radius
+        pix_std = face_sizes.std().item() * self.radius
+        print(f"Effective pixel size: {pix_mean:.2f} +/- {pix_std:.2f} m")
+        return
 
 class HiResLocalGrid(GridStrategy):
     """
@@ -253,8 +286,8 @@ class HiResLocalGrid(GridStrategy):
         
     Returns
     -------
-    UniformGrid
-        An instance of the UniformGrid class initialized with the given pixel size. 
+    HiResLocalGrid
+        An instance of the HiResLocalGrid clas initialized with the given point distribution
     """        
     def __init__(self, 
                  pix: FloatLike, 
@@ -263,8 +296,7 @@ class HiResLocalGrid(GridStrategy):
                  local_location: PairOfFloats,
                  superdomain_scale_factor: FloatLike,
                  **kwargs: Any):
-        self.pix = pix
-        self.radius = radius
+        super().__init__(pix=pix, radius=radius, **kwargs)
         self.local_radius = local_radius
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
@@ -316,32 +348,6 @@ class HiResLocalGrid(GridStrategy):
 
         return cellWidth, lon, lat
 
-    @property
-    def pix(self):
-        """
-        The approximate face size for the mesh inside the local region in meters.
-        """
-        return self._pix
-    
-    @pix.setter
-    def pix(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
-            raise TypeError("pix must be a positive float")
-        self._pix = value
-        
-    @property
-    def radius(self):
-        """
-        The radius of the target body in meters.
-        """
-        return self._radius
-    
-    @radius.setter
-    def radius(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
-            raise TypeError("radius must be a positive float")
-        self._radius = value
-    
     @property
     def local_radius(self):
         """
@@ -434,10 +440,11 @@ class Surface(UxDataset):
         self.rng = rng
        
         if compute_face_areas: 
-            # Compute face area needed future calculations
-            if 'face_areas' not in self:
-                self['face_areas'] = self.uxgrid.face_areas.assign_attrs(units='m^2') 
-                self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
+            # Compute face area needed in the non-normalized units for future calculations
+            self['face_areas'] = self.uxgrid.face_areas.assign_attrs(units='m^2') * self.target.radius**2
+            self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC     
+        
+        return   
 
     @classmethod
     def initialize(cls, 
@@ -448,6 +455,7 @@ class Surface(UxDataset):
                    reset_surface: bool = True, 
                    grid_type: GridType = valid_grid_types[0], 
                    rng: Generator | None = None,
+                   regrid: bool = False,
                    **kwargs):
         """
         Factory method to create a Surface instance from a grid file.
@@ -530,7 +538,13 @@ class Surface(UxDataset):
             grid_strategy = HiResLocalGrid(pix=pix, radius=target.radius, **kwargs)       
    
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
-        make_new_grid = grid_strategy.check_and_regrid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, **kwargs)
+        if not regrid: 
+            make_new_grid = grid_strategy.check_if_regrid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, **kwargs)
+        else:
+            make_new_grid = True
+        
+        if make_new_grid:
+            grid_strategy.create_grid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, **kwargs)
         
         # Get the names of all data files in the data directory that are not the grid file
         data_file_list = glob(os.path.join(data_dir, "*.nc"))
@@ -1302,6 +1316,7 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
 
     return
 
+
 def distribute_points(n=1000,radius=1.0):
     """
     Distributes points on a sphere using Deserno's algorithm [1]_.
@@ -1357,7 +1372,7 @@ def distribute_points(n=1000,radius=1.0):
             phi = 2*np.pi * n / Mphi
             points.append(_sph2cart(theta, phi, radius))
         
-    points = np.array(points,dtype=np.float64)*radius
+    points = np.array(points,dtype=np.float64)
     points = points.T
 
     return points    

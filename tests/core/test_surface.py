@@ -208,7 +208,7 @@ class TestSurface(unittest.TestCase):
         n_per_face = 10
         for i in surf.n_face:
             original_face_index = i.values.item()
-            for j in range(n_per_face):
+            for _ in range(n_per_face):
                 location = surf.get_random_location_on_face(original_face_index)
                 _, new_face_index = surf.find_nearest_index(location)
                 self.assertEqual(original_face_index, new_face_index) 
@@ -216,7 +216,7 @@ class TestSurface(unittest.TestCase):
     def test_face_surface_values(self):
         # Tests that the face_surface generates the correct values
         surf = Surface.initialize(pix=self.pix, target=self.target, reset_surface=True) 
-        total_area_1 = surf.uxgrid.calculate_total_face_area()
+        total_area_1 = surf.uxgrid.calculate_total_face_area()*surf.target.radius**2
         total_area_2 = surf.face_areas.sum().item()
         ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius
         self.assertAlmostEqual(ratio, 1.0, places=2)

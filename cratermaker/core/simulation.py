@@ -789,7 +789,6 @@ class Simulation:
             Directory to store the VTK files.
         """
         from vtk import vtkUnstructuredGrid, vtkPoints, vtkDoubleArray, VTK_POLYGON, vtkXMLUnstructuredGridWriter
-        import vtk
         
         self.save()  
         if out_dir is None:
@@ -805,9 +804,9 @@ class Simulation:
         # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
         n_node = self.surf.uxgrid.n_node
         n_face = self.surf.uxgrid.n_face
-        node_x = self.surf.uxgrid.node_x.values 
-        node_y = self.surf.uxgrid.node_y.values 
-        node_z = self.surf.uxgrid.node_z.values 
+        node_x = self.surf.uxgrid.node_x.values * self.target.radius
+        node_y = self.surf.uxgrid.node_y.values * self.target.radius
+        node_z = self.surf.uxgrid.node_z.values * self.target.radius
         n_nodes_per_face = self.surf.uxgrid.n_nodes_per_face.values
         face_node_connectivity = self.surf.uxgrid.face_node_connectivity.values
         
@@ -850,7 +849,6 @@ class Simulation:
                     vtk_data.GetCellData().AddArray(array)
                 elif n == n_node:
                     vtk_data.GetPointData().AddArray(array)
-
         
         return
     
