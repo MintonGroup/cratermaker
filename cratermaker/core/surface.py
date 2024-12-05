@@ -76,7 +76,7 @@ class GridStrategy(ABC):
         
         """       
         print("Generating an icosphere point cloud...")
-        mesh = trimesh.creation.icosphere(subdivisions=7)
+        mesh = trimesh.creation.icosphere(subdivisions=9)
         points = mesh.vertices.T*self.radius
         
         print("Making a spherical voronoi mesh from the point cloud")

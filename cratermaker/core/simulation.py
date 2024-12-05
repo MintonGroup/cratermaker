@@ -790,7 +790,8 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
-        from vtk import vtkUnstructuredGrid, vtkPoints, vtkDoubleArray, VTK_QUADRATIC_HEXAHEDRON, vtkXMLUnstructuredGridWriter
+        from vtk import vtkUnstructuredGrid, vtkPoints, vtkDoubleArray, VTK_POLYGON, vtkXMLUnstructuredGridWriter
+        import vtk
         
         self.save()  
         if out_dir is None:
@@ -807,8 +808,8 @@ class Simulation:
         n_node = self.surf.uxgrid.n_node
         n_face = self.surf.uxgrid.n_face
         node_x = self.surf.uxgrid.node_x.values 
-        node_y = self.surf.uxgrid.node_x.values 
-        node_z = self.surf.uxgrid.node_x.values 
+        node_y = self.surf.uxgrid.node_y.values 
+        node_z = self.surf.uxgrid.node_z.values 
         n_nodes_per_face = self.surf.uxgrid.n_nodes_per_face.values
         face_node_connectivity = self.surf.uxgrid.face_node_connectivity.values
         
@@ -820,7 +821,7 @@ class Simulation:
         vtk_data.Allocate(n_face)
         for i,n in enumerate(n_nodes_per_face):
             point_ids=face_node_connectivity[i][0:n]
-            vtk_data.InsertNextCell(VTK_QUADRATIC_HEXAHEDRON, n, point_ids) 
+            vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
         
         for v in self.surf.variables:
             array = vtkDoubleArray()
