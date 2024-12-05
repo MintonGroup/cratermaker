@@ -19,7 +19,6 @@ from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils.montecarlo import get_random_location_on_face
 import warnings
-import trimesh
 
 # Define valid grid types
 GridType = Literal["uniform", "hires_local"]
@@ -36,22 +35,18 @@ _GRID_TEMP_DIR = ".grid"
 # This is a factor used to determine the smallest length scale in the grid
 _SMALLFAC = 1.0e-5
 
-# Mapping from MPAS to UGRID dimension names
-_DIM_MAP = {"n_node": "nVertices", 
-            "n_face": "nCells",
-            "n_edge": "nEdges",
-            }
 class GridStrategy(ABC):
     @abstractmethod
     def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
         pass
+
     
     def generate_grid(self,
                       grid_file: os.PathLike,
                       grid_hash: str | None = None,
                       **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:                       
         """
-        Generate a tessellated mesh of a sphere using trimesh
+        Generate a tessellated mesh of a sphere of evenly distributed points
 
 
         Parameters
@@ -68,9 +63,10 @@ class GridStrategy(ABC):
         to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
         
         """       
-        print("Generating an icosphere point cloud...")
-        mesh = trimesh.creation.icosphere(subdivisions=9)
-        points = mesh.vertices.T*self.radius
+        #points = mesh.vertices.T
+        n = int(4*self.radius**2 / self.pix**2)
+        print(f"Generating a mesh with {n} faces.")
+        points = distribute_points(n=n,radius=self.radius,method="deserno")
         
         print("Making a spherical voronoi mesh from the point cloud")
         grid = uxr.Grid.from_points(points, method="spherical_voronoi")
@@ -84,6 +80,7 @@ class GridStrategy(ABC):
         # Replace the original file only if writing succeeded
         shutil.move(temp_file.name,grid_file)            
         print("Mesh generation complete")
+        
     
         return         
                          
@@ -439,7 +436,7 @@ class Surface(UxDataset):
         if compute_face_areas: 
             # Compute face area needed future calculations
             if 'face_areas' not in self:
-                self['face_areas'] = uxr.UxDataArray(self.uxgrid.face_areas, dims=('n_face',), name='face_areas', attrs={'long_name': 'area of faces', 'units': 'm^2'})
+                self['face_areas'] = self.uxgrid.face_areas.assign_attrs(units='m^2') 
                 self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC        
 
     @classmethod
@@ -1278,8 +1275,6 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
     This function first saves to a temporary file and then moves that file to the final destination. This is done to avoid file 
     locking issues with NetCDF files.
     """
-    dim_map = {k: _DIM_MAP[k] for k in ds.dims if k in _DIM_MAP}
-    ds = ds.rename(dim_map)
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -1306,7 +1301,67 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
         shutil.move(temp_file, data_file)
 
     return
+
+def distribute_points(n=1000,radius=1.0):
+    """
+    Distributes points on a sphere using Deserno's algorithm [1]_.
+        
+    Parameters
+    ----------
+    n : int
+        Number of points to distribute on the sphere.
+    radius : float
+        Radius of the sphere.
+        
+    Returns
+    -------
+    (3,n) ndarray of np.float64
+        Array of points on the sphere.
+        
     
+    References
+    ----------
+    .. [1] Deserno, Markus., 2004. How to generate equidistributed points on the surface of a sphere. https://www.cmu.edu/biolphys/deserno/pdf/sphere_equi.pdf
+    
+    """
+    def _sph2cart(theta, phi, r):
+        """ 
+        Converts spherical coordinates to Cartesian coordinates.
+        
+        Parameters
+        ----------
+        theta : float
+            Inclination angle in radians.
+        phi : float
+            Azimuthal angle in radians.
+        r : float
+            Radius.
+        """
+        x = r * np.sin(theta) * np.cos(phi)
+        y = r * np.sin(theta) * np.sin(phi)
+        z = r * np.cos(theta)
+        return x, y, z
+    
+    points = []
+
+    a = 4 * np.pi / n
+    d = np.sqrt(a)
+    Mtheta = int(np.round(np.pi / d))
+    dtheta = np.pi / Mtheta
+    dphi = a / dtheta
+    
+    for m in range(Mtheta):
+        theta = np.pi *(m + 0.5) / Mtheta
+        Mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
+        for n in range(Mphi):
+            phi = 2*np.pi * n / Mphi
+            points.append(_sph2cart(theta, phi, radius))
+        
+    points = np.array(points,dtype=np.float64)*radius
+    points = points.T
+
+    return points    
+
 
 def save(surf: Surface, 
          out_dir: os.PathLike | None = None,
