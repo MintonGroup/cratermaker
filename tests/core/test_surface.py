@@ -9,13 +9,6 @@ from cratermaker.core.surface import UniformGrid, HiResLocalGrid, _DATA_DIR, _GR
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
 
-try:
-    import mpas_tools
-    MPAS_TOOLS_AVAILABLE = True
-except ModuleNotFoundError:
-    MPAS_TOOLS_AVAILABLE = False
-
-@unittest.skip("mpas_tools not available. Skipping test_simulation") if not MPAS_TOOLS_AVAILABLE else None
 class TestSurface(unittest.TestCase):
     """
     A collection of unit tests for the Surface class in the cratermaker project.

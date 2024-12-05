@@ -35,13 +35,6 @@ dependencies = [
     'pyglet<2'
 ]
 
-[project.optional-dependencies]
-meshing = [
-    'jigsaw',
-    'jigsawpy',
-    'mpas_tools'
-]
-
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
 

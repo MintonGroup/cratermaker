@@ -18,13 +18,6 @@ def warning_with_breakpoint(message, category, filename, lineno, file=None, line
 warnings.simplefilter("always")  # Always trigger the warnings
 warnings.showwarning = warning_with_breakpoint
 
-try:
-    import mpas_tools
-    MPAS_TOOLS_AVAILABLE = True
-except ModuleNotFoundError:
-    MPAS_TOOLS_AVAILABLE = False
-
-@unittest.skip("mpas_tools not available. Skipping test_simulation") if not MPAS_TOOLS_AVAILABLE else None
 class TestSimulation(unittest.TestCase):
     
     def setUp(self):

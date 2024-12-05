@@ -22,11 +22,6 @@ from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils.montecarlo import get_random_location_on_face
 import warnings
 import trimesh
-try:
-    from mpas_tools.mesh.creation.build_mesh import build_spherical_mesh
-    MPAS_TOOLS_AVAILABLE = True
-except ModuleNotFoundError:
-    MPAS_TOOLS_AVAILABLE = False
 
 # Define valid grid types
 GridType = Literal["uniform", "hires_local"]
@@ -94,95 +89,6 @@ class GridStrategy(ABC):
     
         return         
                          
-    
-    def generate_grid_mpas(self, 
-                      grid_file: os.PathLike,
-                      grid_temp_dir: os.PathLike,
-                      grid_hash: str | None = None,
-                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]: 
-        """
-        Generate a tessellated mesh of a sphere using the jigsaw-based mesh builder in MPAS-tools.
-
-        This function generates temporary files in the `grid_temp_dir` directory and saves the final mesh to `grid_file`.
-
-        Parameters
-        ----------
-        grid_file : os.PathLike
-            The file path to the grid file.
-        grid_temp_dir : os.PathLike
-            The directory for temporary grid files. 
-        grid_hash : str, optional
-            Hash of the grid parameters. Default is None, which will generate a new hash.
-            
-        Notes
-        -----
-        The grid configuration is determined by the `grid_strategy` attribute of the Surface object. The `grid_strategy` attribute
-        determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific
-        to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
-        
-        """
-        if not MPAS_TOOLS_AVAILABLE:
-            raise ModuleNotFoundError("MPAS-tools is not available. Please install MPAS-tools to use this function.")
-         
-        from matplotlib._api.deprecation import MatplotlibDeprecationWarning
-        if not hasattr(self,"radius" ):
-            raise ValueError("radius must be set in the grid strategy")
-            
-        # Verify directory structure exists and create it if not
-        orig_dir = os.getcwd()
-        cellWidth, lon, lat = self.generate_face_distribution()
-            
-        try:
-            # verify directory structure, and create anything that's missing.
-            if not os.path.exists(grid_temp_dir):
-                os.mkdir(grid_temp_dir)
-            
-            os.chdir(grid_temp_dir)
-            # Configure logger to suppress output
-            logger = logging.getLogger("mpas_logger")
-            file_handler = logging.FileHandler('mesh.log')
-            logger.addHandler(file_handler)
-            logger.setLevel(logging.INFO)   
-        
-            # We can't rely on the jigsaw executable being in the PATH, but the executable will be bundled with the cratermaker project, so 
-            # we'll look there first.
-        
-            # Store the original PATH
-            original_path = os.environ.get('PATH', '')  
-
-            try:
-                # Add the directory containing the jigsaw binary to PATH
-                jigsaw_bin_dir = os.path.join(sys.prefix, 'site-packages', 'cratermaker', 'bin')
-                os.environ['PATH'] = jigsaw_bin_dir + os.pathsep + original_path
-                
-                print("Building grid with jigsaw...")
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=MatplotlibDeprecationWarning)
-                    build_spherical_mesh(cellWidth, lon, lat, out_filename=str(grid_file), earth_radius=self.radius,logger=logger,plot_cellWidth=False)
-            except:
-                print("Error building grid with jigsaw. See mesh.log for details.")
-                raise
-            os.chdir(orig_dir)
-            print("Done")
-            
-            if not grid_hash:
-                grid_hash = self.generate_hash() 
-            
-            with xr.open_dataset(grid_file) as ds:
-                # Create a temporary file
-                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                    # Write to the temporary file
-                    ds.assign_attrs({"grid_hash":grid_hash}).to_netcdf(temp_file.name) 
-                    temp_file.flush()
-                    os.fsync(temp_file.fileno())
-    
-            # Replace the original file only if writing succeeded
-            shutil.move(temp_file.name,grid_file)    
-        finally:
-            os.chdir(orig_dir)
-    
-        return 
-
     def generate_hash(self) -> str:
         """
         Generate a hash of the grid parameters.

@@ -10,9 +10,6 @@ dependencies:
   - pandas
   - matplotlib 
   - vtk 
-  - jigsaw 
-  - jigsawpy
-  - mpas_tools 
   - tqdm
   - cython>=3
   - cmake>=3.23.1
@@ -21,3 +18,5 @@ dependencies:
   - setuptools>=64
   - setuptools_scm>=8
   - pytest
+  - trimesh
+  - pyglet<2

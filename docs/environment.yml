@@ -27,9 +27,8 @@ dependencies:
   - cmake>=3.23.1
   - ninja>=1.11.1
   - libnetcdf>=4.9.2
-  - jigsaw>=0.9.14
-  - jigsawpy>=0.3.3
-  - mpas_tools>=0.33.0
+  - trimesh
+  - pyglet<2
   - gfortran>=13.2
   - pip>=24.2
   - sphinx
