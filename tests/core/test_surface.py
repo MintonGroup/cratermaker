@@ -216,7 +216,7 @@ class TestSurface(unittest.TestCase):
     def test_face_surface_values(self):
         # Tests that the face_surface generates the correct values
         surf = Surface.initialize(pix=self.pix, target=self.target, reset_surface=True) 
-        total_area_1 = surf.uxgrid.calculate_total_face_area()*surf.target.radius**2
+        total_area_1 = surf.uxgrid.calculate_total_face_area()
         total_area_2 = surf.face_areas.sum().item()
         ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius
         self.assertAlmostEqual(ratio, 1.0, places=2)
