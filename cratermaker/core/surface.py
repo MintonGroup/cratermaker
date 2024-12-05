@@ -335,8 +335,8 @@ class HiResLocalGrid(GridStrategy):
         # Suppose we know pix(lat, lon)
         # Step 1: Construct a fine preliminary grid to estimate integrals
        
-        Lat = np.linspace(-90., 90., 1000)
-        Lon = np.linspace(-180., 180., 1000)
+        Lat = np.linspace(-90., 90., 733)
+        Lon = np.linspace(-180., 180., 733)
         LAT, LON = np.meshgrid(Lat, Lon, indexing='ij')
 
         pix_values = _pix_func(LON, LAT)   # Evaluate pix on this fine grid
@@ -349,12 +349,13 @@ class HiResLocalGrid(GridStrategy):
 
         # Create a function to invert W_lat(lat)
         f_lat = interp1d(W_lat_cumulative, Lat, bounds_error=False, fill_value='extrapolate')
+        
+        M = int(self.radius/pix_values.max())
 
-        M = 50  # number of lat lines
         lat_lines = f_lat(np.linspace(0, 1, M))
 
         # Step 3: For each lat interval, choose lon lines similarly
-        N = 50  # number of lon lines
+        N = M  # number of lon lines
         lon_lines = np.zeros((M-1, N))
 
         for i in range(M-1):
@@ -365,9 +366,12 @@ class HiResLocalGrid(GridStrategy):
             # Integrate this band over lat
             w_band_vals = np.trapezoid(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
             W_lon_band_cumulative = np.cumsum(w_band_vals)
-            W_lon_band_cumulative /= W_lon_band_cumulative[-1]
-            f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
-            lon_lines[i,:] = f_lon(np.linspace(0, 1, N))
+            if W_lon_band_cumulative[-1] > 0:
+                W_lon_band_cumulative /= W_lon_band_cumulative[-1]
+                f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
+                lon_lines[i,:] = f_lon(np.linspace(0, 1, N))
+            else:
+                lon_lines[i,:] = np.linspace(-180., 180., N)
             
         LAT = np.zeros((M, N))
         LON = np.zeros((M, N))
