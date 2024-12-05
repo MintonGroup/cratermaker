@@ -350,28 +350,38 @@ class HiResLocalGrid(GridStrategy):
         # Create a function to invert W_lat(lat)
         f_lat = interp1d(W_lat_cumulative, Lat, bounds_error=False, fill_value='extrapolate')
         
-        M = int(self.radius/pix_values.max())
+        
+        M = int(2*np.pi*self.radius/pix_values.max())
+        while M > 0:
+            badval=False
+            lat_lines = f_lat(np.linspace(0, 1, M))
 
-        lat_lines = f_lat(np.linspace(0, 1, M))
+            # Step 3: For each lat interval, choose lon lines similarly
+            N = M  # number of lon lines
+            lon_lines = np.zeros((M-1, N))
 
-        # Step 3: For each lat interval, choose lon lines similarly
-        N = M  # number of lon lines
-        lon_lines = np.zeros((M-1, N))
-
-        for i in range(M-1):
-            lat_low, lat_high = lat_lines[i], lat_lines[i+1]
-            # Extract w in this lat band
-            mask = (LAT >= lat_low) & (LAT <= lat_high)
-            w_band = w[mask].reshape(-1, len(Lon))  
-            # Integrate this band over lat
-            w_band_vals = np.trapezoid(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
-            W_lon_band_cumulative = np.cumsum(w_band_vals)
-            if W_lon_band_cumulative[-1] > 0:
-                W_lon_band_cumulative /= W_lon_band_cumulative[-1]
-                f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
-                lon_lines[i,:] = f_lon(np.linspace(0, 1, N))
-            else:
-                lon_lines[i,:] = np.linspace(-180., 180., N)
+            for i in range(M-1):
+                lat_low, lat_high = lat_lines[i], lat_lines[i+1]
+                # Extract w in this lat band
+                mask = (LAT >= lat_low) & (LAT <= lat_high)
+                w_band = w[mask].reshape(-1, len(Lon))  
+                # Integrate this band over lat
+                w_band_vals = np.trapezoid(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
+                W_lon_band_cumulative = np.cumsum(w_band_vals)
+                if W_lon_band_cumulative[-1] > 0:
+                    W_lon_band_cumulative /= W_lon_band_cumulative[-1]
+                    f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
+                    lon_lines[i,:] = f_lon(np.linspace(0, 1, N))
+                else:
+                    badval=True
+                    M = M // 2
+                    break
+                
+            if not badval:
+                break
+            
+        if badval:
+            raise ValueError("Could not generate a grid with the given parameters. Please try again with different parameters.")
             
         LAT = np.zeros((M, N))
         LON = np.zeros((M, N))
