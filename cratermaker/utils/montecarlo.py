@@ -109,7 +109,7 @@ def get_random_location_on_face(grid: Grid,
         
         # Generate two random indices to define a triangle with the reference point
         idx1, idx2 = rng.choice(range(1, len(node_indices)), 2, replace=False)
-        p1, p2 = np.array([x[idx1], y[idx1], z[idx1]]), np.array([x[idx2], y[idx2], z[idx2]])
+        p0, p1, p2 = np.array([x[0], y[0], z[0]]), np.array([x[idx1], y[idx1], z[idx1]]), np.array([x[idx2], y[idx2], z[idx2]])
         
         # Generate random barycentric coordinates for interpolation within the triangle
         r1, r2 = rng.random(), rng.random()
@@ -117,7 +117,7 @@ def get_random_location_on_face(grid: Grid,
             r1, r2 = 1 - r1, 1 - r2
         
         # Interpolate in Cartesian space
-        p_random = r1 * p1 + r2 * p2 + (1 - r1 - r2) * np.array([x[0], y[0], z[0]])
+        p_random = r1 * p1 + r2 * p2 + (1 - r1 - r2) * p0
         
         # Convert the random Cartesian point back to lon/lat
         lon_lat = uxr.grid.coordinates._xyz_to_lonlat_deg(p_random[0],p_random[1],p_random[2])

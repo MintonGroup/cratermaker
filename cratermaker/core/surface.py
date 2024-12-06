@@ -74,6 +74,8 @@ class GridStrategy(ABC):
         """       
 
         points = self.generate_face_distribution() 
+        points[:,0] = np.array([0,0,1])
+        points[:,-1] = np.array([0,0,-1])
         grid = uxr.Grid.from_points(points, method="spherical_voronoi")
         if not grid_hash:
             grid_hash = self.generate_hash() 
@@ -1136,11 +1138,13 @@ class Surface(UxDataset):
         
         coords = np.asarray(location)
 
-        node_tree = self.uxgrid.get_ball_tree("nodes")
-        node_ind = node_tree.query(coords=coords, k=1, return_distance=False)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", Warning)
+            node_tree = self.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical")
+            node_ind = node_tree.query(coords=coords, k=1, return_distance=False)
         
-        face_tree = self.uxgrid.get_ball_tree("face centers")
-        face_ind = face_tree.query(coords=coords, k=1, return_distance=False)
+            face_tree = self.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical")
+            face_ind = face_tree.query(coords=coords, k=1, return_distance=False)
         return node_ind.item(), face_ind.item()
 
     def get_reference_surface(self,
@@ -1332,7 +1336,8 @@ class Surface(UxDataset):
     
     def get_random_location_on_face(self, 
                                     face_index: int, 
-                                    size: int = 1
+                                    size: int = 1,
+                                    **kwargs
                                     ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
         """
         Generate a random coordinate within a given face of an unstructured mesh.
@@ -1357,7 +1362,7 @@ class Surface(UxDataset):
         This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
         """
         
-        return get_random_location_on_face(self.uxgrid, face_index, size)
+        return get_random_location_on_face(self.uxgrid, face_index, size,**kwargs)
 
 
 def _save_data(ds: xr.Dataset | xr.DataArray,
