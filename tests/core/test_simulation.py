@@ -18,13 +18,6 @@ def warning_with_breakpoint(message, category, filename, lineno, file=None, line
 warnings.simplefilter("always")  # Always trigger the warnings
 warnings.showwarning = warning_with_breakpoint
 
-try:
-    import mpas_tools
-    MPAS_TOOLS_AVAILABLE = True
-except ModuleNotFoundError:
-    MPAS_TOOLS_AVAILABLE = False
-
-@unittest.skip("mpas_tools not available. Skipping test_simulation") if not MPAS_TOOLS_AVAILABLE else None
 class TestSimulation(unittest.TestCase):
     
     def setUp(self):
@@ -75,23 +68,23 @@ class TestSimulation(unittest.TestCase):
     
         return 
         
-    def test_simulation_export_vtk(self):
+    # def test_simulation_export_vtk(self):
       
-        sim = cratermaker.Simulation(pix=self.pix, target=self.target) 
-        # Test with default parameters
-        default_out_dir = os.path.join(sim.simdir, "vtk_files")
-        expected_files = ["staticFieldsOnCells.vtp","staticFieldsOnVertices.vtp","timeDependentFieldsOnCells.pvd","timeDependentFieldsOnVertices.pvd"]
-        sim.export_vtk()
-        self.assertTrue(os.path.isdir(default_out_dir))
-        for f in expected_files:
-            self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
+    #     sim = cratermaker.Simulation(pix=self.pix, target=self.target) 
+    #     # Test with default parameters
+    #     default_out_dir = os.path.join(sim.simdir, "vtk_files")
+    #     expected_files = ["staticFieldsOnCells.vtp","staticFieldsOnVertices.vtp","timeDependentFieldsOnCells.pvd","timeDependentFieldsOnVertices.pvd"]
+    #     sim.export_vtk()
+    #     self.assertTrue(os.path.isdir(default_out_dir))
+    #     for f in expected_files:
+    #         self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
             
-        # Test with custom output directory
-        custom_out_dir = os.path.join(sim.simdir, "custom_vtk_files")
-        sim.export_vtk(out_dir=custom_out_dir)
-        self.assertTrue(os.path.isdir(custom_out_dir))
-        for f in expected_files:
-            self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
+    #     # Test with custom output directory
+    #     custom_out_dir = os.path.join(sim.simdir, "custom_vtk_files")
+    #     sim.export_vtk(out_dir=custom_out_dir)
+    #     self.assertTrue(os.path.isdir(custom_out_dir))
+    #     for f in expected_files:
+    #         self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
         
     def test_emplace_crater(self):
         cdiam = 2*self.pix

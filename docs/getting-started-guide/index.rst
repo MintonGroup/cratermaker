@@ -4,17 +4,7 @@
 Getting Started
 ################
 
-As Cratermaker is still early in its development, installing it is not yet straightforward. To begin, you will need to install 
-conda, as ``mpas_tools`` is currently only available via a conda package. Once conda is installed, you can create a new conda 
-environment from the provided ``environment.yml`` file::
-
-    conda env create -f environment.yml
-
-This will create a new environment called ``cratermaker``. Activate this environment with::
-   
-      source activate cratermaker
-
-You can then install cratermaker with pip::
+First, set up a Python environment and set the system environment variables using ```buildscripts/set_environment.sh```. This script sets the necessary environment variables for the Fortran compiler, CMake, and other dependencies.  You can install cratermaker with pip::
    
       pip install -e .
 

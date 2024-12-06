@@ -1,9 +1,9 @@
 import numpy as np
 from numpy.random import Generator
+import xarray as xr
 import os
 import shutil
 from glob import glob
-import tempfile
 from typing import Any, Tuple, Type, Sequence
 from numpy.typing import ArrayLike
 from .target import Target
@@ -12,17 +12,11 @@ from .surface import Surface, save
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import set_properties, validate_and_convert_location
+from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
-import warnings
 from tqdm import tqdm
-import vtk
-try:
-    from mpas_tools.viz.paraview_extractor import extract_vtk
-    MPAS_TOOLS_AVAILABLE = True
-except ModuleNotFoundError:
-    MPAS_TOOLS_AVAILABLE = False
+
 
 class Simulation:
     """
@@ -794,8 +788,7 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
-        if not MPAS_TOOLS_AVAILABLE:
-            raise ModuleNotFoundError("The 'mpas_tools' package is required to export VTK files.")
+        from vtk import vtkUnstructuredGrid, vtkPoints, vtkDoubleArray, VTK_POLYGON, vtkXMLUnstructuredGridWriter
         
         self.save()  
         if out_dir is None:
@@ -807,32 +800,55 @@ class Simulation:
         data_file_list = glob(os.path.join(self.surf.data_dir, "*.nc"))
         if self.surf.grid_file in data_file_list:
             data_file_list.remove(self.surf.grid_file)
+       
+        # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
+        n_node = self.surf.uxgrid.n_node
+        n_face = self.surf.uxgrid.n_face
+        node_x = self.surf.uxgrid.node_x.values * self.target.radius
+        node_y = self.surf.uxgrid.node_y.values * self.target.radius
+        node_z = self.surf.uxgrid.node_z.values * self.target.radius
+        n_nodes_per_face = self.surf.uxgrid.n_nodes_per_face.values
+        face_node_connectivity = self.surf.uxgrid.face_node_connectivity.values
         
-        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-        # The API change does not affect the functionality of the code, so we can safely ignore the warning
-        with warnings.catch_warnings(): 
-            warnings.simplefilter("ignore", DeprecationWarning) # Ignores a warning issued in bar.py
-        
-            # Save the surface data to a combined netCDF file
-            with tempfile.TemporaryDirectory() as temp_dir:
-                filename_pattern = ""
-                for f in data_file_list:
-                    filename_pattern += f"{f};"
-                try:
-                    extract_vtk(
-                        filename_pattern=filename_pattern,
-                        mesh_filename=self.surf.grid_file,
-                        variable_list=['allOnVertices', 'allOnCells'], 
-                        dimension_list=['maxEdges=','vertexDegree=','maxEdges2=','TWO='], 
-                        combine=False,
-                        include_mesh_vars=True,
-                        ignore_time=False,
-                        time="0:",
-                        xtime='Time',
-                        out_dir=out_dir)
-                            
-                except:
-                    raise RuntimeError("Error in extract_vtk. Cannot export VTK files")
+        vtk_data = vtkUnstructuredGrid()
+        nodes = vtkPoints()
+        for i in range(n_node):
+            nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
+        vtk_data.SetPoints(nodes)
+        vtk_data.Allocate(n_face)
+        for i,n in enumerate(n_nodes_per_face):
+            point_ids=face_node_connectivity[i][0:n]
+            vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
+        writer = vtkXMLUnstructuredGridWriter()
+        writer.SetFileName(os.path.join(out_dir,"surf.vtu"))
+        writer.SetInputData(vtk_data)
+        writer.Write()           
+    
+        with xr.open_mfdataset(data_file_list) as ds_t:
+            if 'Time' in ds_t.dims:
+                timevars = [v for v in ds_t.variables if ds_t[v].dims == ('Time',)]
+                ds = ds_t.drop_vars(timevars).isel(Time=-1)
+            else:
+                ds = ds_t
+                
+            for v in ds.variables:
+                array = vtkDoubleArray()
+                n = len(ds[v])
+                if 'n_face' in ds[v].dims:
+                    if n != n_face:
+                        raise RuntimeError(f"Size of array {v} of {n} does not match expected n_face {n_face}")
+                elif 'n_node' in ds[v].dims:
+                    if n != n_node:
+                        raise RuntimeError(f"Size of array {v} of {n} does not match expected n_node {n_node}")
+                array.SetNumberOfTuples(n)
+                array.SetName(v)
+                values = ds[v].values
+                for id in range(n):
+                    array.SetTuple(id, [values[id]])
+                if n == n_face:
+                    vtk_data.GetCellData().AddArray(array)
+                elif n == n_node:
+                    vtk_data.GetPointData().AddArray(array)
         
         return
     
@@ -1031,10 +1047,10 @@ class Simulation:
             kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
             
         def _noisemaker(vars):
-            ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
-            x = ds_norm[vars[0]].values
-            y = ds_norm[vars[1]].values
-            z = ds_norm[vars[2]].values
+           
+            x = self.surf.uxgrid[vars[0]].values * scale / self.target.radius
+            y = self.surf.uxgrid[vars[1]].values * scale / self.target.radius
+            z = self.surf.uxgrid[vars[2]].values * scale / self.target.radius 
             noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         
             # Make sure the noise is volume-conserving (i.e., the mean is zero)

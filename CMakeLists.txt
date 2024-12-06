@@ -11,7 +11,7 @@
 ##################################################
 # Define the project and the depencies that it has
 ##################################################
-CMAKE_MINIMUM_REQUIRED(VERSION 3.23.1...3.31.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.23.1...3.31.1)
 IF (SKBUILD)
     SET(VERSION ${SKBUILD_PROJECT_VERSION})
     SET(PROJECT_NAME ${SKBUILD_PROJECT_NAME})
@@ -21,6 +21,7 @@ ELSE ()
     SET(SKBUILD_PROJECT_VERSION_FULL "CUSTOM BUILD ${DATESTR}")
     SET(PROJECT_NAME "cratermaker" CACHE STRING "Name of project")
 ENDIF()
+MESSAGE(STATUS "Building ${PROJECT_NAME} version ${SKBUILD_PROJECT_VERSION_FULL}")
 
 SET(SKBUILD_SCRIPTS_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE STRING "Install location of binary executable")
 
@@ -34,65 +35,37 @@ IF(DEFINED ENV{CIBUILDWHEEL})
 ENDIF()
 
 # Check for a Fortran compiler 
-IF(DEFINED ENV{FC})
-    SET(CMAKE_Fortran_COMPILER $ENV{FC} CACHE STRING "Fortran compiler")
-ELSE()
-    # If FC is not set, search for the Fortran compilers in the specified order.
-    FIND_PROGRAM(Fortran_COMPILER
-               NAMES gfortran-14 gfortran-13 gfortran-12 gfortran ifort mpiifort
-               DOC "Fortran compiler")
-
-    # If a compiler is found, set it as the Fortran compiler.
-    IF(Fortran_COMPILER)
-        SET(CMAKE_Fortran_COMPILER ${Fortran_COMPILER} CACHE STRING "Fortran compiler")
-    ELSE()
-        MESSAGE(FATAL_ERROR "No suitable Fortran compiler was found.")
-    ENDIF()
+IF(NOT CMAKE_Fortran_COMPILER)
+    FIND_PROGRAM(CMAKE_Fortran_COMPILER
+        HINTS ENV CMPLR_ROOT
+        NAMES ENV FC ifx ifort mpiifort gfortran-14 gfortran-13 gfortran-12 gfortran 
+        DOC "Fortran compiler"
+        REQUIRED)
 ENDIF()
 MESSAGE(STATUS "Using Fortran compiler: ${CMAKE_Fortran_COMPILER}")
+IF (CMAKE_Fortran_COMPILER MATCHES "^ifx.exe")
+    SET(CMAKE_GENERATOR_TOOLSET="Intel C++ Compiler 2024,fortran=ifx")
+ELSEIF(CMAKE_Fortran_COMPILER MATCHES "^ifort.exe")
+    SET(CMAKE_GENERATOR_TOOLSET="Intel C++ Compiler 2024,fortran=ifort")
+ENDIF()
 
-IF(DEFINED ENV{CC})
-    SET(CMAKE_C_COMPILER $ENV{CC} CACHE STRING "C compiler")
-ELSE()
+IF(NOT CMAKE_C_COMPILER)
     # If CC is not set, search for the C compilers in the specified order.
-    IF (APPLE)
-        FIND_PROGRAM(C_COMPILER
-               NAMES clang gcc
-               DOC "C compiler")
-    ELSEIF(UNIX)
-        FIND_PROGRAM(C_COMPILER
-               NAMES gcc clang icc mpiicc
-               DOC "C compiler")
-    ENDIF()
-    # If a compiler is found, set it as the C compiler.
-    IF(C_COMPILER)
-        SET(CMAKE_C_COMPILER ${C_COMPILER} CACHE STRING "C compiler")
-
-    ELSE()
-        MESSAGE(FATAL_ERROR "No suitable C compiler was found.")
-    ENDIF()
+    FIND_PROGRAM(CMAKE_C_COMPILER
+        HINTS ENV CMPLR_ROOT
+        NAMES ENV CC icx icc mpiicc cl clang gcc
+        DOC "C compiler"
+        REQUIRED)
 ENDIF()
 MESSAGE(STATUS "Using C compiler: ${CMAKE_C_COMPILER}")
 
-IF(DEFINED ENV{CXX})
-    SET(CMAKE_CXX_COMPILER $ENV{CXX} CACHE STRING "C++ compiler")
-ELSE()
+IF(NOT CMAKE_CXX_COMPILER)
     # If CXX is not set, search for the C++ compilers in the specified order.
-    IF (APPLE)
-        FIND_PROGRAM(CXX_COMPILER
-               NAMES clang++ g++
-               DOC "C++ compiler")
-    ELSEIF(UNIX)
-        FIND_PROGRAM(CXX_COMPILER
-               NAMES g++ clang++ icpc mpiicpc
-               DOC "C++ compiler")
-    ENDIF()
-    # If a compiler is found, set it as the C++ compiler.
-    IF(CXX_COMPILER)
-        SET(CMAKE_CXX_COMPILER ${CXX_COMPILER} CACHE STRING "C++ compiler")
-    ELSE()
-        MESSAGE(FATAL_ERROR "No suitable C++ compiler was found.")
-    ENDIF()
+    FIND_PROGRAM(CMAKE_CXX_COMPILER
+        HINTS ENV CMPLR_ROOT
+        NAMES ENV CXX icpx icpc mpiicpc cl clang++ g++
+        DOC "C++ compiler"
+        REQUIRED)
 ENDIF()
 MESSAGE(STATUS "Using C++ compiler: ${CMAKE_CXX_COMPILER}")
 
@@ -133,8 +106,9 @@ ELSE()
 
     INCLUDE(GNUInstallDirs)
     IF (SKBUILD)
-        SET(INSTALL_INCLUDEDIR ${SKBUILD_HEADERS_DIR})
-        SET(INSTALL_PYPROJ ${SKBUILD_PLATLIB_DIR}/${PROJECT_NAME})
+        SET(CMAKE_LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}/deps/usr/lib")
+        SET(INSTALL_INCLUDEDIR ${SKBUILD_HEADERS_DIR}) 
+        SET(INSTALL_PYPROJ ${SKBUILD_PLATLIB_DIR}/${PROJECT_NAME}) 
         SET(INSTALL_BINDIR ${INSTALL_PYPROJ})
         # The following is needed so that the shared libraries get installed into the correct place. cibuildwheel behaves differently 
         # than just running pip install directly. When running pip install directly, the libraries will be installed to the environment's
@@ -145,7 +119,7 @@ ELSE()
         # when running cibuildwheel.
         IF (CIBUILDWHEEL)
             SET(INSTALL_LIBDIR ${CMAKE_BINARY_DIR}/lib)
-            SET(CMAKE_INSTALL_RPATH "${CMAKE_BINARY_DIR}/lib")
+            SET(CMAKE_INSTALL_RPATH "${INSTALL_LIBDIR}")
         ELSE()
             SET(INSTALL_LIBDIR ${INSTALL_BINDIR})
             IF (APPLE)
@@ -160,6 +134,11 @@ ELSE()
         SET(INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
         SET(INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
     ENDIF ()
+
+    IF (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        SET(INSTALL_LIBDIR ${INSTALL_BINDIR})
+        SET(CMAKE_INSTALL_RPATH "$ORIGIN")
+    ENDIF()
 
     MESSAGE(STATUS "INSTALL_BINDIR: ${INSTALL_BINDIR}")
     MESSAGE(STATUS "INSTALL_LIBDIR: ${INSTALL_LIBDIR}")
@@ -187,7 +166,7 @@ ELSE()
     #####################################
     # Tell how to install this executable
     #####################################
-    IF(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    IF(MSVC)
         SET(CMAKE_INSTALL_PREFIX "C:\\Program Files\\swiftest")
         FILE(TO_CMAKE_PATH ${CMAKE_INSTALL_PREFIX} CMAKE_INSTALL_PREFIX)
         SET(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX} CACHE PATH "Path for install")

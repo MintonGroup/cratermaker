@@ -25,18 +25,12 @@ keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'land
 dependencies = [
     'numpy',
     'xarray>=2024.10.0',
-    'uxarray>=2024.10.1',
+    'uxarray>=2024.11.0',
+    'vtk>=9.4',
     'scipy',
     'matplotlib',
-    'vtk',
-    'tqdm'
-]
-
-[project.optional-dependencies]
-meshing = [
-    'jigsaw',
-    'jigsawpy',
-    'mpas_tools'
+    'tqdm',
+    'pyogrio',
 ]
 
 [project.urls]
@@ -66,15 +60,15 @@ write_to = "cratermaker/_version.py"
 [tool.cibuildwheel]
 test-command = "pytest {package}/tests"
 test-requires = ['pytest']
-skip = "pp* *i686 *-manylinux_i686 *_ppc64le *_s390x *-musllinux* *-win32"
+skip = "pp* *i686 *-manylinux_i686 *_ppc64le *_s390x *-musllinux* *-win32 cp313-*" 
 build-verbosity = 1
 
 [tool.cibuildwheel.macos.environment]
 ROOT_DIR="$(pwd)"
-MACOSX_DEPLOYMENT_TARGET="$(sw_vers -productVersion)"
 PREFIX="/usr/local"
 HOMEBREW_PREFIX="$(brew --prefix)"
 ARCH="$(uname -m)"
+MACOSX_DEPLOYMENT_TARGET="$(buildscripts/get_macosx_deployment_target.sh)"
 GFORTRAN_VERSION="$(buildscripts/get_gfortran_version.sh)"
 FC="$(buildscripts/get_gfortran_path.sh)"
 F77="${FC}"
@@ -88,23 +82,39 @@ LD_LIBRARY_PATH="${PREFIX}/lib:${HOMEBREW_PREFIX}/lib:${HOMEBREW_PREFIX}/lib/gcc
 DYLD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
 REPAIR_LIBRARY_PATH="${LD_LIBRARY_PATH}"
 LDFLAGS="-Wl,-no_compact_unwind -L${PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib/gcc/${GFORTRAN_VERSION}" 
-CPATH="${HOMEBREW_PREFIX}/include:/usr/local/include:${PREFIX}/include:${ROOT_DIR}/include"
-CPPFLAGS="-isystem ${HOMEBREW_PREFIX}/include -isystem ${PREFIX}/include -isystem /usr/local/include"
-LIBS="-lomp"
-FCFLAGS="-mmacos-version-min=${MACOSX_DEPLOYMENT_TARGET} -arch ${ARCH}"
-FFFLAGS="${FCFLAGS}"
+CPATH="${PREFIX}/include:${HOMEBREW_PREFIX}/include"
+CPPFLAGS="-isystem ${PREFIX}/include"
+FCFLAGS="-arch ${ARCH}"
+FFLAGS="${FCFLAGS}"
 CFLAGS="${FCFLAGS} -Wno-deprecated-non-prototype -arch ${ARCH}"
 CXXFLAGS="${CFLAGS}"
+FFFLAGS="${FCFLAGS}"
 
 [tool.cibuildwheel.linux.environment]
+SKBUILD_CMAKE_ARGS=["-DMACHINE_CODE_VALUE=generic"]
 PREFIX="/usr/local"
 NCDIR="${PREFIX}"
 LD_LIBRARY_PATH="${PREFIX}/lib:/project/lib}"
+
 CPATH="${PREFIX}/include:/project/include}"
 CMAKE_INSTALL_LIBDIR="lib"
+CC="$(command -v gcc)"
+CXX="$(command -v g++)"
+FC="$(buildscripts/get_gfortran_path.sh)"
+
+[tool.cibuildwheel.macos]
+before-all = [
+    "brew install coreutils vecLibFort cmake",
+]
 
 [tool.cibuildwheel.linux]
-skip = "cp312-* pp* -manylinux_i686* *-musllinux*"
 before-all = [
+    "yum install epel-release -y",
     "yum install libcurl-devel -y",
 ]
+
+[tool.cibuildwheel.windows]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair --ignore-existing -w {dest_dir} {wheel}"
+
+
