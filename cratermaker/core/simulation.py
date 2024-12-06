@@ -821,8 +821,8 @@ class Simulation:
             vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
         writer = vtkXMLUnstructuredGridWriter()
         writer.SetFileName(os.path.join(out_dir,"surf.vtu"))
-        writer.SetInputData(vtk_data)
-        writer.Write()           
+        #writer.SetInputData(vtk_data)
+        #writer.Write()           
     
         with xr.open_mfdataset(data_file_list) as ds_t:
             if 'Time' in ds_t.dims:
@@ -849,6 +849,8 @@ class Simulation:
                     vtk_data.GetCellData().AddArray(array)
                 elif n == n_node:
                     vtk_data.GetPointData().AddArray(array)
+            writer.SetInputData(vtk_data)
+            writer.Write()               
         
         return
     
