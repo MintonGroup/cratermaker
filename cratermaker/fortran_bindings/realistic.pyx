@@ -144,3 +144,38 @@ def apply_noise(str model,
     free(f_anchor)
 
     return noise  # Return the noise value
+
+def realistic_crater(cnp.ndarray[cnp.float64_t, ndim=1] radial_distance, 
+                cnp.ndarray[cnp.float64_t, ndim=1] initial_bearing,
+                cnp.ndarray[cnp.float64_t, ndim=1] reference_elevation_array, 
+                cnp.ndarray[cnp.float64_t, ndim=1] rim_1D_psd,
+                cnp.ndarray[cnp.float64_t, ndim=1] floor_1D_psd,
+                cnp.ndarray[cnp.float64_t, ndim=1] ejecta_1D_psd,
+                cnp.ndarray[cnp.float64_t, ndim=2] floor_2D_psd,
+                cnp.ndarray[cnp.float64_t, ndim=2] ejecta_2D_psd,
+                cnp.ndarray[cnp.float64_t, ndim=2] wall_2D_psd,
+                cnp.float64_t crater_diameter):
+    """
+    Generate an ejecta profile.
+
+    Parameters
+    ----------
+    radial_distance : ndarray(N,)
+        Radial distance from the center of the crater.
+    initial_bearing : ndarray(N,)
+        Initial bearing from the denter of the crater in radians.
+    crater_diameter : float
+        Diameter of the crater.
+
+
+    Returns
+    -------
+    ndarray(N,)
+        computed elevation values
+
+    Raises
+    ------
+    ValueError - If required parameters are missing, arrays are mismatched, or if an invalid model is specified.
+    """
+
+    cdef int num_elements = radial_distance.size
