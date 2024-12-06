@@ -1047,10 +1047,10 @@ class Simulation:
             kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
             
         def _noisemaker(vars):
-            ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
-            x = ds_norm[vars[0]].values
-            y = ds_norm[vars[1]].values
-            z = ds_norm[vars[2]].values
+           
+            x = self.surf.uxgrid[vars[0]].values * scale / self.target.radius
+            y = self.surf.uxgrid[vars[1]].values * scale / self.target.radius
+            z = self.surf.uxgrid[vars[2]].values * scale / self.target.radius 
             noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         
             # Make sure the noise is volume-conserving (i.e., the mean is zero)
