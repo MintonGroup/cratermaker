@@ -1,8 +1,7 @@
 import unittest
 import numpy as np
-from numpy.typing import ArrayLike
 from cratermaker.utils.montecarlo import *
-from scipy.stats import chisquare, ks_2samp, poisson
+from scipy.stats import chisquare, ks_2samp
 
 class TestMonteCarlo(unittest.TestCase):
 
@@ -32,17 +31,17 @@ class TestMonteCarlo(unittest.TestCase):
             expected_count_lon = size // bins
             
             # Perform the chi-square test
-            chi2_statistic, p_value = chisquare(f_obs=observed_counts, f_exp=[expected_count_lon]*bins)
+            _, p_value = chisquare(f_obs=observed_counts, f_exp=[expected_count_lon]*bins)
 
             # Assert that the p-value is greater than the significance level
             result = p_value
             
             sin_lats = np.sin(np.deg2rad(lats))
-            observed_counts, bins_lat = np.histogram(sin_lats, bins=bins, range=(-1, 1))
+            observed_counts, _ = np.histogram(sin_lats, bins=bins, range=(-1, 1))
             expected_count_lat = size // bins
             
             # Perform the chi-square test
-            chi2_statistic, p_value = chisquare(f_obs=observed_counts, f_exp=[expected_count_lat]*bins)
+            _, p_value = chisquare(f_obs=observed_counts, f_exp=[expected_count_lat]*bins)
 
             # Assert that the p-value is greater than the significance level
             result = result and p_value > alpha
