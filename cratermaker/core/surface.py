@@ -751,12 +751,14 @@ class Surface(UxDataset):
             surf.generate_data(data=0.0,
                                name="ejecta_thickness",
                                long_name="ejecta thickness",
-                               units= "m"
+                               units= "m",
+                               save_to_file=True
                               )     
             surf.generate_data(data=0.0,
                                name="ray_intensity",
                                long_name="ray intensity value",
-                               units= ""
+                               units= "",
+                               save_to_file=True
                               )                         
             surf.set_elevation(0.0,save_to_file=True)
         
@@ -995,6 +997,7 @@ class Surface(UxDataset):
                 name=name,
                 uxgrid=uxgrid
                 ) 
+         
         self[name] = uxda
         
         if save_to_file:
@@ -1460,6 +1463,12 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
     """
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
+        
+    if "Time" not in ds.dims:
+        ds = ds.expand_dims(["Time"])
+    if "Time" not in ds.coords:
+        ds = ds.assign_coords({"Time":[interval_number]})      
+        
     with tempfile.TemporaryDirectory() as temp_dir:
         if combine_data_files:
             filename = _COMBINED_DATA_FILE_NAME
@@ -1472,11 +1481,6 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
             ds_file = ds.merge(ds_file, compat="override")
         else:
             ds_file = ds    
-            
-        if "Time" not in ds_file.dims:
-            ds_file = ds_file.expand_dims(["Time"])
-        if "Time" not in ds_file.coords:
-            ds_file = ds_file.assign_coords({"Time":[interval_number]})                   
             
         temp_file = os.path.join(temp_dir, filename)
         ds_file.to_netcdf(temp_file) 
