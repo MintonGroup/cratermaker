@@ -10,7 +10,7 @@ class TestRealistic(unittest.TestCase):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
         self.target = cratermaker.Target(name="Moon") 
-        self.pix = self.target.radius / 10.0
+        self.gridlevel = 4
         os.chdir(self.temp_dir.name) 
         
     def tearDown(self):
@@ -19,7 +19,7 @@ class TestRealistic(unittest.TestCase):
         return           
 
     def test_realistic(self):
-        sim = cratermaker.Simulation(pix=self.pix)
+        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
         sim.apply_noise(model="ridged")
 
 if __name__ == '__main__':

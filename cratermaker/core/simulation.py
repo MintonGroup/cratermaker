@@ -3,9 +3,11 @@ from numpy.random import Generator
 import xarray as xr
 import os
 import shutil
+from tqdm import tqdm
 from glob import glob
 from typing import Any, Tuple, Type, Sequence
 from numpy.typing import ArrayLike
+import warnings
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, save
@@ -15,7 +17,6 @@ from .production import Production, NeukumProduction
 from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
-from tqdm import tqdm
 
 
 class Simulation:
@@ -975,7 +976,7 @@ class Simulation:
     def apply_noise(self, 
                     model="turbulence",
                     noise_width=1000e3,
-                    noise_height=20e3,
+                    noise_height=1e3,
                     to_nodes=True,
                     to_faces=True,
                     **kwargs,
@@ -1049,11 +1050,12 @@ class Simulation:
             kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
             
         def _noisemaker(vars):
-           
-            x = self.surf.uxgrid[vars[0]].values * scale / self.target.radius
-            y = self.surf.uxgrid[vars[1]].values * scale / self.target.radius
-            z = self.surf.uxgrid[vars[2]].values * scale / self.target.radius 
-            noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", Warning)           
+                x = self.surf.uxgrid[vars[0]].values * scale 
+                y = self.surf.uxgrid[vars[1]].values * scale 
+                z = self.surf.uxgrid[vars[2]].values * scale
+                noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         
             # Make sure the noise is volume-conserving (i.e., the mean is zero)
             # TODO: Take into account the nodes are not uniformly distributed on the sphere

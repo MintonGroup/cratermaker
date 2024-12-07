@@ -21,7 +21,7 @@ from ..utils.montecarlo import get_random_location_on_face
 import warnings
 
 # Define valid grid types
-GridType = Literal["uniform", "hires_local"]
+GridType = Literal["icosphere","arbitrary", "hires_local"]
 
 # Derive valid_grid_types list from GridType
 valid_grid_types: Type[List[str]] = list(get_args(GridType))
@@ -36,15 +36,9 @@ _GRID_TEMP_DIR = ".grid"
 _SMALLFAC = 1.0e-5
 
 class GridStrategy(ABC):
-    def __init__(self, 
-                 pix: FloatLike, 
-                 radius: FloatLike,
-                 **kwargs: Any):
-
-        self.pix = pix
-        self.radius = radius    
+    def __init__(self, **kwargs: Any):
         self._grid = None
-    
+
     @abstractmethod
     def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
         pass
@@ -69,13 +63,12 @@ class GridStrategy(ABC):
         -----
         The grid configuration is determined by the `grid_strategy` attribute of the Surface object. The `grid_strategy` attribute
         determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific
-        to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, `HiResLocalGrid`, etc.).
+        to each grid type, refer to the documentation of the respective grid parameter classes (`UnifromIcosphereGrid`, 
+        `ArbitraryResolutionGrid`, `HiResLocalGrid`, etc.).
         
         """       
 
         points = self.generate_face_distribution() 
-        points[:,0] = np.array([0,0,1])
-        points[:,-1] = np.array([0,0,-1])
         grid = uxr.Grid.from_points(points, method="spherical_voronoi")
         if not grid_hash:
             grid_hash = self.generate_hash() 
@@ -224,10 +217,64 @@ class GridStrategy(ABC):
             raise TypeError("grid must be an instance of uxarray.Grid")
         self._grid = value
     
-    
-class UniformGrid(GridStrategy):
+class IcosphereGrid(GridStrategy):    
     """
-    Create a uniform grid configuration with the given pixel size.
+    Create a uniform grid configuration using an icosphere. This is the most accurate and efficient way to create a uniform grid, but is limited to a few resolutions.
+    
+    Parameters
+    ----------
+    gridlevel : float
+        The subdivision level of the icosphere. The number of faces is 20 * 4**level. The default level is 8.
+    radius: FloatLike
+        The radius of the target body in meters.
+        
+    Returns
+    -------
+    IcosphereGrid
+        An instance of the IcosphereGrid class initialized with the given pixel size. 
+    """    
+    
+    def __init__(self, 
+                 gridlevel: int = 8, 
+                 radius: FloatLike = 1.0, 
+                 **kwargs: Any):
+        super().__init__(**kwargs)
+        self.gridlevel = gridlevel
+        self.radius = radius
+        
+        
+    def generate_face_distribution(self) -> NDArray:
+        """
+        Creates the points that define the mesh centers.
+           
+        Returns
+        -------
+        (3,n) ndarray of np.float64
+            Array of points on a unit sphere.
+        """ 
+        from trimesh.creation import icosphere
+       
+        print(f"Generating a mesh with icosphere level {self.gridlevel}.")  
+        mesh = icosphere(self.gridlevel)
+        points = mesh.vertices.T
+        return points
+   
+    
+    def generate_grid(self,
+                      grid_file: os.PathLike,
+                      grid_hash: str | None = None,
+                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:        
+        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
+        face_areas = self.grid.face_areas 
+        face_sizes = np.sqrt(face_areas / (4 * np.pi))
+        pix_mean = face_sizes.mean().item() * self.radius
+        pix_std = face_sizes.std().item() * self.radius
+        print(f"Effective pixel size: {pix_mean:.2f} +/- {pix_std:.2f} m")
+        return    
+    
+class ArbitraryResolutionGrid(GridStrategy):
+    """
+    Create a uniform grid configuration with an arbitrary user-defined pixel size. This will not be as nice as the regular IcosphereGrid, but can be any resolution desired.
     
     Parameters
     ----------
@@ -238,9 +285,18 @@ class UniformGrid(GridStrategy):
         
     Returns
     -------
-    UniformGrid
-        An instance of the UniformGrid class initialized with the given pixel size. 
+    ArbitraryResolutionGrid
+        An instance of the ArbitraryResolutionGrid class initialized with the given pixel size. 
     """    
+    
+    def __init__(self, 
+                 pix: FloatLike, 
+                 radius: FloatLike, 
+                 **kwargs: Any):
+        super().__init__(**kwargs)
+        self.pix = pix
+        self.radius = radius
+    
 
     def generate_face_distribution(self) -> NDArray:
         """
@@ -254,7 +310,10 @@ class UniformGrid(GridStrategy):
         """                
 
         print(f"Generating a mesh with uniformly distributed faces of size ~{self.pix} m.")
-        return distribute_points(distance=self.pix/self.radius)
+        points = distribute_points(distance=self.pix/self.radius) 
+        points[:,0] = np.array([0,0,1])
+        points[:,-1] = np.array([0,0,-1])
+        return points
    
     
     def generate_grid(self,
@@ -268,6 +327,7 @@ class UniformGrid(GridStrategy):
         pix_std = face_sizes.std().item() * self.radius
         print(f"Effective pixel size: {pix_mean:.2f} +/- {pix_std:.2f} m")
         return
+
 
 class HiResLocalGrid(GridStrategy):
     """
@@ -299,7 +359,9 @@ class HiResLocalGrid(GridStrategy):
                  local_location: PairOfFloats,
                  superdomain_scale_factor: FloatLike,
                  **kwargs: Any):
-        super().__init__(pix=pix, radius=radius, **kwargs)
+        super().__init__(**kwargs)
+        self.pix = pix
+        self.radius = radius        
         self.local_radius = local_radius
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
@@ -571,8 +633,8 @@ class Surface(UxDataset):
             The directory for temporary grid files. Default is set to ``${PWD}/.grid``.
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        grid_type : ["uniform", "hires_local"], optional
-            The type of grid to be generated. Default is "uniform".            
+        grid_type : ["icosphere", "arbitrary", "hires_local"], optional
+            The type of grid to be generated. Default is "icosphere".            
         rng : Generator, optional
             A random number generator instance. If not provided, the default numpy RNG will be used. 
         **kwargs : dict
@@ -586,12 +648,13 @@ class Surface(UxDataset):
         Notes
         -----
         The grid configuration is determined by `grid_type` and its associated parameters. For detailed information on the 
-        parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`UniformGrid`, 
+        parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`IcosphereGrid`,`ArbitraryResolutionGrid`, 
         `HiResLocalGrid`, etc.).
 
         See Also
         --------
-        cratermaker.core.surface.UniformGrid : Parameters for a uniform grid configuration.
+        cratermaker.core.surface.IcosphereGrid : Parameters for an icosphere grid configuration.
+        cratermaker.core.surface.ArbitraryResolutionGrid : Parameters for a uniform arbitrary resolution grid configuration.
         cratermaker.core.surface.HiResLocalGrid : Parameters for a high-resolution local grid configuration.  
         """
         if not target:
@@ -606,6 +669,8 @@ class Surface(UxDataset):
         
         if grid_type not in valid_grid_types:
             raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
+        
+        gridlevel = kwargs.pop('gridlevel', 8)
          
         pix = kwargs.pop('pix', None) 
         if pix is not None:
@@ -631,8 +696,10 @@ class Surface(UxDataset):
             grid_file = os.path.join(data_dir,_GRID_FILE_NAME)
             
         # Process the grid parameters from the arguments and build the strategy object 
-        if grid_type == "uniform":
-            grid_strategy = UniformGrid(pix=pix, radius=target.radius)
+        if grid_type == "icosphere":
+            grid_strategy = IcosphereGrid(gridlevel=gridlevel, radius=target.radius)
+        if grid_type == "arbitrary":
+            grid_strategy = ArbitraryResolutionGrid(pix=pix, radius=target.radius)
         elif grid_type == "hires_local":
             grid_strategy = HiResLocalGrid(pix=pix, radius=target.radius, **kwargs)       
    
