@@ -975,7 +975,7 @@ class Simulation:
 
     def apply_noise(self, 
                     model="turbulence",
-                    noise_width=100e3,
+                    noise_width=1000e3,
                     noise_height=1e3,
                     to_nodes=True,
                     to_faces=True,
