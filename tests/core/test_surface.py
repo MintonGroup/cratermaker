@@ -77,7 +77,7 @@ class TestSurface(unittest.TestCase):
         # Test regridding if the parameters change
         n_face_orig = surf.uxgrid.n_face
     
-        surf = Surface.initialize(gridlevel=self.gridlevel+1, target=self.target, reset_surface=False)
+        surf = Surface.initialize(gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
         self.assertGreater(n_face_orig, surf.uxgrid.n_face)
     
         # Test different target values
