@@ -10,7 +10,7 @@ class TestRealistic(unittest.TestCase):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
         self.target = cratermaker.Target(name="Moon") 
-        self.pix = self.target.radius / 10.0
+        self.gridlevel = 4
         os.chdir(self.temp_dir.name) 
         
     def tearDown(self):

@@ -35,7 +35,7 @@ class TestSurface(unittest.TestCase):
         os.mkdir(self.grid_temp_dir)
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
-        self.gridlevel = 5
+        self.gridlevel = 4
         os.chdir(self.temp_dir.name)
         
         return
@@ -77,7 +77,7 @@ class TestSurface(unittest.TestCase):
         # Test regridding if the parameters change
         n_face_orig = surf.uxgrid.n_face
     
-        surf = Surface.initialize(pix=2*self.pix, target=self.target, reset_surface=False)
+        surf = Surface.initialize(gridlevel=self.gridlevel+1, target=self.target, reset_surface=False)
         self.assertGreater(n_face_orig, surf.uxgrid.n_face)
     
         # Test different target values
