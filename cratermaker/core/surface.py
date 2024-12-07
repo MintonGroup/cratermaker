@@ -223,7 +223,7 @@ class IcosphereGrid(GridStrategy):
     
     Parameters
     ----------
-    level : float
+    gridlevel : float
         The subdivision level of the icosphere. The number of faces is 20 * 4**level. The default level is 8.
     radius: FloatLike
         The radius of the target body in meters.
@@ -235,11 +235,11 @@ class IcosphereGrid(GridStrategy):
     """    
     
     def __init__(self, 
-                 level: int = 8, 
+                 gridlevel: int = 8, 
                  radius: FloatLike = 1.0, 
                  **kwargs: Any):
         super().__init__(**kwargs)
-        self.level = level
+        self.gridlevel = gridlevel
         self.radius = radius
         
         
@@ -254,8 +254,8 @@ class IcosphereGrid(GridStrategy):
         """ 
         from trimesh.creation import icosphere
        
-        print(f"Generating a mesh with icosphere level {self.level}.")  
-        mesh = icosphere(self.level)
+        print(f"Generating a mesh with icosphere level {self.gridlevel}.")  
+        mesh = icosphere(self.gridlevel)
         points = mesh.vertices.T
         return points
    
@@ -697,7 +697,7 @@ class Surface(UxDataset):
             
         # Process the grid parameters from the arguments and build the strategy object 
         if grid_type == "icosphere":
-            grid_strategy = IcosphereGrid(level=gridlevel, radius=target.radius)
+            grid_strategy = IcosphereGrid(gridlevel=gridlevel, radius=target.radius)
         if grid_type == "arbitrary":
             grid_strategy = ArbitraryResolutionGrid(pix=pix, radius=target.radius)
         elif grid_type == "hires_local":

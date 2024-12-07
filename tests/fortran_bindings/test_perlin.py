@@ -19,7 +19,7 @@ class TestRealistic(unittest.TestCase):
         return           
 
     def test_realistic(self):
-        sim = cratermaker.Simulation(pix=self.pix)
+        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
         sim.apply_noise(model="ridged")
 
 if __name__ == '__main__':
