@@ -5,7 +5,7 @@ import numpy as np
 import tempfile
 from cratermaker import Target
 from cratermaker import Surface
-from cratermaker.core.surface import UniformGrid, HiResLocalGrid, _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
+from cratermaker.core.surface import IcosphereGrid, ArbitraryResolutionGrid, HiResLocalGrid, _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
 
@@ -35,6 +35,7 @@ class TestSurface(unittest.TestCase):
         os.mkdir(self.grid_temp_dir)
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
+        self.level = 5
         os.chdir(self.temp_dir.name)
         
         return
@@ -46,7 +47,7 @@ class TestSurface(unittest.TestCase):
 
     def test_generate_grid(self):
         # Generate grid
-        grid_strategy = UniformGrid(pix=self.pix, radius=self.target.radius)
+        grid_strategy = IcosphereGrid(level=self.level, radius=self.target.radius)
         grid_strategy.generate_grid(grid_file=self.grid_file, grid_temp_dir=self.grid_temp_dir)
         self.assertTrue(os.path.exists(self.grid_file))
         
