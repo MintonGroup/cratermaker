@@ -5,7 +5,7 @@ import numpy as np
 import tempfile
 from cratermaker import Target
 from cratermaker import Surface
-from cratermaker.core.surface import IcosphereGrid, ArbitraryResolutionGrid, HiResLocalGrid, _DATA_DIR, _GRID_FILE_NAME, _GRID_TEMP_DIR
+from cratermaker.core.surface import IcosphereGrid, ArbitraryResolutionGrid, HiResLocalGrid, _DATA_DIR, _GRID_FILE_NAME
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
 
@@ -19,8 +19,6 @@ class TestSurface(unittest.TestCase):
         A temporary directory for testing file generation and I/O.
     grid_file : str
         Path to the temporary grid file.
-    grid_temp_dir : str
-        Path to the temporary directory for grid generation.
     target : Target
         Target object representing a celestial body.
     pix : float
@@ -31,8 +29,6 @@ class TestSurface(unittest.TestCase):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
         self.grid_file = os.path.join(self.temp_dir.name, _GRID_FILE_NAME)
-        self.grid_temp_dir = os.path.join(self.temp_dir.name, _GRID_TEMP_DIR)
-        os.mkdir(self.grid_temp_dir)
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
@@ -48,15 +44,15 @@ class TestSurface(unittest.TestCase):
     def test_generate_grid(self):
         # Generate grid
         grid_strategy = IcosphereGrid(level=self.gridlevel, radius=self.target.radius)
-        grid_strategy.generate_grid(grid_file=self.grid_file, grid_temp_dir=self.grid_temp_dir)
+        grid_strategy.generate_grid(grid_file=self.grid_file)
         self.assertTrue(os.path.exists(self.grid_file))
         
         grid_strategy = ArbitraryResolutionGrid(pix=self.pix, radius=self.target.radius) 
-        grid_strategy.generate_grid(grid_file=self.grid_file, grid_temp_dir=self.grid_temp_dir)
+        grid_strategy.generate_grid(grid_file=self.grid_file)
         self.assertTrue(os.path.exists(self.grid_file))        
         
         grid_strategy = HiResLocalGrid(pix=self.pix, radius=self.target.radius, local_location=(0, 0), local_radius=100e3, superdomain_scale_factor=10)
-        grid_strategy.generate_grid(grid_file=self.grid_file, grid_temp_dir=self.grid_temp_dir)
+        grid_strategy.generate_grid(grid_file=self.grid_file)
         self.assertTrue(os.path.exists(self.grid_file))
         return
 

@@ -30,7 +30,6 @@ valid_grid_types: Type[List[str]] = list(get_args(GridType))
 _DATA_DIR = "surface_data"
 _COMBINED_DATA_FILE_NAME = "surf.nc"
 _GRID_FILE_NAME = "grid.nc"
-_GRID_TEMP_DIR = ".grid"
 
 # This is a factor used to determine the smallest length scale in the grid
 _SMALLFAC = 1.0e-5
@@ -104,7 +103,6 @@ class GridStrategy(ABC):
 
     def check_if_regrid(self,
                          grid_file: os.PathLike,
-                         grid_temp_dir: os.PathLike,
                          **kwargs: Any,
                         ) -> bool:
         """
@@ -119,8 +117,6 @@ class GridStrategy(ABC):
             The file path where the grid is saved or will be saved. 
         grid_file : os.PathLike
             The file path to the grid file. 
-        grid_temp_dir : os.PathLike
-            The directory for temporary grid files. 
 
         Returns
         -------
@@ -147,7 +143,6 @@ class GridStrategy(ABC):
     
     def create_grid(self,
                      grid_file: os.PathLike,
-                     grid_temp_dir: os.PathLike,
                      **kwargs: Any,
                      ) -> bool:
         """
@@ -160,8 +155,6 @@ class GridStrategy(ABC):
             The file path where the grid will be saved. 
         grid_file : os.PathLike
             The file path to the grid file. 
-        grid_temp_dir : os.PathLike
-            The directory for temporary grid files. 
         """
     
         # Generate the hash for the current parameters
@@ -169,7 +162,7 @@ class GridStrategy(ABC):
 
         if os.path.exists(grid_file):
             os.remove(grid_file)
-        self.generate_grid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, grid_hash=grid_hash, **kwargs) 
+        self.generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs) 
         
         # Check to make sure we can open the grid file, then store the hash in the metadata
         uxgrid = uxr.open_grid(grid_file)
@@ -612,7 +605,6 @@ class Surface(UxDataset):
                    target: Target | None,
                    data_dir: os.PathLike | None = None,
                    grid_file: os.PathLike | None = None,
-                   grid_temp_dir: os.PathLike | None = None,
                    reset_surface: bool = True, 
                    grid_type: GridType = valid_grid_types[0], 
                    rng: Generator | None = None,
@@ -629,8 +621,6 @@ class Surface(UxDataset):
             The directory for data files. Default is set to ``${PWD}/surface_data``.
         grid_file : os.PathLike
             The file path to the grid file. Default is set to be from the current working directory, to ``{data_dir}/grid.nc``.
-        grid_temp_dir : os.PathLike
-            The directory for temporary grid files. Default is set to ``${PWD}/.grid``.
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
         grid_type : ["icosphere", "arbitrary", "hires_local"], optional
@@ -686,12 +676,6 @@ class Surface(UxDataset):
             os.mkdir(data_dir)
             reset_surface = True
       
-        if not grid_temp_dir:   
-            grid_temp_dir = os.path.join(os.getcwd(), _GRID_TEMP_DIR) 
-            
-        if not os.path.exists(grid_temp_dir):
-            os.mkdir(grid_temp_dir)
-       
         if not grid_file: 
             grid_file = os.path.join(data_dir,_GRID_FILE_NAME)
             
@@ -705,12 +689,12 @@ class Surface(UxDataset):
    
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
         if not regrid: 
-            make_new_grid = grid_strategy.check_if_regrid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, **kwargs)
+            make_new_grid = grid_strategy.check_if_regrid(grid_file=grid_file, **kwargs)
         else:
             make_new_grid = True
         
         if make_new_grid:
-            grid_strategy.create_grid(grid_file=grid_file, grid_temp_dir=grid_temp_dir, **kwargs)
+            grid_strategy.create_grid(grid_file=grid_file, **kwargs)
         
         # Get the names of all data files in the data directory that are not the grid file
         data_file_list = glob(os.path.join(data_dir, "*.nc"))
@@ -729,7 +713,7 @@ class Surface(UxDataset):
         # Initialize UxDataset with the loaded data
         try:
             if data_file_list:
-                surf = uxr.open_mfdataset(grid_file, data_file_list, latlon=True, use_dual=False).isel(Time=-1)
+                surf = uxr.open_mfdataset(grid_file, data_file_list, latlon=True, use_dual=False).isel(time=-1)
                 surf.uxgrid = uxr.open_grid(grid_file, latlon=True, use_dual=False)
             else:
                 surf = uxr.UxDataset()
@@ -751,12 +735,14 @@ class Surface(UxDataset):
             surf.generate_data(data=0.0,
                                name="ejecta_thickness",
                                long_name="ejecta thickness",
-                               units= "m"
+                               units= "m",
+                               save_to_file=True
                               )     
             surf.generate_data(data=0.0,
                                name="ray_intensity",
                                long_name="ray intensity value",
-                               units= ""
+                               units= "",
+                               save_to_file=True
                               )                         
             surf.set_elevation(0.0,save_to_file=True)
         
@@ -995,6 +981,7 @@ class Surface(UxDataset):
                 name=name,
                 uxgrid=uxgrid
                 ) 
+         
         self[name] = uxda
         
         if save_to_file:
@@ -1271,14 +1258,14 @@ class Surface(UxDataset):
         face_vars = ['face_x', 'face_y', 'face_z'] 
         face_grid = self.n_face.uxgrid._ds[face_vars].sel(n_face=inc_face)
         region_faces = face_grid.where(faces_within_radius, drop=False)
-        region_elevation = self['face_elevation'].where(faces_within_radius, drop=False)
-        region_surf = self.elevation_to_cartesian(region_faces, region_elevation) / self.target.radius
+        region_elevation = self['face_elevation'].where(faces_within_radius, drop=False) / self.target.radius
+        region_surf = self.elevation_to_cartesian(region_faces, region_elevation) 
 
         x, y, z = region_surf['face_x'], region_surf['face_y'], region_surf['face_z']
         region_vectors = np.vstack((x, y, z)).T
 
         # Initial guess for the sphere center and radius
-        guess_radius = 1.0 + region_elevation.mean().values.item() / self.target.radius
+        guess_radius = 1.0 + region_elevation.mean().values.item() 
         initial_guess = [0, 0, 0, guess_radius]  
 
         # Perform the curve fitting
@@ -1460,6 +1447,12 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
     """
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
+        
+    if "time" not in ds.dims:
+        ds = ds.expand_dims(["time"])
+    if "time" not in ds.coords:
+        ds = ds.assign_coords({"time":[interval_number]})      
+        
     with tempfile.TemporaryDirectory() as temp_dir:
         if combine_data_files:
             filename = _COMBINED_DATA_FILE_NAME
@@ -1472,11 +1465,6 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
             ds_file = ds.merge(ds_file, compat="override")
         else:
             ds_file = ds    
-            
-        if "Time" not in ds_file.dims:
-            ds_file = ds_file.expand_dims(["Time"])
-        if "Time" not in ds_file.coords:
-            ds_file = ds_file.assign_coords({"Time":[interval_number]})                   
             
         temp_file = os.path.join(temp_dir, filename)
         ds_file.to_netcdf(temp_file) 
@@ -1574,7 +1562,7 @@ def save(surf: Surface,
          *args, **kwargs, 
          ) -> None:
     """
-    Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the Time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+    Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
 
     Parameters
     ----------
@@ -1587,7 +1575,7 @@ def save(surf: Surface,
     interval_number : int, optional
         Interval number to append to the data file name. Default is 0.
     time_variables : dict, optional
-        Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the Time dimension. Default is None.
+        Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
     """
     do_not_save = ["face_areas"]
     if out_dir is None:
@@ -1606,9 +1594,9 @@ def save(surf: Surface,
         
     surf.close()
     
-    ds = surf.expand_dims(dim="Time").assign_coords({"Time":[interval_number]})
+    ds = surf.expand_dims(dim="time").assign_coords({"time":[interval_number]})
     for k, v in time_variables.items():
-        ds[k] = xr.DataArray(data=[v], name=k, dims=["Time"], coords={"Time":[interval_number]})
+        ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time":[interval_number]})
                 
     drop_vars = [k for k in ds.data_vars if k in do_not_save]
     if len(drop_vars) > 0:

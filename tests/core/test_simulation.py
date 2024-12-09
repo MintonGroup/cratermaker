@@ -52,7 +52,7 @@ class TestSimulation(unittest.TestCase):
         filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc"))
         self.assertTrue(os.path.exists(filename))
         with xr.open_dataset(filename) as ds:
-            ds = ds.isel(Time=-1)
+            ds = ds.isel(time=-1)
             np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
             np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
     
@@ -63,7 +63,7 @@ class TestSimulation(unittest.TestCase):
         filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME)
         self.assertTrue(os.path.exists(filename))
         with xr.open_dataset(filename) as ds:
-            ds = ds.isel(Time=-1)
+            ds = ds.isel(time=-1)
             np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
             np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
     
