@@ -862,8 +862,11 @@ class Simulation:
                 polyData = geomFilter.GetOutput()    
 
                 normalsFilter = vtkPolyDataNormals()
-                normalsFilter.ComputeCellNormalsOn()
                 normalsFilter.SetInputData(polyData)
+                normalsFilter.ComputeCellNormalsOn()
+                normalsFilter.ConsistencyOn()           # Tries to make normals consistent across shared edges
+                normalsFilter.AutoOrientNormalsOn()     # Attempt to orient normals consistently outward/inward
+                normalsFilter.SplittingOff()   
                 normalsFilter.Update()
                 polyDataWithNormals = normalsFilter.GetOutput()        
         
