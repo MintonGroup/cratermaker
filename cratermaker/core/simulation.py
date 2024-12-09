@@ -831,7 +831,6 @@ class Simulation:
                             vtkUnstructuredGrid.FIELD_ASSOCIATION_POINTS,
                             "node_elevation")                
             
-        #writer = vtkXMLUnstructuredGridWriter()
         writer = vtkXMLPolyDataWriter()
         writer.SetCompressorTypeToNone()    
         print("Exporting VTK files...")
@@ -865,7 +864,6 @@ class Simulation:
                 normalsFilter = vtkPolyDataNormals()
                 normalsFilter.SetInputData(polyData)
                 normalsFilter.Update()
-                normalsFilter.FlipNormalsOn()
                 polyDataWithNormals = normalsFilter.GetOutput()        
         
                 warp.SetInputData(polyDataWithNormals)
