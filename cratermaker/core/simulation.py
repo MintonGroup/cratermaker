@@ -862,6 +862,7 @@ class Simulation:
                 polyData = geomFilter.GetOutput()    
 
                 normalsFilter = vtkPolyDataNormals()
+                normalsFilter.ComputeCellNormalsOn()
                 normalsFilter.SetInputData(polyData)
                 normalsFilter.Update()
                 polyDataWithNormals = normalsFilter.GetOutput()        
