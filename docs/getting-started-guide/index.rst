@@ -65,7 +65,7 @@ surface mesh to two files inside a folder called ``vtk_files``::
 
       sim.export_vtk()
 
-This will generate a series of files with the patern ``surfXXXXXX.vtu``, which represent the grid and its associated data at each output time interval of the simulation. If you haven't already, be sure to `download <https://www.paraview.org/download/>`__ and install ParaView. 
+This will generate a series of files with the patern ``surfXXXXXX.vtp``, which represent the grid and its associated data at each output time interval of the simulation. If you haven't already, be sure to `download <https://www.paraview.org/download/>`__ and install ParaView. 
 
 Then, open ParaView and select ``File -> Open``, navigate to the ``vtk_files`` directory, and select the file group. Clicking ``Apply`` will load the file. You can then select ``File -> Open`` again and load the other file. Under ``Coloring`` select ``face_elevation`` or  ``node_elevation`` selected to visualize the surface elevation. 
 

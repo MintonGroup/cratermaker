@@ -789,8 +789,10 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
-        from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkXMLUnstructuredGridWriter,vtkWarpScalar
+        from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkXMLUnstructuredGridWriter,vtkWarpScalar, vtkXMLPolyDataWriter
         from vtkmodules.util.numpy_support import numpy_to_vtk
+        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
+        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
         
         self.save()  
         if out_dir is None:
@@ -821,21 +823,27 @@ class Simulation:
         for i,n in enumerate(n_nodes_per_face):
             point_ids=face_node_connectivity[i][0:n]
             vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
-            
+       
+        # compute normals so that node_elevation displaces the surface in the correct direction 
+
         warp = vtkWarpScalar()
         warp.SetInputArrayToProcess(0, 0, 0,
                             vtkUnstructuredGrid.FIELD_ASSOCIATION_POINTS,
                             "node_elevation")                
             
-        writer = vtkXMLUnstructuredGridWriter()
+        #writer = vtkXMLUnstructuredGridWriter()
+        writer = vtkXMLPolyDataWriter()
         writer.SetCompressorTypeToNone()    
+        print("Exporting VTK files...")
         
         with xr.open_mfdataset(data_file_list) as ds:
             # Warp the surface based on node_elevation data
-            for i in range(len(ds.time)):
+            for i in tqdm(range(len(ds.time))):
+                
                 ids = ds.isel(time=i)
                 current_grid = vtkUnstructuredGrid()
                 current_grid.DeepCopy(vtk_data) 
+                 
                 for v in ds.variables:
                     array = numpy_to_vtk(ids[v].values, deep=True)
                     array.SetName(v)
@@ -848,10 +856,22 @@ class Simulation:
                             current_grid.GetPointData().SetActiveScalars(v) 
                     elif n == 1:
                         current_grid.GetFieldData().AddArray(array)
-                warp.SetInputData(current_grid)
+                        
+                geomFilter = vtkGeometryFilter()
+                geomFilter.SetInputData(current_grid)
+                geomFilter.Update()    
+                polyData = geomFilter.GetOutput()    
+
+                normalsFilter = vtkPolyDataNormals()
+                normalsFilter.SetInputData(polyData)
+                normalsFilter.Update()
+                normalsFilter.FlipNormalsOn()
+                polyDataWithNormals = normalsFilter.GetOutput()        
+        
+                warp.SetInputData(polyDataWithNormals)
                 warp.Update()
                 warped_output = warp.GetOutput()
-                output_filename = os.path.join(out_dir, f"surf{i:06d}.vtu")
+                output_filename = os.path.join(out_dir, f"surf{i:06d}.vtp")
                 writer.SetFileName(output_filename)
                 writer.SetInputData(warped_output) 
                 writer.Write()               
