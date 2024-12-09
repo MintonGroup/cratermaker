@@ -3,9 +3,11 @@ from numpy.random import Generator
 import xarray as xr
 import os
 import shutil
+from tqdm import tqdm
 from glob import glob
 from typing import Any, Tuple, Type, Sequence
 from numpy.typing import ArrayLike
+import warnings
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, save
@@ -15,7 +17,6 @@ from .production import Production, NeukumProduction
 from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
-from tqdm import tqdm
 
 
 class Simulation:
@@ -788,7 +789,10 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
-        from vtk import vtkUnstructuredGrid, vtkPoints, vtkDoubleArray, VTK_POLYGON, vtkXMLUnstructuredGridWriter
+        from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkXMLUnstructuredGridWriter,vtkWarpScalar, vtkXMLPolyDataWriter
+        from vtkmodules.util.numpy_support import numpy_to_vtk
+        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
+        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
         
         self.save()  
         if out_dir is None:
@@ -819,38 +823,60 @@ class Simulation:
         for i,n in enumerate(n_nodes_per_face):
             point_ids=face_node_connectivity[i][0:n]
             vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
-        writer = vtkXMLUnstructuredGridWriter()
-        writer.SetFileName(os.path.join(out_dir,"surf.vtu"))
-        #writer.SetInputData(vtk_data)
-        #writer.Write()           
-    
-        with xr.open_mfdataset(data_file_list) as ds_t:
-            if 'Time' in ds_t.dims:
-                timevars = [v for v in ds_t.variables if ds_t[v].dims == ('Time',)]
-                ds = ds_t.drop_vars(timevars).isel(Time=-1)
-            else:
-                ds = ds_t
+       
+        # compute normals so that node_elevation displaces the surface in the correct direction 
+
+        warp = vtkWarpScalar()
+        warp.SetInputArrayToProcess(0, 0, 0,
+                            vtkUnstructuredGrid.FIELD_ASSOCIATION_POINTS,
+                            "node_elevation")                
+            
+        writer = vtkXMLPolyDataWriter()
+        writer.SetCompressorTypeToNone()    
+        print("Exporting VTK files...")
+        
+        with xr.open_mfdataset(data_file_list) as ds:
+            # Warp the surface based on node_elevation data
+            for i in tqdm(range(len(ds.time))):
                 
-            for v in ds.variables:
-                array = vtkDoubleArray()
-                n = len(ds[v])
-                if 'n_face' in ds[v].dims:
-                    if n != n_face:
-                        raise RuntimeError(f"Size of array {v} of {n} does not match expected n_face {n_face}")
-                elif 'n_node' in ds[v].dims:
-                    if n != n_node:
-                        raise RuntimeError(f"Size of array {v} of {n} does not match expected n_node {n_node}")
-                array.SetNumberOfTuples(n)
-                array.SetName(v)
-                values = ds[v].values
-                for id in range(n):
-                    array.SetTuple(id, [values[id]])
-                if n == n_face:
-                    vtk_data.GetCellData().AddArray(array)
-                elif n == n_node:
-                    vtk_data.GetPointData().AddArray(array)
-            writer.SetInputData(vtk_data)
-            writer.Write()               
+                ids = ds.isel(time=i)
+                current_grid = vtkUnstructuredGrid()
+                current_grid.DeepCopy(vtk_data) 
+                 
+                for v in ds.variables:
+                    array = numpy_to_vtk(ids[v].values, deep=True)
+                    array.SetName(v)
+                    n = ids[v].size
+                    if 'n_face' in ids[v].dims:
+                        current_grid.GetCellData().AddArray(array)
+                    elif 'n_node' in ids[v].dims:
+                        current_grid.GetPointData().AddArray(array)
+                        if v == 'node_elevation':
+                            current_grid.GetPointData().SetActiveScalars(v) 
+                    elif n == 1:
+                        current_grid.GetFieldData().AddArray(array)
+                        
+                geomFilter = vtkGeometryFilter()
+                geomFilter.SetInputData(current_grid)
+                geomFilter.Update()    
+                polyData = geomFilter.GetOutput()    
+
+                normalsFilter = vtkPolyDataNormals()
+                normalsFilter.SetInputData(polyData)
+                normalsFilter.ComputeCellNormalsOn()
+                normalsFilter.ConsistencyOn()           # Tries to make normals consistent across shared edges
+                normalsFilter.AutoOrientNormalsOn()     # Attempt to orient normals consistently outward/inward
+                normalsFilter.SplittingOff()   
+                normalsFilter.Update()
+                polyDataWithNormals = normalsFilter.GetOutput()        
+        
+                warp.SetInputData(polyDataWithNormals)
+                warp.Update()
+                warped_output = warp.GetOutput()
+                output_filename = os.path.join(out_dir, f"surf{i:06d}.vtp")
+                writer.SetFileName(output_filename)
+                writer.SetInputData(warped_output) 
+                writer.Write()               
         
         return
     
@@ -975,7 +1001,7 @@ class Simulation:
     def apply_noise(self, 
                     model="turbulence",
                     noise_width=1000e3,
-                    noise_height=20e3,
+                    noise_height=1e3,
                     to_nodes=True,
                     to_faces=True,
                     **kwargs,
@@ -1049,11 +1075,12 @@ class Simulation:
             kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
             
         def _noisemaker(vars):
-           
-            x = self.surf.uxgrid[vars[0]].values * scale / self.target.radius
-            y = self.surf.uxgrid[vars[1]].values * scale / self.target.radius
-            z = self.surf.uxgrid[vars[2]].values * scale / self.target.radius 
-            noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", Warning)           
+                x = self.surf.uxgrid[vars[0]].values * scale 
+                y = self.surf.uxgrid[vars[1]].values * scale 
+                z = self.surf.uxgrid[vars[2]].values * scale
+                noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         
             # Make sure the noise is volume-conserving (i.e., the mean is zero)
             # TODO: Take into account the nodes are not uniformly distributed on the sphere
