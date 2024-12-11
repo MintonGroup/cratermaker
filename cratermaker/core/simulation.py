@@ -789,7 +789,7 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
-        from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkXMLUnstructuredGridWriter,vtkWarpScalar, vtkXMLPolyDataWriter
+        from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkWarpScalar, vtkXMLPolyDataWriter
         from vtkmodules.util.numpy_support import numpy_to_vtk
         from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
         from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
@@ -824,15 +824,14 @@ class Simulation:
             point_ids=face_node_connectivity[i][0:n]
             vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
        
-        # compute normals so that node_elevation displaces the surface in the correct direction 
-
         warp = vtkWarpScalar()
         warp.SetInputArrayToProcess(0, 0, 0,
                             vtkUnstructuredGrid.FIELD_ASSOCIATION_POINTS,
                             "node_elevation")                
             
         writer = vtkXMLPolyDataWriter()
-        writer.SetCompressorTypeToNone()    
+        writer.SetDataModeToBinary()
+        writer.SetCompressorTypeToZLib()
         print("Exporting VTK files...")
         
         with xr.open_mfdataset(data_file_list) as ds:
