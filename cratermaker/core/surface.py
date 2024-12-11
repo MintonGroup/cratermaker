@@ -694,7 +694,10 @@ class Surface(UxDataset):
             make_new_grid = True
         
         if make_new_grid:
+            print("Creating a new grid")
             grid_strategy.create_grid(grid_file=grid_file, **kwargs)
+        else:
+            print("Using existing grid")
         
         # Get the names of all data files in the data directory that are not the grid file
         data_file_list = glob(os.path.join(data_dir, "*.nc"))
@@ -975,12 +978,12 @@ class Surface(UxDataset):
             if data.size != size:
                 raise ValueError("data must have the same size as the number of faces or nodes in the grid") 
         uxda = UxDataArray(
-                data=data,
-                dims=dims,
-                attrs=attrs,
-                name=name,
-                uxgrid=uxgrid
-                ) 
+            data=data,
+            dims=dims,
+            attrs=attrs,
+            name=name,
+            uxgrid=uxgrid,
+        ) 
          
         self[name] = uxda
         
@@ -1453,6 +1456,7 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
     if "time" not in ds.coords:
         ds = ds.assign_coords({"time":[interval_number]})      
         
+        
     with tempfile.TemporaryDirectory() as temp_dir:
         if combine_data_files:
             filename = _COMBINED_DATA_FILE_NAME
@@ -1467,7 +1471,10 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
             ds_file = ds    
             
         temp_file = os.path.join(temp_dir, filename)
-        ds_file.to_netcdf(temp_file) 
+        
+        comp = dict(zlib=True, complevel=9)
+        encoding = {var: comp for var in ds_file.data_vars}
+        ds_file.to_netcdf(temp_file, encoding=encoding)
         ds_file.close()     
         shutil.move(temp_file, data_file)
 
