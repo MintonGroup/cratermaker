@@ -7,7 +7,6 @@
 ! You should have received a copy of the GNU General Public License along with Cratermaker. 
 ! If not, see: https://www.gnu.org/licenses. 
 
-!! The implementations for the Perlin noise procedures.
 submodule (ejecta) s_ejecta
     use globals
     integer(I4B), parameter :: Nraymax = 5 
@@ -49,11 +48,10 @@ contains
         N = size(radial_distance)
 
         if (dorays) then
-            call ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, ejecta_thickness)
+            call ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejecta_truncation, ejecta_thickness)
             crater_radius = crater_diameter / 2
             do concurrent (i = 1:N, radial_distance(i) >= crater_radius)
-                ejecta_thickness(i) = (0.1_DP * ejrim) * ejecta_thickness(i) + &
-                                      ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
+                ejecta_thickness(i) = ejecta_thickness(i) * ejecta_profile_func(radial_distance(i) / crater_radius, ejrim)
             end do
         else
             call ejecta_profile(radial_distance, crater_diameter, ejrim, ejecta_thickness)
@@ -113,8 +111,7 @@ contains
     end function ejecta_profile_func
 
 
-    module subroutine ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, &
-                                            intensity)
+    module subroutine ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejecta_truncation, intensity)
         !! author: David A. Minton
         !!
         !! Calculate the spatial distribution of ejecta in distal rays given a radial distance and initial bearing array.
@@ -126,8 +123,6 @@ contains
             !! The initial bearing of the ray in radians.
         real(DP), intent(in) :: crater_diameter
             !! The final crater diameter in meters.
-        real(DP), intent(in) :: ejrim 
-            !! The final ejecta rim height in meters.
         real(DP), intent(in) :: ejecta_truncation
             !! The distance relative to the crater radius at which to truncate the ejecta pattern 
         real(DP), dimension(:), intent(out) :: intensity
