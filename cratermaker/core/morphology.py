@@ -421,7 +421,7 @@ class Morphology:
         """
         # read the psd_coef outside this function, temporary until we find a better way to read the psd_coef
         with open(os.path.join(os.pardir,"plugins","psd_coef.json")) as f:
-            psd_coef = json.load(f)
+            psd_coef = json.load(f) # read in from _init_?
         # ------------------------------------------------------------------------------------------------------------------
         if feature == "ejecta" : max_effec_freq = 40
         if feature == "wall" : max_effec_freq = 40
