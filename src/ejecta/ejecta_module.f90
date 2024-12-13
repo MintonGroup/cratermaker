@@ -31,11 +31,10 @@ module ejecta
              real(DP), dimension(:), intent(out) :: ejecta_thickness
          end subroutine ejecta_profile
 
-         module subroutine ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, &
-                                              intensity)
+         module subroutine ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejecta_truncation, intensity)
              implicit none
              real(DP), dimension(:), intent(in) :: radial_distance, initial_bearing
-             real(DP), intent(in) :: crater_diameter, ejrim, ejecta_truncation
+             real(DP), intent(in) :: crater_diameter, ejecta_truncation
              real(DP), dimension(:), intent(out) :: intensity
          end subroutine ejecta_ray_intensity
 
@@ -108,12 +107,12 @@ contains
     end subroutine bind_ejecta_profile
 
 
-    subroutine bind_ejecta_ray_intensity(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, ejrim, &
+    subroutine bind_ejecta_ray_intensity(c_radial_distance, c_initial_bearing, num_elements, crater_diameter, &
                                        ejecta_truncation, c_intensity) bind(c)
         ! Arguments
         type(c_ptr), intent(in), value :: c_radial_distance, c_initial_bearing
         integer(I4B), intent(in), value :: num_elements
-        real(DP), intent(in), value :: crater_diameter, ejrim, ejecta_truncation
+        real(DP), intent(in), value :: crater_diameter, ejecta_truncation
         type(c_ptr), intent(in), value :: c_intensity
         ! Internals
         real(DP), dimension(:), pointer :: radial_distance, initial_bearing, intensity
@@ -137,7 +136,7 @@ contains
             return
         end if
 
-        call ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejrim, ejecta_truncation, intensity) 
+        call ejecta_ray_intensity(radial_distance, initial_bearing, crater_diameter, ejecta_truncation, intensity) 
  
         return
     end subroutine bind_ejecta_ray_intensity

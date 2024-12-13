@@ -1,24 +1,23 @@
 import numpy as np
 from numpy.random import Generator
+import xarray as xr
 import os
 import shutil
+from tqdm import tqdm
 from glob import glob
-import tempfile
 from typing import Any, Tuple, Type, Sequence
 from numpy.typing import ArrayLike
+import warnings
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, save
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import set_properties, validate_and_convert_location
+from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
-from mpas_tools.viz.paraview_extractor import extract_vtk
-from ..fortran_bindings.realistic import apply_noise
-import warnings
-from tqdm import tqdm
-import vtk
+from ..realistic import apply_noise
+
 
 class Simulation:
     """
@@ -790,6 +789,10 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """
+        from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkWarpScalar, vtkXMLPolyDataWriter
+        from vtkmodules.util.numpy_support import numpy_to_vtk
+        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
+        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
         
         self.save()  
         if out_dir is None:
@@ -801,32 +804,78 @@ class Simulation:
         data_file_list = glob(os.path.join(self.surf.data_dir, "*.nc"))
         if self.surf.grid_file in data_file_list:
             data_file_list.remove(self.surf.grid_file)
+       
+        # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
+        n_node = self.surf.uxgrid.n_node
+        n_face = self.surf.uxgrid.n_face
+        node_x = self.surf.uxgrid.node_x.values * self.target.radius
+        node_y = self.surf.uxgrid.node_y.values * self.target.radius
+        node_z = self.surf.uxgrid.node_z.values * self.target.radius
+        n_nodes_per_face = self.surf.uxgrid.n_nodes_per_face.values
+        face_node_connectivity = self.surf.uxgrid.face_node_connectivity.values
         
-        # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-        # The API change does not affect the functionality of the code, so we can safely ignore the warning
-        with warnings.catch_warnings(): 
-            warnings.simplefilter("ignore", DeprecationWarning) # Ignores a warning issued in bar.py
+        vtk_data = vtkUnstructuredGrid()
+        nodes = vtkPoints()
+        for i in range(n_node):
+            nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
+        vtk_data.SetPoints(nodes)
+        vtk_data.Allocate(n_face)
+        for i,n in enumerate(n_nodes_per_face):
+            point_ids=face_node_connectivity[i][0:n]
+            vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
+       
+        warp = vtkWarpScalar()
+        warp.SetInputArrayToProcess(0, 0, 0,
+                            vtkUnstructuredGrid.FIELD_ASSOCIATION_POINTS,
+                            "node_elevation")                
+            
+        writer = vtkXMLPolyDataWriter()
+        writer.SetDataModeToBinary()
+        writer.SetCompressorTypeToZLib()
+        print("Exporting VTK files...")
         
-            # Save the surface data to a combined netCDF file
-            with tempfile.TemporaryDirectory() as temp_dir:
-                filename_pattern = ""
-                for f in data_file_list:
-                    filename_pattern += f"{f};"
-                try:
-                    extract_vtk(
-                        filename_pattern=filename_pattern,
-                        mesh_filename=self.surf.grid_file,
-                        variable_list=['allOnVertices', 'allOnCells'], 
-                        dimension_list=['maxEdges=','vertexDegree=','maxEdges2=','TWO='], 
-                        combine=False,
-                        include_mesh_vars=True,
-                        ignore_time=False,
-                        time="0:",
-                        xtime='Time',
-                        out_dir=out_dir)
-                            
-                except:
-                    raise RuntimeError("Error in extract_vtk. Cannot export VTK files")
+        with xr.open_mfdataset(data_file_list) as ds:
+            # Warp the surface based on node_elevation data
+            for i in tqdm(range(len(ds.time))):
+                
+                ids = ds.isel(time=i)
+                current_grid = vtkUnstructuredGrid()
+                current_grid.DeepCopy(vtk_data) 
+                 
+                for v in ds.variables:
+                    array = numpy_to_vtk(ids[v].values, deep=True)
+                    array.SetName(v)
+                    n = ids[v].size
+                    if 'n_face' in ids[v].dims:
+                        current_grid.GetCellData().AddArray(array)
+                    elif 'n_node' in ids[v].dims:
+                        current_grid.GetPointData().AddArray(array)
+                        if v == 'node_elevation':
+                            current_grid.GetPointData().SetActiveScalars(v) 
+                    elif n == 1:
+                        current_grid.GetFieldData().AddArray(array)
+                        
+                geomFilter = vtkGeometryFilter()
+                geomFilter.SetInputData(current_grid)
+                geomFilter.Update()    
+                polyData = geomFilter.GetOutput()    
+
+                normalsFilter = vtkPolyDataNormals()
+                normalsFilter.SetInputData(polyData)
+                normalsFilter.ComputeCellNormalsOn()
+                normalsFilter.ConsistencyOn()           # Tries to make normals consistent across shared edges
+                normalsFilter.AutoOrientNormalsOn()     # Attempt to orient normals consistently outward/inward
+                normalsFilter.SplittingOff()   
+                normalsFilter.Update()
+                polyDataWithNormals = normalsFilter.GetOutput()        
+        
+                warp.SetInputData(polyDataWithNormals)
+                warp.Update()
+                warped_output = warp.GetOutput()
+                output_filename = os.path.join(out_dir, f"surf{i:06d}.vtp")
+                writer.SetFileName(output_filename)
+                writer.SetInputData(warped_output) 
+                writer.Write()               
         
         return
     
@@ -951,7 +1000,7 @@ class Simulation:
     def apply_noise(self, 
                     model="turbulence",
                     noise_width=1000e3,
-                    noise_height=20e3,
+                    noise_height=1e3,
                     to_nodes=True,
                     to_faces=True,
                     **kwargs,
@@ -1025,11 +1074,12 @@ class Simulation:
             kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
             
         def _noisemaker(vars):
-            ds_norm = self.surf.uxgrid._ds[vars] * scale / self.target.radius
-            x = ds_norm[vars[0]].values
-            y = ds_norm[vars[1]].values
-            z = ds_norm[vars[2]].values
-            noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", Warning)           
+                x = self.surf.uxgrid[vars[0]].values * scale 
+                y = self.surf.uxgrid[vars[1]].values * scale 
+                z = self.surf.uxgrid[vars[2]].values * scale
+                noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         
             # Make sure the noise is volume-conserving (i.e., the mean is zero)
             # TODO: Take into account the nodes are not uniformly distributed on the sphere
