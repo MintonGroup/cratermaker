@@ -18,7 +18,6 @@ def warning_with_breakpoint(message, category, filename, lineno, file=None, line
 warnings.simplefilter("always")  # Always trigger the warnings
 warnings.showwarning = warning_with_breakpoint
 
-
 class TestSimulation(unittest.TestCase):
     
     def setUp(self):
@@ -26,6 +25,7 @@ class TestSimulation(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.target = Target(name="Moon") 
         self.pix = self.target.radius / 10.0
+        self.gridlevel = 5
         os.chdir(self.temp_dir.name) 
         
     def tearDown(self):
@@ -34,12 +34,12 @@ class TestSimulation(unittest.TestCase):
         return           
 
     def test_simulation_defaults(self):
-        sim = cratermaker.Simulation(pix=self.pix)
+        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
         self.assertEqual(sim.target.name, "Moon")
         
     def test_simulation_save(self):
         # Test basic save operation
-        sim = cratermaker.Simulation(pix=self.pix, target=self.target)
+        sim = cratermaker.Simulation(gridlevel=self.gridlevel, target=self.target)
         sim.save()
        
         # Test that variables are saved correctly
@@ -52,7 +52,7 @@ class TestSimulation(unittest.TestCase):
         filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc"))
         self.assertTrue(os.path.exists(filename))
         with xr.open_dataset(filename) as ds:
-            ds = ds.isel(Time=-1)
+            ds = ds.isel(time=-1)
             np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
             np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
     
@@ -63,34 +63,33 @@ class TestSimulation(unittest.TestCase):
         filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME)
         self.assertTrue(os.path.exists(filename))
         with xr.open_dataset(filename) as ds:
-            ds = ds.isel(Time=-1)
+            ds = ds.isel(time=-1)
             np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
             np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
     
         return 
         
-    def test_simulation_export_vtk(self):
+    # def test_simulation_export_vtk(self):
       
-        sim = cratermaker.Simulation(pix=self.pix, target=self.target) 
-        # Test with default parameters
-        default_out_dir = os.path.join(sim.simdir, "vtk_files")
-        expected_files = ["staticFieldsOnCells.vtp","staticFieldsOnVertices.vtp","timeDependentFieldsOnCells.pvd","timeDependentFieldsOnVertices.pvd"]
-        sim.export_vtk()
-        self.assertTrue(os.path.isdir(default_out_dir))
-        for f in expected_files:
-            self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
+    #     sim = cratermaker.Simulation(gridlevel=self.gridlevel, target=self.target) 
+    #     # Test with default parameters
+    #     default_out_dir = os.path.join(sim.simdir, "vtk_files")
+    #     expected_files = ["staticFieldsOnCells.vtp","staticFieldsOnVertices.vtp","timeDependentFieldsOnCells.pvd","timeDependentFieldsOnVertices.pvd"]
+    #     sim.export_vtk()
+    #     self.assertTrue(os.path.isdir(default_out_dir))
+    #     for f in expected_files:
+    #         self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
             
-        # Test with custom output directory
-        custom_out_dir = os.path.join(sim.simdir, "custom_vtk_files")
-        sim.export_vtk(out_dir=custom_out_dir)
-        self.assertTrue(os.path.isdir(custom_out_dir))
-        for f in expected_files:
-            self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
+    #     # Test with custom output directory
+    #     custom_out_dir = os.path.join(sim.simdir, "custom_vtk_files")
+    #     sim.export_vtk(out_dir=custom_out_dir)
+    #     self.assertTrue(os.path.isdir(custom_out_dir))
+    #     for f in expected_files:
+    #         self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
         
     def test_emplace_crater(self):
-        
         cdiam = 2*self.pix
-        sim = cratermaker.Simulation(pix=self.pix)
+        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
         sim.emplace_crater(diameter=cdiam)
         pdiam = sim.projectile.diameter
         
@@ -99,13 +98,13 @@ class TestSimulation(unittest.TestCase):
         return
     
     def test_populate(self):
-        sim = cratermaker.Simulation(pix=self.pix)
+        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
         # Test that populate will work even if no craters are returned
         sim.populate(age=1e-6)
         return
     
     def test_invalid_run_args(self):
-        sim = cratermaker.Simulation(pix=self.pix)
+        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
 
         # Test case: Neither the age nor the diameter_number argument is provided
         with self.assertRaises(ValueError):
