@@ -394,7 +394,7 @@ class Morphology:
         psd=np.flipud(psd)
         return psd
             
-    def get_2D_power_spectral_density(self,feature,psd_coef,max_effec_freq) -> Tuple[NDArray,NDArray,NDArray,NDArray,NDArray,NDArray]:
+    def get_2D_power_spectral_density(self,feature,psd_coef,ejecta_radius_norm,floor_radius_norm,max_effec_freq) -> Tuple[NDArray,NDArray,NDArray,NDArray,NDArray,NDArray]:
         """
         This method constructs a 2D power spectral density.
         Coeffcients are from [1]_.
@@ -405,6 +405,10 @@ class Morphology:
             For a 2D feature, choose from ejecta, wall, and floor
         psd_coef : dict (.json)
             Coeffcients used to constract a 2D power spectral density
+        ejecta_radius_norm : float
+            The radius of the continuous ejecta normalized by the crater radius
+        floor_radius_norm : float
+            The radius of the floor normalized by the crater radius
         max_effec_freq : int
             Only reconstrut the sine waves with frequencies smaller than a maxmium effective frequency to improve computational efficiency 
 
@@ -421,8 +425,6 @@ class Morphology:
         if feature == "wall" : max_effec_freq = 40
         if feature == "floor" : max_effec_freq = 100
         # ------------------------------------------------------------------------------------------------------------------
-        ejecta_radius_norm = psd_coef["1D"]["ejecta"]["avg"]["a"] * self.crater.diameter ** psd_coef["1D"]["ejecta"]["avg"]["b"]
-        floor_radius_norm = psd_coef["1D"]["floor"]["avg"]["a"] * self.crater.diameter ** psd_coef["1D"]["floor"]["avg"]["b"]
         if feature=="ejecta":
             theta_min = 0
             theta_max = 2 * math.pi
