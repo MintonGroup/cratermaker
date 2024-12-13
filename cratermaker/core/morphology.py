@@ -7,7 +7,7 @@ from .target import Target
 from ..utils.custom_types import FloatLike
 from .surface import Surface
 from .target import Target
-from ..fortran_bindings import crater, ejecta
+from .. import crater, ejecta
 
 class Morphology:
     """

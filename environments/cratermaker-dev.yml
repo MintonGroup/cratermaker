@@ -1,18 +1,15 @@
-name: cratermaker
+name: cratermaker-dev
 channels:
   - conda-forge
   - defaults
 dependencies:
   - numpy
   - xarray>=2024.10.0
-  - uxarray>=2024.10.1
+  - uxarray>=2024.11.0
+  - vtk>=9.4, 
   - scipy 
   - pandas
   - matplotlib 
-  - vtk 
-  - jigsaw 
-  - jigsawpy
-  - mpas_tools 
   - tqdm
   - cython>=3
   - cmake>=3.23.1
