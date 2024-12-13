@@ -12,6 +12,7 @@ import json
 import math
 from scipy import fft
 import os
+from numpy.typing import NDArray
 
 class Morphology:
     """
@@ -305,7 +306,7 @@ class Morphology:
                  
         return      
 
-    def get_1D_power_spectral_density(self,feature,psd_coef,num_psd_component_effec=100) -> NDa:
+    def get_1D_power_spectral_density(self,feature,psd_coef,num_psd_component_effec=100) -> NDArray:
         """
         This method construct a 1D power spectral density.
         Coeffcients are from [1]_.
@@ -324,7 +325,7 @@ class Morphology:
         .. [1] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2024). Spectral analysis of the morphology of fresh lunar craters I: Rim crest, floor, and rim flank outlines. Journal of Geophysical Research: Planets, 129(11), e2024JE008357. https://doi.org/10.1029/2024JE008357
 
         """
-        # read the psd_coef outside this function, temporary until we find a better way to read the psd_coef
+        # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
         with open(os.path.join(os.pardir,"plugins","psd_coef.json")) as f:
             psd_coef = json.load(f)
         # ------------------------------------------------------------------------------------------------------------------
@@ -382,25 +383,18 @@ class Morphology:
         b_12 = bp2_y-k_12*bp2_x
         #-----------------------------------------------------------------------------------------------------------------------
         psd[0,1] =10**bp4_x
-        
-       
-        if idx==0:
-                psd[idx,1]=10**bp4_y
-        if idx==1:
-                psd[idx,1]=10**bp3_y
-        if idx>1 and idx<=  bp2_x_index:
-                psd[idx, 1] =10**(k_23*math.log10(psd[idx, 0])+b_23)
-        if idx>bp2_x_index:
-                psd[idx, 1] =10**(k_12*math.log10(psd[idx, 0])+b_12)
+        psd[1,1]=10**bp3_y
+        psd[2:bp2_x_index+1,1] =10**(k_23*np.log10(psd[:, 0])+b_23)
+        psd[bp2_x_index+1:, 1] =10**(k_12*np.log10(psd[:, 0])+b_12)
         # ----------------------------------------------------------------------------------------------------------------------
-        psd=psd[:num_psd_component_effec,:]
+        psd=psd[:num_psd_component_effec]
         psd_log = np.log10(psd[:, 1])
         psd_log += np.random.normal(0, psd_sigma, psd_log.shape) 
         psd[:, 1] = 10 ** psd_log
         psd=np.flipud(psd)
         return psd
             
-    def get_2D_power_spectral_density(self,feature,psd_coef,max_effec_freq):
+    def get_2D_power_spectral_density(self,feature,psd_coef,max_effec_freq) -> Tuple[NDArray,NDArray,NDArray,NDArray,NDArray,NDArray]:
         """
         This method constructs a 2D power spectral density.
         Coeffcients are from [1]_.
@@ -419,7 +413,7 @@ class Morphology:
         .. [1] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2025). Spectral Analysis of the Morphology of Fresh Lunar Craters II: Two-Dimensional Surface Elevations of the Continuous Ejecta, Wall, and Floor. Journal of Geophysical Research: Planets
 
         """
-        # read the psd_coef outside this function, temporary until we find a better way to read the psd_coef
+         # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
         with open(os.path.join(os.pardir,"plugins","psd_coef.json")) as f:
             psd_coef = json.load(f) # read in from _init_?
         # ------------------------------------------------------------------------------------------------------------------
