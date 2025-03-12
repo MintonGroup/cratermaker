@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from scipy.optimize import fsolve
 from numpy.typing import ArrayLike
-from typing import Any
+from typing import Any, Tuple
 from .target import Target
 from ..utils.custom_types import FloatLike
 from .surface import Surface
