@@ -21,7 +21,7 @@ from ..utils.montecarlo import get_random_location_on_face
 import warnings
 
 # Define valid grid types
-GridType = Literal["icosphere","arbitrary", "hires_local"]
+GridType = Literal["icosphere","arbitrary", "hires local"]
 
 # Derive valid_grid_types list from GridType
 valid_grid_types: Type[List[str]] = list(get_args(GridType))
@@ -379,8 +379,8 @@ class HiResLocalGrid(GridStrategy):
         def _pix_func(lon,lat):
             lon_rad = np.radians(lon)
             lat_rad = np.radians(lat)
-            loc_lon_rad = np.radians(self.local_location[0])
-            loc_lat_rad = np.radians(self.local_location[1])
+            loc_lon_rad = 0.0 #np.radians(self.local_location[0])
+            loc_lat_rad = 0.0 #np.radians(self.local_location[1])
 
             # Calculate distance from the location to the grid point
             distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius)
@@ -402,22 +402,22 @@ class HiResLocalGrid(GridStrategy):
         # Step 2: Integrate w over longitude to get W_lat(lat)
         W_lat_vals = np.trapezoid(w, x=Lon, axis=1)  # integrate along lon dimension
         W_lat_cumulative = np.cumsum(W_lat_vals)
-        W_lat_cumulative /= W_lat_cumulative[-1]  # normalize from 0 to 1
+        W_lat_cumulative -= W_lat_cumulative[0] # normalize from 0 to 1
+        W_lat_cumulative /= W_lat_cumulative[-1]  
 
         # Create a function to invert W_lat(lat)
         f_lat = interp1d(W_lat_cumulative, Lat, bounds_error=False, fill_value='extrapolate')
         
-        
-        M = int(2*np.pi*self.radius/pix_values.max())
+        M = int(2*np.pi*self.radius/pix_values.max()) - 1
         while M > 0:
             badval=False
-            lat_lines = f_lat(np.linspace(0, 1, M))
 
             # Step 3: For each lat interval, choose lon lines similarly
-            N = M  # number of lon lines
-            lon_lines = np.zeros((M-1, N))
+            N = M + 1  # number of lon lines
+            lat_lines = f_lat(np.linspace(0, 1, N))
+            lon_lines = np.zeros((M, N))
 
-            for i in range(M-1):
+            for i in range(M):
                 lat_low, lat_high = lat_lines[i], lat_lines[i+1]
                 # Extract w in this lat band
                 mask = (LAT >= lat_low) & (LAT <= lat_high)
@@ -426,6 +426,7 @@ class HiResLocalGrid(GridStrategy):
                 w_band_vals = np.trapezoid(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
                 W_lon_band_cumulative = np.cumsum(w_band_vals)
                 if W_lon_band_cumulative[-1] > 0:
+                    W_lon_band_cumulative -= W_lon_band_cumulative[0]
                     W_lon_band_cumulative /= W_lon_band_cumulative[-1]
                     f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
                     lon_lines[i,:] = f_lon(np.linspace(0, 1, N))
@@ -446,13 +447,65 @@ class HiResLocalGrid(GridStrategy):
         for i in range(M):
             LAT[i, :] = lat_lines[i]  # every point on this horizontal line has the same lat
 
-        for i in range(1, N):
-            LON[i, :] = lon_lines[i-1, :]
+        LON = lon_lines
             
         pix_array = _pix_func(LON, LAT) 
 
         return pix_array, LON, LAT
 
+    def _rotate_point_cloud(self,points):
+        """
+        Rotate a point cloud so that the point at [-r,0,0] moves to (lon,lat)
+        using the convention:
+        - Longitude [-180, 180] degrees, increasing eastward
+        - Latitude [-90, 90] degrees, increasing northward
+        - (0,0) lon/lat corresponds to [r,0,0] in Cartesian space
+        
+        Parameters:
+            points (np.ndarray): Nx3 array of (x,y,z) points.
+            lon (float): Target longitude in degrees.
+            lat (float): Target latitude in degrees.
+            r (float): Radius of the sphere (default=1).
+        
+        Returns:
+            np.ndarray: Rotated Nx3 point cloud.
+        """
+
+        from scipy.spatial.transform import Rotation as R
+        # Convert target lon, lat to radians
+        lon_rad, lat_rad = np.radians(self.local_location)
+        
+        # Compute target unit vector (correcting for lon,lat convention)
+        target = np.array([
+            self.radius * np.cos(lat_rad) * np.cos(lon_rad),  
+            self.radius * np.cos(lat_rad) * np.sin(lon_rad),  
+            self.radius * np.sin(lat_rad)                     
+        ])
+
+        # Original vector (the point we want to move)
+        original = np.array([-self.radius, 0, 0])  # Starts at [-r, 0, 0]
+        if np.isclose(lon_rad, 0.0) and np.isclose(lat_rad, 0.0):
+            rotation = R.from_euler('z', 180, degrees=True)  # 180-degree rotation around z-axis
+            return rotation.apply(points)
+
+        # Compute the axis of rotation (cross product)
+        axis = np.cross(original, target)
+        axis_norm = np.linalg.norm(axis)
+        
+        # If the axis is zero (no rotation needed), return the original points
+        if axis_norm < 1e-10:
+            return points
+
+        axis /= axis_norm  # Normalize the axis
+
+        # Compute the rotation angle (dot product)
+        angle = np.arccos(np.clip(np.dot(original / self.radius, target / self.radius), -1.0, 1.0))  # Normalize for dot product
+
+        # Create rotation object
+        rotvec = axis * angle  # Convert to rotation vector
+        rotation = R.from_rotvec(rotvec)  # Create rotation from axis-angle
+
+        return rotation.apply(points)
 
     def generate_face_distribution(self) -> NDArray:
         """
@@ -485,6 +538,7 @@ class HiResLocalGrid(GridStrategy):
                     points.append(p)
                 
         points = np.concatenate(points, axis=1)
+        points = self._rotate_point_cloud(points.T).T
         
         return points
 
@@ -623,7 +677,7 @@ class Surface(UxDataset):
             The file path to the grid file. Default is set to be from the current working directory, to ``{data_dir}/grid.nc``.
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        grid_type : ["icosphere", "arbitrary", "hires_local"], optional
+        grid_type : ["icosphere", "arbitrary", "hires local"], optional
             The type of grid to be generated. Default is "icosphere".            
         rng : Generator, optional
             A random number generator instance. If not provided, the default numpy RNG will be used. 
@@ -684,7 +738,7 @@ class Surface(UxDataset):
             grid_strategy = IcosphereGrid(gridlevel=gridlevel, radius=target.radius)
         if grid_type == "arbitrary":
             grid_strategy = ArbitraryResolutionGrid(pix=pix, radius=target.radius)
-        elif grid_type == "hires_local":
+        elif grid_type == "hires local":
             grid_strategy = HiResLocalGrid(pix=pix, radius=target.radius, **kwargs)       
    
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
