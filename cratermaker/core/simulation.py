@@ -168,7 +168,7 @@ class Simulation:
         
         if not surf:
             grid_type = kwargs.get('grid_type', None)
-            if grid_type is not None and grid_type == 'hires_local':
+            if grid_type is not None and grid_type == 'hires local':
                 if 'superdomain_scale_factor' not in kwargs:
                     # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
                     # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
