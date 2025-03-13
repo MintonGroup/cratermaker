@@ -21,7 +21,7 @@ from ..utils.montecarlo import get_random_location_on_face
 import warnings
 
 # Define valid grid types
-GridType = Literal["icosphere","arbitrary", "hires_local"]
+GridType = Literal["icosphere","arbitrary", "hires local"]
 
 # Derive valid_grid_types list from GridType
 valid_grid_types: Type[List[str]] = list(get_args(GridType))
@@ -623,7 +623,7 @@ class Surface(UxDataset):
             The file path to the grid file. Default is set to be from the current working directory, to ``{data_dir}/grid.nc``.
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        grid_type : ["icosphere", "arbitrary", "hires_local"], optional
+        grid_type : ["icosphere", "arbitrary", "hires local"], optional
             The type of grid to be generated. Default is "icosphere".            
         rng : Generator, optional
             A random number generator instance. If not provided, the default numpy RNG will be used. 
@@ -684,7 +684,7 @@ class Surface(UxDataset):
             grid_strategy = IcosphereGrid(gridlevel=gridlevel, radius=target.radius)
         if grid_type == "arbitrary":
             grid_strategy = ArbitraryResolutionGrid(pix=pix, radius=target.radius)
-        elif grid_type == "hires_local":
+        elif grid_type == "hires local":
             grid_strategy = HiResLocalGrid(pix=pix, radius=target.radius, **kwargs)       
    
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
