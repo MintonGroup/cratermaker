@@ -402,22 +402,22 @@ class HiResLocalGrid(GridStrategy):
         # Step 2: Integrate w over longitude to get W_lat(lat)
         W_lat_vals = np.trapezoid(w, x=Lon, axis=1)  # integrate along lon dimension
         W_lat_cumulative = np.cumsum(W_lat_vals)
-        W_lat_cumulative /= W_lat_cumulative[-1]  # normalize from 0 to 1
+        W_lat_cumulative -= W_lat_cumulative[0] # normalize from 0 to 1
+        W_lat_cumulative /= W_lat_cumulative[-1]  
 
         # Create a function to invert W_lat(lat)
         f_lat = interp1d(W_lat_cumulative, Lat, bounds_error=False, fill_value='extrapolate')
         
-        
-        M = int(2*np.pi*self.radius/pix_values.max())
+        M = int(2*np.pi*self.radius/pix_values.max()) - 1
         while M > 0:
             badval=False
-            lat_lines = f_lat(np.linspace(0, 1, M))
 
             # Step 3: For each lat interval, choose lon lines similarly
-            N = M  # number of lon lines
-            lon_lines = np.zeros((M-1, N))
+            N = M + 1  # number of lon lines
+            lat_lines = f_lat(np.linspace(0, 1, N))
+            lon_lines = np.zeros((M, N))
 
-            for i in range(M-1):
+            for i in range(M):
                 lat_low, lat_high = lat_lines[i], lat_lines[i+1]
                 # Extract w in this lat band
                 mask = (LAT >= lat_low) & (LAT <= lat_high)
@@ -426,6 +426,7 @@ class HiResLocalGrid(GridStrategy):
                 w_band_vals = np.trapezoid(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
                 W_lon_band_cumulative = np.cumsum(w_band_vals)
                 if W_lon_band_cumulative[-1] > 0:
+                    W_lon_band_cumulative -= W_lon_band_cumulative[0]
                     W_lon_band_cumulative /= W_lon_band_cumulative[-1]
                     f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
                     lon_lines[i,:] = f_lon(np.linspace(0, 1, N))
@@ -446,8 +447,7 @@ class HiResLocalGrid(GridStrategy):
         for i in range(M):
             LAT[i, :] = lat_lines[i]  # every point on this horizontal line has the same lat
 
-        for i in range(1, N):
-            LON[i, :] = lon_lines[i-1, :]
+        LON = lon_lines
             
         pix_array = _pix_func(LON, LAT) 
 
