@@ -8,11 +8,18 @@ What's New
 :release:`v2025.4.0-alpha`
 -------------------------
 
-- Wheels built for Linux and Mac are now deployed to PyPI.
+What’s Changed
+~~~~~~~~~~~~~~
+
+-  Wheels built for Linux and Mac are now deployed to PyPI.
+-  Restructure code to remove the strict dependency on the conda only
+   packages by `David Minton`_ :pull:16
 
 Contributors
 ~~~~~~~~~~~~
 - `David Minton`_
+
+
 
 .. _whats-new.2024.11.0-alpha:
 
