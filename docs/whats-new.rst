@@ -3,6 +3,21 @@
 What's New
 ==========
 
+.. _whats-new.2025.4.1-alpha:
+
+:release:`v2025.4.1-alpha`
+-------------------------
+
+What’s Changed
+~~~~~~~~~~~~~~
+
+- Fixed broken dependencies in environment definitions.
+
+Contributors
+~~~~~~~~~~~~
+- `David Minton`_
+
+
 .. _whats-new.2025.4.0-alpha:
 
 :release:`v2025.4.0-alpha`
@@ -18,7 +33,6 @@ What’s Changed
 Contributors
 ~~~~~~~~~~~~
 - `David Minton`_
-
 
 
 .. _whats-new.2024.11.0-alpha:
