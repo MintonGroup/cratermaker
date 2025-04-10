@@ -8,8 +8,8 @@ What's New
 :release:`v2025.4.1-alpha`
 -------------------------
 
-What’s Changed
-~~~~~~~~~~~~~~
+Bug Fixes
+~~~~~~~~~
 
 - Fixed broken dependencies in environment definitions.
 
