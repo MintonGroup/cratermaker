@@ -5,7 +5,7 @@ What's New
 
 .. _whats-new.2025.04.0:
 
-:release:`v2025.04.1`
+:release:`v2025.04.0`
 ---------------------
 
 - Wheels built for Linux and Mac are now deployed to PyPI.
