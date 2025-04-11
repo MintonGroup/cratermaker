@@ -35,7 +35,6 @@ dependencies = [
     'trimesh',
     'datashader>=0.17.0',
     'geoviews>=1.14.0',
-
 ]
 
 [project.urls]
