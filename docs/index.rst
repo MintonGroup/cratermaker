@@ -64,6 +64,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
    :caption: For developers/contributors
 
    Contributing Guide <contributing>
+   What’s New <whats-new>
    GitHub repository <https://github.com/MintonGroup/cratermaker>
 
 .. toctree::
