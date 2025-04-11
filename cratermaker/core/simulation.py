@@ -17,6 +17,7 @@ from .production import Production, NeukumProduction
 from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
+import yaml
 
 
 class Simulation:
@@ -229,7 +230,8 @@ class Simulation:
             
         # return
         pass
-   
+
+
     def get_smallest_diameter(self, 
                               face_areas: ArrayLike | None = None, 
                               from_projectile: bool = False) -> float:
@@ -259,6 +261,7 @@ class Simulation:
             return projectile.diameter
         else:
             return largest_crater
+
 
     def generate_crater(self, 
                         **kwargs: Any
@@ -878,7 +881,8 @@ class Simulation:
                 writer.Write()               
         
         return
-    
+
+
     def make_circle_file(self,
                          diameters: FloatLike | Sequence[FloatLike] | ArrayLike ,
                          longitudes: FloatLike | ArrayLike,
