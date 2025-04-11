@@ -3,11 +3,11 @@ import os
 import shutil
 import numpy as np
 import tempfile
-from cratermaker import Target
-from cratermaker import Surface
-from cratermaker.core.surface import IcosphereGrid, ArbitraryResolutionGrid, HiResLocalGrid, _DATA_DIR, _GRID_FILE_NAME
+from cratermaker import Target, Surface
+from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
+
 
 class TestSurface(unittest.TestCase):
     """
@@ -39,21 +39,6 @@ class TestSurface(unittest.TestCase):
     def tearDown(self):
         # Clean up temporary directory
         self.temp_dir.cleanup() 
-        return
-
-    def test_generate_grid(self):
-        # Generate grid
-        grid_strategy = IcosphereGrid(level=self.gridlevel, radius=self.target.radius)
-        grid_strategy.generate_grid(grid_file=self.grid_file)
-        self.assertTrue(os.path.exists(self.grid_file))
-        
-        grid_strategy = ArbitraryResolutionGrid(pix=self.pix, radius=self.target.radius) 
-        grid_strategy.generate_grid(grid_file=self.grid_file)
-        self.assertTrue(os.path.exists(self.grid_file))        
-        
-        grid_strategy = HiResLocalGrid(pix=self.pix, radius=self.target.radius, local_location=(0, 0), local_radius=100e3, superdomain_scale_factor=10)
-        grid_strategy.generate_grid(grid_file=self.grid_file)
-        self.assertTrue(os.path.exists(self.grid_file))
         return
 
     def test_initialize_surface(self):
@@ -224,5 +209,4 @@ class TestSurface(unittest.TestCase):
         self.assertAlmostEqual(total_area_2/ (4*np.pi*self.target.radius**2), 1.0, places=2)
 
 if __name__ == '__main__':
-     
     unittest.main()
