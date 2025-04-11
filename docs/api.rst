@@ -144,13 +144,13 @@ Methods
     GridStrategy.generate_hash
     GridStrategy.check_and_regrid
 
-Generating a uniform grid
--------------------------
+Generating a uniform Icosphere grid
+-----------------------------------
 
 .. autosummary::
     :toctree: generated/
 
-    UniformGrid
+    IcosphereGrid
 
 Methods
 -------
@@ -158,7 +158,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    UniformGrid.generate_face_distribution
+    IcosphereGrid.generate_face_distribution
 
 Attributes
 ----------
@@ -166,8 +166,33 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    UniformGrid.pix
-    UniformGrid.radius
+    IcosphereGrid.pix
+    IcosphereGrid.radius
+
+Generating a uniform arbitrary resolution grid
+----------------------------------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    ArbitraryResolutionGrid
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    ArbitraryResolutionGrid.generate_face_distribution
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    ArbitraryResolutionGrid.pix
+    ArbitraryResolutionGrid.radius
 
 
 Generating a non-uniform grid with a high resolution local region
