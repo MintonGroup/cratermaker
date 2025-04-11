@@ -10,7 +10,7 @@ from numpy.typing import ArrayLike
 import warnings
 from .target import Target
 from .impact import Crater, Projectile
-from .surface import Surface, save
+from .surface import Surface, _save_surface
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
@@ -775,7 +775,7 @@ class Simulation:
             "elapsed_n1": self.elapsed_n1
             }
          
-        save(self.surf, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
+        _save_surface(self.surf, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
         
         return
     

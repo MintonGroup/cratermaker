@@ -303,7 +303,7 @@ class ArbitraryResolutionGrid(GridStrategy):
         """                
 
         print(f"Generating a mesh with uniformly distributed faces of size ~{self.pix} m.")
-        points = distribute_points(distance=self.pix/self.radius) 
+        points = _distribute_points(distance=self.pix/self.radius) 
         points[:,0] = np.array([0,0,1])
         points[:,-1] = np.array([0,0,-1])
         return points
@@ -533,7 +533,7 @@ class HiResLocalGrid(GridStrategy):
             for j in range(m-1):
                 lon_range = (lon[i,j], lon[i,j+1])
                 lat_range = (lat[i,j], lat[i+1,j])
-                p = distribute_points(distance=pix_array[i,j]/self.radius, lon_range=lon_range, lat_range=lat_range) 
+                p = _distribute_points(distance=pix_array[i,j]/self.radius, lon_range=lon_range, lat_range=lat_range) 
                 if p is not None:
                     points.append(p)
                 
@@ -1535,7 +1535,7 @@ def _save_data(ds: xr.Dataset | xr.DataArray,
     return
 
 
-def distribute_points(distance: FloatLike,
+def _distribute_points(distance: FloatLike,
                       radius: FloatLike=1.0, 
                       lon_range: PairOfFloats=(-180,180), 
                       lat_range: PairOfFloats=(-90,90)):
@@ -1615,7 +1615,7 @@ def distribute_points(distance: FloatLike,
     return points    
 
 
-def save(surf: Surface, 
+def _save_surface(surf: Surface, 
          out_dir: os.PathLike | None = None,
          combine_data_files: bool = False,
          interval_number: int = 0,
