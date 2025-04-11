@@ -16,6 +16,10 @@ build:
     python: "mambaforge-22.9"  
   apt_packages:
     - graphviz    
+    - build-essential
+    - cmake
+    - ninja-build
+    - gfortran-12
   jobs:
     post_create_environment: 
       - pip install .
