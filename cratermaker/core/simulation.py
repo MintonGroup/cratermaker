@@ -2,6 +2,7 @@ import numpy as np
 from numpy.random import Generator
 import xarray as xr
 import os
+from pathlib import Path
 import shutil
 from tqdm import tqdm
 from glob import glob
@@ -14,7 +15,7 @@ from .surface import Surface, _save_surface
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import set_properties
+from ..utils.general_utils import set_properties, to_config
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 import yaml
@@ -27,11 +28,10 @@ class Simulation:
     """
     def __init__(self, *, # Enforce keyword-only arguments
                  target: str | Target = None,
-                 surf: Surface | None = None,
                  reset_surface: bool = True,
                  seed: int | None = None,
                  rng: Generator | None = None,
-                 simdir: os.PathLike | None = None, 
+                 simdir: os.PathLike = Path.cwd(), 
                  scale_cls: Type[Scale] | None = None,
                  morphology_cls: Type[Morphology] | None = None,
                  production_cls: Type[Production] | None = None,
@@ -45,8 +45,6 @@ class Simulation:
         ----------
         target: str or Target, optional, default "Moon"
             Name of the target body or Target object for the simulation, default is "Moon".
-        surf : Surface, optional
-            Surface object to use for the simulation, default is None, which reads in a surface from file if it exists, or creates a new one.
         reset_surface : bool, optional
             Flag to reset the surface elevation, default is True.
         seed : int, optional
@@ -79,9 +77,11 @@ class Simulation:
         --------
         cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
         """
-     
         self.simdir = simdir
-        
+        self.config_file = self.simdir / "cratermaker.yaml" 
+        if self.config_file.exists():
+            self.read_config()
+     
         # Set the random number generator seed
         self.seed = seed
         self.rng = rng
@@ -167,25 +167,20 @@ class Simulation:
       
         self._craterlist = []
         
-        if not surf:
-            grid_type = kwargs.get('grid_type', None)
-            if grid_type is not None and grid_type == 'hires local':
-                if 'superdomain_scale_factor' not in kwargs:
-                    # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
-                    # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
-                    for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
-                        crater, _ = self.generate_crater(diameter=d, angle=90.0, velocity=self.production.mean_velocity*10)
-                        rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
-                        if rmax < self.target.radius * 2 * np.pi:
-                            superdomain_scale_factor = rmax / crater.radius
-                            break
-                    kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-            self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir, rng=self.rng, **kwargs)
-        elif isinstance(surf, Surface):
-            self.surf = surf
-        else:
-            raise TypeError("surf must be an instance of Surface or None")        
-       
+        grid_type = kwargs.get('grid_type', None)
+        if grid_type is not None and grid_type == 'hires local':
+            if 'superdomain_scale_factor' not in kwargs:
+                # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
+                # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
+                for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
+                    crater, _ = self.generate_crater(diameter=d, angle=90.0, velocity=self.production.mean_velocity*10)
+                    rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
+                    if rmax < self.target.radius * 2 * np.pi:
+                        superdomain_scale_factor = rmax / crater.radius
+                        break
+                kwargs['superdomain_scale_factor'] = superdomain_scale_factor
+        self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir, rng=self.rng, **kwargs)
+
         return
 
     
@@ -208,30 +203,6 @@ class Simulation:
         return 
 
     
-    def to_json(self, 
-                filename: os.PathLike,
-                ) -> str:
-        """
-        Export the current simulation configuration to a JSON file.
-
-        Parameters
-        ----------
-        filename : str
-            The file path where the JSON configuration will be saved.
-        """        
-        #TODO: Re-do this once the dust settles a bit
-        # Get the simulation configuration into the correct structure
-        # target_config = {**to_config(self.target)}
-        # sim_config = {**to_config(self),'target' : target_config} 
-        
-        # # Write the combined configuration to a JSON file
-        # with open(filename, 'w') as f:
-        #     json.dump(sim_config, f, indent=4)
-            
-        # return
-        pass
-
-
     def get_smallest_diameter(self, 
                               face_areas: ArrayLike | None = None, 
                               from_projectile: bool = False) -> float:
@@ -763,8 +734,11 @@ class Simulation:
          
         return kwargs
    
-    
+    def read_config(self, **kwargs: Any) -> None:
+        pass
+
     def save(self, **kwargs: Any) -> None:
+                
         """
         Save the current simulation state to a file.
         """
@@ -776,6 +750,14 @@ class Simulation:
             }
          
         _save_surface(self.surf, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
+
+        # Get the simulation configuration into the correct structure
+        target_config = {**to_config(self.target)}
+        sim_config = {**to_config(self),'target' : target_config} 
+        
+        # Write the combined configuration to a YAML file
+        with open(self.config_file, 'w') as f:
+            yaml.dump(sim_config, f, indent=4)
         
         return
     
@@ -1196,14 +1178,15 @@ class Simulation:
     @simdir.setter
     def simdir(self, value):
         if value is None:
-            self._simdir = os.getcwd() 
-        elif not os.path.isabs(value):
-            self._simdir = os.path.abspath(value)
+            self._simdir = Path.cwd()
         else:
-            self._simdir = value
-            
-        if not os.path.exists(self._simdir):
-            os.makedirs(self._simdir)
+            p = Path(value)
+            if not p.is_absolute():
+                p = Path.cwd() / p
+            self._simdir = p
+
+        self._simdir.mkdir(parents=True, exist_ok=True)
+
 
     @property
     def production(self):

@@ -19,6 +19,7 @@ from ..utils.general_utils import validate_and_convert_location
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils.montecarlo import get_random_location_on_face
 import warnings
+from pathlib import Path
 
 # Define valid grid types
 GridType = Literal["icosphere","arbitrary", "hires local"]
@@ -724,14 +725,18 @@ class Surface(UxDataset):
 
         # Verify directory structure exists and create it if not
         if not data_dir:
-            data_dir = os.path.join(os.getcwd(), _DATA_DIR)
+            data_dir = Path.cwd() / _DATA_DIR
+        elif not isinstance(data_dir, Path):
+            data_dir = Path(data_dir)
             
         if not os.path.exists(data_dir):
             os.mkdir(data_dir)
             reset_surface = True
       
         if not grid_file: 
-            grid_file = os.path.join(data_dir,_GRID_FILE_NAME)
+            grid_file = data_dir / _GRID_FILE_NAME
+        elif not isinstance(grid_file, Path):
+            grid_file = Path(grid_file)
             
         # Process the grid parameters from the arguments and build the strategy object 
         if grid_type == "icosphere":
@@ -754,7 +759,7 @@ class Surface(UxDataset):
             print("Using existing grid")
         
         # Get the names of all data files in the data directory that are not the grid file
-        data_file_list = glob(os.path.join(data_dir, "*.nc"))
+        data_file_list = list(data_dir.glob("*.nc"))
         if grid_file in data_file_list:
             data_file_list.remove(grid_file)
             
@@ -764,8 +769,8 @@ class Surface(UxDataset):
         # If reset_surface is True, delete all data files except the grid file 
         if reset_surface:
             for f in data_file_list:
-                os.remove(f)
-            data_file_list = []        
+                f.unlink()  
+            data_file_list = []
         
         # Initialize UxDataset with the loaded data
         try:
@@ -916,8 +921,11 @@ class Surface(UxDataset):
 
     @grid_file.setter
     def grid_file(self, value):
+        # Convert to a Path object if not already one.
+        if not isinstance(value, Path):
+            value = Path(value)
         self._grid_file = value
-        
+
     @property
     def smallest_length(self):
         """
