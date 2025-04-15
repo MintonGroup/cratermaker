@@ -41,7 +41,7 @@ def group(*groups: str):
         A decorator that wraps the getter function in a ParameterGroup with the specified groups.
     """
     def decorator(fget):
-        return ParameterGroup(fget, groups=groups)
+        return ParameterGroups(fget, groups=groups)
     return decorator
    
 def set_properties(obj,**kwargs):
