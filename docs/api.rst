@@ -575,7 +575,6 @@ General utilities
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.utils.general_utils.to_config
     cratermaker.utils.general_utils.set_properties
     cratermaker.utils.general_utils.check_properties
     cratermaker.utils.general_utils.create_catalogue

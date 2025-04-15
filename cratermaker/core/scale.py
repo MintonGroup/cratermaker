@@ -229,7 +229,6 @@ class Material:
             raise ValueError("density must be a positive number")
         self._density = np.float64(value)
         
-    
     def set_properties(self, **kwargs):
         """
         Set properties of the current object based on the provided keyword arguments.

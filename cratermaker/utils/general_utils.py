@@ -1,47 +1,55 @@
-import json
+import yaml
 import numpy as np
 from numpy.typing import ArrayLike
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from typing import Callable, Union, Any
 
-def to_config(obj):
+class ParameterGroups(property):
     """
-    Serialize the attributes of an object into a dictionary.
-
-    This function generates a dictionary of serializable attributes of the given object,
-    excluding those specified in the object's 'config_ignore' attribute.
-
+    A property that can be grouped with other properties for interdependent settings.
+    This class extends the built-in property class to allow for grouping properties
+    that are interdependent or related in some way.
     Parameters
     ----------
-    obj : object
-        The object whose attributes are to be serialized.
+    fget : function
+        The getter function for the property.
+    fset : function, optional
+        The setter function for the property. Default is None.
+    fdel : function, optional
+        The deleter function for the property. Default is None.
+    doc : str, optional
+        The documentation string for the property. Default is None.
+    groups : tuple of str, optional
+        A tuple of group names that this property belongs to. Default is an empty tuple.
+    """
+    def __init__(self, fget, fset=None, fdel=None, doc=None, *, groups: str | None = None):
+        super().__init__(fget, fset, fdel, doc)
+        self.groups = groups  
 
+def group(*groups: str):
+    """
+    A decorator to tag a property with one or more group names.
+    
+    Parameters
+    ----------
+    *groups : tuple of str, optional
+        One or more strings representing the groups this property should belong to.
+    
     Returns
     -------
-    dict
-        A dictionary containing the serializable attributes of the object.
-
-    Notes
-    -----
-    Only attributes that are instances of basic data types (int, float, str, list, dict, bool, None) are included.
-    Parameters listed in 'config_ignore' of the object are excluded from serialization.
-    """   
-    # Check if the object has the attribute 'config_ignore'
-    ignores = getattr(obj, 'config_ignore', [])
-        
-    # Generate a dictionary of serializable attributes, excluding those in 'ignores'
-    return {
-        k: v for k, v in obj.__dict__.items()
-        if isinstance(v, (int, float, str, list, dict, bool, type(None))) and k not in ignores
-    }
-  
+    function
+        A decorator that wraps the getter function in a ParameterGroup with the specified groups.
+    """
+    def decorator(fget):
+        return ParameterGroup(fget, groups=groups)
+    return decorator
    
 def set_properties(obj,**kwargs):
     """
     Set properties of a simulation object from various sources.
 
     This function sets the properties of a simulation object based on the provided arguments.
-    Properties can be read from a JSON file, a pre-defined catalogue, or directly passed as keyword arguments.
+    Properties can be read from a YAML file, a pre-defined catalogue, or directly passed as keyword arguments.
 
     Parameters
     ----------
@@ -55,7 +63,7 @@ def set_properties(obj,**kwargs):
     The order of property precedence is: 
     1. Direct keyword arguments (kwargs).
     2. Pre-defined catalogue (specified by 'catalogue' key in kwargs).
-    3. JSON file (specified by 'filename' key in kwargs).
+    3. YAML file (specified by 'filename' key in kwargs).
     Properties set by kwargs override those set by 'catalogue' or 'filename'.
     """
     
@@ -88,7 +96,7 @@ def set_properties(obj,**kwargs):
             
     def set_properties_from_file(obj, filename, name=None, **kwargs):
         with open(filename, 'r') as f:
-            catalogue = json.load(f)
+            catalogue = yaml.safe_load(f)
             
         set_properties_from_catalogue(obj,catalogue=catalogue,name=name)
         set_properties_from_arguments(obj,name=name)

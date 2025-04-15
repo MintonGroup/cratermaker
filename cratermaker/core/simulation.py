@@ -15,7 +15,7 @@ from .surface import Surface, _save_surface
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import set_properties, to_config
+from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 import yaml
@@ -752,12 +752,13 @@ class Simulation:
         _save_surface(self.surf, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
 
         # Get the simulation configuration into the correct structure
-        target_config = {**to_config(self.target)}
-        sim_config = {**to_config(self),'target' : target_config} 
+        target_config = self.target.to_config()
+        sim_config = self.to_config() 
+        sim_config['target'] = target_config
         
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
-            yaml.dump(sim_config, f, indent=4)
+            yaml.safe_dump(sim_config, f, indent=4)
         
         return
     
@@ -886,7 +887,8 @@ class Simulation:
         out_dir : str, Default "vtk_files" in the simulation directory
             Directory to store the VTK files.
         """ 
-       
+        import vtk 
+
         if output_filename is None:
             output_filename = os.path.join(self.simdir, "circles.vtp") 
         else:

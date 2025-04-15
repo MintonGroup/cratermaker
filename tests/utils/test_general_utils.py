@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from cratermaker import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, normalize_coords  
+from cratermaker import set_properties, check_properties, create_catalogue, validate_and_convert_location, normalize_coords  
 from cratermaker.utils.custom_types import FloatLike
 
 mock_properties = [
@@ -55,14 +55,14 @@ class TestSetProperties(unittest.TestCase):
         return
 
     @patch('builtins.open', create=True)  # Adjust 'your_module' accordingly
-    def test_json_file_setting(self, mock_open):
-        # Mock reading from a JSON file
+    def test_yaml_file_setting(self, mock_open):
+        # Mock reading from a YAML file
         mock_open.return_value.__enter__.return_value.read.return_value = '{"qux":{"property1":7.0,"property2":8.0},"quux":{"property1":9.0,"property2":10.0}}'
-        set_properties(self.mock_object, filename='dummy.json', name='qux')
+        set_properties(self.mock_object, filename='dummy.yaml', name='qux')
         self.assertEqual(self.mock_object.name, 'qux')
         self.assertEqual(self.mock_object.property1, 7.0)
         self.assertEqual(self.mock_object.property2, 8.0)
-        set_properties(self.mock_object, filename='dummy.json', name='quux')
+        set_properties(self.mock_object, filename='dummy.yaml', name='quux')
         self.assertEqual(self.mock_object.name, 'quux')
         self.assertEqual(self.mock_object.property1, 9.0)
         self.assertEqual(self.mock_object.property2, 10.0)

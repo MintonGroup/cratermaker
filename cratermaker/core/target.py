@@ -1,7 +1,8 @@
 import numpy as np
 from typing import Dict, Optional, Any
-from ..utils.general_utils import set_properties, create_catalogue, check_properties
+from ..utils.general_utils import set_properties, create_catalogue, check_properties, group, ParameterGroups
 from ..utils.custom_types import FloatLike
+import inspect 
 
 class Target:
     """
@@ -11,7 +12,7 @@ class Target:
     its material composition, size, and other relevant physical characteristics.
     """
        
-    config_ignore = ['catalogue','material']  # Instance variables to ignore when saving to file
+    config_ignore = ['_catalogue','_material']  # Instance variables to ignore when saving to file
     def __init__(self, 
                  name: str, 
                  radius: FloatLike | None = None, 
@@ -59,6 +60,7 @@ class Target:
         
         self._radius = None
         self._diameter = None
+        self._bulk_density = None
         self._catalogue = None
         self.catalogue = catalogue 
             
@@ -74,6 +76,25 @@ class Target:
 
         check_properties(self) 
         return
+    
+    def to_config(self) -> Dict[str, Any]:
+        """
+        Serialize the user-defined parameters of the object into a Dict.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the serializable attributes of the object.
+
+        """   
+        config = {}
+        for name, prop in inspect.getmembers(type(self), lambda o: isinstance(o, ParameterGroups)):
+            if "bulk_properties" in prop.groups:
+                # Process the property (e.g., include it in config serialization or perform validation)
+                value = getattr(self, name)
+                print(f"{name} is in bulk_properties with value {value}")
+        return config
+
     
     @property
     def catalogue(self):
@@ -146,7 +167,6 @@ class Target:
             Escape velocity in m/s.
         """        
         return np.sqrt(2 * self.radius * self.gravity)
-
     
     @property
     def name(self):
@@ -165,8 +185,8 @@ class Target:
             raise TypeError("name must be a string or None")
         self._name = value
 
-       
     @property
+    @group("size", "bulk_properties")
     def radius(self) -> Optional[float]:
         """
         Radius of the target body in m.
@@ -185,6 +205,7 @@ class Target:
         self._diameter = np.float64(value) * 2
 
     @property
+    @group("size", "bulk_properties")
     def diameter(self) -> Optional[float]:
         """
         Diameter of the target body in m.
@@ -203,6 +224,7 @@ class Target:
         self._radius = np.float64(value) / 2
 
     @property
+    @group(name="bulk_properties")
     def gravity(self):
         """
         Surface gravity of the target body in m/s^2.
@@ -218,6 +240,24 @@ class Target:
         if value is not None and not isinstance(value, FloatLike):
             raise TypeError("gravity must be a numeric value or None")
         self._gravity = np.float64(value)
+
+    @property
+    @group(name="bulk_properties")
+    def bulk_density(self) -> Optional[float]:
+        """
+        Bulk density of the target body in kg/m^3.
+        
+        Returns
+        -------
+        np.float64 
+        """        
+        return self._bulk_density
+
+    @bulk_density.setter
+    def bulk_density(self, value: float):
+        if not isinstance(value, float) or value <= 0:
+            raise ValueError("Bulk density must be a positive number.")
+        self._bulk_density = np.float64(value)
 
     @property
     def material_name(self):
