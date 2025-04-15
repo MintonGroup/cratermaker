@@ -1,8 +1,9 @@
 import yaml
 import numpy as np
 from numpy.typing import ArrayLike
-from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
+import inspect
 
 class ParameterGroups(property):
     """
@@ -24,7 +25,13 @@ class ParameterGroups(property):
     """
     def __init__(self, fget, fset=None, fdel=None, doc=None, *, groups: str | None = None):
         super().__init__(fget, fset, fdel, doc)
-        self.groups = groups  
+        self.groups = groups or ()
+
+    def setter(self, fset):
+        return type(self)(self.fget, fset, self.fdel, self.__doc__, groups=self.groups)
+
+    def deleter(self, fdel):
+        return type(self)(self.fget, self.fset, fdel, self.__doc__, groups=self.groups)
 
 def group(*groups: str):
     """
@@ -131,7 +138,58 @@ def check_properties(obj):
     else:
         raise ValueError(f"The following required properties have not been set: {missing_prop}")
     
-            
+
+def to_config(obj, required_counts: dict[str, int] | None = None) -> dict:
+    """
+    Serialize the properties of this instance based on group metadata.
+    
+    Parameters
+    ----------
+    required_counts : dict, optional
+        A dictionary where keys are group names and values are the required number
+        of properties to include from that group. For groups with more than the required
+        items, only the first set is chosen.
+    
+    Returns
+    -------
+    dict
+        A dictionary containing the selected key/value pairs from properties.
+    """
+    required_counts = required_counts or {}  # Default to an empty dictionary.
+    config = {}
+    
+    # Gather all properties decorated with ParameterGroup.
+    grouped_props: dict[str, list[tuple[str, Any]]] = {}
+    for name, prop in inspect.getmembers(type(obj), lambda o: isinstance(o, ParameterGroups)):
+        value = getattr(obj, name)
+        if value is None:
+            continue  # Skip properties that haven't been set.
+        # Register the property under each group it belongs to.
+        for grp in prop.groups:
+            grouped_props.setdefault(grp, []).append((name, value))
+    
+    # Iterate through each group and pick items.
+    for group, pairs in grouped_props.items():
+        if group in required_counts:
+            req = required_counts[group]
+            # If more than the required count are present, pick just the first 'req' pairs.
+            selected = pairs[:req] if len(pairs) >= req else pairs
+        else:
+            # For groups without a requirement, take all pairs.
+            selected = pairs
+        for pname, pvalue in selected:
+            # Avoid duplicate keys in case the property is part of multiple groups.
+            if pname not in config:
+                config[pname] = pvalue
+                
+    # Optionally add properties that are standard (not using ParameterGroup)
+    # and have not already been added.
+    for name, prop in inspect.getmembers(type(obj), lambda o: isinstance(o, property) and not isinstance(o, ParameterGroups)):
+        if name not in config:
+            config[name] = getattr(obj, name)
+    
+    return config
+
 def create_catalogue(header,values):
     """
     Create and return a catalogue of properties or items based on the given inputs.

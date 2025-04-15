@@ -1,8 +1,10 @@
 import numpy as np
 from typing import Dict, Optional, Any
-from ..utils.general_utils import set_properties, create_catalogue, check_properties, group, ParameterGroups
+from ..utils.general_utils import set_properties, create_catalogue, check_properties, group, ParameterGroups, to_config
 from ..utils.custom_types import FloatLike
 import inspect 
+from astropy.constants import G
+
 
 class Target:
     """
@@ -87,12 +89,7 @@ class Target:
             A dictionary containing the serializable attributes of the object.
 
         """   
-        config = {}
-        for name, prop in inspect.getmembers(type(self), lambda o: isinstance(o, ParameterGroups)):
-            if "bulk_properties" in prop.groups:
-                # Process the property (e.g., include it in config serialization or perform validation)
-                value = getattr(self, name)
-                print(f"{name} is in bulk_properties with value {value}")
+        config = to_config(self, required_counts={"size": 1, "bulk_properties": 2})
         return config
 
     
@@ -185,7 +182,6 @@ class Target:
             raise TypeError("name must be a string or None")
         self._name = value
 
-    @property
     @group("size", "bulk_properties")
     def radius(self) -> Optional[float]:
         """
@@ -203,8 +199,11 @@ class Target:
             raise ValueError("Radius must be a positive number.")
         self._radius = np.float64(value)
         self._diameter = np.float64(value) * 2
+        if self._gravity is None and self._bulk_density is not None:
+            self.gravity = 4 * np.pi * G.value / 3.0 * self._bulk_density * self._radius
+        elif self._bulk_density is None and self._gravity is not None:
+            self.bulk_density = 3 * self._gravity / (4 * np.pi * G.value) * self._radius        
 
-    @property
     @group("size", "bulk_properties")
     def diameter(self) -> Optional[float]:
         """
@@ -221,10 +220,13 @@ class Target:
         if not isinstance(value, float) or value <= 0:
             raise ValueError("Diameter must be a positive number.")
         self._diameter = np.float64(value)
-        self._radius = np.float64(value) / 2
+        self.radius = np.float64(value) / 2
+        if self._bulk_density is not None:
+            self._gravity = 4 * np.pi * G.value / 3.0 * self._bulk_density * self._radius
+        elif self._gravity is not None:
+            self._bulk_density = 3 * self._gravity / (4 * np.pi * G.value) * self._radius
 
-    @property
-    @group(name="bulk_properties")
+    @group("bulk_properties")
     def gravity(self):
         """
         Surface gravity of the target body in m/s^2.
@@ -240,9 +242,12 @@ class Target:
         if value is not None and not isinstance(value, FloatLike):
             raise TypeError("gravity must be a numeric value or None")
         self._gravity = np.float64(value)
+        if self._radius is not None:
+            self._bulk_density = 3 * self._gravity / (4 * np.pi * G.value) * self._radius
+        elif self._bulk_density is not None:
+            self._radius = 3 * self._gravity / (4 * np.pi * G.value) * self._bulk_density
 
-    @property
-    @group(name="bulk_properties")
+    @group("bulk_properties")
     def bulk_density(self) -> Optional[float]:
         """
         Bulk density of the target body in kg/m^3.
@@ -258,6 +263,10 @@ class Target:
         if not isinstance(value, float) or value <= 0:
             raise ValueError("Bulk density must be a positive number.")
         self._bulk_density = np.float64(value)
+        if self._radius is not None:
+            self._gravity = 4 * np.pi * G.value / 3.0 * self._bulk_density * self._radius
+        elif self._gravity is not None:
+            self._radius = 3 * self._gravity / (4 * np.pi * G.value) * self._bulk_density
 
     @property
     def material_name(self):
