@@ -10,10 +10,10 @@ class DefaultTargetCatalogue(TargetCataloguePlugin):
         
         # Define some built-in catalogue values for known solar system targets of interest
         gEarth = np.float64(9.80665) # 1 g in SI units
-        body_properties = [
+        target_properties = [
             "name",    "radius",   "gravity",      "material_name", "transition_scale_type"
         ]
-        body_values = [
+        target_values = [
             ("Mercury", 2440.0e3,  0.377 * gEarth, "Soft Rock", "silicate"),
             ("Venus",   6051.84e3, 0.905 * gEarth, "Hard Rock", "silicate"),
             ("Earth",   6371.01e3, 1.000 * gEarth, "Wet Soil" , "silicate"),
@@ -23,6 +23,6 @@ class DefaultTargetCatalogue(TargetCataloguePlugin):
             ("Vesta",   262.7e3,   0.025 * gEarth, "Soft Rock", "silicate"),
         ]
         
-        return create_catalogue(body_properties, body_values)
+        return create_catalogue(target_properties, target_values)
 
     

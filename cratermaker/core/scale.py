@@ -25,19 +25,17 @@ class Material:
     This class defines various physical properties of the material involved in the cratering process.
 
     """
-    config_ignore = ['catalogue']  # Instance variables to ignore when saving to file
     def __init__(self,
                  name: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
                  density: FloatLike | None = None,
-                 catalogue: Dict[str, Dict[str, FloatLike]] | None = None,
                  **kwargs: Any,
                  ):
         """
         Initialize the target object, setting properties from the provided arguments,
-        and creating a catalogue of known solar system targets if not provided.
+        or drawing from a catalogue of known solar system targets if not provided.
         
         Parameters
         ----------
@@ -53,11 +51,6 @@ class Material:
             The strength of the material, (Pa)
         density : FloatLike
             Volumentric density of material, (kg/m^3)
-        catalogue : Dict[str, Dict[str, FloatLike]]
-            An optional dictionary containing a catalogue of known materials to use for the simulation. The catalogue should be 
-            constructed using a nested dictionary, where the first level of keys are the names of the materials, and the second level
-            are the corresponding property names (K1, mu, Ybar, density). 
-            If not provided, a default catalogue will be used.
         **kwargs : Any
             Additional keyword argumments that could be set by the user.
             
@@ -78,9 +71,6 @@ class Material:
         self._mu = None
         self._Ybar = None
         self._density = None
-        self._catalogue = None
-       
-        self.catalogue = catalogue
         
         # Set properties for the Material object based on the arguments passed to the function
         self.set_properties(name=name,
@@ -95,43 +85,6 @@ class Material:
         check_properties(self)
         
         return    
-
-    @property
-    def catalogue(self):
-        """
-        A nested dictionary containing a catalogue of known materials to use for the simulation. 
-        
-        Returns
-        -------
-        Dict[str, Dict[str, FloatLike]] or None
-            A catalogue of known materials to use for the simulation.
-        """
-        return self._catalogue
-    
-    @catalogue.setter
-    def catalogue(self, value):
-                      
-        if not isinstance(value, dict) and value is not None:
-            raise TypeError("catalogue must be a dict or None") 
-             
-        # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
-        material_properties = [
-            "name",       "K1",     "mu",   "Ybar",     "density" 
-        ]
-        material_values = [
-            ("Water",     2.30,     0.55,   0.0,        1000.0),
-            ("Sand",      0.24,     0.41,   0.0,        1750.0),
-            ("Dry Soil",  0.24,     0.41,   0.18e6,     1500.0),
-            ("Wet Soil",  0.20,     0.55,   1.14e6,     2000.0),
-            ("Soft Rock", 0.20,     0.55,   7.60e6,     2250.0),
-            ("Hard Rock", 0.20,     0.55,   18.0e6,     2500.0),
-            ("Ice",       15.625,   0.48,   0.0,        900.0), 
-        ]        
-       
-        if value is None: 
-            self._catalogue = create_catalogue(material_properties, material_values)
-        else:
-            self._catalogue = value    
 
     @property
     def name(self):
