@@ -5,12 +5,12 @@ from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
 import inspect
 
-class ParameterGroups(property):
+class Parameter(property):
     """
-    A property that can be grouped with other properties for interdependent settings.
-    This class extends the built-in property class to allow for grouping properties
-    that are interdependent or related in some way.
-    Parameters
+    A property that flags whether a parameter is explicitly set by the user.
+    This class extends the built-in property to allow tracking of user-set values.
+    
+    Parameter
     ----------
     fget : function
         The getter function for the property.
@@ -20,36 +20,40 @@ class ParameterGroups(property):
         The deleter function for the property. Default is None.
     doc : str, optional
         The documentation string for the property. Default is None.
-    groups : tuple of str, optional
-        A tuple of group names that this property belongs to. Default is an empty tuple.
     """
-    def __init__(self, fget, fset=None, fdel=None, doc=None, *, groups: str | None = None):
+    def __init__(self, fget, fset=None, fdel=None, doc=None):
         super().__init__(fget, fset, fdel, doc)
-        self.groups = groups or ()
+        self.param_name = None  # Will be set via __set_name__
+
+    def __set_name__(self, owner, name):
+        self.param_name = name
+
+    def __set__(self, instance, value):
+        if self.fset is None:
+            raise AttributeError("can't set attribute")
+        # Invoke the original setter.
+        self.fset(instance, value)
+        # Flag that this property was explicitly set by the user.
+        if not hasattr(instance, '_user_defined'):
+            instance._user_defined = {}
+        instance._user_defined[self.param_name] = True
 
     def setter(self, fset):
-        return type(self)(self.fget, fset, self.fdel, self.__doc__, groups=self.groups)
+        return type(self)(self.fget, fset, self.fdel, self.__doc__)
 
     def deleter(self, fdel):
-        return type(self)(self.fget, self.fset, fdel, self.__doc__, groups=self.groups)
+        return type(self)(self.fget, self.fset, fdel, self.__doc__)
 
-def group(*groups: str):
+def parameter(fget=None):
     """
-    A decorator to tag a property with one or more group names.
-    
-    Parameters
-    ----------
-    *groups : tuple of str, optional
-        One or more strings representing the groups this property should belong to.
-    
-    Returns
-    -------
-    function
-        A decorator that wraps the getter function in a ParameterGroup with the specified groups.
+    A decorator to mark a property as a user-settable parameter.
     """
-    def decorator(fget):
-        return ParameterGroups(fget, groups=groups)
-    return decorator
+    if fget is None:
+        def decorator(fget):
+            return Parameter(fget)
+        return decorator
+    else:
+        return Parameter(fget)
    
 def set_properties(obj,**kwargs):
     """
@@ -58,7 +62,7 @@ def set_properties(obj,**kwargs):
     This function sets the properties of a simulation object based on the provided arguments.
     Properties can be read from a YAML file, a pre-defined catalogue, or directly passed as keyword arguments.
 
-    Parameters
+    Parameter
     ----------
     obj : object
         The simulation object whose properties are to be set.
@@ -139,56 +143,32 @@ def check_properties(obj):
         raise ValueError(f"The following required properties have not been set: {missing_prop}")
     
 
-def to_config(obj, required_counts: dict[str, int] | None = None) -> dict:
+def to_config(obj) -> dict:
     """
-    Serialize the properties of this instance based on group metadata.
+    Serialize the properties of this instance based on whether they have been explicitly set by the user.
     
-    Parameters
-    ----------
-    required_counts : dict, optional
-        A dictionary where keys are group names and values are the required number
-        of properties to include from that group. For groups with more than the required
-        items, only the first set is chosen.
+    Only properties flagged as user-set (by the user_param decorator) are included.
+    Other properties (those not flagged) are added only if they have not already been included.
+
+    Parameter
+    ---------
+    obj : object
+        The object whose properties are to be serialized.
     
     Returns
     -------
     dict
         A dictionary containing the selected key/value pairs from properties.
     """
-    required_counts = required_counts or {}  # Default to an empty dictionary.
     config = {}
     
-    # Gather all properties decorated with ParameterGroup.
-    grouped_props: dict[str, list[tuple[str, Any]]] = {}
-    for name, prop in inspect.getmembers(type(obj), lambda o: isinstance(o, ParameterGroups)):
-        value = getattr(obj, name)
-        if value is None:
-            continue  # Skip properties that haven't been set.
-        # Register the property under each group it belongs to.
-        for grp in prop.groups:
-            grouped_props.setdefault(grp, []).append((name, value))
-    
-    # Iterate through each group and pick items.
-    for group, pairs in grouped_props.items():
-        if group in required_counts:
-            req = required_counts[group]
-            # If more than the required count are present, pick just the first 'req' pairs.
-            selected = pairs[:req] if len(pairs) >= req else pairs
-        else:
-            # For groups without a requirement, take all pairs.
-            selected = pairs
-        for pname, pvalue in selected:
-            # Avoid duplicate keys in case the property is part of multiple groups.
-            if pname not in config:
-                config[pname] = pvalue
-                
-    # Optionally add properties that are standard (not using ParameterGroup)
-    # and have not already been added.
-    for name, prop in inspect.getmembers(type(obj), lambda o: isinstance(o, property) and not isinstance(o, ParameterGroups)):
-        if name not in config:
+    # Include properties decorated as user parameters if they were explicitly set by the user.
+    for name, _ in inspect.getmembers(type(obj), lambda o: isinstance(o, Parameter)):
+        if getattr(obj, "_user_defined", {}).get(name, False):
             config[name] = getattr(obj, name)
-    
+                
     return config
+
 
 def create_catalogue(header,values):
     """
@@ -197,7 +177,7 @@ def create_catalogue(header,values):
     This function generates a catalogue, which could be a collection of properties, configurations,
     or any other set of items, based on the provided arguments.
 
-    Parameters
+    Parameter
     ----------
     args : various
         The arguments that determine the contents of the catalogue. The type and number of arguments
@@ -235,7 +215,7 @@ def validate_and_convert_location(location):
     Valid formats for location include a tuple, a dictionary, or a structured 
     array with latitude ('lon') and longitude ('lat').
 
-    Parameters
+    Parameter
     ----------
     location : tuple, dict, ArrayLike
         The input location data. It can be:
@@ -302,7 +282,7 @@ def normalize_coords(loc):
     them to the specified ranges, and handles cases where latitude values exceed the 
     polar extremes, adjusting both latitude and longitude accordingly.
 
-    Parameters
+    Parameter
     ----------
     loc : tuple
         A tuple containing two elements: (longitude, latitude) in degrees. 
@@ -357,7 +337,7 @@ def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayL
     """
     Convert R values to cumulative N values for a given D using the R-plot function.
 
-    Parameters
+    Parameter
     ----------
     R : R = f(D) 
         A function that computes R given D.

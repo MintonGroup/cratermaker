@@ -1,8 +1,7 @@
 import numpy as np
 from typing import Dict, Optional, Any
-from ..utils.general_utils import set_properties, create_catalogue, check_properties, group, ParameterGroups, to_config
+from ..utils.general_utils import set_properties, create_catalogue, check_properties, parameter, to_config
 from ..utils.custom_types import FloatLike
-import inspect 
 from astropy.constants import G
 
 
@@ -89,11 +88,11 @@ class Target:
             A dictionary containing the serializable attributes of the object.
 
         """   
-        config = to_config(self, required_counts={"size": 1, "bulk_properties": 2})
+        config = to_config(self)
         return config
 
     
-    @property
+    @parameter
     def catalogue(self):
         """
         A nested dictionary containing a catalogue of known solar system targets to use for the simulation. 
@@ -137,7 +136,7 @@ class Target:
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `util.set_properties` method.
+        parameter setting is handled by the `util.set_properties` method.
 
         Parameters
         ----------
@@ -153,7 +152,7 @@ class Target:
         return
 
     
-    @property
+    @parameter
     def escape_velocity(self):
         """
         Calculate the escape velocity for the target body.
@@ -165,7 +164,7 @@ class Target:
         """        
         return np.sqrt(2 * self.radius * self.gravity)
     
-    @property
+    @parameter
     def name(self):
         """
         The name of the target body.
@@ -182,7 +181,7 @@ class Target:
             raise TypeError("name must be a string or None")
         self._name = value
 
-    @group("size", "bulk_properties")
+    @parameter
     def radius(self) -> Optional[float]:
         """
         Radius of the target body in m.
@@ -204,7 +203,7 @@ class Target:
         elif self._bulk_density is None and self._gravity is not None:
             self.bulk_density = 3 * self._gravity / (4 * np.pi * G.value) * self._radius        
 
-    @group("size", "bulk_properties")
+    @parameter
     def diameter(self) -> Optional[float]:
         """
         Diameter of the target body in m.
@@ -226,7 +225,7 @@ class Target:
         elif self._gravity is not None:
             self._bulk_density = 3 * self._gravity / (4 * np.pi * G.value) * self._radius
 
-    @group("bulk_properties")
+    @parameter
     def gravity(self):
         """
         Surface gravity of the target body in m/s^2.
@@ -247,7 +246,7 @@ class Target:
         elif self._bulk_density is not None:
             self._radius = 3 * self._gravity / (4 * np.pi * G.value) * self._bulk_density
 
-    @group("bulk_properties")
+    @parameter
     def bulk_density(self) -> Optional[float]:
         """
         Bulk density of the target body in kg/m^3.
@@ -268,7 +267,7 @@ class Target:
         elif self._gravity is not None:
             self._radius = 3 * self._gravity / (4 * np.pi * G.value) * self._bulk_density
 
-    @property
+    @parameter
     def material_name(self):
         """
         The name of the material composition of the target body.
@@ -285,7 +284,7 @@ class Target:
             raise TypeError("material_name must be a string or None")
         self._material_name = value
         
-    @property
+    @parameter
     def transition_scale_type(self):
         """
         The type of simple-to-complex transition scaling used for the surface, either 'silicate' or 'ice'.
