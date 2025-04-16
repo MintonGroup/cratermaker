@@ -1,3 +1,4 @@
+import importlib.metadata
 import numpy as np
 from numpy.random import Generator
 from typing import Tuple, Any, Dict
@@ -5,7 +6,17 @@ from scipy.optimize import root_scalar
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
-from ..utils.general_utils import set_properties, create_catalogue, check_properties
+from ..utils.general_utils import set_properties, check_properties
+
+# List available material catalogues
+for ep in importlib.metadata.entry_points(group="cratermaker.plugins.material_catalogue"):
+    print(ep.name)
+
+# Load the default one
+default_mat_cat = importlib.metadata.entry_points(
+    group="cratermaker.plugins.material_catalogue",
+    name="default",
+)[0].load()()
 
 class Material:
     """

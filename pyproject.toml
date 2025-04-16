@@ -42,6 +42,12 @@ dependencies = [
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
+[project.entry-points."cratermaker.plugins.material_catalogue"]
+default = "cratermaker.plugins.material_catalogue.default:DefaultMaterialCatalogue"
+
+[project.entry-points."cratermaker.plugins.target_catalogue"]
+default = "cratermaker.plugins.target_catalogue.default:DefaultTargetCatalogue"
+
 [build-system]
 requires = [
     'cython>=3',
@@ -122,5 +128,3 @@ before-all = [
 [tool.cibuildwheel.windows]
 before-build = "pip install delvewheel"
 repair-wheel-command = "delvewheel repair --ignore-existing -w {dest_dir} {wheel}"
-
-

@@ -3,58 +3,8 @@ import numpy as np
 from numpy.typing import ArrayLike
 from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
-import inspect
 
-class Parameter(property):
-    """
-    A property that flags whether a parameter is explicitly set by the user.
-    This class extends the built-in property to allow tracking of user-set values.
-    
-    Parameter
-    ----------
-    fget : function
-        The getter function for the property.
-    fset : function, optional
-        The setter function for the property. Default is None.
-    fdel : function, optional
-        The deleter function for the property. Default is None.
-    doc : str, optional
-        The documentation string for the property. Default is None.
-    """
-    def __init__(self, fget, fset=None, fdel=None, doc=None):
-        super().__init__(fget, fset, fdel, doc)
-        self.param_name = None  # Will be set via __set_name__
 
-    def __set_name__(self, owner, name):
-        self.param_name = name
-
-    def __set__(self, instance, value):
-        if self.fset is None:
-            raise AttributeError("can't set attribute")
-        # Invoke the original setter.
-        self.fset(instance, value)
-        # Flag that this property was explicitly set by the user.
-        if not hasattr(instance, '_user_defined'):
-            instance._user_defined = {}
-        instance._user_defined[self.param_name] = True
-
-    def setter(self, fset):
-        return type(self)(self.fget, fset, self.fdel, self.__doc__)
-
-    def deleter(self, fdel):
-        return type(self)(self.fget, self.fset, fdel, self.__doc__)
-
-def parameter(fget=None):
-    """
-    A decorator to mark a property as a user-settable parameter.
-    """
-    if fget is None:
-        def decorator(fget):
-            return Parameter(fget)
-        return decorator
-    else:
-        return Parameter(fget)
-   
 def set_properties(obj,**kwargs):
     """
     Set properties of a simulation object from various sources.
@@ -142,33 +92,6 @@ def check_properties(obj):
     else:
         raise ValueError(f"The following required properties have not been set: {missing_prop}")
     
-
-def to_config(obj) -> dict:
-    """
-    Serialize the properties of this instance based on whether they have been explicitly set by the user.
-    
-    Only properties flagged as user-set (by the user_param decorator) are included.
-    Other properties (those not flagged) are added only if they have not already been included.
-
-    Parameter
-    ---------
-    obj : object
-        The object whose properties are to be serialized.
-    
-    Returns
-    -------
-    dict
-        A dictionary containing the selected key/value pairs from properties.
-    """
-    config = {}
-    
-    # Include properties decorated as user parameters if they were explicitly set by the user.
-    for name, _ in inspect.getmembers(type(obj), lambda o: isinstance(o, Parameter)):
-        if getattr(obj, "_user_defined", {}).get(name, False):
-            config[name] = getattr(obj, name)
-                
-    return config
-
 
 def create_catalogue(header,values):
     """
