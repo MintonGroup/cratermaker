@@ -7,16 +7,10 @@ from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
 from ..utils.general_utils import set_properties, check_properties
+from ..plugins.material_catalogue import get_material_catalogue
 
-# List available material catalogues
-for ep in importlib.metadata.entry_points(group="cratermaker.plugins.material_catalogue"):
-    print(ep.name)
+# Load the default target catalogue plugin
 
-# Load the default one
-default_mat_cat = importlib.metadata.entry_points(
-    group="cratermaker.plugins.material_catalogue",
-    name="default",
-)[0].load()()
 
 class Material:
     """
@@ -31,6 +25,7 @@ class Material:
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
                  density: FloatLike | None = None,
+                 catalogue_name: str = "default",
                  **kwargs: Any,
                  ):
         """
@@ -51,6 +46,8 @@ class Material:
             The strength of the material, (Pa)
         density : FloatLike
             Volumentric density of material, (kg/m^3)
+        catalogue_name : str
+            The name of the material catalogue to use. Default is "default". This will be used to look up the material properties
         **kwargs : Any
             Additional keyword argumments that could be set by the user.
             
@@ -71,6 +68,8 @@ class Material:
         self._mu = None
         self._Ybar = None
         self._density = None
+        self._catalogue_name = catalogue_name
+        catalogue = get_material_catalogue(catalogue_name).get_materials()
         
         # Set properties for the Material object based on the arguments passed to the function
         self.set_properties(name=name,
@@ -78,7 +77,7 @@ class Material:
                             mu=mu,
                             Ybar=Ybar,
                             density=density,
-                            catalogue=self.catalogue,
+                            catalogue=catalogue,
                             **kwargs) 
         
         # Check to make sure all required properties are set 
@@ -212,6 +211,23 @@ class Material:
         """         
         set_properties(self,**kwargs)
         return
+
+    @property
+    def catalogue_name(self):
+        """
+        The name of the target catalogue to use 
+        
+        Returns
+        -------
+        str 
+        """
+        return self._catalogue_name
+
+    @catalogue_name.setter
+    def catalogue_name(self, value):
+        if not isinstance(value, str) and value is not None:
+            raise TypeError("catalogue_name must be a string or None")
+        self._catalogue_name = value    
     
       
 class Scale():
@@ -735,7 +751,6 @@ class Scale():
         if not isinstance(value, str) and value is not None:
             raise TypeError("material_name must be a string or None")
         self._material_name = value
-        
         
     @property
     def material(self):

@@ -1,14 +1,14 @@
 import numpy as np
-from cratermaker.plugins.target_catalogue import register_target_catalogue, TargetCataloguePlugin
+from cratermaker.plugins.material_catalogue import register_material_catalogue, MaterialCataloguePlugin
 from cratermaker.utils.general_utils import create_catalogue
 
-@register_target_catalogue("default")
-class DefaultTargetCatalogue(TargetCataloguePlugin):
-    """Default target catalogue providing properties for celestial bodies."""
+@register_material_catalogue("default")
+class DefaultMaterialCatalogue(MaterialCataloguePlugin):
+    """Default material catalogue providing properties for celestial bodies."""
 
-    def get_targets(self):
+    def get_materials(self):
         
-        # Define some built-in catalogue values for known solar system targets of interest
+        # Define some built-in catalogue values for known solar system materials of interest
         # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
         material_properties = [
             "name",       "K1",     "mu",   "Ybar",     "density" 

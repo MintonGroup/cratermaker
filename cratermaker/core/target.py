@@ -1,19 +1,11 @@
-import importlib.metadata
 import numpy as np
 from typing import Any
 from ..utils.general_utils import set_properties, check_properties
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
+from ..plugins.target_catalogue import get_target_catalogue
 
-# List available material catalogues
-for ep in importlib.metadata.entry_points(group="cratermaker.plugins.target_catalogue"):
-    print(ep.name)
 
-# Load the default one
-default_mat_cat = importlib.metadata.entry_points(
-    group="cratermaker.plugins.target_catalogue",
-    name="default",
-)[0].load()()
 class Target:
     """
     Represents the target body in a crater simulation.
@@ -29,7 +21,8 @@ class Target:
                  gravity: FloatLike | None = None, 
                  bulk_density: FloatLike | None = None,
                  transition_scale_type: str | None = None,
-                 material_name: str | None = None,                  
+                 material_name: str | None = None,      
+                 catalogue_name: str = "default",            
                  **kwargs: Any,
                  ):
         """
@@ -47,10 +40,12 @@ class Target:
             Surface gravity of the target body in m/s^2.
         bulk_density : FloatLike or None
             Bulk density of the target body in kg/m^3.
-        material_name : str or None
-            Name of the material composition of the target body.            
         transition_scale_type : str or None
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
+        material_name : str or None
+            Name of the material composition of the target body.            
+        catalogue_name : str
+            Name of the target catalogue to use. Default is "default".
         **kwargs : Any
             Additional keyword argumments that could be set by the user.
         """    
@@ -62,6 +57,7 @@ class Target:
         object.__setattr__(self, "_bulk_density", None)
         object.__setattr__(self, "_transition_scale_type", None)
         object.__setattr__(self, "_material_name", None)
+        object.__setattr__(self, "_catalogue_name", None)
         object.__setattr__(self, "_user_defined", set())   # which public props were set by user
         object.__setattr__(self, "_updating",     False)   # guard against recursive updates
 
@@ -71,19 +67,22 @@ class Target:
         if bulk_density is not None: self.bulk_density = bulk_density
         if material_name is not None: self.material_name = material_name
         if transition_scale_type is not None: self.transition_scale_type = transition_scale_type
+        if catalogue_name is not None: self._catalogue_name = catalogue_name
 
         
         # ensure that only either diamter of radius is passed
         values_set = sum(x is not None for x in [diameter, radius])
         if values_set > 1:
             raise ValueError("Only one of diameter, radius may be set")        
-        
+
+        catalogue = get_target_catalogue(catalogue_name).get_targets()
         # Set properties for the Target object based on the arguments passed to the function
         self.set_properties(name=name, 
                             radius=radius, 
                             diameter=diameter, 
                             gravity=gravity, 
                             material_name=material_name,
+                            catalogue=catalogue,
                             transition_scale_type=transition_scale_type, 
                             **kwargs)
 
@@ -201,9 +200,6 @@ class Target:
         """
         return {name: getattr(self, name) for name in self._user_defined}
 
-
-    
-
     def set_properties(self, **kwargs):
         """
         Set properties of the current object based on the provided keyword arguments.
@@ -271,6 +267,23 @@ class Target:
         if not isinstance(value, str) and value is not None:
             raise TypeError("material_name must be a string or None")
         self._material_name = value
+
+    @property
+    def catalogue_name(self):
+        """
+        The name of the target catalogue to use 
+        
+        Returns
+        -------
+        str 
+        """
+        return self._catalogue_name
+
+    @catalogue_name.setter
+    def catalogue_name(self, value):
+        if not isinstance(value, str) and value is not None:
+            raise TypeError("catalogue_name must be a string or None")
+        self._catalogue_name = value
         
     @property
     def transition_scale_type(self):
