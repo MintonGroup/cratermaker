@@ -42,7 +42,6 @@ Methods
     Simulation.save
     Simulation.export_vtk
     Simulation.set_elevation
-    Simulation.set_properties
 
 Attributes
 ----------
@@ -338,14 +337,6 @@ Attributes
     Target.radius
     Target.transition_scale_type
 
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Target.set_properties
-
 .. _api-Material:
 
 Material
@@ -472,7 +463,6 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Scale._compute_simple_to_complex_transition_factors
     Scale.get_morphology_type
     Scale.f2t_simple
     Scale.f2t_complex
@@ -575,9 +565,6 @@ General utilities
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.utils.general_utils.set_properties
-    cratermaker.utils.general_utils.check_properties
-    cratermaker.utils.general_utils.create_catalogue
     cratermaker.utils.general_utils.validate_and_convert_location
     cratermaker.utils.general_utils.normalize_coords
     cratermaker.utils.general_utils.R_to_CSFD

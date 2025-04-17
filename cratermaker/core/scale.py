@@ -1,16 +1,12 @@
-import importlib.metadata
 import numpy as np
 from numpy.random import Generator
-from typing import Tuple, Any, Dict
+from typing import Tuple, Any
 from scipy.optimize import root_scalar
 from .target import Target
 from ..utils.custom_types import FloatLike
 from ..utils import montecarlo as mc
-from ..utils.general_utils import set_properties, check_properties
+from ..utils.general_utils import _set_properties, _check_properties
 from ..plugins.material_catalogue import get_material_catalogue
-
-# Load the default target catalogue plugin
-
 
 class Material:
     """
@@ -62,17 +58,18 @@ class Material:
         .. [3] Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724–738. https://doi.org/10.1016/j.icarus.2011.05.016        
 
         """ 
-        # Set the attributes for this class
-        self._name = name
-        self._K1 = None
-        self._mu = None
-        self._Ybar = None
-        self._density = None
-        self._catalogue_name = catalogue_name
+        
+        object.__setattr__(self, "_name", None)
+        object.__setattr__(self, "_K1", None)
+        object.__setattr__(self, "_mu", None)
+        object.__setattr__(self, "_Ybar", None)
+        object.__setattr__(self, "_density", None)
+        object.__setattr__(self, "_catalogue_name", None)
+
         catalogue = get_material_catalogue(catalogue_name).get_materials()
         
         # Set properties for the Material object based on the arguments passed to the function
-        self.set_properties(name=name,
+        self._set_properties(name=name,
                             K1=K1,
                             mu=mu,
                             Ybar=Ybar,
@@ -81,7 +78,7 @@ class Material:
                             **kwargs) 
         
         # Check to make sure all required properties are set 
-        check_properties(self)
+        _check_properties(self)
         
         return    
 
@@ -192,12 +189,12 @@ class Material:
             raise ValueError("density must be a positive number")
         self._density = np.float64(value)
         
-    def set_properties(self, **kwargs):
+    def _set_properties(self, **kwargs):
         """
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `util.set_properties` method.
+        property setting is handled by the `util._set_properties` method.
 
         Parameters
         ----------
@@ -209,7 +206,7 @@ class Material:
         None
             The function does not return a value.
         """         
-        set_properties(self,**kwargs)
+        _set_properties(self,**kwargs)
         return
 
     @property

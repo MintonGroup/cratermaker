@@ -15,7 +15,7 @@ from .surface import Surface, _save_surface
 from .scale import Scale
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import set_properties
+from ..utils.general_utils import _set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 import yaml
@@ -184,14 +184,14 @@ class Simulation:
         return
 
     
-    def set_properties(self, 
+    def _set_properties(self, 
                        **kwargs: Any
                       ) -> None:
         """
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        property setting is handled by the `utils.set_properties` method.
+        property setting is handled by the `utils._set_properties` method.
 
         Parameters
         ----------
@@ -199,7 +199,7 @@ class Simulation:
             A dictionary of keyword arguments that represent the properties to be set on the current object.
 
         """        
-        set_properties(self,**kwargs)
+        _set_properties(self,**kwargs)
         return 
 
     

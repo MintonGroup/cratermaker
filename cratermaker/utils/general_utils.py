@@ -5,7 +5,7 @@ from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
 
 
-def set_properties(obj,**kwargs):
+def _set_properties(obj,**kwargs):
     """
     Set properties of a simulation object from various sources.
 
@@ -28,12 +28,12 @@ def set_properties(obj,**kwargs):
     Properties set by kwargs override those set by 'catalogue' or 'filename'.
     """
     
-    def set_properties_from_arguments(obj, **kwargs):
+    def _set_properties_from_arguments(obj, **kwargs):
         for key, value in kwargs.items():
             if hasattr(obj, key) and value is not None:
                 setattr(obj, key, value)   
             
-    def set_properties_from_catalogue(obj, catalogue, name=None, **kwargs):
+    def _set_properties_from_catalogue(obj, catalogue, name=None, **kwargs):
         # Check to make sure that the catalogue argument is in the valid nested dict format
         if not isinstance(catalogue, dict):
             raise ValueError("Catalogue must be a dictionary")
@@ -51,26 +51,26 @@ def set_properties(obj,**kwargs):
         
         properties = catalogue.get(name) 
         if properties: # A match was found to the catalogue 
-            set_properties_from_arguments(obj, **properties)
+            _set_properties_from_arguments(obj, **properties)
         else:
-            set_properties_from_arguments(obj, name=name, **kwargs)
+            _set_properties_from_arguments(obj, name=name, **kwargs)
             
-    def set_properties_from_file(obj, filename, name=None, **kwargs):
+    def _set_properties_from_file(obj, filename, name=None, **kwargs):
         with open(filename, 'r') as f:
             catalogue = yaml.safe_load(f)
             
-        set_properties_from_catalogue(obj,catalogue=catalogue,name=name)
-        set_properties_from_arguments(obj,name=name)
+        _set_properties_from_catalogue(obj,catalogue=catalogue,name=name)
+        _set_properties_from_arguments(obj,name=name)
        
     filename = kwargs.get('filename') 
     if filename:
-        set_properties_from_file(obj,**kwargs)
+        _set_properties_from_file(obj,**kwargs)
    
     catalogue = kwargs.get('catalogue') 
     if catalogue:
-        set_properties_from_catalogue(obj,**kwargs)
+        _set_properties_from_catalogue(obj,**kwargs)
         
-    set_properties_from_arguments(obj,**kwargs)
+    _set_properties_from_arguments(obj,**kwargs)
     
     if not hasattr(obj,"name"):
         raise ValueError("The object must be given a name")
@@ -78,7 +78,7 @@ def set_properties(obj,**kwargs):
     return
 
 
-def check_properties(obj):
+def _check_properties(obj):
      # Check for any unset properties
     missing_prop = []
     for property_name, value in obj.__dict__.items():
@@ -93,7 +93,7 @@ def check_properties(obj):
         raise ValueError(f"The following required properties have not been set: {missing_prop}")
     
 
-def create_catalogue(header,values):
+def _create_catalogue(header,values):
     """
     Create and return a catalogue of properties or items based on the given inputs.
 

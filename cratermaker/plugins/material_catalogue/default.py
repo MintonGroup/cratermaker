@@ -1,6 +1,6 @@
 import numpy as np
 from cratermaker.plugins.material_catalogue import register_material_catalogue, MaterialCataloguePlugin
-from cratermaker.utils.general_utils import create_catalogue
+from cratermaker.utils.general_utils import _create_catalogue
 
 @register_material_catalogue("default")
 class DefaultMaterialCatalogue(MaterialCataloguePlugin):
@@ -22,6 +22,6 @@ class DefaultMaterialCatalogue(MaterialCataloguePlugin):
             ("Hard Rock", 0.20,     0.55,   18.0e6,     2500.0),
             ("Ice",       15.625,   0.48,   0.0,        900.0), 
         ]        
-        return create_catalogue(material_properties, material_values)
+        return _create_catalogue(material_properties, material_values)
 
     

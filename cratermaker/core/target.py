@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Any
-from ..utils.general_utils import set_properties, check_properties
+from ..utils.general_utils import _set_properties, _check_properties
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
 from ..plugins.target_catalogue import get_target_catalogue
@@ -17,7 +17,8 @@ class Target:
     def __init__(self, 
                  name: str, 
                  radius: FloatLike | None = None, 
-                 diameter: FloatLike | None = None, 
+                 diameter: FloatLike | None = None,
+                 mass: FloatLike | None = None, 
                  gravity: FloatLike | None = None, 
                  bulk_density: FloatLike | None = None,
                  transition_scale_type: str | None = None,
@@ -33,9 +34,11 @@ class Target:
         name : str or None
             Name of the target body.
         radius : FloatLike or None
-            Radius of the target body in meters.
+            Radius of the target body in km.
         diameter : FloatLike or None
-            Diameter of the target body in meters.
+            Diameter of the target body in km.
+        mass : FloatLike or None
+            Mass of the target body in kg.
         gravity : FloatLike or None
             Surface gravity of the target body in m/s^2.
         bulk_density : FloatLike or None
@@ -53,6 +56,7 @@ class Target:
         object.__setattr__(self, "_name",       None)
         object.__setattr__(self, "_radius",       None)
         object.__setattr__(self, "_diameter",     None)
+        object.__setattr__(self, "_mass",      None)
         object.__setattr__(self, "_gravity",      None)
         object.__setattr__(self, "_bulk_density", None)
         object.__setattr__(self, "_transition_scale_type", None)
@@ -60,48 +64,44 @@ class Target:
         object.__setattr__(self, "_catalogue_name", None)
         object.__setattr__(self, "_user_defined", set())   # which public props were set by user
         object.__setattr__(self, "_updating",     False)   # guard against recursive updates
-        object.__setattr__(self, "_bulk_property_names", ("radius", "diameter", "gravity", "bulk_density"))
+        object.__setattr__(self, "_bulk_property_names", ("radius", "diameter", "gravity", "mass", "bulk_density"))
 
-        if radius       is not None: self.radius       = radius
-        if diameter     is not None: self.diameter     = diameter
-        if gravity      is not None: self.gravity      = gravity
-        if bulk_density is not None: self.bulk_density = bulk_density
-        if material_name is not None: self.material_name = material_name
-        if transition_scale_type is not None: self.transition_scale_type = transition_scale_type
-        if catalogue_name is not None: self._catalogue_name = catalogue_name
-
-        
         # ensure that only either diamter of radius is passed
-        values_set = sum(x is not None for x in [diameter, radius])
-        if values_set > 1:
-            raise ValueError("Only one of diameter, radius may be set")        
+        size_values_set = sum(x is not None for x in [diameter, radius])
+        if size_values_set > 1:
+            raise ValueError("Only one of diameter or radius may be set")
+
+        bulk_values_set = size_values_set + sum(x is not None for x in [gravity, bulk_density])
+        if bulk_values_set > 2:
+            raise ValueError("Only two of diameter/radius, gravity, mass, and bulk_density may be set")
 
         catalogue = get_target_catalogue(catalogue_name).get_targets()
         # Set properties for the Target object based on the arguments passed to the function
-        self.set_properties(name=name, 
+        self._set_properties(name=name, 
                             radius=radius, 
-                            diameter=diameter, 
+                            diameter=diameter,
+                            mass=mass, 
                             gravity=gravity, 
+                            bulk_density=bulk_density,
                             material_name=material_name,
+                            catalogue_name=catalogue_name,
                             catalogue=catalogue,
                             transition_scale_type=transition_scale_type, 
                             **kwargs)
 
-        check_properties(self) 
+        _check_properties(self) 
         return
     
     def __setattr__(self, name, value):
-        # always perform the assignment
         object.__setattr__(self, name, value)
 
-        # if it’s one of our “core” private attrs, and we’re not already in an update,
-        # treat this as a user‐driven change:
+        # If this attribute is not being updated internally, mark it as a user-defined parameter
         if not self._updating:
             # mark that the *public* name was user‐defined
             public_name = name.lstrip("_")
             self._user_defined.add(public_name)
 
-            # now recompute *all* interdependent quantities
+            # If this is a bulk property attribute, recompute all the others to keep them consistent
             if name in self._bulk_property_names:
                 object.__setattr__(self, "_updating", True)
                 self._update_bulk_properties()
@@ -111,11 +111,9 @@ class Target:
         """Given any two of _radius/_diameter/_gravity/_bulk_density, compute the others."""
         r = self._radius
         d = self._diameter
-        g = self._gravity
-        ρ = self._bulk_density
         Gval = G.value
 
-        # keep diameter↔radius in sync
+        # keep diameter and radius in sync
         if r is not None and d != 2*r:
             object.__setattr__(self, "_diameter", 2*r)
             object.__setattr__(self, "_user_defined", self._user_defined - {"diameter"})
@@ -123,9 +121,11 @@ class Target:
             object.__setattr__(self, "_radius", d/2)
             object.__setattr__(self, "_user_defined", self._user_defined - {"radius"})
 
-        # now count how many of (r, g, ρ) we have
+        # Check to see if we have currently defined enough bulk property values to compute the others. Otherwise, we'll skip this
+        # computation for now. 
         provided = {
             "radius":       self._radius is not None,
+            "gravity":      self._mass is not None,
             "gravity":      self._gravity is not None,
             "bulk_density": self._bulk_density is not None,
         }
@@ -133,21 +133,21 @@ class Target:
         if n < 2:
             return
 
-        # r & ρ ⇒ g
+        # compute gravity from radius and density
         if provided["radius"] and provided["bulk_density"] and not provided["gravity"]:
             computed = 4*np.pi*Gval*self._radius*self._bulk_density/3
             object.__setattr__(self, "_gravity", computed)
             object.__setattr__(self, "_user_defined",
                                self._user_defined - {"gravity"})
 
-        # r & g ⇒ ρ
+        # compute density from radius and gravity 
         elif provided["radius"] and provided["gravity"] and not provided["bulk_density"]:
             computed = 3*self._gravity/(4*np.pi*Gval*self._radius)
             object.__setattr__(self, "_bulk_density", computed)
             object.__setattr__(self, "_user_defined",
                                self._user_defined - {"bulk_density"})
 
-        # g & ρ ⇒ r (and then diameter)
+        # compute radius & diameter from gravity and density 
         elif provided["gravity"] and provided["bulk_density"] and not provided["radius"]:
             computed_r = 3*self._gravity/(4*np.pi*Gval*self._bulk_density)
             object.__setattr__(self, "_radius", computed_r)
@@ -202,25 +202,20 @@ class Target:
         """
         return {name: getattr(self, name) for name in self._user_defined}
 
-    def set_properties(self, **kwargs):
+    def _set_properties(self, **kwargs):
         """
         Set properties of the current object based on the provided keyword arguments.
 
         This function is a utility to update the properties of the current object. The actual implementation of the 
-        parameter setting is handled by the `util.set_properties` method.
+        parameter setting is handled by the `util._set_properties` method.
 
         Parameters
         ----------
         **kwargs : dict
             A dictionary of keyword arguments that represent the properties to be set on the current object.
-
-        Returns
-        -------
-        None
-            The function does not return a value.
         """         
-        set_properties(self,**kwargs)
-        return
+        
+        return _set_properties(self,**kwargs)
 
     
     @property
