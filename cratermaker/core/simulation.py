@@ -15,7 +15,7 @@ from .surface import Surface, _save_surface
 from ..plugins.scaling import ScalingModel, get_scaling_model
 from .morphology import Morphology
 from .production import Production, NeukumProduction
-from ..utils.general_utils import _set_properties
+from ..utils.general_utils import _set_properties, _convert_numpy
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 import yaml
@@ -756,7 +756,7 @@ class Simulation:
         sim_config['scaling_model'] = scale_config
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
-            yaml.safe_dump(sim_config, f, indent=4)
+            yaml.safe_dump(_convert_numpy(sim_config), f, indent=4)
         
         return
     

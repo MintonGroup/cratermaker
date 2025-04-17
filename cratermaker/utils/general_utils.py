@@ -129,6 +129,23 @@ def _create_catalogue(header,values):
     return catalogue 
 
 
+def _convert_numpy(obj):
+    """
+    Convert numpy objects to standard Python types. This is useful for storing values in yaml configuration files.
+    """
+    if isinstance(obj, dict):
+        return {k: _convert_numpy(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(_convert_numpy(v) for v in obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    else:
+        return obj
+
 def validate_and_convert_location(location):
     """
     Validate and convert a given location into a standard structured format.
