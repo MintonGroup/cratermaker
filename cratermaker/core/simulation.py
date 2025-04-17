@@ -756,11 +756,13 @@ class Simulation:
         target_config = self.target.to_config()
         scale_config = self.scale.to_config()
         sim_config = self.to_config() 
+        prod_config = self.production.to_config()
         sim_config['target'] = target_config
         sim_config['scaling'] = scale_config
+        sim_config['production'] = prod_config
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
-            yaml.safe_dump(_convert_numpy(sim_config), f, indent=4)
+            yaml.safe_dump(_convert_numpy(sim_config), f, indent=4, sort_keys=False)
         
         return
     

@@ -20,8 +20,9 @@ class PowerLawProduction(ProductionModel):
     def __init__(self, 
                 rng: Generator | None = None,
                 **kwargs: Any):
-          
-        self.valid_generator_types = ["crater", "projectile"]
+
+        super().__init__() 
+        self._valid_generator_types = ["crater", "projectile"]
         self.rng = rng 
         self._set_model_parameters(**kwargs)
        
@@ -54,6 +55,7 @@ class PowerLawProduction(ProductionModel):
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
         generator_type = kwargs.get("generator_type", "crater")
         self.generator_type = generator_type
+        self._user_defined.add("generator_type")
         self.valid_time = (0,None)  # Range over which the production function is valid       
         
         # Default values that are approximately equal to the NPF for the Moon
@@ -74,6 +76,7 @@ class PowerLawProduction(ProductionModel):
         if N1_coef < 0.0:
             raise ValueError("N1_coef must be positive")
         self.N1_coef = N1_coef
+        self._user_defined.add("N1_coef")
        
         # Set the power law exponent for the production function along with defaults 
         slope = kwargs.get("slope", default_slope[self.generator_type])
@@ -82,14 +85,17 @@ class PowerLawProduction(ProductionModel):
         elif slope > 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
             slope *= -1
         self.slope = slope 
+        self._user_defined.add("slope")
        
         if "mean_velocity" in kwargs and "impact_velocity_model" in kwargs:
             raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
          
         if "mean_velocity" in kwargs:
             self.mean_velocity = kwargs["mean_velocity"]
+            self._user_defined.add("mean_velocity")
         elif "impact_velocity_model" in kwargs:
             self.impact_velocity_model = kwargs.get("impact_velocity_model")
+            self._user_defined.add("impact_velocity_model")
         else:
             raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided")
       
@@ -587,18 +593,6 @@ class PowerLawProduction(ProductionModel):
         self._slope = value
 
     @property
-    def valid_generator_types(self):
-        """Get the list of valid generator types."""
-        return self._valid_generator_types
-
-    @valid_generator_types.setter
-    def valid_generator_types(self, value):
-        """Set the list of valid generator types."""
-        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-            raise TypeError("valid_generator_types must be a list of strings")
-        self._valid_generator_types = value
-
-    @property
     def impact_velocity_model(self):
         """Get the impact velocity model name."""
         return self._impact_velocity_model
@@ -706,23 +700,6 @@ class PowerLawProduction(ProductionModel):
         self._model = value
     
     @property
-    def valid_models(self):
-        """
-        A list of valid models for the production function. 
-        These models define the parameters used for calculating the size-frequency distribution 
-        of craters and impactors
-        """
-        return self._valid_models
-
-    @valid_models.setter
-    def valid_models(self, value):
-        if not isinstance(value, list):
-            raise TypeError("valid_models must be a list of strings")
-        if any(not isinstance(model, str) for model in value):
-            raise ValueError("All items in valid_models must be strings")
-        self._valid_models = value    
-       
-    @property
     def generator_type(self):
         """
         The type of generator to use. This can be either "crater" or "projectile". 
@@ -735,11 +712,11 @@ class PowerLawProduction(ProductionModel):
     @generator_type.setter
     def generator_type(self, value):
         if not value:
-            self._generator_type = self.valid_generator_types[0]
+            self._generator_type = self._valid_generator_types[0]
             return
         if not isinstance(value, str):
             raise ValueError("generator_type must be a string")
-        if value not in self.valid_generator_types:
-            raise ValueError(f"Invalid generator_type {value}. Must be one of {self.valid_generator_types}")
+        if value not in self._valid_generator_types:
+            raise ValueError(f"Invalid generator_type {value}. Must be one of {self._valid_generator_types}")
         self._generator_type = value
         return 

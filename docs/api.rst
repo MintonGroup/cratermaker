@@ -246,7 +246,6 @@ Methods
     Production.function
     Production.function_inverse
     Production.sample
-    Production._set_model_parameters
 
 Attributes
 ----------
@@ -262,7 +261,6 @@ Attributes
     Production.slope
     Production.rng
     Production.valid_models
-    Production.valid_generator_types
     Production.valid_time
 
 
@@ -290,7 +288,6 @@ Methods
     NeukumProduction.function
     NeukumProduction.chronology
     NeukumProduction.size_frequency_distribution
-    NeukumProduction._set_model_parameters
 
 Attributes
 ----------
@@ -468,7 +465,7 @@ Methods
     ScalingModel.transient_to_final
     ScalingModel.projectile_to_crater
     ScalingModel.crater_to_projectile
-    ScalingModel._projectile_to_transient
+    ScalingModel.projectile_to_transient
     ScalingModel.transient_to_projectile
 
 Attributes

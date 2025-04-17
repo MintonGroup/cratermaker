@@ -36,8 +36,6 @@ class ProductionModel(ABC):
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
              check_valid_time: bool=True
              ) -> Union[FloatLike, ArrayLike]: ...
-    @abstractmethod
-    def to_config(self) -> dict: ...
 
     def __init__(self):
         object.__setattr__(self, "_user_defined", set())

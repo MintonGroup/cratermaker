@@ -71,15 +71,18 @@ class NeukumProduction(PowerLawProduction):
             For `version=="Moon"`, the default is "Moon_MBA". For `version=="Mars"`, the default is "Mars_MBA". If `version=="Projectile"` then either mean_velocity or impact_velocity_model must be provided. 
         """
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
-        if not hasattr(self, "valid_models"):
-            self.valid_models = ["Moon", "Mars", "Projectile"]
+        self._valid_models = ["Moon", "Mars", "Projectile"]
         version = kwargs.get("model", "Moon")
+        if version not in self._valid_models:
+            raise ValueError(f"Invalid version '{version}'. Valid options are {self._valid_models}")
         self.version = version
+        self._user_defined.add("version")
         
         if self.version == "Projectile":
             self.generator_type = "projectile"
         else:
             self.generator_type = "crater"
+        self._user_defined.add("generator_type")
 
         sfd_coef = {
                 "Moon" : np.array(
@@ -161,12 +164,16 @@ class NeukumProduction(PowerLawProduction):
             raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
         if "mean_velocity" in kwargs:
             self.mean_velocity = kwargs["mean_velocity"]
+            self._user_defined.add("mean_velocity")
         elif "impact_velocity_model" in kwargs:
             self.impact_velocity_model = kwargs.get("impact_velocity_model")
+            self._user_defined.add("impact_velocity_model")
         elif self.version=="Moon":
             self.impact_velocity_model = "Moon_MBA"
+            self._user_defined.add("impact_velocity_model")
         elif self.version=="Mars":
             self.impact_velocity_model = "Mars_MBA"
+            self._user_defined.add("impact_velocity_model")
         else: 
             raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided for the projectile model")
         
