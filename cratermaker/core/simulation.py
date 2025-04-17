@@ -12,14 +12,13 @@ import warnings
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, _save_surface
-from .scale import Scale
+from ..plugins.scaling import ScalingModel, get_scaling_model
 from .morphology import Morphology
 from .production import Production, NeukumProduction
 from ..utils.general_utils import _set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 import yaml
-
 
 class Simulation:
     """
@@ -32,7 +31,7 @@ class Simulation:
                  seed: int | None = None,
                  rng: Generator | None = None,
                  simdir: os.PathLike = Path.cwd(), 
-                 scale_cls: Type[Scale] | None = None,
+                 scaling_model: str = "richardson2009",
                  morphology_cls: Type[Morphology] | None = None,
                  production_cls: Type[Production] | None = None,
                  ejecta_truncation: FloatLike | None = None,
@@ -53,8 +52,8 @@ class Simulation:
             Random number generator, default is None, which will generate a new np.random generator based on the seed.
         simdir: PathLike, optional
             Path to the simulation directory, default is current working directory.
-        scale_cls : Type[Scale], optional
-            The Scale class that defines the crater scaling law. If none provided, then the default will be 
+        scaling_model : str, optional
+            The name of the scaling model to use from the plugins library. The default is "richardson2009".
         morphology_cls : Type[Morphology], optional
             The Morphology class that defines the model used to describe the morphology of the crater. If none provided, then the 
             default will be based on the default morphology model.
@@ -150,12 +149,7 @@ class Simulation:
         self.target = target
 
         # Set the scaling law model for this simulation 
-        if scale_cls is None:
-            self.scale_cls = Scale
-        elif issubclass(scale_cls, Scale):
-            self.scale_cls = scale_cls
-        else:
-            raise TypeError("scale must be a subclass of Scale") 
+        self.scale = get_scaling_model(scaling_model)
       
         # Set the morphology model for this simulation 
         if morphology_cls is None:
@@ -270,7 +264,7 @@ class Simulation:
             crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale_cls=self.scale_cls, rng=self.rng, dorays=self.dorays, **kwargs)
+        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale=self.scale, rng=self.rng, dorays=self.dorays, **kwargs)
         
         if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
             if self.production.mean_velocity is None:
@@ -320,7 +314,7 @@ class Simulation:
                 raise RuntimeError("No velocity value is set for this projectile")
             kwargs['mean_velocity'] = self.production.mean_velocity        
         
-        projectile = Projectile(target=self.target, rng=self.rng, scale_cls=self.scale_cls,**kwargs)
+        projectile = Projectile(target=self.target, rng=self.rng, scale=self.scale,**kwargs)
         crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls)
         
         return projectile, crater
@@ -753,6 +747,7 @@ class Simulation:
 
         # Get the simulation configuration into the correct structure
         target_config = self.target.to_config()
+        scale_config = self.scale.to_config()
         sim_config = self.to_config() 
         sim_config['target'] = target_config
         
@@ -1204,17 +1199,17 @@ class Simulation:
         self._production = value
 
     @property
-    def scale_cls(self):
+    def scale(self):
         """
-        The Scale class that defines the crater scaling law. Set during initialization.
+        The ScalingModel object that defines the crater scaling relationships model. Set during initialization.
         """
-        return self._scale_cls
+        return self._scale
 
-    @scale_cls.setter
-    def scale_cls(self, value):
-        if not issubclass(value, Scale):
-            raise TypeError("scale_cls must be a subclass of Scale")
-        self._scale_cls = value
+    @scale.setter
+    def scales(self, value):
+        if not isinstance(value, ScalingModel):
+            raise TypeError("scale must be of ScalingModel type")
+        self._scale = value
 
     @property
     def morphology_cls(self):

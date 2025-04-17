@@ -60,7 +60,7 @@ Attributes
     Simulation.n_face
     Simulation.n_node
     Simulation.rng
-    Simulation.scale_cls
+    Simulation.scale
     Simulation.seed
     Simulation.simdir
     Simulation.interval_number
@@ -390,7 +390,7 @@ Attributes
     Impact.radius
     Impact.rng
     Impact.scale
-    Impact.scale_cls
+    Impact.scale
     Impact.target
 
 Creating a Crater
@@ -442,20 +442,20 @@ Attributes
     Projectile.velocity
     Projectile.vertical_velocity
 
-.. _api-Scale:
+.. _api-ScalingModel:
 
-Scale
+ScalingModel
 =====
 
-The Scale class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
+The ScalingModel class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
 
-Creating Scale
+Creating ScalingModel
 --------------
 
 .. autosummary::
     :toctree: generated/
 
-    Scale
+    ScalingModel
 
 Methods
 -------
@@ -463,15 +463,13 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Scale.get_morphology_type
-    Scale.f2t_simple
-    Scale.f2t_complex
-    Scale.final_to_transient
-    Scale.transient_to_final
-    Scale.projectile_to_crater
-    Scale.crater_to_projectile
-    Scale.projectile_to_transient
-    Scale.transient_to_projectile
+    ScalingModel.get_morphology_type
+    ScalingModel.final_to_transient
+    ScalingModel.transient_to_final
+    ScalingModel.projectile_to_crater
+    ScalingModel.crater_to_projectile
+    ScalingModel._projectile_to_transient
+    ScalingModel.transient_to_projectile
 
 Attributes
 ----------
@@ -479,15 +477,15 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Scale.target
-    Scale.material
-    Scale.material_name
-    Scale.rng
-    Scale.transition_diameter
-    Scale.transition_nominal
-    Scale.simple_enlargement_factor
-    Scale.complex_enlargement_factor
-    Scale.final_exp
+    ScalingModel.target
+    ScalingModel.material
+    ScalingModel.material_name
+    ScalingModel.rng
+    ScalingModel.transition_diameter
+    ScalingModel.transition_nominal
+    ScalingModel.simple_enlargement_factor
+    ScalingModel.complex_enlargement_factor
+    ScalingModel.final_exp
 
 
 .. _api-Morphology:

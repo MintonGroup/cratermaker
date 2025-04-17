@@ -1,5 +1,5 @@
 import unittest
-from cratermaker import Target, Material, Scale
+from cratermaker import Target, Material, ScalingModel
 import numpy as np
 
 class TestScale(unittest.TestCase):
@@ -43,7 +43,7 @@ class TestScale(unittest.TestCase):
     def test_scale_override_catalogue(self):
         # Test overriding a property from the catalogue
         target = Target(name="Mars")
-        scale = Scale(target=target,material_name="Sand")
+        scale = ScalingModel(target=target,material_name="Sand")
         self.assertEqual(scale.material.name, "Sand")    
 
 if __name__ == '__main__':

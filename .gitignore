@@ -3,7 +3,7 @@
 !cratermaker/core/
 !cratermaker/models/
 !cratermaker/plugins/
-!cratermaker/plugins/material_catalogue/
+!cratermaker/plugins/scaling/
 !cratermaker/plugins/target_catalogue/
 !cratermaker/utils/
 !cratermaker/fortran_bindings/

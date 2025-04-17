@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from typing import Type, Any
 from .target import Target
-from .scale import Scale 
+from ..plugins.scaling import ScalingModel
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..utils.custom_types import FloatLike, PairOfFloats
@@ -30,8 +30,8 @@ class Impact(ABC):
         The age of the impact event in My before present.
     target : Target, optional
         The target body of the impact event.
-    scale_cls : Type[Scale], optional
-        The class used for scaling calculations.
+    scale : ScalingModel, optional
+        The model used to compute impactor to crater scaling.
     rng : Generator, optional
         Random number generator instance.
 
@@ -68,14 +68,13 @@ class Impact(ABC):
                  location: PairOfFloats = None,
                  age: FloatLike = None,
                  target: Target = None,
-                 scale_cls: Type[Scale] = None,
+                 scale: ScalingModel = None,
                  rng: Generator = None,
                  **kwargs: Any):
         
         # Evaluate and check diameter/radius inputs
         self._target = None
         self._rng = None
-        self._scale_cls = None
         self._scale = None
         self._location = None
         self._age = None
@@ -86,8 +85,7 @@ class Impact(ABC):
         
         self.target = target
         self.rng = rng 
-        self.scale_cls = scale_cls 
-        self.scale = self.scale_cls(target=self.target, rng=self.rng,**kwargs)
+        self.scale = scale
         self.location = location 
         self.age = age
         self.diameter = diameter
@@ -219,26 +217,6 @@ class Impact(ABC):
         self._target = value
         return
     
-    @property
-    def scale_cls(self):
-        """
-        The class to use for computing crater scaling relationships.
-        
-        Returns
-        -------
-        Type[Scale]
-        """ 
-        return self._scale_cls
-
-    @scale_cls.setter
-    def scale_cls(self, cls):
-        if cls is None:
-            self._scale_cls = Scale
-            return
-        if not issubclass(cls, Scale):
-            raise ValueError("The class must be a subclass of scale")
-        self._scale_cls = cls
-        return
         
     @property
     def scale(self):
@@ -247,14 +225,14 @@ class Impact(ABC):
         
         Returns
         -------
-        Scale
+        ScalingModel
         """ 
         return self._scale
     
     @scale.setter
     def scale(self, value):
-        if value is not None and not isinstance(value, Scale):
-            raise TypeError("scale must be an instance of Scale")
+        if value is not None and not isinstance(value, ScalingModel):
+            raise TypeError("scale must be an instance of ScalingModel")
         self._scale = value
         return    
 
@@ -525,10 +503,7 @@ class Projectile(Impact):
                 direction: FloatLike = None,
                 **kwargs):
         """
-        
         Constructor for the Projectile class.
-        
-
         """ 
 
         # ensure that all related calculations and checks are performed

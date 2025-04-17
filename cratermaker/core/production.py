@@ -664,7 +664,6 @@ class Production():
             raise ValueError("valid_time must be a tuple of two values")
         self._valid_time = value
         
-
     @property
     def rng(self):
         """

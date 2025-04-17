@@ -19,7 +19,6 @@ warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 from .core.simulation import Simulation
 from .core.target import Target
 from .core.impact import Impact, Crater, Projectile
-from .core.scale import Scale, Material
 from .core.surface import Surface, GridStrategy, IcosphereGrid, ArbitraryResolutionGrid, HiResLocalGrid
 from .core.morphology import Morphology
 from .core.production import Production, NeukumProduction

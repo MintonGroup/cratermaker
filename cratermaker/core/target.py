@@ -69,15 +69,17 @@ class Target:
 
         catalogue = get_target_catalogue(catalogue_name).get_targets()
         # Set properties for the Target object based on the arguments passed to the function
-        self._set_properties(name=name, 
-                            radius=radius, 
-                            diameter=diameter,
-                            mass=mass, 
-                            material_name=material_name,
-                            catalogue_name=catalogue_name,
-                            catalogue=catalogue,
-                            transition_scale_type=transition_scale_type, 
-                            **kwargs)
+        _set_properties(self, 
+                        name=name, 
+                        radius=radius, 
+                        diameter=diameter,
+                        mass=mass, 
+                        material_name=material_name,
+                        catalogue_name=catalogue_name,
+                        catalogue=catalogue,
+                        transition_scale_type=transition_scale_type, 
+                        **kwargs
+                    )
 
         _check_properties(self) 
         return
@@ -139,20 +141,6 @@ class Target:
         """
         return {name: getattr(self, name) for name in self._user_defined}
 
-    def _set_properties(self, **kwargs):
-        """
-        Set properties of the current object based on the provided keyword arguments.
-
-        This function is a utility to update the properties of the current object. The actual implementation of the 
-        parameter setting is handled by the `util._set_properties` method.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            A dictionary of keyword arguments that represent the properties to be set on the current object.
-        """         
-        
-        return _set_properties(self,**kwargs)
 
     @property
     def name(self):
