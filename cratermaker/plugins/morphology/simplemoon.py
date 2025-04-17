@@ -1,20 +1,20 @@
+import os
 import numpy as np
 from numpy.random import Generator
-from scipy.optimize import fsolve
-from numpy.typing import ArrayLike
-from typing import Any
-from .target import Target
-from ..utils.custom_types import FloatLike
-from .surface import Surface
-from .target import Target
-from .. import crater, ejecta
 import json
 import math
 from scipy import fft
-import os
-from numpy.typing import NDArray
+from scipy.optimize import fsolve
+from numpy.typing import NDArray, ArrayLike
+from typing import Any
+from cratermaker.core.target import Target
+from cratermaker.utils.custom_types import FloatLike
+from cratermaker.core.surface import Surface
+from cratermaker.plugins.morphology import register_morphology_model, MorphologyModel
+from cratermaker import crater, ejecta
 
-class Morphology:
+@register_morphology_model("simplemoon")
+class SimpleMoon(MorphologyModel):
     """
     An operations class for computing the morphology of a crater based on its size and target properties.
 

@@ -5,6 +5,7 @@
 !cratermaker/plugins/
 !cratermaker/plugins/scaling/
 !cratermaker/plugins/production/
+!cratermaker/plugins/morphology/
 !cratermaker/plugins/target_catalogue/
 !cratermaker/utils/
 !cratermaker/fortran_bindings/

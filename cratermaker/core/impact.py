@@ -6,7 +6,7 @@ from ..plugins.scaling import ScalingModel
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..utils.custom_types import FloatLike, PairOfFloats
-from .morphology import Morphology
+from ..plugins.morphology import MorphologyModel
 from abc import ABC, abstractmethod
 
 class Impact(ABC):
@@ -267,7 +267,7 @@ class Crater(Impact):
         The diameter of the transient crater in m.
     transient_radius : FloatLIke
         The radius of the transient crater in m.    
-    morphology_cls : Type[Morphology]
+    morphology_cls : Type[MorphologyModel]
         The class to use for computing the crater morphology.
     **kwargs : Any 
         Additional keyword arguments to pass to the scale and morphology classes.
@@ -276,7 +276,7 @@ class Crater(Impact):
     def __init__(self, 
                 transient_diameter: FloatLike = None,
                 transient_radius: FloatLike = None,
-                morphology_cls: Type[Morphology] = None, 
+                morphology_cls: Type[MorphologyModel] = None, 
                 **kwargs: Any):
         """
         Constructor for the Crater class.
@@ -408,15 +408,15 @@ class Crater(Impact):
         
         Returns
         -------
-        Type[Morphology]
+        Type[MorphologyModel]
         """ 
         return self._morphology_cls
 
     @morphology_cls.setter
     def morphology_cls(self, cls):
         if cls is None:
-            self._morphology_cls = Morphology
-        elif not issubclass(cls, Morphology):
+            self._morphology_cls = MorphologyModel
+        elif not issubclass(cls, MorphologyModel):
             raise ValueError("The class must be a subclass of Morphology")
         else:
             self._morphology_cls = cls
@@ -434,7 +434,7 @@ class Crater(Impact):
     
     @morphology.setter
     def morphology(self, value):
-        if not isinstance(value, Morphology):
+        if not isinstance(value, MorphologyModel):
             raise TypeError("morphology must be an instance of Morphology")
         self._morphology = value
         return 

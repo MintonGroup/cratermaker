@@ -52,6 +52,9 @@ default = "cratermaker.plugins.target_catalogue.default:DefaultTargetCatalogue"
 powerlaw = "cratermaker.plugins.production.powerlaw:PowerLawProduction"
 neukum = "cratermaker.plugins.production.neukum:NeukumProduction"
 
+[project.entry-points."cratermaker.plugins.morphology"]
+simplemoon = "cratermaker.plugins.morphology.simplemoon:SimpleMoon"
+
 [build-system]
 requires = [
     'cython>=3',

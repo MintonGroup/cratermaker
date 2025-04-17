@@ -13,12 +13,12 @@ import warnings
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, _save_surface
-from .morphology import Morphology
 from ..utils.general_utils import _set_properties, _convert_numpy
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 from ..plugins.scaling import ScalingModel, get_scaling_model
 from ..plugins.production import ProductionModel, get_production_model
+from ..plugins.morphology import MorphologyModel, get_morphology_model
 import yaml
 
 class Simulation:
@@ -34,7 +34,7 @@ class Simulation:
                  simdir: os.PathLike = Path.cwd(), 
                  scaling_model: str = "richardson2009",
                  production_model: str | None = None,
-                 morphology_cls: Type[Morphology] | None = None,
+                 morphology_model: str = "simplemoon",
                  ejecta_truncation: FloatLike | None = None,
                  dorays: bool = True,
                  **kwargs: Any):
@@ -60,9 +60,8 @@ class Simulation:
             then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
             body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
             Earth, and a simple power law model otherwise.
-        morphology_cls : Type[Morphology], optional
-            The Morphology class that defines the model used to describe the morphology of the crater. If none provided, then the 
-            default will be based on the default morphology model.
+        morphology_model : str, optional
+            The name of the plugin model used to describe the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
         ejecta_truncation : float, optional
             The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
             truncation distance based on where the ejecta thickness reaches a small value. 
@@ -156,12 +155,15 @@ class Simulation:
         self.scale = get_scaling_model(scaling_model)(target=self.target, rng=self.rng)
       
         # Set the morphology model for this simulation 
-        if morphology_cls is None:
-            self.morphology_cls = Morphology 
-        elif issubclass(morphology_cls, Morphology):
-            self.morphology_cls = morphology_cls
+        if morphology_model is None:
+            self.morphology_cls = get_morphology_model("simplemoon")
+        elif isinstance(morphology_model, str):
+            try:
+                self.morphology_cls = get_morphology_model(morphology_model)
+            except KeyError:
+                raise ValueError(f"{morphology_model} is not a valid morphology model name")
         else:
-            raise TypeError("morphology must be a subclass of Morphology")
+            raise TypeError("morphology must be a string or None")
       
         self._craterlist = []
         
@@ -1229,8 +1231,8 @@ class Simulation:
 
     @morphology_cls.setter
     def morphology_cls(self, value):
-        if not issubclass(value, Morphology):
-            raise TypeError("morphology_cls must be a subclass of Morphology")
+        if not issubclass(value, MorphologyModel):
+            raise TypeError("morphology_cls must be a subclass of MorphologyModel")
         self._morphology_cls = value
 
     @property
