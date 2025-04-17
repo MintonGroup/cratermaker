@@ -14,6 +14,12 @@ class ScalingModel(ABC):
         object.__setattr__(self, "_user_defined", set())
         self._user_defined.add("scaling_model")
 
+    def to_config(self) -> dict:
+        """
+        Only include those parameters the user actually set.
+        """
+        return {name: getattr(self, name) for name in self._user_defined}
+
     @property
     def scaling_model(self):
         """

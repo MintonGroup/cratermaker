@@ -116,12 +116,6 @@ class Richardson2009(ScalingModel):
         if public_name in include_list:
             self._user_defined.add(public_name)
 
-    def to_config(self) -> dict:
-        """
-        Only include those parameters the user actually set.
-        """
-        return {name: getattr(self, name) for name in self._user_defined}
-
 
     def get_morphology_type(self, final_diameter: FloatLike) -> str:
         """

@@ -105,42 +105,40 @@ class Target:
                 object.__setattr__(self, "_updating", False)
 
     @property
-    def radius(self) -> float | None:
+    def radius(self) -> np.float64 | None:
         return self._radius
 
     @radius.setter
-    def radius(self, value: float):
+    def radius(self, value: FloatLike):
         if value is not None and value <= 0:
             raise ValueError("Radius must be positive")
-        setattr(self, "_radius", float(value))
+        setattr(self, "_radius", np.float64(value))
 
     @property
-    def diameter(self) -> float | None:
+    def diameter(self) -> np.float64 | None:
         return self._diameter
 
     @diameter.setter
-    def diameter(self, value: float):
+    def diameter(self, value: FloatLike):
         if value is not None and value <= 0:
             raise ValueError("Diameter must be positive")
-        setattr(self, "_diameter", float(value))
+        setattr(self, "_diameter", np.float64(value))
 
     @property
-    def mass(self) -> float | None:
+    def mass(self) -> np.float64 | None:
         return self._mass
 
     @mass.setter
-    def mass(self, value: float):
+    def mass(self, value: FloatLike):
         if value is not None and value <= 0:
             raise ValueError("Mass must be positive")
-        setattr(self, "_mass", float(value))
-
+        setattr(self, "_mass", np.float64(value))
 
     def to_config(self) -> dict:
         """
         Only include those parameters the user actually set.
         """
         return {name: getattr(self, name) for name in self._user_defined}
-
 
     @property
     def name(self):
@@ -215,7 +213,7 @@ class Target:
 
     # The following are computed properties based on radius and mass
     @property
-    def escape_velocity(self):
+    def escape_velocity(self) -> np.float64:
         """
         Calculate the escape velocity for the target body in SI units.
 
@@ -227,7 +225,7 @@ class Target:
         return np.sqrt(2 * self.radius*1e-3 * self.gravity)
     
     @property
-    def gravity(self) -> float | None:
+    def gravity(self) -> np.float64 | None:
         """
         Calculate the gravitational acceleration at the surface of the target body in SI units.
 
@@ -239,7 +237,7 @@ class Target:
         return 4*np.pi*G.value*(self.radius*1e-3)*self.bulk_density/3
 
     @property
-    def bulk_density(self) -> float | None:
+    def bulk_density(self) -> np.float64 | None:
         """
         Calculate the bulk density of the target body in SI units.
 

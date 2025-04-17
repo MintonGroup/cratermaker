@@ -21,7 +21,6 @@ def register_target_catalogue(name: str):
     Class decorator to register a target‑catalogue plugin under the given key.
     """
     def decorator(cls):
-        instance = cls()
         _registry[name] = cls
         return cls
     return decorator
