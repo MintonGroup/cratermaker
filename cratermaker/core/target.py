@@ -67,7 +67,7 @@ class Target:
         if size_values_set > 1:
             raise ValueError("Only one of diameter or radius may be set")
 
-        catalogue = get_target_catalogue(catalogue_name).get_targets()
+        catalogue = get_target_catalogue(catalogue_name)().get_targets()
         # Set properties for the Target object based on the arguments passed to the function
         _set_properties(self, 
                         name=name, 

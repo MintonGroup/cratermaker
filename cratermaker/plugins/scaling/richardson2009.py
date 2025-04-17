@@ -9,19 +9,18 @@ from cratermaker.plugins.scaling import register_scaling_model, ScalingModel
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
 
-@register_scaling_model("default")
+@register_scaling_model("richardson2009")
 class Richardson2009(ScalingModel):
     """
     This is an operations class for computing the scaling relationships between impactors and craters.
 
     This class encapsulates the logic for converting between projectile properties and crater properties, 
     as well as determining crater morphology based on size and target propertiesImplements the scaling laws described in Richardson (2009) [1]_ that were implemented in CTEM.
-
         
     Parameters
     ----------
-    target : Target
-        The target body for the impact simulation.
+    target : Target or str, required
+        The target body for the impact simulation, or the name of a target. If the name is provided, you can also provide additional keyword arguments that will be passed to the Target class.
     material_name : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
@@ -47,11 +46,10 @@ class Richardson2009(ScalingModel):
     .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
     .. [2] Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
     .. [3] Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016        
-
     """  
 
     def __init__(self, 
-                 target: Target,
+                 target: str | Target = None,
                  material_name: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
@@ -65,6 +63,14 @@ class Richardson2009(ScalingModel):
         ----------
         .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
+        super().__init__()
+        if isinstance(target, str):
+            try:
+                target = Target(target,material_name=material_name,**kwargs)
+            except:
+                raise ValueError(f"Invalid target name {target}")
+        elif not isinstance(target, Target):
+            raise TypeError("target must be an instance of Target or a valid name of a target body")
 
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_material_name", None)
@@ -73,15 +79,14 @@ class Richardson2009(ScalingModel):
         object.__setattr__(self, "_Ybar", None)
         object.__setattr__(self, "_target_density", None)
         object.__setattr__(self, "_rng", None)
-        object.__setattr__(self, "_user_defined", set())  
-
 
         if material_name is None and target.material_name is not None: 
             material_name = target.material_name
 
         material_catalogue = self._create_material_catalogue() 
 
-        _set_properties(target=target,
+        _set_properties(self,
+                        target=target,
                         name=material_name,
                         K1=K1,
                         mu=mu,
@@ -102,7 +107,20 @@ class Richardson2009(ScalingModel):
         # Initialize transition factors
         self._compute_simple_to_complex_transition_factors() 
         return
-        
+    
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        include_list=("material_name", "K1", "mu", "Ybar", "target_density")
+        # Add it to the set of user-defined parameters if it is in the list of parameters
+        public_name = name.lstrip("_")
+        if public_name in include_list:
+            self._user_defined.add(public_name)
+
+    def to_config(self) -> dict:
+        """
+        Only include those parameters the user actually set.
+        """
+        return {name: getattr(self, name) for name in self._user_defined}
 
 
     def get_morphology_type(self, final_diameter: FloatLike) -> str:
@@ -142,7 +160,6 @@ class Richardson2009(ScalingModel):
         
         return morphology_type    
     
- 
         
     def projectile_to_crater(self, projectile, **kwargs):
         """
@@ -160,7 +177,7 @@ class Richardson2009(ScalingModel):
             The crater resulting from the impact of the projectile.
         """
         from cratermaker.core.impact import Crater
-        transient_diameter = self._projectile_to_transient(projectile, target=self.target, material=self.material, rng=self.rng)
+        transient_diameter = self.projectile_to_transient(projectile, target=self.target, material=self.material, rng=self.rng)
         crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng, **kwargs, location=projectile.location, age=projectile.age)
 
         return crater
@@ -181,11 +198,11 @@ class Richardson2009(ScalingModel):
         Projectile
             The estimated projectile that could have caused the crater.
         """
-        projectile = self._transient_to_projectile(crater, rng=self.rng, **kwargs)
+        projectile = self.transient_to_projectile(crater, rng=self.rng, **kwargs)
         
         return projectile
     
-    def _final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64:
+    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64:
         """
         Computes the transient diameter of a crater based on its final diameter and morphology type.
 
@@ -217,7 +234,7 @@ class Richardson2009(ScalingModel):
         return transient_diameter, morphology_type
 
 
-    def _transient_to_final(self, transient_diameter: FloatLike) -> Tuple[np.float64, str]:
+    def transient_to_final(self, transient_diameter: FloatLike) -> Tuple[np.float64, str]:
         """
         Computes the final diameter of a crater based on its transient diameter and morphology type.
 
@@ -285,7 +302,7 @@ class Richardson2009(ScalingModel):
         return final_diameter, morphology_type
 
     @staticmethod
-    def _projectile_to_transient(projectile, 
+    def projectile_to_transient(projectile, 
                                 target: Target,
                                 K1: FloatLike,
                                 mu: FloatLike,
@@ -354,7 +371,7 @@ class Richardson2009(ScalingModel):
         return transient_diameter
 
 
-    def _transient_to_projectile(self, 
+    def transient_to_projectile(self, 
                                 crater, 
                                 rng: Generator = None, 
                                 **kwargs: Any): 
@@ -402,7 +419,7 @@ class Richardson2009(ScalingModel):
                       ) -> np.float64:
             
             projectile.diameter = projectile_diameter
-            transient_diameter = self._projectile_to_transient(projectile, target, K1, mu, Ybar, target_density)
+            transient_diameter = self.projectile_to_transient(projectile, target, K1, mu, Ybar, target_density)
             return transient_diameter - crater.transient_diameter 
         
         sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,1.2*crater.transient_diameter), args=(projectile, self.target, self.K1, self.mu, self.Ybar, self.target_density))
@@ -417,7 +434,7 @@ class Richardson2009(ScalingModel):
         # Define some built-in catalogue values for known solar system materials of interest
         # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
         material_properties = [
-            "name",       "K1",     "mu",   "Ybar",     "density" 
+            "name",       "K1",     "mu",   "Ybar",     "target_density" 
         ]
         material_values = [
             ("Water",     2.30,     0.55,   0.0,        1000.0),
@@ -575,7 +592,7 @@ class Richardson2009(ScalingModel):
     
 
     @property
-    def material_name(self):
+    def name(self):
         """
         The name of the material composition of the target body.
         
@@ -585,11 +602,100 @@ class Richardson2009(ScalingModel):
         """
         return self._material_name
 
-    @material_name.setter
-    def material_name(self, value):
+    @name.setter
+    def name(self, value):
         if not isinstance(value, str) and value is not None:
-            raise TypeError("material_name must be a string or None")
-        self._material_name = value
+            raise TypeError("name must be a string or None")
+        self._name = value
+        
+    @property
+    def K1(self):
+        """
+        K1 crater scaling relationship term. 
+        
+        Returns
+        -------
+        np.float64 
+        
+        References
+        ----------
+        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029 
+        """
+        return self._K1
+    
+    @K1.setter
+    def K1(self, value):
+        if not isinstance(value, FloatLike) and value is not None:
+            raise TypeError("K1 must be a numeric value or None")
+        if value is not None and value < 0:
+            raise ValueError("K1 must be a positive number")
+        self._K1 = np.float64(value)
+        
+    @property
+    def mu(self):
+        """
+        mu crater scaling relationship term.
+        
+        Returns
+        -------
+        np.float64 
+        
+        References
+        ----------
+        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029 
+        """
+        return self._mu
+    
+    @mu.setter
+    def mu(self, value):
+        if not isinstance(value, FloatLike) and value is not None:
+            raise TypeError("mu must be a numeric value or None")
+        if value is not None and value < 0:
+            raise ValueError("mu must be a positive number")
+        self._mu = np.float64(value)
+        
+    @property
+    def Ybar(self):
+        """
+        The strength of the material in Pa.
+        
+        Returns
+        -------
+        np.float64 
+            
+                    
+        References
+        ----------
+        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029 
+        """
+        return self._Ybar
+    
+    @Ybar.setter
+    def Ybar(self, value):
+        if not isinstance(value, FloatLike) and value is not None:
+            raise TypeError("Ybar must be a numeric value or None")
+        if value is not None and value < 0:
+            raise ValueError("Ybar must be a positive number")
+        self._Ybar = np.float64(value)
+        
+    @property
+    def target_density(self):
+        """
+        Volumentric density of material in kg/m^3.
+        
+        Returns
+        -------
+        np.float64 
+        """
+        return self._target_density
+    
+    @target_density.setter
+    def target_density(self, value):
+        if not isinstance(value, FloatLike) and value is not None:
+            raise TypeError("target_density must be a numeric value or None")
+        if value is not None and value < 0:
+            raise ValueError("target_density must be a positive number")
+        self._target_density = np.float64(value)
         
     @property
     def rng(self):

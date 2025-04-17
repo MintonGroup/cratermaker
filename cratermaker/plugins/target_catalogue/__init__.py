@@ -22,7 +22,7 @@ def register_target_catalogue(name: str):
     """
     def decorator(cls):
         instance = cls()
-        _registry[name] = instance
+        _registry[name] = cls
         return cls
     return decorator
 

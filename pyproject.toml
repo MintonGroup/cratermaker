@@ -43,7 +43,7 @@ dependencies = [
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
 [project.entry-points."cratermaker.plugins.scaling"]
-holsapple93 = "cratermaker.plugins.scaling.richardson2009:Richardson2009"
+richardson2009 = "cratermaker.plugins.scaling.richardson2009:Richardson2009"
 
 [project.entry-points."cratermaker.plugins.target_catalogue"]
 default = "cratermaker.plugins.target_catalogue.default:DefaultTargetCatalogue"

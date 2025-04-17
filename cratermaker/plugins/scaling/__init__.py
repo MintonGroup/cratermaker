@@ -4,11 +4,22 @@ from abc import ABC, abstractmethod
 
 class ScalingModel(ABC):
     @abstractmethod
-    def get_morphology_type(self, final_diameter): ...
-    @abstractmethod
     def projectile_to_crater(self, projectile): ...
     @abstractmethod
     def crater_to_projectile(self, crater): ...
+    @abstractmethod
+    def to_config(self) -> dict: ...
+
+    def __init__(self):
+        object.__setattr__(self, "_user_defined", set())
+        self._user_defined.add("scaling_model")
+
+    @property
+    def scaling_model(self):
+        """
+        The registered name of this scaling model set by the @register_scaling_model decorator.
+        """ 
+        return self._scaling_model
 
 _registry: dict[str, ScalingModel] = {}
 
@@ -17,8 +28,8 @@ def register_scaling_model(name: str):
     Class decorator to register an impactor->crater size scaling plugin under the given key.
     """
     def decorator(cls):
-        instance = cls()
-        _registry[name] = instance
+        cls._scaling_model = name 
+        _registry[name] = cls
         return cls
     return decorator
 

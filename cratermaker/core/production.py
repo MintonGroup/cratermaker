@@ -618,9 +618,9 @@ class Production():
         
         References
         ----------
-        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744–757. https://doi.org/10.1016/j.icarus.2009.12.008
+        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744-757. https://doi.org/10.1016/j.icarus.2009.12.008
         .. [2] Yue, Z., Johnson, B.C., Minton, D.A., Melosh, H.J., Di, K., Hu, W., Liu, Y., 2013. Projectile remnants in central peaks of lunar impact craters. Nature Geosci 6, 435 EP-. https://doi.org/10.1038/ngeo1828
-        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255–268. https://doi.org/10.1006/icar.1994.1021
+        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255-268. https://doi.org/10.1006/icar.1994.1021
         """
      
         predefined_models = ['Mercury_MBA', 'Venus_MBA', 'Earth_MBA', 'Moon_MBA', 'Mars_MBA', 'MBA_MBA']
@@ -775,11 +775,11 @@ class NeukumProduction(Production):
     References
     ---------- 
     .. [1] Lunar PF from: Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
-        the Lunar Reference System. Space Science Reviews 96, 55–86. https://doi.org/10.1023/A:1011989004263
-    .. [2] Mars PF from: Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. Space Science Reviews 96, 87–104.
+        the Lunar Reference System. Space Science Reviews 96, 55-86. https://doi.org/10.1023/A:1011989004263
+    .. [2] Mars PF from: Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. Space Science Reviews 96, 87-104.
         https://doi.org/10.1023/A:1011941121102
     .. [3] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters 
-        and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1–34. 
+        and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1-34. 
         https://doi.org/10.1007/978-94-010-0712-2_1
     .. [4] Neukum, G., 1983. Meteorite bombardment and planetary surfaces dating. Habilitation Dissertation for Faculty Membership, University of Munich.
 

@@ -149,7 +149,7 @@ class Simulation:
         self.target = target
 
         # Set the scaling law model for this simulation 
-        self.scale = get_scaling_model(scaling_model)
+        self.scale = get_scaling_model(scaling_model)(target=self.target, rng=self.rng)
       
         # Set the morphology model for this simulation 
         if morphology_cls is None:
@@ -731,6 +731,9 @@ class Simulation:
     def read_config(self, **kwargs: Any) -> None:
         pass
 
+    def to_config(self, **kwargs: Any) -> dict:
+        return {}
+
     def save(self, **kwargs: Any) -> None:
                 
         """
@@ -750,7 +753,7 @@ class Simulation:
         scale_config = self.scale.to_config()
         sim_config = self.to_config() 
         sim_config['target'] = target_config
-        
+        sim_config['scaling_model'] = scale_config
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
             yaml.safe_dump(sim_config, f, indent=4)
@@ -1206,7 +1209,7 @@ class Simulation:
         return self._scale
 
     @scale.setter
-    def scales(self, value):
+    def scale(self, value):
         if not isinstance(value, ScalingModel):
             raise TypeError("scale must be of ScalingModel type")
         self._scale = value

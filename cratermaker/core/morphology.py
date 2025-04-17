@@ -274,7 +274,7 @@ class Morphology:
             
         References
         ----------
-        .. [1] Elliott, J.R., Huang, Y.-H., Minton, D.A., Freed, A.M., 2018. The length of lunar crater rays explained using secondary crater scaling. Icarus 312, 231–246. https://doi.org/10.1016/j.icarus.2018.04.015
+        .. [1] Elliott, J.R., Huang, Y.-H., Minton, D.A., Freed, A.M., 2018. The length of lunar crater rays explained using secondary crater scaling. Icarus 312, 231-246. https://doi.org/10.1016/j.icarus.2018.04.015
 
         """
         
