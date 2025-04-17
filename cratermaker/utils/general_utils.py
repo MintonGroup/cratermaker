@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
-
+from pathlib import Path
 
 def _set_properties(obj,**kwargs):
     """
@@ -129,20 +129,22 @@ def _create_catalogue(header,values):
     return catalogue 
 
 
-def _convert_numpy(obj):
+def _convert_for_yaml(obj):
     """
-    Convert numpy objects to standard Python types. This is useful for storing values in yaml configuration files.
+    Converts values to types that can be used in yaml.safe_dump.
     """
     if isinstance(obj, dict):
-        return {k: _convert_numpy(v) for k, v in obj.items()}
+        return {k: _convert_for_yaml(v) for k, v in obj.items()}
     elif isinstance(obj, list):
-        return [_convert_numpy(v) for v in obj]
+        return [_convert_for_yaml(v) for v in obj]
     elif isinstance(obj, tuple):
-        return tuple(_convert_numpy(v) for v in obj)
+        return tuple(_convert_for_yaml(v) for v in obj)
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
     elif isinstance(obj, (np.integer, np.floating)):
         return obj.item()
+    elif isinstance(obj, Path):
+        return str(obj)
     else:
         return obj
 

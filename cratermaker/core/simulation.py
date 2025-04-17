@@ -7,19 +7,20 @@ import shutil
 from tqdm import tqdm
 from glob import glob
 from collections.abc import Sequence
-from typing import Any, Type
+from typing import Any
+import inspect
 from numpy.typing import ArrayLike
 import warnings
+import yaml
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, _save_surface
-from ..utils.general_utils import _set_properties, _convert_numpy
+from ..utils.general_utils import _set_properties, _convert_for_yaml
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 from ..plugins.scaling import ScalingModel, get_scaling_model
 from ..plugins.production import ProductionModel, get_production_model
 from ..plugins.morphology import MorphologyModel, get_morphology_model
-import yaml
 
 class Simulation:
     """
@@ -27,11 +28,10 @@ class Simulation:
 
     """
     def __init__(self, *, # Enforce keyword-only arguments
+                 simdir: os.PathLike = Path.cwd(), 
                  target: str | Target = None,
                  reset_surface: bool = True,
                  seed: int | None = None,
-                 rng: Generator | None = None,
-                 simdir: os.PathLike = Path.cwd(), 
                  scaling_model: str = "richardson2009",
                  production_model: str | None = None,
                  morphology_model: str = "simplemoon",
@@ -49,8 +49,6 @@ class Simulation:
             Flag to reset the surface elevation, default is True.
         seed : int, optional
             Seed for the random number generator, default is None.
-        rng : Generator, optional
-            Random number generator, default is None, which will generate a new np.random generator based on the seed.
         simdir: PathLike, optional
             Path to the simulation directory, default is current working directory.
         scaling_model : str, optional
@@ -76,15 +74,18 @@ class Simulation:
         --------
         cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
         """
+        frame = inspect.currentframe()
+        user_parameters = inspect.getargvalues(frame)
+        # remove self from the parameters and store it for the to_config function
+        self._user_defined= user_parameters[0][1:]
+
         self.simdir = simdir
         self.config_file = self.simdir / "cratermaker.yaml" 
         if self.config_file.exists():
             self.read_config()
-     
-        # Set the random number generator seed
+
         self.seed = seed
-        self.rng = rng
-        
+        self.rng = np.random.default_rng(self.seed)
         self._crater = None
         self._projectile = None
         self._interval_number = 0
@@ -97,6 +98,7 @@ class Simulation:
         self._largest_crater = np.inf # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf # The largest projectile will be determined by the target body radius
         self._dorays = dorays
+        self._reset_surface = reset_surface
          
         # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
         # in order to instantiate the target body.
@@ -155,11 +157,10 @@ class Simulation:
         self.scale = get_scaling_model(scaling_model)(target=self.target, rng=self.rng)
       
         # Set the morphology model for this simulation 
-        if morphology_model is None:
-            self.morphology_cls = get_morphology_model("simplemoon")
-        elif isinstance(morphology_model, str):
+        if isinstance(morphology_model, str):
             try:
                 self.morphology_cls = get_morphology_model(morphology_model)
+                self.morphology_model = morphology_model
             except KeyError:
                 raise ValueError(f"{morphology_model} is not a valid morphology model name")
         else:
@@ -179,7 +180,7 @@ class Simulation:
                         superdomain_scale_factor = rmax / crater.radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-        self.surf = Surface.initialize(target=self.target, reset_surface=reset_surface, simdir=simdir, rng=self.rng, **kwargs)
+        self.surf = Surface.initialize(target=self.target, reset_surface=self.reset_surface, simdir=self.simdir, rng=self.rng, **kwargs)
 
         return
 
@@ -738,7 +739,10 @@ class Simulation:
         pass
 
     def to_config(self, **kwargs: Any) -> dict:
-        return {}
+        redundant_keys = ['target', 'production_model', 'morphology_model', 'scaling_model']
+        user_defined = [name for name in self._user_defined if name not in redundant_keys]
+        config = {name: getattr(self, name) for name in user_defined}
+        return {key: value for key, value in config.items() if value is not None} 
 
     def save(self, **kwargs: Any) -> None:
                 
@@ -764,7 +768,7 @@ class Simulation:
         sim_config['production'] = prod_config
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
-            yaml.safe_dump(_convert_numpy(sim_config), f, indent=4, sort_keys=False)
+            yaml.safe_dump(_convert_for_yaml(sim_config), f, indent=4, sort_keys=False)
         
         return
     
@@ -1175,6 +1179,19 @@ class Simulation:
         elif not isinstance(value, Generator): 
             raise TypeError("rng must be a numpy.random.Generator instance or None")
         self._rng = value
+
+    @property
+    def reset_surface(self):
+        """
+        Flag to reset the surface before running the simulation. Set during initialization.
+        """
+        return self._reset_surface
+
+    @reset_surface.setter
+    def reset_surface(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("reset_surface must be a boolean")
+        self._reset_surface = value
     
     @property
     def simdir(self):
@@ -1234,6 +1251,19 @@ class Simulation:
         if not issubclass(value, MorphologyModel):
             raise TypeError("morphology_cls must be a subclass of MorphologyModel")
         self._morphology_cls = value
+
+    @property
+    def morphology_model(self):
+        """
+        The name of the morphology model to load from the plugins library.
+        """
+        return self._morphology_model
+
+    @morphology_model.setter
+    def morphology_model(self, value):
+        if not isinstance(value, str):
+            raise TypeError("morphology_model must be a string")
+        self._morphology_model = value
 
     @property
     def crater(self):
