@@ -60,6 +60,7 @@ class Target:
         object.__setattr__(self, "_catalogue_name", None)
         object.__setattr__(self, "_user_defined", set())   # which public props were set by user
         object.__setattr__(self, "_updating",     False)   # guard against recursive updates
+        object.__setattr__(self, "_bulk_property_names", ("radius", "diameter", "gravity", "bulk_density"))
 
         if radius       is not None: self.radius       = radius
         if diameter     is not None: self.diameter     = diameter
@@ -95,15 +96,16 @@ class Target:
 
         # if it’s one of our “core” private attrs, and we’re not already in an update,
         # treat this as a user‐driven change:
-        if name in ("_radius", "_diameter", "_gravity", "_bulk_density") and not self._updating:
+        if not self._updating:
             # mark that the *public* name was user‐defined
             public_name = name.lstrip("_")
             self._user_defined.add(public_name)
 
             # now recompute *all* interdependent quantities
-            object.__setattr__(self, "_updating", True)
-            self._update_bulk_properties()
-            object.__setattr__(self, "_updating", False)
+            if name in self._bulk_property_names:
+                object.__setattr__(self, "_updating", True)
+                self._update_bulk_properties()
+                object.__setattr__(self, "_updating", False)
 
     def _update_bulk_properties(self):
         """Given any two of _radius/_diameter/_gravity/_bulk_density, compute the others."""
