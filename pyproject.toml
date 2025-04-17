@@ -48,6 +48,10 @@ richardson2009 = "cratermaker.plugins.scaling.richardson2009:Richardson2009"
 [project.entry-points."cratermaker.plugins.target_catalogue"]
 default = "cratermaker.plugins.target_catalogue.default:DefaultTargetCatalogue"
 
+[project.entry-points."cratermaker.plugins.production"]
+powerlaw = "cratermaker.plugins.production.powerlaw:PowerLawProduction"
+neukum = "cratermaker.plugins.production.neukum:NeukumProduction"
+
 [build-system]
 requires = [
     'cython>=3',

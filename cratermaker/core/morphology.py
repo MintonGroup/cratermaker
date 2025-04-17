@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from scipy.optimize import fsolve
 from numpy.typing import ArrayLike
-from typing import Any, Tuple
+from typing import Any
 from .target import Target
 from ..utils.custom_types import FloatLike
 from .surface import Surface
@@ -394,7 +394,7 @@ class Morphology:
         psd=np.flipud(psd)
         return psd
             
-    def get_2D_power_spectral_density(self,feature,psd_coef,ejecta_radius_norm,floor_radius_norm,max_effec_freq) -> Tuple[NDArray,NDArray,NDArray,NDArray,NDArray,NDArray]:
+    def get_2D_power_spectral_density(self,feature,psd_coef,ejecta_radius_norm,floor_radius_norm,max_effec_freq) -> tuple[NDArray,NDArray,NDArray,NDArray,NDArray,NDArray]:
         """
         This method constructs a 2D power spectral density.
         Coeffcients are from [1]_.

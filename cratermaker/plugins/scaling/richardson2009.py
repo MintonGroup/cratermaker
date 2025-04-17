@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.random import Generator
-from typing import Tuple, Any
+from typing import Any
 from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
@@ -228,7 +228,7 @@ class Richardson2009(ScalingModel):
         return transient_diameter, morphology_type
 
 
-    def transient_to_final(self, transient_diameter: FloatLike) -> Tuple[np.float64, str]:
+    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]:
         """
         Computes the final diameter of a crater based on its transient diameter and morphology type.
 

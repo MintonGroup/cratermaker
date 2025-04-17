@@ -246,7 +246,7 @@ Methods
     Production.function
     Production.function_inverse
     Production.sample
-    Production.set_model_parameters
+    Production._set_model_parameters
 
 Attributes
 ----------
@@ -290,7 +290,7 @@ Methods
     NeukumProduction.function
     NeukumProduction.chronology
     NeukumProduction.size_frequency_distribution
-    NeukumProduction.set_model_parameters
+    NeukumProduction._set_model_parameters
 
 Attributes
 ----------

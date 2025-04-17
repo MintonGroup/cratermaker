@@ -6,18 +6,19 @@ from pathlib import Path
 import shutil
 from tqdm import tqdm
 from glob import glob
-from typing import Any, Tuple, Type, Sequence
+from collections.abc import Sequence
+from typing import Any, Type
 from numpy.typing import ArrayLike
 import warnings
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, _save_surface
-from ..plugins.scaling import ScalingModel, get_scaling_model
 from .morphology import Morphology
-from .production import Production, NeukumProduction
 from ..utils.general_utils import _set_properties, _convert_numpy
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
+from ..plugins.scaling import ScalingModel, get_scaling_model
+from ..plugins.production import ProductionModel, get_production_model
 import yaml
 
 class Simulation:
@@ -32,8 +33,8 @@ class Simulation:
                  rng: Generator | None = None,
                  simdir: os.PathLike = Path.cwd(), 
                  scaling_model: str = "richardson2009",
+                 production_model: str | None = None,
                  morphology_cls: Type[Morphology] | None = None,
-                 production_cls: Type[Production] | None = None,
                  ejecta_truncation: FloatLike | None = None,
                  dorays: bool = True,
                  **kwargs: Any):
@@ -53,15 +54,15 @@ class Simulation:
         simdir: PathLike, optional
             Path to the simulation directory, default is current working directory.
         scaling_model : str, optional
-            The name of the scaling model to use from the plugins library. The default is "richardson2009".
-        morphology_cls : Type[Morphology], optional
-            The Morphology class that defines the model used to describe the morphology of the crater. If none provided, then the 
-            default will be based on the default morphology model.
-        production_cls: Type[Production], optional
-            The Production class that defines the production function used to populate the surface with craters. If none provided, 
+            The name of the impactor->crater size scaling model to use from the plugins library. The default is "richardson2009".
+        production_model: str, optional
+            The name of the production function model to use from the plugins library that defines the production function used to populate the surface with craters. If none provided, 
             then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
             body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
             Earth, and a simple power law model otherwise.
+        morphology_cls : Type[Morphology], optional
+            The Morphology class that defines the model used to describe the morphology of the crater. If none provided, then the 
+            default will be based on the default morphology model.
         ejecta_truncation : float, optional
             The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
             truncation distance based on where the ejecta thickness reaches a small value. 
@@ -123,19 +124,22 @@ class Simulation:
             kwargs['impact_velocity_model'] = impact_velocity_model
                 
         # Set the production function model for this simulation 
-        if production_cls is None:
+        if production_model is None:
             if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
-                production_cls = NeukumProduction
+                production_model = "neukum"
                 if target_name in ['Moon', 'Mars']:
-                    self.production = production_cls(model=target_name, rng=self.rng, **kwargs) 
+                    self.production = get_production_model(production_model)(version=target_name, rng=self.rng, **kwargs)
                 else:
-                    self.production = production_cls(model='projectile', rng=self.rng, **kwargs)
+                    self.production = get_production_model(production_model)(version="projectile", rng=self.rng, **kwargs)
             else:
-                self.production = Production(rng=self.rng, **kwargs)
-        elif issubclass(production_cls, Production):
-            self.production = production_cls(rng=self.rng, **kwargs)
+                self.production = get_production_model("powerlaw")(rng=self.rng, **kwargs)
+        elif isinstance(production_model, str):
+            try:
+                self.production = get_production_model(production_model)(rng=self.rng, **kwargs)
+            except KeyError:
+                raise ValueError(f"{production_model} is not a valid production model name")
         else:
-            raise TypeError("production must be a subclass of Production")
+            raise TypeError("production_model must be string or None")
             
         if not target:
             target = Target("Moon",**kwargs)
@@ -230,7 +234,7 @@ class Simulation:
 
     def generate_crater(self, 
                         **kwargs: Any
-                       ) -> Tuple[Crater, Projectile]:
+                       ) -> tuple[Crater, Projectile]:
         """
         Create a new Crater object and its corresponding Projectile.
 
@@ -278,7 +282,7 @@ class Simulation:
     
     def generate_projectile(self, 
                             **kwargs: Any
-                           ) -> Tuple[Projectile, Crater]:
+                           ) -> tuple[Projectile, Crater]:
         """
         Create a new Projectile object and its corresponding Crater.
 
@@ -1197,7 +1201,7 @@ class Simulation:
 
     @production.setter
     def production(self, value):
-        if not issubclass(value.__class__, Production):
+        if not issubclass(value.__class__, ProductionModel):
             raise TypeError("production must be a subclass of Production")
         self._production = value
 

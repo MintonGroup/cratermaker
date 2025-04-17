@@ -2,14 +2,13 @@ import xarray as xr
 from xarray import DataArray, Dataset
 import uxarray as uxr
 from uxarray import UxDataArray, UxDataset
-from glob import glob
 import os
 import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Literal, get_args, Any, Union
+from typing import List, Literal, get_args, Any, Union
 from typing_extensions import Type
 import hashlib
 from numpy.typing import NDArray, ArrayLike
@@ -40,14 +39,14 @@ class GridStrategy(ABC):
         self._grid = None
 
     @abstractmethod
-    def generate_face_distribution(self) -> Tuple[NDArray,NDArray,NDArray]:
+    def generate_face_distribution(self) -> tuple[NDArray,NDArray,NDArray]:
         pass
     
 
     def generate_grid(self,
                       grid_file: os.PathLike,
                       grid_hash: str | None = None,
-                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:                       
+                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:                       
         """
         Generate a tessellated mesh of a sphere of evenly distributed points
 
@@ -257,7 +256,7 @@ class IcosphereGrid(GridStrategy):
     def generate_grid(self,
                       grid_file: os.PathLike,
                       grid_hash: str | None = None,
-                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:        
+                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
         super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
@@ -313,7 +312,7 @@ class ArbitraryResolutionGrid(GridStrategy):
     def generate_grid(self,
                       grid_file: os.PathLike,
                       grid_hash: str | None = None,
-                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:        
+                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
         super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
@@ -361,7 +360,7 @@ class HiResLocalGrid(GridStrategy):
         self.superdomain_scale_factor = superdomain_scale_factor
         
     
-    def _generate_variable_size_array(self) -> Tuple[NDArray, NDArray, NDArray]:
+    def _generate_variable_size_array(self) -> tuple[NDArray, NDArray, NDArray]:
         """
         Create an array of target pixel sizes for pairs of longitude and latitude values for a high-resolution local mesh around a 
         given location, with adaptive cell sizes outside the local region.
@@ -547,7 +546,7 @@ class HiResLocalGrid(GridStrategy):
     def generate_grid(self,
                       grid_file: os.PathLike,
                       grid_hash: str | None = None,
-                      **kwargs: Any) -> Tuple[os.PathLike, os.PathLike]:        
+                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
         super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
@@ -1146,14 +1145,14 @@ class Surface(UxDataset):
         return radius * c
     
     def get_distance(self, 
-                     location: Tuple[np.float64, np.float64]) -> UxDataArray:
+                     location: tuple[np.float64, np.float64]) -> UxDataArray:
         """
         Computes the distances between nodes and faces and a given location.
 
         Parameters
         ----------
-        location : Tuple[np.float64, np.float64]
-            Tuple containing the longitude and latitude of the location in degrees.
+        location : tuple[np.float64, np.float64]
+            tuple containing the longitude and latitude of the location in degrees.
 
         Returns
         -------
@@ -1207,14 +1206,14 @@ class Surface(UxDataset):
 
         return initial_bearing
     
-    def get_initial_bearing(self, location: Tuple[np.float64, np.float64]) -> UxDataArray:
+    def get_initial_bearing(self, location: tuple[np.float64, np.float64]) -> UxDataArray:
         """
         Computes the initial bearing between nodes and faces and a given location.
 
         Parameters
         ----------
-        location : Tuple[np.float64, np.float64]
-            Tuple containing the longitude and latitude of the location in degrees.
+        location : tuple[np.float64, np.float64]
+            tuple containing the longitude and latitude of the location in degrees.
 
         Returns
         -------
@@ -1267,15 +1266,15 @@ class Surface(UxDataset):
         return node_ind.item(), face_ind.item()
 
     def get_reference_surface(self,
-                            location: Tuple[FloatLike, FloatLike], 
+                            location: tuple[FloatLike, FloatLike], 
                             region_radius: np.float64) -> NDArray[np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
 
         Parameters
         ----------
-        location : Tuple[float, float]
-            Tuple containing the longitude and latitude of the reference location in degrees.
+        location : tuple[float, float]
+            tuple containing the longitude and latitude of the reference location in degrees.
         region_radius : float
             The radius of the region to compute the average over in meters.
 
@@ -1408,7 +1407,7 @@ class Surface(UxDataset):
         return ds_new    
    
     def extract_region(self,
-                       location: Tuple[FloatLike, FloatLike],
+                       location: tuple[FloatLike, FloatLike],
                        region_radius: FloatLike): 
         
         """
@@ -1416,8 +1415,8 @@ class Surface(UxDataset):
         
         Parameters
         ----------
-        location : Tuple[float, float]
-            Tuple containing the longitude and latitude of the location in degrees.
+        location : tuple[float, float]
+            tuple containing the longitude and latitude of the location in degrees.
         region_radius : float
             The radius of the region to extract in meters.
             
@@ -1457,7 +1456,7 @@ class Surface(UxDataset):
                                     face_index: int, 
                                     size: int = 1,
                                     **kwargs
-                                    ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
+                                    ) -> Union[np.float64, tuple[np.float64, np.float64], ArrayLike]:
         """
         Generate a random coordinate within a given face of an unstructured mesh.
 
