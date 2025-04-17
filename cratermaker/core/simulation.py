@@ -753,7 +753,7 @@ class Simulation:
         scale_config = self.scale.to_config()
         sim_config = self.to_config() 
         sim_config['target'] = target_config
-        sim_config['scaling_model'] = scale_config
+        sim_config['scaling'] = scale_config
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
             yaml.safe_dump(_convert_numpy(sim_config), f, indent=4)

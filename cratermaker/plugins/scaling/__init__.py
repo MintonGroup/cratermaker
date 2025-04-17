@@ -12,7 +12,7 @@ class ScalingModel(ABC):
 
     def __init__(self):
         object.__setattr__(self, "_user_defined", set())
-        self._user_defined.add("scaling_model")
+        self._user_defined.add("model")
 
     def to_config(self) -> dict:
         """
@@ -21,11 +21,11 @@ class ScalingModel(ABC):
         return {name: getattr(self, name) for name in self._user_defined}
 
     @property
-    def scaling_model(self):
+    def model(self):
         """
         The registered name of this scaling model set by the @register_scaling_model decorator.
         """ 
-        return self._scaling_model
+        return self._model
 
 _registry: dict[str, ScalingModel] = {}
 
@@ -34,7 +34,7 @@ def register_scaling_model(name: str):
     Class decorator to register an impactor->crater size scaling plugin under the given key.
     """
     def decorator(cls):
-        cls._scaling_model = name 
+        cls._model = name 
         _registry[name] = cls
         return cls
     return decorator
