@@ -4,6 +4,7 @@ from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.components.grid import register_grid_type, GridMaker
+from cratermaker.utils.general_utils import parameter
 
 @register_grid_type("icosphere")
 class IcosphereGrid(GridMaker):    
@@ -60,3 +61,13 @@ class IcosphereGrid(GridMaker):
         pix_std = face_sizes.std().item() * self.radius
         print(f"Effective pixel size: {pix_mean:.2f} +/- {pix_std:.2f} m")
         return    
+    
+    @parameter
+    def gridlevel(self) -> int:
+        return self._gridlevel
+
+    @gridlevel.setter
+    def gridlevel(self, value: int) -> None:
+        if value < 0:
+            raise ValueError("Grid level must be a non-negative integer.")
+        self._gridlevel = value

@@ -6,19 +6,20 @@ import os
 import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
+from pathlib import Path
 import tempfile
 from typing import List, Union
 from numpy.typing import NDArray, ArrayLike
 from numpy.random import Generator
 from .target import Target
 import warnings
-from pathlib import Path
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
-from cratermaker.components.grid import GridMaker, get_grid_type
+from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.components.grid import GridMaker, get_grid_type, available_grid_types
 
 # Default file names and directories
-_DATA_DIR = "surface_data"
+_DATA_DIR = Path.cwd() / "surface_data"
 _COMBINED_DATA_FILE_NAME = "surf.nc"
 _GRID_FILE_NAME = "grid.nc"
 
@@ -49,13 +50,13 @@ class Surface(UxDataset):
     **kwargs
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
     """
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_rng')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_rng', '_user_defined', '_compute_face_areas', '_gridtype', '_grid_config')    
 
     def __init__(self, 
                  *args, 
                  target: Target | None = None, 
-                 data_dir: os.PathLike | None = None,
-                 grid_file: os.PathLike | None = None,
+                 data_dir: os.PathLike = _DATA_DIR,
+                 grid_file: os.PathLike = _DATA_DIR / _GRID_FILE_NAME,
                  compute_face_areas: bool = False,
                  rng: Generator | None = None, 
                  **kwargs):
@@ -66,12 +67,14 @@ class Surface(UxDataset):
         # Additional initialization for Surface
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
-        self._data_dir = data_dir
-        self._grid_file = grid_file
-        self._target = target
         self._area = None
         self._smallest_length = None
+        self._target = target
+
+        self.data_dir = data_dir
+        self.grid_file = grid_file
         self.rng = rng
+        self.compute_face_areas = compute_face_areas
        
         if compute_face_areas: 
             # Compute face area needed in the non-normalized units for future calculations
@@ -79,6 +82,9 @@ class Surface(UxDataset):
             self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC     
         
         return   
+
+    def to_config(self, **kwargs):
+        return _to_config(self)
 
     @classmethod
     def initialize(cls, 
@@ -147,23 +153,20 @@ class Surface(UxDataset):
             grid_file = Path(grid_file)
             
         # Process the grid parameters from the arguments and build the strategy object 
-        if isinstance(gridtype, str):
-            try:
-                gridtype = get_grid_type(gridtype)(pix=pix, radius=target.radius, **kwargs)
-            except:
-                raise ValueError(f"Failed to generate {gridtype} grid")
-        else:
-            raise TypeError("gridtype must be a string")
+        try:
+            grid = get_grid_type(gridtype)(pix=pix, radius=target.radius, **kwargs)
+        except:
+            raise ValueError(f"Failed to generate {gridtype} grid")
    
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
         if not regrid: 
-            make_new_grid = gridtype.check_if_regrid(grid_file=grid_file, **kwargs)
+            make_new_grid = grid.check_if_regrid(grid_file=grid_file, **kwargs)
         else:
             make_new_grid = True
         
         if make_new_grid:
             print("Creating a new grid")
-            gridtype.create_grid(grid_file=grid_file, **kwargs)
+            grid.create_grid(grid_file=grid_file, **kwargs)
         else:
             print("Using existing grid")
         
@@ -216,6 +219,8 @@ class Surface(UxDataset):
                                save_to_file=True
                               )                         
             surf.set_elevation(0.0,save_to_file=True)
+
+        surf.grid_config = grid.to_config()
         
         return surf        
         
@@ -308,7 +313,7 @@ class Surface(UxDataset):
             ds._area = self._area
         return ds   
 
-    @property
+    @parameter
     def data_dir(self):
         """
         Directory for data files.
@@ -321,7 +326,7 @@ class Surface(UxDataset):
         if not os.path.exists(self._data_dir):
             os.makedirs(self._data_dir)
 
-    @property
+    @parameter
     def grid_file(self):
         """
         Path to the grid file.
@@ -336,6 +341,38 @@ class Surface(UxDataset):
         self._grid_file = value
 
     @property
+    def gridtype(self):
+        """
+        The type of grid used for the surface.
+        """
+        return self._gridtype
+    
+    @gridtype.setter
+    def gridtype(self, value):
+        if not isinstance(value, str):
+            raise TypeError("gridtype must be a string")
+        if value not in available_grid_types():
+            raise ValueError(f"gridtype must be one of {available_grid_types()}")
+        self._gridtype = value
+
+    @parameter
+    def compute_face_areas(self):
+        """
+        Flag to indicate whether to compute face areas.
+        """
+        return self._compute_face_areas
+
+    @compute_face_areas.setter
+    def compute_face_areas(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("compute_face_areas must be a boolean")
+        self._compute_face_areas = value
+        if value:
+            # Compute face area needed in the non-normalized units for future calculations
+            self['face_areas'] = self.uxgrid.face_areas.assign_attrs(units='m^2') * self.target.radius**2
+            self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC
+
+    @parameter
     def smallest_length(self):
         """
         Smallest length value that is directly modeled on the grid. This is used to determine the maximum distance of ejecta to 
@@ -348,7 +385,20 @@ class Surface(UxDataset):
         if not isinstance(value, float):
             raise TypeError("smallest_length must be a float")
         self._smallest_length = value
-        
+
+    @parameter
+    def grid_config(self):
+        """
+        The grid configuration used for the surface.
+        """
+        return self._grid_config
+    
+    @grid_config.setter
+    def grid_config(self, value):
+        if not isinstance(value, dict):
+            raise TypeError("grid_config must be a dictionary")
+        self._grid_config = value
+
     @property
     def area(self):
         """

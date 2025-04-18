@@ -2,7 +2,7 @@ import os
 import numpy as np
 from typing import Any
 from numpy.typing import NDArray
-from cratermaker.utils.general_utils import validate_and_convert_location
+from cratermaker.utils.general_utils import validate_and_convert_location, parameter
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.components.grid import register_grid_type, GridMaker
 
@@ -226,7 +226,6 @@ class HiResLocalGrid(GridMaker):
         
         return points
 
-
     def generate_grid(self,
                       grid_file: os.PathLike,
                       grid_hash: str | None = None,
@@ -240,7 +239,7 @@ class HiResLocalGrid(GridMaker):
         print(f"Effective pixel size range: {pix_min:.2f},{pix_max:.2f} m")
         return
 
-    @property
+    @parameter
     def local_radius(self):
         """
         The radius of the local region in meters.
@@ -255,7 +254,7 @@ class HiResLocalGrid(GridMaker):
             raise ValueError("local_radius must be less than 2 * pi * radius of the target body")
         self._local_radius = value
         
-    @property
+    @parameter
     def local_location(self):
         """
         The longitude and latitude of the location in degrees.
@@ -268,7 +267,7 @@ class HiResLocalGrid(GridMaker):
             raise TypeError("local_location must be a tuple of two floats")
         self._local_location = validate_and_convert_location(value)
         
-    @property
+    @parameter
     def superdomain_scale_factor(self):
         """
         A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters that are 

@@ -20,6 +20,7 @@ class ScalingModel(ABC):
         """ 
         return self._model
 
+
 _registry: dict[str, ScalingModel] = {}
 
 def register_scaling_model(name: str):

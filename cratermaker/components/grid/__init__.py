@@ -10,12 +10,10 @@ from numpy.typing import NDArray
 from typing import Any
 import hashlib
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.utils.general_utils import _to_config
+from cratermaker.utils.general_utils import _to_config, parameter
 
 class GridMaker(ABC):
     def __init__(self, **kwargs: Any):
-        object.__setattr__(self, "_user_defined", set())
-        self._user_defined.add("gridtype")
         self._grid = None
 
     def to_config(self, **kwargs: Any) -> dict:
@@ -227,7 +225,7 @@ class GridMaker(ABC):
 
         return points    
 
-    @property
+    @parameter
     def pix(self):
         """
         The approximate face size for a cell of the mesh.
@@ -240,7 +238,7 @@ class GridMaker(ABC):
             raise TypeError("pix must be a positive float")
         self._pix = value
 
-    @property
+    @parameter
     def radius(self):
         """
         The radius of the target body in meters.
@@ -266,7 +264,7 @@ class GridMaker(ABC):
             raise TypeError("grid must be an instance of uxarray.Grid")
         self._grid = value
 
-    @property
+    @parameter
     def gridtype(self):
         """
         The registered name of this scaling gridtype set by the @register_scaling_gridtype decorator.

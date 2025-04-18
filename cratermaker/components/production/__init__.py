@@ -32,8 +32,6 @@ class ProductionModel(ABC):
         rng : numpy.random.Generator, optional
             A random number generator to use for sampling. If None, a default generator will be used.
         """
-        object.__setattr__(self, "_user_defined", set())
-        self._user_defined.add("model")
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
         self.rng = rng
 
