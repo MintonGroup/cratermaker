@@ -42,10 +42,10 @@ class PowerLawProduction(ProductionModel):
                 **kwargs: Any):
 
         super().__init__(rng=rng, 
-                         generator_type=generator_type, 
                          mean_velocity=mean_velocity, 
                          impact_velocity_model=impact_velocity_model, 
                          **kwargs) 
+        self.generator_type = generator_type
         
         # Default values that are approximately equal to the NPF for the Moon
         default_N1_coef = {

@@ -5,6 +5,36 @@ from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
 from pathlib import Path
 
+class Parameter(property):
+    """
+    A property descriptor that tracks user-defined properties.  This class is a subclass of the built-in property class and is used 
+    to create properties in a class that can be set and retrieved. It also tracks whether the property has been set by the user, 
+    allowing for parameters to be exported to a YAML configuration file.
+    """
+    def __init__(self, fget, fset=None, fdel=None, doc=None):
+        super().__init__(fget, fset, fdel, doc)
+        self.name = fget.__name__
+
+    def setter(self, fset):
+        def wrapped(instance, value):
+            if not hasattr(instance, "_user_defined"):
+                instance._user_defined = set()
+            instance._user_defined.add(self.name)
+            fset(instance, value)
+        return Parameter(self.fget, wrapped, self.fdel, self.__doc__)
+
+def parameter(fget=None):
+    """
+    A decorator to mark a property as a user-settable parameter.
+    Can be used with or without parentheses.
+    """
+    if fget is None:
+        def decorator(fget):
+            return Parameter(fget)
+        return decorator
+    else:
+        return Parameter(fget)
+
 def _set_properties(obj,**kwargs):
     """
     Set properties of a simulation object from various sources.
@@ -148,9 +178,11 @@ def _convert_for_yaml(obj):
     elif isinstance(obj, (str, int, float, bool)):
         return obj
 
+
 def _to_config(obj):
     config = _convert_for_yaml({name: getattr(obj, name) for name in obj._user_defined if hasattr(obj, name)})
     return {key: value for key, value in config.items() if value is not None} 
+
 
 def validate_and_convert_location(location):
     """

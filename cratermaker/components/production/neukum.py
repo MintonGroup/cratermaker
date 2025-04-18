@@ -1,8 +1,9 @@
 import numpy as np
 from numpy.random import Generator
+from numpy.typing import NDArray
 from cratermaker.components.production import register_production_model, ProductionModel
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.utils.general_utils import R_to_CSFD
+from cratermaker.utils.general_utils import R_to_CSFD, parameter
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 from typing import Any, Union
@@ -46,7 +47,6 @@ class NeukumProduction(ProductionModel):
     """
     def __init__(self, 
                  version: str = "Moon",
-                 generator_type: str = "crater",
                  mean_velocity: FloatLike | None = None,
                  impact_velocity_model: str | None = None,
                  rng: Generator | None = None, 
@@ -66,104 +66,18 @@ class NeukumProduction(ProductionModel):
             For `version=="Moon"` or `version=="Projectile"`, the default is "Moon_MBA". For `version=="Mars"`, the default is "Mars_MBA". 
         """
         super().__init__(rng=rng, 
-                         generator_type=generator_type, 
                          mean_velocity=mean_velocity, 
                          impact_velocity_model=impact_velocity_model, 
                          **kwargs) 
 
-        # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
-        self._valid_versions = ["Moon", "Mars", "Projectile"]
-        if version.title() not in self._valid_versions:
-            raise ValueError(f"Invalid version '{version}'. Valid options are {self._valid_versions}")
-        self.version = version.title()
-        
-        if self.version == "Projectile":
-            self.generator_type = "projectile"
-        else:
-            self.generator_type = "crater"
+        self.version = version
 
-        sfd_coef = {
-                "Moon" : np.array(
-                    [
-                        -3.0876,
-                        -3.557528,
-                        +0.781027,
-                        +1.021521,
-                        -0.156012,
-                        -0.444058,
-                        +0.019977,
-                        +0.086850,
-                        -0.005874,
-                        -0.006809,
-                        +8.25e-4, 
-                        +5.54e-5
-                    ]),
-                "Mars" : np.array(
-                    [
-                        -3.384, 
-                        -3.197,
-                        +1.257,
-                        +0.7915,
-                        -0.4861,
-                        -0.3630,
-                        +0.1016,
-                        +6.756e-2,
-                        -1.181e-2,
-                        -4.753e-3,
-                        +6.233e-4,
-                        +5.805e-5
-                    ]),
-                "Projectile" : np.array(
-                    [
-                        0,
-                        +1.375458,
-                        +1.272521e-1,
-                        -1.282166,
-                        -3.074558e-1,
-                        +4.149280e-1,
-                        +1.910668e-1,
-                        -4.260980e-2,
-                        -3.976305e-2,
-                        -3.180179e-3,
-                        +2.799369e-3,
-                        +6.892223e-4,
-                        +2.614385e-6,
-                        -1.416178e-5,
-                        -1.191124e-6
-                    ]
-                )
-            }
-        self._sfd_coef = sfd_coef[self.version]
-        sfd_range = {
-                "Moon" : np.array([0.01,1000]),
-                "Mars" : np.array([0.015,362]),
-                "Projectile" : np.array([0.0001, 200.0]) # Estimated based on Fig. 16 of Ivanov et al. (2001)
-            }
-        self._sfd_range = sfd_range[self.version]
-        
-        # Chronology function parameters
-        self._valid_time = (0,4500)  # Range over which the production function is valid
-        self._tau = 1.0 / 6.93
-        Cexp_moon = 5.44e-14
-        Clin = {
-                "Moon" : 10**(sfd_coef.get("Moon")[0]),
-                "Mars" : 10**(sfd_coef.get("Mars")[0]),
-                "Projectile": 10**(sfd_coef.get("Projectile")[0]),
-        }
-        Cexp = {
-                "Moon" : Cexp_moon,
-                "Mars" : Cexp_moon * Clin["Mars"] / Clin["Moon"],
-                "Projectile": Cexp_moon * Clin["Projectile"] / Clin["Moon"],
-            }   
-        self._Cexp = Cexp[self.version]
-        self._Clin = Clin[self.version]
-        
         if not impact_velocity_model and not mean_velocity: 
             if self.version=="Moon" or self.version=="Projectile":
                 self.impact_velocity_model = "Moon_MBA"
             if self.version=="Mars":
                 self.impact_velocity_model = "Mars_MBA"
-        
+
 
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -263,7 +177,208 @@ class NeukumProduction(ProductionModel):
         N1_values /= N1_reference
         
         return  N1_values 
-   
+
+    @property
+    def valid_versions(self) -> list[str]:
+        """
+        The valid versions of the production function. 
+        
+        Returns
+        -------
+        list
+            The valid versions of the production function.
+        """
+        return ["Moon", "Mars", "Projectile"] 
+
+    @property
+    def generator_type(self) -> str:
+        """
+        Get the generator type of the production function.
+        
+        Returns
+        -------
+        str
+            The generator type of the production function.
+        """
+        return self._generator_type
+    
+    @generator_type.setter
+    def generator_type(self, value: str) -> None:
+        """
+        The generator type for this production function is determined by the version. 
+        """
+        raise NotImplementedError("The generator type cannot be changed for this production function.")
+
+    @parameter
+    def version(self) -> str:
+        """
+        Get the version of the production function.
+        
+        Returns
+        -------
+        str
+            The version of the production function.
+        """
+        return self._version
+    
+    @version.setter
+    def version(self, value: str) -> None:
+        """
+        Set the version of the production function.
+        
+        Parameters
+        ----------
+        value : str
+            The version of the production function.
+        """
+        if value.title() not in self.valid_versions:
+            raise ValueError(f"Invalid version '{value}'. Valid options are {self.valid_versions}")
+        self._version = value.title()
+
+        if self._version == "Projectile":
+            self._generator_type = "projectile"
+        else:
+            self._generator_type = "crater"
+        
+    @property
+    def sfd_coef(self) -> list[float]:
+        """
+        Get the table of coefficients for the production function.
+        
+        Returns
+        -------
+        list
+            The table of SFD coefficients for the production function. 
+        """
+        sfd_coef = {
+                "Moon" : [
+                        -3.0876,
+                        -3.557528,
+                        +0.781027,
+                        +1.021521,
+                        -0.156012,
+                        -0.444058,
+                        +0.019977,
+                        +0.086850,
+                        -0.005874,
+                        -0.006809,
+                        +8.25e-4, 
+                        +5.54e-5
+                    ],
+                "Mars" : [
+                        -3.384, 
+                        -3.197,
+                        +1.257,
+                        +0.7915,
+                        -0.4861,
+                        -0.3630,
+                        +0.1016,
+                        +6.756e-2,
+                        -1.181e-2,
+                        -4.753e-3,
+                        +6.233e-4,
+                        +5.805e-5
+                    ],
+                "Projectile" : [
+                        0,
+                        +1.375458,
+                        +1.272521e-1,
+                        -1.282166,
+                        -3.074558e-1,
+                        +4.149280e-1,
+                        +1.910668e-1,
+                        -4.260980e-2,
+                        -3.976305e-2,
+                        -3.180179e-3,
+                        +2.799369e-3,
+                        +6.892223e-4,
+                        +2.614385e-6,
+                        -1.416178e-5,
+                        -1.191124e-6
+                    ]
+            }
+
+        return sfd_coef[self.version]
+    
+    @property
+    def Clin(self) -> float:
+        """
+        Get the linear coefficient for the production function.
+        
+        Returns
+        -------
+        float
+            The linear coefficient for the production function.
+        """
+        Clin = {
+                "Moon" : 10**(self.sfd_coef.get("Moon")[0]),
+                "Mars" : 10**(self.sfd_coef.get("Mars")[0]),
+                "Projectile": 10**(self.sfd_coef.get("Projectile")[0]),
+        }
+
+        return Clin[self.version]
+    
+    @property
+    def Cexp(self) -> float:
+        """
+        Get the exponential coefficient for the production function.
+        
+        Returns
+        -------
+        float
+            The exponential coefficient for the production function.
+        """
+        Cexp_moon = 5.44e-14
+        Cexp = {
+                "Moon" : Cexp_moon,
+                "Mars" : Cexp_moon * self.Clin["Mars"] / self.Clin["Moon"],
+                "Projectile": Cexp_moon * self.Clin["Projectile"] / self.Clin["Moon"],
+            }   
+
+        return Cexp[self.version]
+    
+    @property
+    def tau(self) -> float:
+        """
+        Get the time constant for the production function.
+        
+        Returns
+        -------
+        float
+            The time constant for the production function.
+        """
+        return 1.0 / 6.93
+
+    @property
+    def sfd_range(self) -> tuple[float, float]:
+        """
+        The range of diameters over which the SFD is valid. The range is given in m. 
+        
+        Returns
+        -------
+        tuple
+            The lower and upper bounds of the SFD range in m.
+        """
+        sfd_range = {
+                "Moon" : (10.0,1000.0e3),
+                "Mars" : (15.0,362.0e3),
+                "Projectile" : (0.1, 200.0e3) # Estimated based on Fig. 16 of Ivanov et al. (2001)
+            }
+
+        return sfd_range[self.version]
+    
+    @property
+    def valid_time(self) -> tuple[float, float]:
+        """
+        The range of ages over which the production function is valid. The range is given in My. 
+        
+        Returns
+        -------
+        tuple
+            The lower and upper bounds of the valid time range in My.
+        """
+        return (0,4500)
+
     
     def size_frequency_distribution(self,diameter: FloatLike | ArrayLike,) -> Union[FloatLike, ArrayLike]:
         """
@@ -278,7 +393,11 @@ class NeukumProduction(ProductionModel):
         -------
         FloatLike or numpy array
            Cumulative number density of craters per square meter greater than the input diameter.
-        """        
+        """      
+        # Convert m to km for internal functions
+        Dkm_lo = self.sfd_range[0] * 1e-3
+        Dkm_hi = self.sfd_range[1] * 1e-3
+
         def _extrapolate_sfd(side: str = "lo") -> Union[FloatLike, ArrayLike]:
             """
             Return the exponent, p, and and proportionality constant, A, for  the extrapolated 
@@ -294,13 +413,13 @@ class NeukumProduction(ProductionModel):
             A, p
             """    
             if side == "lo":
-                idx = 0
+                Dkm = Dkm_lo
             elif side == "hi":
-                idx = 1
+                Dkm = Dkm_hi
             else:
                 raise ValueError("side must be 'lo' or 'hi'")
-            p = _dNdD(self._sfd_range[idx])
-            A = _CSFD(self._sfd_range[idx])
+            p = _dNdD(Dkm)
+            A = _CSFD(Dkm)
             return A, p
 
 
@@ -321,12 +440,12 @@ class NeukumProduction(ProductionModel):
             """        
             def _dNdD_scalar(Dkm): 
                 dcoef = self._sfd_coef[1:]
-                if Dkm < self._sfd_range[0]:
+                if Dkm < Dkm_lo:
                     A, p = _extrapolate_sfd(side="lo")
-                    return A * (p / Dkm) * (Dkm / self._sfd_range[0]) ** p 
-                elif Dkm > self.sfd_range[1]:
+                    return A * (p / Dkm) * (Dkm / Dkm_lo) ** p 
+                elif Dkm > Dkm_hi:
                     A, p = _extrapolate_sfd(side="hi")
-                    return A * (p / Dkm) * (Dkm / self._sfd_range[0]) ** p 
+                    return A * (p / Dkm) * (Dkm / Dkm_hi) ** p 
                 else:
                     return sum(co * np.log10(Dkm) ** i for i, co in enumerate(dcoef))
             
@@ -349,13 +468,13 @@ class NeukumProduction(ProductionModel):
                 The number of craters per square kilometer greater than Dkm in diameter at age=1 Gy ago.
             """
             def _CSFD_scalar(Dkm):
-                if Dkm < self._sfd_range[0]:
+                if Dkm < Dkm_lo:
                     A, p = _extrapolate_sfd(side="lo")
-                    return A * (Dkm / self._sfd_range[0]) ** p
-                elif Dkm > self._sfd_range[1]:
+                    return A * (Dkm / Dkm_lo) ** p
+                elif Dkm > Dkm_hi:
                     A, p = _extrapolate_sfd(side="hi")
                     p -= 2.0 # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
-                    return A * (Dkm / self._sfd_range[1]) ** p
+                    return A * (Dkm / Dkm_hi) ** p
                 else:
                     logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self._sfd_coef))
                     return 10 ** logCSFD
@@ -409,9 +528,11 @@ if __name__ == "__main__":
             ax[key].xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
             ax[key].grid(True,which="minor",ls="-",lw=0.5,zorder=5)
             ax[key].grid(True,which="major",ls="-",lw=1,zorder=10)
-            inrange = (Dvals >= production._sfd_range[0]) & (Dvals <= production._sfd_range[1])
-            lo = Dvals < production._sfd_range[0]
-            hi = Dvals > production._sfd_range[1]
+            Dkm_lo = production.sfd_range[0] * 1e-3
+            Dkm_hi = production.sfd_range[1] * 1e-3
+            inrange = (Dvals >= Dkm_lo) & (Dvals <= Dkm_hi)
+            lo = Dvals < Dkm_lo
+            hi = Dvals > Dkm_hi
             for t in tvals:
                 Nvals = production.function(diameter=Dvals*1e3,age=t*1e3)
                 Nvals *= 1e6 # convert from m^-2 to km^-2
@@ -532,9 +653,11 @@ if __name__ == "__main__":
         ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
         ax.grid(True,which="minor",ls="-",lw=0.5,zorder=5)
         ax.grid(True,which="major",ls="-",lw=1,zorder=10)
-        inrange = (Dvals >= production._sfd_range[0]) & (Dvals <= production._sfd_range[1])
-        lo = Dvals < production._sfd_range[0]
-        hi = Dvals > production._sfd_range[1]
+        Dkm_lo = production.sfd_range[0] * 1e-3
+        Dkm_hi = production.sfd_range[1] * 1e-3
+        inrange = (Dvals >= Dkm_lo) & (Dvals <= Dkm_hi)
+        lo = Dvals < Dkm_lo
+        hi = Dvals > Dkm_hi
         t = 1.0
         Nvals = production.function(diameter=Dvals*1e3,age=t*1e3)
         Nvals *= 1e6 # convert from m^-2 to km^-2
@@ -548,6 +671,7 @@ if __name__ == "__main__":
    
    
     def plot_sampled_csfd():
+        from cratermaker.components.production.powerlaw import PowerLawProduction
         fig = plt.figure(1, figsize=(8, 7))
         ax = {'Power Law': fig.add_subplot(121),
             'NPF (Moon)': fig.add_subplot(122)}

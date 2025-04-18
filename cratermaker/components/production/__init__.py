@@ -9,11 +9,10 @@ from numpy.typing import ArrayLike
 from typing import Any, Union
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.montecarlo import get_random_size
-from cratermaker.utils.general_utils import _to_config
+from cratermaker.utils.general_utils import _to_config, parameter
 
 class ProductionModel(ABC):
     def __init__(self, 
-                 generator_type: str = "crater",
                  mean_velocity: FloatLike | None = None,
                  impact_velocity_model: str | None = None,
                  rng: Generator | None = None, 
@@ -25,8 +24,6 @@ class ProductionModel(ABC):
             
         Parameters
         ----------
-        generator_type : str, optional
-            The type of generator to use. This can be either "crater" or "projectile". Default is "crater". 
         mean_velocity : float, optional
             The mean impact velocity to use for the impact simulation. Only one of either mean_velocity or impact_velocity_model can be provided.
         impact_velocity_model : str, optional
@@ -37,8 +34,7 @@ class ProductionModel(ABC):
         """
         object.__setattr__(self, "_user_defined", set())
         self._user_defined.add("model")
-        self._valid_generator_types = ["crater", "projectile"]
-        self.generator_type = generator_type
+        object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
         self.rng = rng
 
         if mean_velocity and impact_velocity_model: 
@@ -50,11 +46,6 @@ class ProductionModel(ABC):
             self.impact_velocity_model = impact_velocity_model
         else:
             self.impact_velocity_model = "Moon_MBA"
-
-    def __setattr__(self, name, value):
-        object.__setattr__(self, name, value)
-        public_name = name.lstrip("_")
-        self._user_defined.add(public_name)
 
     def to_config(self, **kwargs: Any) -> dict:
         return _to_config(self)
@@ -235,7 +226,6 @@ class ProductionModel(ABC):
             **kwargs: Any,
             ) -> Union[FloatLike, ArrayLike]: ...
         
-
     def _validate_csfd(self,
                         diameter: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
                         cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
@@ -495,14 +485,7 @@ class ProductionModel(ABC):
        
         return age, age_end 
 
-    @property
-    def model(self):
-        """
-        The registered name of this scaling model set by the @register_scaling_model decorator.
-        """ 
-        return self._model
-    
-    @property
+    @parameter
     def impact_velocity_model(self):
         """Get the impact velocity model name."""
         return self._impact_velocity_model
@@ -536,7 +519,7 @@ class ProductionModel(ABC):
         self._impact_velocity_model = value
         self._mean_velocity = np.float64(predefined[value])
        
-    @property 
+    @parameter
     def mean_velocity(self):
         """The mean impact velocity for the production function."""
         return self._mean_velocity
@@ -565,11 +548,11 @@ class ProductionModel(ABC):
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
         self._rng = value or np.random.default_rng()
 
-    @property
+    @parameter
     def model(self):
         """
-        The specific model to use for the production function. Defaults to 'Powerlaw'.
-        """
+        The registered name of this scaling model set by the @register_scaling_model decorator.
+        """ 
         return self._model
 
     @model.setter
@@ -597,7 +580,7 @@ class ProductionModel(ABC):
             raise ValueError(f"Invalid model {value}. Must be one of {self.valid_models}")
         self._model = value
     
-    @property
+    @parameter
     def generator_type(self):
         """
         The type of generator to use. This can be either "crater" or "projectile". 
