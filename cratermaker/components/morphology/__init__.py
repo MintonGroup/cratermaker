@@ -1,12 +1,8 @@
 import pkgutil
 import importlib
-import numpy as np
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from numpy.typing import ArrayLike
-from typing import Any, Union
+from typing import Any
 from cratermaker.core.surface import Surface
-from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import _to_config
 
 class MorphologyModel(ABC):
@@ -14,7 +10,6 @@ class MorphologyModel(ABC):
     def form_crater(self, 
                     surf: Surface,
                     **kwargs) -> None: ...    
-
 
     def __init__(self):
         object.__setattr__(self, "_user_defined", set())

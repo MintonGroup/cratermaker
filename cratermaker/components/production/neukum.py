@@ -1,7 +1,6 @@
 import numpy as np
 from numpy.random import Generator
-from cratermaker.components.production import register_production_model
-from cratermaker.components.production.powerlaw import PowerLawProduction
+from cratermaker.components.production import register_production_model, ProductionModel
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.general_utils import R_to_CSFD
 from numpy.typing import ArrayLike
@@ -9,7 +8,7 @@ from collections.abc import Sequence
 from typing import Any, Union
 
 @register_production_model("neukum")
-class NeukumProduction(PowerLawProduction):
+class NeukumProduction(ProductionModel):
     """
     An operations class for computing the the Neukum production function for the Moon and Mars.
 
@@ -45,42 +44,38 @@ class NeukumProduction(PowerLawProduction):
     .. [4] Neukum, G., 1983. Meteorite bombardment and planetary surfaces dating. Habilitation Dissertation for Faculty Membership, University of Munich.
 
     """
-        
     def __init__(self, 
+                 version: str = "Moon",
+                 generator_type: str = "crater",
+                 mean_velocity: FloatLike | None = None,
+                 impact_velocity_model: str | None = None,
                  rng: Generator | None = None, 
                  **kwargs: Any):
         """
         Set the parameters for Neukum production. This will set the following attributes based on the value of the keyword argument
         `version`, which is either "Moon", "Mars", or "Projectile".
         
-        - sfd_coef : the coefficients for the size-frequency distribution function (See Table 1 of Neukum et al. 2001)
-        - sfd_range : the range of diameters over which the size-frequency distribution function is valid 
-        - valid_time : the range of ages over which the chronology function is valid
-        - tau : the time constant for the chronology function (See Eq. 5 of Neukum et al. 2001)
-        - Cexp : the coefficient for the exponential componenbt of the chronology function (See Eq. 5 of Neukum et al. 2001)
-        - Clin : the coefficient for the linear component of the chronology function (See Eq. 5 of Neukum et al. 2001, but our implementation corrects the typo in that expression)
-        
         Parameters
         ----------
-        **kwargs : Any
-            This function accepts the following keyword arguments:
-          
         version : str, {"Moon", "Mars", "Projectile"}
             The specific model to use for the production function. Defaults to "Moon" 
         mean_velocity : float
             The mean impact velocity to use for the impact simulation. Either mean_velocity or impact_velocity_model must be provided.
         impact_velocity_model : str
             The name of the mean impact velocity model to use for the impact simulation. Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
-            For `version=="Moon"`, the default is "Moon_MBA". For `version=="Mars"`, the default is "Mars_MBA". If `version=="Projectile"` then either mean_velocity or impact_velocity_model must be provided. 
+            For `version=="Moon"` or `version=="Projectile"`, the default is "Moon_MBA". For `version=="Mars"`, the default is "Mars_MBA". 
         """
-        super().__init__(rng, **kwargs) 
+        super().__init__(rng=rng, 
+                         generator_type=generator_type, 
+                         mean_velocity=mean_velocity, 
+                         impact_velocity_model=impact_velocity_model, 
+                         **kwargs) 
 
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
-        self._valid_models = ["Moon", "Mars", "Projectile"]
-        version = kwargs.get("model", "Moon")
-        if version not in self._valid_models:
-            raise ValueError(f"Invalid version '{version}'. Valid options are {self._valid_models}")
-        self.version = version
+        self._valid_versions = ["Moon", "Mars", "Projectile"]
+        if version.title() not in self._valid_versions:
+            raise ValueError(f"Invalid version '{version}'. Valid options are {self._valid_versions}")
+        self.version = version.title()
         
         if self.version == "Projectile":
             self.generator_type = "projectile"
@@ -163,18 +158,11 @@ class NeukumProduction(PowerLawProduction):
         self._Cexp = Cexp[self.version]
         self._Clin = Clin[self.version]
         
-        if "mean_velocity" in kwargs and "impact_velocity_model" in kwargs:
-            raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
-        if "mean_velocity" in kwargs:
-            self.mean_velocity = kwargs["mean_velocity"]
-        elif "impact_velocity_model" in kwargs:
-            self.impact_velocity_model = kwargs.get("impact_velocity_model")
-        elif self.version=="Moon":
-            self.impact_velocity_model = "Moon_MBA"
-        elif self.version=="Mars":
-            self.impact_velocity_model = "Mars_MBA"
-        else: 
-            raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided for the projectile model")
+        if not impact_velocity_model and not mean_velocity: 
+            if self.version=="Moon" or self.version=="Projectile":
+                self.impact_velocity_model = "Moon_MBA"
+            if self.version=="Mars":
+                self.impact_velocity_model = "Mars_MBA"
         
 
     def function(self,
@@ -386,7 +374,6 @@ class NeukumProduction(PowerLawProduction):
             Ncumulative = _CSFD(Dkm) 
             
         return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
-
 
 
 if __name__ == "__main__":
