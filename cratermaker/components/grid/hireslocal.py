@@ -191,7 +191,7 @@ class HiResLocalGrid(GridMaker):
 
         return rotation.apply(points)
 
-    def generate_face_distribution(self) -> NDArray:
+    def generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
         Creates the points that define the mesh centers.
            

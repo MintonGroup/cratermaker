@@ -131,7 +131,7 @@ def _create_catalogue(header,values):
 
 def _convert_for_yaml(obj):
     """
-    Converts values to types that can be used in yaml.safe_dump.
+    Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
     """
     if isinstance(obj, dict):
         return {k: _convert_for_yaml(v) for k, v in obj.items()}
@@ -145,8 +145,12 @@ def _convert_for_yaml(obj):
         return obj.item()
     elif isinstance(obj, Path):
         return str(obj)
-    else:
+    elif isinstance(obj, (str, int, float, bool)):
         return obj
+
+def _to_config(obj):
+    config = _convert_for_yaml({name: getattr(obj, name) for name in obj._user_defined if hasattr(obj, name)})
+    return {key: value for key, value in config.items() if value is not None} 
 
 def validate_and_convert_location(location):
     """
@@ -314,4 +318,3 @@ def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayL
         return N
     
     return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
-

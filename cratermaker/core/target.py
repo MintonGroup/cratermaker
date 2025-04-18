@@ -1,10 +1,9 @@
 import numpy as np
 from typing import Any
-from ..utils.general_utils import _set_properties, _check_properties
+from ..utils.general_utils import _set_properties, _check_properties, _to_config
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
 from ..components.target_catalogue import get_target_catalogue
-
 
 class Target:
     """
@@ -134,11 +133,8 @@ class Target:
             raise ValueError("Mass must be positive")
         setattr(self, "_mass", np.float64(value))
 
-    def to_config(self) -> dict:
-        """
-        Only include those parameters the user actually set.
-        """
-        return {name: getattr(self, name) for name in self._user_defined}
+    def to_config(self, **kwargs: Any) -> dict:
+        return _to_config(self)
 
     @property
     def name(self):

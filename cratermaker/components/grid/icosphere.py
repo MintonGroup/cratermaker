@@ -32,7 +32,7 @@ class IcosphereGrid(GridMaker):
         self.radius = radius
         
         
-    def generate_face_distribution(self) -> NDArray:
+    def generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
         Creates the points that define the mesh centers.
            

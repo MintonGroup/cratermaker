@@ -1,6 +1,8 @@
 import pkgutil
 import importlib
 from abc import ABC, abstractmethod
+from typing import Any
+from cratermaker.utils.general_utils import _to_config
 
 class ScalingModel(ABC):
     @abstractmethod
@@ -12,11 +14,8 @@ class ScalingModel(ABC):
         object.__setattr__(self, "_user_defined", set())
         self._user_defined.add("model")
 
-    def to_config(self) -> dict:
-        """
-        Only include those parameters the user actually set.
-        """
-        return {name: getattr(self, name) for name in self._user_defined}
+    def to_config(self, **kwargs: Any) -> dict:
+        return _to_config(self)
 
     @property
     def model(self):

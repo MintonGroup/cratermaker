@@ -4,7 +4,6 @@ from scipy.optimize import root_scalar
 from cratermaker.components.production import register_production_model, ProductionModel
 from cratermaker.utils.montecarlo import get_random_size
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.utils.general_utils import R_to_CSFD
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 from typing import Any, Union
@@ -15,48 +14,36 @@ class PowerLawProduction(ProductionModel):
     An operations class for computing the production function for craters and impactors. This implements a very simple power law 
     production function that can be used as either a crater or projectile production function. The production function is defined as
     the cumulative number of craters greater than a given diameter per unit m^2 surface area.
-
+        
+    Parameters
+    ----------
+    rng : numpy.random.Generator, optional
+        A random number generator to use for sampling. If None, a default generator will be used.
+    generator_type : str, optional
+        The type of generator to use. This can be either "crater" or "projectile". Default is "crater". 
+    N1_coef : float, optional
+        The coefficient for the power law production function at 1 m diameter per 1 My. 
+        Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
+    slope : float, optional
+        The slope of the power law production function. 
+        Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
+    mean_velocity : float, optional
+        The mean impact velocity to use for the impact simulation. Only one of either mean_velocity or impact_velocity_model can be provided.
+    impact_velocity_model : str, optional
+        The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
+        Only one of either mean_velocity or impact_velocity_model can be provided. Default is "Moon_MBA"
     """
     def __init__(self, 
                 rng: Generator | None = None,
                 **kwargs: Any):
 
-        super().__init__() 
+        super().__init__(**kwargs) 
         self._valid_generator_types = ["crater", "projectile"]
         self.rng = rng 
-        self._set_model_parameters(**kwargs)
-       
-        return
-       
-    def _set_model_parameters(self, **kwargs: Any) -> None:
-        """
-        Set the parameters for the power law production function.
-        
-        Parameters
-        ----------
-        **kwargs : Any
-            This function accepts the following keyword arguments:
-        model : str
-            The specific model to use for the production function. Defaults to "Powerlaw". 
-        generator_type : str
-            The type of generator to use. This can be either "crater" or "projectile". Defaults to "crater". 
-        N1_coef : float
-            The coefficient for the power law production function at 1 m diameter per 1 My. 
-            Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
-        slope : float
-            The slope of the power law production function. 
-            Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
-        mean_velocity : float
-            The mean impact velocity to use for the impact simulation. Either mean_velocity or impact_velocity_model must be provided.
-        impact_velocity_model : str
-            The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
-            Either mean_velocity or impact_velocity_model must be provided.
-        """
+
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
         generator_type = kwargs.get("generator_type", "crater")
         self.generator_type = generator_type
-        self._user_defined.add("generator_type")
-        self.valid_time = (0,None)  # Range over which the production function is valid       
         
         # Default values that are approximately equal to the NPF for the Moon
         default_N1_coef = {
@@ -68,6 +55,7 @@ class PowerLawProduction(ProductionModel):
             "crater" : -3.328, 
             "projectile" : -2.634
             } 
+
         # Set the power law parameters for the production function along with defaults 
         N1_coef = kwargs.get("N1_coef",default_N1_coef[self.generator_type] )
         
@@ -76,7 +64,6 @@ class PowerLawProduction(ProductionModel):
         if N1_coef < 0.0:
             raise ValueError("N1_coef must be positive")
         self.N1_coef = N1_coef
-        self._user_defined.add("N1_coef")
        
         # Set the power law exponent for the production function along with defaults 
         slope = kwargs.get("slope", default_slope[self.generator_type])
@@ -85,21 +72,17 @@ class PowerLawProduction(ProductionModel):
         elif slope > 0.0: # Slope must be negative, but convention in the field is mixed. So we flip the sign if it is positive.
             slope *= -1
         self.slope = slope 
-        self._user_defined.add("slope")
        
         if "mean_velocity" in kwargs and "impact_velocity_model" in kwargs:
             raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
          
         if "mean_velocity" in kwargs:
             self.mean_velocity = kwargs["mean_velocity"]
-            self._user_defined.add("mean_velocity")
         elif "impact_velocity_model" in kwargs:
             self.impact_velocity_model = kwargs.get("impact_velocity_model")
-            self._user_defined.add("impact_velocity_model")
         else:
-            raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided")
+            self.impact_velocity_model = "Moon_MBA"
       
-       
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -167,7 +150,7 @@ class PowerLawProduction(ProductionModel):
         diameter, cumulative_number_density = self._validate_csfd(diameter=diameter, cumulative_number_density=cumulative_number_density) 
         
         def _root_func(t,D,N):
-            retval = self.function(diameter=D,age=t,check_valid_time=False,**kwargs) - N
+            retval = self.function(diameter=D,age=t,**kwargs) - N
             return retval
              
         xtol = 1e-10
@@ -303,7 +286,27 @@ class PowerLawProduction(ProductionModel):
             
         return diameters, ages
     
-    
+    def chronology(self,
+                   age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0, 
+                   **kwargs: Any) -> Union[FloatLike, ArrayLike]:
+        """
+        Returns the age in My. Because the powerlaw model assumes constant impact rate, the returned age is the same as the input age.
+        
+        Parameters
+        ----------
+        age : FloatLike or ArrayLike, default=1.0
+            Age in the past relative to the present day to compute cumulative SFD in units of My. 
+        **kwargs: Any
+            Any additional keywords that are passed to the function method.
+            
+        Returns
+        -------
+        FloatLike or numpy array of FloatLike
+            The age in My for the given relative number density of craters. 
+        """
+        return age
+
+
     def _validate_sample_args(self,**kwargs: dict) -> dict:
         """
         Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
@@ -642,18 +645,6 @@ class PowerLawProduction(ProductionModel):
             raise ValueError("mean_velocity must be finite and positive")
         self._mean_velocity = np.float64(value)
 
-    @property
-    def valid_time(self):
-        """Get the valid time range for the production function."""
-        return self._valid_time
-
-    @valid_time.setter
-    def valid_time(self, value):
-        """Set the valid time range for the production function."""
-        if not (isinstance(value, tuple) and len(value) == 2):
-            raise ValueError("valid_time must be a tuple of two values")
-        self._valid_time = value
-        
     @property
     def rng(self):
         """

@@ -15,7 +15,7 @@ import yaml
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, _save_surface
-from ..utils.general_utils import _set_properties, _convert_for_yaml
+from ..utils.general_utils import _set_properties, _convert_for_yaml, _to_config
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
 from ..components.scaling import ScalingModel, get_scaling_model
@@ -739,10 +739,7 @@ class Simulation:
         pass
 
     def to_config(self, **kwargs: Any) -> dict:
-        redundant_keys = ['target', 'production_model', 'morphology_model', 'scaling_model']
-        user_defined = [name for name in self._user_defined if name not in redundant_keys]
-        config = {name: getattr(self, name) for name in user_defined}
-        return {key: value for key, value in config.items() if value is not None} 
+        return _to_config(self)
 
     def save(self, **kwargs: Any) -> None:
                 
@@ -768,7 +765,7 @@ class Simulation:
         sim_config['production'] = prod_config
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
-            yaml.safe_dump(_convert_for_yaml(sim_config), f, indent=4, sort_keys=False)
+            yaml.safe_dump(sim_config, f, indent=4, sort_keys=False)
         
         return
     

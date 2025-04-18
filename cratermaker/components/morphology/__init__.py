@@ -1,51 +1,30 @@
 import pkgutil
 import importlib
+import numpy as np
 from abc import ABC, abstractmethod
-from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from collections.abc import Sequence
 from numpy.typing import ArrayLike
 from typing import Any, Union
-import numpy as np
+from cratermaker.core.surface import Surface
+from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+from cratermaker.utils.general_utils import _to_config
 
 class MorphologyModel(ABC):
     @abstractmethod
-    def function(self,
-            diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-            age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-            age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-            **kwargs: Any,
-            ) -> Union[FloatLike, ArrayLike]: ...
-    @abstractmethod
-    def function_inverse(self,
-             diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
-             cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
-             **kwargs: Any,
-             ) -> Union[FloatLike, ArrayLike]: ...
-    @abstractmethod
-    def sample(self,
-               age: FloatLike | None = None,
-               age_end: FloatLike | None = None,
-               diameter_number: PairOfFloats | None = None,
-               diameter_number_end: PairOfFloats | None = None,
-               diameter_range: PairOfFloats | None = None,
-               area: FloatLike | None = None, 
-               return_age: bool = True
-               ) -> np.ndarray: ...
-    @abstractmethod
-    def chronology(self,
-             age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             check_valid_time: bool=True
-             ) -> Union[FloatLike, ArrayLike]: ...
+    def form_crater(self, 
+                    surf: Surface,
+                    **kwargs) -> None: ...    
+
 
     def __init__(self):
         object.__setattr__(self, "_user_defined", set())
         self._user_defined.add("model")
 
-    def to_config(self) -> dict:
+    def to_config(self, **kwargs: Any) -> dict:
         """
         Only include those parameters the user actually set.
         """
-        return {name: getattr(self, name) for name in self._user_defined}
+        return _to_config(self)
 
     @property
     def model(self):

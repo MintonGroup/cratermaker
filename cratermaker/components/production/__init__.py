@@ -1,11 +1,12 @@
 import pkgutil
 import importlib
 from abc import ABC, abstractmethod
-from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+import numpy as np
 from collections.abc import Sequence
 from numpy.typing import ArrayLike
 from typing import Any, Union
-import numpy as np
+from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+from cratermaker.utils.general_utils import _to_config
 
 class ProductionModel(ABC):
     @abstractmethod
@@ -15,12 +16,14 @@ class ProductionModel(ABC):
             age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
             **kwargs: Any,
             ) -> Union[FloatLike, ArrayLike]: ...
+    
     @abstractmethod
     def function_inverse(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
              cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
              **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]: ...
+    
     @abstractmethod
     def sample(self,
                age: FloatLike | None = None,
@@ -31,21 +34,24 @@ class ProductionModel(ABC):
                area: FloatLike | None = None, 
                return_age: bool = True
                ) -> np.ndarray: ...
+    
     @abstractmethod
     def chronology(self,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             check_valid_time: bool=True
+             **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]: ...
 
-    def __init__(self):
+    def __init__(self, **kwargs: Any):
         object.__setattr__(self, "_user_defined", set())
         self._user_defined.add("model")
 
-    def to_config(self) -> dict:
-        """
-        Only include those parameters the user actually set.
-        """
-        return {name: getattr(self, name) for name in self._user_defined}
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        public_name = name.lstrip("_")
+        self._user_defined.add(public_name)
+
+    def to_config(self, **kwargs: Any) -> dict:
+        return _to_config(self)
 
     @property
     def model(self):

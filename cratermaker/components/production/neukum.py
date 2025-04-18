@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.random import Generator
 from cratermaker.components.production import register_production_model
 from cratermaker.components.production.powerlaw import PowerLawProduction
 from cratermaker.utils.custom_types import FloatLike
@@ -45,7 +46,9 @@ class NeukumProduction(PowerLawProduction):
 
     """
         
-    def _set_model_parameters(self, **kwargs: Any) -> None:
+    def __init__(self, 
+                 rng: Generator | None = None, 
+                 **kwargs: Any):
         """
         Set the parameters for Neukum production. This will set the following attributes based on the value of the keyword argument
         `version`, which is either "Moon", "Mars", or "Projectile".
@@ -70,19 +73,19 @@ class NeukumProduction(PowerLawProduction):
             The name of the mean impact velocity model to use for the impact simulation. Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
             For `version=="Moon"`, the default is "Moon_MBA". For `version=="Mars"`, the default is "Mars_MBA". If `version=="Projectile"` then either mean_velocity or impact_velocity_model must be provided. 
         """
+        super().__init__(rng, **kwargs) 
+
         # Set the generator type. For the default generator, it can be either "crater" or "projectile" 
         self._valid_models = ["Moon", "Mars", "Projectile"]
         version = kwargs.get("model", "Moon")
         if version not in self._valid_models:
             raise ValueError(f"Invalid version '{version}'. Valid options are {self._valid_models}")
         self.version = version
-        self._user_defined.add("version")
         
         if self.version == "Projectile":
             self.generator_type = "projectile"
         else:
             self.generator_type = "crater"
-        self._user_defined.add("generator_type")
 
         sfd_coef = {
                 "Moon" : np.array(
@@ -135,17 +138,17 @@ class NeukumProduction(PowerLawProduction):
                     ]
                 )
             }
-        self.sfd_coef = sfd_coef[self.version]
+        self._sfd_coef = sfd_coef[self.version]
         sfd_range = {
                 "Moon" : np.array([0.01,1000]),
                 "Mars" : np.array([0.015,362]),
                 "Projectile" : np.array([0.0001, 200.0]) # Estimated based on Fig. 16 of Ivanov et al. (2001)
             }
-        self.sfd_range = sfd_range[self.version]
+        self._sfd_range = sfd_range[self.version]
         
         # Chronology function parameters
-        self.valid_time = (0,4500)  # Range over which the production function is valid
-        self.tau = 1.0 / 6.93
+        self._valid_time = (0,4500)  # Range over which the production function is valid
+        self._tau = 1.0 / 6.93
         Cexp_moon = 5.44e-14
         Clin = {
                 "Moon" : 10**(sfd_coef.get("Moon")[0]),
@@ -157,23 +160,19 @@ class NeukumProduction(PowerLawProduction):
                 "Mars" : Cexp_moon * Clin["Mars"] / Clin["Moon"],
                 "Projectile": Cexp_moon * Clin["Projectile"] / Clin["Moon"],
             }   
-        self.Cexp = Cexp[self.version]
-        self.Clin = Clin[self.version]
+        self._Cexp = Cexp[self.version]
+        self._Clin = Clin[self.version]
         
         if "mean_velocity" in kwargs and "impact_velocity_model" in kwargs:
             raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
         if "mean_velocity" in kwargs:
             self.mean_velocity = kwargs["mean_velocity"]
-            self._user_defined.add("mean_velocity")
         elif "impact_velocity_model" in kwargs:
             self.impact_velocity_model = kwargs.get("impact_velocity_model")
-            self._user_defined.add("impact_velocity_model")
         elif self.version=="Moon":
             self.impact_velocity_model = "Moon_MBA"
-            self._user_defined.add("impact_velocity_model")
         elif self.version=="Mars":
             self.impact_velocity_model = "Mars_MBA"
-            self._user_defined.add("impact_velocity_model")
         else: 
             raise ValueError("Either 'mean_velocity' or 'impact_velocity_model' must be provided for the projectile model")
         
@@ -218,18 +217,18 @@ class NeukumProduction(PowerLawProduction):
     
      
     def chronology(self,
-             age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-             check_valid_time: bool=True
+             age: FloatLike | Sequence[FloatLike] | ArrayLike = 1000.0,
+             check_valid_time: bool=True,
+             **kwargs: Any,
              ) -> Union[FloatLike, ArrayLike]:
         """
         Returns the relative number of craters produced over a given age range. This implements the chronology function given in
         Eq. 5 of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86, but takes in the age argument in the Cratermaker unit 
-        system of My instead of Gy. The returned value is normalized to the number of craters greater than 1 km in diameter at the
-        reference time of 1 Gy. 
+        system of My instead of Gy. 
 
         Parameters
         ----------
-        age : FloatLike or ArrayLike, default=1.0
+        age : FloatLike or ArrayLike, default=1000.0
             Age in the past relative to the present day to compute cumulative SFD in units of My. 
         check_valid_time : bool, optional (default=True)
             If True, return NaN for age values outside the valid age range
@@ -237,13 +236,12 @@ class NeukumProduction(PowerLawProduction):
         Returns
         -------
         FloatLike or numpy array of FloatLike
-            The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a 
-            surface over the given age range.
+            The number of craters relative to the amount produced in the last 1 My.
             
         """     
         time_Gy = np.array(age) * 1e-3  # Convert age range from My to Gy ago for internal functions
         
-        def _N1(age: FloatLike | Sequence[FloatLike] | ArrayLike,
+        def _N1km(age: FloatLike | Sequence[FloatLike] | ArrayLike,
                 check_valid_time:bool=True
                 ) -> Union[FloatLike, ArrayLike]:
             """
@@ -262,18 +260,18 @@ class NeukumProduction(PowerLawProduction):
             FloatLike or numpy array
                 The number of craters per square kilometer greater than 1 km in diameter
             """
-            N1 = self.Cexp * (np.exp(age/self.tau) - 1.0) + self.Clin * age
+            N1 = self._Cexp * (np.exp(age/self._tau) - 1.0) + self._Clin * age
             if check_valid_time:
-                if self.valid_time[0] is not None:
-                    min_time = self.valid_time[0] * 1e-3
+                if self._valid_time[0] is not None:
+                    min_time = self._valid_time[0] * 1e-3
                     N1 = np.where(age >= min_time, N1, np.nan)
-                if self.valid_time[1] is not None:
-                    max_time = self.valid_time[1] * 1e-3
+                if self._valid_time[1] is not None:
+                    max_time = self._valid_time[1] * 1e-3
                     N1 = np.where(age <= max_time, N1, np.nan) 
             return N1.item() if np.isscalar(age) else N1
         
-        N1_reference = _N1(1.0) 
-        N1_values = _N1(time_Gy,check_valid_time)
+        N1_reference = _N1km(age=1.0e-3) 
+        N1_values = _N1km(age=time_Gy,check_valid_time=check_valid_time)
         N1_values /= N1_reference
         
         return  N1_values 
@@ -313,8 +311,8 @@ class NeukumProduction(PowerLawProduction):
                 idx = 1
             else:
                 raise ValueError("side must be 'lo' or 'hi'")
-            p = _dNdD(self.sfd_range[idx])
-            A = _CSFD(self.sfd_range[idx])
+            p = _dNdD(self._sfd_range[idx])
+            A = _CSFD(self._sfd_range[idx])
             return A, p
 
 
@@ -334,13 +332,13 @@ class NeukumProduction(PowerLawProduction):
                 The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at age = 1 Gy ago.
             """        
             def _dNdD_scalar(Dkm): 
-                dcoef = self.sfd_coef[1:]
-                if Dkm < self.sfd_range[0]:
-                    _extrapolate_sfd(side="lo")
-                    return A * (p / Dkm) * (Dkm / self.sfd_range[0]) ** p 
+                dcoef = self._sfd_coef[1:]
+                if Dkm < self._sfd_range[0]:
+                    A, p = _extrapolate_sfd(side="lo")
+                    return A * (p / Dkm) * (Dkm / self._sfd_range[0]) ** p 
                 elif Dkm > self.sfd_range[1]:
-                    _extrapolate_sfd(side="hi")
-                    return A * (p / Dkm) * (Dkm / self.sfd_range[0]) ** p 
+                    A, p = _extrapolate_sfd(side="hi")
+                    return A * (p / Dkm) * (Dkm / self._sfd_range[0]) ** p 
                 else:
                     return sum(co * np.log10(Dkm) ** i for i, co in enumerate(dcoef))
             
@@ -363,15 +361,15 @@ class NeukumProduction(PowerLawProduction):
                 The number of craters per square kilometer greater than Dkm in diameter at age=1 Gy ago.
             """
             def _CSFD_scalar(Dkm):
-                if Dkm < self.sfd_range[0]:
+                if Dkm < self._sfd_range[0]:
                     A, p = _extrapolate_sfd(side="lo")
-                    return A * (Dkm / self.sfd_range[0]) ** p
-                elif Dkm > self.sfd_range[1]:
+                    return A * (Dkm / self._sfd_range[0]) ** p
+                elif Dkm > self._sfd_range[1]:
                     A, p = _extrapolate_sfd(side="hi")
                     p -= 2.0 # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
-                    return A * (Dkm / self.sfd_range[1]) ** p
+                    return A * (Dkm / self._sfd_range[1]) ** p
                 else:
-                    logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
+                    logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self._sfd_coef))
                     return 10 ** logCSFD
         
             return _CSFD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD_scalar)(Dkm)
@@ -389,90 +387,8 @@ class NeukumProduction(PowerLawProduction):
             
         return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
 
-    @property
-    def sfd_coef(self):
-        """
-        Coefficients for the size-frequency distribution function used in the Neukum production model.
-        """
-        return self._sfd_coef
 
-    @sfd_coef.setter
-    def sfd_coef(self, value):
-        """
-        Set the coefficients for the size-frequency distribution function used in the Neukum production model.
-        """
-        if not isinstance(value, np.ndarray):
-            raise TypeError("sfd_coef must be a numpy array")
-        self._sfd_coef = value
 
-    @property
-    def sfd_range(self):
-        """
-        Range of diameters over which the size-frequency distribution function is valid in the Neukum production model.
-        """
-        return self._sfd_range
-
-    @sfd_range.setter
-    def sfd_range(self, value):
-        """
-        Set the range of diameters over which the size-frequency distribution function is valid in the Neukum production model.
-        """
-        if not (isinstance(value, (list, tuple, np.ndarray)) and len(value) == 2):
-            raise ValueError("sfd_range must be a list, tuple, or numpy array of length 2")
-        self._sfd_range = value
-
-    @property
-    def valid_time(self):
-        """
-        Range of ages over which the chronology function is valid in the Neukum production model.
-        """
-        return self._valid_time
-
-    @valid_time.setter
-    def valid_time(self, value):
-        """
-        Set the range of ages over which the chronology function is valid in the Neukum production model.
-        """
-        if not (isinstance(value, tuple) and len(value) == 2):
-            raise ValueError("valid_time must be a tuple of two values")
-        self._valid_time = value
-
-    @property
-    def tau(self):
-        """Get the time constant for the chronology function."""
-        return self._tau
-
-    @tau.setter
-    def tau(self, value):
-        """Set the time constant for the chronology function."""
-        if not isinstance(value, (float, int)):
-            raise TypeError("tau must be a numeric value")
-        self._tau = value
-
-    @property
-    def Cexp(self):
-        """Get the coefficient for the exponential component of the chronology function."""
-        return self._Cexp
-
-    @Cexp.setter
-    def Cexp(self, value):
-        """Set the coefficient for the exponential component of the chronology function."""
-        if not isinstance(value, (float, int)):
-            raise TypeError("Cexp must be a numeric value")
-        self._Cexp = value
-
-    @property
-    def Clin(self):
-        """Get the coefficient for the linear component of the chronology function."""
-        return self._Clin
-
-    @Clin.setter
-    def Clin(self, value):
-        """Set the coefficient for the linear component of the chronology function."""
-        if not isinstance(value, (float, int)):
-            raise TypeError("Clin must be a numeric value")
-        self._Clin = value
-        
 if __name__ == "__main__":
     from scipy.optimize import curve_fit
     import matplotlib.pyplot as plt
@@ -506,9 +422,9 @@ if __name__ == "__main__":
             ax[key].xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
             ax[key].grid(True,which="minor",ls="-",lw=0.5,zorder=5)
             ax[key].grid(True,which="major",ls="-",lw=1,zorder=10)
-            inrange = (Dvals >= production.sfd_range[0]) & (Dvals <= production.sfd_range[1])
-            lo = Dvals < production.sfd_range[0]
-            hi = Dvals > production.sfd_range[1]
+            inrange = (Dvals >= production._sfd_range[0]) & (Dvals <= production._sfd_range[1])
+            lo = Dvals < production._sfd_range[0]
+            hi = Dvals > production._sfd_range[1]
             for t in tvals:
                 Nvals = production.function(diameter=Dvals*1e3,age=t*1e3)
                 Nvals *= 1e6 # convert from m^-2 to km^-2
@@ -629,9 +545,9 @@ if __name__ == "__main__":
         ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2,10), numticks=100))
         ax.grid(True,which="minor",ls="-",lw=0.5,zorder=5)
         ax.grid(True,which="major",ls="-",lw=1,zorder=10)
-        inrange = (Dvals >= production.sfd_range[0]) & (Dvals <= production.sfd_range[1])
-        lo = Dvals < production.sfd_range[0]
-        hi = Dvals > production.sfd_range[1]
+        inrange = (Dvals >= production._sfd_range[0]) & (Dvals <= production._sfd_range[1])
+        lo = Dvals < production._sfd_range[0]
+        hi = Dvals > production._sfd_range[1]
         t = 1.0
         Nvals = production.function(diameter=Dvals*1e3,age=t*1e3)
         Nvals *= 1e6 # convert from m^-2 to km^-2

@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from typing import Any
 import hashlib
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+from cratermaker.utils.general_utils import _to_config
 
 class GridMaker(ABC):
     def __init__(self, **kwargs: Any):
@@ -17,14 +18,11 @@ class GridMaker(ABC):
         self._user_defined.add("gridtype")
         self._grid = None
 
-    def to_config(self) -> dict:
-        """
-        Only include those parameters the user actually set.
-        """
-        return {name: getattr(self, name) for name in self._user_defined}
+    def to_config(self, **kwargs: Any) -> dict:
+        return _to_config(self)
     
     @abstractmethod
-    def generate_face_distribution(self) -> tuple[NDArray,NDArray,NDArray]: ...
+    def generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray,NDArray,NDArray]: ...
 
     def generate_grid(self,
                       grid_file: os.PathLike,
