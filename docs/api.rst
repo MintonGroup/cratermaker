@@ -130,7 +130,7 @@ Generating grids
 .. autosummary::
     :toctree: generated/
 
-    GridStrategy
+    GridMaker
 
 Methods
 -------
@@ -138,10 +138,10 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    GridStrategy.generate_face_distribution
-    GridStrategy.generate_grid
-    GridStrategy.generate_hash
-    GridStrategy.check_and_regrid
+    GridMaker.generate_face_distribution
+    GridMaker.generate_grid
+    GridMaker.generate_hash
+    GridMaker.check_and_regrid
 
 Generating a uniform Icosphere grid
 -----------------------------------

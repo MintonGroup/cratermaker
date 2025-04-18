@@ -7,24 +7,15 @@ import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
 import tempfile
-from abc import ABC, abstractmethod
-from typing import List, Literal, get_args, Any, Union
-from typing_extensions import Type
-import hashlib
+from typing import List, Union
 from numpy.typing import NDArray, ArrayLike
 from numpy.random import Generator
 from .target import Target
-from ..utils.general_utils import validate_and_convert_location
-from ..utils.custom_types import FloatLike, PairOfFloats
-from ..utils.montecarlo import get_random_location_on_face
 import warnings
 from pathlib import Path
-
-# Define valid grid types
-GridType = Literal["icosphere","arbitrary", "hires local"]
-
-# Derive valid_grid_types list from GridType
-valid_grid_types: Type[List[str]] = list(get_args(GridType))
+from cratermaker.utils.custom_types import FloatLike
+from cratermaker.utils.montecarlo import get_random_location_on_face
+from cratermaker.components.grid import GridMaker, get_grid_type
 
 # Default file names and directories
 _DATA_DIR = "surface_data"
@@ -34,571 +25,6 @@ _GRID_FILE_NAME = "grid.nc"
 # This is a factor used to determine the smallest length scale in the grid
 _SMALLFAC = 1.0e-5
 
-class GridStrategy(ABC):
-    def __init__(self, **kwargs: Any):
-        self._grid = None
-
-    @abstractmethod
-    def generate_face_distribution(self) -> tuple[NDArray,NDArray,NDArray]:
-        pass
-    
-
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      grid_hash: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:                       
-        """
-        Generate a tessellated mesh of a sphere of evenly distributed points
-
-
-        Parameters
-        ----------
-        grid_file : os.PathLike
-            The file path to the grid file.
-        grid_hash : str, optional
-            Hash of the grid parameters. Default is None, which will generate a new hash.
-            
-        Notes
-        -----
-        The grid configuration is determined by the `grid_strategy` attribute of the Surface object. The `grid_strategy` attribute
-        determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific
-        to each grid type, refer to the documentation of the respective grid parameter classes (`UnifromIcosphereGrid`, 
-        `ArbitraryResolutionGrid`, `HiResLocalGrid`, etc.).
-        
-        """       
-
-        points = self.generate_face_distribution() 
-        grid = uxr.Grid.from_points(points, method="spherical_voronoi")
-        if not grid_hash:
-            grid_hash = self.generate_hash() 
-        grid.attrs["grid_hash"] = grid_hash
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            grid.to_xarray().to_netcdf(temp_file.name)
-            temp_file.flush()
-            os.fsync(temp_file.fileno())
-            
-        # Replace the original file only if writing succeeded
-        shutil.move(temp_file.name,grid_file)            
-        print("Mesh generation complete")
-        self.grid = grid 
-        return         
-    
-                         
-    def generate_hash(self) -> str:
-        """
-        Generate a hash of the grid parameters.
-
-        Returns
-        -------
-        str
-            Hash of the grid parameters.
-        """
-        attribute_pairs = []
-        for attr, value in vars(self).items():
-            attribute_pairs.append(f"{attr}:{value}")
-        combined = ":".join(attribute_pairs) 
-        hash_object = hashlib.sha256(combined.encode())
-        return hash_object.hexdigest()
-
-
-    def check_if_regrid(self,
-                         grid_file: os.PathLike,
-                         **kwargs: Any,
-                        ) -> bool:
-        """
-        Check if the existing grid matches the desired parameters determine if regridding is necessary.
-
-        This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these 
-        parameters. If the grid does not exist or does not match the parameters it returns True. 
-
-        Parameters
-        ----------
-        grid_file : PathLike
-            The file path where the grid is saved or will be saved. 
-        grid_file : os.PathLike
-            The file path to the grid file. 
-
-        Returns
-        -------
-        bool
-            A boolean indicating whether the grid should be regenerated. 
-        """
-    
-        # Generate the hash for the current parameters
-        grid_hash = self.generate_hash()
-
-        # Find out if the file exists, if it does't we'll need to make a new grid
-        make_new_grid = not os.path.exists(grid_file)
-        
-        if not make_new_grid:
-            uxgrid = uxr.open_grid(grid_file)
-            try: 
-                old_hash = uxgrid.attrs.get("grid_hash")
-                make_new_grid = old_hash != grid_hash
-            except:
-                make_new_grid = True
-                
-        return make_new_grid
-
-    
-    def create_grid(self,
-                     grid_file: os.PathLike,
-                     **kwargs: Any,
-                     ) -> bool:
-        """
-
-        Creates a new grid file based on the grid parameters and stores the new grid as the grid property of the object. 
-
-        Parameters
-        ----------
-        grid_file : PathLike
-            The file path where the grid will be saved. 
-        grid_file : os.PathLike
-            The file path to the grid file. 
-        """
-    
-        # Generate the hash for the current parameters
-        grid_hash = self.generate_hash()
-
-        if os.path.exists(grid_file):
-            os.remove(grid_file)
-        self.generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs) 
-        
-        # Check to make sure we can open the grid file, then store the hash in the metadata
-        uxgrid = uxr.open_grid(grid_file)
-        new_hash = uxgrid.attrs.get("grid_hash")
-        assert(new_hash == grid_hash)
-
-        return 
-    
-    @property
-    def pix(self):
-        """
-        The approximate face size for the mesh inside the local region in meters.
-        """
-        return self._pix
-    
-    @pix.setter
-    def pix(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
-            raise TypeError("pix must be a positive float")
-        self._pix = value
-        
-    @property
-    def radius(self):
-        """
-        The radius of the target body in meters.
-        """
-        return self._radius
-    
-    @radius.setter
-    def radius(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
-            raise TypeError("radius must be a positive float")
-        self._radius = value
-        
-    @property
-    def grid(self):
-        """
-        The grid object.
-        """
-        return self._grid
-    
-    @grid.setter
-    def grid(self, value: uxr.Grid):
-        if not isinstance(value, uxr.Grid):
-            raise TypeError("grid must be an instance of uxarray.Grid")
-        self._grid = value
-    
-class IcosphereGrid(GridStrategy):    
-    """
-    Create a uniform grid configuration using an icosphere. This is the most accurate and efficient way to create a uniform grid, but is limited to a few resolutions.
-    
-    Parameters
-    ----------
-    gridlevel : float
-        The subdivision level of the icosphere. The number of faces is 20 * 4**level. The default level is 8.
-    radius: FloatLike
-        The radius of the target body in meters.
-        
-    Returns
-    -------
-    IcosphereGrid
-        An instance of the IcosphereGrid class initialized with the given pixel size. 
-    """    
-    
-    def __init__(self, 
-                 gridlevel: int = 8, 
-                 radius: FloatLike = 1.0, 
-                 **kwargs: Any):
-        super().__init__(**kwargs)
-        self.gridlevel = gridlevel
-        self.radius = radius
-        
-        
-    def generate_face_distribution(self) -> NDArray:
-        """
-        Creates the points that define the mesh centers.
-           
-        Returns
-        -------
-        (3,n) ndarray of np.float64
-            Array of points on a unit sphere.
-        """ 
-        from trimesh.creation import icosphere
-       
-        print(f"Generating a mesh with icosphere level {self.gridlevel}.")  
-        mesh = icosphere(self.gridlevel)
-        points = mesh.vertices.T
-        return points
-   
-    
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      grid_hash: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
-        face_areas = self.grid.face_areas 
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_mean = face_sizes.mean().item() * self.radius
-        pix_std = face_sizes.std().item() * self.radius
-        print(f"Effective pixel size: {pix_mean:.2f} +/- {pix_std:.2f} m")
-        return    
-    
-class ArbitraryResolutionGrid(GridStrategy):
-    """
-    Create a uniform grid configuration with an arbitrary user-defined pixel size. This will not be as nice as the regular IcosphereGrid, but can be any resolution desired.
-    
-    Parameters
-    ----------
-    pix : float
-        The approximate face size for the mesh in meters.
-    radius: FloatLike
-        The radius of the target body in meters.
-        
-    Returns
-    -------
-    ArbitraryResolutionGrid
-        An instance of the ArbitraryResolutionGrid class initialized with the given pixel size. 
-    """    
-    
-    def __init__(self, 
-                 pix: FloatLike, 
-                 radius: FloatLike, 
-                 **kwargs: Any):
-        super().__init__(**kwargs)
-        self.pix = pix
-        self.radius = radius
-    
-
-    def generate_face_distribution(self) -> NDArray:
-        """
-        Creates the points that define the mesh centers.
-           
-        Returns
-        -------
-        (3,n) ndarray of np.float64
-            Array of points on a unit sphere.
-        
-        """                
-
-        print(f"Generating a mesh with uniformly distributed faces of size ~{self.pix} m.")
-        points = _distribute_points(distance=self.pix/self.radius) 
-        points[:,0] = np.array([0,0,1])
-        points[:,-1] = np.array([0,0,-1])
-        return points
-   
-    
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      grid_hash: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
-        face_areas = self.grid.face_areas 
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_mean = face_sizes.mean().item() * self.radius
-        pix_std = face_sizes.std().item() * self.radius
-        print(f"Effective pixel size: {pix_mean:.2f} +/- {pix_std:.2f} m")
-        return
-
-
-class HiResLocalGrid(GridStrategy):
-    """
-    Create a uniform grid configuration with the given pixel size.
-    
-    Parameters
-    ----------
-    pix : FloatLike
-        The approximate face size inside the local region in meters.
-    radius: FloatLike
-        The radius of the target body in meters.
-    local_radius : FloatLike
-        The radius of the local region in meters.
-    local_location : PairOfFloats
-        The longitude and latitude of the location in degrees.
-    superdomain_scale_factor : FloatLike
-        A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
-        that are modeled outside the local region are those whose ejecta could just reach the boundary.
-        
-    Returns
-    -------
-    HiResLocalGrid
-        An instance of the HiResLocalGrid clas initialized with the given point distribution
-    """        
-    def __init__(self, 
-                 pix: FloatLike, 
-                 radius: FloatLike, 
-                 local_radius: FloatLike, 
-                 local_location: PairOfFloats,
-                 superdomain_scale_factor: FloatLike,
-                 **kwargs: Any):
-        super().__init__(**kwargs)
-        self.pix = pix
-        self.radius = radius        
-        self.local_radius = local_radius
-        self.local_location = local_location
-        self.superdomain_scale_factor = superdomain_scale_factor
-        
-    
-    def _generate_variable_size_array(self) -> tuple[NDArray, NDArray, NDArray]:
-        """
-        Create an array of target pixel sizes for pairs of longitude and latitude values for a high-resolution local mesh around a 
-        given location, with adaptive cell sizes outside the local region.
-        
-            
-        Returns
-        -------
-        pix_array: ndarray
-            m x n array of pixel sizes
-        lon : ndarray
-            longitude in degrees (length n and between -180 and 180)
-        lat : ndarray
-            latitude in degrees (length m and between -90 and 90)
-        """
-        
-        def _pix_func(lon,lat):
-            lon_rad = np.radians(lon)
-            lat_rad = np.radians(lat)
-            loc_lon_rad = 0.0 #np.radians(self.local_location[0])
-            loc_lat_rad = 0.0 #np.radians(self.local_location[1])
-
-            # Calculate distance from the location to the grid point
-            distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius)
-            ans = np.where(distance <= self.local_radius, self.pix, (distance - self.local_radius) / self.superdomain_scale_factor + self.pix)
-            return ans
-        
-        from scipy.interpolate import interp1d
-
-        # Suppose we know pix(lat, lon)
-        # Step 1: Construct a fine preliminary grid to estimate integrals
-       
-        Lat = np.linspace(-90., 90., 733)
-        Lon = np.linspace(-180., 180., 733)
-        LAT, LON = np.meshgrid(Lat, Lon, indexing='ij')
-
-        pix_values = _pix_func(LON, LAT)   # Evaluate pix on this fine grid
-        w = 1.0 / pix_values
-
-        # Step 2: Integrate w over longitude to get W_lat(lat)
-        W_lat_vals = np.trapezoid(w, x=Lon, axis=1)  # integrate along lon dimension
-        W_lat_cumulative = np.cumsum(W_lat_vals)
-        W_lat_cumulative -= W_lat_cumulative[0] # normalize from 0 to 1
-        W_lat_cumulative /= W_lat_cumulative[-1]  
-
-        # Create a function to invert W_lat(lat)
-        f_lat = interp1d(W_lat_cumulative, Lat, bounds_error=False, fill_value='extrapolate')
-        
-        M = int(2*np.pi*self.radius/pix_values.max()) - 1
-        while M > 0:
-            badval=False
-
-            # Step 3: For each lat interval, choose lon lines similarly
-            N = M + 1  # number of lon lines
-            lat_lines = f_lat(np.linspace(0, 1, N))
-            lon_lines = np.zeros((M, N))
-
-            for i in range(M):
-                lat_low, lat_high = lat_lines[i], lat_lines[i+1]
-                # Extract w in this lat band
-                mask = (LAT >= lat_low) & (LAT <= lat_high)
-                w_band = w[mask].reshape(-1, len(Lon))  
-                # Integrate this band over lat
-                w_band_vals = np.trapezoid(w_band, x=Lat[(Lat>=lat_low)&(Lat<=lat_high)], axis=0)
-                W_lon_band_cumulative = np.cumsum(w_band_vals)
-                if W_lon_band_cumulative[-1] > 0:
-                    W_lon_band_cumulative -= W_lon_band_cumulative[0]
-                    W_lon_band_cumulative /= W_lon_band_cumulative[-1]
-                    f_lon = interp1d(W_lon_band_cumulative, Lon, bounds_error=False, fill_value='extrapolate')
-                    lon_lines[i,:] = f_lon(np.linspace(0, 1, N))
-                else:
-                    badval=True
-                    M = M // 2
-                    break
-                
-            if not badval:
-                break
-            
-        if badval:
-            raise ValueError("Could not generate a grid with the given parameters. Please try again with different parameters.")
-            
-        LAT = np.zeros((M, N))
-        LON = np.zeros((M, N))
-        
-        for i in range(M):
-            LAT[i, :] = lat_lines[i]  # every point on this horizontal line has the same lat
-
-        LON = lon_lines
-            
-        pix_array = _pix_func(LON, LAT) 
-
-        return pix_array, LON, LAT
-
-    def _rotate_point_cloud(self,points):
-        """
-        Rotate a point cloud so that the point at [-r,0,0] moves to (lon,lat)
-        using the convention:
-        - Longitude [-180, 180] degrees, increasing eastward
-        - Latitude [-90, 90] degrees, increasing northward
-        - (0,0) lon/lat corresponds to [r,0,0] in Cartesian space
-        
-        Parameters:
-            points (np.ndarray): Nx3 array of (x,y,z) points.
-            lon (float): Target longitude in degrees.
-            lat (float): Target latitude in degrees.
-            r (float): Radius of the sphere (default=1).
-        
-        Returns:
-            np.ndarray: Rotated Nx3 point cloud.
-        """
-
-        from scipy.spatial.transform import Rotation as R
-        # Convert target lon, lat to radians
-        lon_rad, lat_rad = np.radians(self.local_location)
-        
-        # Compute target unit vector (correcting for lon,lat convention)
-        target = np.array([
-            self.radius * np.cos(lat_rad) * np.cos(lon_rad),  
-            self.radius * np.cos(lat_rad) * np.sin(lon_rad),  
-            self.radius * np.sin(lat_rad)                     
-        ])
-
-        # Original vector (the point we want to move)
-        original = np.array([-self.radius, 0, 0])  # Starts at [-r, 0, 0]
-        if np.isclose(lon_rad, 0.0) and np.isclose(lat_rad, 0.0):
-            rotation = R.from_euler('z', 180, degrees=True)  # 180-degree rotation around z-axis
-            return rotation.apply(points)
-
-        # Compute the axis of rotation (cross product)
-        axis = np.cross(original, target)
-        axis_norm = np.linalg.norm(axis)
-        
-        # If the axis is zero (no rotation needed), return the original points
-        if axis_norm < 1e-10:
-            return points
-
-        axis /= axis_norm  # Normalize the axis
-
-        # Compute the rotation angle (dot product)
-        angle = np.arccos(np.clip(np.dot(original / self.radius, target / self.radius), -1.0, 1.0))  # Normalize for dot product
-
-        # Create rotation object
-        rotvec = axis * angle  # Convert to rotation vector
-        rotation = R.from_rotvec(rotvec)  # Create rotation from axis-angle
-
-        return rotation.apply(points)
-
-    def generate_face_distribution(self) -> NDArray:
-        """
-        Creates the points that define the mesh centers.
-           
-        Returns
-        -------
-        (3,n) ndarray of np.float64
-            Array of points on a unit sphere.
-        
-        """                
-        
-        print(f"Generating a mesh with variable resolution faces")
-        print(f"Center of local region: {self.local_location}")
-        print(f"Size of local region: {self.local_radius:.2f} m")
-        print(f"Hires region pixel size: {self.pix:.2f} m")
-        print(f"Lores region pixel size: {self.pix * self.superdomain_scale_factor:.2f} m")
-        pix_array, lon, lat = self._generate_variable_size_array()
-        
-        points = []
-        n = lon.shape[0]
-        m = lat.shape[1]
-       
-        for i in range(n-1):
-            for j in range(m-1):
-                lon_range = (lon[i,j], lon[i,j+1])
-                lat_range = (lat[i,j], lat[i+1,j])
-                p = _distribute_points(distance=pix_array[i,j]/self.radius, lon_range=lon_range, lat_range=lat_range) 
-                if p is not None:
-                    points.append(p)
-                
-        points = np.concatenate(points, axis=1)
-        points = self._rotate_point_cloud(points.T).T
-        
-        return points
-
-
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      grid_hash: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
-        face_areas = self.grid.face_areas 
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_min = face_sizes.min().item() * self.radius
-        pix_max = face_sizes.max().item() * self.radius
-        print(f"Generated {self.grid.n_face} faces")
-        print(f"Effective pixel size range: {pix_min:.2f},{pix_max:.2f} m")
-        return
-
-    @property
-    def local_radius(self):
-        """
-        The radius of the local region in meters.
-        """
-        return self._local_radius
-
-    @local_radius.setter
-    def local_radius(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
-            raise TypeError("local_radius must be a positive float")
-        if value > 2 * np.pi * self.radius:
-            raise ValueError("local_radius must be less than 2 * pi * radius of the target body")
-        self._local_radius = value
-        
-    @property
-    def local_location(self):
-        """
-        The longitude and latitude of the location in degrees.
-        """
-        return self._local_location
-    
-    @local_location.setter
-    def local_location(self, value: PairOfFloats):
-        if not isinstance(value, tuple) or len(value) != 2:
-            raise TypeError("local_location must be a tuple of two floats")
-        self._local_location = validate_and_convert_location(value)
-        
-    @property
-    def superdomain_scale_factor(self):
-        """
-        A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters that are 
-        modeled outside the local region are those whose ejecta could just reach the boundary.
-        """
-        return self._superdomain_scale_factor
-    
-    @superdomain_scale_factor.setter
-    def superdomain_scale_factor(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
-            raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
-        self._superdomain_scale_factor = value
-   
-    
 class Surface(UxDataset):
     """
     This class is used for handling surface-related data and operations in the cratermaker project. It provides methods for 
@@ -660,7 +86,7 @@ class Surface(UxDataset):
                    data_dir: os.PathLike | None = None,
                    grid_file: os.PathLike | None = None,
                    reset_surface: bool = True, 
-                   grid_type: GridType = valid_grid_types[0], 
+                   gridtype: str = "icosphere", 
                    rng: Generator | None = None,
                    regrid: bool = False,
                    **kwargs):
@@ -677,29 +103,17 @@ class Surface(UxDataset):
             The file path to the grid file. Default is set to be from the current working directory, to ``{data_dir}/grid.nc``.
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        grid_type : ["icosphere", "arbitrary", "hires local"], optional
+        gridtype : str, optional
             The type of grid to be generated. Default is "icosphere".            
         rng : Generator, optional
             A random number generator instance. If not provided, the default numpy RNG will be used. 
         **kwargs : dict
-            Additional keyword arguments for initializing the Surface instance based on the specific grid_type.
+            Additional keyword arguments for initializing the Surface instance based on the specific gridtype.
 
         Returns
         -------
         Surface
             An initialized Surface object.
-                   
-        Notes
-        -----
-        The grid configuration is determined by `grid_type` and its associated parameters. For detailed information on the 
-        parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`IcosphereGrid`,`ArbitraryResolutionGrid`, 
-        `HiResLocalGrid`, etc.).
-
-        See Also
-        --------
-        cratermaker.core.surface.IcosphereGrid : Parameters for an icosphere grid configuration.
-        cratermaker.core.surface.ArbitraryResolutionGrid : Parameters for a uniform arbitrary resolution grid configuration.
-        cratermaker.core.surface.HiResLocalGrid : Parameters for a high-resolution local grid configuration.  
         """
         if not target:
             target = Target("Moon")
@@ -711,11 +125,6 @@ class Surface(UxDataset):
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
         
-        if grid_type not in valid_grid_types:
-            raise ValueError(f"Invalid grid_type {grid_type}. Valid options are {valid_grid_types}")
-        
-        gridlevel = kwargs.pop('gridlevel', 8)
-         
         pix = kwargs.pop('pix', None) 
         if pix is not None:
             pix = np.float64(pix)
@@ -738,22 +147,23 @@ class Surface(UxDataset):
             grid_file = Path(grid_file)
             
         # Process the grid parameters from the arguments and build the strategy object 
-        if grid_type == "icosphere":
-            grid_strategy = IcosphereGrid(gridlevel=gridlevel, radius=target.radius)
-        if grid_type == "arbitrary":
-            grid_strategy = ArbitraryResolutionGrid(pix=pix, radius=target.radius)
-        elif grid_type == "hires local":
-            grid_strategy = HiResLocalGrid(pix=pix, radius=target.radius, **kwargs)       
+        if isinstance(gridtype, str):
+            try:
+                gridtype = get_grid_type(gridtype)(pix=pix, radius=target.radius, **kwargs)
+            except:
+                raise ValueError(f"Failed to generate {gridtype} grid")
+        else:
+            raise TypeError("gridtype must be a string")
    
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
         if not regrid: 
-            make_new_grid = grid_strategy.check_if_regrid(grid_file=grid_file, **kwargs)
+            make_new_grid = gridtype.check_if_regrid(grid_file=grid_file, **kwargs)
         else:
             make_new_grid = True
         
         if make_new_grid:
             print("Creating a new grid")
-            grid_strategy.create_grid(grid_file=grid_file, **kwargs)
+            gridtype.create_grid(grid_file=grid_file, **kwargs)
         else:
             print("Using existing grid")
         
@@ -1049,7 +459,7 @@ class Surface(UxDataset):
         self[name] = uxda
         
         if save_to_file:
-            _save_data(uxda, self.data_dir, interval_number, combine_data_files)
+            self._save_data(uxda, self.data_dir, interval_number, combine_data_files)
         return 
         
     def set_elevation(self, 
@@ -1482,144 +892,65 @@ class Surface(UxDataset):
         
         return get_random_location_on_face(self.uxgrid, face_index, size,**kwargs)
 
-
-def _save_data(ds: xr.Dataset | xr.DataArray,
-               out_dir: os.PathLike,
-               interval_number: int = 0,
-               combine_data_files: bool = False
-               ) -> None:
-    """
-    Save the data to the specified directory. If `combine_data_files` is True, then all data variables are saved to a single NetCDF
-    file. If False, then only the data variables for the current interval are saved to a NetCDF file with the interval number
-    appended. 
-    
-    Parameters
-    ----------
-    ds : xr.Dataset or xr.DataArray
-        The data to be saved.
-    out_dir : PathLike
-        Directory to save the data.
-    interval_number : int, Default is 0.
-        Interval number to append to the data file name. Default is 0.
-    combine_data_files : bool, Default is False.
-        If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. 
-        
-    Notes
-    -----
-    This function first saves to a temporary file and then moves that file to the final destination. This is done to avoid file 
-    locking issues with NetCDF files.
-    """
-    if isinstance(ds, xr.DataArray):
-        ds = ds.to_dataset()
-        
-    if "time" not in ds.dims:
-        ds = ds.expand_dims(["time"])
-    if "time" not in ds.coords:
-        ds = ds.assign_coords({"time":[interval_number]})      
-        
-        
-    with tempfile.TemporaryDirectory() as temp_dir:
-        if combine_data_files:
-            filename = _COMBINED_DATA_FILE_NAME
-        else:
-            filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
-            
-        data_file = os.path.join(out_dir, filename)
-        if os.path.exists(data_file):
-            ds_file = xr.open_mfdataset(data_file)
-            ds_file = ds.merge(ds_file, compat="override")
-        else:
-            ds_file = ds    
-            
-        temp_file = os.path.join(temp_dir, filename)
-        
-        comp = dict(zlib=True, complevel=9)
-        encoding = {var: comp for var in ds_file.data_vars}
-        ds_file.to_netcdf(temp_file, encoding=encoding)
-        ds_file.close()     
-        shutil.move(temp_file, data_file)
-
-    return
-
-
-def _distribute_points(distance: FloatLike,
-                      radius: FloatLike=1.0, 
-                      lon_range: PairOfFloats=(-180,180), 
-                      lat_range: PairOfFloats=(-90,90)):
-    """
-    Distributes points on a sphere using Deserno's algorithm [1]_.
-        
-    Parameters
-    ----------
-    distance : float
-        Approximate distance between points, used to determine the number of points, where n = 1/distance**2 when distributed over the whole sphere.
-    radius : float, optional
-        Radius of the sphere. Default is 1.0
-    lon_range : tuple, optional
-        Range of longitudes in degrees. Default is (-180,180).
-    lat_range : tuple, optional
-        Range of latitudes in degrees. Default is (-90,90).
-        
-    Returns
-    -------
-    (3,n) ndarray of np.float64
-        Array of cartesian points on the sphere.
-        
-    
-    References
-    ----------
-    .. [1] Deserno, Markus., 2004. How to generate equidistributed points on the surface of a sphere. https://www.cmu.edu/biolphys/deserno/pdf/sphere_equi.pdf
-    
-    """
-    def _sph2cart(theta, phi, r):
-        """ 
-        Converts spherical coordinates to Cartesian coordinates.
+    @staticmethod
+    def _save_data(ds: xr.Dataset | xr.DataArray,
+                out_dir: os.PathLike,
+                interval_number: int = 0,
+                combine_data_files: bool = False
+                ) -> None:
+        """
+        Save the data to the specified directory. If `combine_data_files` is True, then all data variables are saved to a single NetCDF
+        file. If False, then only the data variables for the current interval are saved to a NetCDF file with the interval number
+        appended. 
         
         Parameters
         ----------
-        theta : float
-            Inclination angle in radians.
-        phi : float
-            Azimuthal angle in radians.
-        r : float
-            Radius.
+        ds : xr.Dataset or xr.DataArray
+            The data to be saved.
+        out_dir : PathLike
+            Directory to save the data.
+        interval_number : int, Default is 0.
+            Interval number to append to the data file name. Default is 0.
+        combine_data_files : bool, Default is False.
+            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. 
+            
+        Notes
+        -----
+        This function first saves to a temporary file and then moves that file to the final destination. This is done to avoid file 
+        locking issues with NetCDF files.
         """
-        x = r * np.sin(theta) * np.cos(phi)
-        y = r * np.sin(theta) * np.sin(phi)
-        z = r * np.cos(theta)
-        return x, y, z
- 
-    
-    phi_range = np.deg2rad(lon_range) + np.pi 
-    theta_range = np.deg2rad(lat_range) + np.pi/2 
-    points = []
-       
-    n = int(1/distance**2)
-    if n < 1: 
-        return 
-        
-    a = 4 * np.pi / n
-    d = np.sqrt(a)
-    Mtheta = int(np.round(np.pi / d))
-    dtheta = np.pi / Mtheta
-    dphi = a / dtheta
-    
-    thetavals = np.pi * (np.arange(Mtheta) + 0.5) / Mtheta
-    thetavals = thetavals[(thetavals >= theta_range[0]) & (thetavals < theta_range[1])]
-    
-    for theta in thetavals:
-        Mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
-        phivals = 2 * np.pi * np.arange(Mphi) / Mphi
-        phivals = phivals[(phivals >= phi_range[0]) & (phivals < phi_range[1])]
-        for phi in phivals:
-            points.append(_sph2cart(theta, phi, radius))
-    if len(points) == 0:
-        return
-    
-    points = np.array(points,dtype=np.float64)
-    points = points.T
+        if isinstance(ds, xr.DataArray):
+            ds = ds.to_dataset()
+            
+        if "time" not in ds.dims:
+            ds = ds.expand_dims(["time"])
+        if "time" not in ds.coords:
+            ds = ds.assign_coords({"time":[interval_number]})      
+            
+            
+        with tempfile.TemporaryDirectory() as temp_dir:
+            if combine_data_files:
+                filename = _COMBINED_DATA_FILE_NAME
+            else:
+                filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
+                
+            data_file = os.path.join(out_dir, filename)
+            if os.path.exists(data_file):
+                ds_file = xr.open_mfdataset(data_file)
+                ds_file = ds.merge(ds_file, compat="override")
+            else:
+                ds_file = ds    
+                
+            temp_file = os.path.join(temp_dir, filename)
+            
+            comp = dict(zlib=True, complevel=9)
+            encoding = {var: comp for var in ds_file.data_vars}
+            ds_file.to_netcdf(temp_file, encoding=encoding)
+            ds_file.close()     
+            shutil.move(temp_file, data_file)
 
-    return points    
+        return
+
 
 
 def _save_surface(surf: Surface, 
@@ -1670,7 +1001,7 @@ def _save_surface(surf: Surface,
     if len(drop_vars) > 0:
         ds = ds.drop_vars(drop_vars)
         
-    _save_data(ds, out_dir, interval_number, combine_data_files)
+    surf._save_data(ds, out_dir, interval_number, combine_data_files)
 
     return
 

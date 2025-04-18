@@ -43,16 +43,16 @@ class TestSurface(unittest.TestCase):
 
     def test_generate_grid(self):
         # Generate grid
-        grid_strategy = IcosphereGrid(level=self.gridlevel, radius=self.target.radius)
-        grid_strategy.generate_grid(grid_file=self.grid_file)
+        gridtype = IcosphereGrid(level=self.gridlevel, radius=self.target.radius)
+        gridtype.generate_grid(grid_file=self.grid_file)
         self.assertTrue(os.path.exists(self.grid_file))
         
-        grid_strategy = ArbitraryResolutionGrid(pix=self.pix, radius=self.target.radius) 
-        grid_strategy.generate_grid(grid_file=self.grid_file)
+        gridtype = ArbitraryResolutionGrid(pix=self.pix, radius=self.target.radius) 
+        gridtype.generate_grid(grid_file=self.grid_file)
         self.assertTrue(os.path.exists(self.grid_file))        
         
-        grid_strategy = HiResLocalGrid(pix=self.pix, radius=self.target.radius, local_location=(0, 0), local_radius=100e3, superdomain_scale_factor=10)
-        grid_strategy.generate_grid(grid_file=self.grid_file)
+        gridtype = HiResLocalGrid(pix=self.pix, radius=self.target.radius, local_location=(0, 0), local_radius=100e3, superdomain_scale_factor=10)
+        gridtype.generate_grid(grid_file=self.grid_file)
         self.assertTrue(os.path.exists(self.grid_file))
         return
 

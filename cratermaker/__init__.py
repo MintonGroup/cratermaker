@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 from .core.simulation import Simulation
 from .core.target import Target
 from .core.impact import Impact, Crater, Projectile
-from .core.surface import Surface, GridStrategy, IcosphereGrid, ArbitraryResolutionGrid, HiResLocalGrid
+from .core.surface import Surface, GridMaker, IcosphereGrid, ArbitraryResolutionGrid, HiResLocalGrid
 from .components.target_catalogue import available_target_catalogues, get_target_catalogue
 from .components.scaling import available_scaling_models, get_scaling_model
 from .components.production import available_production_models, get_production_model
