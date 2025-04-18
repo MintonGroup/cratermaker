@@ -8,19 +8,18 @@ from tqdm import tqdm
 from glob import glob
 from collections.abc import Sequence
 from typing import Any
-import inspect
 from numpy.typing import ArrayLike
 import warnings
 import yaml
 from .target import Target
 from .impact import Crater, Projectile
 from .surface import Surface, _save_surface
-from ..utils.general_utils import _set_properties, _convert_for_yaml, _to_config
+from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
-from ..components.scaling import ScalingModel, get_scaling_model
-from ..components.production import ProductionModel, get_production_model
-from ..components.morphology import MorphologyModel, get_morphology_model
+from ..components.scaling import ScalingModel, get_scaling_model, available_scaling_models
+from ..components.production import ProductionModel, get_production_model, available_production_models
+from ..components.morphology import MorphologyModel, get_morphology_model, available_morphology_models
 
 class Simulation:
     """
@@ -28,29 +27,25 @@ class Simulation:
 
     """
     def __init__(self, *, # Enforce keyword-only arguments
-                 simdir: os.PathLike = Path.cwd(), 
-                 target: str | Target = None,
-                 reset_surface: bool = True,
+                 target_name: str = "Moon",
                  seed: int | None = None,
                  scaling_model: str = "richardson2009",
                  production_model: str | None = None,
                  morphology_model: str = "simplemoon",
                  ejecta_truncation: FloatLike | None = None,
                  dorays: bool = True,
+                 reset_surface: bool = True,
+                 simdir: os.PathLike = Path.cwd(), 
                  **kwargs: Any):
         """
         Initialize the Simulation object.
 
         Parameters
         ----------
-        target: str or Target, optional, default "Moon"
+        target_name: str, optional, default "Moon"
             Name of the target body or Target object for the simulation, default is "Moon".
-        reset_surface : bool, optional
-            Flag to reset the surface elevation, default is True.
         seed : int, optional
-            Seed for the random number generator, default is None.
-        simdir: PathLike, optional
-            Path to the simulation directory, default is current working directory.
+            Seed for the random number generator, default is None which will generate a random seed.
         scaling_model : str, optional
             The name of the impactor->crater size scaling model to use from the components library. The default is "richardson2009".
         production_model: str, optional
@@ -65,6 +60,11 @@ class Simulation:
             truncation distance based on where the ejecta thickness reaches a small value. 
         dorays : bool, optional
             Flag to enable or disable the ejecta ray pattern model, default is True.
+        reset_surface : bool, optional
+            Flag to reset the surface elevation, default is True. If False, the surface will be preserved and the simulation will
+            continue from the last saved state.
+        simdir: PathLike, optional
+            Path to the simulation directory, default is current working directory.
         **kwargs : Any
             Additional keyword arguments that can be passed to other the methods of the class, such as arguments to set the scale, 
             morphology, or production function constructors. These also include the grid configuration parameters, such as 
@@ -74,11 +74,6 @@ class Simulation:
         --------
         cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
         """
-        frame = inspect.currentframe()
-        user_parameters = inspect.getargvalues(frame)
-        # remove self from the parameters and store it for the to_config function
-        self._user_defined= user_parameters[0][1:]
-
         self.simdir = simdir
         self.config_file = self.simdir / "cratermaker.yaml" 
         if self.config_file.exists():
@@ -86,87 +81,44 @@ class Simulation:
 
         self.seed = seed
         self.rng = np.random.default_rng(self.seed)
-        self._crater = None
-        self._projectile = None
-        self._interval_number = 0
-        self._elapsed_time = 0.0
-        self._current_age = 0.0
-        self._elapsed_n1 = 0.0
-        self._ejecta_truncation = ejecta_truncation
-        self._smallest_crater = 0.0 # The smallest crater will be determined by the smallest face area
-        self._smallest_projectile = 0.0 # The smallest crater will be determined by the smallest face area
-        self._largest_crater = np.inf # The largest crater will be determined by the target body radius
-        self._largest_projectile = np.inf # The largest projectile will be determined by the target body radius
-        self._dorays = dorays
-        self._reset_surface = reset_surface
+        self.ejecta_truncation = ejecta_truncation
+        self.dorays = dorays
+        self.reset_surface = reset_surface
+
+        try:
+            self.target = Target(target_name,**kwargs)
+        except:
+            raise ValueError(f"Error initializing target {target_name}")
          
-        # First we need to establish the production function. This will allow us to compute the mean impact velocity, which is needed
-        # in order to instantiate the target body.
-        #  
-        # Check to see if the impact velocity model is set with an argument. If not, set it based on a combination of target body 
-        # and production function 
-        
-        if not target:
-            target_name = "Moon"
-        elif isinstance(target, str):
-            target_name = target
-        elif isinstance(target, Target):
-            target_name = target.name
-        else:
-            raise TypeError("target must be an instance of Target or a valid name of a target body")
-       
-        # Process the impact velocity model and set defaults based on the target body 
-        impact_velocity_model = kwargs.get('impact_velocity_model', None)
-        if impact_velocity_model is None:
-            if target_name in ['Ceres', 'Vesta']:
-                impact_velocity_model = "MBA_MBA"
-            elif target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
-                impact_velocity_model = target_name + "_MBA"
-            kwargs['impact_velocity_model'] = impact_velocity_model
-                
         # Set the production function model for this simulation 
         if production_model is None:
             if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
-                production_model = "neukum"
+                self.production_model = "neukum"
                 if target_name in ['Moon', 'Mars']:
-                    self.production = get_production_model(production_model)(version=target_name, rng=self.rng, **kwargs)
+                    self.production = get_production_model(self.production_model)(version=target_name, rng=self.rng, **kwargs)
                 else:
-                    self.production = get_production_model(production_model)(version="projectile", rng=self.rng, **kwargs)
+                    self.production = get_production_model(self.production_model)(version="projectile", rng=self.rng, **kwargs)
             else:
                 self.production = get_production_model("powerlaw")(rng=self.rng, **kwargs)
-        elif isinstance(production_model, str):
-            try:
-                self.production = get_production_model(production_model)(rng=self.rng, **kwargs)
-            except KeyError:
-                raise ValueError(f"{production_model} is not a valid production model name")
         else:
-            raise TypeError("production_model must be string or None")
+            self.production_model = production_model
+        try:
+            self.production = get_production_model(self.production_model)(rng=self.rng, **kwargs)
+        except:
+            raise ValueError(f"Error initializing production model {self.production_model}")
             
-        if not target:
-            target = Target("Moon",**kwargs)
-        elif isinstance(target, str):
-            try:
-                target = Target(target,**kwargs)
-            except:
-                raise ValueError(f"Invalid target name {target}")
-        elif not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target or a valid name of a target body")
-        self.target = target
-
         # Set the scaling law model for this simulation 
-        self.scale = get_scaling_model(scaling_model)(target=self.target, rng=self.rng)
+        self.scaling_model = scaling_model
+        try:
+            self.scale = get_scaling_model(self.scaling_model)(target=self.target, rng=self.rng)
+        except:
+            raise ValueError(f"Error initializing scaling model {self.scaling_model}")
       
-        # Set the morphology model for this simulation 
-        if isinstance(morphology_model, str):
-            try:
-                self.morphology_cls = get_morphology_model(morphology_model)
-                self.morphology_model = morphology_model
-            except KeyError:
-                raise ValueError(f"{morphology_model} is not a valid morphology model name")
-        else:
-            raise TypeError("morphology must be a string or None")
-      
-        self._craterlist = []
+        self.morphology_model = morphology_model
+        try:
+            self.morphology_cls = get_morphology_model(self.morphology_model)
+        except:
+            raise ValueError(f"Error initializing {morphology_model}")
         
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
@@ -181,6 +133,18 @@ class Simulation:
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
         self.surf = Surface.initialize(target=self.target, reset_surface=self.reset_surface, simdir=self.simdir, rng=self.rng, **kwargs)
+
+        self._craterlist = []
+        self._crater = None
+        self._projectile = None
+        self._interval_number = 0
+        self._elapsed_time = 0.0
+        self._current_age = 0.0
+        self._elapsed_n1 = 0.0
+        self._smallest_crater = 0.0 # The smallest crater will be determined by the smallest face area
+        self._smallest_projectile = 0.0 # The smallest crater will be determined by the smallest face area
+        self._largest_crater = np.inf # The largest crater will be determined by the target body radius
+        self._largest_projectile = np.inf # The largest projectile will be determined by the target body radius
 
         return
 
@@ -1120,6 +1084,34 @@ class Simulation:
         """
         return self.surf.set_elevation(*args, **kwargs)   
 
+    @parameter
+    def production_model(self):
+        """
+        The production model used for crater production. Set during initialization.
+        """
+        return self._production_model
+
+    @production_model.setter
+    def production_model(self, value):
+        if not isinstance(value, str):
+            raise TypeError("production_model must be a string")
+        if value.lower() not in available_production_models():
+            raise ValueError(f"production_model must be one of {available_production_models()}")
+        self._production_model = value.lower()
+
+
+    @parameter
+    def target_name(self):
+        """
+        The name of the target body for the impact simulation. Set during initialization.
+        """
+        return self._target_name
+    
+    @target_name.setter
+    def target_name(self, value):
+        if not isinstance(value, str):
+            raise TypeError("target_name must be a string")
+        self._target_name = value.title()
 
     @property
     def target(self):
@@ -1147,7 +1139,7 @@ class Simulation:
             raise TypeError("surf must be an instance of Surface")
         self._surf = value
 
-    @property
+    @parameter
     def seed(self):
         """
         Seed for the random number generator. Set during initialization.
@@ -1177,7 +1169,7 @@ class Simulation:
             raise TypeError("rng must be a numpy.random.Generator instance or None")
         self._rng = value
 
-    @property
+    @parameter
     def reset_surface(self):
         """
         Flag to reset the surface before running the simulation. Set during initialization.
@@ -1190,7 +1182,7 @@ class Simulation:
             raise TypeError("reset_surface must be a boolean")
         self._reset_surface = value
     
-    @property
+    @parameter
     def simdir(self):
         """
         Directory where the simulation data is stored. Set during initialization.
@@ -1209,7 +1201,6 @@ class Simulation:
 
         self._simdir.mkdir(parents=True, exist_ok=True)
 
-
     @property
     def production(self):
         """
@@ -1222,6 +1213,21 @@ class Simulation:
         if not issubclass(value.__class__, ProductionModel):
             raise TypeError("production must be a subclass of Production")
         self._production = value
+
+    @parameter
+    def scaling_model(self):
+        """
+        The scaling model used for crater scaling. Set during initialization.
+        """
+        return self._scaling_model
+
+    @scaling_model.setter
+    def scaling_model(self, value):
+        if not isinstance(value, str):
+            raise TypeError("scaling_model must be a string")
+        if value.lower() not in available_scaling_models():
+            raise ValueError(f"scaling_model must be one of {available_scaling_models()}")
+        self._scaling_model = value.lower()
 
     @property
     def scale(self):
@@ -1249,17 +1255,19 @@ class Simulation:
             raise TypeError("morphology_cls must be a subclass of MorphologyModel")
         self._morphology_cls = value
 
-    @property
+    @parameter
     def morphology_model(self):
         """
         The name of the morphology model to load from the components library.
         """
-        return self._morphology_model
+        return self._morphology_model.lower()
 
     @morphology_model.setter
     def morphology_model(self, value):
         if not isinstance(value, str):
             raise TypeError("morphology_model must be a string")
+        if value.lower() not in available_morphology_models():
+            raise ValueError(f"morphology_model must be one of {available_morphology_models()}")
         self._morphology_model = value
 
     @property
@@ -1323,7 +1331,7 @@ class Simulation:
         """
         return self.surf.uxgrid.n_face
 
-    @property
+    @parameter
     def interval_number(self):
         """
         The index of the current time step. 
@@ -1339,7 +1347,7 @@ class Simulation:
         
         self._interval_number = value    
         
-    @property
+    @parameter
     def elapsed_time(self):
         """
         The elasped time in My since the start of the simulation.
@@ -1350,7 +1358,7 @@ class Simulation:
     def elapsed_time(self, value):
         self._elapsed_time = np.float64(value)
         
-    @property
+    @parameter
     def current_age(self):
         """
         The age of the current time step in My relative to the present from the chronology of the production function.
@@ -1361,7 +1369,7 @@ class Simulation:
     def current_age(self, value):
         self._current_age = np.float64(value)
         
-    @property
+    @parameter
     def elapsed_n1(self):
         """
         The elapsed number of craters larger than 1 km in diameter.
@@ -1372,7 +1380,7 @@ class Simulation:
     def elapsed_n1(self, value):
         self._elapsed_n1 = np.float64(value)
        
-    @property
+    @parameter
     def ejecta_truncation(self):
         """
         The ejecta truncation distance in units of crater radii. Set during initialization.
@@ -1390,7 +1398,7 @@ class Simulation:
         else:
             self._ejecta_truncation = None
             
-    @property
+    @parameter
     def smallest_crater(self):
         """
         The smallest crater diameter in meters. Set during initialization.
@@ -1410,7 +1418,7 @@ class Simulation:
             raise ValueError("smallest_crater must be less than or equal to largest_crater")
         self._smallest_crater = np.float64(value)
         
-    @property
+    @parameter
     def largest_crater(self):
         """
         The largest crater diameter in meters. Set during initialization.
@@ -1430,7 +1438,7 @@ class Simulation:
             raise ValueError("largest_crater must be greater than or equal to smallest_crater")
         self._largest_crater = np.float64(value)
        
-    @property
+    @parameter
     def smallest_projectile(self):
         """
         The smallest projectile diameter in meters. Set during initialization.
@@ -1450,7 +1458,7 @@ class Simulation:
             raise ValueError("smallest_projectile must be less than or equal to largest_projectile")  
         self._smallest_projectile = np.float64(value)
         
-    @property
+    @parameter
     def largest_projectile(self):
         """
         The largest projectile diameter in meters. Set during initialization.
@@ -1470,7 +1478,7 @@ class Simulation:
             raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
         self._largest_projectile = np.float64(value)
         
-    @property
+    @parameter
     def dorays(self):
         """
         Flag to enable the ray pattern model for the ejecta. Set during initialization.

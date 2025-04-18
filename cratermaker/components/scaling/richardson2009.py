@@ -4,7 +4,7 @@ from typing import Any
 from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
-from cratermaker.utils.general_utils import _set_properties, _check_properties
+from cratermaker.utils.general_utils import _set_properties
 from cratermaker.components.scaling import register_scaling_model, ScalingModel
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
@@ -72,6 +72,7 @@ class Richardson2009(ScalingModel):
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
 
+        object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_material_name", None)
         object.__setattr__(self, "_K1", None)

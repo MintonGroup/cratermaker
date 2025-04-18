@@ -2,7 +2,7 @@ import pkgutil
 import importlib
 from abc import ABC, abstractmethod
 from typing import Any
-from cratermaker.utils.general_utils import _to_config
+from cratermaker.utils.general_utils import _to_config, parameter
 
 class ScalingModel(ABC):
     @abstractmethod
@@ -10,14 +10,10 @@ class ScalingModel(ABC):
     @abstractmethod
     def crater_to_projectile(self, crater): ...
 
-    def __init__(self):
-        object.__setattr__(self, "_user_defined", set())
-        self._user_defined.add("model")
-
     def to_config(self, **kwargs: Any) -> dict:
         return _to_config(self)
 
-    @property
+    @parameter
     def model(self):
         """
         The registered name of this scaling model set by the @register_scaling_model decorator.

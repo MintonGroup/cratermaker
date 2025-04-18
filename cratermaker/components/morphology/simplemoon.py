@@ -11,6 +11,7 @@ from cratermaker.core.target import Target
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.surface import Surface
 from cratermaker.components.morphology import register_morphology_model, MorphologyModel
+from cratermaker.utils.general_utils import parameter
 from cratermaker import crater, ejecta
 
 @register_morphology_model("simplemoon")
@@ -53,16 +54,6 @@ class SimpleMoon(MorphologyModel):
         self.dorays = dorays
 
         # Set the morphology based on crater type
-        self._set_morphology_parameters()
-       
-    def __repr__(self):
-        return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.diameter}, "
-                f"rimheight: {self.rimheight}, rimwidth: {self.rimwidth}, floordepth: {self.floordepth}, floordiam: {self.floordiam})") 
-    
-    def _set_morphology_parameters(self):
-        """
-        Sets the morphology parameters based on the crater type.
-        """
         diameter_km = self.diameter * 1e-3  # Convert to km for these models
 
         if self.morphology_type in ["simple", "transitional"]:
@@ -85,6 +76,11 @@ class SimpleMoon(MorphologyModel):
             
         self.ejrim = 0.14 * (self.diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
+       
+    def __repr__(self):
+        return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.diameter}, "
+                f"rimheight: {self.rimheight}, rimwidth: {self.rimwidth}, floordepth: {self.floordepth}, floordiam: {self.floordiam})") 
+    
 
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
         elevation = crater.profile(r,
@@ -117,7 +113,8 @@ class SimpleMoon(MorphologyModel):
                                     )
         thickness = np.array(thickness, dtype=np.float64)
         return thickness
-  
+
+
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
         intensity = ejecta.ray_intensity(r, theta,
                                        self.diameter, 
@@ -126,7 +123,8 @@ class SimpleMoon(MorphologyModel):
                                     )
         intensity = np.array(intensity, dtype=np.float64)
         return intensity
-           
+
+
     def compute_rmax(self, 
                      minimum_thickness: np.float64,
                      feature: str = "ejecta") -> np.float64:
@@ -164,7 +162,8 @@ class SimpleMoon(MorphologyModel):
             rmax = max(rmax, self.radius)
 
         return rmax     
-     
+
+
     def form_crater(self, 
                     surf: Surface,
                     **kwargs) -> None:
@@ -206,8 +205,8 @@ class SimpleMoon(MorphologyModel):
             raise ValueError("Something went wrong with this crater!")
                  
         return  
-    
-     
+
+
     def form_ejecta(self,
                     surf: Surface,
                     **kwargs) -> None:
@@ -258,6 +257,7 @@ class SimpleMoon(MorphologyModel):
                  
         return  
     
+
     def form_secondaries(self,
                          surf: Surface,
                          **kwargs) -> None:
@@ -305,6 +305,7 @@ class SimpleMoon(MorphologyModel):
             raise ValueError("Something went wrong with this crater!")
                  
         return      
+
 
     def get_1D_power_spectral_density(self,feature,psd_coef,num_psd_component_effec=100) -> NDArray:
         """
@@ -393,7 +394,8 @@ class SimpleMoon(MorphologyModel):
         psd[:, 1] = 10 ** psd_log
         psd=np.flipud(psd)
         return psd
-            
+
+
     def get_2D_power_spectral_density(self,feature,psd_coef,ejecta_radius_norm,floor_radius_norm,max_effec_freq) -> tuple[NDArray,NDArray,NDArray,NDArray,NDArray,NDArray]:
         """
         This method constructs a 2D power spectral density.
@@ -741,7 +743,7 @@ class SimpleMoon(MorphologyModel):
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
         self._rng = value or np.random.default_rng()   
        
-    @property
+    @parameter
     def ejecta_truncation(self) -> np.float64:
         """
         The radius at which the crater is truncated relative to the crater radius.
@@ -761,7 +763,7 @@ class SimpleMoon(MorphologyModel):
         else:
             self.crater.ejecta_truncation = None
             
-    @property
+    @parameter
     def dorays(self) -> bool:
         """
         A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket.
