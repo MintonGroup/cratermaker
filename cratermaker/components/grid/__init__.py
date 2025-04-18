@@ -226,19 +226,6 @@ class GridMaker(ABC):
         return points    
 
     @parameter
-    def pix(self):
-        """
-        The approximate face size for a cell of the mesh.
-        """
-        return self._pix
-    
-    @pix.setter
-    def pix(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
-            raise TypeError("pix must be a positive float")
-        self._pix = value
-
-    @parameter
     def radius(self):
         """
         The radius of the target body in meters.

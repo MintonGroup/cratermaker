@@ -4,6 +4,7 @@ from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.components.grid import register_grid_type, GridMaker
+from cratermaker.utils.general_utils import parameter
 
 @register_grid_type("arbitrary_resolution")
 class ArbitraryResolutionGrid(GridMaker):
@@ -24,13 +25,28 @@ class ArbitraryResolutionGrid(GridMaker):
     """    
     
     def __init__(self, 
-                 pix: FloatLike, 
-                 radius: FloatLike, 
+                 radius: FloatLike = 1.0, 
+                 pix: FloatLike | None = None, 
                  **kwargs: Any):
         super().__init__(**kwargs)
-        self.pix = pix
         self.radius = radius
+        if pix is not None:
+            self.pix = np.float64(pix)
+        else:    
+            self.pix = np.sqrt(4 * np.pi * radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
+
+    @parameter
+    def pix(self):
+        """
+        The approximate face size for a cell of the mesh.
+        """
+        return self._pix
     
+    @pix.setter
+    def pix(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("pix must be a positive float")
+        self._pix = value
 
     def generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """

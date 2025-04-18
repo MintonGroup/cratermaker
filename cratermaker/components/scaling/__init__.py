@@ -29,6 +29,8 @@ def register_scaling_model(name: str):
     """
     def decorator(cls):
         cls._model = name 
+        cls._user_defined = set()
+        cls._user_defined.add("model")
         _registry[name] = cls
         return cls
     return decorator

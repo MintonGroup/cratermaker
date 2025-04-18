@@ -32,8 +32,6 @@ class Simulation:
                  scaling_model: str = "richardson2009",
                  production_model: str | None = None,
                  morphology_model: str = "simplemoon",
-                 ejecta_truncation: FloatLike | None = None,
-                 dorays: bool = True,
                  reset_surface: bool = True,
                  simdir: os.PathLike = Path.cwd(), 
                  **kwargs: Any):
@@ -55,20 +53,14 @@ class Simulation:
             Earth, and a simple power law model otherwise.
         morphology_model : str, optional
             The name of the component model used to describe the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
-        ejecta_truncation : float, optional
-            The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
-            truncation distance based on where the ejecta thickness reaches a small value. 
-        dorays : bool, optional
-            Flag to enable or disable the ejecta ray pattern model, default is True.
         reset_surface : bool, optional
             Flag to reset the surface elevation, default is True. If False, the surface will be preserved and the simulation will
             continue from the last saved state.
         simdir: PathLike, optional
             Path to the simulation directory, default is current working directory.
         **kwargs : Any
-            Additional keyword arguments that can be passed to other the methods of the class, such as arguments to set the scale, 
-            morphology, or production function constructors. These also include the grid configuration parameters, such as 
-            `grid_type`, and its associated parameters. Refer to the documentation of the surface module for details.
+            Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scale, 
+            morphology, or production function constructors. Refer to the documentation of each component module for details.
             
         See Also
         --------
@@ -81,8 +73,6 @@ class Simulation:
 
         self.seed = seed
         self.rng = np.random.default_rng(self.seed)
-        self.ejecta_truncation = ejecta_truncation
-        self.dorays = dorays
         self.reset_surface = reset_surface
 
         try:
@@ -235,7 +225,7 @@ class Simulation:
             crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale=self.scale, rng=self.rng, dorays=self.dorays, **kwargs)
+        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale=self.scale, rng=self.rng, **kwargs)
         
         if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
             if self.production.mean_velocity is None:
@@ -341,8 +331,6 @@ class Simulation:
         self.projectile.node_index, self.projectile.face_index = self.crater.node_index, self.crater.face_index
         self.crater.morphology.form_crater(self.surf,**kwargs)
         self.crater.morphology.form_ejecta(self.surf,**kwargs)
-        if self.dorays:
-            self.crater.morphology.form_secondaries(self.surf,**kwargs)
         
         return  
 
@@ -725,13 +713,13 @@ class Simulation:
         sim_config = self.to_config() 
         prod_config = self.production.to_config()
         surf_config = self.surf.to_config()
-        sim_config['target'] = target_config
-        sim_config['scaling'] = scale_config
-        sim_config['production'] = prod_config
-        sim_config['surface'] = surf_config
+        sim_config['target_parameters'] = target_config
+        sim_config['scaling_model_parameters'] = scale_config
+        sim_config['production_model_parameters'] = prod_config
+        sim_config['surface_parameters'] = surf_config
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
-            yaml.safe_dump(sim_config, f, indent=4, sort_keys=False)
+            yaml.safe_dump(sim_config, f, indent=4)
         
         return
     
@@ -1383,24 +1371,6 @@ class Simulation:
         self._elapsed_n1 = np.float64(value)
        
     @parameter
-    def ejecta_truncation(self):
-        """
-        The ejecta truncation distance in units of crater radii. Set during initialization.
-        """
-        return self._ejecta_truncation
-    
-    @ejecta_truncation.setter
-    def ejecta_truncation(self, value):
-        if value is not None:
-            if not isinstance(value, FloatLike):
-                raise TypeError("ejecta_truncation must be a scalar value")
-            if value < 1.0:
-                raise ValueError("ejecta_truncation must be greater than or equal to zero")
-            self._ejecta_truncation = np.float64(value) 
-        else:
-            self._ejecta_truncation = None
-            
-    @parameter
     def smallest_crater(self):
         """
         The smallest crater diameter in meters. Set during initialization.
@@ -1480,15 +1450,3 @@ class Simulation:
             raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
         self._largest_projectile = np.float64(value)
         
-    @parameter
-    def dorays(self):
-        """
-        Flag to enable the ray pattern model for the ejecta. Set during initialization.
-        """
-        return self._dorays 
-    
-    @dorays.setter
-    def dorays(self, value):
-        if not isinstance(value, bool):
-            raise TypeError("dorays must be a boolean value")
-        self._dorays = value

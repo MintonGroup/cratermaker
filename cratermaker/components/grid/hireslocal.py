@@ -240,6 +240,19 @@ class HiResLocalGrid(GridMaker):
         return
 
     @parameter
+    def pix(self):
+        """
+        The approximate face size for a cell of the mesh.
+        """
+        return self._pix
+    
+    @pix.setter
+    def pix(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("pix must be a positive float")
+        self._pix = value
+
+    @parameter
     def local_radius(self):
         """
         The radius of the local region in meters.

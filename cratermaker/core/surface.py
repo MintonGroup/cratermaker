@@ -16,7 +16,7 @@ import warnings
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
 from cratermaker.utils.general_utils import _to_config, parameter
-from cratermaker.components.grid import GridMaker, get_grid_type, available_grid_types
+from cratermaker.components.grid import get_grid_type, available_grid_types
 
 # Default file names and directories
 _DATA_DIR = Path.cwd() / "surface_data"
@@ -50,7 +50,7 @@ class Surface(UxDataset):
     **kwargs
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
     """
-    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_rng', '_user_defined', '_compute_face_areas', '_gridtype', '_grid_config')    
+    __slots__ = UxDataset.__slots__ + ('_name', '_description', '_data_dir', '_grid_file', '_smallest_length', '_area', '_target', '_rng', '_user_defined', '_compute_face_areas', '_gridtype', '_grid_parameters')    
 
     def __init__(self, 
                  *args, 
@@ -131,12 +131,6 @@ class Surface(UxDataset):
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
         
-        pix = kwargs.pop('pix', None) 
-        if pix is not None:
-            pix = np.float64(pix)
-        else:    
-            pix = np.sqrt(4 * np.pi * target.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
-
         # Verify directory structure exists and create it if not
         if not data_dir:
             data_dir = Path.cwd() / _DATA_DIR
@@ -154,19 +148,19 @@ class Surface(UxDataset):
             
         # Process the grid parameters from the arguments and build the strategy object 
         try:
-            grid = get_grid_type(gridtype)(pix=pix, radius=target.radius, **kwargs)
+            grid = get_grid_type(gridtype)(radius=target.radius, **kwargs)
         except:
             raise ValueError(f"Failed to generate {gridtype} grid")
    
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
         if not regrid: 
-            make_new_grid = grid.check_if_regrid(grid_file=grid_file, **kwargs)
+            make_new_grid = grid.check_if_regrid(grid_file=str(grid_file), **kwargs)
         else:
             make_new_grid = True
         
         if make_new_grid:
             print("Creating a new grid")
-            grid.create_grid(grid_file=grid_file, **kwargs)
+            grid.create_grid(grid_file=str(grid_file), **kwargs)
         else:
             print("Using existing grid")
         
@@ -220,7 +214,8 @@ class Surface(UxDataset):
                               )                         
             surf.set_elevation(0.0,save_to_file=True)
 
-        surf.grid_config = grid.to_config()
+        surf.grid_parameters = grid.to_config()
+        surf.grid_parameters['gridtype'] = gridtype
         
         return surf        
         
@@ -340,7 +335,7 @@ class Surface(UxDataset):
             value = Path(value)
         self._grid_file = value
 
-    @property
+    @parameter
     def gridtype(self):
         """
         The type of grid used for the surface.
@@ -387,17 +382,17 @@ class Surface(UxDataset):
         self._smallest_length = value
 
     @parameter
-    def grid_config(self):
+    def grid_parameters(self):
         """
         The grid configuration used for the surface.
         """
-        return self._grid_config
+        return self._grid_parameters
     
-    @grid_config.setter
-    def grid_config(self, value):
+    @grid_parameters.setter
+    def grid_parameters(self, value):
         if not isinstance(value, dict):
             raise TypeError("grid_config must be a dictionary")
-        self._grid_config = value
+        self._grid_parameters = value
 
     @property
     def area(self):
