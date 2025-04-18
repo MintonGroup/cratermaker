@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 class TargetCataloguePlugin(ABC):
     """
-    Abstract base class that all target‑catalogue plugins must implement.
+    Abstract base class that all target‑catalogue components must implement.
     """
     @abstractmethod
     def get_targets(self) -> dict[str, dict]:
@@ -18,7 +18,7 @@ _registry: dict[str, TargetCataloguePlugin] = {}
 
 def register_target_catalogue(name: str):
     """
-    Class decorator to register a target‑catalogue plugin under the given key.
+    Class decorator to register a target‑catalogue component under the given key.
     """
     def decorator(cls):
         cls._catalogue_name = name
@@ -31,7 +31,7 @@ def available_target_catalogues() -> list[str]:
     return list(_registry.keys())
 
 def get_target_catalogue(name: str):
-    """Return the plugin instance for the given name (KeyError if not found)."""
+    """Return the component instance for the given name (KeyError if not found)."""
     return _registry[name]
 
 # This loop will import every .py in this folder, causing those modules

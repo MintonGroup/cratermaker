@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.random import Generator
 from scipy.optimize import root_scalar
-from cratermaker.plugins.production import register_production_model, ProductionModel
+from cratermaker.components.production import register_production_model, ProductionModel
 from cratermaker.utils.montecarlo import get_random_size
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import R_to_CSFD

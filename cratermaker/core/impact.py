@@ -2,11 +2,11 @@ import numpy as np
 from numpy.random import Generator
 from typing import Type, Any
 from .target import Target
-from ..plugins.scaling import ScalingModel
+from ..components.scaling import ScalingModel
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..plugins.morphology import MorphologyModel
+from ..components.morphology import MorphologyModel
 from abc import ABC, abstractmethod
 
 class Impact(ABC):

@@ -18,9 +18,9 @@ from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _convert_for_yaml
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..realistic import apply_noise
-from ..plugins.scaling import ScalingModel, get_scaling_model
-from ..plugins.production import ProductionModel, get_production_model
-from ..plugins.morphology import MorphologyModel, get_morphology_model
+from ..components.scaling import ScalingModel, get_scaling_model
+from ..components.production import ProductionModel, get_production_model
+from ..components.morphology import MorphologyModel, get_morphology_model
 
 class Simulation:
     """
@@ -52,14 +52,14 @@ class Simulation:
         simdir: PathLike, optional
             Path to the simulation directory, default is current working directory.
         scaling_model : str, optional
-            The name of the impactor->crater size scaling model to use from the plugins library. The default is "richardson2009".
+            The name of the impactor->crater size scaling model to use from the components library. The default is "richardson2009".
         production_model: str, optional
-            The name of the production function model to use from the plugins library that defines the production function used to populate the surface with craters. If none provided, 
+            The name of the production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
             then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
             body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
             Earth, and a simple power law model otherwise.
         morphology_model : str, optional
-            The name of the plugin model used to describe the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
+            The name of the component model used to describe the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
         ejecta_truncation : float, optional
             The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
             truncation distance based on where the ejecta thickness reaches a small value. 
@@ -1255,7 +1255,7 @@ class Simulation:
     @property
     def morphology_model(self):
         """
-        The name of the morphology model to load from the plugins library.
+        The name of the morphology model to load from the components library.
         """
         return self._morphology_model
 

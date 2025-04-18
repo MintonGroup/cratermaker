@@ -7,7 +7,7 @@ from numpy.typing import ArrayLike
 from typing import Any, Union
 import numpy as np
 
-class ProductionModel(ABC):
+class MorphologyModel(ABC):
     @abstractmethod
     def function(self,
             diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -54,11 +54,11 @@ class ProductionModel(ABC):
         """ 
         return self._model
 
-_registry: dict[str, ProductionModel] = {}
+_registry: dict[str, MorphologyModel] = {}
 
-def register_production_model(name: str):
+def register_morphology_model(name: str):
     """
-    Class decorator to register a production model plugin under the given key.
+    Class decorator to register a morphology model component under the given key.
     """
     def decorator(cls):
         cls._model = name 
@@ -66,16 +66,16 @@ def register_production_model(name: str):
         return cls
     return decorator
 
-def available_production_models() -> list[str]:
+def available_morphology_models() -> list[str]:
     """Return list of all registered catalogue names."""
     return list(_registry.keys())
 
-def get_production_model(name: str):
-    """Return the plugin instance for the given name (KeyError if not found)."""
+def get_morphology_model(name: str):
+    """Return the component instance for the given name (KeyError if not found)."""
     return _registry[name]
 
 # This loop will import every .py in this folder, causing those modules
-# (which use @register_production_model) to run and register themselves.
+# (which use @register_morphology_model) to run and register themselves.
 package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")

@@ -3,7 +3,7 @@ from typing import Any
 from ..utils.general_utils import _set_properties, _check_properties
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
-from ..plugins.target_catalogue import get_target_catalogue
+from ..components.target_catalogue import get_target_catalogue
 
 
 class Target:

@@ -42,18 +42,18 @@ dependencies = [
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
-[project.entry-points."cratermaker.plugins.scaling"]
-richardson2009 = "cratermaker.plugins.scaling.richardson2009:Richardson2009"
+[project.entry-points."cratermaker.components.scaling"]
+richardson2009 = "cratermaker.components.scaling.richardson2009:Richardson2009"
 
-[project.entry-points."cratermaker.plugins.target_catalogue"]
-default = "cratermaker.plugins.target_catalogue.default:DefaultTargetCatalogue"
+[project.entry-points."cratermaker.components.target_catalogue"]
+default = "cratermaker.components.target_catalogue.default:DefaultTargetCatalogue"
 
-[project.entry-points."cratermaker.plugins.production"]
-powerlaw = "cratermaker.plugins.production.powerlaw:PowerLawProduction"
-neukum = "cratermaker.plugins.production.neukum:NeukumProduction"
+[project.entry-points."cratermaker.components.production"]
+powerlaw = "cratermaker.components.production.powerlaw:PowerLawProduction"
+neukum = "cratermaker.components.production.neukum:NeukumProduction"
 
-[project.entry-points."cratermaker.plugins.morphology"]
-simplemoon = "cratermaker.plugins.morphology.simplemoon:SimpleMoon"
+[project.entry-points."cratermaker.components.morphology"]
+simplemoon = "cratermaker.components.morphology.simplemoon:SimpleMoon"
 
 [build-system]
 requires = [

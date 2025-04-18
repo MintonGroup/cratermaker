@@ -1,4 +1,4 @@
-from cratermaker.plugins.target_catalogue import register_target_catalogue, TargetCataloguePlugin
+from cratermaker.components.target_catalogue import register_target_catalogue, TargetCataloguePlugin
 from cratermaker.utils.general_utils import _create_catalogue
 
 @register_target_catalogue("default")

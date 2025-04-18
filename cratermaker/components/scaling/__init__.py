@@ -29,7 +29,7 @@ _registry: dict[str, ScalingModel] = {}
 
 def register_scaling_model(name: str):
     """
-    Class decorator to register an impactor->crater size scaling plugin under the given key.
+    Class decorator to register an impactor->crater size scaling component under the given key.
     """
     def decorator(cls):
         cls._model = name 
@@ -42,7 +42,7 @@ def available_scaling_models() -> list[str]:
     return list(_registry.keys())
 
 def get_scaling_model(name: str):
-    """Return the plugin instance for the given name (KeyError if not found)."""
+    """Return the component instance for the given name (KeyError if not found)."""
     return _registry[name]
 
 # This loop will import every .py in this folder, causing those modules

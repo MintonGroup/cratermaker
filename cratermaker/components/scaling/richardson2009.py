@@ -5,7 +5,7 @@ from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import _set_properties, _check_properties
-from cratermaker.plugins.scaling import register_scaling_model, ScalingModel
+from cratermaker.components.scaling import register_scaling_model, ScalingModel
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
 

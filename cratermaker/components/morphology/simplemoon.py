@@ -10,7 +10,7 @@ from typing import Any
 from cratermaker.core.target import Target
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.surface import Surface
-from cratermaker.plugins.morphology import register_morphology_model, MorphologyModel
+from cratermaker.components.morphology import register_morphology_model, MorphologyModel
 from cratermaker import crater, ejecta
 
 @register_morphology_model("simplemoon")
@@ -326,7 +326,7 @@ class SimpleMoon(MorphologyModel):
 
         """
         # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
-        with open(os.path.join(os.pardir,"plugins","psd_coef.json")) as f:
+        with open(os.path.join(os.pardir,"components","psd_coef.json")) as f:
             psd_coef = json.load(f)
         # ------------------------------------------------------------------------------------------------------------------
         num_psd_component=5000
@@ -418,7 +418,7 @@ class SimpleMoon(MorphologyModel):
 
         """
          # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
-        with open(os.path.join(os.pardir,"plugins","psd_coef.json")) as f:
+        with open(os.path.join(os.pardir,"components","psd_coef.json")) as f:
             psd_coef = json.load(f) # read in from _init_?
         # ------------------------------------------------------------------------------------------------------------------
         if feature == "ejecta" : max_effec_freq = 40
