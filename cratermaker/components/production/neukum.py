@@ -388,12 +388,12 @@ class NeukumProduction(ProductionModel):
         Parameters
         ----------
         diameter : FloatLike or ArrayLike
-            Time in units of meter 
+            units of meter 
             
         Returns
         -------
         FloatLike or numpy array
-           Cumulative number density of craters per square meter greater than the input diameter.
+           Cumulative number density of per square meter greater than the input diameter.
         """      
         # Convert m to km for internal functions
         Dkm_lo = self.sfd_range[0] * 1e-3
@@ -493,7 +493,7 @@ class NeukumProduction(ProductionModel):
         else:
             Ncumulative = _CSFD(Dkm) 
             
-        return Ncumulative * 1e-6 # convert from km^-2 to m^-2    
+        return Ncumulative * 1e-9 # convert from Gy^-1 km^-2 to My^-1 m^-2    
 
 
 if __name__ == "__main__":
