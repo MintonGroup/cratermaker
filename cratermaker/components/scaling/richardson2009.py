@@ -4,7 +4,7 @@ from typing import Any
 from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
-from cratermaker.utils.general_utils import _set_properties
+from cratermaker.utils.general_utils import _set_properties, _check_properties
 from cratermaker.components.scaling import register_scaling_model, ScalingModel
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
@@ -19,8 +19,8 @@ class Richardson2009(ScalingModel):
         
     Parameters
     ----------
-    target : Target or str, required
-        The target body for the impact simulation, or the name of a target. If the name is provided, you can also provide additional keyword arguments that will be passed to the Target class.
+    target : Target or str, optional
+        The target body for the impact simulation, or the name of a target. If the name is provided, you can also provide additional keyword arguments that will be passed to the Target class. Default is "Moon".
     material_name : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
@@ -49,7 +49,7 @@ class Richardson2009(ScalingModel):
     """  
 
     def __init__(self, 
-                 target: str | Target = None,
+                 target: Target | str = "Moon",
                  material_name: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
@@ -66,7 +66,7 @@ class Richardson2009(ScalingModel):
         super().__init__()
         if isinstance(target, str):
             try:
-                target = Target(target,material_name=material_name,**kwargs)
+                target = Target(target,**kwargs)
             except:
                 raise ValueError(f"Invalid target name {target}")
         elif not isinstance(target, Target):
@@ -75,29 +75,30 @@ class Richardson2009(ScalingModel):
         object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_material_name", None)
+        object.__setattr__(self, "_material_catalogue", None)
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)
         object.__setattr__(self, "_Ybar", None)
         object.__setattr__(self, "_target_density", None)
         object.__setattr__(self, "_rng", None)
+        self.rng = rng
 
-        if material_name is None and target.material_name is not None: 
-            material_name = target.material_name
-
-        material_catalogue = self._create_material_catalogue() 
+        if material_name is not None:
+            self.material_name = material_name
+        else: 
+            self.material_name = target.material_name
 
         _set_properties(self,
                         target=target,
-                        name=material_name,
+                        name=self.material_name,
                         K1=K1,
                         mu=mu,
                         Ybar=Ybar,
                         target_density=target_density,
-                        catalogue=material_catalogue,
-                        rng=rng,
+                        catalogue=self.material_catalogue,
                         **kwargs
                     ) 
-        
+        _check_properties(self)  
         # Initialize additional attributes for simple->complex transition scale factors. These are set to None here just for clarity
         self.transition_diameter = None
         self.transition_nominal = None
@@ -424,23 +425,36 @@ class Richardson2009(ScalingModel):
         
         return projectile
 
-    def _create_material_catalogue(self):
-        
-        # Define some built-in catalogue values for known solar system materials of interest
-        # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
-        material_properties = [
-            "name",       "K1",     "mu",   "Ybar",     "target_density" 
-        ]
-        material_values = [
-            ("Water",     2.30,     0.55,   0.0,        1000.0),
-            ("Sand",      0.24,     0.41,   0.0,        1750.0),
-            ("Dry Soil",  0.24,     0.41,   0.18e6,     1500.0),
-            ("Wet Soil",  0.20,     0.55,   1.14e6,     2000.0),
-            ("Soft Rock", 0.20,     0.55,   7.60e6,     2250.0),
-            ("Hard Rock", 0.20,     0.55,   18.0e6,     2500.0),
-            ("Ice",       15.625,   0.48,   0.0,        900.0), 
-        ]        
-        return _create_catalogue(material_properties, material_values)
+    @property
+    def material_catalogue(self):
+        """
+        The material catalogue used to look up material properties.
+
+        Returns
+        -------
+        dict
+            The material catalogue.
+        """
+        def _create_material_catalogue():
+            
+            # Define some built-in catalogue values for known solar system materials of interest
+            # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
+            material_properties = [
+                "name",       "K1",     "mu",   "Ybar",     "target_density" 
+            ]
+            material_values = [
+                ("Water",     2.30,     0.55,   0.0,        1000.0),
+                ("Sand",      0.24,     0.41,   0.0,        1750.0),
+                ("Dry Soil",  0.24,     0.41,   0.18e6,     1500.0),
+                ("Wet Soil",  0.20,     0.55,   1.14e6,     2000.0),
+                ("Soft Rock", 0.20,     0.55,   7.60e6,     2250.0),
+                ("Hard Rock", 0.20,     0.55,   18.0e6,     2500.0),
+                ("Ice",       15.625,   0.48,   0.0,        900.0), 
+            ]        
+            return _create_catalogue(material_properties, material_values)
+        if self._material_catalogue is None:
+            self._material_catalogue = _create_material_catalogue()
+        return self._material_catalogue
     
 
     def _compute_simple_to_complex_transition_factors(self):
@@ -584,10 +598,9 @@ class Richardson2009(ScalingModel):
             raise TypeError("target must be an instance of Target")
         self._target = value
         return 
-    
 
     @property
-    def name(self):
+    def material_name(self):
         """
         The name of the material composition of the target body.
         
@@ -597,11 +610,11 @@ class Richardson2009(ScalingModel):
         """
         return self._material_name
 
-    @name.setter
-    def name(self, value):
+    @material_name.setter
+    def material_name(self, value):
         if not isinstance(value, str) and value is not None:
             raise TypeError("name must be a string or None")
-        self._name = value
+        self._material_name = value
         
     @property
     def K1(self):
