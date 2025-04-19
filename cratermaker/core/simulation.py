@@ -98,14 +98,13 @@ class Simulation:
         else:
             filename = None
         matched, unmatched = _set_properties(self, target_name=target_name, seed=seed, scaling_model=scaling_model, production_model=production_model, morphology_model=morphology_model, reset_surface=reset_surface, filename=filename)
-        production_model_parameters = unmatched.pop("production_model_parameters", None)
-        scaling_model_parameters = unmatched.pop("scaling_model_parameters", None)
-        surface_parameters = unmatched.pop("surface_parameters", None)
-        morphology_model_parameters = unmatched.pop("morphology_model_parameters", None)
-        target_parameters = unmatched.pop("target_parameters", None)
-        if target_parameters is not None:
-            if "name" in target_parameters:
-                self.target_name = target_parameters.pop("name")
+        production_model_parameters = unmatched.pop("production_model_parameters", {})
+        scaling_model_parameters = unmatched.pop("scaling_model_parameters", {})
+        surface_parameters = unmatched.pop("surface_parameters", {})
+        morphology_model_parameters = unmatched.pop("morphology_model_parameters", {})
+        target_parameters = unmatched.pop("target_parameters", {})
+        if "name" in target_parameters:
+            self.target_name = target_parameters.pop("name")
 
         kwargs.update(unmatched)
 
@@ -703,13 +702,18 @@ class Simulation:
         kwargs.pop('return_age')
          
         return kwargs
-   
-    def read_config(self, config_file, **kwargs: Any) -> None:
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        return
+
 
     def to_config(self, **kwargs: Any) -> dict:
+        sim_config = _to_config(self)
+        sim_config['target_parameters'] = self.target.to_config()
+        sim_config['scaling_model_parameters'] = self.scale.to_config()
+        sim_config['production_model_parameters'] = self.production.to_config()
+        sim_config['surface_parameters'] = self.surf.to_config()
+        # Write the combined configuration to a YAML file
+        with open(self.config_file, 'w') as f:
+            yaml.safe_dump(sim_config, f, indent=4)
+
         return _to_config(self)
 
     def save(self, **kwargs: Any) -> None:
@@ -726,19 +730,7 @@ class Simulation:
          
         _save_surface(self.surf, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
 
-        # Get the simulation configuration into the correct structure
-        target_config = self.target.to_config()
-        scale_config = self.scale.to_config()
-        sim_config = self.to_config() 
-        prod_config = self.production.to_config()
-        surf_config = self.surf.to_config()
-        sim_config['target_parameters'] = target_config
-        sim_config['scaling_model_parameters'] = scale_config
-        sim_config['production_model_parameters'] = prod_config
-        sim_config['surface_parameters'] = surf_config
-        # Write the combined configuration to a YAML file
-        with open(self.config_file, 'w') as f:
-            yaml.safe_dump(sim_config, f, indent=4)
+        self.to_config(**kwargs)
         
         return
     
@@ -1494,3 +1486,12 @@ class Simulation:
         The path to the configuration file for the simulation.
         """
         return self.simdir / "cratermaker.yaml" 
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        # Avoid recursive calls during initialization or early access
+        if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)):
+            try:
+                self.to_config()
+            except Exception:
+                pass

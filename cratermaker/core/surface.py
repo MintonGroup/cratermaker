@@ -121,7 +121,7 @@ class Surface(UxDataset):
         Surface
             An initialized Surface object.
         """
-        grid_parameters = kwargs.pop("grid_parameters", None)
+        grid_parameters = kwargs.pop("grid_parameters", {})
         gridtype = grid_parameters.pop("gridtype", gridtype)
 
         if not target:
@@ -221,6 +221,7 @@ class Surface(UxDataset):
             surf.set_elevation(0.0,save_to_file=True)
 
         surf.grid_parameters = grid.to_config()
+        surf.grid_parameters.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
         surf.grid_parameters['gridtype'] = gridtype
         
         return surf        
