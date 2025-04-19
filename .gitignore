@@ -7,7 +7,6 @@
 !cratermaker/components/production/
 !cratermaker/components/morphology/
 !cratermaker/components/grid/
-!cratermaker/components/target_catalogue/
 !cratermaker/utils/
 !cratermaker/fortran_bindings/
 !cratermaker/**/*.py
@@ -26,7 +25,6 @@
 !tests/components/production/
 !tests/components/morphology/
 !tests/components/grid/
-!tests/components/target_catalogue/
 !tests/utils/
 !tests/fortran_bindings/
 !tests/**/*.py

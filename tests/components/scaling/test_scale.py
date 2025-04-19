@@ -1,5 +1,5 @@
 import unittest
-from cratermaker import Target, Material, ScalingModel
+from cratermaker import Target, get_scaling_model
 import numpy as np
 
 class TestScale(unittest.TestCase):

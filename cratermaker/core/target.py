@@ -1,10 +1,9 @@
 import numpy as np
 from typing import Any
-from ..utils.general_utils import _set_properties, _check_properties, _to_config
+from ..utils.general_utils import _set_properties, _check_properties, _to_config, _create_catalogue
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
-from ..components.target_catalogue import get_target_catalogue
-
+import inspect
 class Target:
     """
     Represents the target body in a crater simulation.
@@ -20,7 +19,6 @@ class Target:
                  mass: FloatLike | None = None, 
                  transition_scale_type: str | None = None,
                  material_name: str | None = None,      
-                 catalogue_name: str = "default",            
                  **kwargs: Any,
                  ):
         """
@@ -40,8 +38,6 @@ class Target:
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
         material_name : str or None
             Name of the material composition of the target body.            
-        catalogue_name : str
-            Name of the target catalogue to use. Default is "default".
         **kwargs : Any
             Additional keyword argumments that could be set by the user.
 
@@ -57,7 +53,7 @@ class Target:
         object.__setattr__(self, "_mass",      None)
         object.__setattr__(self, "_transition_scale_type", None)
         object.__setattr__(self, "_material_name", None)
-        object.__setattr__(self, "_catalogue_name", None)
+        object.__setattr__(self, "_catalogue",  None)
         object.__setattr__(self, "_user_defined", set())   # which public props were set by user
         object.__setattr__(self, "_updating",     False)   # guard against recursive updates
 
@@ -66,7 +62,6 @@ class Target:
         if size_values_set > 1:
             raise ValueError("Only one of diameter or radius may be set")
 
-        catalogue = get_target_catalogue(catalogue_name)().get_targets()
         # Set properties for the Target object based on the arguments passed to the function
         _set_properties(self, 
                         name=name, 
@@ -74,8 +69,7 @@ class Target:
                         diameter=diameter,
                         mass=mass, 
                         material_name=material_name,
-                        catalogue_name=catalogue_name,
-                        catalogue=catalogue,
+                        catalogue=self.catalogue,
                         transition_scale_type=transition_scale_type, 
                         **kwargs
                     )
@@ -85,23 +79,25 @@ class Target:
     
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
-
         # If this attribute is not being updated internally, mark it as a user-defined parameter
         if not self._updating:
-            # mark that the *public* name was user‐defined
             public_name = name.lstrip("_")
-            self._user_defined.add(public_name)
-            if name in ("radius", "diameter"):
-                object.__setattr__(self, "_updating", True)
-                r = self._radius
-                d = self._diameter
-                if r is not None and d != 2*r:
-                    object.__setattr__(self, "_diameter", 2*r)
-                    object.__setattr__(self, "_user_defined", self._user_defined - {"diameter"})
-                elif d is not None and r != d/2:
-                    object.__setattr__(self, "_radius", d/2)
-                    object.__setattr__(self, "_user_defined", self._user_defined - {"radius"})
-                object.__setattr__(self, "_updating", False)
+            cls = type(self)
+            param = getattr(cls, public_name, None)
+            if isinstance(param, property) and getattr(param, 'fset', None) is not None:
+                # mark that the *public* name was user‐defined
+                self._user_defined.add(public_name)
+                if name in ("radius", "diameter"):
+                    object.__setattr__(self, "_updating", True)
+                    r = self._radius
+                    d = self._diameter
+                    if r is not None and d != 2*r:
+                        object.__setattr__(self, "_diameter", 2*r)
+                        object.__setattr__(self, "_user_defined", self._user_defined - {"diameter"})
+                    elif d is not None and r != d/2:
+                        object.__setattr__(self, "_radius", d/2)
+                        object.__setattr__(self, "_user_defined", self._user_defined - {"radius"})
+                    object.__setattr__(self, "_updating", False)
 
     @property
     def radius(self) -> np.float64 | None:
@@ -172,22 +168,57 @@ class Target:
         self._material_name = value
 
     @property
-    def catalogue_name(self):
+    def catalogue(self):
         """
-        The name of the target catalogue to use 
+        The target catalogue used for the target body.
         
         Returns
         -------
-        str 
+        dict 
         """
-        return self._catalogue_name
+        def _make_target_catalogue():
+            # Define some built-in catalogue values for known solar system targets of interest
+            target_properties = [
+                "name",    "radius",   "mass",      "material_name", "transition_scale_type"
+            ]
+            # The catalogue was created with Swiftest
+            target_values = [
+                ("Mercury", 2439.40e3, 3.301001e+23, "Soft Rock", "silicate"),
+                ("Venus", 6051.84e3, 4.867306e+24, "Hard Rock", "silicate"),
+                ("Earth", 6371.01e3, 5.972168e+24, "Wet Soil", "silicate"),
+                ("Moon", 1737.53e3, 7.345789e+22, "Soft Rock", "silicate"),
+                ("Mars", 3389.92e3, 6.416909e+23, "Soft Rock", "silicate"),
+                ("Phobos", 11.17e3, 1.080000e+16, "Soft Rock", "silicate"),
+                ("Deimos", 6.30e3, 1.800000e+15, "Soft Rock", "silicate"),
+                ("Ceres", 469.70e3, 9.383516e+20, "Ice", "ice"),
+                ("Vesta", 262.70e3, 2.590270e+20, "Soft Rock", "silicate"),
+                ("Io", 1821.49e3, 8.929649e+22, "Hard Rock", "silicate"),
+                ("Europa", 1560.80e3, 4.798574e+22, "Ice", "ice"),
+                ("Ganymede", 2631.20e3, 1.481479e+23, "Ice", "ice"),
+                ("Callisto", 2410.30e3, 1.075661e+23, "Ice", "ice"),
+                ("Titan", 2575.50e3, 1.345181e+23, "Ice", "ice"),
+                ("Rhea", 764.50e3, 2.306459e+21, "Ice", "ice"),
+                ("Dione", 562.50e3, 1.095486e+21, "Ice", "ice"),
+                ("Tethys", 536.30e3, 6.174430e+20, "Ice", "ice"),
+                ("Enceladus", 252.30e3, 1.080318e+20, "Ice", "ice"),
+                ("Mimas", 198.80e3, 3.750939e+19, "Ice", "ice"),
+                ("Ariel", 578.90e3, 1.250019e+21, "Ice", "ice"),
+                ("Umbriel", 584.70e3, 1.279535e+21, "Ice", "ice"),
+                ("Titania", 788.90e3, 3.338178e+21, "Ice", "ice"),
+                ("Oberon", 761.40e3, 3.076577e+21, "Ice", "ice"),
+                ("Miranda", 235.70e3, 6.442623e+19, "Ice", "ice"),
+                ("Triton", 1352.60e3, 2.140292e+22, "Ice", "ice"),
+                ("Charon", 606.00e3, 1.589680e+21, "Ice", "ice"),
+                ("Pluto", 1188.30e3, 1.302498e+22, "Ice", "ice"),
+                ("Arrokoth", 9.13e3, 7.485000e+14, "Ice", "ice"),
+            ]
+            
+            return _create_catalogue(target_properties, target_values)
 
-    @catalogue_name.setter
-    def catalogue_name(self, value):
-        if not isinstance(value, str) and value is not None:
-            raise TypeError("catalogue_name must be a string or None")
-        self._catalogue_name = value
-        
+        if self._catalogue is None:
+            self._catalogue = _make_target_catalogue()
+        return self._catalogue 
+    
     @property
     def transition_scale_type(self):
         """
@@ -205,7 +236,6 @@ class Target:
         if value not in valid_types and value is not None:
             raise ValueError(f"Invalid transition_scale_type: {value}. Must be one of {valid_types} or None")
         self._transition_scale_type = value
-
 
     # The following are computed properties based on radius and mass
     @property
