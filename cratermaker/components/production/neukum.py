@@ -722,9 +722,9 @@ if __name__ == "__main__":
         plt.show()
     
             
-    plot_npf_csfd()
-    plot_npf_N1_vs_T()
-    plot_npf_fit()    
-    plot_npf_proj_csfd()
+    # plot_npf_csfd()
+    # plot_npf_N1_vs_T()
+    # plot_npf_fit()    
+    # plot_npf_proj_csfd()
     plot_sampled_csfd()
 
