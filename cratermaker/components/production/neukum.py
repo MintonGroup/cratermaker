@@ -162,13 +162,13 @@ class NeukumProduction(ProductionModel):
             FloatLike or numpy array
                 The number of craters per square kilometer greater than 1 km in diameter
             """
-            N1 = self._Cexp * (np.exp(age/self._tau) - 1.0) + self._Clin * age
+            N1 = self.Cexp * (np.exp(age/self.tau) - 1.0) + self.Clin * age
             if check_valid_time:
-                if self._valid_time[0] is not None:
-                    min_time = self._valid_time[0] * 1e-3
+                if self.valid_time[0] is not None:
+                    min_time = self.valid_time[0] * 1e-3
                     N1 = np.where(age >= min_time, N1, np.nan)
-                if self._valid_time[1] is not None:
-                    max_time = self._valid_time[1] * 1e-3
+                if self.valid_time[1] is not None:
+                    max_time = self.valid_time[1] * 1e-3
                     N1 = np.where(age <= max_time, N1, np.nan) 
             return N1.item() if np.isscalar(age) else N1
         
@@ -239,19 +239,18 @@ class NeukumProduction(ProductionModel):
             self._generator_type = "projectile"
         else:
             self._generator_type = "crater"
-        
+
     @property
-    def sfd_coef(self) -> list[float]:
+    def sfd_tables(self) -> dict[str, list[float]]:
         """
         Get the table of coefficients for the production function.
         
         Returns
         -------
-        list
-            The table of SFD coefficients for the production function. 
+        dict
+            The table of coefficients for the production function. 
         """
-        sfd_coef = {
-                "Moon" : [
+        return {"Moon" : [
                         -3.0876,
                         -3.557528,
                         +0.781027,
@@ -297,8 +296,18 @@ class NeukumProduction(ProductionModel):
                         -1.191124e-6
                     ]
             }
-
-        return sfd_coef[self.version]
+        
+    @property
+    def sfd_coef(self) -> list[float]:
+        """
+        Get the table of coefficients for the production function.
+        
+        Returns
+        -------
+        list
+            The table of SFD coefficients for the production function. 
+        """
+        return self.sfd_tables[self.version]
     
     @property
     def Clin(self) -> float:
@@ -310,13 +319,7 @@ class NeukumProduction(ProductionModel):
         float
             The linear coefficient for the production function.
         """
-        Clin = {
-                "Moon" : 10**(self.sfd_coef.get("Moon")[0]),
-                "Mars" : 10**(self.sfd_coef.get("Mars")[0]),
-                "Projectile": 10**(self.sfd_coef.get("Projectile")[0]),
-        }
-
-        return Clin[self.version]
+        return 10**(self.sfd_coef[0])
     
     @property
     def Cexp(self) -> float:
@@ -329,13 +332,11 @@ class NeukumProduction(ProductionModel):
             The exponential coefficient for the production function.
         """
         Cexp_moon = 5.44e-14
-        Cexp = {
-                "Moon" : Cexp_moon,
-                "Mars" : Cexp_moon * self.Clin["Mars"] / self.Clin["Moon"],
-                "Projectile": Cexp_moon * self.Clin["Projectile"] / self.Clin["Moon"],
-            }   
-
-        return Cexp[self.version]
+        if self.version == "Moon":
+            return Cexp_moon
+        else:
+            Clin_moon = 10**(self.sfd_tables["Moon"][0])
+            return Cexp_moon * self.Clin / Clin_moon 
     
     @property
     def tau(self) -> float:
@@ -439,7 +440,7 @@ class NeukumProduction(ProductionModel):
                 The differential number of craters (dN/dD) per square kilometer greater than Dkm in diameter at age = 1 Gy ago.
             """        
             def _dNdD_scalar(Dkm): 
-                dcoef = self._sfd_coef[1:]
+                dcoef = self.sfd_coef[1:]
                 if Dkm < Dkm_lo:
                     A, p = _extrapolate_sfd(side="lo")
                     return A * (p / Dkm) * (Dkm / Dkm_lo) ** p 
@@ -476,7 +477,7 @@ class NeukumProduction(ProductionModel):
                     p -= 2.0 # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
                     return A * (Dkm / Dkm_hi) ** p
                 else:
-                    logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self._sfd_coef))
+                    logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
                     return 10 ** logCSFD
         
             return _CSFD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD_scalar)(Dkm)
@@ -726,3 +727,4 @@ if __name__ == "__main__":
     plot_npf_fit()    
     plot_npf_proj_csfd()
     plot_sampled_csfd()
+
