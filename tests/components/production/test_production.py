@@ -4,14 +4,13 @@ import numpy as np
 
 production_models = available_production_models()
 class TestProduction(unittest.TestCase):
-    
     def test_production_N_to_time(self):
         for model_name in production_models:
             production = get_production_model(model_name)()
             for age_orig in np.linspace(0,4500,num=10):
                 D = np.logspace(-1,3,num=1000)
-                N = production.function(diameter=D,age=age_orig)
-                age_new = production.function_inverse(cumulative_number_density=N,diameter=D)
+                N = production.function(diameter=D,age=age_orig, check_valid_time=False)
+                age_new = production.function_inverse(cumulative_number_density=N,diameter=D, check_valid_time=False)
                 np.testing.assert_array_almost_equal(age_orig,age_new,decimal=2)
             
     def test_sample_arguments(self):

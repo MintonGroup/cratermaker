@@ -55,7 +55,8 @@ class ProductionModel(ABC):
                diameter_number_end: PairOfFloats | None = None,
                diameter_range: PairOfFloats | None = None,
                area: FloatLike | None = None, 
-               return_age: bool = True
+               return_age: bool = True,
+               **kwargs: Any,
                ) -> np.ndarray:
         
         """
@@ -81,6 +82,8 @@ class ProductionModel(ABC):
             function over the input age/cumulative number range at the minimum diameter.
         return_age : bool, optional
             If True, the function will return the sampled ages in addition to the diameters. The default is True.
+        **kwargs: Any
+            Any additional keywords that are passed to the function method.
             
         Returns
         -------
@@ -101,7 +104,7 @@ class ProductionModel(ABC):
            
         # Build the cumulative distribution function from which we will sample 
         input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
-        cdf = self.function(diameter=input_diameters, age=age, age_end=age_end)
+        cdf = self.function(diameter=input_diameters, age=age, age_end=age_end, **kwargs)
         expected_num = cdf[0] * area if area is not None else None
         diameters = np.asarray(get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng))
         if diameters.size == 0:
@@ -111,7 +114,7 @@ class ProductionModel(ABC):
        
         if return_age: 
             age_subinterval = np.linspace(age_end, age, num=1000) 
-            N_vs_age = np.asarray(self.function(diameter=diameters, age=age_subinterval))
+            N_vs_age = np.asarray(self.function(diameter=diameters, age=age_subinterval, **kwargs))
             
             # Normalize the weights for each diameter
             if N_vs_age.ndim > 1:
