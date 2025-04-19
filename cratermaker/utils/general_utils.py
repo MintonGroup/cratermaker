@@ -4,6 +4,8 @@ from numpy.typing import ArrayLike
 from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
 from pathlib import Path
+from warnings import warn
+import inspect
 
 class Parameter(property):
     """
@@ -49,6 +51,13 @@ def _set_properties(obj,**kwargs):
     **kwargs : dict
         Keyword arguments that can include 'filename', 'catalogue', and other direct property settings.
 
+    Returns
+    -------
+    matched : dict
+        A dictionary of properties that were successfully set on the object.
+    unmatched : dict
+        A dictionary of properties that were not set, either due to being None or not matching any known properties.
+
     Notes
     -----
     The order of property precedence is: 
@@ -59,9 +68,19 @@ def _set_properties(obj,**kwargs):
     """
     
     def _set_properties_from_arguments(obj, **kwargs):
+        matched = {}
+        unmatched = {}
+        cls = type(obj)
         for key, value in kwargs.items():
-            if hasattr(obj, key) and value is not None:
-                setattr(obj, key, value)   
+            if value is None:
+                continue
+            param = getattr(cls, key, None)
+            if isinstance(param, (property, Parameter)) and getattr(param, 'fset', None) is not None:
+                setattr(obj, key, value)
+                matched[key] = value
+            else:
+                unmatched[key] = value
+        return matched, unmatched
             
     def _set_properties_from_catalogue(obj, catalogue, name=None, **kwargs):
         # Check to make sure that the catalogue argument is in the valid nested dict format
@@ -81,31 +100,46 @@ def _set_properties(obj,**kwargs):
         
         properties = catalogue.get(name) 
         if properties: # A match was found to the catalogue 
-            _set_properties_from_arguments(obj, **properties)
+            matched,unmatched = _set_properties_from_arguments(obj, **properties)
         else:
-            _set_properties_from_arguments(obj, name=name, **kwargs)
+            matched, unmatched = _set_properties_from_arguments(obj, name=name, **kwargs)
+        return matched, unmatched
             
     def _set_properties_from_file(obj, filename, name=None, **kwargs):
-        with open(filename, 'r') as f:
-            catalogue = yaml.safe_load(f)
+        try:
+            with open(filename, 'r') as f:
+                properties = yaml.safe_load(f)
+        except: 
+            warn(f"Could not read the file {filename}.") 
+            return {}, {}
             
-        _set_properties_from_catalogue(obj,catalogue=catalogue,name=name)
-        _set_properties_from_arguments(obj,name=name)
-       
+        matched, unmatched = _set_properties_from_arguments(obj,name=name, **properties)
+        return matched, unmatched
+
+    matched = {}
+    unmatched = {} 
     filename = kwargs.get('filename') 
     if filename:
-        _set_properties_from_file(obj,**kwargs)
+        m, u = _set_properties_from_file(obj,**kwargs)
+        matched.update(m)
+        unmatched.update(u)
    
     catalogue = kwargs.get('catalogue') 
     if catalogue:
-        _set_properties_from_catalogue(obj,**kwargs)
+        m, u = _set_properties_from_catalogue(obj,**kwargs)
+        matched.update(m)
+        unmatched.update(u)
         
-    _set_properties_from_arguments(obj,**kwargs)
+    m, u = _set_properties_from_arguments(obj,**kwargs)
+    matched.update(m)
+    unmatched.update(u)
+
+    # if there are any keys in unmatched that are also present in matched, remove them from unmatched
+    for key in matched.keys():
+        if key in unmatched:
+            del unmatched[key]
     
-    if not hasattr(obj,"name"):
-        raise ValueError("The object must be given a name")
-    
-    return
+    return matched, unmatched
 
 
 def _check_properties(obj):

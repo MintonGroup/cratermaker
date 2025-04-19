@@ -121,6 +121,9 @@ class Surface(UxDataset):
         Surface
             An initialized Surface object.
         """
+        grid_parameters = kwargs.pop("grid_parameters", None)
+        gridtype = grid_parameters.pop("gridtype", gridtype)
+
         if not target:
             target = Target("Moon")
         elif isinstance(target, str):
@@ -130,6 +133,9 @@ class Surface(UxDataset):
                 raise ValueError(f"Invalid target name {target}")
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
+        radius = target.radius
+        if grid_parameters is not None:
+            radius = grid_parameters.pop("radius", radius)
         
         # Verify directory structure exists and create it if not
         if not data_dir:
@@ -148,7 +154,7 @@ class Surface(UxDataset):
             
         # Process the grid parameters from the arguments and build the strategy object 
         try:
-            grid = get_grid_type(gridtype)(radius=target.radius, **kwargs)
+            grid = get_grid_type(gridtype)(radius=radius, **grid_parameters, **kwargs)
         except:
             raise ValueError(f"Failed to generate {gridtype} grid")
    
