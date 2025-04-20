@@ -12,6 +12,8 @@
 !src/
 !src/*/
 !src/*/**.f90
+!src/
+!src/*.rs
 !cmake/
 !cmake/Modules/
 !cmake/Modules/*.cmake
