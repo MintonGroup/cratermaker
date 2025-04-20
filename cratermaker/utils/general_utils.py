@@ -103,16 +103,16 @@ def _set_properties(obj,
         if not isinstance(catalogue, dict):
             raise ValueError("Catalogue must be a dictionary")
         
-        if key not in catalogue:
-            return {}, {}
-
         for k, v in catalogue.items():
             if not isinstance(v, dict):
                 raise ValueError(f"Value for key '{k}' in catalogue must be a dictionary")
+            
+        if key not in catalogue:
+            return {}, {}
         
         properties = catalogue.get(key) 
         properties.update({catalogue_key: key})
-        # Remove any items in kwargs that are already in properties or are None
+        # Remove any items in kwargs that are already in properties 
         for k in properties.keys():
             if k in kwargs:
                 del kwargs[k]
@@ -124,6 +124,9 @@ def _set_properties(obj,
         try:
             with open(filename, 'r') as f:
                 properties = yaml.safe_load(f)
+                for k in kwargs.keys():
+                    if k in properties:
+                        del properties[k]
         except: 
             warn(f"Could not read the file {filename}.") 
             return {}, {}

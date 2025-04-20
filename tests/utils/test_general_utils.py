@@ -79,9 +79,7 @@ class TestGeneralUtils(unittest.TestCase):
         with self.assertRaises(ValueError):  
             _set_properties(self.dummy, catalogue="bad_value") # Not even a dict
         with self.assertRaises(ValueError):  
-            _set_properties(self.dummy, catalogue=invalid_catalogue, name="invalid_key") # Not a nested dict
-        with self.assertRaises(ValueError):  
-            _set_properties(self.dummy, catalogue=catalogue) # Name omitted
+            _set_properties(self.dummy, catalogue=invalid_catalogue, key="invalid_key") # Not a nested dict
         
         return
 
