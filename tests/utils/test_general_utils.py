@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from cratermaker import _set_properties, _check_properties, _create_catalogue, validate_and_convert_location, normalize_coords  
+from cratermaker.utils.general_utils import _set_properties, _check_properties, _create_catalogue, validate_and_convert_location, normalize_coords  
 from cratermaker.utils.custom_types import FloatLike
 
 mock_properties = [
@@ -10,7 +10,7 @@ mock_values = [
     ("foo",     1.00,     2.00),
     ("bar",     3.00,     4.00),
 ]  
-class TestSetProperties(unittest.TestCase):
+class TestGeneralUtils(unittest.TestCase):
     def setUp(self):
         # Set up any initial configurations or objects you need before each test
         self.mock_object = MagicMock()

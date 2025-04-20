@@ -37,7 +37,7 @@ class Target:
         transition_scale_type : str or None
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
         material_name : str or None
-            Name of the material composition of the target body.            
+            Name of the material composition of the target body.
         **kwargs : Any
             Additional keyword argumments that could be set by the user.
 
@@ -57,10 +57,13 @@ class Target:
         object.__setattr__(self, "_user_defined", set())   # which public props were set by user
         object.__setattr__(self, "_updating",     False)   # guard against recursive updates
 
+
         # ensure that only either diamter of radius is passed
         size_values_set = sum(x is not None for x in [diameter, radius])
         if size_values_set > 1:
             raise ValueError("Only one of diameter or radius may be set")
+
+        catalogue = kwargs.pop("catalogue", self.catalogue)
 
         # Set properties for the Target object based on the arguments passed to the function
         _set_properties(self, 
@@ -69,7 +72,7 @@ class Target:
                         diameter=diameter,
                         mass=mass, 
                         material_name=material_name,
-                        catalogue=self.catalogue,
+                        catalogue=catalogue,
                         transition_scale_type=transition_scale_type, 
                         **kwargs
                     )
