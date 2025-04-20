@@ -173,7 +173,7 @@ class Richardson2009(ScalingModel):
             The crater resulting from the impact of the projectile.
         """
         from cratermaker.core.impact import Crater
-        transient_diameter = self.projectile_to_transient(projectile, target=self.target, material=self.material, rng=self.rng)
+        transient_diameter = self.projectile_to_transient(projectile)
         crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng, **kwargs, location=projectile.location, age=projectile.age)
 
         return crater
@@ -297,13 +297,7 @@ class Richardson2009(ScalingModel):
         morphology_type = morphology_type
         return final_diameter, morphology_type
 
-    @staticmethod
-    def projectile_to_transient(projectile, 
-                                target: Target,
-                                K1: FloatLike,
-                                mu: FloatLike,
-                                Ybar: FloatLike,
-                                target_density: FloatLike,
+    def projectile_to_transient(self, projectile, 
                                 **kwargs: Any) -> np.float64:
         """
         Calculate the transient diameter of a crater based on the properties of the projectile and target.
@@ -338,24 +332,22 @@ class Richardson2009(ScalingModel):
         from cratermaker.core.impact import Projectile
         if not isinstance(projectile, Projectile):
             raise TypeError("projectile must be an instance of Projectile")
-        if not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target")
             
         # Compute some auxiliary quantites
         projectile.mass = 4.0/3.0 * np.pi * projectile.density * (projectile.radius)**3
-        c1 = 1.0 + 0.5 * mu
-        c2 = (-3 * mu)/(2.0 + mu)
+        c1 = 1.0 + 0.5 * self.mu
+        c2 = (-3 * self.mu)/(2.0 + self.mu)
 
         # Find dimensionless quantities
-        pitwo = (target.gravity * projectile.radius)/(projectile.vertical_velocity**2)
-        pithree = Ybar / (target_density * (projectile.vertical_velocity**2))
-        pifour = target_density / projectile.density
-        pivol = K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
-        pivolg = K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
+        pitwo = (self.target.gravity * projectile.radius)/(projectile.vertical_velocity**2)
+        pithree = self.Ybar / (self.target_density * (projectile.vertical_velocity**2))
+        pifour = self.target_density / projectile.density
+        pivol = self.K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
+        pivolg = self.K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
         
         # find transient crater volume and radii (depth = 1/3 diameter)
-        cvol = pivol * (projectile.mass / target_density)
-        cvolg = pivolg * (projectile.mass / target_density)
+        cvol = pivol * (projectile.mass / self.target_density)
+        cvolg = pivolg * (projectile.mass / self.target_density)
         transient_radius = (3 * cvol / np.pi)**(1.0/3.0)
         transient_radius_gravscale = (3 * cvolg / np.pi)**(1.0/3.0)
         
@@ -404,21 +396,15 @@ class Richardson2009(ScalingModel):
         kwargs.pop("age",None)
         projectile = Projectile(diameter=crater.transient_diameter, target=self.target, location=crater.location, rng=rng, age=crater.age, **kwargs)
         
-        def root_func(
-                        projectile_diameter: FloatLike, 
-                        projectile: Projectile, 
-                        target: Target,
-                        K1: FloatLike,
-                        mu: FloatLike,
-                        Ybar: FloatLike,
-                        target_density: FloatLike,
+        def root_func(projectile_diameter: FloatLike, 
+                       projectile: Projectile, 
                       ) -> np.float64:
             
             projectile.diameter = projectile_diameter
-            transient_diameter = self.projectile_to_transient(projectile, target, K1, mu, Ybar, target_density)
+            transient_diameter = self.projectile_to_transient(projectile)
             return transient_diameter - crater.transient_diameter 
         
-        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,1.2*crater.transient_diameter), args=(projectile, self.target, self.K1, self.mu, self.Ybar, self.target_density))
+        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,1.2*crater.transient_diameter), args=(projectile))
         
         # Regenerate the projectile with the new diameter value
         projectile = Projectile(diameter=sol.root, target=self.target, location=projectile.location, velocity=projectile.velocity, angle=projectile.angle, direction=projectile.direction, rng=rng, age=projectile.age)
