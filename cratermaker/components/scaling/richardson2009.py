@@ -87,7 +87,7 @@ class Richardson2009(ScalingModel):
 
         _set_properties(self,
                         target=target,
-                        name=self.material_name,
+                        material_name=self.material_name,
                         K1=K1,
                         mu=mu,
                         Ybar=Ybar,
