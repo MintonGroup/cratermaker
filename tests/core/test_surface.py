@@ -209,5 +209,4 @@ class TestSurface(unittest.TestCase):
         self.assertAlmostEqual(total_area_2/ (4*np.pi*self.target.radius**2), 1.0, places=2)
 
 if __name__ == '__main__':
-     
     unittest.main()

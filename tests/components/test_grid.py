@@ -61,7 +61,6 @@ class TestGrid(unittest.TestCase):
                 }
             }
 
-
         for gridtype, args in gridargs.items():
             grid = get_grid_type(gridtype)(**args)
             grid.generate_grid(grid_file=self.grid_file)
@@ -69,7 +68,5 @@ class TestGrid(unittest.TestCase):
         
         return
 
-
 if __name__ == '__main__':
-     
     unittest.main()
