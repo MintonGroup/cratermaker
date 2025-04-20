@@ -21,10 +21,6 @@
 !tests/
 !tests/core/
 !tests/components/
-!tests/components/scaling/
-!tests/components/production/
-!tests/components/morphology/
-!tests/components/grid/
 !tests/utils/
 !tests/fortran_bindings/
 !tests/**/*.py

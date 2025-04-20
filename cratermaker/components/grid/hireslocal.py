@@ -61,6 +61,7 @@ class HiResLocalGrid(GridMaker):
         """
         
         def _pix_func(lon,lat):
+            from cratermaker.core.surface import Surface
             lon_rad = np.radians(lon)
             lat_rad = np.radians(lat)
             loc_lon_rad = 0.0 #np.radians(self.local_location[0])
