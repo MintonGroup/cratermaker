@@ -221,7 +221,14 @@ class Target:
         if self._catalogue is None:
             self._catalogue = _make_target_catalogue()
         return self._catalogue 
-    
+
+    @property
+    def catalogue_key(self):
+        """
+        The key used to identify the property used as the key in a catalogue.
+        """
+        return "name"
+
     @property
     def transition_scale_type(self):
         """

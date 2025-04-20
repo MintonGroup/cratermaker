@@ -616,7 +616,7 @@ def register_production_model(name: str):
     return decorator
 
 def available_production_models() -> list[str]:
-    """Return list of all registered catalogue names."""
+    """Return list of all registered model names."""
     return list(_registry.keys())
 
 def get_production_model(name: str):

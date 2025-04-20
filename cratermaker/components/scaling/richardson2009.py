@@ -72,10 +72,7 @@ class Richardson2009(ScalingModel):
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
 
-        object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_target", None)
-        object.__setattr__(self, "_material_name", None)
-        object.__setattr__(self, "_material_catalogue", None)
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)
         object.__setattr__(self, "_Ybar", None)
@@ -109,7 +106,8 @@ class Richardson2009(ScalingModel):
         # Initialize transition factors
         self._compute_simple_to_complex_transition_factors() 
         return
-    
+
+
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
         include_list=("material_name", "K1", "mu", "Ybar", "target_density")
@@ -155,8 +153,8 @@ class Richardson2009(ScalingModel):
                 morphology_type = self.rng.choice(categories,p=prob)                
         
         return morphology_type    
-    
-        
+
+
     def projectile_to_crater(self, projectile, **kwargs):
         """
         Convert a projectile to its corresponding crater.
@@ -197,7 +195,8 @@ class Richardson2009(ScalingModel):
         projectile = self.transient_to_projectile(crater, rng=self.rng, **kwargs)
         
         return projectile
-    
+
+
     def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64:
         """
         Computes the transient diameter of a crater based on its final diameter and morphology type.
@@ -296,6 +295,7 @@ class Richardson2009(ScalingModel):
         final_diameter = np.float64(final_diameter)
         morphology_type = morphology_type
         return final_diameter, morphology_type
+
 
     def projectile_to_transient(self, projectile, 
                                 **kwargs: Any) -> np.float64:
@@ -483,11 +483,14 @@ class Richardson2009(ScalingModel):
         self.final_exp = final_exp
         return 
 
+
     def _f2t_simple(self, Df):
         return Df / self.simple_enlargement_factor
-    
+
+
     def _f2t_complex(self, Df):
         return Df / (self.simple_enlargement_factor * self.complex_enlargement_factor) * (Df / self.transition_diameter)**-self.final_exp
+
 
     @property
     def transition_diameter(self) -> np.float64:
@@ -585,23 +588,6 @@ class Richardson2009(ScalingModel):
         self._target = value
         return 
 
-    @property
-    def material_name(self):
-        """
-        The name of the material composition of the target body.
-        
-        Returns
-        -------
-        str 
-        """
-        return self._material_name
-
-    @material_name.setter
-    def material_name(self, value):
-        if not isinstance(value, str) and value is not None:
-            raise TypeError("name must be a string or None")
-        self._material_name = value
-        
     @property
     def K1(self):
         """

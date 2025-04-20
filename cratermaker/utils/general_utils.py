@@ -5,7 +5,7 @@ from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
 from pathlib import Path
 from warnings import warn
-import inspect
+import os
 
 class Parameter(property):
     """
@@ -37,7 +37,11 @@ def parameter(fget=None):
     else:
         return Parameter(fget)
 
-def _set_properties(obj,**kwargs):
+def _set_properties(obj,
+                    catalogue: dict | None = None,
+                    key : str | None = None,
+                    filename: os.PathLike | None = None,
+                    **kwargs: Any):
     """
     Set properties of a simulation object from various sources.
 
@@ -48,6 +52,12 @@ def _set_properties(obj,**kwargs):
     ----------
     obj : object
         The simulation object whose properties are to be set.
+    catalogue : dict, optional
+        A dictionary representing a catalogue of properties. It must be in the form of a nested dict. If provided, it will be used to set properties. 
+    key : str, optional
+        The key to look up in the catalogue. It must be provided if the catalogue is provided.
+    filename : os.PathLike, optional
+        The path to a YAML file containing properties. If provided, it will be used to set properties.
     **kwargs : dict
         Keyword arguments that can include 'filename', 'catalogue', and other direct property settings.
 
@@ -82,51 +92,53 @@ def _set_properties(obj,**kwargs):
                 unmatched[key] = value
         return matched, unmatched
             
-    def _set_properties_from_catalogue(obj, catalogue, name=None, **kwargs):
-        # Check to make sure that the catalogue argument is in the valid nested dict format
+    def _set_properties_from_catalogue(obj, catalogue, key, **kwargs):
+        if "catalogue_key" in dir(obj):
+            catalogue_key = getattr(obj, "catalogue_key")
+        else:
+            raise ValueError("The object does not have a catalogue_key property, and therefore is not set up to receive catalogue entries.")
+
         if not isinstance(catalogue, dict):
             raise ValueError("Catalogue must be a dictionary")
+        
+        if key not in catalogue:
+            raise ValueError(f"Key '{key}' not found in the catalogue")
 
-        for key, value in catalogue.items():
-            if not isinstance(value, dict):
-                raise ValueError(f"Value for key '{key}' in catalogue must be a dictionary")
+        for k, v in catalogue.items():
+            if not isinstance(v, dict):
+                raise ValueError(f"Value for key '{k}' in catalogue must be a dictionary")
         
-        # Look up material in the catalogue
-        if name is None:
-            if len(catalogue) == 1:
-                name = next(iter(catalogue)) 
-            else:
-                raise ValueError("A name argument must be passed if there is more than one item in the catalogue!")
-        
-        properties = catalogue.get(name) 
+        properties = catalogue.get(key) 
+        properties.update({catalogue_key: key})
         if properties: # A match was found to the catalogue 
-            matched,unmatched = _set_properties_from_arguments(obj, **properties)
-        else:
-            matched, unmatched = _set_properties_from_arguments(obj, name=name, **kwargs)
+            matched,unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
         return matched, unmatched
             
-    def _set_properties_from_file(obj, filename, name=None, **kwargs):
+    def _set_properties_from_file(obj, filename, key=None, **kwargs):
         try:
             with open(filename, 'r') as f:
                 properties = yaml.safe_load(f)
         except: 
             warn(f"Could not read the file {filename}.") 
             return {}, {}
-            
-        matched, unmatched = _set_properties_from_arguments(obj,name=name, **properties)
+        
+        if key is None:
+            matched, unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
+        else:
+            if key not in properties:
+                raise ValueError(f"Key '{key}' not found in the file '{filename}'.")
+            matched, unmatched = _set_properties_from_catalogue(obj, key=key, catalogue=properties, **kwargs)
         return matched, unmatched
 
     matched = {}
     unmatched = {} 
-    filename = kwargs.get('filename') 
     if filename:
-        m, u = _set_properties_from_file(obj,**kwargs)
+        m, u = _set_properties_from_file(obj,filename=filename, key=key, **kwargs)
         matched.update(m)
         unmatched.update(u)
    
-    catalogue = kwargs.get('catalogue') 
     if catalogue:
-        m, u = _set_properties_from_catalogue(obj,**kwargs)
+        m, u = _set_properties_from_catalogue(obj,catalogue=catalogue, key=key, **kwargs)
         matched.update(m)
         unmatched.update(u)
         

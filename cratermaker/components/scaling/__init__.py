@@ -5,6 +5,11 @@ from typing import Any
 from cratermaker.utils.general_utils import _to_config, parameter
 
 class ScalingModel(ABC):
+    def __init__(self):
+        object.__setattr__(self, "_material_name", None)
+        object.__setattr__(self, "_material_catalogue", None)
+        object.__setattr__(self, "_user_defined", set())
+
     @abstractmethod
     def projectile_to_crater(self, projectile): ...
     @abstractmethod
@@ -19,6 +24,31 @@ class ScalingModel(ABC):
         The registered name of this scaling model set by the @register_scaling_model decorator.
         """ 
         return self._model
+
+    @property
+    def catalogue_key(self):
+        """
+        The key used to identify the property used as the key in a catalogue.
+        """
+        return "material_name"
+    
+    @property
+    def material_name(self):
+        """
+        The name of the material composition of the target body.
+        
+        Returns
+        -------
+        str 
+        """
+        return self._material_name
+
+    @material_name.setter
+    def material_name(self, value):
+        if not isinstance(value, str) and value is not None:
+            raise TypeError("name must be a string or None")
+        self._material_name = value
+        
 
 
 _registry: dict[str, ScalingModel] = {}
