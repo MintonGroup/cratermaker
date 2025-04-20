@@ -23,8 +23,8 @@ class TestSimulation(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.target = Target(name="Moon") 
-        self.pix = self.target.radius / 10.0
+        target = Target(name="Moon")
+        self.pix = target.radius / 10.0
         self.gridlevel = 5
         os.chdir(self.temp_dir.name) 
         
@@ -39,7 +39,7 @@ class TestSimulation(unittest.TestCase):
         
     def test_simulation_save(self):
         # Test basic save operation
-        sim = cratermaker.Simulation(gridlevel=self.gridlevel, target=self.target)
+        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
         sim.save()
        
         # Test that variables are saved correctly
@@ -71,7 +71,7 @@ class TestSimulation(unittest.TestCase):
         
     # def test_simulation_export_vtk(self):
       
-    #     sim = cratermaker.Simulation(gridlevel=self.gridlevel, target=self.target) 
+    #     sim = cratermaker.Simulation(gridlevel=self.gridlevel)
     #     # Test with default parameters
     #     default_out_dir = os.path.join(sim.simdir, "vtk_files")
     #     expected_files = ["staticFieldsOnCells.vtp","staticFieldsOnVertices.vtp","timeDependentFieldsOnCells.pvd","timeDependentFieldsOnVertices.pvd"]

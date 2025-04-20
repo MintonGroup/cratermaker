@@ -92,7 +92,7 @@ class Surface(UxDataset):
                    data_dir: os.PathLike | None = None,
                    grid_file: os.PathLike | None = None,
                    reset_surface: bool = True, 
-                   gridtype: str = "icosphere", 
+                   gridtype: str | None = None,
                    rng: Generator | None = None,
                    regrid: bool = False,
                    **kwargs):
@@ -122,7 +122,12 @@ class Surface(UxDataset):
             An initialized Surface object.
         """
         grid_parameters = kwargs.pop("grid_parameters", {})
-        gridtype = grid_parameters.pop("gridtype", gridtype)
+        gridtype = gridtype or grid_parameters.pop("gridtype", "icosphere")
+
+        # If there are any keys in kwargs that match those in grid_parameters, remove them from grid_parameters
+        for key in kwargs.keys():
+            if key in grid_parameters:
+                del grid_parameters[key] 
 
         if not target:
             target = Target("Moon")
