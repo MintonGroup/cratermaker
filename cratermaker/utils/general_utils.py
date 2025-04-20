@@ -97,12 +97,14 @@ def _set_properties(obj,
             catalogue_key = getattr(obj, "catalogue_key")
         else:
             raise ValueError("The object does not have a catalogue_key property, and therefore is not set up to receive catalogue entries.")
+        if catalogue_key in kwargs:
+            key = kwargs.pop(catalogue_key)
 
         if not isinstance(catalogue, dict):
             raise ValueError("Catalogue must be a dictionary")
         
         if key not in catalogue:
-            raise ValueError(f"Key '{key}' not found in the catalogue")
+            return {}, {}
 
         for k, v in catalogue.items():
             if not isinstance(v, dict):
@@ -110,6 +112,10 @@ def _set_properties(obj,
         
         properties = catalogue.get(key) 
         properties.update({catalogue_key: key})
+        # Remove any items in kwargs that are already in properties or are None
+        for k in properties.keys():
+            if k in kwargs:
+                del kwargs[k]
         if properties: # A match was found to the catalogue 
             matched,unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
         return matched, unmatched
