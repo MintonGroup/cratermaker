@@ -1,5 +1,7 @@
 import os
 import numpy as np
+from scipy.interpolate import interp1d
+from scipy.spatial.transform import Rotation as R
 from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.general_utils import validate_and_convert_location, parameter
@@ -72,7 +74,6 @@ class HiResLocalGrid(GridMaker):
             ans = np.where(distance <= self.local_radius, self.pix, (distance - self.local_radius) / self.superdomain_scale_factor + self.pix)
             return ans
         
-        from scipy.interpolate import interp1d
 
         # Suppose we know pix(lat, lon)
         # Step 1: Construct a fine preliminary grid to estimate integrals
@@ -156,7 +157,6 @@ class HiResLocalGrid(GridMaker):
             np.ndarray: Rotated Nx3 point cloud.
         """
 
-        from scipy.spatial.transform import Rotation as R
         # Convert target lon, lat to radians
         lon_rad, lat_rad = np.radians(self.local_location)
         
