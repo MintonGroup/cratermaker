@@ -16,7 +16,7 @@ from .morphology import Morphology
 from .production import Production, NeukumProduction
 from ..utils.general_utils import set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..realistic import apply_noise
+from ..cratermaker import realistic
 
 
 class Simulation:
@@ -1079,7 +1079,7 @@ class Simulation:
                 x = self.surf.uxgrid[vars[0]].values * scale 
                 y = self.surf.uxgrid[vars[1]].values * scale 
                 z = self.surf.uxgrid[vars[2]].values * scale
-                noise = apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
+                noise = realistic.apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         
             # Make sure the noise is volume-conserving (i.e., the mean is zero)
             # TODO: Take into account the nodes are not uniformly distributed on the sphere

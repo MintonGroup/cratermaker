@@ -7,7 +7,7 @@ from .target import Target
 from ..utils.custom_types import FloatLike
 from .surface import Surface
 from .target import Target
-from .. import crater, ejecta
+from ..cratermaker import crater, ejecta
 import json
 import math
 from scipy import fft

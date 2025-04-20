@@ -12,14 +12,14 @@ readme = "README.md"
 requires-python=">=3.10"
 license={file = "LICENSE"}
 classifiers=[
-'Development Status :: 3 - Alpha',
-'Intended Audience :: Science/Research',
-'Topic :: Scientific/Engineering :: Astronomy',
-'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
-'Programming Language :: Python :: 3',
-'Programming Language :: Fortran',
-'Operating System :: MacOS',
-'Operating System :: POSIX :: Linux',
+    'Development Status :: 3 - Alpha',
+    'Intended Audience :: Science/Research',
+    'Topic :: Scientific/Engineering :: Astronomy',
+    'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Rust',
+    'Operating System :: MacOS',
+    'Operating System :: POSIX :: Linux',
 ]
 keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'landscape evolution']
 dependencies = [
@@ -37,26 +37,27 @@ dependencies = [
     'geoviews>=1.14.0',
 ]
 
+[project.optional-dependencies]
+tests = [
+    "pytest",
+]
+
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
 [build-system]
 requires = [
-    'cython>=3',
     'numpy',
-    'scikit-build-core',
     'setuptools>=64', 
-    'setuptools_scm>=8'
+    'setuptools_scm>=8',
+    "maturin>=1.8,<2.0"
 ]
-build-backend = "scikit_build_core.build"
+build-backend = "maturin"
 
-[tool.scikit-build]
-cmake.version = ">=3.23.1"
-ninja.version = ">=1.11.1"
-build-dir = "build/{wheel_tag}"
-sdist.include = ["cratermaker/**/*.py"]
-cmake.verbose = true
-metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+[tool.maturin]
+python-source = "."
+features = ["pyo3/extension-module"]
+
 
 [tool.setuptools_scm]  
 write_to = "cratermaker/_version.py"
@@ -66,59 +67,3 @@ test-command = "pytest {package}/tests"
 test-requires = ['pytest']
 skip = "pp* *i686 *-manylinux_i686 *_ppc64le *_s390x *-musllinux* *-win32 cp313-*" 
 build-verbosity = 1
-
-[tool.cibuildwheel.macos.environment]
-ROOT_DIR="$(pwd)"
-PREFIX="/usr/local"
-HOMEBREW_PREFIX="$(brew --prefix)"
-ARCH="$(uname -m)"
-MACOSX_DEPLOYMENT_TARGET="$(buildscripts/get_macosx_deployment_target.sh)"
-GFORTRAN_VERSION="$(buildscripts/get_gfortran_version.sh)"
-FC="$(buildscripts/get_gfortran_path.sh)"
-F77="${FC}"
-CC="/usr/bin/clang"
-CXX="/usr/bin/clang++"
-CPP="/usr/bin/cpp"
-AR="/usr/bin/ar"
-NM="/usr/bin/nm"
-RANLIB="/usr/bin/ranlib"
-LD_LIBRARY_PATH="${PREFIX}/lib:${HOMEBREW_PREFIX}/lib:${HOMEBREW_PREFIX}/lib/gcc/${GFORTRAN_VERSION}"
-DYLD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
-REPAIR_LIBRARY_PATH="${LD_LIBRARY_PATH}"
-LDFLAGS="-Wl,-no_compact_unwind -L${PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib/gcc/${GFORTRAN_VERSION}" 
-CPATH="${PREFIX}/include:${HOMEBREW_PREFIX}/include"
-CPPFLAGS="-isystem ${PREFIX}/include"
-FCFLAGS="-arch ${ARCH}"
-FFLAGS="${FCFLAGS}"
-CFLAGS="${FCFLAGS} -Wno-deprecated-non-prototype -arch ${ARCH}"
-CXXFLAGS="${CFLAGS}"
-FFFLAGS="${FCFLAGS}"
-
-[tool.cibuildwheel.linux.environment]
-SKBUILD_CMAKE_ARGS=["-DMACHINE_CODE_VALUE=generic"]
-PREFIX="/usr/local"
-NCDIR="${PREFIX}"
-LD_LIBRARY_PATH="${PREFIX}/lib:/project/lib}"
-
-CPATH="${PREFIX}/include:/project/include}"
-CMAKE_INSTALL_LIBDIR="lib"
-CC="$(command -v gcc)"
-CXX="$(command -v g++)"
-FC="$(buildscripts/get_gfortran_path.sh)"
-
-[tool.cibuildwheel.macos]
-before-all = [
-    "brew install coreutils vecLibFort cmake",
-]
-
-[tool.cibuildwheel.linux]
-before-all = [
-    "yum install epel-release -y",
-    "yum install libcurl-devel -y",
-]
-
-[tool.cibuildwheel.windows]
-before-build = "pip install delvewheel"
-repair-wheel-command = "delvewheel repair --ignore-existing -w {dest_dir} {wheel}"
-
-
