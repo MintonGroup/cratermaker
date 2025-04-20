@@ -698,7 +698,7 @@ class SimpleMoon(MorphologyModel):
     
     @crater.setter
     def crater(self, value):
-        from .impact import Crater
+        from cratermaker import Crater
         if value is not None and not isinstance(value, Crater):
             raise TypeError("crater must be an instance of Crater")
         self._crater = value
@@ -717,7 +717,6 @@ class SimpleMoon(MorphologyModel):
     
     @target.setter
     def target(self, value):
-        from .target import Target
         if value is None:
             self._target = Target(name="Moon")
             return

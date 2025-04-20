@@ -1,5 +1,4 @@
 import unittest
-import cratermaker
 from cratermaker import Crater, Target
 import numpy as np
 from numpy.random import default_rng
@@ -19,7 +18,6 @@ class TestCrater(unittest.TestCase):
         crater = Crater(radius=radius)
         self.assertEqual(crater.radius, radius)
         self.assertEqual(crater.diameter, radius * 2)
-        
         
     def test_crater_initialization_with_transient_diameter(self):
         transient_diameter = 800
@@ -48,7 +46,7 @@ class TestCrater(unittest.TestCase):
         self.assertEqual(crater.diameter, 1000)
 
     def test_invalid_target_or_rng_type(self):
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             Crater(diameter=1000, target="invalid_target")
     
 if __name__ == '__main__':

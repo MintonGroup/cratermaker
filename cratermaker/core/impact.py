@@ -2,7 +2,8 @@ import numpy as np
 from numpy.random import Generator
 from typing import Type, Any
 from .target import Target
-from ..components.scaling import ScalingModel
+from ..components.scaling import ScalingModel, get_scaling_model
+from ..components.morphology import get_morphology_model
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..utils.custom_types import FloatLike, PairOfFloats
@@ -68,7 +69,7 @@ class Impact(ABC):
                  location: PairOfFloats = None,
                  age: FloatLike = None,
                  target: Target = None,
-                 scale: ScalingModel = None,
+                 scale: ScalingModel | None = None,
                  rng: Generator = None,
                  **kwargs: Any):
         
@@ -83,8 +84,8 @@ class Impact(ABC):
         self._face_index = None
         self._node_index = None
         
-        self.target = target
         self.rng = rng 
+        self.target = target
         self.scale = scale
         self.location = location 
         self.age = age
@@ -211,13 +212,17 @@ class Impact(ABC):
     def target(self, value):
         if value is None:
             self._target = Target(name="Moon")
-            return
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
-        self._target = value
+        elif isinstance(value, str):
+            try:
+                self._target = Target(name=value)
+            except:
+                raise ValueError(f"Target '{value}' not found. Please provide a valid target name.")
+        elif isinstance(value, Target):
+            self._target = value
+        else:
+            raise TypeError("target must be an instance of Target, a string, or None")
         return
     
-        
     @property
     def scale(self):
         """
@@ -231,9 +236,12 @@ class Impact(ABC):
     
     @scale.setter
     def scale(self, value):
-        if value is not None and not isinstance(value, ScalingModel):
+        if value is None:
+            self._scale = get_scaling_model("richardson2009")(target=self.target, rng=self.rng)
+        elif isinstance(value, ScalingModel):
+            self._scale = value
+        else:
             raise TypeError("scale must be an instance of ScalingModel")
-        self._scale = value
         return    
 
     @property
@@ -415,7 +423,7 @@ class Crater(Impact):
     @morphology_cls.setter
     def morphology_cls(self, cls):
         if cls is None:
-            self._morphology_cls = MorphologyModel
+            self._morphology_cls = get_morphology_model("simplemoon")
         elif not issubclass(cls, MorphologyModel):
             raise ValueError("The class must be a subclass of Morphology")
         else:
@@ -528,7 +536,7 @@ class Projectile(Impact):
             raise ValueError("Only two of mass, density, and diameter may be set")        
         
         if self.mass is None or self.radius is None: # Default to target density if we are given no way to figure it out
-            self.density = self.scale.material.density 
+            self.density = self.scale.target_density 
            
         if self.radius is None: 
             self._update_volume_based_properties()

@@ -1,5 +1,4 @@
 import unittest
-import cratermaker
 from cratermaker import Projectile, Target
 import numpy as np
 from numpy.random import default_rng
@@ -37,7 +36,7 @@ class TestProjectile(unittest.TestCase):
         self.assertEqual(projectile.diameter, 1000)
 
     def test_invalid_target_or_rng_type(self):
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             Projectile(diameter=1000, target="invalid_target", mean_velocity=10e3)
     
 if __name__ == '__main__':
