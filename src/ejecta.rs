@@ -93,7 +93,7 @@ pub fn ray_intensity_internal<'py>(
     let mut rng = rand::rng();
 
     // Distribute ray patterns evenly around the crater
-    let mut thetari = (1..NRAYMAX)
+    let mut thetari = (0..NRAYMAX)
         .map(|i| PI * 2.0 * (i * NRAYMAX) as f64)
         .collect_vec();
     thetari.shuffle(&mut rng);

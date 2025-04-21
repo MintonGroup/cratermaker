@@ -23,7 +23,7 @@ mod cratermaker {
     #[pymodule]
     mod ejecta {
         #[pymodule_export]
-        use crate::ejecta::{distribution, profile};
+        use crate::ejecta::{distribution, profile, ray_intensity};
     }
 
     #[pymodule]

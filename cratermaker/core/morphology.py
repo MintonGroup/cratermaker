@@ -120,8 +120,7 @@ class Morphology:
   
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
         intensity = ejecta.ray_intensity(r, theta,
-                                       self.diameter, 
-                                       self.ejrim, 
+                                       self.diameter,
                                        self.ejecta_truncation,
                                     )
         intensity = np.array(intensity, dtype=np.float64)
