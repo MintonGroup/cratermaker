@@ -2,9 +2,10 @@ use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::{prelude::*, types::PyDict};
 
 #[pyfunction]
-#[pyo3(signature = (_x_array, _y_array, _z_array, _num_octaves, _anchor, **_kwargs))]
+#[pyo3(signature = (_model, _x_array, _y_array, _z_array, _num_octaves, _anchor, **_kwargs))]
 pub fn apply_noise<'py>(
     _py: Python<'_>,
+    _model: &str,
     _x_array: PyReadonlyArray1<'py, f64>,
     _y_array: PyReadonlyArray1<'py, f64>,
     _z_array: PyReadonlyArray1<'py, f64>,
