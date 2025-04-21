@@ -155,29 +155,21 @@ class Richardson2009(ScalingModel):
         return morphology_type    
 
 
-    def projectile_to_crater(self, projectile, **kwargs):
+    def projectile_to_crater(self, **kwargs):
         """
         Convert a projectile to its corresponding crater.
 
-        Parameters
-        ----------
-        projectile : Projectile
-            The projectile to be converted.
-        target : Target
-            The target body being impacted
         Returns
         -------
         Crater
             The crater resulting from the impact of the projectile.
         """
-        from cratermaker.core.impact import Crater
-        transient_diameter = self.projectile_to_transient(projectile)
-        crater = Crater(transient_diameter=transient_diameter, target=self.target, rng=self.rng, **kwargs, location=projectile.location, age=projectile.age)
+        self.transient_diameter = self.projectile_to_transient(**kwargs)
 
-        return crater
+        return 
 
 
-    def crater_to_projectile(self, crater, **kwargs):
+    def crater_to_projectile(self, **kwargs):
         """
         Convert a crater back to its corresponding projectile.
         This operation is more hypothetical and approximates the possible projectile that created the crater.
@@ -189,12 +181,12 @@ class Richardson2009(ScalingModel):
 
         Returns
         -------
-        Projectile
+        crater
             The estimated projectile that could have caused the crater.
         """
-        projectile = self.transient_to_projectile(crater, rng=self.rng, **kwargs)
+        self.projectile_diameter = self.transient_to_projectile(**kwargs)
         
-        return projectile
+        return 
 
 
     def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64:
@@ -297,28 +289,10 @@ class Richardson2009(ScalingModel):
         return final_diameter, morphology_type
 
 
-    def projectile_to_transient(self, projectile, 
-                                **kwargs: Any) -> np.float64:
+    def projectile_to_transient(self, **kwargs: Any) -> np.float64:
         """
         Calculate the transient diameter of a crater based on the properties of the projectile and target.
 
-        Parameters
-        ----------
-        projectile : Projectile
-            The projectile responsible for the impact.
-        target : Target
-            The target body for the impact simulation.
-        K1 : FloatLike, optional
-            Variable used in crater scaling (see _[1])
-        mu : FloatLike, optional
-            Variable used in crater scaling (see _[1])
-        Ybar : FloatLike, optional
-            The strength of the target material, (Pa)
-        target_density : FloatLike, optional
-            Volumentric density of target material, (kg/m^3)
-
-        **kwargs : Any
-            Additional keyword arguments that might influence the calculation.
 
         Returns
         -------
@@ -329,40 +303,32 @@ class Richardson2009(ScalingModel):
         ----------
             .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
-        from cratermaker.core.impact import Projectile
-        if not isinstance(projectile, Projectile):
-            raise TypeError("projectile must be an instance of Projectile")
-            
         # Compute some auxiliary quantites
-        projectile.mass = 4.0/3.0 * np.pi * projectile.density * (projectile.radius)**3
         c1 = 1.0 + 0.5 * self.mu
         c2 = (-3 * self.mu)/(2.0 + self.mu)
 
         # Find dimensionless quantities
-        pitwo = (self.target.gravity * projectile.radius)/(projectile.vertical_velocity**2)
-        pithree = self.Ybar / (self.target_density * (projectile.vertical_velocity**2))
-        pifour = self.target_density / projectile.density
+        pitwo = (self.target.gravity * self.projectile_radius)/(self.projectile_vertical_velocity**2)
+        pithree = self.Ybar / (self.target_density * (self.projectile_vertical_velocity**2))
+        pifour = self.target_density / self.projectile._ensity
         pivol = self.K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
         pivolg = self.K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
         
         # find transient crater volume and radii (depth = 1/3 diameter)
-        cvol = pivol * (projectile.mass / self.target_density)
-        cvolg = pivolg * (projectile.mass / self.target_density)
+        cvol = pivol * (self.projectile_mass / self.target_density)
+        cvolg = pivolg * (self.projectile_mass / self.target_density)
         transient_radius = (3 * cvol / np.pi)**(1.0/3.0)
         transient_radius_gravscale = (3 * cvolg / np.pi)**(1.0/3.0)
         
         transient_diameter = transient_radius * 2
         
-        if transient_diameter < projectile.diameter:
-            transient_diameter = projectile.diameter
+        if transient_diameter < self.projectile_diameter:
+            transient_diameter = self.projectile_diameter
         
         return transient_diameter
 
 
-    def transient_to_projectile(self, 
-                                crater, 
-                                rng: Generator = None, 
-                                **kwargs: Any): 
+    def transient_to_projectile(self, **kwargs: Any) -> np.float64: 
         """
         Estimate the characteristics of the projectile that could have created a given crater.
 
@@ -371,45 +337,23 @@ class Richardson2009(ScalingModel):
 
         Parameters
         ----------
-        crater : Crater
-            The crater for which to estimate the projectile.
-        rng : Generator, optional
-            Random number generator instance used for any probabilistic calculations.
         **kwargs : Any
             Additional keyword arguments that might influence the calculation.
 
         Returns
         -------
-        Projectile
+        Crater
             The computed projectile for the crater.
         """
-        from cratermaker.core.impact import Crater, Projectile
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-        if rng and not isinstance(rng, Generator):
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-                
-        # We'll create a Projectile object that will allow us to set velocity
-        # First pop off any pre-computed values so that we use the transient_diameter alone
-        kwargs.pop("diameter",None)
-        kwargs.pop("location",None)
-        kwargs.pop("age",None)
-        projectile = Projectile(diameter=crater.transient_diameter, target=self.target, location=crater.location, rng=rng, age=crater.age, **kwargs)
-        
-        def root_func(projectile_diameter: FloatLike, 
-                       projectile: Projectile, 
-                      ) -> np.float64:
+        def root_func(projectile_diameter: FloatLike) -> np.float64:
             
-            projectile.diameter = projectile_diameter
-            transient_diameter = self.projectile_to_transient(projectile)
-            return transient_diameter - crater.transient_diameter 
+            self.projectile_diameter = projectile_diameter
+            transient_diameter = self.projectile_to_transient()
+            return transient_diameter - self.transient_diameter 
         
-        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*crater.transient_diameter,1.2*crater.transient_diameter), args=(projectile))
+        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*self.transient_diameter,1.2*self.transient_diameter))
         
-        # Regenerate the projectile with the new diameter value
-        projectile = Projectile(diameter=sol.root, target=self.target, location=projectile.location, velocity=projectile.velocity, angle=projectile.angle, direction=projectile.direction, rng=rng, age=projectile.age)
-        
-        return projectile
+        return sol.root
 
     @property
     def material_catalogue(self):

@@ -362,42 +362,12 @@ Attributes
     Material.mu
     Material.Ybar
 
-.. _api-Impact:
+.. _api-Crater:
 
-Impact
+Crater
 ======
 
-The ``Impact`` class is an abstract base class that provides a common framework for all impact-related entities in the simulation. It defines the basic attributes and methods shared by all types of impact events, such as diameter, radius, and location. This class is not intended for direct instantiation but should be subclassed by specific impact event classes.
-
-
-Subclasses of Impact include:
------------------------------
-
-- :class:`Crater`
-- :class:`Projectile`
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Impact.diameter
-    Impact.location
-    Impact.radius
-    Impact.rng
-    Impact.scale
-    Impact.scale
-    Impact.target
-
-Creating a Crater
------------------
-The Crater subclass represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features.
-
-.. autosummary::
-    :toctree: generated/
-
-    Crater
+The ``Crater`` class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features. It also defines the properties of the projectile, such as its size, velocity, material, and angle of impact.
 
 
 Attributes
@@ -408,41 +378,29 @@ Attributes
 
     Crater.diameter
     Crater.radius
-    Crater.morphology
-    Crater.morphology_cls
-    Crater.morphology_type
     Crater.transient_diameter
     Crater.transient_radius
-
-
-Creating a Projectile
----------------------
-The Projectile subclass represents a single projectile in the simulation. It defines the properties of the impacting object, such as its size, velocity, material, and angle of impact.
-
-.. autosummary::
-    :toctree: generated/
-
-    Projectile
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Projectile.diameter
-    Projectile.radius
-    Projectile.density
-    Projectile.mass
-    Projectile.angle
-    Projectile.rng
-    Projectile.velocity
-    Projectile.vertical_velocity
+    Crater.projectiel_diameter
+    Crater.projectile_radius
+    Crater.projectile_density
+    Crater.projectile_mass
+    Crater.projectile_velocity
+    Crater.projectile_vertical_velocity
+    Crater.projectile_angle
+    Crater.projectile_direction
+    Crater.location
+    Crater.age
+    Crater.morphology_cls
+    Crater.morphology_type
+    Crater.morphology
+    Crater.scale
+    Crater.target
+    Crater.rng
 
 .. _api-ScalingModel:
 
 ScalingModel
-=====
+============
 
 The ScalingModel class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
 

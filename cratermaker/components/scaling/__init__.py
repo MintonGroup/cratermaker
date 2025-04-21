@@ -2,7 +2,9 @@ import pkgutil
 import importlib
 from abc import ABC, abstractmethod
 from typing import Any
+import numpy as np
 from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.custom_types import FloatLike
 
 class ScalingModel(ABC):
     def __init__(self):
@@ -11,9 +13,13 @@ class ScalingModel(ABC):
         object.__setattr__(self, "_user_defined", set())
 
     @abstractmethod
-    def projectile_to_crater(self, projectile): ...
+    def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
     @abstractmethod
-    def crater_to_projectile(self, crater): ...
+    def transient_to_projectile(self, **kwargs: Any) -> np.float64: ...
+    @abstractmethod
+    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
+    @abstractmethod
+    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
 
     def to_config(self, **kwargs: Any) -> dict:
         return _to_config(self)

@@ -12,7 +12,7 @@ from numpy.typing import ArrayLike
 import warnings
 import yaml
 from .target import Target
-from .impact import Crater, Projectile
+from .crater import Crater, Projectile
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
@@ -320,9 +320,8 @@ class Simulation:
         Notes
         -----
         The keyword arguments provided are passed down to :meth:`generate_crater` 
-        or :meth:`generate_projectile`, and subsequently to the constructors of 
-        :class:`Crater`, :class:`Projectile`, or :class:`Impact`. Refer to the 
-        documentation of these classes for a detailed description of valid 
+        or :meth:`generate_projectile`, and subsequently to the constructor of 
+        :class:`Crater` . Refer to its documentation for a detailed description of valid 
         keyword arguments.
 
         Examples
@@ -333,7 +332,7 @@ class Simulation:
             sim.emplace_crater(diameter=1000.0)
 
             # Create a crater based on a projectile with given mass and velocity
-            sim.emplace_crater(from_projectile=True, mass=1e14, velocity=20e3)
+            sim.emplace_crater(projectile_mass=1e14, projectile_velocity=20e3)
             
             # Create a crater with a specific transient diameter and location
             sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
