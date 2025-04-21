@@ -4,14 +4,16 @@
 Getting Started
 ################
 
-First, set up a Python environment and set the system environment variables using ```buildscripts/set_environment.sh```. This script sets the necessary environment variables for the Fortran compiler, CMake, and other dependencies.  You can install cratermaker with pip::
+First, set up a Python environment. Once your python environment is set up, cratermaker can be installed with pip::
    
-      pip install -e .
+      pip install cratermaker.
 
 You can verify the installation was successful by running the tests::
 
       pytest tests/
 
+
+Next, we will go through simple examples on how to utilize cratermaker.
 
 ##################
 Emplacing a Crater
