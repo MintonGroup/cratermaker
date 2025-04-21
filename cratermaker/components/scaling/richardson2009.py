@@ -78,6 +78,11 @@ class Richardson2009(ScalingModel):
         object.__setattr__(self, "_Ybar", None)
         object.__setattr__(self, "_target_density", None)
         object.__setattr__(self, "_rng", None)
+        object.__setattr__(self, "_transition_diameter", None)
+        object.__setattr__(self, "_transition_nominal", None)
+        object.__setattr__(self, "_complex_enlargement_factor", None)
+        object.__setattr__(self, "_simple_enlargement_factor", None)
+        object.__setattr__(self, "_final_exp", None)
         self.rng = rng
 
         if material_name is not None:
@@ -96,12 +101,6 @@ class Richardson2009(ScalingModel):
                         **kwargs
                     ) 
         _check_properties(self)  
-        # Initialize additional attributes for simple->complex transition scale factors. These are set to None here just for clarity
-        self.transition_diameter = None
-        self.transition_nominal = None
-        self.simple_enlargement_factor = None
-        self.complex_enlargement_factor = None
-        self.final_exp = None
 
         # Initialize transition factors
         self._compute_simple_to_complex_transition_factors() 
@@ -117,14 +116,16 @@ class Richardson2009(ScalingModel):
             self._user_defined.add(public_name)
 
 
-    def get_morphology_type(self, final_diameter: FloatLike) -> str:
+    def get_morphology_type(self, 
+                            final_diameter: FloatLike | None = None, 
+                            **kwargs: Any) -> str:
         """
         Computes and the morphology type of a crater and returns a string corresponding to its type.
 
         Parameters
         ----------
         final_diameter : float
-            The diameter of the crater to compute
+            The diameter of the crater to compute. Uses the current value of the diameter of the object if not provided.
         
         Returns
         ----------
@@ -133,6 +134,7 @@ class Richardson2009(ScalingModel):
         """
         
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular  
+        final_diameter = final_diameter or self.diameter
         transition_range = (0.5*self.transition_nominal,2*self.transition_nominal)
         
         if final_diameter < transition_range[0]:
@@ -155,41 +157,9 @@ class Richardson2009(ScalingModel):
         return morphology_type    
 
 
-    def projectile_to_crater(self, **kwargs):
-        """
-        Convert a projectile to its corresponding crater.
-
-        Returns
-        -------
-        Crater
-            The crater resulting from the impact of the projectile.
-        """
-        self.transient_diameter = self.projectile_to_transient(**kwargs)
-
-        return 
-
-
-    def crater_to_projectile(self, **kwargs):
-        """
-        Convert a crater back to its corresponding projectile.
-        This operation is more hypothetical and approximates the possible projectile that created the crater.
-
-        Parameters
-        ----------
-        crater : Crater
-            The crater to be converted.
-
-        Returns
-        -------
-        crater
-            The estimated projectile that could have caused the crater.
-        """
-        self.projectile_diameter = self.transient_to_projectile(**kwargs)
-        
-        return 
-
-
-    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64:
+    def final_to_transient(self, 
+                           final_diameter: FloatLike | None = None,
+                           morphology_type: str | None = None, **kwargs) -> np.float64:
         """
         Computes the transient diameter of a crater based on its final diameter and morphology type.
 
@@ -208,7 +178,8 @@ class Richardson2009(ScalingModel):
         -------
         np.float64
             Returns the crater transient diameter in meters
-        """        
+        """       
+        final_diameter = final_diameter or self.diameter 
         if not morphology_type:
             morphology_type = self.get_morphology_type(final_diameter) 
         
@@ -221,7 +192,9 @@ class Richardson2009(ScalingModel):
         return transient_diameter, morphology_type
 
 
-    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]:
+    def transient_to_final(self, 
+                           transient_diameter: FloatLike | None = None, 
+                           **kwargs: Any) -> tuple[np.float64, str]:
         """
         Computes the final diameter of a crater based on its transient diameter and morphology type.
 
@@ -234,8 +207,9 @@ class Richardson2009(ScalingModel):
 
         Parameters
         ----------
-        transient_diameter : float-like
-            The transient diameter in meters of the crater to convert to final
+        transient_diameter : float-like, optional
+            The transient diameter in meters of the crater to convert to final. Uses the current value of the transient_diameter of the 
+            object if not provided.
 
         Returns
         -------
@@ -244,7 +218,7 @@ class Richardson2009(ScalingModel):
         str
             The morphology type of the crater
         """ 
-        
+        transient_diameter = transient_diameter or self.transient_diameter 
         # Invert the final -> transient functions for  each crater type
         final_diameter_simple = transient_diameter * self.simple_enlargement_factor
         def root_func(final_diameter,Dt,scale):
@@ -289,7 +263,9 @@ class Richardson2009(ScalingModel):
         return final_diameter, morphology_type
 
 
-    def projectile_to_transient(self, **kwargs: Any) -> np.float64:
+    def projectile_to_transient(self, 
+                                projectile_diameter: FloatLike | None = None,
+                                **kwargs: Any) -> np.float64:
         """
         Calculate the transient diameter of a crater based on the properties of the projectile and target.
 
@@ -304,19 +280,27 @@ class Richardson2009(ScalingModel):
             .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         # Compute some auxiliary quantites
+        if projectile_diameter is None:
+            projectile_diameter = self.projectile_diameter
+            projectile_radius = self.projectile_radius
+            projectile_mass = self.projectile_mass
+        else:
+            projectile_radius = projectile_diameter / 2.0
+            projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * self.projectile_density
+
         c1 = 1.0 + 0.5 * self.mu
         c2 = (-3 * self.mu)/(2.0 + self.mu)
 
         # Find dimensionless quantities
-        pitwo = (self.target.gravity * self.projectile_radius)/(self.projectile_vertical_velocity**2)
+        pitwo = (self.target.gravity * projectile_radius)/(self.projectile_vertical_velocity**2)
         pithree = self.Ybar / (self.target_density * (self.projectile_vertical_velocity**2))
         pifour = self.target_density / self.projectile._ensity
         pivol = self.K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
         pivolg = self.K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
         
         # find transient crater volume and radii (depth = 1/3 diameter)
-        cvol = pivol * (self.projectile_mass / self.target_density)
-        cvolg = pivolg * (self.projectile_mass / self.target_density)
+        cvol = pivol * (projectile_mass / self.target_density)
+        cvolg = pivolg * (projectile_mass / self.target_density)
         transient_radius = (3 * cvol / np.pi)**(1.0/3.0)
         transient_radius_gravscale = (3 * cvolg / np.pi)**(1.0/3.0)
         
@@ -328,7 +312,9 @@ class Richardson2009(ScalingModel):
         return transient_diameter
 
 
-    def transient_to_projectile(self, **kwargs: Any) -> np.float64: 
+    def transient_to_projectile(self, 
+                                transient_diameter: FloatLike | None = None, 
+                                **kwargs: Any) -> np.float64: 
         """
         Estimate the characteristics of the projectile that could have created a given crater.
 
@@ -337,6 +323,8 @@ class Richardson2009(ScalingModel):
 
         Parameters
         ----------
+        transient_diameter : float
+            The diameter of the crater in meters.
         **kwargs : Any
             Additional keyword arguments that might influence the calculation.
 
@@ -345,13 +333,14 @@ class Richardson2009(ScalingModel):
         Crater
             The computed projectile for the crater.
         """
+        transient_diameter = transient_diameter or self.transient_diameter
         def root_func(projectile_diameter: FloatLike) -> np.float64:
             
             self.projectile_diameter = projectile_diameter
-            transient_diameter = self.projectile_to_transient()
-            return transient_diameter - self.transient_diameter 
+            value = self.projectile_to_transient()
+            return value - transient_diameter 
         
-        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*self.transient_diameter,1.2*self.transient_diameter))
+        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*transient_diameter,1.2*transient_diameter))
         
         return sol.root
 
@@ -421,10 +410,10 @@ class Richardson2009(ScalingModel):
         simple_complex_fac = simple_complex_mean * np.exp(self.rng.normal(loc=0.0,scale=simple_complex_std))
         transition_diameter = simple_complex_fac * self.target.gravity**simple_complex_exp
         self.transition_diameter = transition_diameter
-        self.transition_nominal=transition_nominal
-        self.simple_enlargement_factor = simple_enlargement_factor
-        self.complex_enlargement_factor = complex_enlargement_factor
-        self.final_exp = final_exp
+        self._transition_nominal=transition_nominal
+        self._simple_enlargement_factor = simple_enlargement_factor
+        self._complex_enlargement_factor = complex_enlargement_factor
+        self._final_exp = final_exp
         return 
 
 
@@ -450,21 +439,17 @@ class Richardson2009(ScalingModel):
     @transition_diameter.setter
     def transition_diameter(self, value: FloatLike) -> None:
         self._transition_diameter = np.float64(value)
-        
+
     @property
     def transition_nominal(self) -> np.float64:
         """
-        The nominal transition diameter for crater morphology in m.
+        The nominal transition diameter between simple and complex craters in m.
         
         Returns
         -------
         np.float64
         """
         return self._transition_nominal
-    
-    @transition_nominal.setter
-    def transition_nominal(self, value: FloatLike) -> None:
-        self._transition_nominal = np.float64(value)
 
     @property
     def simple_enlargement_factor(self) -> np.float64:
@@ -477,9 +462,6 @@ class Richardson2009(ScalingModel):
         """
         return self._simple_enlargement_factor
     
-    @simple_enlargement_factor.setter
-    def simple_enlargement_factor(self, value: FloatLike) -> None:
-        self._simple_enlargement_factor = np.float64(value)
 
     @property
     def complex_enlargement_factor(self) -> np.float64:
@@ -492,10 +474,6 @@ class Richardson2009(ScalingModel):
         """
         return self._complex_enlargement_factor
     
-    @complex_enlargement_factor.setter
-    def complex_enlargement_factor(self, value: FloatLike) -> None:
-        self._complex_enlargement_factor = np.float64(value)
-
     @property
     def final_exp(self) -> np.float64:
         """
@@ -507,9 +485,6 @@ class Richardson2009(ScalingModel):
         """
         return self._final_exp
     
-    @final_exp.setter
-    def final_exp(self, value: FloatLike) -> None:
-        self._final_exp = np.float64(value)
 
     @property
     def target(self):

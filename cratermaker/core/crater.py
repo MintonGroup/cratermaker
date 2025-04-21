@@ -81,7 +81,7 @@ class Crater:
                  morphology_cls: Type[MorphologyModel] = None,
                  rng: Generator = None,
                  **kwargs: Any):
-        
+
         self.rng = rng
         self.target = target
         self.scale = scale
@@ -137,7 +137,6 @@ class Crater:
 
         self.morphology = self.morphology_cls(crater=self, target=self.target, rng=self.rng, **kwargs)
 
-    # --- Impact/Crater (target) properties ---
     @property
     def diameter(self):
         """
@@ -152,25 +151,23 @@ class Crater:
                 raise ValueError("Diameter of crater rim must be finite and positive!")
             self._diameter = np.float64(value)
             self._radius = np.float64(value) / 2
-            self._transient_diameter, self.morphology_type = self.scale.final_to_transient(value)
+            self._transient_diameter, self._morphology_type = self.scale.final_to_transient(value)
             self._transient_radius = self._transient_diameter / 2
+            self._projectile_diameter = self.scale.transient_to_projectile(self._transient_diameter)
+            self._projectile_radius = self._projectile_diameter / 2
+            self._update_projectile_mass()
 
     @property
     def radius(self):
         """
         The radius of the crater rim in m. Setting radius automatically sets diameter, transient_diameter, and transient_radius.
         """
-        return self._radius
+        return self._diameter / 2
 
     @radius.setter
     def radius(self, value):
         if value is not None:
-            if value <= 0.0:
-                raise ValueError("Radius of crater rim must be finite and positive!")
-            self._radius = np.float64(value)
-            self._diameter = np.float64(value) * 2
-            self._transient_diameter, self._morphology_type = self.scale.final_to_transient(value)
-            self._transient_radius = self._transient_diameter / 2
+            self.diameter = np.float64(value) * 2
 
     @property
     def location(self):
@@ -289,9 +286,10 @@ class Crater:
             if value <= 0.0:
                 raise ValueError("Diameter of transient crater must be finite and positive!")
             self._transient_diameter = np.float64(value)
-            self._transient_radius = np.float64(value) / 2
             self._diameter, self._morphology_type = self.scale.transient_to_final(value)
-            self._radius = self._diameter / 2
+            self._projectile_diameter = self.scale.transient_to_projectile(self._transient_diameter)
+            self._projectile_radius = self._projectile_diameter / 2
+            self._update_projectile_mass()
         return
 
     @property
@@ -299,17 +297,14 @@ class Crater:
         """
         The radius the transient crater in m. Setting transient radius automatically sets transient diameter, diameter, and radius.
         """
-        return self._transient_radius
+        return self._transient_diameter / 2
 
     @transient_radius.setter
     def transient_radius(self, value):
         if value is not None:
             if value <= 0.0:
                 raise ValueError("Radius of transient crater must be finite and positive!")
-            self._transient_radius = np.float64(value)
-            self._transient_diameter = np.float64(value) * 2
-            self._diameter, self._morphology_type = self.scale.transient_to_final(value)
-            self._radius = self._diameter / 2
+            self.transient_diameter = np.float64(value) * 2
 
     def emplace(self, surf: Surface):
         """
@@ -420,14 +415,20 @@ class Crater:
         if value is not None:
             if value <= 0.0:
                 raise ValueError("Diameter of projectile must be finite and positive!")
-            self.projectile_radius = np.float64(value) / 2
-            self.transient_diameter = self.scale.projectile_to_transient()
+            self._projectile_diameter = np.float64(value)
+            self._projectile_radius = np.float64(value) / 2
+            self._update_projectile_mass()
+            self._transient_diameter = self.scale.projectile_to_transient(self._projectile_diameter)
+            self._transient_radius = self._transient_diameter / 2
+            self._diameter, self._morphology_type = self.scale.transient_to_final(self._transient_diameter)
+            self._radius = self._diameter / 2
         else:
             self.projectile_radius = None
 
+
     def _update_projectile_mass(self):
         if self._projectile_density is not None and self.projectile_radius is not None:
-            self._projectile_mass = 4.0 / 3.0 * np.pi * self.projectile_radius ** 3 * self._projectile_density
+            self._projectile_mass = 4.0 / 3.0 * np.pi * self._projectile_radius ** 3 * self._projectile_density
 
     def _update_projectile_volume_based_properties(self):
         if self._projectile_mass is not None and self._projectile_density is not None:
