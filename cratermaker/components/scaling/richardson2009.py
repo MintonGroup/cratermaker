@@ -31,6 +31,10 @@ class Richardson2009(ScalingModel):
         The strength of the target material, (Pa)
     target_density : FloatLike, optional
         Volumentric density of target material, (kg/m^3)
+    projectile_density : FloatLike, optional
+        Volumetric density of the projectile, (kg/m^3)
+    projectile_mean_velocity : FloatLike, optional
+        The mean velocity of the projectile, (m/s)
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used. 
 
@@ -55,6 +59,8 @@ class Richardson2009(ScalingModel):
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
                  target_density: FloatLike | None = None,
+                 projectile_density: FloatLike | None = None,
+                 projectile_vertical_velocity: FloatLike | None = None,
                  rng: Generator | None = None, 
                  **kwargs):
         """
@@ -77,6 +83,8 @@ class Richardson2009(ScalingModel):
         object.__setattr__(self, "_mu", None)
         object.__setattr__(self, "_Ybar", None)
         object.__setattr__(self, "_target_density", None)
+        object.__setattr__(self, "_projectile_density", None)
+        object.__setattr__(self, "_projectile_vertical_velocity", None)
         object.__setattr__(self, "_rng", None)
         object.__setattr__(self, "_transition_diameter", None)
         object.__setattr__(self, "_transition_nominal", None)
@@ -97,6 +105,8 @@ class Richardson2009(ScalingModel):
                         mu=mu,
                         Ybar=Ybar,
                         target_density=target_density,
+                        projectile_density=projectile_density,
+                        projectile_vertical_velocity=projectile_vertical_velocity,
                         catalogue=self.material_catalogue,
                         **kwargs
                     ) 
@@ -108,7 +118,7 @@ class Richardson2009(ScalingModel):
 
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
-        include_list=("material_name", "K1", "mu", "Ybar", "target_density")
+        include_list=("material_name", "K1", "mu", "Ybar", "target_density", "projectile_density", "projectile_mean_velocity")
         # Add it to the set of user-defined parameters if it is in the list of parameters
         public_name = name.lstrip("_")
         if public_name in include_list:
@@ -260,8 +270,6 @@ class Richardson2009(ScalingModel):
 
     def projectile_to_transient(self, 
                                 projectile_diameter: FloatLike, 
-                                projectile_vertical_velocity: FloatLike, 
-                                projectile_density: FloatLike | None = None,
                                 **kwargs: Any) -> np.float64:
         """
         Calculate the transient diameter of a crater based on the properties of the projectile and target.
@@ -277,18 +285,16 @@ class Richardson2009(ScalingModel):
             .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         # Compute some auxiliary quantites
-        if projectile_density is None:
-            projectile_density = self.projectile_density
-        projectile_radius = projectile_diameter / 2.0
-        projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * projectile_density
+        projectile_radius = projectile_diameter / 2
+        projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * self.projectile_density
 
         c1 = 1.0 + 0.5 * self.mu
         c2 = (-3 * self.mu)/(2.0 + self.mu)
 
         # Find dimensionless quantities
-        pitwo = (self.target.gravity * projectile_radius)/(projectile_vertical_velocity**2)
-        pithree = self.Ybar / (self.target_density * (projectile_vertical_velocity**2))
-        pifour = self.target_density / projectile_density
+        pitwo = (self.target.gravity * projectile_radius)/(self.projectile_vertical_velocity**2)
+        pithree = self.Ybar / (self.target_density * (self.projectile_vertical_velocity**2))
+        pifour = self.target_density / self.projectile_density
         pivol = self.K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
         pivolg = self.K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
         
@@ -308,8 +314,6 @@ class Richardson2009(ScalingModel):
 
     def transient_to_projectile(self, 
                                 transient_diameter: FloatLike, 
-                                projectile_vertical_velocity, 
-                                projectile_density: FloatLike | None = None,
                                 **kwargs: Any) -> np.float64: 
         """
         Estimate the characteristics of the projectile that could have created a given crater.
@@ -329,11 +333,11 @@ class Richardson2009(ScalingModel):
         Crater
             The computed projectile for the crater.
         """
-        def root_func(projectile_diameter, projectile_vertical_velocity, projectile_density) -> np.float64:
-            value = self.projectile_to_transient(projectile_diameter, projectile_vertical_velocity, projectile_density)
+        def root_func(projectile_diameter) -> np.float64:
+            value = self.projectile_to_transient(projectile_diameter)
             return value - transient_diameter 
         
-        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*transient_diameter,1.2*transient_diameter), args=(projectile_vertical_velocity, projectile_density))
+        sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(1e-5*transient_diameter,1.2*transient_diameter))
         
         return sol.root
 
@@ -454,7 +458,6 @@ class Richardson2009(ScalingModel):
         np.float64
         """
         return self._simple_enlargement_factor
-    
 
     @property
     def complex_enlargement_factor(self) -> np.float64:
@@ -478,7 +481,6 @@ class Richardson2009(ScalingModel):
         """
         return self._final_exp
     
-
     @property
     def target(self):
         """
@@ -583,11 +585,81 @@ class Richardson2009(ScalingModel):
     
     @target_density.setter
     def target_density(self, value):
-        if not isinstance(value, FloatLike) and value is not None:
-            raise TypeError("target_density must be a numeric value or None")
-        if value is not None and value < 0:
-            raise ValueError("target_density must be a positive number")
-        self._target_density = np.float64(value)
+        if value is not None:
+            if not isinstance(value, FloatLike):
+                raise TypeError("target_density must be a numeric value or None")
+            if value < 0:
+                raise ValueError("target_density must be a positive number")
+            self._target_density = np.float64(value)
+
+
+    @property
+    def projectile_density(self):
+        """
+        Volumetric density of the projectile in kg/m^3.
+        
+        Returns
+        -------
+        np.float64 
+        """
+        return self._projectile_density
+    
+    @projectile_density.setter
+    def projectile_density(self, value):
+        if value is not None:
+            if not isinstance(value, FloatLike): 
+                raise TypeError("projectile_density must be a numeric value or None")
+            if value < 0:
+                raise ValueError("projectile_density must be a positive number")
+            self._projectile_density = np.float64(value)
+        else:
+            if self.target_density is not None:
+                self._projectile_density = self.target_density
+
+    @property
+    def projectile_vertical_velocity(self):
+        """Get the impact velocity model name."""
+        return self._projectile_mean_velocity
+
+    @projectile_vertical_velocity.setter
+    def projectile_vertical_velocity(self, value):
+        """"
+        Sets the vertical component of the impact velocity. If none is provided, it will look at the target name, and if it matches a known body, we will draw from a distribution using the predefined mean velocityvalue. Otherwise, it will raise an error.
+            
+        Notes
+        ----- 
+        Mean velocities for terrestrial planets and the Moon are based on analysis of simulations of main-belt derived asteroids from Minton & Malhotra (2010) [1]_  and Yue et al. (2013) [2]_. Mean velocities for the asteroids are from Bottke et al. (1994) [3]_.
+        
+        References
+        ----------
+        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744-757. https://doi.org/10.1016/j.icarus.2009.12.008
+        .. [2] Yue, Z., Johnson, B.C., Minton, D.A., Melosh, H.J., Di, K., Hu, W., Liu, Y., 2013. Projectile remnants in central peaks of lunar impact craters. Nature Geosci 6, 435 EP-. https://doi.org/10.1038/ngeo1828
+        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255-268. https://doi.org/10.1006/icar.1994.1021
+        """
+
+        if value is None: 
+            predefined_models = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'MBA']
+            predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
+            predefined = dict(zip(predefined_models, predefined_velocities))
+            if self.target.name in predefined_models:
+                pmv = np.float64(predefined[self.target.name])
+            elif self.target.name in ["Ceres", "Vesta"]:
+                pmv = np.float64(predefined["MBA"])
+            else:
+                raise ValueError("No impact velocity model found that matches the target body. Please provide a value for projectile_vertical_velocity.")
+            vencounter_mean = np.sqrt(pmv ** 2 - self.target.escape_velocity ** 2)
+            vencounter = mc.get_random_velocity(vencounter_mean, rng=self.rng)
+            pv = float(np.sqrt(vencounter ** 2 + self.target.escape_velocity ** 2)) 
+            pang = mc.get_random_impact_angle(rng=self.rng)
+            self._projectile_vertical_velocity = pv * np.sin(np.deg2rad(pang))
+        elif isinstance(value, (int, float)):
+            if value < 0:
+                raise ValueError("projectile_mean_velocity must be a positive number")
+            self._projectile_vertical_velocity = np.float64(value)
+        else: 
+            raise TypeError("projectile_mean_velocity must be a numeric value or None") 
+
+        return
         
     @property
     def rng(self):

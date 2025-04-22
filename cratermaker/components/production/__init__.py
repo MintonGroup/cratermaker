@@ -487,40 +487,6 @@ class ProductionModel(ABC):
         return age, age_end 
 
     @parameter
-    def impact_velocity_model(self):
-        """Get the impact velocity model name."""
-        return self._impact_velocity_model
-
-    @impact_velocity_model.setter
-    def impact_velocity_model(self, value):
-        """"
-        Set the name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
-            
-        Notes
-        ----- 
-        Mean velocities for terrestrial planets and the Moon are based on analysis of simulations of main-belt derived asteroids from Minton & Malhotra (2010) [1]_  and Yue et al. (2013) [2]_. Mean velocities for the asteroids are from Bottke et al. (1994) [3]_.
-        
-        References
-        ----------
-        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744-757. https://doi.org/10.1016/j.icarus.2009.12.008
-        .. [2] Yue, Z., Johnson, B.C., Minton, D.A., Melosh, H.J., Di, K., Hu, W., Liu, Y., 2013. Projectile remnants in central peaks of lunar impact craters. Nature Geosci 6, 435 EP-. https://doi.org/10.1038/ngeo1828
-        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255-268. https://doi.org/10.1006/icar.1994.1021
-        """
-     
-        predefined_models = ['Mercury_MBA', 'Venus_MBA', 'Earth_MBA', 'Moon_MBA', 'Mars_MBA', 'MBA_MBA']
-        predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
-        predefined = dict(zip(predefined_models, predefined_velocities))
-        if value is None:
-            if self._mean_velocity is None:
-                raise ValueError("impact_velocity_model must be set if mean_velocity is not set")
-        elif not isinstance(value, str):
-            raise TypeError("impact_velocity_model must be a string")
-        elif value not in predefined_models:
-            raise ValueError(f"impact_velocity_model {value} is not one of {predefined_models}")
-        self._impact_velocity_model = value
-        self._mean_velocity = np.float64(predefined[value])
-       
-    @parameter
     def mean_velocity(self):
         """The mean impact velocity for the production function."""
         return self._mean_velocity

@@ -30,18 +30,7 @@ class Crater:
     morphology_type: str = field(init=False)
 
     def __post_init__(self):
-        # Set up the scaling model
-        match self.scale:
-            case None:
-                scale_obj = get_scaling_model("richardson2009")(target=self.target, rng=self.rng)
-            case str() as name:
-                scale_obj = get_scaling_model(name)(target=self.target, rng=self.rng)
-            case ScalingModel():
-                scale_obj = self.scale
-            case _:
-                raise TypeError("scale must be None, a ScalingModel instance, or a string model name")
 
-        object.__setattr__(self, 'scale', scale_obj)
 
         # Validate location
         loc = self.location
@@ -108,31 +97,64 @@ class Crater:
                 pv = pvv / np.sin(np.deg2rad(pang))
             elif pv is not None and pvv is not None:
                 pang = np.rad2deg(np.arcsin(pvv / pv))
-            else:
-                # If not enough info, sample random values
-                if pv is None and pvv is None and pang is None:
-                    raise ValueError("Insufficient velocity/angle information.")
-                if pang is None:
-                    pang = mc.get_random_impact_angle(rng=self.rng)
-                if pv is None:
-                    pv = float(mc.get_random_velocity(20000, rng=self.rng))  # Fallback mean
+            elif pv is not None and pang is None:
+                pang = mc.get_random_impact_angle(rng=self.rng)
                 pvv = pv * np.sin(np.deg2rad(pang))
+            elif pvv is not None and pang is None:
+                pang = mc.get_random_impact_angle(rng=self.rng)
+                pv = pvv / np.sin(np.deg2rad(pang))
 
-        # Angle
-        if pang is None:
-            pang = mc.get_random_impact_angle(rng=self.rng)
         # Direction
         if pdir is None:
             pdir = float(self.rng.uniform(0.0, 360.0))
         else:
             pdir = float(pdir) % 360.0
 
+        # Get or infer projectile density
+        prho = self.projectile_density
+
+        # Set up the scaling model
+        match self.scale:
+            case None:
+                scale_obj = get_scaling_model("richardson2009")(target=self.target, rng=self.rng, projectile_density=prho, projectile_vertical_velocity=pvv)
+            case str() as name:
+                scale_obj = get_scaling_model(name)(target=self.target, rng=self.rng, projectile_density=prho, projectile_vertical_velocity=pvv)
+            case ScalingModel():
+                scale_obj = self.scale
+            case _:
+                raise TypeError("scale must be None, a ScalingModel instance, or a string model name")
+            
+        if prho is None:
+            if hasattr(scale_obj, 'projectile_density') and scale_obj.projectile_density is not None:
+                prho = scale_obj.projectile_density
+            else:
+                raise ValueError("Not enough information to infer a projectile density.")
+
+        if pvv is None: 
+            if hasattr(scale_obj, 'projectile_vertical_velocity') and scale_obj.projectile_vertical_velocity is not None:
+                pvv = scale_obj.projectile_vertical_velocity
+            else:
+                raise ValueError("Not enough information to infer a projectile velocity.")
+
+        if pang is None:
+            if pv is not None:
+                pang = np.rad2deg(np.arcsin(pvv / pv))
+            else:
+                pang = mc.get_random_impact_angle(rng=self.rng)
+                pv = pvv / np.sin(np.deg2rad(pang))
+
+        # Ensure that none of the values of pv, pvv, and pang are still None
+        n_set = sum(x is not None for x in [pv, pvv, pang])
+        if n_set != 3:
+            raise ValueError("Not enough information to infer a projectile velocity.")
+
+        object.__setattr__(self, 'scale', scale_obj)
+
         # Validate and resolve which size/mass is given
         fd = self.final_diameter
         td = self.transient_diameter
         pd = self.projectile_diameter
         pm = self.projectile_mass
-        prho = self.projectile_density
         pr = None
         tr = None
         fr = None
@@ -141,10 +163,6 @@ class Crater:
         n_set = sum(x is not None for x in [fd, td, pd, pm])
         if n_set != 1:
             raise ValueError("Exactly one of final_diameter, transient_diameter, projectile_diameter, or projectile_mass must be set.")
-        # Get or infer projectile density
-        if prho is None:
-            prho = self.scale.target_density
-        prho = float(prho)
 
         # Compute all related sizes
         if fd is not None:
@@ -155,7 +173,7 @@ class Crater:
             fr = fd / 2.0
             td, mt = self.scale.final_to_transient(fd)
             tr = td / 2.0
-            pd = self.scale.transient_to_projectile(td, pvv, prho)
+            pd = self.scale.transient_to_projectile(td)
             pr = pd / 2.0
             pm = 4.0 / 3.0 * np.pi * pr**3 * prho
         elif td is not None:
@@ -166,7 +184,7 @@ class Crater:
             tr = td / 2.0
             fd, mt = self.scale.transient_to_final(td)
             fr = fd / 2.0
-            pd = self.scale.transient_to_projectile(td, pvv, prho)
+            pd = self.scale.transient_to_projectile(td)
             pr = pd / 2.0
             pm = 4.0 / 3.0 * np.pi * pr**3 * prho
         elif pd is not None:
@@ -176,7 +194,7 @@ class Crater:
                 raise ValueError("projectile_diameter must be positive.")
             pr = pd / 2.0
             pm = 4.0 / 3.0 * np.pi * pr**3 * prho
-            td = self.scale.projectile_to_transient(pd, pvv, prho)
+            td = self.scale.projectile_to_transient(pd)
             tr = td / 2.0
             fd, mt = self.scale.transient_to_final(td)
             fr = fd / 2.0
@@ -187,7 +205,7 @@ class Crater:
                 raise ValueError("projectile_mass must be positive.")
             pr = ((3.0 * pm) / (4.0 * np.pi * prho)) ** (1.0 / 3.0)
             pd = 2.0 * pr
-            td = self.scale.projectile_to_transient(pd, pvv, prho)
+            td = self.scale.projectile_to_transient(pd)
             tr = td / 2.0
             fd, mt = self.scale.transient_to_final(td)
             fr = fd / 2.0
