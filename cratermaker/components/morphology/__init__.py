@@ -46,6 +46,12 @@ class MorphologyModel(ABC):
             raise RuntimeError("No crater has been added to the morphology model yet.")
         return self._crater
     
+    @crater.setter
+    def crater(self, value):
+        if value is not None and not isinstance(value, Crater):
+            raise TypeError("crater must be an instance of Crater")
+        self._crater = value
+    
 _registry: dict[str, MorphologyModel] = {}
 
 def register_morphology_model(name: str):

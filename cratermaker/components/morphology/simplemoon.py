@@ -39,9 +39,18 @@ class SimpleMoon(MorphologyModel):
                  **kwargs: Any 
                  ):
         super().__init__(**kwargs)
+
         self.rng = rng
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
+
+        object.__setattr__(self, "_rimheight" , None)
+        object.__setattr__(self, "_rimwidth" , None)
+        object.__setattr__(self, "_peakheight" , None)
+        object.__setattr__(self, "_floor_diameter" , None)
+        object.__setattr__(self, "_floordepth" , None)
+        object.__setattr__(self, "_ejrim" , None)
+        object.__setattr__(self, "_node" , None)
 
 
     def _set_morphology_parameters(self) -> None:
@@ -75,8 +84,8 @@ class SimpleMoon(MorphologyModel):
 
 
     def form_crater(self, 
-                    crater: Crater, 
                     surf: Surface,
+                    crater: Crater | None = None, 
                     **kwargs) -> None:
         """
         This method forms the interior of the crater by altering the elevation variable of the surface mesh.
@@ -86,11 +95,16 @@ class SimpleMoon(MorphologyModel):
         surf : Surface
             The surface to be altered.
         crater : Crater
-            The crater object to be formed.
+            The crater object to be formed. This is optional if it has already been added
         **kwargs : dict
             Additional keyword arguments to be passed to internal functions (not used here).
         """
-        self.crater = crater
+        if crater:
+            self.crater = crater
+
+        if not isinstance(surf, Surface):
+            raise TypeError("surf must be an instance of Surface")
+        self.node_index, self.face_index = surf.find_nearest_index(self.crater.location)
 
         # Test if the crater is big enough to modify the surface
         rmax = self._compute_rmax(minimum_thickness=surf.smallest_length)
@@ -100,7 +114,7 @@ class SimpleMoon(MorphologyModel):
         crater_area = np.pi * rmax**2
         
         # Check to make sure that the face at the crater location is not smaller than the crater area
-        if surf['face_areas'].isel(n_face=self.crater.face_index) > crater_area:
+        if surf['face_areas'].isel(n_face=self.face_index) > crater_area:
             return
         
         region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
@@ -117,10 +131,69 @@ class SimpleMoon(MorphologyModel):
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
-        
+
+        self.form_ejecta(surf, crater=self.crater, **kwargs) 
         return  
 
+
+    def form_ejecta(self,
+                    surf: Surface,
+                    crater: Crater | None = None,
+                    **kwargs) -> None:
+        """
+        This method forms the ejecta blanket around the crater by altering the elevation variable of the surface mesh.
        
+        Parameters
+        ----------
+        surf : Surface
+            The surface to be altered.
+        **kwargs : dict
+            Additional keyword arguments to be passed to internal functions (not used here). 
+        """
+        if crater:
+            self.crater = crater
+
+        if not isinstance(surf, Surface):
+            raise TypeError("surf must be an instance of Surface")
+        self.node_index, self.face_index = surf.find_nearest_index(self.crater.location) 
+
+        # Test if the ejecta is big enough to modify the surface
+        rmax = self._compute_rmax(minimum_thickness=surf.smallest_length) 
+        if not self.ejecta_truncation:
+            self.ejecta_truncation = rmax / self.crater.final_radius
+        region_surf = surf.extract_region(self.crater.location, rmax)
+        if not region_surf: # The crater is too small to change the surface
+            return
+        ejecta_area = np.pi * rmax**2
+        
+        # Check to make sure that the face at the crater location is not smaller than the ejecta blanket area
+        if surf['face_areas'].isel(n_face=self.face_index) > ejecta_area:
+            return                  
+        
+        region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
+        region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = region_surf.get_initial_bearing(self.crater.location)
+        
+        try:
+            node_thickness = self.ejecta_distribution(region_surf['node_crater_distance'].values, 
+                                                     region_surf['node_crater_bearing'].values)
+            surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] += node_thickness
+            
+            face_thickness = self.ejecta_distribution(region_surf['face_crater_distance'].values, 
+                                                     region_surf['face_crater_bearing'].values)
+            surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
+            surf['ejecta_thickness'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
+            
+            if self.dorays: 
+                face_intensity = self.ray_intensity(region_surf['face_crater_distance'].values, 
+                                                     region_surf['face_crater_bearing'].values)
+                surf['ray_intensity'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_intensity
+        except:
+            print(self)
+            raise ValueError("Something went wrong with this crater!")
+                 
+        return  
+
+
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
         elevation = crater_functions.profile(r,
                                    r_ref, 
@@ -206,105 +279,6 @@ class SimpleMoon(MorphologyModel):
 
         return float(rmax)
 
-
-    def form_ejecta(self,
-                    surf: Surface,
-                    **kwargs) -> None:
-        """
-        This method forms the ejecta blanket around the crater by altering the elevation variable of the surface mesh.
-       
-        Parameters
-        ----------
-        surf : Surface
-            The surface to be altered.
-        **kwargs : dict
-            Additional keyword arguments to be passed to internal functions (not used here). 
-        """
-                 
-        # Test if the ejecta is big enough to modify the surface
-        rmax = self._compute_rmax(minimum_thickness=surf.smallest_length) 
-        if not self.ejecta_truncation:
-            self.ejecta_truncation = rmax / self.crater.final_radius
-        region_surf = surf.extract_region(self.crater.location, rmax)
-        if not region_surf: # The crater is too small to change the surface
-            return
-        ejecta_area = np.pi * rmax**2
-        
-        # Check to make sure that the face at the crater location is not smaller than the ejecta blanket area
-        if surf['face_areas'].isel(n_face=self.crater.face_index) > ejecta_area:
-            return                  
-        
-        region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
-        region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = region_surf.get_initial_bearing(self.crater.location)
-        
-        try:
-            node_thickness = self.ejecta_distribution(region_surf['node_crater_distance'].values, 
-                                                     region_surf['node_crater_bearing'].values)
-            surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] += node_thickness
-            
-            face_thickness = self.ejecta_distribution(region_surf['face_crater_distance'].values, 
-                                                     region_surf['face_crater_bearing'].values)
-            surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
-            surf['ejecta_thickness'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
-            
-            if self.dorays: 
-                face_intensity = self.ray_intensity(region_surf['face_crater_distance'].values, 
-                                                     region_surf['face_crater_bearing'].values)
-                surf['ray_intensity'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_intensity
-        except:
-            print(self)
-            raise ValueError("Something went wrong with this crater!")
-                 
-        return  
-    
-
-    def form_secondaries(self,
-                         surf: Surface,
-                         **kwargs) -> None:
-        """
-        This method forms secondary craters around the primary crater. Currently it only generates the ray intensity function.
-        Maximum ray length formula is from [1]_.
-       
-        Parameters
-        ----------
-        surf : Surface
-            The surface to be altered.
-        **kwargs : dict
-            Additional keyword arguments to be passed to internal functions (not used here). 
-            
-        References
-        ----------
-        .. [1] Elliott, J.R., Huang, Y.-H., Minton, D.A., Freed, A.M., 2018. The length of lunar crater rays explained using secondary crater scaling. Icarus 312, 231-246. https://doi.org/10.1016/j.icarus.2018.04.015
-
-        """
-        
-        # Elliott et al. (2018) eq. 2
-        A = 6.59 + self.rng.normal(loc=0.0,scale=1.45) 
-        p = 1.27 + self.rng.normal(loc=0.0,scale=0.06)
-        rmax = A * (self.crater.final_radius / 1000) **p * 1000
-        if not self.ejecta_truncation:
-            self.ejecta_truncation = rmax / self.crater.final_radius
-        region_surf = surf.extract_region(self.crater.location, rmax)
-        if not region_surf: # The crater is too small to change the surface
-            return
-        ray_area = np.pi * rmax**2
-        
-        # Check to make sure that the face at the crater location is not smaller than the ray effectt area
-        if surf['face_areas'].isel(n_face=self.crater.face_index) > ray_area:
-            return                  
-        
-        region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
-        region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = region_surf.get_initial_bearing(self.crater.location)
-        
-        try:
-            face_intensity = self.ray_intensity(region_surf['face_crater_distance'].values, 
-                                                region_surf['face_crater_bearing'].values)
-            surf['ray_intensity'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_intensity
-        except:
-            print(self)
-            raise ValueError("Something went wrong with this crater!")
-                 
-        return      
 
 
     @property
@@ -409,16 +383,49 @@ class SimpleMoon(MorphologyModel):
             raise TypeError("ejrim must be of type FloatLike")
         self._ejrim = float(value)
         
-    
+    @property
+    def crater(self):
+        return super().crater
+
     @crater.setter
     def crater(self, value):
-        from cratermaker import Crater
-        if value is not None and not isinstance(value, Crater):
-            raise TypeError("crater must be an instance of Crater")
-        self._crater = value
+        MorphologyModel.crater.fset(self, value)
         self._set_morphology_parameters()
-        return 
+
+    @property
+    def node_index(self):
+        """
+        The index of the node closest to the crater location.
         
+        Returns
+        -------
+        int
+        """
+        return self._node_index
+    
+    @node_index.setter
+    def node_index(self, value: int) -> None:
+        if not isinstance(value, int):
+            raise TypeError("node_index must be of type int")
+        self._node_index = value
+
+    @property
+    def face_index(self):
+        """
+        The index of the face closest to the crater location.
+        
+        Returns
+        -------
+        int
+        """
+        return self._face_index
+    
+    @face_index.setter
+    def face_index(self, value: int) -> None:
+        if not isinstance(value, int):
+            raise TypeError("face_index must be of type int")
+        self._face_index = value
+
     @property
     def rng(self):
         """
@@ -449,7 +456,7 @@ class SimpleMoon(MorphologyModel):
     
     @ejecta_truncation.setter
     def ejecta_truncation(self, value: FloatLike | None): 
-        if value:
+        if value is not None:
             if not isinstance(value, FloatLike):
                 raise TypeError("truction_radius must be of type FloatLike")
             self._ejecta_truncation = float(value)

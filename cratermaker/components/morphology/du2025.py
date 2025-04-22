@@ -1,22 +1,14 @@
 import os
 import numpy as np
-from numpy.random import Generator
+from numpy.typing import NDArray
 import json
 import math
 from scipy import fft
-from scipy.optimize import fsolve
-from numpy.typing import NDArray, ArrayLike
 from typing import Any
-from cratermaker.utils.custom_types import FloatLike
-from cratermaker.core.surface import Surface
-from cratermaker.core.crater import Crater
-from cratermaker.components.morphology import get_morphology_model, register_morphology_model, MorphologyModel
-from cratermaker.utils.general_utils import parameter
-from cratermaker import crater_functions, ejecta_functions
+from cratermaker.components.morphology import get_morphology_model, register_morphology_model
 
-SimpleMoon = get_morphology_model("simplemoon")
 @register_morphology_model("du2025")
-class Du2025(SimpleMoon):
+class Du2025:
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh. This uses the morphology model of Du et al. 2025a,b
 
@@ -26,9 +18,9 @@ class Du2025(SimpleMoon):
         Additional keyword arguments to be passed to internal functions.
     """
     
-    def __init__(self, 
-                 **kwargs: Any 
-                 ):
+    def __init__(self, **kwargs: Any):
+        base_cls = get_morphology_model("simplemoon")
+        self._base = base_cls(**kwargs)        
         super().__init__(**kwargs)
 
 
