@@ -8,8 +8,12 @@ edition = "2021"
 name = "cratermaker"
 crate-type = ["cdylib"]
 
+[profile.release]
+debug = true
+
 [dependencies]
 itertools = "0.14.0"
 numpy = "0.24.0"
 pyo3 = "0.24.0"
 rand = "0.9.1"
+rayon = "1.10.0"

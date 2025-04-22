@@ -7,6 +7,7 @@ use itertools::Itertools;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rand::prelude::*;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::VSMALL;
 const NRAYMAX: i32 = 5;
@@ -100,12 +101,14 @@ pub fn ray_intensity_internal<'py>(
 
     let random_numbers: Vec<f64> = rng.random_iter().take(NPATT as usize).collect_vec();
 
-    let mut intensity = (0..radial_distance.len())
+    let mut intensity: Vec<f64> = (0..radial_distance.len())
+        .into_par_iter()
         .map(|i| {
             if *radial_distance.get(i).unwrap() < crater_radius {
                 0.0
             } else {
                 (0..NPATT as usize)
+                    .into_par_iter()
                     .map(|j| {
                         let rn = random_numbers[j];
                         let theta = (initial_bearing.get(i).unwrap() + rn * 2.0 * PI) % (2.0 * PI);
@@ -116,7 +119,7 @@ pub fn ray_intensity_internal<'py>(
                     .sum()
             }
         })
-        .collect_vec();
+        .collect();
     let max_val = *intensity.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
     intensity = intensity
         .into_iter()
@@ -176,6 +179,7 @@ fn ray_intensity_func(
                 .clamp(1, NRAYMAX)
         };
         (0..NRAYMAX)
+            .into_par_iter()
             .map(|i| {
                 let length = minray
                     * ((rmax / minray).ln()
