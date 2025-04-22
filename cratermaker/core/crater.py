@@ -30,18 +30,13 @@ class Crater:
     morphology_type: str = field(init=False)
 
     def __post_init__(self):
-
-
         # Validate location
         loc = self.location
         if loc is None:
             loc = mc.get_random_location(rng=self.rng)
         else:
-            # Accept numpy arrays, lists, or tuples
-            if hasattr(loc, "__len__") and len(loc) == 1:
-                loc = loc[0] if hasattr(loc, "__getitem__") else loc.item()
             loc = validate_and_convert_location(loc)
-        object.__setattr__(self, 'location', tuple(np.asarray(loc, dtype=float)))
+        object.__setattr__(self, 'location', loc)
 
         # Validate age
         age = self.age
@@ -221,7 +216,6 @@ class Crater:
         object.__setattr__(self, 'projectile_mass', float(pm))
         object.__setattr__(self, 'projectile_density', float(prho))
         object.__setattr__(self, 'morphology_type', str(mt))
-        object.__setattr__(self, 'projectile_mean_velocity', float(pmv))
         object.__setattr__(self, 'projectile_velocity', float(pv))
         object.__setattr__(self, 'projectile_vertical_velocity', float(pvv))
         object.__setattr__(self, 'projectile_angle', float(pang))
