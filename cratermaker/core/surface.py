@@ -609,7 +609,7 @@ class Surface(UxDataset):
         # Haversine formula
         a = np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2.0)**2
         c = 2 * np.arcsin(np.sqrt(a))
-        return float(radius * c)
+        return radius * c
     
     def get_distance(self, 
                      location: tuple[float, float]) -> UxDataArray:
