@@ -13,8 +13,6 @@ from cratermaker.utils.general_utils import _to_config, parameter
 
 class ProductionModel(ABC):
     def __init__(self, 
-                 mean_velocity: FloatLike | None = None,
-                 impact_velocity_model: str | None = None,
                  rng: Generator | None = None, 
                  **kwargs: Any):
         
@@ -34,16 +32,6 @@ class ProductionModel(ABC):
         """
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
         self.rng = rng
-
-        if mean_velocity and impact_velocity_model: 
-            raise ValueError("Only one of 'mean_velocity' or 'impact_velocity_model' can be provided")
-         
-        if mean_velocity is not None: 
-            self.mean_velocity = mean_velocity
-        elif impact_velocity_model is not None:
-            self.impact_velocity_model = impact_velocity_model
-        else:
-            self.impact_velocity_model = "Moon_MBA"
 
     def to_config(self, **kwargs: Any) -> dict:
         return _to_config(self)
@@ -485,22 +473,6 @@ class ProductionModel(ABC):
             raise ValueError("age must be a scalar or a sequence")
        
         return age, age_end 
-
-    @parameter
-    def mean_velocity(self):
-        """The mean impact velocity for the production function."""
-        return self._mean_velocity
-    
-    @mean_velocity.setter
-    def mean_velocity(self, value):
-        if value is None:
-            if self._impact_velocity_model is None:
-                raise ValueError("mean_velocity must be set if impact_velocity_model is not set")
-        if not isinstance(value, FloatLike):
-            raise TypeError("mean_velocity must be a numeric value (float or int)")
-        if value <= 0.0:
-            raise ValueError("mean_velocity must be finite and positive")
-        self._mean_velocity = np.float64(value)
 
     @property
     def rng(self):

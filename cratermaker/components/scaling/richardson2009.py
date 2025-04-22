@@ -621,6 +621,27 @@ class Richardson2009(ScalingModel):
                 self._projectile_density = self.target_density
 
     @property
+    def projectile_mean_velocity(self):
+        """
+        The mean velocity of the projectile in m/s.
+        
+        Returns
+        -------
+        float 
+        """
+        predefined_models = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'MBA']
+        predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
+        predefined = dict(zip(predefined_models, predefined_velocities))
+        if self.target.name in predefined_models:
+            pmv = float(predefined[self.target.name])
+        elif self.target.name in ["Ceres", "Vesta"]:
+            pmv = float(predefined["MBA"])
+        else:
+            pmv = None
+        return pmv
+    
+
+    @property
     def projectile_vertical_velocity(self):
         """Get the impact velocity model name."""
         if self._projectile_vertical_velocity is None:
@@ -644,15 +665,7 @@ class Richardson2009(ScalingModel):
         """
 
         if value is None: 
-            predefined_models = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'MBA']
-            predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
-            predefined = dict(zip(predefined_models, predefined_velocities))
-            if self.target.name in predefined_models:
-                pmv = float(predefined[self.target.name])
-            elif self.target.name in ["Ceres", "Vesta"]:
-                pmv = float(predefined["MBA"])
-            else:
-                raise ValueError("No impact velocity model found that matches the target body. Please provide a value for projectile_vertical_velocity.")
+            pmv = self.projectile_mean_velocity
             vencounter_mean = np.sqrt(pmv**2 - self.target.escape_velocity**2)
             vencounter = mc.get_random_velocity(vencounter_mean, rng=self.rng)
             pv = np.sqrt(vencounter**2 + self.target.escape_velocity**2)

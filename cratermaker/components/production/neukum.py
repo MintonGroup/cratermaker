@@ -47,8 +47,6 @@ class NeukumProduction(ProductionModel):
     """
     def __init__(self, 
                  version: str = "Moon",
-                 mean_velocity: FloatLike | None = None,
-                 impact_velocity_model: str | None = None,
                  rng: Generator | None = None, 
                  **kwargs: Any):
         """
@@ -59,24 +57,10 @@ class NeukumProduction(ProductionModel):
         ----------
         version : str, {"Moon", "Mars", "Projectile"}
             The specific model to use for the production function. Defaults to "Moon" 
-        mean_velocity : float
-            The mean impact velocity to use for the impact simulation. Either mean_velocity or impact_velocity_model must be provided.
-        impact_velocity_model : str
-            The name of the mean impact velocity model to use for the impact simulation. Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
-            For `version=="Moon"` or `version=="Projectile"`, the default is "Moon_MBA". For `version=="Mars"`, the default is "Mars_MBA". 
         """
-        super().__init__(rng=rng, 
-                         mean_velocity=mean_velocity, 
-                         impact_velocity_model=impact_velocity_model, 
-                         **kwargs) 
+        super().__init__(rng=rng, **kwargs) 
 
         self.version = version
-
-        if not impact_velocity_model and not mean_velocity: 
-            if self.version=="Moon" or self.version=="Projectile":
-                self.impact_velocity_model = "Moon_MBA"
-            if self.version=="Mars":
-                self.impact_velocity_model = "Mars_MBA"
 
 
     def function(self,

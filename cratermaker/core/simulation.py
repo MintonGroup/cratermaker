@@ -150,7 +150,7 @@ class Simulation:
                 # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
                 # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
                 for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
-                    crater, _ = self.generate_crater(diameter=d, angle=90.0, velocity=self.production.mean_velocity*10)
+                    crater, _ = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scale.projectile_mean_velocity*10)
                     rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
                     if rmax < self.target.radius * 2 * np.pi:
                         superdomain_scale_factor = rmax / crater.final_radius
@@ -185,7 +185,7 @@ class Simulation:
             face_areas = np.asarray(face_areas)
         smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2        
         if from_projectile:
-            crater = self.generate_crater(final_diameter=smallest_crater, angle=90.0, velocity=self.production.mean_velocity*10)
+            crater = self.generate_crater(final_diameter=smallest_crater, angle=90.0, projectile_velocity=self.scale.projectile_mean_velocity*10)
             return crater.projectile_diameter 
         else:
             return smallest_crater 
@@ -198,7 +198,7 @@ class Simulation:
         """
         largest_crater = self.target.radius * 2
         if from_projectile:
-            crater = self.generate_crater(final_diameter=largest_crater, angle=1.0, velocity=self.production.mean_velocity/10.0)
+            crater = self.generate_crater(final_diameter=largest_crater, angle=1.0, projectile_velocity=self.scale.projectile_mean_velocity/10.0)
             return crater.projectile_diameter
         else:
             return largest_crater
@@ -241,10 +241,11 @@ class Simulation:
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         
-        if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
-            if self.production.mean_velocity is None:
-                raise RuntimeError("No velocity value is set for this projectile")
-            kwargs['mean_velocity'] = self.production.mean_velocity
+        if "projectile_velocity" not in kwargs and "projectile_mean_velocity" not in kwargs and "projectile_vertical_velocity" not in kwargs:
+            pmv = self.scale.projectile_mean_velocity
+            if pmv is None:
+                raise RuntimeError("No projectile_velocity value is set for this projectile")
+            kwargs['projectile_mean_velocity'] = pmv
         crater = Crater(target=self.target, scale=self.scale, rng=self.rng, **kwargs)
         
         return crater
@@ -279,7 +280,7 @@ class Simulation:
             # Create a crater with specific diameter
             sim.emplace_crater(final_diameter=1000.0)
 
-            # Create a crater based on a projectile with given mass and velocity
+            # Create a crater based on a projectile with given mass and projectile_velocity
             sim.emplace_crater(projectile_mass=1e14, projectile_velocity=20e3)
             
             # Create a crater with a specific transient diameter and location
