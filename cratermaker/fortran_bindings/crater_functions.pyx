@@ -4,7 +4,7 @@ cimport numpy as cnp
 import numpy as np
 from libc.stdlib cimport malloc, free
 
-cdef extern from "crater.h":
+cdef extern from "crater_functions.h":
     void bind_crater_profile(double *r, double *reference_elevation, int num_elements, double diameter, double floordepth, double floor_diameter, double rimheight, double ejrim, double *elevation)
 
 

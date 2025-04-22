@@ -2,12 +2,14 @@ import pkgutil
 import importlib
 from abc import ABC, abstractmethod
 from typing import Any
+from cratermaker.core.crater import Crater
 from cratermaker.core.surface import Surface
 from cratermaker.utils.general_utils import _to_config, parameter
 
 class MorphologyModel(ABC):
     @abstractmethod
     def form_crater(self, 
+                    crater: Crater,
                     surf: Surface,
                     **kwargs) -> None: ...    
 
@@ -24,7 +26,6 @@ class MorphologyModel(ABC):
         """ 
         return self._model
     
-
 _registry: dict[str, MorphologyModel] = {}
 
 def register_morphology_model(name: str):

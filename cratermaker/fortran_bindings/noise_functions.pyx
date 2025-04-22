@@ -4,7 +4,7 @@ cimport numpy as cnp
 import numpy as np
 from libc.stdlib cimport malloc, free
 
-cdef extern from "realistic.h":
+cdef extern from "noise_functions.h":
     ctypedef struct PerlinArguments:
         double damp
         double damp0

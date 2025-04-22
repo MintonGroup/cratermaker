@@ -16,7 +16,7 @@ from .crater import Crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..realistic import apply_noise
+from ..noise_functions import apply_noise
 from ..components.scaling import ScalingModel, get_scaling_model, available_scaling_models
 from ..components.production import ProductionModel, get_production_model, available_production_models
 from ..components.morphology import MorphologyModel, get_morphology_model, available_morphology_models
@@ -288,7 +288,6 @@ class Simulation:
         """ 
         self.crater = self.generate_crater(**kwargs)
        
-        self.crater.node_index, self.crater.face_index = self.surf.find_nearest_index(self.crater.location)
         self.crater.morphology.form_crater(self.surf,**kwargs)
         self.crater.morphology.form_ejecta(self.surf,**kwargs)
         

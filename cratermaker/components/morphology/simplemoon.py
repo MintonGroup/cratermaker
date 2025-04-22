@@ -7,12 +7,12 @@ from scipy import fft
 from scipy.optimize import fsolve
 from numpy.typing import NDArray, ArrayLike
 from typing import Any
-from cratermaker.core.target import Target
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.surface import Surface
+from cratermaker.core.crater import Crater
 from cratermaker.components.morphology import register_morphology_model, MorphologyModel
 from cratermaker.utils.general_utils import parameter
-from cratermaker import crater, ejecta
+from cratermaker import crater_functions, ejecta_functions
 
 @register_morphology_model("simplemoon")
 class SimpleMoon(MorphologyModel):
@@ -23,8 +23,6 @@ class SimpleMoon(MorphologyModel):
 
     Parameters
     ----------
-    crater : Crater
-        The crater to be created.
     target : Target
         The target body for the impact simulation.
     ejecta_truncation : float, optional
@@ -39,16 +37,12 @@ class SimpleMoon(MorphologyModel):
     """
     
     def __init__(self, 
-                 crater,  
-                 target: Target | None = None, 
                  ejecta_truncation: FloatLike | None = None,
                  rng: Generator | None = None,
                  dorays: bool = True,
                  **kwargs: Any 
                  ):
         
-        self.crater = crater 
-        self.target = target
         self.rng = rng
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
@@ -84,7 +78,7 @@ class SimpleMoon(MorphologyModel):
     
 
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
-        elevation = crater.profile(r,
+        elevation = crater_functions.profile(r,
                                    r_ref, 
                                    self.crater.final_diameter, 
                                    self.floordepth, 
@@ -97,7 +91,7 @@ class SimpleMoon(MorphologyModel):
     
 
     def ejecta_profile(self, r: ArrayLike) -> np.float64:
-        elevation = ejecta.profile(r,
+        elevation = ejecta_functions.profile(r,
                                    self.crater.final_diameter, 
                                    self.ejrim
                                 )
@@ -106,7 +100,7 @@ class SimpleMoon(MorphologyModel):
    
     
     def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
-        thickness = ejecta.distribution(r, theta,
+        thickness = ejecta_functions.distribution(r, theta,
                                        self.crater.final_diameter, 
                                        self.ejrim, 
                                        self.ejecta_truncation,
@@ -117,7 +111,7 @@ class SimpleMoon(MorphologyModel):
 
 
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
-        intensity = ejecta.ray_intensity(r, theta,
+        intensity = ejecta_functions.ray_intensity(r, theta,
                                        self.crater.final_diameter, 
                                        self.ejrim, 
                                        self.ejecta_truncation,
@@ -170,6 +164,7 @@ class SimpleMoon(MorphologyModel):
 
 
     def form_crater(self, 
+                    crater: Crater,
                     surf: Surface,
                     **kwargs) -> None:
         """
@@ -177,6 +172,8 @@ class SimpleMoon(MorphologyModel):
         
         Parameters
         ----------
+        crater : Crater
+            The crater object to be formed.
         surf : Surface
             The surface to be altered.
         **kwargs : dict
@@ -676,27 +673,6 @@ class SimpleMoon(MorphologyModel):
             raise TypeError("crater must be an instance of Crater")
         self._crater = value
         return 
-        
-    @property
-    def target(self):
-        """
-        The target body for the impact.
-        
-        Returns
-        -------
-        Target
-        """ 
-        return self._target
-    
-    @target.setter
-    def target(self, value):
-        if value is None:
-            self._target = Target(name="Moon")
-            return
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
-        self._target = value
-        return        
         
     @property
     def rng(self):
