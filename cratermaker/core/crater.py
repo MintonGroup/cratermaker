@@ -142,12 +142,12 @@ class Crater:
         """
         return self._final_diameter
 
-    @diameter.setter
-    def diameter(self, value):
+    @final_diameter.setter
+    def final_diameter(self, value):
         if value is not None:
             if value <= 0.0:
                 raise ValueError("Diameter of crater rim must be finite and positive!")
-            self._dfinal_iameter = np.float64(value)
+            self._final_diameter = np.float64(value)
             self._final_radius = np.float64(value) / 2
             self._transient_diameter, self._morphology_type = self.scale.final_to_transient(value)
             self._projectile_diameter = self.scale.transient_to_projectile(self._transient_diameter)

@@ -12,7 +12,7 @@ from numpy.typing import ArrayLike
 import warnings
 import yaml
 from .target import Target
-from .crater import Crater, Projectile
+from .crater import Crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
@@ -207,9 +207,9 @@ class Simulation:
 
     def generate_crater(self, 
                         **kwargs: Any
-                       ) -> tuple[Crater, Projectile]:
+                       ) -> Crater:
         """
-        Create a new Crater object and its corresponding Projectile.
+        Create a new Crater object 
 
         Parameters
         ----------
@@ -219,8 +219,8 @@ class Simulation:
 
         Returns
         -------
-        tuple of (Crater, Projectile)
-            A tuple containing the newly created Crater and Projectile objects.
+        Crater
+            The newly created Crater object
             
         Notes
         -----
@@ -241,65 +241,17 @@ class Simulation:
             crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale=self.scale, rng=self.rng, **kwargs)
         
-        if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
-            if self.production.mean_velocity is None:
-                projectile = None
-                return crater, projectile
-            kwargs['mean_velocity'] = self.production.mean_velocity
-        projectile = crater.scale.crater_to_projectile(crater,**kwargs)
-        
-        return crater, projectile
-    
-    
-    def generate_projectile(self, 
-                            **kwargs: Any
-                           ) -> tuple[Projectile, Crater]:
-        """
-        Create a new Projectile object and its corresponding Crater.
-
-        Parameters
-        ----------
-        **kwargs : Any
-            Keyword arguments for initializing the :class:`Projectile` object. Refer to its documentation 
-            for details on valid keyword arguments.
-
-        Returns
-        -------
-        (Projectile, Crater)
-            A tuple containing the newly created Projectile and Crater objects.
-            
-        Notes
-        -----
-        The keyword arguments provided are passed to the constructor of 
-        :class:`Projectile`. Refer to its documentation for a detailed description 
-        of valid keyword arguments.    
-        
-        Examples
-        --------
-        .. code-block:: python
-        
-            # Create a projectile and crater pair with a specific diameter
-            projectile, crater = sim.generate_projectile(diameter=1000.0)
-
-            # Create a projectile and crater with a specific mass and velocity and impact angle
-            projectile, crater = sim.generate_projectile(mass=1e14, velocity=20e3, angle=10.0)       
-        """
         if "velocity" not in kwargs and "mean_velocity" not in kwargs and "vertical_velocity" not in kwargs:
             if self.production.mean_velocity is None:
                 raise RuntimeError("No velocity value is set for this projectile")
-            kwargs['mean_velocity'] = self.production.mean_velocity        
+            kwargs['mean_velocity'] = self.production.mean_velocity
+        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale=self.scale, rng=self.rng, **kwargs)
         
-        projectile = Projectile(target=self.target, rng=self.rng, scale=self.scale,**kwargs)
-        crater = projectile.scale.projectile_to_crater(projectile, morphology_cls=self.morphology_cls)
-        
-        return projectile, crater
-   
-   
-    def emplace_crater(self, 
-                       from_projectile: bool=False, 
-                       **kwargs: Any
+        return crater
+    
+    
+    def emplace_crater(self, **kwargs: Any
                       ) -> None:
         """
         Emplace a crater in the simulation, optionally based on a projectile.
@@ -310,12 +262,9 @@ class Simulation:
 
         Parameters
         ----------
-        from_projectile : bool, optional
-            Flag to create a crater based on a projectile, default is False.
         **kwargs : Any
-            Keyword arguments for initializing the :class:`Crater` or 
-            :class:`Projectile` object. Refer to the documentation of these 
-            classes for details on valid keyword arguments.
+            Keyword arguments for initializing the :class:`Crater.
+            Refer to the documentation of this class for details on valid keyword arguments.
 
         Notes
         -----
@@ -329,7 +278,7 @@ class Simulation:
         .. code-block:: python        
         
             # Create a crater with specific diameter
-            sim.emplace_crater(diameter=1000.0)
+            sim.emplace_crater(final_diameter=1000.0)
 
             # Create a crater based on a projectile with given mass and velocity
             sim.emplace_crater(projectile_mass=1e14, projectile_velocity=20e3)
@@ -337,13 +286,9 @@ class Simulation:
             # Create a crater with a specific transient diameter and location
             sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """ 
-        if from_projectile:
-            self.projectile, self.crater = self.generate_projectile(**kwargs)
-        else:
-            self.crater, self.projectile = self.generate_crater(**kwargs)
+        self.crater = self.generate_crater(**kwargs)
        
         self.crater.node_index, self.crater.face_index = self.surf.find_nearest_index(self.crater.location)
-        self.projectile.node_index, self.projectile.face_index = self.crater.node_index, self.crater.face_index
         self.crater.morphology.form_crater(self.surf,**kwargs)
         self.crater.morphology.form_ejecta(self.surf,**kwargs)
         
@@ -382,6 +327,10 @@ class Simulation:
             raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
        
         from_projectile = self.production.generator_type == 'projectile'
+        if from_projectile:
+            diam_key = 'projectile_diameter'
+        else:
+            diam_key = 'final_diameter'
         Dmax = self.get_largest_diameter(from_projectile=from_projectile)
         Dmin = self.get_smallest_diameter(from_projectile=from_projectile)
         
@@ -442,7 +391,8 @@ class Simulation:
             
         if len(impact_diameters) > 0: 
             if len(impact_diameters) == 1:
-                self.emplace_crater(diameter=impact_diameters[0], age=impact_ages[0], location=impact_locations[0], from_projectile=from_projectile)
+                diam_arg = {diam_key: impact_diameters[0]}
+                self.emplace_crater(age=impact_ages[0], location=impact_locations[0], **diam_arg)
             else:
                 # Sort the ages, diameters, and locations so that they are in order of decreasing age
                 sort_indices = np.argsort(impact_ages)[::-1]
@@ -452,7 +402,8 @@ class Simulation:
                 
                 for i, diameter in tqdm(enumerate(impact_diameters), total=len(impact_diameters)):
                     location = impact_locations[i][0], impact_locations[i][1]
-                    self.emplace_crater(diameter=diameter, age=impact_ages[i], location=location, from_projectile=from_projectile)
+                    diam_arg = {diam_key: diameter}
+                    self.emplace_crater(age=impact_ages[i], location=location, from_projectile=from_projectile, **diam_arg)
         return 
     
     
@@ -1281,19 +1232,6 @@ class Simulation:
         if not isinstance(value, Crater):
             raise TypeError("crater must be an instance of Crater")
         self._crater = value
-
-    @property
-    def projectile(self):
-        """
-        The current Projectile object in the simulation. Set during runtime.
-        """
-        return self._projectile
-
-    @projectile.setter
-    def projectile(self, value):
-        if value is not None and not isinstance(value, Projectile):
-            raise TypeError("projectile must be an instance of Projectile")
-        self._projectile = value
 
     @property
     def data_dir(self):
