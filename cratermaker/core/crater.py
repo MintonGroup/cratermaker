@@ -29,6 +29,16 @@ class Crater:
     morphology_type: str = field(init=False)
 
     def __post_init__(self):
+
+        # Validate target
+        if isinstance(self.target, str):
+            try:
+                self.target = Target(self.target)
+            except:
+                raise ValueError(f"Invalid target name {self.target}")
+        elif not isinstance(self.target, Target):
+            raise TypeError("target must be an instance of Target or a valid name of a target body")
+
         # Validate location
         loc = self.location
         if loc is None:

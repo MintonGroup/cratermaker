@@ -48,6 +48,38 @@ class TestCrater(unittest.TestCase):
     def test_invalid_target_or_rng_type(self):
         with self.assertRaises(ValueError):
             Crater(final_diameter=1000, target="invalid_target")
+
+    def test_projectile_initialization_with_diameter(self):
+        diameter = 1000
+        crater = Crater(projectile_diameter=diameter, projectile_velocity=20e3)
+        self.assertEqual(crater.projectile_diameter, diameter)
+        self.assertEqual(crater.projectile_radius, diameter / 2)
+
+    def test_projectile_initialization_with_radius(self):
+        radius = 500
+        crater = Crater(projectile_radius=radius, projectile_velocity=20e3)
+        self.assertEqual(crater.projectile_radius, radius)
+        self.assertEqual(crater.projectile_diameter, radius * 2)
+        
+    def test_invalid_negative_values(self):
+        with self.assertRaises(ValueError):
+            Crater(projectile_diameter=-1000, projectile_velocity=20e3)
+
+    def test_invalid_combinations(self):
+        with self.assertRaises(ValueError):
+            Crater(projectile_diameter=1000, projectile_radius=500, projectile_velocity=20e3)
+        with self.assertRaises(ValueError):
+            Crater(projectile_diameter=1000, final_diameter=10000)
+    
+    def test_non_default_target_and_rng(self):
+        rng = default_rng()
+        target = Target("Mars") 
+        crater = Crater(projectile_diameter=1000,target=target,rng=rng,projectile_mean_velocity=10e3)
+        self.assertEqual(crater.projectile_diameter, 1000)
+
+    def test_invalid_target_or_rng_type(self):
+        with self.assertRaises(ValueError):
+            Crater(projectile_diameter=1000, target="invalid_target", projectile_mean_velocity=10e3)
     
 if __name__ == '__main__':
     unittest.main()
