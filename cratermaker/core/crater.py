@@ -18,10 +18,10 @@ class Crater:
 
     Parameters
     ----------
-    diameter : FloatLike, optional
-        The diameter of the crater rim in meters.
-    radius : FloatLike, optional
-        The radius of the crater rim in meters.
+    final_diameter : FloatLike, optional
+        The final diameter of the crater rim in meters.
+    final_radius : FloatLike, optional
+        The final radius of the crater rim in meters.
     transient_diameter : FloatLike, optional
         The diameter of the transient crater in m.
     transient_radius : FloatLike, optional
@@ -61,8 +61,8 @@ class Crater:
     """
 
     def __init__(self,
-                 diameter: FloatLike = None,
-                 radius: FloatLike = None,
+                 final_diameter: FloatLike = None,
+                 final_radius: FloatLike = None,
                  transient_diameter: FloatLike = None,
                  transient_radius: FloatLike = None,
                  projectile_diameter: FloatLike = None,
@@ -90,8 +90,8 @@ class Crater:
         self.age = age
 
         # Crater properties
-        self._diameter = diameter
-        self._radius = radius
+        self._final_diameter = final_diameter
+        self._final_radius = final_radius
         self._transient_diameter = transient_diameter
         self._transient_radius = transient_radius
         self._face_index = None
@@ -111,11 +111,11 @@ class Crater:
             self._projectile_density = projectile_density
 
         # Validate crater diameter/radius/transient options
-        values_set = sum(x is not None for x in [diameter, radius, transient_diameter, transient_radius, projectile_radius, projectile_diameter])
+        values_set = sum(x is not None for x in [final_diameter, final_radius, transient_diameter, transient_radius, projectile_radius, projectile_diameter, projectile_mass])
         if values_set > 1:
-            raise ValueError("Only one of diameter, radius, transient_diameter, transient_radius, projectile_diameter, or projectile_radius may be set")
+            raise ValueError("Only one of final_diameter, final_radius, transient_diameter, transient_radius, projectile_diameter, projectile_radius, or projectile_mass may be set")
         elif values_set == 0:
-            raise ValueError("A crater must include one of diameter, radius, transient_diameter, transient_radius, projectile_diameter, or projectile_radius.")
+            raise ValueError("A crater must include one of final_diameter, final_radius, transient_diameter, transient_radius, projectile_diameter, projectile_radius, or projectile_mass.")
         
         # Velocity/angle logic 
         if projectile_mean_velocity is not None:
@@ -128,46 +128,42 @@ class Crater:
                 raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
             self._initialize_projectile_velocities()
 
-
-        self.diameter = diameter
-        self.radius = radius
-
+        self.final_diameter = final_diameter
+        self.final_radius = final_radius
         self.transient_diameter = transient_diameter
         self.transient_radius = transient_radius
 
         self.morphology = self.morphology_cls(crater=self, target=self.target, rng=self.rng, **kwargs)
 
     @property
-    def diameter(self):
+    def final_diameter(self):
         """
         The diameter of the crater rim in m. Setting diameter automatically sets radius, transient_diameter, and transient_radius.
         """
-        return self._diameter
+        return self._final_diameter
 
     @diameter.setter
     def diameter(self, value):
         if value is not None:
             if value <= 0.0:
                 raise ValueError("Diameter of crater rim must be finite and positive!")
-            self._diameter = np.float64(value)
-            self._radius = np.float64(value) / 2
+            self._dfinal_iameter = np.float64(value)
+            self._final_radius = np.float64(value) / 2
             self._transient_diameter, self._morphology_type = self.scale.final_to_transient(value)
-            self._transient_radius = self._transient_diameter / 2
             self._projectile_diameter = self.scale.transient_to_projectile(self._transient_diameter)
-            self._projectile_radius = self._projectile_diameter / 2
             self._update_projectile_mass()
 
     @property
-    def radius(self):
+    def final_radius(self):
         """
-        The radius of the crater rim in m. Setting radius automatically sets diameter, transient_diameter, and transient_radius.
+        The final radius of the crater rim in m. Setting radius automatically sets diameter, transient_diameter, and transient_radius.
         """
-        return self._diameter / 2
+        return self._final_diameter / 2
 
-    @radius.setter
-    def radius(self, value):
+    @final_radius.setter
+    def final_radius(self, value):
         if value is not None:
-            self.diameter = np.float64(value) * 2
+            self.final_diameter = np.float64(value) * 2
 
     @property
     def location(self):
@@ -272,7 +268,6 @@ class Crater:
             raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
         self._rng = value or np.random.default_rng()
 
-    # --- Transient crater properties ---
     @property
     def transient_diameter(self):
         """
@@ -286,9 +281,8 @@ class Crater:
             if value <= 0.0:
                 raise ValueError("Diameter of transient crater must be finite and positive!")
             self._transient_diameter = np.float64(value)
-            self._diameter, self._morphology_type = self.scale.transient_to_final(value)
+            self._final_diameter, self._morphology_type = self.scale.transient_to_final(value)
             self._projectile_diameter = self.scale.transient_to_projectile(self._transient_diameter)
-            self._projectile_radius = self._projectile_diameter / 2
             self._update_projectile_mass()
         return
 
@@ -382,12 +376,8 @@ class Crater:
         The radius of the projectile in m.
         """
         # If mass and density are set, compute radius if not present
-        if hasattr(self, "_projectile_radius") and self._projectile_radius is not None:
-            return self._projectile_radius
-        elif self._projectile_mass is not None and self._projectile_density is not None:
-            volume = self._projectile_mass / self._projectile_density
-            self._projectile_radius = ((3.0 * volume) / (4.0 * np.pi)) ** (1.0 / 3.0)
-            return 
+        if self._projectile_diameter is not None:
+            return self._projectile_diameter / 2
         else:
             return None
 
@@ -396,19 +386,14 @@ class Crater:
         if value is not None:
             if value <= 0.0:
                 raise ValueError("Radius of projectile must be finite and positive!")
-            self._projectile_radius = np.float64(value)
-            self._update_projectile_mass()
-        else:
-            self._projectile_radius = None
+            self.projectile_diameter = 2 * np.float64(value)
 
     @property
     def projectile_diameter(self):
         """
         The diameter of the projectile in m.
         """
-        if self.projectile_radius is not None:
-            return self.projectile_radius * 2
-        return None
+        return self._projectile_diameter
 
     @projectile_diameter.setter
     def projectile_diameter(self, value):
@@ -420,10 +405,7 @@ class Crater:
             self._update_projectile_mass()
             self._transient_diameter = self.scale.projectile_to_transient(self._projectile_diameter)
             self._transient_radius = self._transient_diameter / 2
-            self._diameter, self._morphology_type = self.scale.transient_to_final(self._transient_diameter)
-            self._radius = self._diameter / 2
-        else:
-            self.projectile_radius = None
+            self._final_diameter, self._morphology_type = self.scale.transient_to_final(self._transient_diameter)
 
 
     def _update_projectile_mass(self):
@@ -433,7 +415,7 @@ class Crater:
     def _update_projectile_volume_based_properties(self):
         if self._projectile_mass is not None and self._projectile_density is not None:
             volume = self._projectile_mass / self._projectile_density
-            self._projectile_radius = ((3.0 * volume) / (4.0 * np.pi)) ** (1.0 / 3.0)
+            self.projectile_diameter = 2 * ((3.0 * volume) / (4.0 * np.pi)) ** (1.0 / 3.0)
 
     @property
     def projectile_mean_velocity(self):
@@ -549,9 +531,10 @@ class Crater:
         return
 
     def __repr__(self):
-        return (f"Crater(diameter={self.diameter} m, radius={self.radius} m, "
-                f"transient_diameter={self.transient_diameter} m, transient_radius={self.transient_radius} m, "
+        return (f"Crater(final_diameter={self.final_diameter} m, " 
+                f"transient_diameter={self.transient_diameter} m, "
                 f"morphology_type={self.morphology_type} "
+                f"projectile_diameter={self.projectile_diameter} m, "
                 f"projectile_mass={self.projectile_mass} kg, projectile_density={self.projectile_density} kg/m^3, "
                 f"projectile_velocity={self.projectile_velocity} m/s, projectile_angle={self.projectile_angle} deg, "
                 f"projectile_vertical_velocity={self.projectile_vertical_velocity} m/s, projectile_direction={self.projectile_direction} deg, "

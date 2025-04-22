@@ -134,7 +134,7 @@ class Richardson2009(ScalingModel):
         """
         
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular  
-        final_diameter = final_diameter or self.diameter
+        final_diameter = final_diameter or self.final_diameter
         transition_range = (0.5*self.transition_nominal,2*self.transition_nominal)
         
         if final_diameter < transition_range[0]:
@@ -179,7 +179,7 @@ class Richardson2009(ScalingModel):
         np.float64
             Returns the crater transient diameter in meters
         """       
-        final_diameter = final_diameter or self.diameter 
+        final_diameter = final_diameter or self.final_diameter 
         if not morphology_type:
             morphology_type = self.get_morphology_type(final_diameter) 
         

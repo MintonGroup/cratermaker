@@ -376,8 +376,8 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Crater.diameter
-    Crater.radius
+    Crater.final_diameter
+    Crater.final_radius
     Crater.transient_diameter
     Crater.transient_radius
     Crater.projectiel_diameter
@@ -480,12 +480,12 @@ Attributes
     :toctree: generated/
 
     Morphology.crater
-    Morphology.diameter
+    Morphology.final_diameter
     Morphology.dorays
     Morphology.ejrim
     Morphology.ejecta_truncation
     Morphology.floordepth
-    Morphology.floordiam
+    Morphology.floor_diameter
     Morphology.morphology_type
     Morphology.radius
     Morphology.rimheight

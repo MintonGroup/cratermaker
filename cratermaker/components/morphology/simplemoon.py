@@ -54,14 +54,14 @@ class SimpleMoon(MorphologyModel):
         self.dorays = dorays
 
         # Set the morphology based on crater type
-        diameter_km = self.diameter * 1e-3  # Convert to km for these models
+        diameter_km = self.final_diameter * 1e-3  # Convert to km for these models
 
         if self.morphology_type in ["simple", "transitional"]:
             # A hybrid model between Pike (1977) and Fassett & Thomson (2014)
             self.rimheight = 0.043 * diameter_km**1.014 * 1e3  # Closer to Fassett & Thomson
             self.rimwidth = 0.257 * diameter_km**1.011 * 1e3   # Pike model
             self.floordepth = 0.224 * diameter_km**1.010 * 1e3 # Closer to Fassett & Thomson
-            self.floordiam = 0.200 * diameter_km**1.143 * 1e3  # Fassett & Thomson for D~1km, Pike for D~20km
+            self.floor_diameter = 0.200 * diameter_km**1.143 * 1e3  # Fassett & Thomson for D~1km, Pike for D~20km
 
         elif self.morphology_type in ["complex", "peakring", "multiring"]:
             # Following Pike (1977)
@@ -69,25 +69,25 @@ class SimpleMoon(MorphologyModel):
             self.rimwidth = 0.467 * diameter_km**0.836 * 1e3   # Pike model
             self.floordepth = 1.044 * diameter_km**0.301 * 1e3 # Pike model
             # Fassett & Thomson for D~1km, Pike for D~20km, but limited to 90% of diameter
-            self.floordiam = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * self.diameter)
+            self.floor_diameter = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * self.final_diameter)
             self.peakheight = 0.032 * diameter_km**0.900 * 1e3  # Pike model
         else:
             raise ValueError(f"Unknown morphology type: {self.morphology_type}")
             
-        self.ejrim = 0.14 * (self.diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
+        self.ejrim = 0.14 * (self.final_diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
        
     def __repr__(self):
-        return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.diameter}, "
-                f"rimheight: {self.rimheight}, rimwidth: {self.rimwidth}, floordepth: {self.floordepth}, floordiam: {self.floordiam})") 
+        return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.final_diameter}, "
+                f"rimheight: {self.rimheight}, rimwidth: {self.rimwidth}, floordepth: {self.floordepth}, floor_diameter: {self.floor_diameter})") 
     
 
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
         elevation = crater.profile(r,
                                    r_ref, 
-                                   self.diameter, 
+                                   self.final_diameter, 
                                    self.floordepth, 
-                                   self.floordiam, 
+                                   self.floor_diameter, 
                                    self.rimheight, 
                                    self.ejrim
                                 )
@@ -97,7 +97,7 @@ class SimpleMoon(MorphologyModel):
 
     def ejecta_profile(self, r: ArrayLike) -> np.float64:
         elevation = ejecta.profile(r,
-                                   self.diameter, 
+                                   self.final_diameter, 
                                    self.ejrim
                                 )
         elevation = np.array(elevation, dtype=np.float64)
@@ -106,7 +106,7 @@ class SimpleMoon(MorphologyModel):
     
     def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
         thickness = ejecta.distribution(r, theta,
-                                       self.diameter, 
+                                       self.final_diameter, 
                                        self.ejrim, 
                                        self.ejecta_truncation,
                                        self.dorays
@@ -117,7 +117,7 @@ class SimpleMoon(MorphologyModel):
 
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
         intensity = ejecta.ray_intensity(r, theta,
-                                       self.diameter, 
+                                       self.final_diameter, 
                                        self.ejrim, 
                                        self.ejecta_truncation,
                                     )
@@ -190,7 +190,7 @@ class SimpleMoon(MorphologyModel):
             return
         
         region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
-        region_surf.get_reference_surface(self.crater.location, self.crater.radius)
+        region_surf.get_reference_surface(self.crater.location, self.crater.final_radius)
         
         try:
             node_elevation = self.crater_profile(region_surf['node_crater_distance'].values, 
@@ -332,35 +332,35 @@ class SimpleMoon(MorphologyModel):
         # ------------------------------------------------------------------------------------------------------------------
         num_psd_component=5000
         # ------------------------------------------------------------------------------------------------------------------
-        if self.crater.diameter<psd_coef["1D"][feature]["slope_12"]["D_tie"]:
-            slope_12 = psd_coef["1D"][feature]["slope_12"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["slope_12"]["b1"]
+        if self.crater.final_diameter<psd_coef["1D"][feature]["slope_12"]["D_tie"]:
+            slope_12 = psd_coef["1D"][feature]["slope_12"]["k1"] * self.crater.final_diameter + psd_coef["1D"][feature]["slope_12"]["b1"]
             slope_12_sigma = psd_coef["1D"][feature]["slope_12"]["sigma_1"]
         else:
-            slope_12 = psd_coef["1D"][feature]["slope_12"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["slope_12"]["b2"]
+            slope_12 = psd_coef["1D"][feature]["slope_12"]["k2"] * self.crater.final_diameter + psd_coef["1D"][feature]["slope_12"]["b2"]
             slope_12_sigma = psd_coef["1D"][feature]["slope_12"]["sigma_2"]
-        if self.crater.diameter<psd_coef["1D"][feature]["bp2_x"]["D_tie"]:
-            bp2_x = psd_coef["1D"][feature]["bp2_x"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["bp2_x"]["b1"]
+        if self.crater.final_diameter<psd_coef["1D"][feature]["bp2_x"]["D_tie"]:
+            bp2_x = psd_coef["1D"][feature]["bp2_x"]["k1"] * self.crater.final_diameter + psd_coef["1D"][feature]["bp2_x"]["b1"]
             bp2_x_sigma = psd_coef["1D"][feature]["bp2_x"]["sigma_1"]
         else:
-            bp2_x = psd_coef["1D"][feature]["bp2_x"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["bp2_x"]["b2"]
+            bp2_x = psd_coef["1D"][feature]["bp2_x"]["k2"] * self.crater.final_diameter + psd_coef["1D"][feature]["bp2_x"]["b2"]
             bp2_x_sigma = psd_coef["1D"][feature]["bp2_x"]["sigma_2"]
-        if self.crater.diameter<psd_coef["1D"][feature]["bp2_y"]["D_tie"]:
-            bp2_y = psd_coef["1D"][feature]["bp2_y"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["bp2_y"]["b1"]
+        if self.crater.final_diameter<psd_coef["1D"][feature]["bp2_y"]["D_tie"]:
+            bp2_y = psd_coef["1D"][feature]["bp2_y"]["k1"] * self.crater.final_diameter + psd_coef["1D"][feature]["bp2_y"]["b1"]
             bp2_y_sigma = psd_coef["1D"][feature]["bp2_y"]["sigma_1"]
         else:
-            bp2_y = psd_coef["1D"][feature]["bp2_y"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["bp2_y"]["b2"]
+            bp2_y = psd_coef["1D"][feature]["bp2_y"]["k2"] * self.crater.final_diameter + psd_coef["1D"][feature]["bp2_y"]["b2"]
             bp2_y_sigma = psd_coef["1D"][feature]["bp2_y"]["sigma_2"]
-        if self.crater.diameter<psd_coef["1D"][feature]["bp3_y"]["D_tie"]:
-            bp3_y = psd_coef["1D"][feature]["bp3_y"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["bp3_y"]["b1"]
+        if self.crater.final_diameter<psd_coef["1D"][feature]["bp3_y"]["D_tie"]:
+            bp3_y = psd_coef["1D"][feature]["bp3_y"]["k1"] * self.crater.final_diameter + psd_coef["1D"][feature]["bp3_y"]["b1"]
             bp3_y_sigma = psd_coef["1D"][feature]["bp3_y"]["sigma_1"]
         else:
-            bp3_y = psd_coef["1D"][feature]["bp3_y"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["bp3_y"]["b2"]
+            bp3_y = psd_coef["1D"][feature]["bp3_y"]["k2"] * self.crater.final_diameter + psd_coef["1D"][feature]["bp3_y"]["b2"]
             bp3_y_sigma = psd_coef["1D"][feature]["bp3_y"]["sigma_2"]
-        if self.crater.diameter<psd_coef["1D"][feature]["bp4_y"]["D_tie"]:
-            bp4_y = psd_coef["1D"][feature]["bp4_y"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["bp4_y"]["b1"]
+        if self.crater.final_diameter<psd_coef["1D"][feature]["bp4_y"]["D_tie"]:
+            bp4_y = psd_coef["1D"][feature]["bp4_y"]["k1"] * self.crater.final_diameter + psd_coef["1D"][feature]["bp4_y"]["b1"]
             bp4_y_sigma = psd_coef["1D"][feature]["bp4_y"]["sigma_1"]
         else:
-            bp4_y = psd_coef["1D"][feature]["bp4_y"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["bp4_y"]["b2"]
+            bp4_y = psd_coef["1D"][feature]["bp4_y"]["k2"] * self.crater.final_diameter + psd_coef["1D"][feature]["bp4_y"]["b2"]
             bp4_y_sigma = psd_coef["1D"][feature]["bp4_y"]["sigma_2"]
         slope_12 = np.random.normal(slope_12, slope_12_sigma)
         bp2_x = np.random.normal(bp2_x, bp2_x_sigma)
@@ -461,29 +461,29 @@ class SimpleMoon(MorphologyModel):
         freq_theta_quadrant = freq_theta [r_number // 2:, theta_number // 2:]
         freq_r_quadrant = freq_r  [r_number // 2:, theta_number // 2:]
         # ------------------------------------------------------------------------------------------------------------------
-        if self.crater.diameter<psd_coef["2D"][feature]["p_max"]["D_tie"]:
-            p_max = psd_coef["2D"][feature]["p_max"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["p_max"]["b1"]
+        if self.crater.final_diameter<psd_coef["2D"][feature]["p_max"]["D_tie"]:
+            p_max = psd_coef["2D"][feature]["p_max"]["k1"] * self.crater.final_diameter + psd_coef["2D"][feature]["p_max"]["b1"]
             p_max_sigma = psd_coef["2D"][feature]["p_max"]["sigma_1"]
         else:
-            p_max = psd_coef["2D"][feature]["p_max"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["p_max"]["b2"]
+            p_max = psd_coef["2D"][feature]["p_max"]["k2"] * self.crater.final_diameter + psd_coef["2D"][feature]["p_max"]["b2"]
             p_max_sigma = psd_coef["2D"][feature]["p_max"]["sigma_2"]
-        if self.crater.diameter<psd_coef["2D"][feature]["p_diff"]["D_tie"]:
-            p_diff = psd_coef["2D"][feature]["p_diff"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["p_diff"]["b1"]
+        if self.crater.final_diameter<psd_coef["2D"][feature]["p_diff"]["D_tie"]:
+            p_diff = psd_coef["2D"][feature]["p_diff"]["k1"] * self.crater.final_diameter + psd_coef["2D"][feature]["p_diff"]["b1"]
             p_diff_sigma = psd_coef["2D"][feature]["p_diff"]["sigma_1"]
         else:
-            p_diff = psd_coef["2D"][feature]["p_diff"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["p_diff"]["b2"]
+            p_diff = psd_coef["2D"][feature]["p_diff"]["k2"] * self.crater.final_diameter + psd_coef["2D"][feature]["p_diff"]["b2"]
             p_diff_sigma = psd_coef["2D"][feature]["p_diff"]["sigma_2"]
-        if self.crater.diameter<psd_coef["2D"][feature]["nu_fall"]["D_tie"]:
-            nu_fall = psd_coef["2D"][feature]["nu_fall"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["nu_fall"]["b1"]
+        if self.crater.final_diameter<psd_coef["2D"][feature]["nu_fall"]["D_tie"]:
+            nu_fall = psd_coef["2D"][feature]["nu_fall"]["k1"] * self.crater.final_diameter + psd_coef["2D"][feature]["nu_fall"]["b1"]
             nu_fall_sigma = psd_coef["2D"][feature]["nu_fall"]["sigma_1"]
         else:
-            nu_fall = psd_coef["2D"][feature]["nu_fall"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["nu_fall"]["b2"]
+            nu_fall = psd_coef["2D"][feature]["nu_fall"]["k2"] * self.crater.final_diameter + psd_coef["2D"][feature]["nu_fall"]["b2"]
             nu_fall_sigma = psd_coef["2D"][feature]["nu_fall"]["sigma_2"]
-        if self.crater.diameter<psd_coef["2D"][feature]["psd_sigma"]["D_tie"]:
-            psd_sigma = psd_coef["2D"][feature]["psd_sigma"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["psd_sigma"]["b1"]
+        if self.crater.final_diameter<psd_coef["2D"][feature]["psd_sigma"]["D_tie"]:
+            psd_sigma = psd_coef["2D"][feature]["psd_sigma"]["k1"] * self.crater.final_diameter + psd_coef["2D"][feature]["psd_sigma"]["b1"]
             psd_sigma_sigma = psd_coef["2D"][feature]["psd_sigma"]["sigma_1"]
         else:
-            psd_sigma = psd_coef["2D"][feature]["psd_sigma"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["psd_sigma"]["b2"]
+            psd_sigma = psd_coef["2D"][feature]["psd_sigma"]["k2"] * self.crater.final_diameter + psd_coef["2D"][feature]["psd_sigma"]["b2"]
             psd_sigma_sigma = psd_coef["2D"][feature]["psd_sigma"]["sigma_2"]
         p_max = np.random.normal(p_max, p_max_sigma)
         p_diff = np.random.normal(p_diff, p_diff_sigma)
@@ -493,20 +493,20 @@ class SimpleMoon(MorphologyModel):
         freq_r_matrix= np.sqrt(freq_theta_quadrant**2+freq_r_quadrant**2)
         freq_theta_matrix = np.arctan2(freq_r_quadrant,freq_theta_quadrant)
         if feature=="ejecta":
-            if self.crater.diameter<psd_coef["2D"][feature]["E_rad"]["D_tie"]:
-                E_rad = psd_coef["2D"][feature]["E_rad"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["E_rad"]["b1"]
+            if self.crater.final_diameter<psd_coef["2D"][feature]["E_rad"]["D_tie"]:
+                E_rad = psd_coef["2D"][feature]["E_rad"]["k1"] * self.crater.final_diameter + psd_coef["2D"][feature]["E_rad"]["b1"]
                 E_rad_sigma = psd_coef["2D"][feature]["E_rad"]["sigma_1"]
             else:
-                E_rad = psd_coef["2D"][feature]["E_rad"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["E_rad"]["b2"]
+                E_rad = psd_coef["2D"][feature]["E_rad"]["k2"] * self.crater.final_diameter + psd_coef["2D"][feature]["E_rad"]["b2"]
                 E_rad_sigma = psd_coef["2D"][feature]["E_rad"]["sigma_2"]
             E_rad = np.random.normal(E_rad, E_rad_sigma)
             psd_log_quadrant=p_diff/np.sqrt(1-(E_rad*np.sin(freq_theta_matrix))**2)*(np.exp(-np.sqrt(freq_r_matrix/nu_fall))-1)+p_max
         if feature=="wall":
-            if self.crater.diameter<psd_coef["2D"][feature]["E_circ"]["D_tie"]:
-                E_circ = psd_coef["2D"][feature]["E_circ"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["E_circ"]["b1"]
+            if self.crater.final_diameter<psd_coef["2D"][feature]["E_circ"]["D_tie"]:
+                E_circ = psd_coef["2D"][feature]["E_circ"]["k1"] * self.crater.final_diameter + psd_coef["2D"][feature]["E_circ"]["b1"]
                 E_circ_sigma = psd_coef["2D"][feature]["E_circ"]["sigma_1"]
             else:
-                E_circ = psd_coef["2D"][feature]["E_circ"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["E_circ"]["b2"]
+                E_circ = psd_coef["2D"][feature]["E_circ"]["k2"] * self.crater.final_diameter + psd_coef["2D"][feature]["E_circ"]["b2"]
                 E_circ_sigma = psd_coef["2D"][feature]["E_circ"]["sigma_2"]
             E_circ = np.random.normal(E_circ, E_circ_sigma)
             psd_log_quadrant=p_diff/np.sqrt(1-(E_circ*np.cos(freq_theta_matrix))**2)*(np.exp(-np.sqrt(freq_r_matrix/nu_fall))-1)+p_max
@@ -559,7 +559,7 @@ class SimpleMoon(MorphologyModel):
         -------
         np.float64
         """
-        return self.crater.diameter
+        return self.crater.final_diameter
 
     @property
     def radius(self) -> np.float64:
@@ -570,7 +570,7 @@ class SimpleMoon(MorphologyModel):
         -------
         np.float64
         """
-        return self.crater.radius
+        return self.crater.final_radius
    
     @property 
     def morphology_type(self) -> str:
@@ -635,7 +635,7 @@ class SimpleMoon(MorphologyModel):
         self.crater.peakheight = np.float64(value)
 
     @property
-    def floordiam(self) -> np.float64:
+    def floor_diameter(self) -> np.float64:
         """
         The diameter of the crater floor in meters.
         
@@ -643,13 +643,13 @@ class SimpleMoon(MorphologyModel):
         -------
         np.float64
         """
-        return self.crater.floordiam
+        return self.crater.floor_diameter
     
-    @floordiam.setter
-    def floordiam(self, value: FloatLike) -> None:
+    @floor_diameter.setter
+    def floor_diameter(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
-            raise TypeError("floordiam must be of type FloatLike")
-        self.crater.floordiam = np.float64(value)
+            raise TypeError("floor_diameter must be of type FloatLike")
+        self.crater.floor_diameter = np.float64(value)
         
     @property
     def floordepth(self) -> np.float64:

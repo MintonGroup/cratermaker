@@ -8,22 +8,22 @@ class TestCrater(unittest.TestCase):
     def test_crater_initialization_with_diameter(self):
         diameter = 1000
         crater = Crater(diameter=diameter)
-        self.assertEqual(crater.diameter, diameter)
-        self.assertEqual(crater.radius, diameter / 2)
+        self.assertEqual(crater.final_diameter, diameter)
+        self.assertEqual(crater.final_radius, diameter / 2)
         self.assertIsNotNone(crater.transient_diameter)
         self.assertIsInstance(crater.transient_diameter, np.float64)        
 
     def test_crater_initialization_with_radius(self):
         radius = 500
         crater = Crater(radius=radius)
-        self.assertEqual(crater.radius, radius)
-        self.assertEqual(crater.diameter, radius * 2)
+        self.assertEqual(crater.final_radius, radius)
+        self.assertEqual(crater.final_diameter, radius * 2)
         
     def test_crater_initialization_with_transient_diameter(self):
         transient_diameter = 800
         crater = Crater(transient_diameter=transient_diameter)
         self.assertEqual(crater.transient_diameter, transient_diameter)
-        self.assertGreater(crater.diameter,transient_diameter)
+        self.assertGreater(crater.final_diameter,transient_diameter)
 
     def test_crater_initialization_with_transient_radius(self):
         transient_radius = 400
@@ -43,7 +43,7 @@ class TestCrater(unittest.TestCase):
         rng = default_rng()
         target = Target("Mars")
         crater = Crater(diameter=1000,target=target,rng=rng)
-        self.assertEqual(crater.diameter, 1000)
+        self.assertEqual(crater.final_diameter, 1000)
 
     def test_invalid_target_or_rng_type(self):
         with self.assertRaises(ValueError):

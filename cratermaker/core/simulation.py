@@ -154,7 +154,7 @@ class Simulation:
                     crater, _ = self.generate_crater(diameter=d, angle=90.0, velocity=self.production.mean_velocity*10)
                     rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
                     if rmax < self.target.radius * 2 * np.pi:
-                        superdomain_scale_factor = rmax / crater.radius
+                        superdomain_scale_factor = rmax / crater.final_radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
         self.surf = Surface.initialize(target=self.target, reset_surface=self.reset_surface, simdir=self.simdir, rng=self.rng, **surface_parameters, **kwargs)
@@ -186,8 +186,8 @@ class Simulation:
             face_areas = np.asarray(face_areas)
         smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2        
         if from_projectile:
-            _, projectile = self.generate_crater(diameter=smallest_crater, angle=90.0, velocity=self.production.mean_velocity*10)
-            return projectile.diameter 
+            crater = self.generate_crater(final_diameter=smallest_crater, angle=90.0, velocity=self.production.mean_velocity*10)
+            return crater.projectile_diameter 
         else:
             return smallest_crater 
         
@@ -199,8 +199,8 @@ class Simulation:
         """
         largest_crater = self.target.radius * 2
         if from_projectile:
-            _, projectile = self.generate_crater(diameter=largest_crater, angle=1.0, velocity=self.production.mean_velocity/10.0)
-            return projectile.diameter
+            crater = self.generate_crater(final_diameter=largest_crater, angle=1.0, velocity=self.production.mean_velocity/10.0)
+            return crater.projectile_diameter
         else:
             return largest_crater
 
