@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Union, Tuple, List
+from typing import Union
 
 FloatLike = Union[float, int, np.number]
-PairOfFloats = Union[Tuple[float, float], List[float], np.ndarray]
+PairOfFloats = Union[tuple[float, float], list[float], np.ndarray]

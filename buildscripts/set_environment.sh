@@ -17,7 +17,7 @@
 # HDF5_ROOT: The installation directory for the hdf5 library
 # HDF5_LIBDIR: The library directory for the hdf5 library
 # HDF5_INCLUDE_DIR: The include directory for the hdf5 library
-# HDF5_PLUGIN_PATH: The plugin directory for the hdf5 library
+# HDF5_PLUGIN_PATH: The component directory for the hdf5 library
 # HDF5_DIR: The cmake directory for the hdf5 library
 # SHTOOLS_HOME: The installation directory for the SHTOOLS library
 # LD_LIBRARY_PATH: The library path for the dependencies

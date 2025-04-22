@@ -23,10 +23,12 @@ class TestSimulation(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.target = Target(name="Moon") 
-        self.pix = self.target.radius / 10.0
+        self.simdir = self.temp_dir.name
+        print(f"Temporary directory created: {self.simdir}")
+        target = Target(name="Moon")
+        self.pix = target.radius / 10.0
         self.gridlevel = 5
-        os.chdir(self.temp_dir.name) 
+        os.chdir(self.simdir) 
         
     def tearDown(self):
         # Clean up temporary directory
@@ -34,12 +36,12 @@ class TestSimulation(unittest.TestCase):
         return           
 
     def test_simulation_defaults(self):
-        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
+        sim = cratermaker.Simulation(simdir=self.simdir, gridlevel=self.gridlevel)
         self.assertEqual(sim.target.name, "Moon")
         
     def test_simulation_save(self):
         # Test basic save operation
-        sim = cratermaker.Simulation(gridlevel=self.gridlevel, target=self.target)
+        sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
         sim.save()
        
         # Test that variables are saved correctly
@@ -69,42 +71,42 @@ class TestSimulation(unittest.TestCase):
     
         return 
         
-    # def test_simulation_export_vtk(self):
+    def test_simulation_export_vtk(self):
       
-    #     sim = cratermaker.Simulation(gridlevel=self.gridlevel, target=self.target) 
-    #     # Test with default parameters
-    #     default_out_dir = os.path.join(sim.simdir, "vtk_files")
-    #     expected_files = ["staticFieldsOnCells.vtp","staticFieldsOnVertices.vtp","timeDependentFieldsOnCells.pvd","timeDependentFieldsOnVertices.pvd"]
-    #     sim.export_vtk()
-    #     self.assertTrue(os.path.isdir(default_out_dir))
-    #     for f in expected_files:
-    #         self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
+        sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
+        # Test with default parameters
+        default_out_dir = os.path.join(sim.simdir, "vtk_files")
+        expected_files = ["surf000000.vtp"]
+        sim.export_vtk()
+        self.assertTrue(os.path.isdir(default_out_dir))
+        for f in expected_files:
+            self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
             
-    #     # Test with custom output directory
-    #     custom_out_dir = os.path.join(sim.simdir, "custom_vtk_files")
-    #     sim.export_vtk(out_dir=custom_out_dir)
-    #     self.assertTrue(os.path.isdir(custom_out_dir))
-    #     for f in expected_files:
-    #         self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
+        # Test with custom output directory
+        custom_out_dir = os.path.join(sim.simdir, "custom_vtk_files")
+        sim.export_vtk(out_dir=custom_out_dir)
+        self.assertTrue(os.path.isdir(custom_out_dir))
+        for f in expected_files:
+            self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
         
     def test_emplace_crater(self):
         cdiam = 2*self.pix
-        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
-        sim.emplace_crater(diameter=cdiam)
-        pdiam = sim.projectile.diameter
+        sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
+        sim.emplace_crater(final_diameter=cdiam)
+        pdiam = sim.crater.projectile_diameter
         
-        sim.emplace_crater(diameter=cdiam)
-        sim.emplace_crater(diameter=pdiam, from_projectile=True)
+        sim.emplace_crater(final_diameter=cdiam)
+        sim.emplace_crater(projectile_diameter=pdiam)
         return
     
     def test_populate(self):
-        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
+        sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
         # Test that populate will work even if no craters are returned
         sim.populate(age=1e-6)
         return
     
     def test_invalid_run_args(self):
-        sim = cratermaker.Simulation(gridlevel=self.gridlevel)
+        sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
 
         # Test case: Neither the age nor the diameter_number argument is provided
         with self.assertRaises(ValueError):
