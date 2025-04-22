@@ -46,7 +46,7 @@ class SimpleMoon(MorphologyModel):
                  dorays: bool = True,
                  **kwargs: Any 
                  ):
-
+        
         self.crater = crater 
         self.target = target
         self.rng = rng
@@ -54,38 +54,39 @@ class SimpleMoon(MorphologyModel):
         self.dorays = dorays
 
         # Set the morphology based on crater type
-        diameter_km = self.final_diameter * 1e-3  # Convert to km for these models
+        diameter_m = self.crater.final_diameter
+        diameter_km = diameter_m * 1e-3  # Convert to km for some models
 
-        if self.morphology_type in ["simple", "transitional"]:
+        if self.crater.morphology_type in ["simple", "transitional"]:
             # A hybrid model between Pike (1977) and Fassett & Thomson (2014)
             self.rimheight = 0.043 * diameter_km**1.014 * 1e3  # Closer to Fassett & Thomson
             self.rimwidth = 0.257 * diameter_km**1.011 * 1e3   # Pike model
             self.floordepth = 0.224 * diameter_km**1.010 * 1e3 # Closer to Fassett & Thomson
             self.floor_diameter = 0.200 * diameter_km**1.143 * 1e3  # Fassett & Thomson for D~1km, Pike for D~20km
 
-        elif self.morphology_type in ["complex", "peakring", "multiring"]:
+        elif self.crater.morphology_type in ["complex", "peakring", "multiring"]:
             # Following Pike (1977)
             self.rimheight = 0.236 * diameter_km**0.399 * 1e3  # Pike model
             self.rimwidth = 0.467 * diameter_km**0.836 * 1e3   # Pike model
             self.floordepth = 1.044 * diameter_km**0.301 * 1e3 # Pike model
             # Fassett & Thomson for D~1km, Pike for D~20km, but limited to 90% of diameter
-            self.floor_diameter = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * self.final_diameter)
+            self.floor_diameter = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
             self.peakheight = 0.032 * diameter_km**0.900 * 1e3  # Pike model
         else:
             raise ValueError(f"Unknown morphology type: {self.morphology_type}")
             
-        self.ejrim = 0.14 * (self.final_diameter * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
+        self.ejrim = 0.14 * (diameter_m * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
 
        
     def __repr__(self):
-        return (f"Morphology(morphology_type={self.morphology_type}, diameter={self.final_diameter}, "
+        return (f"Morphology(morphology_type={self.crater.morphology_type}, diameter={self.crater.final_diameter}, "
                 f"rimheight: {self.rimheight}, rimwidth: {self.rimwidth}, floordepth: {self.floordepth}, floor_diameter: {self.floor_diameter})") 
     
 
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
         elevation = crater.profile(r,
                                    r_ref, 
-                                   self.final_diameter, 
+                                   self.crater.final_diameter, 
                                    self.floordepth, 
                                    self.floor_diameter, 
                                    self.rimheight, 
@@ -97,7 +98,7 @@ class SimpleMoon(MorphologyModel):
 
     def ejecta_profile(self, r: ArrayLike) -> np.float64:
         elevation = ejecta.profile(r,
-                                   self.final_diameter, 
+                                   self.crater.final_diameter, 
                                    self.ejrim
                                 )
         elevation = np.array(elevation, dtype=np.float64)
@@ -106,7 +107,7 @@ class SimpleMoon(MorphologyModel):
     
     def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
         thickness = ejecta.distribution(r, theta,
-                                       self.final_diameter, 
+                                       self.crater.final_diameter, 
                                        self.ejrim, 
                                        self.ejecta_truncation,
                                        self.dorays
@@ -117,7 +118,7 @@ class SimpleMoon(MorphologyModel):
 
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
         intensity = ejecta.ray_intensity(r, theta,
-                                       self.final_diameter, 
+                                       self.crater.final_diameter, 
                                        self.ejrim, 
                                        self.ejecta_truncation,
                                     )
@@ -126,19 +127,23 @@ class SimpleMoon(MorphologyModel):
 
 
     def compute_rmax(self, 
-                     minimum_thickness: np.float64,
-                     feature: str = "ejecta") -> np.float64:
+                     minimum_thickness: FloatLike,
+                     feature: str = "ejecta") -> float:
         """
         Compute the maximum extent of the crater based on the minimum thickness of a feature, or the ejecta_truncation factor,
         whichever is smaller.
         
         Parameters
         ----------
-        minimum_thickness : np.float64
+        minimum_thickness : FloatLike
             The minimum thickness of the feature blanket in meters.
         feature : str, optional, default = "ejecta"
             The feature to compute the maximum extent. Either "crater" or "ejecta". If "crater" is chosen, the rmax is based
             on where the raised rim is smaller than minimum thickness. 
+        Returns
+        -------
+        float
+            The maximum extent of the crater or ejecta blanket in meters.
         """ 
         
         # Compute the reference surface for the crater 
@@ -153,15 +158,15 @@ class SimpleMoon(MorphologyModel):
             raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
     
         # Get the maximum extent 
-        rmax = fsolve(_profile_invert, x0=self.radius*1.01)[0]
+        rmax = fsolve(_profile_invert, x0=self.crater.final_radius*1.01)[0]
         
         if self.ejecta_truncation:
-            rmax = min(rmax, self.ejecta_truncation * self.radius)
+            rmax = min(rmax, self.ejecta_truncation * self.crater.final_radius)
             
         if feature == "crater":
-            rmax = max(rmax, self.radius)
+            rmax = max(rmax, self.crater.final_radius)
 
-        return rmax     
+        return float(rmax)
 
 
     def form_crater(self, 
@@ -224,7 +229,7 @@ class SimpleMoon(MorphologyModel):
         # Test if the ejecta is big enough to modify the surface
         rmax = self.compute_rmax(minimum_thickness=surf.smallest_length) 
         if not self.ejecta_truncation:
-            self.ejecta_truncation = rmax / self.radius
+            self.ejecta_truncation = rmax / self.crater.final_radius
         region_surf = surf.extract_region(self.crater.location, rmax)
         if not region_surf: # The crater is too small to change the surface
             return
@@ -281,9 +286,9 @@ class SimpleMoon(MorphologyModel):
         # Elliott et al. (2018) eq. 2
         A = 6.59 + self.rng.normal(loc=0.0,scale=1.45) 
         p = 1.27 + self.rng.normal(loc=0.0,scale=0.06)
-        rmax = A * (self.radius / 1000) **p * 1000
+        rmax = A * (self.crater.final_radius / 1000) **p * 1000
         if not self.ejecta_truncation:
-            self.ejecta_truncation = rmax / self.radius
+            self.ejecta_truncation = rmax / self.crater.final_radius
         region_surf = surf.extract_region(self.crater.location, rmax)
         if not region_surf: # The crater is too small to change the surface
             return
@@ -550,140 +555,108 @@ class SimpleMoon(MorphologyModel):
         psd=np.sqrt(psd*area)
         return psd,phase,freq_theta,freq_r,grid_theta,grid_r  
 
-    @property
-    def diameter(self) -> np.float64:
-        """
-        The diameter of the crater in meters.
-        
-        Returns
-        -------
-        np.float64
-        """
-        return self.crater.final_diameter
-
-    @property
-    def radius(self) -> np.float64:
-        """
-        The radius of the crater in meters.
-        
-        Returns
-        -------
-        np.float64
-        """
-        return self.crater.final_radius
-   
-    @property 
-    def morphology_type(self) -> str:
-        """
-        The morphology type of the crater.
-        
-        Returns
-        -------
-        str 
-        """
-        return self.crater.morphology_type 
     
     @property
-    def rimheight(self) -> np.float64:
+    def rimheight(self) -> float:
         """
         The height of the crater rim in meters.
         
         Returns
         -------
-        np.float64
+        float
         """
-        return self.crater.rimheight
+        return self._rimheight
     
     @rimheight.setter
     def rimheight(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
             raise TypeError("rimheight must be of type FloatLike")
-        self.crater.rimheight = np.float64(value)
+        self._rimheight = float(value)
         
     @property
-    def rimwidth(self) -> np.float64:
+    def rimwidth(self) -> float:
         """
         The width of the crater rim in meters.
         
         Returns
         -------
-        np.float64
+        float
         """
-        return self.crater.rimwidth
+        return self._rimwidth
     
     @rimwidth.setter
     def rimwidth(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
             raise TypeError("rimwidth must be of type FloatLike") 
-        self.crater.rimwidth = np.float64(value)
+        self._rimwidth = float(value)
         
     @property
-    def peakheight(self) -> np.float64:
+    def peakheight(self) -> float:
         """
         The height of the central peak in meters.
         
         Returns
         -------
-        np.float64
+        float
         """
-        return self.crater.peakheight
+        return self._peakheight
     
     @peakheight.setter
     def peakheight(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
             raise TypeError("peakheight must be of type FloatLike") 
-        self.crater.peakheight = np.float64(value)
+        self._peakheight = float(value)
 
     @property
-    def floor_diameter(self) -> np.float64:
+    def floor_diameter(self) -> float:
         """
         The diameter of the crater floor in meters.
         
         Returns
         -------
-        np.float64
+        float
         """
-        return self.crater.floor_diameter
+        return self._floor_diameter
     
     @floor_diameter.setter
     def floor_diameter(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
             raise TypeError("floor_diameter must be of type FloatLike")
-        self.crater.floor_diameter = np.float64(value)
+        self._floor_diameter = float(value)
         
     @property
-    def floordepth(self) -> np.float64:
+    def floordepth(self) -> float:
         """
         Return the depth of the crater floor in m
         
         Returns
         -------
-        np.float64
+        float
         """
-        return self.crater.floordepth
+        return self._floordepth
     
     @floordepth.setter
     def floordepth(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
             raise TypeError("floordepth must be of type FloatLike")
-        self.crater.floordepth = np.float64(value)
+        self._floordepth = float(value)
         
     @property
-    def ejrim(self) -> np.float64:
+    def ejrim(self) -> float:
         """
         The thickness of ejecta at the rim in m.
         
         Returns
         -------
-        np.float64
+        float
         """
-        return self.crater.ejrim
+        return self._ejrim
     
     @ejrim.setter
     def ejrim(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
             raise TypeError("ejrim must be of type FloatLike")
-        self.crater.ejrim = np.float64(value)
+        self._ejrim = float(value)
         
     @property
     def crater(self):
@@ -743,24 +716,24 @@ class SimpleMoon(MorphologyModel):
         self._rng = value or np.random.default_rng()   
        
     @parameter
-    def ejecta_truncation(self) -> np.float64:
+    def ejecta_truncation(self) -> float:
         """
         The radius at which the crater is truncated relative to the crater radius.
         
         Returns
         -------
-        np.float64 or None
+        float or None
         """
-        return self.crater.ejecta_truncation 
+        return self._ejecta_truncation 
     
     @ejecta_truncation.setter
     def ejecta_truncation(self, value: FloatLike | None): 
         if value:
             if not isinstance(value, FloatLike):
                 raise TypeError("truction_radius must be of type FloatLike")
-            self.crater.ejecta_truncation = np.float64(value)
+            self._ejecta_truncation = float(value)
         else:
-            self.crater.ejecta_truncation = None
+            self._ejecta_truncation = None
             
     @parameter
     def dorays(self) -> bool:
@@ -778,4 +751,3 @@ class SimpleMoon(MorphologyModel):
         if not isinstance(value, bool):
             raise TypeError("dorays must be of type bool")
         self._dorays = value
-        return
