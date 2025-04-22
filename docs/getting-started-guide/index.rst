@@ -4,14 +4,16 @@
 Getting Started
 ################
 
-First, set up a Python environment and set the system environment variables using ```buildscripts/set_environment.sh```. This script sets the necessary environment variables for the Fortran compiler, CMake, and other dependencies.  You can install cratermaker with pip::
+First, set up a Python environment. Once your python environment is set up, cratermaker can be installed with pip::
    
-      pip install -e .
+      pip install cratermaker.
 
 You can verify the installation was successful by running the tests::
 
       pytest tests/
 
+
+Next, we will go through simple examples on how to utilize cratermaker.
 
 ##################
 Emplacing a Crater
@@ -27,7 +29,7 @@ By default, Cratermaker emulates impacts on the Moon's surface. The ``Simulation
 - **Target Body**: Moon, represented by the ``target`` parameter. Other bodies can be specified. See :ref:`api-Target`.
 - **Material**: The default material for the Moon is ``soft rock``. Custom materials can be specified. See :ref:`api-Material`.
 - **Production**: The default production function depends on the target body. For inner solar system bodies (Mercury, Venus, Earth, Moon, and Mars) the ``NeukumProduction``, and a simple power law production function is used. For details, see :ref:`api-Production` and :ref:`api-NeukumProduction`.
-- **Scaling**: The default projectile to crater scaling relationship model is based on Holsapple (1993), with some modifications. See :ref:`api-Scale` for details.
+- **Scaling**: The default projectile to crater scaling relationship model is based on Holsapple (1993), with some modifications. See :ref:`api-ScalingModel` for details.
 - **Pixel Resolution**: Cratermaker uses an unstructured mesh to represent the surface, and so does not have a fixed resolution. When generating the mesh, you can set an approximate size scale for the mesh faces using the ``pix`` parameter. The default value is 10\ :sup:`-3`` times the surface area of the target body.  
 
 These defaults provide a balanced starting point for typical crater simulations, making it straightforward for new users to begin without extensive configuration. See :ref:`api-Simulation` for details on the ``Simulation`` class and its parameters.

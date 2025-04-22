@@ -13,7 +13,7 @@ submodule (crater) s_crater
     use ejecta
 contains
 
-    pure module subroutine crater_profile(radial_distance, reference_elevation, diameter, floordepth, floordiam, &
+    pure module subroutine crater_profile(radial_distance, reference_elevation, diameter, floordepth, floor_diameter, &
         rimheight, ejrim, elevation)
         !! author: David A. Minton
         !!
@@ -29,7 +29,7 @@ contains
             !! The final crater diameter in meters.
         real(DP), intent(in) :: floordepth 
             !! The final crater floor depth in meters.
-        real(DP), intent(in) :: floordiam 
+        real(DP), intent(in) :: floor_diameter 
             !! The final crater floor diameter in meters.
         real(DP), intent(in) :: rimheight 
             !! The final crater rim height in meters.
@@ -46,7 +46,7 @@ contains
         real(DP), parameter :: RIMDROP = 4.20_DP ! The exponent for the uplifted rim dropoff.
   
         ! Calculate the floor radius relative to the final crater radius
-        flrad = floordiam / diameter
+        flrad = floor_diameter / diameter
         radius = diameter / 2
   
         ! Use polynomial crater profile similar to that of Fassett et al. (2014), but the parameters are set by the crater dimensions

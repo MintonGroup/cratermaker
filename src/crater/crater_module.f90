@@ -14,22 +14,22 @@ module crater
 
    interface
       pure module subroutine crater_profile(radial_distance, reference_elevation, diameter, &
-         floordepth, floordiam, rimheight, ejrim, elevation)
+         floordepth, floor_diameter, rimheight, ejrim, elevation)
          implicit none
          real(DP),dimension(:), intent(in) :: radial_distance, reference_elevation
-         real(DP), intent(in) :: diameter, floordepth, floordiam, rimheight, ejrim
+         real(DP), intent(in) :: diameter, floordepth, floor_diameter, rimheight, ejrim
          real(DP), dimension(:), intent(out) :: elevation
       end subroutine crater_profile
    end interface
 
 contains
    subroutine bind_crater_profile(c_radial_distance, c_reference_elevation, num_elements, diameter, &
-                                             floordepth, floordiam, rimheight, ejrim, c_elevation)  &
+                                             floordepth, floor_diameter, rimheight, ejrim, c_elevation)  &
                                              bind(C)
       ! Arguments
       type(c_ptr), intent(in), value :: c_radial_distance, c_reference_elevation
       integer(I4B), intent(in), value :: num_elements
-      real(DP), intent(in), value :: diameter, floordepth, floordiam, rimheight, ejrim
+      real(DP), intent(in), value :: diameter, floordepth, floor_diameter, rimheight, ejrim
       type(c_ptr), intent(in), value :: c_elevation
       ! Internals
       real(DP), dimension(:), pointer :: radial_distance,reference_elevation,elevation
@@ -55,7 +55,7 @@ contains
       end if
 
       call crater_profile(radial_distance, reference_elevation, diameter, floordepth, &
-                              floordiam, rimheight, ejrim, elevation)
+                              floor_diameter, rimheight, ejrim, elevation)
       return
    end subroutine bind_crater_profile
 
