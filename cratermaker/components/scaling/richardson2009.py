@@ -33,7 +33,7 @@ class Richardson2009(ScalingModel):
         Volumentric density of target material, (kg/m^3)
     projectile_density : FloatLike, optional
         Volumetric density of the projectile, (kg/m^3)
-    projectile_mean_velocity : FloatLike, optional
+    projectile_vertical_velocity : FloatLike, optional
         The mean velocity of the projectile, (m/s)
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used. 
@@ -118,7 +118,7 @@ class Richardson2009(ScalingModel):
 
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
-        include_list=("material_name", "K1", "mu", "Ybar", "target_density", "projectile_density", "projectile_mean_velocity")
+        include_list=("material_name", "K1", "mu", "Ybar", "target_density", "projectile_density", "projectile_vertical_velocity")
         # Add it to the set of user-defined parameters if it is in the list of parameters
         public_name = name.lstrip("_")
         if public_name in include_list:
@@ -602,6 +602,8 @@ class Richardson2009(ScalingModel):
         -------
         np.float64 
         """
+        if self._projectile_density is None:
+            self.projectile_density = None
         return self._projectile_density
     
     @projectile_density.setter
@@ -619,7 +621,9 @@ class Richardson2009(ScalingModel):
     @property
     def projectile_vertical_velocity(self):
         """Get the impact velocity model name."""
-        return self._projectile_mean_velocity
+        if self._projectile_vertical_velocity is None:
+            self.projectile_vertical_velocity = None
+        return self._projectile_vertical_velocity
 
     @projectile_vertical_velocity.setter
     def projectile_vertical_velocity(self, value):
@@ -647,17 +651,17 @@ class Richardson2009(ScalingModel):
                 pmv = np.float64(predefined["MBA"])
             else:
                 raise ValueError("No impact velocity model found that matches the target body. Please provide a value for projectile_vertical_velocity.")
-            vencounter_mean = np.sqrt(pmv ** 2 - self.target.escape_velocity ** 2)
+            vencounter_mean = np.sqrt(pmv**2 - self.target.escape_velocity**2)
             vencounter = mc.get_random_velocity(vencounter_mean, rng=self.rng)
-            pv = float(np.sqrt(vencounter ** 2 + self.target.escape_velocity ** 2)) 
+            pv = np.sqrt(vencounter**2 + self.target.escape_velocity**2)
             pang = mc.get_random_impact_angle(rng=self.rng)
             self._projectile_vertical_velocity = pv * np.sin(np.deg2rad(pang))
         elif isinstance(value, (int, float)):
             if value < 0:
-                raise ValueError("projectile_mean_velocity must be a positive number")
+                raise ValueError("projectile_vertical_velocity must be a positive number")
             self._projectile_vertical_velocity = np.float64(value)
         else: 
-            raise TypeError("projectile_mean_velocity must be a numeric value or None") 
+            raise TypeError("projectile_vertical_velocity must be a numeric value or None") 
 
         return
         
