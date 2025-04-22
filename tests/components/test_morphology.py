@@ -18,7 +18,7 @@ class TestMorphology(unittest.TestCase):
 
         self.dummy_crater = Crater(
             location=(0.0, 0.0),
-            final_diameter=1000.0,
+            final_diameter=100000.0,
         )
         self.morphology = get_morphology_model("simplemoon")()
 
@@ -39,7 +39,7 @@ class TestMorphology(unittest.TestCase):
             self.morphology.crater = "not_a_crater"
 
     def test_form_crater_executes(self):
-        self.morphology.form_crater(self.surf)
+        self.morphology.form_crater(self.surf, crater=self.dummy_crater)
 
 if __name__ == '__main__':
     unittest.main()
