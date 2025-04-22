@@ -51,6 +51,7 @@ neukum = "cratermaker.components.production.neukum:NeukumProduction"
 
 [project.entry-points."cratermaker.components.morphology"]
 simplemoon = "cratermaker.components.morphology.simplemoon:SimpleMoon"
+du2025 = "cratermaker.components.morphology.du2025:Du2025"
 
 [build-system]
 requires = [

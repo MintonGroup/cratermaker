@@ -7,10 +7,17 @@ from cratermaker.core.surface import Surface
 from cratermaker.utils.general_utils import _to_config, parameter
 
 class MorphologyModel(ABC):
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        Initialize the morphology model with given parameters.
+        """
+        object.__setattr__(self, "_model" , None)
+        object.__setattr__(self, "_crater" , None)
+
     @abstractmethod
     def form_crater(self, 
-                    crater: Crater,
                     surf: Surface,
+                    crater: Crater | None = None,
                     **kwargs) -> None: ...    
 
     def to_config(self, **kwargs: Any) -> dict:
@@ -25,6 +32,19 @@ class MorphologyModel(ABC):
         The registered name of this scaling model set by the @register_scaling_model decorator.
         """ 
         return self._model
+    
+    @property
+    def crater(self):
+        """
+        The crater to be created.
+        
+        Returns
+        -------
+        Crater
+        """ 
+        if self._crater is None:
+            raise RuntimeError("No crater has been added to the morphology model yet.")
+        return self._crater
     
 _registry: dict[str, MorphologyModel] = {}
 
