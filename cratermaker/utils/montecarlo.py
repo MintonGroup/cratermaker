@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike
-from typing import Union, Optional, Tuple
+from typing import Union, Optional
 from numpy.typing import NDArray
 from scipy.stats import truncnorm
 from scipy.stats import maxwell
@@ -11,7 +11,7 @@ import uxarray as uxr
 
 def get_random_location(size: int=1, 
                         rng: Generator | None=None
-                        ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
+                        ) -> Union[np.float64, tuple[np.float64, np.float64], ArrayLike]:
     """
     Computes random longitude and latitude values.
     
@@ -67,7 +67,7 @@ def get_random_location_on_face(grid: Grid,
                                 face_index: int, 
                                 size: int=1, 
                                 rng: Generator | None=None
-                                ) -> Union[np.float64, Tuple[np.float64, np.float64], ArrayLike]:
+                                ) -> Union[np.float64, tuple[np.float64, np.float64], ArrayLike]:
     """
     Generate a random coordinate within a given face of an unstructured mesh.
 
@@ -133,7 +133,7 @@ def get_random_location_on_face(grid: Grid,
         return locations
 
 
-def get_random_impact_angle(size: int | Tuple[int, ...]=1, 
+def get_random_impact_angle(size: int | tuple[int, ...]=1, 
                             rng: Generator | None=None
                             ) -> Union[np.float64,NDArray[np.float64]]:
     """
@@ -169,8 +169,8 @@ def get_random_impact_angle(size: int | Tuple[int, ...]=1,
 
 def get_random_size(diameters: NDArray[np.float64], 
                     cdf: NDArray[np.float64], 
-                    size: int | Tuple[int, ...] | None = None, 
-                    mu: int | Tuple[int, ...] | None = None,
+                    size: int | tuple[int, ...] | None = None, 
+                    mu: int | tuple[int, ...] | None = None,
                     rng: Generator | None=None
                     ) -> Union[np.float64,NDArray[np.float64]]:
     """
@@ -298,7 +298,7 @@ def get_random_size(diameters: NDArray[np.float64],
 
 
 def get_random_velocity(vmean: np.float64, 
-                        size: int | Tuple[int, ...]=1, 
+                        size: int | tuple[int, ...]=1, 
                         rng: Generator | None=None
                         ) -> Union[np.float64,NDArray[np.float64]]:
     """
@@ -340,7 +340,7 @@ def get_random_velocity(vmean: np.float64,
         return velocities
 
 
-def bounded_norm(loc: np.float64,scale: np.float64,size: Optional[Union[int, Tuple[int, ...]]]=1):
+def bounded_norm(loc: np.float64,scale: np.float64,size: Optional[Union[int, tuple[int, ...]]]=1):
     """
     Sample from a truncated normal distribution that is bounded by 1-sigma stdev
     

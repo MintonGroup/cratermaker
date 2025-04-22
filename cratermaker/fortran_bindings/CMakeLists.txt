@@ -7,9 +7,9 @@
 # You should have received a copy of the GNU General Public License along with Cratermaker. 
 # If not, see: https://www.gnu.org/licenses. 
 
-SET(REALISTIC_BIND realistic)
-SET(CRATER_BIND crater)
-SET(EJECTA_BIND ejecta)
+SET(REALISTIC_BIND noise_functions)
+SET(CRATER_BIND crater_functions)
+SET(EJECTA_BIND ejecta_functions)
 
 # Find the Cython executable, but don't look in the cmake root directory (due how cmake and cython are installed on the RCAC system)
 FIND_PROGRAM(CYTHON 
