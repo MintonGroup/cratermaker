@@ -3,7 +3,7 @@ from typing import Any
 from ..utils.general_utils import _set_properties, _to_config, _create_catalogue
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
-import inspect
+
 class Target:
     """
     Represents the target body in a crater simulation.
@@ -257,7 +257,7 @@ class Target:
         np.float64
             Escape velocity in m/s.
         """        
-        return np.sqrt(2 * self.radius*1e-3 * self.gravity)
+        return np.sqrt(2 * self.radius * self.gravity)
     
     @property
     def gravity(self) -> np.float64 | None:
@@ -269,7 +269,7 @@ class Target:
         np.float64
             Gravitational acceleration in m/s^2. 
         """
-        return 4*np.pi*G.value*(self.radius*1e-3)*self.bulk_density/3
+        return 4*np.pi*G.value*(self.radius)*self.bulk_density/3
 
     @property
     def bulk_density(self) -> np.float64 | None:
@@ -281,5 +281,5 @@ class Target:
         np.float64
             Bulk density in kg/m^3.
         """
-        return self.mass / (4/3 * np.pi * (self.radius*1e-3)**3)  # in kg/m^3
+        return self.mass / (4/3 * np.pi * (self.radius)**3)  # in kg/m^3
 
