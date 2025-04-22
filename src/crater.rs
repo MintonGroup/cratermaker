@@ -16,9 +16,9 @@ pub fn profile<'py>(
     rimheight: f64,
     ejrim: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let r_array = r_array.as_array();
-    let reference_elevation_array = reference_elevation_array.as_array();
-    if r_array.len() != reference_elevation_array.len() {
+    let radial_distances = r_array.as_array();
+    let reference_elevations = reference_elevation_array.as_array();
+    if radial_distances.len() != reference_elevations.len() {
         return Err(PyValueError::new_err(
             "input arrays must have the same length",
         ));
@@ -35,36 +35,43 @@ pub fn profile<'py>(
     let c2 = A * c1;
     let c3 = B * c1;
 
-    let ninc = r_array.iter().filter(|&&x| x <= radius).count();
+    let ninc = radial_distances.iter().filter(|&&x| x <= radius).count();
     let meanref = if ninc == 0 {
-        *r_array
+        *radial_distances
             .iter()
-            .zip(reference_elevation_array)
-            .max_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
+            .zip(reference_elevations)
+            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
             .unwrap()
             .1
     } else {
-        r_array.iter().filter(|&&x| x <= radius).sum::<f64>() / ninc as f64
+        radial_distances
+            .iter()
+            .zip(reference_elevations)
+            .filter(|(&r, _)| r <= radius)
+            .map(|(_, &e)| e)
+            .sum::<f64>()
+            / ninc as f64
     };
     let min_elevation = meanref - floordepth;
 
     Ok(PyArray1::from_iter(
         py,
-        reference_elevation_array
+        reference_elevations
             .iter()
-            .zip(r_array)
-            .map(|(&elevation, &r)| {
+            .zip(radial_distances)
+            .map(|(&elevation, &radial_distance)| {
+                let r = radial_distance / radius;
                 (
                     if r >= 1.0 {
                         elevation + (rimheight - ejrim) * (r.powf(-RIMDROP))
                     } else {
                         elevation + c0 + c1 * r + c2 * r.powi(2) + c3 * r.powi(3)
                     },
-                    r,
+                    radial_distance,
                 )
             })
-            .map(|(elevation, r)| {
-                if r < radius {
+            .map(|(elevation, radial_distance)| {
+                if radial_distance <= radius {
                     elevation.max(min_elevation)
                 } else {
                     elevation

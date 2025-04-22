@@ -94,23 +94,23 @@ pub fn ray_intensity_internal<'py>(
 
     // Distribute ray patterns evenly around the crater
     let mut thetari = (0..NRAYMAX)
-        .map(|i| PI * 2.0 * (i * NRAYMAX) as f64)
+        .map(|i| PI * 2.0 * (i + 1) as f64 / NRAYMAX as f64)
         .collect_vec();
     thetari.shuffle(&mut rng);
 
-    let random_numbers: Vec<f64> = (0..NPATT).map(|_| rng.random()).collect_vec();
+    let random_numbers: Vec<f64> = rng.random_iter().take(NPATT as usize).collect_vec();
 
     let mut intensity = (0..radial_distance.len())
         .map(|i| {
             if *radial_distance.get(i).unwrap() < crater_radius {
                 0.0
             } else {
-                (0..(NPATT as usize))
+                (0..NPATT as usize)
                     .map(|j| {
                         let rn = random_numbers[j];
                         let theta = (initial_bearing.get(i).unwrap() + rn * 2.0 * PI) % (2.0 * PI);
                         let r_pattern = *radial_distance.get(i).unwrap() / crater_radius - rn;
-                        FRAYREDUCTION.powi(j as i32)
+                        FRAYREDUCTION.powi(j as i32 + 1)
                             * ray_intensity_func(r_pattern, theta, rmin, rmax, &thetari, minray)
                     })
                     .sum()
@@ -164,7 +164,7 @@ fn ray_intensity_func(
         1.0
     } else {
         let tmp = (NRAYMAX as f64).powf(RAYP)
-            - ((NRAYMAX as f64).powf(RAYP) - 1.0) * ((r / minray).ln() / (rmax / minray).ln());
+            - ((NRAYMAX as f64).powf(RAYP) - 1.0) * (r / minray).ln() / (rmax / minray).ln();
         let n = if tmp < 0.0 {
             NRAYMAX // "Nrays" in Minton et al. (2019)
         } else {
@@ -179,15 +179,14 @@ fn ray_intensity_func(
             .map(|i| {
                 let length = minray
                     * ((rmax / minray).ln()
-                        * (((NRAYMAX - i + 2) as f64).powf(RAYP - 1.0)
+                        * ((((NRAYMAX - i + 2) as f64).powf(RAYP) - 1.0)
                             / ((NRAYMAX as f64).powf(RAYP) - 1.0)))
                         .exp();
                 if r > length {
                     return 0.0; // Don't add any material beyond the length of the ray
                 }
-                // equation 41 Minton et al. 2019
                 let w = (rmax / length).powf(1.0);
-
+                // equation 41 Minton et al. 2019
                 let rw = PI / (w * NRAYMAX as f64)
                     * (rmin / r)
                     * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powi(2)).exp());
@@ -201,7 +200,7 @@ fn ejecta_ray_func(theta: f64, thetar: f64, r: f64, n: i32, w: f64) -> f64 {
     let c = w / r;
     let b = thetar;
     let dtheta = f64::min(2.0 * PI - (theta - b).abs(), (theta - b).abs());
-    let logval = -(dtheta.powi(2)) / (2.0 * c.powi(2));
+    let logval = -dtheta.powi(2) / (2.0 * c.powi(2));
     if logval < VSMALL.ln() {
         0.0
     } else {
