@@ -1,137 +1,176 @@
-import json
+import yaml
 import numpy as np
 from numpy.typing import ArrayLike
-from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
+from pathlib import Path
+from warnings import warn
+import os
 
-def to_config(obj):
+class Parameter(property):
     """
-    Serialize the attributes of an object into a dictionary.
+    A property descriptor that tracks user-defined properties.  This class is a subclass of the built-in property class and is used 
+    to create properties in a class that can be set and retrieved. It also tracks whether the property has been set by the user, 
+    allowing for parameters to be exported to a YAML configuration file.
+    """
+    def __init__(self, fget, fset=None, fdel=None, doc=None):
+        super().__init__(fget, fset, fdel, doc)
+        self.name = fget.__name__
 
-    This function generates a dictionary of serializable attributes of the given object,
-    excluding those specified in the object's 'config_ignore' attribute.
+    def setter(self, fset):
+        def wrapped(instance, value):
+            if not hasattr(instance, "_user_defined"):
+                instance._user_defined = set()
+            instance._user_defined.add(self.name)
+            fset(instance, value)
+        return Parameter(self.fget, wrapped, self.fdel, self.__doc__)
 
-    Parameters
-    ----------
-    obj : object
-        The object whose attributes are to be serialized.
+def parameter(fget=None):
+    """
+    A decorator to mark a property as a user-settable parameter.
+    Can be used with or without parentheses.
+    """
+    if fget is None:
+        def decorator(fget):
+            return Parameter(fget)
+        return decorator
+    else:
+        return Parameter(fget)
 
-    Returns
-    -------
-    dict
-        A dictionary containing the serializable attributes of the object.
-
-    Notes
-    -----
-    Only attributes that are instances of basic data types (int, float, str, list, dict, bool, None) are included.
-    Parameters listed in 'config_ignore' of the object are excluded from serialization.
-    """   
-    # Check if the object has the attribute 'config_ignore'
-    ignores = getattr(obj, 'config_ignore', [])
-        
-    # Generate a dictionary of serializable attributes, excluding those in 'ignores'
-    return {
-        k: v for k, v in obj.__dict__.items()
-        if isinstance(v, (int, float, str, list, dict, bool, type(None))) and k not in ignores
-    }
-  
-   
-def set_properties(obj,**kwargs):
+def _set_properties(obj,
+                    catalogue: dict | None = None,
+                    key : str | None = None,
+                    filename: os.PathLike | None = None,
+                    **kwargs: Any):
     """
     Set properties of a simulation object from various sources.
 
     This function sets the properties of a simulation object based on the provided arguments.
-    Properties can be read from a JSON file, a pre-defined catalogue, or directly passed as keyword arguments.
+    Properties can be read from a YAML file, a pre-defined catalogue, or directly passed as keyword arguments.
 
-    Parameters
+    Parameter
     ----------
     obj : object
         The simulation object whose properties are to be set.
+    catalogue : dict, optional
+        A dictionary representing a catalogue of properties. It must be in the form of a nested dict. If provided, it will be used to set properties. 
+    key : str, optional
+        The key to look up in the catalogue. It must be provided if the catalogue is provided.
+    filename : os.PathLike, optional
+        The path to a YAML file containing properties. If provided, it will be used to set properties.
     **kwargs : dict
         Keyword arguments that can include 'filename', 'catalogue', and other direct property settings.
+
+    Returns
+    -------
+    matched : dict
+        A dictionary of properties that were successfully set on the object.
+    unmatched : dict
+        A dictionary of properties that were not set, either due to being None or not matching any known properties.
 
     Notes
     -----
     The order of property precedence is: 
     1. Direct keyword arguments (kwargs).
     2. Pre-defined catalogue (specified by 'catalogue' key in kwargs).
-    3. JSON file (specified by 'filename' key in kwargs).
+    3. YAML file (specified by 'filename' key in kwargs).
     Properties set by kwargs override those set by 'catalogue' or 'filename'.
     """
     
-    def set_properties_from_arguments(obj, **kwargs):
+    def _set_properties_from_arguments(obj, **kwargs):
+        matched = {}
+        unmatched = {}
+        cls = type(obj)
         for key, value in kwargs.items():
-            if hasattr(obj, key) and value is not None:
-                setattr(obj, key, value)   
+            if value is None:
+                continue
+            param = getattr(cls, key, None)
+            if isinstance(param, (property, Parameter)) and getattr(param, 'fset', None) is not None:
+                setattr(obj, key, value)
+                matched[key] = value
+            else:
+                unmatched[key] = value
+        return matched, unmatched
             
-    def set_properties_from_catalogue(obj, catalogue, name=None, **kwargs):
-        # Check to make sure that the catalogue argument is in the valid nested dict format
+    def _set_properties_from_catalogue(obj, catalogue, key, **kwargs):
+        if "catalogue_key" in dir(obj):
+            catalogue_key = getattr(obj, "catalogue_key")
+        else:
+            raise ValueError("The object does not have a catalogue_key property, and therefore is not set up to receive catalogue entries.")
+        if catalogue_key in kwargs:
+            key = kwargs.pop(catalogue_key)
+
         if not isinstance(catalogue, dict):
             raise ValueError("Catalogue must be a dictionary")
-
-        for key, value in catalogue.items():
-            if not isinstance(value, dict):
-                raise ValueError(f"Value for key '{key}' in catalogue must be a dictionary")
         
-        # Look up material in the catalogue
-        if name is None:
-            if len(catalogue) == 1:
-                name = next(iter(catalogue)) 
-            else:
-                raise ValueError("A name argument must be passed if there is more than one item in the catalogue!")
+        for k, v in catalogue.items():
+            if not isinstance(v, dict):
+                raise ValueError(f"Value for key '{k}' in catalogue must be a dictionary")
+            
+        if key not in catalogue:
+            return {}, {}
         
-        properties = catalogue.get(name) 
+        properties = catalogue.get(key) 
+        properties.update({catalogue_key: key})
+        # Remove any items in kwargs that are already in properties 
+        for k in properties.keys():
+            if k in kwargs:
+                del kwargs[k]
         if properties: # A match was found to the catalogue 
-            set_properties_from_arguments(obj, **properties)
-        else:
-            set_properties_from_arguments(obj, name=name, **kwargs)
+            matched,unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
+        return matched, unmatched
             
-    def set_properties_from_file(obj, filename, name=None, **kwargs):
-        with open(filename, 'r') as f:
-            catalogue = json.load(f)
-            
-        set_properties_from_catalogue(obj,catalogue=catalogue,name=name)
-        set_properties_from_arguments(obj,name=name)
-       
-    filename = kwargs.get('filename') 
-    if filename:
-        set_properties_from_file(obj,**kwargs)
-   
-    catalogue = kwargs.get('catalogue') 
-    if catalogue:
-        set_properties_from_catalogue(obj,**kwargs)
+    def _set_properties_from_file(obj, filename, key=None, **kwargs):
+        try:
+            with open(filename, 'r') as f:
+                properties = yaml.safe_load(f)
+                for k in kwargs.keys():
+                    if k in properties:
+                        del properties[k]
+        except: 
+            warn(f"Could not read the file {filename}.") 
+            return {}, {}
         
-    set_properties_from_arguments(obj,**kwargs)
+        if key is None:
+            matched, unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
+        else:
+            if key not in properties:
+                raise ValueError(f"Key '{key}' not found in the file '{filename}'.")
+            matched, unmatched = _set_properties_from_catalogue(obj, key=key, catalogue=properties, **kwargs)
+        return matched, unmatched
+
+    matched = {}
+    unmatched = {} 
+    if filename:
+        m, u = _set_properties_from_file(obj,filename=filename, key=key, **kwargs)
+        matched.update(m)
+        unmatched.update(u)
+   
+    if catalogue:
+        m, u = _set_properties_from_catalogue(obj,catalogue=catalogue, key=key, **kwargs)
+        matched.update(m)
+        unmatched.update(u)
+        
+    m, u = _set_properties_from_arguments(obj,**kwargs)
+    matched.update(m)
+    unmatched.update(u)
+
+    # if there are any keys in unmatched that are also present in matched, remove them from unmatched
+    for key in matched.keys():
+        if key in unmatched:
+            del unmatched[key]
     
-    if not hasattr(obj,"name"):
-        raise ValueError("The object must be given a name")
-    
-    return
+    return matched, unmatched
 
 
-def check_properties(obj):
-     # Check for any unset properties
-    missing_prop = []
-    for property_name, value in obj.__dict__.items():
-        if value is None:
-            missing_prop.append(property_name)
-       
-    if len(missing_prop) == 0:
-        return     
-    elif len(missing_prop) == 1:
-        raise ValueError(f"The required property {missing_prop[0]} has not been set")    
-    else:
-        raise ValueError(f"The following required properties have not been set: {missing_prop}")
-    
-            
-def create_catalogue(header,values):
+def _create_catalogue(header,values):
     """
     Create and return a catalogue of properties or items based on the given inputs.
 
     This function generates a catalogue, which could be a collection of properties, configurations,
     or any other set of items, based on the provided arguments.
 
-    Parameters
+    Parameter
     ----------
     args : various
         The arguments that determine the contents of the catalogue. The type and number of arguments
@@ -160,6 +199,31 @@ def create_catalogue(header,values):
     return catalogue 
 
 
+def _convert_for_yaml(obj):
+    """
+    Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
+    """
+    if isinstance(obj, dict):
+        return {k: _convert_for_yaml(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_for_yaml(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(_convert_for_yaml(v) for v in obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    elif isinstance(obj, Path):
+        return str(obj)
+    elif isinstance(obj, (str, int, float, bool)):
+        return obj
+
+
+def _to_config(obj):
+    config = _convert_for_yaml({name: getattr(obj, name) for name in obj._user_defined if hasattr(obj, name)})
+    return {key: value for key, value in config.items() if value is not None} 
+
+
 def validate_and_convert_location(location):
     """
     Validate and convert a given location into a standard structured format.
@@ -169,7 +233,7 @@ def validate_and_convert_location(location):
     Valid formats for location include a tuple, a dictionary, or a structured 
     array with latitude ('lon') and longitude ('lat').
 
-    Parameters
+    Parameter
     ----------
     location : tuple, dict, ArrayLike
         The input location data. It can be:
@@ -236,7 +300,7 @@ def normalize_coords(loc):
     them to the specified ranges, and handles cases where latitude values exceed the 
     polar extremes, adjusting both latitude and longitude accordingly.
 
-    Parameters
+    Parameter
     ----------
     loc : tuple
         A tuple containing two elements: (longitude, latitude) in degrees. 
@@ -291,7 +355,7 @@ def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayL
     """
     Convert R values to cumulative N values for a given D using the R-plot function.
 
-    Parameters
+    Parameter
     ----------
     R : R = f(D) 
         A function that computes R given D.
@@ -326,4 +390,3 @@ def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayL
         return N
     
     return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
-

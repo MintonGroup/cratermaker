@@ -42,7 +42,6 @@ Methods
     Simulation.save
     Simulation.export_vtk
     Simulation.set_elevation
-    Simulation.set_properties
 
 Attributes
 ----------
@@ -61,7 +60,7 @@ Attributes
     Simulation.n_face
     Simulation.n_node
     Simulation.rng
-    Simulation.scale_cls
+    Simulation.scale
     Simulation.seed
     Simulation.simdir
     Simulation.interval_number
@@ -131,7 +130,7 @@ Generating grids
 .. autosummary::
     :toctree: generated/
 
-    GridStrategy
+    GridMaker
 
 Methods
 -------
@@ -139,10 +138,10 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    GridStrategy.generate_face_distribution
-    GridStrategy.generate_grid
-    GridStrategy.generate_hash
-    GridStrategy.check_and_regrid
+    GridMaker.generate_face_distribution
+    GridMaker.generate_grid
+    GridMaker.generate_hash
+    GridMaker.check_and_regrid
 
 Generating a uniform Icosphere grid
 -----------------------------------
@@ -247,7 +246,6 @@ Methods
     Production.function
     Production.function_inverse
     Production.sample
-    Production.set_model_parameters
 
 Attributes
 ----------
@@ -263,7 +261,6 @@ Attributes
     Production.slope
     Production.rng
     Production.valid_models
-    Production.valid_generator_types
     Production.valid_time
 
 
@@ -291,7 +288,6 @@ Methods
     NeukumProduction.function
     NeukumProduction.chronology
     NeukumProduction.size_frequency_distribution
-    NeukumProduction.set_model_parameters
 
 Attributes
 ----------
@@ -338,14 +334,6 @@ Attributes
     Target.radius
     Target.transition_scale_type
 
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Target.set_properties
-
 .. _api-Material:
 
 Material
@@ -374,42 +362,12 @@ Attributes
     Material.mu
     Material.Ybar
 
-.. _api-Impact:
+.. _api-Crater:
 
-Impact
+Crater
 ======
 
-The ``Impact`` class is an abstract base class that provides a common framework for all impact-related entities in the simulation. It defines the basic attributes and methods shared by all types of impact events, such as diameter, radius, and location. This class is not intended for direct instantiation but should be subclassed by specific impact event classes.
-
-
-Subclasses of Impact include:
------------------------------
-
-- :class:`Crater`
-- :class:`Projectile`
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Impact.diameter
-    Impact.location
-    Impact.radius
-    Impact.rng
-    Impact.scale
-    Impact.scale_cls
-    Impact.target
-
-Creating a Crater
------------------
-The Crater subclass represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features.
-
-.. autosummary::
-    :toctree: generated/
-
-    Crater
+The ``Crater`` class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features. It also defines the properties of the projectile, such as its size, velocity, material, and angle of impact.
 
 
 Attributes
@@ -418,53 +376,41 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Crater.diameter
-    Crater.radius
-    Crater.morphology
-    Crater.morphology_cls
-    Crater.morphology_type
+    Crater.final_diameter
+    Crater.final_radius
     Crater.transient_diameter
     Crater.transient_radius
+    Crater.projectiel_diameter
+    Crater.projectile_radius
+    Crater.projectile_density
+    Crater.projectile_mass
+    Crater.projectile_velocity
+    Crater.projectile_vertical_velocity
+    Crater.projectile_angle
+    Crater.projectile_direction
+    Crater.location
+    Crater.age
+    Crater.morphology_cls
+    Crater.morphology_type
+    Crater.morphology
+    Crater.scale
+    Crater.target
+    Crater.rng
 
+.. _api-ScalingModel:
 
-Creating a Projectile
----------------------
-The Projectile subclass represents a single projectile in the simulation. It defines the properties of the impacting object, such as its size, velocity, material, and angle of impact.
+ScalingModel
+============
 
-.. autosummary::
-    :toctree: generated/
+The ScalingModel class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
 
-    Projectile
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Projectile.diameter
-    Projectile.radius
-    Projectile.density
-    Projectile.mass
-    Projectile.angle
-    Projectile.rng
-    Projectile.velocity
-    Projectile.vertical_velocity
-
-.. _api-Scale:
-
-Scale
-=====
-
-The Scale class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
-
-Creating Scale
+Creating ScalingModel
 --------------
 
 .. autosummary::
     :toctree: generated/
 
-    Scale
+    ScalingModel
 
 Methods
 -------
@@ -472,16 +418,13 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Scale._compute_simple_to_complex_transition_factors
-    Scale.get_morphology_type
-    Scale.f2t_simple
-    Scale.f2t_complex
-    Scale.final_to_transient
-    Scale.transient_to_final
-    Scale.projectile_to_crater
-    Scale.crater_to_projectile
-    Scale.projectile_to_transient
-    Scale.transient_to_projectile
+    ScalingModel.get_morphology_type
+    ScalingModel.final_to_transient
+    ScalingModel.transient_to_final
+    ScalingModel.projectile_to_crater
+    ScalingModel.crater_to_projectile
+    ScalingModel.projectile_to_transient
+    ScalingModel.transient_to_projectile
 
 Attributes
 ----------
@@ -489,15 +432,15 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Scale.target
-    Scale.material
-    Scale.material_name
-    Scale.rng
-    Scale.transition_diameter
-    Scale.transition_nominal
-    Scale.simple_enlargement_factor
-    Scale.complex_enlargement_factor
-    Scale.final_exp
+    ScalingModel.target
+    ScalingModel.material
+    ScalingModel.material_name
+    ScalingModel.rng
+    ScalingModel.transition_diameter
+    ScalingModel.transition_nominal
+    ScalingModel.simple_enlargement_factor
+    ScalingModel.complex_enlargement_factor
+    ScalingModel.final_exp
 
 
 .. _api-Morphology:
@@ -537,12 +480,12 @@ Attributes
     :toctree: generated/
 
     Morphology.crater
-    Morphology.diameter
+    Morphology.final_diameter
     Morphology.dorays
     Morphology.ejrim
     Morphology.ejecta_truncation
     Morphology.floordepth
-    Morphology.floordiam
+    Morphology.floor_diameter
     Morphology.morphology_type
     Morphology.radius
     Morphology.rimheight
@@ -575,10 +518,6 @@ General utilities
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.utils.general_utils.to_config
-    cratermaker.utils.general_utils.set_properties
-    cratermaker.utils.general_utils.check_properties
-    cratermaker.utils.general_utils.create_catalogue
     cratermaker.utils.general_utils.validate_and_convert_location
     cratermaker.utils.general_utils.normalize_coords
     cratermaker.utils.general_utils.R_to_CSFD
