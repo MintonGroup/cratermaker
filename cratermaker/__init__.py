@@ -20,10 +20,12 @@ from .cratermaker import *
 
 from .core.simulation import Simulation
 from .core.target import Target
-from .core.impact import Impact, Crater, Projectile
-from .core.scale import Scale, Material
-from .core.surface import Surface, GridStrategy, IcosphereGrid, ArbitraryResolutionGrid, HiResLocalGrid
-from .core.morphology import Morphology
-from .core.production import Production, NeukumProduction
-from .utils.general_utils import to_config, set_properties, check_properties, create_catalogue, validate_and_convert_location, normalize_coords, R_to_CSFD
+from .core.crater import Crater
+from .core.surface import Surface
+from .components.scaling import available_scaling_models, get_scaling_model
+from .components.production import available_production_models, get_production_model
+from .components.morphology import available_morphology_models, get_morphology_model
+from .components.grid import available_grid_types, get_grid_type
+from .utils.general_utils import validate_and_convert_location, normalize_coords, R_to_CSFD
 from .utils.montecarlo import get_random_location, get_random_location_on_face, get_random_impact_angle, get_random_velocity, get_random_size, bounded_norm
+from . import noise_functions, crater_functions, ejecta_functions

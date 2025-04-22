@@ -35,6 +35,8 @@ dependencies = [
     'trimesh',
     'datashader>=0.17.0',
     'geoviews>=1.14.0',
+    'PyYAML>=6',
+    'astropy>=6'
 ]
 
 [project.optional-dependencies]
@@ -44,6 +46,17 @@ tests = [
 
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
+
+[project.entry-points."cratermaker.components.scaling"]
+richardson2009 = "cratermaker.components.scaling.richardson2009:Richardson2009"
+
+[project.entry-points."cratermaker.components.production"]
+powerlaw = "cratermaker.components.production.powerlaw:PowerLawProduction"
+neukum = "cratermaker.components.production.neukum:NeukumProduction"
+
+[project.entry-points."cratermaker.components.morphology"]
+simplemoon = "cratermaker.components.morphology.simplemoon:SimpleMoon"
+du2025 = "cratermaker.components.morphology.du2025:Du2025"
 
 [build-system]
 requires = [
