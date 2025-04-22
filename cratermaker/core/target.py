@@ -76,7 +76,9 @@ class Target:
                         transition_scale_type=transition_scale_type, 
                         **kwargs
                     )
-
+        arg_check = sum(x is None for x in [self.name, self.diameter, self.mass, self.transition_scale_type])
+        if arg_check > 0:
+            raise ValueError("Invalid Target")
         return
     
     def __setattr__(self, name, value):
