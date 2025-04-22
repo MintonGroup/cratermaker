@@ -92,11 +92,11 @@ class TestSimulation(unittest.TestCase):
     def test_emplace_crater(self):
         cdiam = 2*self.pix
         sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
-        sim.emplace_crater(diameter=cdiam)
-        pdiam = sim.projectile.diameter
+        sim.emplace_crater(final_diameter=cdiam)
+        pdiam = sim.crater.projectile_diameter
         
-        sim.emplace_crater(diameter=cdiam)
-        sim.emplace_crater(diameter=pdiam, from_projectile=True)
+        sim.emplace_crater(final_diameter=cdiam)
+        sim.emplace_crater(projectile_diameter=pdiam)
         return
     
     def test_populate(self):

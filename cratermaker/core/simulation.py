@@ -73,10 +73,9 @@ class Simulation:
         object.__setattr__(self, "_scaling_model", None)
         object.__setattr__(self, "_scale", None)
         object.__setattr__(self, "_morphology_model", None)
-        object.__setattr__(self, "_morphology_cls", None)
+        object.__setattr__(self, "_morphology", None)
         object.__setattr__(self, "_craterlist", None)
         object.__setattr__(self, "_crater", None)
-        object.__setattr__(self, "_projectile", None)
         object.__setattr__(self, "_interval_number", None)
         object.__setattr__(self, "_elapsed_time", None)
         object.__setattr__(self, "_current_age", None)
@@ -141,7 +140,7 @@ class Simulation:
       
         self.morphology_model = morphology_model
         try:
-            self.morphology_cls = get_morphology_model(self.morphology_model)
+            self.morphology = get_morphology_model(self.morphology_model)(rng=self.rng, **morphology_model_parameters, **kwargs)
         except:
             raise ValueError(f"Error initializing {morphology_model}")
         
@@ -246,7 +245,7 @@ class Simulation:
             if self.production.mean_velocity is None:
                 raise RuntimeError("No velocity value is set for this projectile")
             kwargs['mean_velocity'] = self.production.mean_velocity
-        crater = Crater(target=self.target, morphology_cls=self.morphology_cls, scale=self.scale, rng=self.rng, **kwargs)
+        crater = Crater(target=self.target, scale=self.scale, rng=self.rng, **kwargs)
         
         return crater
     
@@ -287,9 +286,7 @@ class Simulation:
             sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """ 
         self.crater = self.generate_crater(**kwargs)
-       
-        self.crater.morphology.form_crater(self.surf,**kwargs)
-        self.crater.morphology.form_ejecta(self.surf,**kwargs)
+        self.morphology.form_crater(self.surf,self.crater,**kwargs)
         
         return  
 
@@ -1192,17 +1189,17 @@ class Simulation:
         self._scale = value
 
     @property
-    def morphology_cls(self):
+    def morphology(self):
         """
-        The Morphology class that defines the crater morphology model. Set during initialization.
+        The crater morphology model. Set during initialization.
         """
-        return self._morphology_cls
+        return self._morphology
 
-    @morphology_cls.setter
-    def morphology_cls(self, value):
-        if not issubclass(value, MorphologyModel):
-            raise TypeError("morphology_cls must be a subclass of MorphologyModel")
-        self._morphology_cls = value
+    @morphology.setter
+    def morphology(self, value):
+        if not isinstance(value, MorphologyModel):
+            raise TypeError("morpholog must be of MorphologyModel type")
+        self._morphology = value
 
     @parameter
     def morphology_model(self):
