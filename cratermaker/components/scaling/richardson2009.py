@@ -110,7 +110,9 @@ class Richardson2009(ScalingModel):
                         catalogue=self.material_catalogue,
                         **kwargs
                     ) 
-        
+        arg_check = sum(x is None for x in [self.target, self.K1, self.mu, self.Ybar, self.target_density, self.projectile_density, self.projectile_vertical_velocity])
+        if arg_check > 0:
+            raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
         # Initialize transition factors
         self._compute_simple_to_complex_transition_factors() 
         return

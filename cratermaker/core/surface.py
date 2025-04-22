@@ -144,7 +144,7 @@ class Surface(UxDataset):
         
         # Verify directory structure exists and create it if not
         if not data_dir:
-            data_dir = Path.cwd() / _DATA_DIR
+            data_dir = _DATA_DIR
         elif not isinstance(data_dir, Path):
             data_dir = Path(data_dir)
             
@@ -330,8 +330,6 @@ class Surface(UxDataset):
     @data_dir.setter
     def data_dir(self, value):
         self._data_dir = value
-        if not os.path.exists(self._data_dir):
-            os.makedirs(self._data_dir)
 
     @parameter
     def grid_file(self):
