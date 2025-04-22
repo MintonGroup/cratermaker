@@ -163,21 +163,6 @@ def _set_properties(obj,
     return matched, unmatched
 
 
-def _check_properties(obj):
-     # Check for any unset properties
-    missing_prop = []
-    for property_name, value in obj.__dict__.items():
-        if value is None:
-            missing_prop.append(property_name)
-       
-    if len(missing_prop) == 0:
-        return     
-    elif len(missing_prop) == 1:
-        raise ValueError(f"The required property {missing_prop[0]} has not been set")    
-    else:
-        raise ValueError(f"The following required properties have not been set: {missing_prop}")
-    
-
 def _create_catalogue(header,values):
     """
     Create and return a catalogue of properties or items based on the given inputs.

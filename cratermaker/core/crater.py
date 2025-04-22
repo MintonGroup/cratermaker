@@ -33,9 +33,9 @@ class Crater:
     projectile_mass : float, optional
         The mass of the projectile in kg.
     projectile_density : float, optional
-        The mass density of the projectile in kg/m**3.
+        The mass density of the projectile in kg/m**3. If not set, the density of the target is used.
     projectile_mean_velocity : float, optional
-        The mean impact velocity of the projectile population in m/s.
+        The mean impact velocity of the projectile population in m/s. 
     projectile_velocity : float, optional
         The velocity of the projectile upon impact, in m/s.
     projectile_vertical_velocity : float, optional
@@ -59,6 +59,30 @@ class Crater:
     **kwargs : Any 
         Additional keyword arguments to pass to the scale and morphology classes.
     """
+    __slots__ = (
+        "_target",
+        "_rng",
+        "_scale",
+        "_morphology_cls",
+        "_morphology_type",
+        "_morphology",
+        "_location",
+        "_age",
+        "_final_diameter",
+        "_transient_diameter",
+        "_face_index",
+        "_node_index",
+        "_simple_enlargement_factor",
+        "_final_exp",
+        "_morphology",
+        "_projectile_diameter",
+        "_projectile_mass",
+        "_projectile_density",
+        "_projectile_velocity",
+        "_projectile_vertical_velocity",
+        "_projectile_mean_velocity",
+        "_projectile_angle",
+        "_projectile_direction")
 
     def __init__(self,
                  final_diameter: FloatLike = None,
@@ -81,7 +105,7 @@ class Crater:
                  morphology_cls: Type[MorphologyModel] = None,
                  rng: Generator = None,
                  **kwargs: Any):
-
+        
         self.rng = rng
         self.target = target
         self.scale = scale
@@ -89,45 +113,35 @@ class Crater:
         self.location = location
         self.age = age
 
-        # Crater properties
-        self._final_diameter = final_diameter
-        self._final_radius = final_radius
-        self._transient_diameter = transient_diameter
-        self._transient_radius = transient_radius
-        self._face_index = None
-        self._node_index = None
-        self._morphology_type = None
-
-        # Projectile properties (prefixed)
-        self._projectile_mass = projectile_mass
-        self._projectile_mean_velocity = projectile_mean_velocity
-        self._projectile_velocity = projectile_velocity
-        self._projectile_vertical_velocity = projectile_vertical_velocity
-        self._projectile_angle = projectile_angle
-        self._projectile_direction = projectile_direction
-        if projectile_density is None:
-            self._projectile_density = self.scale.target_density
+        # validate and set projectile properties
+        if projectile_mean_velocity is not None:
+            if projectile_velocity is not None or projectile_vertical_velocity is not None:
+                raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
         else:
-            self._projectile_density = projectile_density
+            v_values_set = sum(x is not None for x in [projectile_velocity, projectile_vertical_velocity, projectile_angle])
+            if v_values_set > 2:
+                raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
 
-        # Validate crater diameter/radius/transient options
+        self.projectile_mean_velocity = projectile_mean_velocity
+        self.projectile_velocity = projectile_velocity
+        self.projectile_vertical_velocity = projectile_vertical_velocity
+        self.projectile_angle = projectile_angle 
+        self.projectile_direction = projectile_direction
+        self._initialize_projectile_velocities()
+
+        # Validate and set crater size properties
         values_set = sum(x is not None for x in [final_diameter, final_radius, transient_diameter, transient_radius, projectile_radius, projectile_diameter, projectile_mass])
         if values_set > 1:
             raise ValueError("Only one of final_diameter, final_radius, transient_diameter, transient_radius, projectile_diameter, projectile_radius, or projectile_mass may be set")
         elif values_set == 0:
             raise ValueError("A crater must include one of final_diameter, final_radius, transient_diameter, transient_radius, projectile_diameter, projectile_radius, or projectile_mass.")
-        
-        # Velocity/angle logic 
-        if projectile_mean_velocity is not None:
-            if projectile_velocity is not None or projectile_vertical_velocity is not None:
-                raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
-            self.projectile_mean_velocity = projectile_mean_velocity
-        else:
-            v_values_set = sum(x is not None for x in [projectile_velocity, projectile_vertical_velocity, projectile_angle])
-            if v_values_set > 2:
-                raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
-            self._initialize_projectile_velocities()
 
+        if projectile_density is None:
+            self._projectile_density = self.scale.target_density
+        else:
+            self._projectile_density = projectile_density        
+
+        self.projectile_mass = projectile_mass
         self.final_diameter = final_diameter
         self.final_radius = final_radius
         self.transient_diameter = transient_diameter

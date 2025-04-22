@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Any
-from ..utils.general_utils import _set_properties, _check_properties, _to_config, _create_catalogue
+from ..utils.general_utils import _set_properties, _to_config, _create_catalogue
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
 import inspect
@@ -77,7 +77,6 @@ class Target:
                         **kwargs
                     )
 
-        _check_properties(self) 
         return
     
     def __setattr__(self, name, value):

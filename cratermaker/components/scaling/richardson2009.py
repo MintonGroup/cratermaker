@@ -4,7 +4,7 @@ from typing import Any
 from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
-from cratermaker.utils.general_utils import _set_properties, _check_properties
+from cratermaker.utils.general_utils import _set_properties
 from cratermaker.components.scaling import register_scaling_model, ScalingModel
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
@@ -100,8 +100,7 @@ class Richardson2009(ScalingModel):
                         catalogue=self.material_catalogue,
                         **kwargs
                     ) 
-        _check_properties(self)  
-
+        
         # Initialize transition factors
         self._compute_simple_to_complex_transition_factors() 
         return
