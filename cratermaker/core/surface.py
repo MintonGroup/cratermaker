@@ -580,7 +580,7 @@ class Surface(UxDataset):
                     lat1: FloatLike, 
                     lon2: FloatLike, 
                     lat2: FloatLike,
-                    radius: FloatLike = 1.0) -> np.float64:
+                    radius: FloatLike = 1.0) -> float:
         """
         Calculate the great circle distance between two points on a sphere.
 
@@ -599,7 +599,7 @@ class Surface(UxDataset):
 
         Returns
         -------
-        np.float64
+        float
             Great circle distance between the two points in meters.
         """
         # Calculate differences in coordinates
@@ -609,16 +609,16 @@ class Surface(UxDataset):
         # Haversine formula
         a = np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2.0)**2
         c = 2 * np.arcsin(np.sqrt(a))
-        return radius * c
+        return float(radius * c)
     
     def get_distance(self, 
-                     location: tuple[np.float64, np.float64]) -> UxDataArray:
+                     location: tuple[float, float]) -> UxDataArray:
         """
         Computes the distances between nodes and faces and a given location.
 
         Parameters
         ----------
-        location : tuple[np.float64, np.float64]
+        location : tuple[float, float]
             tuple containing the longitude and latitude of the location in degrees.
 
         Returns
@@ -640,7 +640,7 @@ class Surface(UxDataset):
     def calculate_initial_bearing(lon1: FloatLike, 
                                 lat1: FloatLike, 
                                 lon2: FloatLike, 
-                                lat2: FloatLike) -> np.float64:
+                                lat2: FloatLike) -> float:
         """
         Calculate the initial bearing from one point to another on the surface of a sphere.
 
@@ -657,7 +657,7 @@ class Surface(UxDataset):
 
         Returns
         -------
-        np.float64
+        float
             Initial bearing from the first point to the second point in radians.
         """
         # Calculate differences in coordinates
@@ -673,13 +673,13 @@ class Surface(UxDataset):
 
         return initial_bearing
     
-    def get_initial_bearing(self, location: tuple[np.float64, np.float64]) -> UxDataArray:
+    def get_initial_bearing(self, location: tuple[float, float]) -> UxDataArray:
         """
         Computes the initial bearing between nodes and faces and a given location.
 
         Parameters
         ----------
-        location : tuple[np.float64, np.float64]
+        location : tuple[float, float]
             tuple containing the longitude and latitude of the location in degrees.
 
         Returns
@@ -734,7 +734,7 @@ class Surface(UxDataset):
 
     def get_reference_surface(self,
                             location: tuple[FloatLike, FloatLike], 
-                            region_radius: np.float64) -> NDArray[np.float64]:
+                            region_radius: float) -> NDArray[np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
 
@@ -923,7 +923,7 @@ class Surface(UxDataset):
                                     face_index: int, 
                                     size: int = 1,
                                     **kwargs
-                                    ) -> Union[np.float64, tuple[np.float64, np.float64], ArrayLike]:
+                                    ) -> Union[float, tuple[float, float], ArrayLike]:
         """
         Generate a random coordinate within a given face of an unstructured mesh.
 
@@ -1041,7 +1041,7 @@ def _save_surface(surf: Surface,
         os.makedirs(out_dir)         
       
     if time_variables is None:
-        time_variables = {"elapsed_time":np.float64(interval_number)}  
+        time_variables = {"elapsed_time":float(interval_number)}  
     else:
         if not isinstance(time_variables, dict):
             raise TypeError("time_variables must be a dictionary")

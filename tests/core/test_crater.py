@@ -11,7 +11,7 @@ class TestCrater(unittest.TestCase):
         self.assertEqual(crater.final_diameter, final_diameter)
         self.assertEqual(crater.final_radius, final_diameter / 2)
         self.assertIsNotNone(crater.transient_diameter)
-        self.assertIsInstance(crater.transient_diameter, np.float64)        
+        self.assertIsInstance(crater.transient_diameter, float)        
 
     def test_crater_initialization_with_radius(self):
         final_radius = 500

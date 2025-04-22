@@ -167,7 +167,7 @@ class Richardson2009(ScalingModel):
 
     def final_to_transient(self, 
                            final_diameter: FloatLike | None = None,
-                           morphology_type: str | None = None, **kwargs) -> np.float64:
+                           morphology_type: str | None = None, **kwargs) -> float:
         """
         Computes the transient diameter of a crater based on its final diameter and morphology type.
 
@@ -184,7 +184,7 @@ class Richardson2009(ScalingModel):
 
         Returns
         -------
-        np.float64
+        float
             Returns the crater transient diameter in meters
         """       
         if not morphology_type:
@@ -195,13 +195,13 @@ class Richardson2009(ScalingModel):
         else:
             transient_diameter = self._f2t_complex(final_diameter)
 
-        transient_diameter = np.float64(transient_diameter)
+        transient_diameter = float(transient_diameter)
         return transient_diameter, morphology_type
 
 
     def transient_to_final(self, 
                            transient_diameter: FloatLike | None = None, 
-                           **kwargs: Any) -> tuple[np.float64, str]:
+                           **kwargs: Any) -> tuple[float, str]:
         """
         Computes the final diameter of a crater based on its transient diameter and morphology type.
 
@@ -219,7 +219,7 @@ class Richardson2009(ScalingModel):
 
         Returns
         -------
-        np.float64
+        float
             The final crater diameter
         str
             The morphology type of the crater
@@ -263,21 +263,21 @@ class Richardson2009(ScalingModel):
                 final_diameter = final_diameter_complex
                 morphology_type = self.rng.choice(morphology_options)
         
-        final_diameter = np.float64(final_diameter)
+        final_diameter = float(final_diameter)
         morphology_type = morphology_type
         return final_diameter, morphology_type
 
 
     def projectile_to_transient(self, 
                                 projectile_diameter: FloatLike, 
-                                **kwargs: Any) -> np.float64:
+                                **kwargs: Any) -> float:
         """
         Calculate the transient diameter of a crater based on the properties of the projectile and target.
 
 
         Returns
         -------
-        np.float64
+        float
             The calculated transient diameter of the crater resulting from the impact.
 
         References
@@ -314,7 +314,7 @@ class Richardson2009(ScalingModel):
 
     def transient_to_projectile(self, 
                                 transient_diameter: FloatLike, 
-                                **kwargs: Any) -> np.float64: 
+                                **kwargs: Any) -> float: 
         """
         Estimate the characteristics of the projectile that could have created a given crater.
 
@@ -333,7 +333,7 @@ class Richardson2009(ScalingModel):
         Crater
             The computed projectile for the crater.
         """
-        def root_func(projectile_diameter) -> np.float64:
+        def root_func(projectile_diameter) -> float:
             value = self.projectile_to_transient(projectile_diameter)
             return value - transient_diameter 
         
@@ -423,61 +423,61 @@ class Richardson2009(ScalingModel):
 
 
     @property
-    def transition_diameter(self) -> np.float64:
+    def transition_diameter(self) -> float:
         """
         The transition diameter between simple and complex craters in m.
         
         Returns
         -------
-        np.float64
+        float
         """
         return self._transition_diameter
     
     @transition_diameter.setter
     def transition_diameter(self, value: FloatLike) -> None:
-        self._transition_diameter = np.float64(value)
+        self._transition_diameter = float(value)
 
     @property
-    def transition_nominal(self) -> np.float64:
+    def transition_nominal(self) -> float:
         """
         The nominal transition diameter between simple and complex craters in m.
         
         Returns
         -------
-        np.float64
+        float
         """
         return self._transition_nominal
 
     @property
-    def simple_enlargement_factor(self) -> np.float64:
+    def simple_enlargement_factor(self) -> float:
         """
         The enlargement factor for simple craters.
         
         Returns
         -------
-        np.float64
+        float
         """
         return self._simple_enlargement_factor
 
     @property
-    def complex_enlargement_factor(self) -> np.float64:
+    def complex_enlargement_factor(self) -> float:
         """
         The enlargement factor for complex craters.
         
         Returns
         -------
-        np.float64
+        float
         """
         return self._complex_enlargement_factor
     
     @property
-    def final_exp(self) -> np.float64:
+    def final_exp(self) -> float:
         """
         The exponent used in the final rim radius to simple crater radius relationship.
         
         Returns
         -------
-        np.float64
+        float
         """
         return self._final_exp
     
@@ -509,7 +509,7 @@ class Richardson2009(ScalingModel):
         
         Returns
         -------
-        np.float64 
+        float 
         
         References
         ----------
@@ -523,7 +523,7 @@ class Richardson2009(ScalingModel):
             raise TypeError("K1 must be a numeric value or None")
         if value is not None and value < 0:
             raise ValueError("K1 must be a positive number")
-        self._K1 = np.float64(value)
+        self._K1 = float(value)
         
     @property
     def mu(self):
@@ -532,7 +532,7 @@ class Richardson2009(ScalingModel):
         
         Returns
         -------
-        np.float64 
+        float 
         
         References
         ----------
@@ -546,7 +546,7 @@ class Richardson2009(ScalingModel):
             raise TypeError("mu must be a numeric value or None")
         if value is not None and value < 0:
             raise ValueError("mu must be a positive number")
-        self._mu = np.float64(value)
+        self._mu = float(value)
         
     @property
     def Ybar(self):
@@ -555,7 +555,7 @@ class Richardson2009(ScalingModel):
         
         Returns
         -------
-        np.float64 
+        float 
             
                     
         References
@@ -570,7 +570,7 @@ class Richardson2009(ScalingModel):
             raise TypeError("Ybar must be a numeric value or None")
         if value is not None and value < 0:
             raise ValueError("Ybar must be a positive number")
-        self._Ybar = np.float64(value)
+        self._Ybar = float(value)
         
     @property
     def target_density(self):
@@ -579,7 +579,7 @@ class Richardson2009(ScalingModel):
         
         Returns
         -------
-        np.float64 
+        float 
         """
         return self._target_density
     
@@ -590,7 +590,7 @@ class Richardson2009(ScalingModel):
                 raise TypeError("target_density must be a numeric value or None")
             if value < 0:
                 raise ValueError("target_density must be a positive number")
-            self._target_density = np.float64(value)
+            self._target_density = float(value)
 
 
     @property
@@ -600,7 +600,7 @@ class Richardson2009(ScalingModel):
         
         Returns
         -------
-        np.float64 
+        float 
         """
         if self._projectile_density is None:
             self.projectile_density = None
@@ -613,7 +613,7 @@ class Richardson2009(ScalingModel):
                 raise TypeError("projectile_density must be a numeric value or None")
             if value < 0:
                 raise ValueError("projectile_density must be a positive number")
-            self._projectile_density = np.float64(value)
+            self._projectile_density = float(value)
         else:
             if self.target_density is not None:
                 self._projectile_density = self.target_density
@@ -646,9 +646,9 @@ class Richardson2009(ScalingModel):
             predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
             predefined = dict(zip(predefined_models, predefined_velocities))
             if self.target.name in predefined_models:
-                pmv = np.float64(predefined[self.target.name])
+                pmv = float(predefined[self.target.name])
             elif self.target.name in ["Ceres", "Vesta"]:
-                pmv = np.float64(predefined["MBA"])
+                pmv = float(predefined["MBA"])
             else:
                 raise ValueError("No impact velocity model found that matches the target body. Please provide a value for projectile_vertical_velocity.")
             vencounter_mean = np.sqrt(pmv**2 - self.target.escape_velocity**2)
@@ -659,7 +659,7 @@ class Richardson2009(ScalingModel):
         elif isinstance(value, (int, float)):
             if value < 0:
                 raise ValueError("projectile_vertical_velocity must be a positive number")
-            self._projectile_vertical_velocity = np.float64(value)
+            self._projectile_vertical_velocity = float(value)
         else: 
             raise TypeError("projectile_vertical_velocity must be a numeric value or None") 
 

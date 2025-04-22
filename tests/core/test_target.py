@@ -15,8 +15,8 @@ class TestTarget(unittest.TestCase):
             self.assertEqual(target.mass, v['mass'])
             self.assertEqual(target.material_name, v['material_name'])
             self.assertEqual(target.transition_scale_type, v['transition_scale_type'])
-            self.assertIsInstance(target.radius, np.float64)
-            self.assertIsInstance(target.mass, np.float64)
+            self.assertIsInstance(target.radius, float)
+            self.assertIsInstance(target.mass, float)
             self.assertIsInstance(target.material_name, str)
             self.assertIsInstance(target.transition_scale_type, str)
             
@@ -35,8 +35,8 @@ class TestTarget(unittest.TestCase):
             self.assertEqual(target.mass, v['mass'])
             self.assertEqual(target.material_name, v['material_name'])
             self.assertEqual(target.transition_scale_type, v['transition_scale_type'])
-            self.assertIsInstance(target.radius, np.float64)
-            self.assertIsInstance(target.mass, np.float64)
+            self.assertIsInstance(target.radius, float)
+            self.assertIsInstance(target.mass, float)
 
 
     def test_custom_target(self):

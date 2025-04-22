@@ -102,34 +102,34 @@ class Target:
                     object.__setattr__(self, "_updating", False)
 
     @property
-    def radius(self) -> np.float64 | None:
+    def radius(self) -> float | None:
         return self._radius
 
     @radius.setter
     def radius(self, value: FloatLike):
         if value is not None and value <= 0:
             raise ValueError("Radius must be positive")
-        setattr(self, "_radius", np.float64(value))
+        setattr(self, "_radius", float(value))
 
     @property
-    def diameter(self) -> np.float64 | None:
+    def diameter(self) -> float | None:
         return self._diameter
 
     @diameter.setter
     def diameter(self, value: FloatLike):
         if value is not None and value <= 0:
             raise ValueError("Diameter must be positive")
-        setattr(self, "_diameter", np.float64(value))
+        setattr(self, "_diameter", float(value))
 
     @property
-    def mass(self) -> np.float64 | None:
+    def mass(self) -> float | None:
         return self._mass
 
     @mass.setter
     def mass(self, value: FloatLike):
         if value is not None and value <= 0:
             raise ValueError("Mass must be positive")
-        setattr(self, "_mass", np.float64(value))
+        setattr(self, "_mass", float(value))
 
     def to_config(self, **kwargs: Any) -> dict:
         return _to_config(self)
@@ -248,37 +248,37 @@ class Target:
 
     # The following are computed properties based on radius and mass
     @property
-    def escape_velocity(self) -> np.float64:
+    def escape_velocity(self) -> float:
         """
         Calculate the escape velocity for the target body in SI units.
 
         Returns
         -------
-        np.float64
+        float
             Escape velocity in m/s.
         """        
         return np.sqrt(2 * self.radius * self.gravity)
     
     @property
-    def gravity(self) -> np.float64 | None:
+    def gravity(self) -> float | None:
         """
         Calculate the gravitational acceleration at the surface of the target body in SI units.
 
         Returns
         -------
-        np.float64
+        float
             Gravitational acceleration in m/s^2. 
         """
         return 4*np.pi*G.value*(self.radius)*self.bulk_density/3
 
     @property
-    def bulk_density(self) -> np.float64 | None:
+    def bulk_density(self) -> float | None:
         """
         Calculate the bulk density of the target body in SI units.
 
         Returns
         -------
-        np.float64
+        float
             Bulk density in kg/m^3.
         """
         return self.mass / (4/3 * np.pi * (self.radius)**3)  # in kg/m^3

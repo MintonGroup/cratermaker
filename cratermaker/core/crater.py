@@ -23,10 +23,9 @@ class Crater:
     target: Target = field(default_factory=lambda: Target(name="Moon"))
     scale: str | ScalingModel | None = None
     rng: Generator = field(default_factory=np.random.default_rng)
-    # computed fields
-    final_radius: float = field(init=False)
-    transient_radius: float = field(init=False)
-    projectile_radius: float = field(init=False)
+    final_radius: float | None = None
+    transient_radius: float | None = None
+    projectile_radius: float | None = None
     morphology_type: str = field(init=False)
 
     def __post_init__(self):
@@ -147,19 +146,26 @@ class Crater:
 
         # Validate and resolve which size/mass is given
         fd = self.final_diameter
+        fr = self.final_radius
         td = self.transient_diameter
+        tr = self.transient_radius
         pd = self.projectile_diameter
+        pr = self.projectile_radius
         pm = self.projectile_mass
-        pr = None
-        tr = None
-        fr = None
         mt = None
         # Only one of fd, td, pd, pm can be set
-        n_set = sum(x is not None for x in [fd, td, pd, pm])
+        n_set = sum(x is not None for x in [fd, fr, td, tr, pd, pr, pm])
         if n_set != 1:
-            raise ValueError("Exactly one of final_diameter, transient_diameter, projectile_diameter, or projectile_mass must be set.")
+            raise ValueError("Exactly one of final_diameter, final_radius, transient_diameter, transient_radius, projectile_diameter, projectile_radius, or projectile_mass must be set.")
 
         # Compute all related sizes
+        if pr is not None:
+            pd = 2 * pr
+        if fr is not None:
+            fd = 2 * fr
+        if tr is not None:
+            td = 2 * tr
+
         if fd is not None:
             # Final diameter is given
             fd = float(fd)

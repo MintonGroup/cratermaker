@@ -445,7 +445,7 @@ class ProductionModel(ABC):
 
         Returns
         ------- 
-        tuple of np.float64
+        tuple of float
             The start and end ages in units of My.
             
         Raises
@@ -457,16 +457,16 @@ class ProductionModel(ABC):
         if np.isscalar(age):
             if not isinstance(age, FloatLike):
                 raise TypeError("age must be a numeric value (float or int)")
-            age = np.float64(age)
+            age = float(age)
             
             if age_end is None:
-                age_end = np.float64(0.0)
+                age_end = float(0.0)
             else:
                 if not np.isscalar(age_end):
                     raise ValueError("If age is a scalar, age_end must be a scalar")
                 elif not isinstance(age_end, FloatLike):
                     raise TypeError("age_end must be a numeric value (float or int)")
-                age_end = np.float64(age_end)
+                age_end = float(age_end)
             if age < age_end:
                 raise ValueError("age must be greater than or equal to the age_end")
         elif isinstance(age, (list, tuple, np.ndarray)):

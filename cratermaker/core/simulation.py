@@ -1305,7 +1305,7 @@ class Simulation:
     
     @elapsed_time.setter
     def elapsed_time(self, value):
-        self._elapsed_time = np.float64(value)
+        self._elapsed_time = float(value)
         
     @parameter
     def current_age(self):
@@ -1316,7 +1316,7 @@ class Simulation:
     
     @current_age.setter
     def current_age(self, value):
-        self._current_age = np.float64(value)
+        self._current_age = float(value)
         
     @parameter
     def elapsed_n1(self):
@@ -1327,7 +1327,7 @@ class Simulation:
     
     @elapsed_n1.setter
     def elapsed_n1(self, value):
-        self._elapsed_n1 = np.float64(value)
+        self._elapsed_n1 = float(value)
        
     @parameter
     def smallest_crater(self):
@@ -1347,7 +1347,7 @@ class Simulation:
             raise ValueError("smallest_crater must be greater than or equal to zero")
         elif self._largest_crater is not None and value > self._largest_crater:
             raise ValueError("smallest_crater must be less than or equal to largest_crater")
-        self._smallest_crater = np.float64(value)
+        self._smallest_crater = float(value)
         
     @parameter
     def largest_crater(self):
@@ -1367,7 +1367,7 @@ class Simulation:
             raise ValueError("largest_crater must be greater than zero")
         elif self._smallest_crater is not None and value < self._smallest_crater:
             raise ValueError("largest_crater must be greater than or equal to smallest_crater")
-        self._largest_crater = np.float64(value)
+        self._largest_crater = float(value)
        
     @parameter
     def smallest_projectile(self):
@@ -1387,7 +1387,7 @@ class Simulation:
             raise ValueError("smallest_projectile must be greater or equal to zero")
         elif self._largest_projectile is not None and value > self._largest_projectile:
             raise ValueError("smallest_projectile must be less than or equal to largest_projectile")  
-        self._smallest_projectile = np.float64(value)
+        self._smallest_projectile = float(value)
         
     @parameter
     def largest_projectile(self):
@@ -1407,7 +1407,7 @@ class Simulation:
             raise ValueError("largest_projectile must be greater than zero")
         elif self._smallest_projectile is not None and value < self._smallest_projectile:
             raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
-        self._largest_projectile = np.float64(value)
+        self._largest_projectile = float(value)
 
     @property
     def name(self):

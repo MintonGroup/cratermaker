@@ -1,9 +1,5 @@
-import os
 import numpy as np
 from numpy.random import Generator
-import json
-import math
-from scipy import fft
 from scipy.optimize import fsolve
 from numpy.typing import NDArray, ArrayLike
 from typing import Any
@@ -194,7 +190,7 @@ class SimpleMoon(MorphologyModel):
         return  
 
 
-    def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> np.float64:
+    def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> NDArray[np.float64]:
         elevation = crater_functions.profile(r,
                                    r_ref, 
                                    self.crater.final_diameter, 
@@ -207,7 +203,7 @@ class SimpleMoon(MorphologyModel):
         return np.array(elevation, dtype=np.float64)
     
 
-    def ejecta_profile(self, r: ArrayLike) -> np.float64:
+    def ejecta_profile(self, r: ArrayLike) -> NDArray[np.float64]:
         elevation = ejecta_functions.profile(r,
                                    self.crater.final_diameter, 
                                    self.ejrim
@@ -216,7 +212,7 @@ class SimpleMoon(MorphologyModel):
         return elevation
    
     
-    def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
+    def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
         thickness = ejecta_functions.distribution(r, theta,
                                        self.crater.final_diameter, 
                                        self.ejrim, 
@@ -227,7 +223,7 @@ class SimpleMoon(MorphologyModel):
         return thickness
 
 
-    def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> np.float64:
+    def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
         intensity = ejecta_functions.ray_intensity(r, theta,
                                        self.crater.final_diameter, 
                                        self.ejrim, 
