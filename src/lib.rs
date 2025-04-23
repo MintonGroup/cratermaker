@@ -2,7 +2,6 @@
 
 pub mod crater_functions;
 pub mod ejecta_functions;
-pub mod realistic;
 
 use std::f64;
 
@@ -25,11 +24,5 @@ mod cratermaker {
     mod ejecta_functions {
         #[pymodule_export]
         use crate::ejecta_functions::{distribution, profile, ray_intensity};
-    }
-
-    #[pymodule]
-    mod realistic {
-        #[pymodule_export]
-        use crate::realistic::{apply_noise, realistic_crater};
     }
 }
