@@ -82,7 +82,7 @@ class ImpactorModel(ABC):
         return self._target_name
     
     @target_name.setter
-    def target(self, value):
+    def target_name(self, value):
         if not isinstance(value, str):
             raise TypeError("target_name must be a string")
         self._target_name = value
