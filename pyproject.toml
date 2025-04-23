@@ -72,8 +72,6 @@ python-source = "."
 features = ["pyo3/extension-module"]
 module-name = "cratermaker._cratermaker"
 
-
-
 [tool.setuptools_scm]  
 write_to = "cratermaker/_version.py"
 

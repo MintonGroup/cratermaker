@@ -1,15 +1,11 @@
 [package]
 name = "cratermaker"
-version = "0.1.0"
+version = "2025.4.1-a1.dev99+gd98f6b1.d20250423"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "cratermaker"
-crate-type = ["cdylib"]
-
-[profile.release]
-debug = true
+crate-type = [ "cdylib",]
 
 [dependencies]
 itertools = "0.14.0"
@@ -17,3 +13,6 @@ numpy = "0.24.0"
 pyo3 = "0.24.0"
 rand = "0.9.1"
 rayon = "1.10.0"
+
+[profile.release]
+debug = true

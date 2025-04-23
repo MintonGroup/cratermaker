@@ -54,6 +54,7 @@ cratermaker/_version.py
 !docs/**/*.svg
 !fortran_docs.md
 !buildscripts/
+!buildscripts/*.py
 !buildscripts/*.sh
 !.github/
 !.github/workflows/
