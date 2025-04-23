@@ -5,7 +5,7 @@ import os
 import shutil
 import tempfile
 import numpy as np
-import uxarray as uxr
+from uxarray import Grid, open_grid
 from numpy.typing import NDArray
 from typing import Any
 import hashlib
@@ -46,7 +46,7 @@ class GridMaker(ABC):
         """       
 
         points = self.generate_face_distribution(**kwargs) 
-        grid = uxr.Grid.from_points(points, method="spherical_voronoi")
+        grid = Grid.from_points(points, method="spherical_voronoi")
         if not grid_hash:
             grid_hash = self.generate_hash(**kwargs) 
         grid.attrs["grid_hash"] = grid_hash
@@ -107,7 +107,7 @@ class GridMaker(ABC):
         make_new_grid = not os.path.exists(grid_file)
         
         if not make_new_grid:
-            uxgrid = uxr.open_grid(grid_file)
+            uxgrid = open_grid(grid_file)
             try: 
                 old_hash = uxgrid.attrs.get("grid_hash")
                 make_new_grid = old_hash != grid_hash
@@ -140,7 +140,7 @@ class GridMaker(ABC):
         self.generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs) 
         
         # Check to make sure we can open the grid file, then store the hash in the metadata
-        uxgrid = uxr.open_grid(grid_file)
+        uxgrid = open_grid(grid_file)
         new_hash = uxgrid.attrs.get("grid_hash")
         assert(new_hash == grid_hash)
 
@@ -246,8 +246,8 @@ class GridMaker(ABC):
         return self._grid
     
     @grid.setter
-    def grid(self, value: uxr.Grid):
-        if not isinstance(value, uxr.Grid):
+    def grid(self, value: Grid):
+        if not isinstance(value, Grid):
             raise TypeError("grid must be an instance of uxarray.Grid")
         self._grid = value
 

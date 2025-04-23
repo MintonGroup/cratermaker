@@ -6,8 +6,6 @@ from numpy.typing import NDArray
 from scipy.stats import truncnorm
 from scipy.stats import maxwell
 from uxarray import Grid
-import uxarray as uxr
-
 
 def get_random_location(size: int=1, 
                         rng: Generator | None=None
@@ -88,6 +86,7 @@ def get_random_location_on_face(grid: Grid,
     (lon,lat) or ndarray[(lon,lat)] of given size
         A pair or array of pairs of longitude and latitude values in degrees.
     """
+    from uxarray.grid import coordinates
 
     if rng and not isinstance(rng, Generator):
         raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
@@ -120,7 +119,7 @@ def get_random_location_on_face(grid: Grid,
         p_random = r1 * p1 + r2 * p2 + (1 - r1 - r2) * p0
         
         # Convert the random Cartesian point back to lon/lat
-        lon_lat = uxr.grid.coordinates._xyz_to_lonlat_deg(p_random[0],p_random[1],p_random[2])
+        lon_lat = coordinates._xyz_to_lonlat_deg(p_random[0],p_random[1],p_random[2])
         
         # Store the generated lon/lat values in the structured array
         locations['lon'][i] = lon_lat[0]
