@@ -17,8 +17,8 @@ class ProductionModel(ABC):
                  **kwargs: Any):
         
         """
-        An operations class for computing the production function for craters and impactors.  The production function is defined as
-        the cumulative number of craters greater than a given diameter per unit m^2 surface area.
+        An abstract operations class that forms the base of classes that compute the production function for craters and impactors.  The production function is defined as
+        the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
             
         Parameters
         ----------

@@ -3,19 +3,21 @@ import importlib
 from abc import ABC, abstractmethod
 from typing import Any
 import numpy as np
+from numpy.random import Generator
 from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.utils.custom_types import FloatLike
+from cratermaker.utils import montecarlo as mc
 from cratermaker.core import Target
 
-class ScalingModel(ABC):
-    """
-    This is the abstract base class for all scaling models. It defines the interface for converting between projectile and crater diameters.
-    """
+class ImpactorModel(ABC):
     def __init__(self, 
                  target: Target | str = "Moon",
+                 rng: Generator | None = None,
                  **kwargs):
         object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_target", None)
+        object.__setattr__(self, "_rng", None)
+        object.__setattr__(self, "_density", None)
         if isinstance(target, str):
             try:
                 target = Target(target,**kwargs)
@@ -23,15 +25,8 @@ class ScalingModel(ABC):
                 raise ValueError(f"Invalid target name {target}")
         elif not isinstance(target, Target):
             raise TypeError("target must be an instance of Target or a valid name of a target body")
+        self.rng = rng
 
-    @abstractmethod
-    def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
-    @abstractmethod
-    def transient_to_projectile(self, **kwargs: Any) -> np.float64: ...
-    @abstractmethod
-    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
-    @abstractmethod
-    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
 
     def to_config(self, **kwargs: Any) -> dict:
         return _to_config(self)
@@ -39,11 +34,9 @@ class ScalingModel(ABC):
     @parameter
     def model(self):
         """
-        The registered name of this scaling model set by the @register_scaling_model decorator.
+        The registered name of this impactor model set by the @register_impactor_model decorator.
         """ 
         return self._model
-    
-
     
     @property
     def target(self):
@@ -66,33 +59,65 @@ class ScalingModel(ABC):
         self._target = value
         return 
 
+
     @property
-    def target_density(self):
+    def density(self):
         """
-        Volumentric density of material in kg/m^3.
+        Volumetric density of the projectile in kg/m^3.
         
         Returns
         -------
         float 
         """
-        return self._target_density
+        return self._density
     
-    @target_density.setter
-    def target_density(self, value):
+    @density.setter
+    def density(self, value):
         if value is not None:
-            if not isinstance(value, FloatLike):
-                raise TypeError("target_density must be a numeric value or None")
+            if not isinstance(value, FloatLike): 
+                raise TypeError("density must be a numeric value or None")
             if value < 0:
-                raise ValueError("target_density must be a positive number")
-            self._target_density = float(value)
+                raise ValueError("density must be a positive number")
+            self._density = float(value)
+        else:
+            if self.target.surface_density is not None:
+                self._density = self.target.surface_density
+
+    @property
+    def angle(self):
+        """
+        The impact angle in degrees.
+        
+        Returns
+        -------
+        float 
+        """
+        return mc.get_random_impact_angle(self._angle)
 
 
+    @property
+    def rng(self):
+        """
+        A random number generator instance.
+        
+        Returns
+        -------
+        Generator
+        """ 
+        return self._rng
+    
+    @rng.setter
+    def rng(self, value):
+        if not isinstance(value, Generator) and value is not None:
+            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+        self._rng = value or np.random.default_rng()       
 
-_registry: dict[str, ScalingModel] = {}
 
-def register_scaling_model(name: str):
+_registry: dict[str, ImpactorModel] = {}
+
+def register_impactor_model(name: str):
     """
-    Class decorator to register an impactor->crater size scaling component under the given key.
+    Class decorator to register an impactor->crater size impactor component under the given key.
     """
     def decorator(cls):
         cls._model = name 
@@ -102,16 +127,16 @@ def register_scaling_model(name: str):
         return cls
     return decorator
 
-def available_scaling_models() -> list[str]:
+def available_impactor_models() -> list[str]:
     """Return list of all registered catalogue names."""
     return list(_registry.keys())
 
-def get_scaling_model(name: str):
+def get_impactor_model(name: str):
     """Return the component instance for the given name (KeyError if not found)."""
     return _registry[name]
 
 # This loop will import every .py in this folder, causing those modules
-# (which use @register_scaling_model) to run and register themselves.
+# (which use @register_impactor_model) to run and register themselves.
 package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
