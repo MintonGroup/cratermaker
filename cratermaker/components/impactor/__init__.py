@@ -70,7 +70,7 @@ class ImpactorModel(ABC):
         """ 
         return self._model
     
-    @property
+    @parameter
     def target_name(self):
         """
         The name of the target body.

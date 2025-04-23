@@ -144,7 +144,7 @@ class Simulation:
                 self.impactor_model = "comets"
         try:
             self.impactor_model = impactor_model
-            self.impactor = get_impactor_model(self.impactor_model)(target_name=self.target_name, rng=self.rng, **kwargs) 
+            self.impactor = get_impactor_model(self.impactor_model)(target_name=self.target.name, rng=self.rng, **kwargs) 
         except:
             raise ValueError(f"Error initializing impactor model {self.impactor_model}")
             

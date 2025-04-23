@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.core import Target
+from cratermaker.core.target import Target
 
 class ScalingModel(ABC):
     """
