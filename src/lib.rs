@@ -1,7 +1,7 @@
 #![feature(float_erf)] // Required to use f64::erf (https://github.com/rust-lang/rust/issues/136321)
 
-pub mod crater;
-pub mod ejecta;
+pub mod crater_functions;
+pub mod ejecta_functions;
 pub mod realistic;
 
 use std::f64;
@@ -11,19 +11,20 @@ use pyo3::prelude::*;
 const VSMALL: f64 = 10.0 * std::f64::EPSILON;
 
 #[pymodule]
+#[pyo3(name = "_cratermaker")]
 mod cratermaker {
     use super::*;
 
     #[pymodule]
-    mod crater {
+    mod crater_functions {
         #[pymodule_export]
-        use crate::crater::profile;
+        use crate::crater_functions::profile;
     }
 
     #[pymodule]
-    mod ejecta {
+    mod ejecta_functions {
         #[pymodule_export]
-        use crate::ejecta::{distribution, profile, ray_intensity};
+        use crate::ejecta_functions::{distribution, profile, ray_intensity};
     }
 
     #[pymodule]

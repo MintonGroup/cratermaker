@@ -8,7 +8,7 @@ from cratermaker.core.surface import Surface
 from cratermaker.core.crater import Crater
 from cratermaker.components.morphology import register_morphology_model, MorphologyModel
 from cratermaker.utils.general_utils import parameter
-from cratermaker import crater_functions, ejecta_functions
+from cratermaker._cratermaker import crater_functions, ejecta_functions
 
 @register_morphology_model("simplemoon")
 class SimpleMoon(MorphologyModel):
@@ -226,7 +226,6 @@ class SimpleMoon(MorphologyModel):
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
         intensity = ejecta_functions.ray_intensity(r, theta,
                                        self.crater.final_diameter, 
-                                       self.ejrim, 
                                        self.ejecta_truncation,
                                     )
         intensity = np.array(intensity, dtype=np.float64)
