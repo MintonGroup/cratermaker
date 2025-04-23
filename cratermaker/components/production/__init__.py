@@ -9,16 +9,20 @@ from numpy.typing import ArrayLike
 from typing import Any, Union
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.montecarlo import get_random_size
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import parameter
+from cratermaker.core.base import CratermakerBase
+from cratermaker.core.target import Target
 
-class ProductionModel(ABC):
+class ProductionModel(CratermakerBase, ABC):
     def __init__(self, 
-                 rng: Generator | None = None, 
+                 rng: Generator | None = None,
+                 rng_seed: int | None = None, 
+                 rng_state: dict | None = None,
                  **kwargs: Any):
         
         """
-        An operations class for computing the production function for craters and impactors.  The production function is defined as
-        the cumulative number of craters greater than a given diameter per unit m^2 surface area.
+        An abstract operations class that forms the base of classes that compute the production function for craters and impactors.  The production function is defined as
+        the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
             
         Parameters
         ----------
@@ -27,14 +31,18 @@ class ProductionModel(ABC):
         impact_velocity_model : str, optional
             The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
             Only one of either mean_velocity or impact_velocity_model can be provided. Default is "Moon_MBA"
-        rng : numpy.random.Generator, optional
-            A random number generator to use for sampling. If None, a default generator will be used.
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
+        **kwargs : Any
+            Additional keyword arguments.
         """
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
-        self.rng = rng
 
-    def to_config(self, **kwargs: Any) -> dict:
-        return _to_config(self)
 
     def sample(self,
                age: FloatLike | None = None,
@@ -94,7 +102,7 @@ class ProductionModel(ABC):
         input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
         cdf = self.function(diameter=input_diameters, age=age, age_end=age_end, **kwargs)
         expected_num = cdf[0] * area if area is not None else None
-        diameters = np.asarray(get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng))
+        diameters = np.asarray(get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, **vars(self.common_args)))
         if diameters.size == 0:
             return np.empty(0), np.empty(0)
         elif diameters.size == 1:
@@ -200,7 +208,24 @@ class ProductionModel(ABC):
             return retval.item() if np.isscalar(diameter) else retval
         else:
             raise ValueError(f"The root finding algorithm did not converge for all values of diameter and cumulative_number. Flag {flag}")
-    
+
+    def get_impactor_properties(self, 
+                                projectile_mean_velocity: FloatLike | None = None,
+                                **kwargs) -> dict:
+                     
+        """
+        Generates basic impactor properties including density, velocity, and angle.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the impactor properties.
+        """
+
+        return {"projectile_density": 0.0,
+                "projectile_velocity": 0.0,
+                "projectile_angle": 0.0}
+
     @abstractmethod
     def chronology(self,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -474,19 +499,6 @@ class ProductionModel(ABC):
        
         return age, age_end 
 
-    @property
-    def rng(self):
-        """
-        A random number generator instance. If not provided, the default numpy RNG will be used.
-        """
-        return self._rng
-
-    @rng.setter
-    def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        self._rng = value or np.random.default_rng()
-
     @parameter
     def model(self):
         """
@@ -566,3 +578,63 @@ def get_production_model(name: str):
 package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
+
+
+def _init_production(production: str | ProductionModel | None = None,
+                     **kwargs: Any) -> ProductionModel:
+    """
+    This is a helper function that can be used to validate and initialize the production model.
+
+    Parameters
+    ----------
+    production : str | ProductionModel | None, optional
+        The production model to use. This can be either a string or a ProductionModel instance. 
+        If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
+
+    kwargs : Any
+        Additional keyword arguments to pass to the production model constructor.
+    Returns
+    -------
+    ProductionModel
+        An instance of the specified production model.
+    Raises
+    ------
+    KeyError
+        If the specified production model name is not found in the registry.
+    TypeError
+        If the specified production model is not a string or a subclass of ProductionModel.
+    ValueError
+        If there is an error initializing the production model.
+
+    """
+
+    if production is None:
+        target = kwargs.get("target", "Moon")
+        if isinstance(target, str):
+            target_name = target.capitalize()
+        elif isinstance(target, Target):
+            target_name = target.name.capitalize()
+        if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
+            production_model = "neukum"
+            if target_name in ['Moon', 'Mars']:
+                production = get_production_model(production_model)(version=target_name, **kwargs)
+            else:
+                production = get_production_model(production_model)(version="projectile", **kwargs)
+        else:
+            production = get_production_model("powerlaw")(**kwargs)
+    elif isinstance(production, str):
+        if production not in available_production_models():
+            raise KeyError(f"Invalid production model {production}. Must be one of {available_production_models()}")
+        try:
+            production = get_production_model(production)(**kwargs)
+        except:
+            raise ValueError(f"Error initializing production model {production_model}")    
+    elif isinstance(production, type) and issubclass(production, ProductionModel):
+        try:
+            production = production(**kwargs)
+        except:
+            raise ValueError(f"Error initializing production model {production_model}") 
+    elif not isinstance(production, ProductionModel):
+        raise TypeError("production must be a string or ProductionModel instance")
+    
+    return production

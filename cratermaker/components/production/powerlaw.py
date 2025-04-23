@@ -17,34 +17,31 @@ class PowerLawProduction(ProductionModel):
     ----------
     generator_type : str, optional
         The type of generator to use. This can be either "crater" or "projectile". Default is "crater". 
-
-    mean_velocity : float, optional
-        The mean impact velocity to use for the impact simulation. Only one of either mean_velocity or impact_velocity_model can be provided.
-    impact_velocity_model : str, optional
-        The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
-        Only one of either mean_velocity or impact_velocity_model can be provided. Default is "Moon_MBA"
     N1_coef : float, optional
         The coefficient for the power law production function at 1 m diameter per 1 My. 
         Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
     slope : float, optional
         The slope of the power law production function. 
         Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
-    rng : numpy.random.Generator, optional
-        A random number generator to use for sampling. If None, a default generator will be used.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments. 
     """
     def __init__(self, 
-                rng: Generator | None = None,
                 generator_type: str = "crater",
-                mean_velocity: FloatLike | None = None,
-                impact_velocity_model: str | None = None,
                 N1_coef: FloatLike | None = None,
                 slope: FloatLike | None = None,
+                rng: Generator | None = None,
+                rng_seed: int | None = None,
+                rng_state: dict | None = None,
                 **kwargs: Any):
 
-        super().__init__(rng=rng, 
-                         mean_velocity=mean_velocity, 
-                         impact_velocity_model=impact_velocity_model, 
-                         **kwargs) 
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs) 
         self.generator_type = generator_type
         
         # Default values that are approximately equal to the NPF for the Moon

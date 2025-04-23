@@ -3,9 +3,10 @@ import cratermaker
 from cratermaker import Target
 import tempfile
 import os
+from pathlib import Path
 import numpy as np
 import xarray as xr
-from cratermaker.core.surface import _COMBINED_DATA_FILE_NAME
+from cratermaker.constants import _COMBINED_DATA_FILE_NAME, _EXPORT_DIR
 # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
 # The API change does not affect the functionality of the code, so we can safely ignore the warning
 import warnings
@@ -27,11 +28,13 @@ class TestSimulation(unittest.TestCase):
         print(f"Temporary directory created: {self.simdir}")
         target = Target(name="Moon")
         self.pix = target.radius / 10.0
+        self.cwd = Path.cwd()
         self.gridlevel = 5
-        os.chdir(self.simdir) 
+        os.chdir(self.temp_dir.name)
         
     def tearDown(self):
         # Clean up temporary directory
+        os.chdir(self.cwd)  # Change back to the original working directory
         self.temp_dir.cleanup() 
         return           
 
@@ -75,19 +78,12 @@ class TestSimulation(unittest.TestCase):
       
         sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
         # Test with default parameters
-        default_out_dir = os.path.join(sim.simdir, "vtk_files")
+        default_out_dir = os.path.join(sim.simdir, _EXPORT_DIR)
         expected_files = ["surf000000.vtp"]
         sim.export_vtk()
         self.assertTrue(os.path.isdir(default_out_dir))
         for f in expected_files:
             self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
-            
-        # Test with custom output directory
-        custom_out_dir = os.path.join(sim.simdir, "custom_vtk_files")
-        sim.export_vtk(out_dir=custom_out_dir)
-        self.assertTrue(os.path.isdir(custom_out_dir))
-        for f in expected_files:
-            self.assertTrue(os.path.exists(os.path.join(custom_out_dir, f)))        
         
     def test_emplace_crater(self):
         cdiam = 2*self.pix

@@ -1,18 +1,15 @@
 import unittest
 import os
-import shutil
-import numpy as np
+from pathlib import Path
 import tempfile
-from cratermaker import Target, Surface, get_grid_type, available_grid_types
-from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME
-from cratermaker.utils.montecarlo import get_random_location
-from cratermaker.utils.general_utils import normalize_coords
+from cratermaker import Target, get_grid_type, available_grid_types
+from cratermaker.constants import  _GRID_FILE_NAME
 
 gridtypes = available_grid_types()
 
 class TestGrid(unittest.TestCase):
     """
-    A collection of unit tests for the Surface class in the cratermaker project.
+    A collection of unit tests for the GridMaker classes in the cratermaker project.
 
     Parameters
     ----------
@@ -29,16 +26,18 @@ class TestGrid(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.grid_file = os.path.join(self.temp_dir.name, _GRID_FILE_NAME)
+        self.grid_file = Path(self.temp_dir.name) / _GRID_FILE_NAME
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
+        self.cwd = Path.cwd()
         os.chdir(self.temp_dir.name)
         
         return
     
     def tearDown(self):
         # Clean up temporary directory
+        os.chdir(self.cwd)
         self.temp_dir.cleanup() 
         return
 
@@ -63,8 +62,8 @@ class TestGrid(unittest.TestCase):
 
         for gridtype, args in gridargs.items():
             grid = get_grid_type(gridtype)(**args)
-            grid.generate_grid(grid_file=self.grid_file)
-            self.assertTrue(os.path.exists(self.grid_file))
+            grid.generate_grid()
+            self.assertTrue(os.path.exists(grid.file))
         
         return
 

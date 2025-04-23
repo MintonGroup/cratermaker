@@ -3,7 +3,7 @@
 # This gets the current system's MacOS version number and converts it from its full version to just major version. For instance, if
 # the MacOS version is 14.4.1 then this script will return 14.0. 
 # 
-# Copyright 2024 - The Minton Group at Purdue University
+# Copyright 2025 - The Minton Group at Purdue University
 # This file is part of Cratermaker.
 # Cratermaker is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
 # as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.

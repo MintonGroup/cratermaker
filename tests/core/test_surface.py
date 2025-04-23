@@ -1,10 +1,11 @@
 import unittest
 import os
+from pathlib import Path
 import shutil
 import numpy as np
 import tempfile
 from cratermaker import Target, Surface
-from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME
+from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
 
@@ -32,12 +33,13 @@ class TestSurface(unittest.TestCase):
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
+        self.cwd = Path.cwd()
         os.chdir(self.temp_dir.name)
         
         return
     
     def tearDown(self):
-        # Clean up temporary directory
+        os.chdir(self.cwd)  # Change back to the original working directory
         self.temp_dir.cleanup() 
         return
 

@@ -7,6 +7,7 @@ from scipy.stats import truncnorm
 from scipy.stats import maxwell
 from uxarray import Grid
 import uxarray as uxr
+from typing import Any
 
 
 def get_random_location(size: int=1, 
@@ -134,7 +135,8 @@ def get_random_location_on_face(grid: Grid,
 
 
 def get_random_impact_angle(size: int | tuple[int, ...]=1, 
-                            rng: Generator | None=None
+                            rng: Generator | None=None,
+                            **kwargs: Any
                             ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample impact angles from a distribution centered on 45deg.
@@ -167,11 +169,43 @@ def get_random_impact_angle(size: int | tuple[int, ...]=1,
         return np.rad2deg(impact_angle)
 
 
+def get_random_impact_direction(size: int | tuple[int, ...]=1,
+                                rng: Generator | None=None,
+                                **kwargs: Any
+                                ) -> Union[np.float64,NDArray[np.float64]]:
+    """
+    Sample impact direction from a uniform distribution.
+
+    Parameters
+    ----------
+    size : int or tuple of ints, optional
+        The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single scalar value is returned.
+    rng : numpy.random.Generator, optional
+        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used to create a new instance.
+
+    Returns
+    -------
+    np.float64 or ndarray of np.float64
+        A scalar or array of impact angles (in degrees).
+    """
+    if rng and not isinstance(rng, Generator):
+        raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
+    if rng is None:
+        rng = np.random.default_rng() 
+    
+    pdir = rng.uniform(0.0, 360.0, size=size)
+    if size == 1:
+        return pdir[0]
+    else:
+        return pdir
+
+
 def get_random_size(diameters: NDArray[np.float64], 
                     cdf: NDArray[np.float64], 
                     size: int | tuple[int, ...] | None = None, 
                     mu: int | tuple[int, ...] | None = None,
-                    rng: Generator | None=None
+                    rng: Generator | None=None,
+                    **kwargs: Any
                     ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample diameters from a cumulative size-frequency distribution (SFD).
@@ -299,7 +333,8 @@ def get_random_size(diameters: NDArray[np.float64],
 
 def get_random_velocity(vmean: np.float64, 
                         size: int | tuple[int, ...]=1, 
-                        rng: Generator | None=None
+                        rng: Generator | None=None,
+                        **kwargs
                         ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample impact velocities from a Maxwell-Boltzmann distribution given a mean velocity.

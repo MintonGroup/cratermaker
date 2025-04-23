@@ -1,10 +1,13 @@
 import numpy as np
 from typing import Any
-from ..utils.general_utils import _set_properties, _to_config, _create_catalogue
+from ..utils.general_utils import _set_properties, _create_catalogue
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
+from .base import CratermakerBase
+from pathlib import Path
+from numpy.random import Generator
 
-class Target:
+class Target(CratermakerBase):
     """
     Represents the target body in a crater simulation.
 
@@ -18,7 +21,8 @@ class Target:
                  diameter: FloatLike | None = None,
                  mass: FloatLike | None = None, 
                  transition_scale_type: str | None = None,
-                 material_name: str | None = None,      
+                 material_name: str | None = None,
+                 density: FloatLike | None = None,
                  **kwargs: Any,
                  ):
         """
@@ -38,6 +42,9 @@ class Target:
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
         material_name : str or None
             Name of the material composition of the target body.
+        density : FloatLike or None
+            Volumetric density of the surface of the target body in kg/m^3.
+
         **kwargs : Any
             Additional keyword argumments that could be set by the user.
 
@@ -46,16 +53,16 @@ class Target:
         - The `radius` and `diameter` parameters are mutually exclusive. Only one of them should be provided.
         - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
         """    
-
-        object.__setattr__(self, "_name",       None)
-        object.__setattr__(self, "_radius",       None)
-        object.__setattr__(self, "_diameter",     None)
-        object.__setattr__(self, "_mass",      None)
+        object.__setattr__(self, "_updating", False)   # guard against recursive updates
+        super().__init__(**kwargs)
+        object.__setattr__(self, "_name", None)
+        object.__setattr__(self, "_radius", None)
+        object.__setattr__(self, "_diameter", None)
+        object.__setattr__(self, "_mass", None)
         object.__setattr__(self, "_transition_scale_type", None)
         object.__setattr__(self, "_material_name", None)
-        object.__setattr__(self, "_catalogue",  None)
-        object.__setattr__(self, "_user_defined", set())   # which public props were set by user
-        object.__setattr__(self, "_updating",     False)   # guard against recursive updates
+        object.__setattr__(self, "_density", None)
+        object.__setattr__(self, "_catalogue", None)
 
 
         # ensure that only either diamter of radius is passed
@@ -73,6 +80,7 @@ class Target:
                         mass=mass, 
                         material_name=material_name,
                         catalogue=catalogue,
+                        density=density,
                         transition_scale_type=transition_scale_type, 
                         **kwargs
                     )
@@ -133,9 +141,6 @@ class Target:
             raise ValueError("Mass must be positive")
         setattr(self, "_mass", float(value))
 
-    def to_config(self, **kwargs: Any) -> dict:
-        return _to_config(self)
-
     @property
     def name(self):
         """
@@ -170,6 +175,29 @@ class Target:
         if not isinstance(value, str) and value is not None:
             raise TypeError("material_name must be a string or None")
         self._material_name = value
+
+    @property
+    def density(self):
+        """
+        The volumetric density of the surface of the target body in kg/m^3.
+        
+        Returns
+        -------
+        float 
+        """
+        return self._density
+    
+    @density.setter
+    def density(self, value):
+        if value is not None:
+            if not isinstance(value, FloatLike):
+                raise TypeError("density must be a numeric value or None")
+            if value <= 0:
+                raise ValueError("density must be a positive number")
+            self._density = float(value)
+        else:
+            self._density = None
+        return
 
     @property
     def catalogue(self):
@@ -271,17 +299,26 @@ class Target:
         float
             Gravitational acceleration in m/s^2. 
         """
-        return 4*np.pi*G.value*(self.radius)*self.bulk_density/3
+        return G.value*self.mass / (self.radius**2)  
 
-    @property
-    def bulk_density(self) -> float | None:
-        """
-        Calculate the bulk density of the target body in SI units.
 
-        Returns
-        -------
-        float
-            Bulk density in kg/m^3.
-        """
-        return self.mass / (4/3 * np.pi * (self.radius)**3)  # in kg/m^3
+def _init_target(target : Target | str = "Moon",
+                 **kwargs: Any) -> Target:
+    
+    if target is None:
+        try: 
+            target = Target(name="Moon", **kwargs)
+        except:
+            raise ValueError("Error initializing target.")
+    elif isinstance(target, str):
+        try:
+            target = Target(name=target, **kwargs)
+        except KeyError:
+            raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.")
+    elif not isinstance(target, Target):
+        raise TypeError("target must be a string or a Target object")
+    
+    return target
+    
+
 

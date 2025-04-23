@@ -1,5 +1,5 @@
 import unittest
-from cratermaker.components.production import get_production_model, available_production_models
+from cratermaker.components.production import _init_production, get_production_model, available_production_models
 import numpy as np
 
 production_models = available_production_models()
@@ -77,6 +77,13 @@ class TestProduction(unittest.TestCase):
         diameter, age = neukum.sample(age=1e-6, diameter_range=(300e3, 1000e3), area=1e-6)
         self.assertEqual(diameter.size, 0)
         self.assertEqual(age.size, 0) 
+
+    def test_init_production(self):
+        # Test that _init_production returns a valid production model
+        for model_name in production_models:
+            production = _init_production(model_name)
+            self.assertIn(model_name, production_models)
+            self.assertIsInstance(production, get_production_model(model_name))
         
 if __name__ == '__main__':
     unittest.main()
