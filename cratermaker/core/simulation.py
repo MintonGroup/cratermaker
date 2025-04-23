@@ -245,7 +245,7 @@ class Simulation:
             if pmv is None:
                 raise RuntimeError("No projectile_velocity value is set for this projectile")
             kwargs['projectile_mean_velocity'] = pmv
-        crater = Crater(target=self.target, scale=self.scale, rng=self.rng, **kwargs)
+        crater = Crater.from_args(target=self.target, scale=self.scale, rng=self.rng, **kwargs)
         
         return crater
     
