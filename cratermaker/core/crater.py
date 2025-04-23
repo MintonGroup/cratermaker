@@ -5,6 +5,7 @@ from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..components.scaling import ScalingModel, get_scaling_model
+from ..components.impactor import ImpactorModel, get_impactor_model
 
 @dataclass(frozen=True, slots=True)
 class Crater:
@@ -20,6 +21,7 @@ class Crater:
     age: float | None = None
     target: Target = field(default_factory=lambda: Target(name="Moon"))
     scale: str | ScalingModel | None = None
+    impactor: str | ImpactorModel | None = None,
     rng: Generator = field(default_factory=np.random.default_rng)
     final_radius: float | None = None
     transient_radius: float | None = None
@@ -51,12 +53,39 @@ class Crater:
             age = float(age)
         object.__setattr__(self, 'age', age)
 
+
         # Handle velocities and angles
         pmv = self.projectile_mean_velocity
         pv = self.projectile_velocity
         pvv = self.projectile_vertical_velocity
         pang = self.projectile_angle
         pdir = self.projectile_direction
+
+        if self.impactor is not None:
+            vargs = sum(x is not None for x in [pv, pvv, pmv])
+            if vargs > 0:
+                raise ValueError("projectile_velocity, projectile_vertical_velocity, and projectile_mean_velocity cannot be used with an impactor model") 
+
+            if isinstance(self.impactor, str):
+                try:
+                    self.impactor = get_impactor_model(self.impactor)(target_name=self.target.name, rng=self.rng)
+                except ValueError as e:
+                    raise ValueError(f"Invalid impactor name {self.impactor}") from e
+            elif not isinstance(self.impactor, ImpactorModel):
+                raise TypeError("impactor must be an instance of ImpactorModel or a valid name of an impactor model")
+             
+            pargs = self.impactor.get_projectile()
+            pv = pargs.get("projectile_velocity", None)
+
+            # Only override with values from the impactor model if they are not already set
+            if pang is None:
+                pang = pargs["projectile_angle"]
+            if prho is None:
+                prho = pargs["projectile_density"]
+            if pdir is None:
+                pdir = pargs["projectile_direction"]
+
+
         # Validate velocity/angle input
         if pmv is not None:
             if pv is not None or pvv is not None:

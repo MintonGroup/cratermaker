@@ -20,6 +20,7 @@ from ..noise_functions import apply_noise
 from ..components.scaling import ScalingModel, get_scaling_model, available_scaling_models
 from ..components.production import ProductionModel, get_production_model, available_production_models
 from ..components.morphology import MorphologyModel, get_morphology_model, available_morphology_models
+from ..components.impactor import ImpactorModel, get_impactor_model, available_impactor_models
 
 class Simulation:
     """
@@ -32,6 +33,7 @@ class Simulation:
                  scaling_model: str = "richardson2009",
                  production_model: str | None = None,
                  morphology_model: str = "simplemoon",
+                 impactor_model: str = "asteroids",
                  reset_surface: bool = True,
                  simdir: os.PathLike = Path.cwd(), 
                  **kwargs: Any):
@@ -53,6 +55,8 @@ class Simulation:
             Earth, and a simple power law model otherwise.
         morphology_model : str, optional
             The name of the component model used to describe the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
+        impactor_model : str, optional
+            The name of the impactor model to use from the components library. The default is "asteroids". This model is used to generate the impactor properties for the simulation, such as velocity and density.
         reset_surface : bool, optional
             Flag to reset the surface elevation, default is True. If False, the surface will be preserved and the simulation will
             continue from the last saved state.
@@ -74,6 +78,8 @@ class Simulation:
         object.__setattr__(self, "_scale", None)
         object.__setattr__(self, "_morphology_model", None)
         object.__setattr__(self, "_morphology", None)
+        object.__setattr__(self, "_impactor_model", None)
+        object.__setattr__(self, "_impactor", None)
         object.__setattr__(self, "_craterlist", None)
         object.__setattr__(self, "_crater", None)
         object.__setattr__(self, "_interval_number", None)
@@ -130,6 +136,17 @@ class Simulation:
             self.production = get_production_model(self.production_model)(rng=self.rng, **production_model_parameters, **kwargs)
         except:
             raise ValueError(f"Error initializing production model {self.production_model}")
+        
+        if impactor_model is None:
+            if self.target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
+                self.impactor_model = "asteroids"
+            else:
+                self.impactor_model = "comets"
+        try:
+            self.impactor_model = impactor_model
+            self.impactor = get_impactor_model(self.impactor_model)(target_name=self.target_name, rng=self.rng, **kwargs) 
+        except:
+            raise ValueError(f"Error initializing impactor model {self.impactor_model}")
             
         # Set the scaling law model for this simulation 
         self.scaling_model = scaling_model
@@ -150,7 +167,7 @@ class Simulation:
                 # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
                 # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
                 for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
-                    crater, _ = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scale.projectile_mean_velocity*10)
+                    crater = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scale.projectile_mean_velocity*10)
                     rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
                     if rmax < self.target.radius * 2 * np.pi:
                         superdomain_scale_factor = rmax / crater.final_radius
@@ -234,10 +251,10 @@ class Simulation:
         .. code-block:: python
         
             # Create a crater and projectile pair with a specific diameter
-            crater, projectile = sim.generate_crater(diameter=1000.0)
+            crater = sim.generate_crater(diameter=1000.0)
     
             # Create a crater with a specific transient diameter and location (but ignore the projectile)
-            crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
+            crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
         # Create a new Crater object with the passed arguments and set it as the crater of this simulation
         
@@ -246,7 +263,7 @@ class Simulation:
             if pmv is None:
                 raise RuntimeError("No projectile_velocity value is set for this projectile")
             kwargs['projectile_mean_velocity'] = pmv
-        crater = Crater.from_args(target=self.target, scale=self.scale, rng=self.rng, **kwargs)
+        crater = Crater.from_args(target=self.target, scale=self.scale, impactor=self.impactor, rng=self.rng, **kwargs)
         
         return crater
     
@@ -1216,6 +1233,34 @@ class Simulation:
         if value.lower() not in available_morphology_models():
             raise ValueError(f"morphology_model must be one of {available_morphology_models()}")
         self._morphology_model = value.lower()
+
+    @property
+    def impactor(self):
+        """
+        The crater impactor model. Set during initialization.
+        """
+        return self._impactor
+
+    @impactor.setter
+    def impactor(self, value):
+        if not isinstance(value, ImpactorModel):
+            raise TypeError("morpholog must be of impactorModel type")
+        self._impactor = value
+
+    @parameter
+    def impactor_model(self):
+        """
+        The name of the impactor model to load from the components library.
+        """
+        return self._impactor_model
+
+    @impactor_model.setter
+    def impactor_model(self, value):
+        if not isinstance(value, str):
+            raise TypeError("impactor_model must be a string")
+        if value.lower() not in available_impactor_models():
+            raise ValueError(f"impactor_model must be one of {available_impactor_models()}")
+        self._impactor_model = value.lower()
 
     @property
     def crater(self):
