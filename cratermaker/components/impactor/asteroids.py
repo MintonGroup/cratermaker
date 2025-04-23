@@ -46,7 +46,7 @@ class AsteroidImpactors(ImpactorModel):
         target_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0, 5300.0, 5300.0]
         catalogue = dict(zip(known_targets, target_velocities))
         if self.target_name in known_targets:
-            pmv = float(catalogue[self.target.name])
+            pmv = float(catalogue[self.target_name])
         else:
             warn(f"Target {self.target_name} not found in known targets. Known targets include {known_targets}. Defaulting to the Moon.")
             pmv = float(catalogue["Moon"])
