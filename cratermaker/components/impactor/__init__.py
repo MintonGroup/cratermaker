@@ -85,7 +85,7 @@ class ImpactorModel(ABC):
     def target(self, value):
         if not isinstance(value, str):
             raise TypeError("target_name must be a string")
-        self._target = value
+        self._target_name = value
         return 
 
     @parameter
