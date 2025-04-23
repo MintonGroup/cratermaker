@@ -256,13 +256,7 @@ class Simulation:
             # Create a crater with a specific transient diameter and location (but ignore the projectile)
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
-        # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        
-        if "projectile_velocity" not in kwargs and "projectile_mean_velocity" not in kwargs and "projectile_vertical_velocity" not in kwargs:
-            pmv = self.scale.projectile_mean_velocity
-            if pmv is None:
-                raise RuntimeError("No projectile_velocity value is set for this projectile")
-            kwargs['projectile_mean_velocity'] = pmv
+         
         crater = Crater.from_args(target=self.target, scale=self.scale, impactor=self.impactor, rng=self.rng, **kwargs)
         
         return crater
