@@ -3,9 +3,11 @@ import importlib
 from abc import ABC, abstractmethod
 from typing import Any
 import numpy as np
+from numpy.random import Generator
 from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.target import Target
+from cratermaker.components.impactor import ImpactorModel, get_impactor_model
 
 class ScalingModel(ABC):
     """
@@ -13,9 +15,13 @@ class ScalingModel(ABC):
     """
     def __init__(self, 
                  target: Target | str = "Moon",
+                 impactor: ImpactorModel | str = "asteroids",
+                 rng : Generator | None = None,
                  **kwargs):
         object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_target", None)
+        object.__setattr__(self, "_target_density", None)
+        object.__setattr__(self, "_impactor", None)
         if isinstance(target, str):
             try:
                 self.target = Target(target,**kwargs)
@@ -86,6 +92,26 @@ class ScalingModel(ABC):
                 raise ValueError("target_density must be a positive number")
             self._target_density = float(value)
 
+    @property
+    def impactor(self):
+        """
+        The impactor model for the impact.
+        
+        Returns
+        -------
+        ImpactorModel
+        """ 
+        return self._impactor
+    
+    @impactor.setter
+    def impactor(self, value):
+        if value is None:
+            self._impactor = get_impactor_model("asteroids")
+            return
+        if not isinstance(value, ImpactorModel):
+            raise TypeError("impactor must be an instance of ImpactorModel")
+        self._impactor = value
+        return
 
 
 _registry: dict[str, ScalingModel] = {}

@@ -29,6 +29,9 @@ class ImpactorModel(ABC):
         object.__setattr__(self, "_sample_directions", None)
         object.__setattr__(self, "_mean_velocity", None)
         object.__setattr__(self, "_density", None)
+        object.__setattr__(self, "_velocity", None)
+        object.__setattr__(self, "_direction", None)
+        object.__setattr__(self, "_angle", None)
         object.__setattr__(self, "_rng", None)
         self.target_name = target_name
         self.sample_velocities = sample_velocities
@@ -42,9 +45,9 @@ class ImpactorModel(ABC):
     def to_config(self, **kwargs: Any) -> dict:
         return _to_config(self)
     
-    def get_projectile(self, **kwargs: Any) -> dict:
+    def new_projectile(self, **kwargs: Any) -> dict:
         """
-        Returns a dictionary of projectile properties that can be passed as arguments to the Crater class.
+        Updates the values of the velocities and angles and returns them as a dictionary of projectile properties that can be passed as arguments to the Crater class.
         
         Parameters
         ----------
@@ -56,6 +59,23 @@ class ImpactorModel(ABC):
         dict
             A dictionary containing the impactor properties.
         """
+
+        if self.sample_angles:
+            self._angle = mc.get_random_impact_angle(rng=self.rng)
+        else:
+            self._angle = 90.0
+
+        if self.sample_velocities:
+            self._velocity = mc.get_random_velocity(self.mean_velocity, rng=self.rng)
+        else:
+            self._velocity = self.mean_velocity
+
+        if self.sample_directions:
+            self._direction = mc.get_random_impact_direction(rng=self.rng)
+        else:
+            self._direction = 0.0
+
+
         return {
             "projectile_velocity": self.velocity,
             "projectile_angle": self.angle,
@@ -187,10 +207,8 @@ class ImpactorModel(ABC):
         -------
         float 
         """
-        if self.sample_angles:
-            return mc.get_random_impact_angle(rng=self.rng)
-        else:
-            return 90.0
+        return self._sample_angles
+
 
     @property
     def direction(self):
@@ -201,10 +219,7 @@ class ImpactorModel(ABC):
         -------
         float 
         """
-        if self.sample_directions:
-            return mc.get_random_impact_direction(rng=self.rng)
-        else:
-            return 0.0
+        return self._direction
 
     @property
     def velocity(self):
@@ -215,10 +230,7 @@ class ImpactorModel(ABC):
         -------
         float 
         """
-        if self.sample_velocities:
-            return mc.get_random_velocity(self.mean_velocity, rng=self.rng)
-        else:
-            return self.mean_velocity
+        return self._velocity
 
     @parameter
     def density(self):
@@ -254,6 +266,18 @@ class ImpactorModel(ABC):
             raise ValueError("density must be a positive number")
         self._density = float(value)
 
+    @property
+    def vertical_velocity(self):
+        """
+        The vertical component of the impact velocity in m/s.
+        
+        Returns
+        -------
+        float 
+        """
+        return self.velocity * np.sin(np.radians(self.angle))
+    
+    
     @property
     def rng(self):
         """

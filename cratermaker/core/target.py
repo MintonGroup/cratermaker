@@ -19,6 +19,7 @@ class Target:
                  mass: FloatLike | None = None, 
                  transition_scale_type: str | None = None,
                  material_name: str | None = None,
+                 density: FloatLike | None = None,
                  **kwargs: Any,
                  ):
         """
@@ -38,8 +39,8 @@ class Target:
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
         material_name : str or None
             Name of the material composition of the target body.
-        surface_density : FloatLike or None
-            Density of the upper surface of the target body in kg/m^3.
+        density : FloatLike or None
+            Volumetric density of the surface of the target body in kg/m^3.
 
         **kwargs : Any
             Additional keyword argumments that could be set by the user.
@@ -50,15 +51,16 @@ class Target:
         - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
         """    
 
-        object.__setattr__(self, "_name",       None)
-        object.__setattr__(self, "_radius",       None)
-        object.__setattr__(self, "_diameter",     None)
-        object.__setattr__(self, "_mass",      None)
+        object.__setattr__(self, "_name", None)
+        object.__setattr__(self, "_radius", None)
+        object.__setattr__(self, "_diameter", None)
+        object.__setattr__(self, "_mass", None)
         object.__setattr__(self, "_transition_scale_type", None)
         object.__setattr__(self, "_material_name", None)
-        object.__setattr__(self, "_catalogue",  None)
+        object.__setattr__(self, "_density", None)
+        object.__setattr__(self, "_catalogue", None)
         object.__setattr__(self, "_user_defined", set())   # which public props were set by user
-        object.__setattr__(self, "_updating",     False)   # guard against recursive updates
+        object.__setattr__(self, "_updating", False)   # guard against recursive updates
 
 
         # ensure that only either diamter of radius is passed
@@ -76,6 +78,7 @@ class Target:
                         mass=mass, 
                         material_name=material_name,
                         catalogue=catalogue,
+                        density=density,
                         transition_scale_type=transition_scale_type, 
                         **kwargs
                     )
@@ -173,6 +176,29 @@ class Target:
         if not isinstance(value, str) and value is not None:
             raise TypeError("material_name must be a string or None")
         self._material_name = value
+
+    @property
+    def density(self):
+        """
+        The volumetric density of the surface of the target body in kg/m^3.
+        
+        Returns
+        -------
+        float 
+        """
+        return self._density
+    
+    @density.setter
+    def density(self, value):
+        if value is not None:
+            if not isinstance(value, FloatLike):
+                raise TypeError("density must be a numeric value or None")
+            if value <= 0:
+                raise ValueError("density must be a positive number")
+            self._density = float(value)
+        else:
+            self._density = None
+        return
 
     @property
     def catalogue(self):

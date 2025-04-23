@@ -5,9 +5,10 @@ from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import _set_properties
-from cratermaker.components.scaling import register_scaling_model, ScalingModel
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
+from cratermaker.components.scaling import register_scaling_model, ScalingModel
+from cratermaker.components.impactor import ImpactorModel, get_impactor_model
 
 @register_scaling_model("richardson2009")
 class Richardson2009(ScalingModel):
@@ -31,10 +32,6 @@ class Richardson2009(ScalingModel):
         The strength of the target material, (Pa)
     target_density : FloatLike, optional
         Volumentric density of target material, (kg/m^3)
-    projectile_density : FloatLike, optional
-        Volumetric density of the projectile, (kg/m^3)
-    projectile_vertical_velocity : FloatLike, optional
-        The mean velocity of the projectile, (m/s)
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used. 
 
@@ -54,6 +51,7 @@ class Richardson2009(ScalingModel):
 
     def __init__(self, 
                  target: Target | str = "Moon",
+                 impactor: ImpactorModel | str = "asteroids",
                  material_name: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
@@ -85,16 +83,14 @@ class Richardson2009(ScalingModel):
 
         _set_properties(self,
                         target=target,
+                        impactor=impactor,
                         material_name=self.material_name,
                         K1=K1,
                         mu=mu,
                         Ybar=Ybar,
-                        target_density=target_density,
-                        projectile_density=projectile_density,
-                        projectile_vertical_velocity=projectile_vertical_velocity,
                         catalogue=self.material_catalogue,
                         **kwargs) 
-        arg_check = sum(x is None for x in [self.target, self.K1, self.mu, self.Ybar, self.target_density, self.projectile_density, self.projectile_vertical_velocity])
+        arg_check = sum(x is None for x in [self.target, self.K1, self.mu, self.Ybar])
         if arg_check > 0:
             raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
         # Initialize transition factors
@@ -104,7 +100,7 @@ class Richardson2009(ScalingModel):
 
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
-        include_list=("material_name", "K1", "mu", "Ybar", "target_density", "projectile_density", "projectile_vertical_velocity")
+        include_list=("material_name", "K1", "mu", "Ybar")
         # Add it to the set of user-defined parameters if it is in the list of parameters
         public_name = name.lstrip("_")
         if public_name in include_list:
@@ -272,21 +268,21 @@ class Richardson2009(ScalingModel):
         """
         # Compute some auxiliary quantites
         projectile_radius = projectile_diameter / 2
-        projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * self.projectile_density
+        projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * self.impactor.density
 
         c1 = 1.0 + 0.5 * self.mu
         c2 = (-3 * self.mu)/(2.0 + self.mu)
 
         # Find dimensionless quantities
-        pitwo = (self.target.gravity * projectile_radius)/(self.projectile_vertical_velocity**2)
-        pithree = self.Ybar / (self.target_density * (self.projectile_vertical_velocity**2))
-        pifour = self.target_density / self.projectile_density
+        pitwo = (self.target.gravity * projectile_radius)/(self.impactor.vertical_velocity**2)
+        pithree = self.Ybar / (self.target.density * (self.impactor.vertical_velocity**2))
+        pifour = self.target.density / self.projectile.density
         pivol = self.K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
         pivolg = self.K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
         
         # find transient crater volume and radii (depth = 1/3 diameter)
-        cvol = pivol * (projectile_mass / self.target_density)
-        cvolg = pivolg * (projectile_mass / self.target_density)
+        cvol = pivol * (projectile_mass / self.target.density)
+        cvolg = pivolg * (projectile_mass / self.target.density)
         transient_radius = (3 * cvol / np.pi)**(1.0/3.0)
         #TODO: transient_radius_gravscale = (3 * cvolg / np.pi)**(1.0/3.0)
         
@@ -342,7 +338,7 @@ class Richardson2009(ScalingModel):
             # Define some built-in catalogue values for known solar system materials of interest
             # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
             material_properties = [
-                "name",       "K1",     "mu",   "Ybar",     "target_density" 
+                "name",       "K1",     "mu",   "Ybar",     "density" 
             ]
             material_values = [
                 ("Water",     2.30,     0.55,   0.0,        1000.0),
