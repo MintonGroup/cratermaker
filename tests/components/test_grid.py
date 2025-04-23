@@ -1,18 +1,14 @@
 import unittest
 import os
-import shutil
-import numpy as np
 import tempfile
-from cratermaker import Target, Surface, get_grid_type, available_grid_types
-from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME
-from cratermaker.utils.montecarlo import get_random_location
-from cratermaker.utils.general_utils import normalize_coords
+from cratermaker import Target, get_grid_type, available_grid_types
+from cratermaker.core.surface import  _GRID_FILE_NAME
 
 gridtypes = available_grid_types()
 
 class TestGrid(unittest.TestCase):
     """
-    A collection of unit tests for the Surface class in the cratermaker project.
+    A collection of unit tests for the GridMaker classes in the cratermaker project.
 
     Parameters
     ----------

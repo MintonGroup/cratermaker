@@ -54,7 +54,7 @@ class Surface(UxDataset):
 
     def __init__(self, 
                  *args, 
-                 target: Target | None = None, 
+                 target: Target | str = "Moon", 
                  data_dir: os.PathLike = _DATA_DIR,
                  grid_file: os.PathLike = _DATA_DIR / _GRID_FILE_NAME,
                  compute_face_areas: bool = False,
@@ -69,8 +69,13 @@ class Surface(UxDataset):
         self._description = "Surface class for cratermaker"
         self._area = None
         self._smallest_length = None
-        self._target = target
-
+        if isinstance(target, str):
+            try:
+                self.target = Target(target,**kwargs)
+            except:
+                raise ValueError(f"Invalid target name {target}")
+        else:
+            self.target = Target
         self.data_dir = data_dir
         self.grid_file = grid_file
         self.rng = rng
@@ -130,10 +135,10 @@ class Surface(UxDataset):
                 del grid_parameters[key] 
 
         if not target:
-            target = Target("Moon")
+            target = Target("Moon",**kwargs)
         elif isinstance(target, str):
             try:
-                target = Target(target)
+                target = Target(target,**kwargs)
             except:
                 raise ValueError(f"Invalid target name {target}")
         elif not isinstance(target, Target):
@@ -422,9 +427,14 @@ class Surface(UxDataset):
 
     @target.setter
     def target(self, value):
+        if value is None:
+            self._target = Target(name="Moon")
+            return
         if not isinstance(value, Target):
             raise TypeError("target must be an instance of Target")
-        self._target = value    
+        self._target = value
+        return 
+
         
     @property
     def rng(self):

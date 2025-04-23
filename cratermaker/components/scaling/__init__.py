@@ -18,11 +18,11 @@ class ScalingModel(ABC):
         object.__setattr__(self, "_target", None)
         if isinstance(target, str):
             try:
-                target = Target(target,**kwargs)
+                self.target = Target(target,**kwargs)
             except:
                 raise ValueError(f"Invalid target name {target}")
-        elif not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target or a valid name of a target body")
+        else:
+            self.target = Target
 
     @abstractmethod
     def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...

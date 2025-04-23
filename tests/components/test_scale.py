@@ -1,6 +1,5 @@
 import unittest
-from cratermaker import Target, get_scaling_model, available_scaling_models
-import numpy as np
+from cratermaker import Target, get_scaling_model
 
 Scale = get_scaling_model("richardson2009")
 class TestScale(unittest.TestCase):

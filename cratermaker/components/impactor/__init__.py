@@ -10,6 +10,9 @@ from cratermaker.utils import montecarlo as mc
 from cratermaker.core import Target
 
 class ImpactorModel(ABC):
+    """
+    This is the abstract base class for all impactor models. It defines the interface for generating impactor velocities, angles, and densities for a given target body.
+    """
     def __init__(self, 
                  target: Target | str = "Moon",
                  rng: Generator | None = None,
@@ -17,14 +20,13 @@ class ImpactorModel(ABC):
         object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_rng", None)
-        object.__setattr__(self, "_density", None)
         if isinstance(target, str):
             try:
-                target = Target(target,**kwargs)
+                self.target = Target(target,**kwargs)
             except:
                 raise ValueError(f"Invalid target name {target}")
-        elif not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target or a valid name of a target body")
+        else:
+            self.target = Target
         self.rng = rng
 
 
@@ -59,29 +61,6 @@ class ImpactorModel(ABC):
         self._target = value
         return 
 
-
-    @property
-    def density(self):
-        """
-        Volumetric density of the projectile in kg/m^3.
-        
-        Returns
-        -------
-        float 
-        """
-        return self._density
-    
-    @density.setter
-    def density(self, value):
-        if value is not None:
-            if not isinstance(value, FloatLike): 
-                raise TypeError("density must be a numeric value or None")
-            if value < 0:
-                raise ValueError("density must be a positive number")
-            self._density = float(value)
-        else:
-            if self.target.surface_density is not None:
-                self._density = self.target.surface_density
 
     @property
     def angle(self):

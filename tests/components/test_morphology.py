@@ -1,6 +1,5 @@
 import unittest
 import tempfile
-import os
 from cratermaker.components.morphology import available_morphology_models, get_morphology_model
 from cratermaker.core.target import Target
 from cratermaker.core.surface import Surface
