@@ -28,7 +28,7 @@ class Crater:
     projectile_radius: float | None = None
     morphology_type: str = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self,**kwargs):
 
         # Validate target
         if isinstance(self.target, str):
