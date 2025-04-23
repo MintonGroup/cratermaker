@@ -15,4 +15,5 @@ rand = "0.9.1"
 rayon = "1.10.0"
 
 [profile.release]
-debug = true
+codegen-units = 1
+lto = "fat"
