@@ -14,8 +14,6 @@ class Crater:
     projectile_mass: float | None = None
     projectile_density: float | None = None
     projectile_velocity: float | None = None
-    projectile_vertical_velocity: float | None = None
-    projectile_mean_velocity: float | None = None
     projectile_angle: float | None = None
     projectile_direction: float | None = None
     location: tuple[float, float] | None = None

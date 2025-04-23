@@ -200,7 +200,24 @@ class ProductionModel(ABC):
             return retval.item() if np.isscalar(diameter) else retval
         else:
             raise ValueError(f"The root finding algorithm did not converge for all values of diameter and cumulative_number. Flag {flag}")
-    
+
+    def get_impactor_properties(self, 
+                                projectile_mean_velocity: FloatLike | None = None,
+                                **kwargs) -> dict:
+                     
+        """
+        Generates basic impactor properties including density, velocity, and angle.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the impactor properties.
+        """
+
+        return {"projectile_density": 0.0,
+                "projectile_velocity": 0.0,
+                "projectile_angle": 0.0}
+
     @abstractmethod
     def chronology(self,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,

@@ -58,9 +58,6 @@ class Richardson2009(ScalingModel):
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
-                 target_density: FloatLike | None = None,
-                 projectile_density: FloatLike | None = None,
-                 projectile_vertical_velocity: FloatLike | None = None,
                  rng: Generator | None = None, 
                  **kwargs):
         """
@@ -69,22 +66,10 @@ class Richardson2009(ScalingModel):
         ----------
         .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
-        super().__init__()
-        if isinstance(target, str):
-            try:
-                target = Target(target,**kwargs)
-            except:
-                raise ValueError(f"Invalid target name {target}")
-        elif not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target or a valid name of a target body")
-
-        object.__setattr__(self, "_target", None)
+        super().__init__(**kwargs)
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)
         object.__setattr__(self, "_Ybar", None)
-        object.__setattr__(self, "_target_density", None)
-        object.__setattr__(self, "_projectile_density", None)
-        object.__setattr__(self, "_projectile_vertical_velocity", None)
         object.__setattr__(self, "_rng", None)
         object.__setattr__(self, "_transition_diameter", None)
         object.__setattr__(self, "_transition_nominal", None)
@@ -108,8 +93,7 @@ class Richardson2009(ScalingModel):
                         projectile_density=projectile_density,
                         projectile_vertical_velocity=projectile_vertical_velocity,
                         catalogue=self.material_catalogue,
-                        **kwargs
-                    ) 
+                        **kwargs) 
         arg_check = sum(x is None for x in [self.target, self.K1, self.mu, self.Ybar, self.target_density, self.projectile_density, self.projectile_vertical_velocity])
         if arg_check > 0:
             raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
@@ -482,27 +466,7 @@ class Richardson2009(ScalingModel):
         float
         """
         return self._final_exp
-    
-    @property
-    def target(self):
-        """
-        The target body for the impact.
-        
-        Returns
-        -------
-        Target
-        """ 
-        return self._target
-    
-    @target.setter
-    def target(self, value):
-        if value is None:
-            self._target = Target(name="Moon")
-            return
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
-        self._target = value
-        return 
+
 
     @property
     def K1(self):
@@ -573,113 +537,32 @@ class Richardson2009(ScalingModel):
         if value is not None and value < 0:
             raise ValueError("Ybar must be a positive number")
         self._Ybar = float(value)
-        
+
     @property
-    def target_density(self):
+    def catalogue_key(self):
         """
-        Volumentric density of material in kg/m^3.
+        The key used to identify the property used as the key in a catalogue.
+        """
+        return "material_name"
+    
+    @property
+    def material_name(self):
+        """
+        The name of the material composition of the target body.
         
         Returns
         -------
-        float 
+        str 
         """
-        return self._target_density
-    
-    @target_density.setter
-    def target_density(self, value):
-        if value is not None:
-            if not isinstance(value, FloatLike):
-                raise TypeError("target_density must be a numeric value or None")
-            if value < 0:
-                raise ValueError("target_density must be a positive number")
-            self._target_density = float(value)
+        return self._material_name
+
+    @material_name.setter
+    def material_name(self, value):
+        if not isinstance(value, str) and value is not None:
+            raise TypeError("name must be a string or None")
+        self._material_name = value
 
 
-    @property
-    def projectile_density(self):
-        """
-        Volumetric density of the projectile in kg/m^3.
-        
-        Returns
-        -------
-        float 
-        """
-        if self._projectile_density is None:
-            self.projectile_density = None
-        return self._projectile_density
-    
-    @projectile_density.setter
-    def projectile_density(self, value):
-        if value is not None:
-            if not isinstance(value, FloatLike): 
-                raise TypeError("projectile_density must be a numeric value or None")
-            if value < 0:
-                raise ValueError("projectile_density must be a positive number")
-            self._projectile_density = float(value)
-        else:
-            if self.target_density is not None:
-                self._projectile_density = self.target_density
-
-    @property
-    def projectile_mean_velocity(self):
-        """
-        The mean velocity of the projectile in m/s.
-        
-        Returns
-        -------
-        float 
-        """
-        predefined_models = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'MBA']
-        predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
-        predefined = dict(zip(predefined_models, predefined_velocities))
-        if self.target.name in predefined_models:
-            pmv = float(predefined[self.target.name])
-        elif self.target.name in ["Ceres", "Vesta"]:
-            pmv = float(predefined["MBA"])
-        else:
-            pmv = None
-        return pmv
-    
-
-    @property
-    def projectile_vertical_velocity(self):
-        """Get the impact velocity model name."""
-        if self._projectile_vertical_velocity is None:
-            self.projectile_vertical_velocity = None
-        return self._projectile_vertical_velocity
-
-    @projectile_vertical_velocity.setter
-    def projectile_vertical_velocity(self, value):
-        """"
-        Sets the vertical component of the impact velocity. If none is provided, it will look at the target name, and if it matches a known body, we will draw from a distribution using the predefined mean velocityvalue. Otherwise, it will raise an error.
-            
-        Notes
-        ----- 
-        Mean velocities for terrestrial planets and the Moon are based on analysis of simulations of main-belt derived asteroids from Minton & Malhotra (2010) [1]_  and Yue et al. (2013) [2]_. Mean velocities for the asteroids are from Bottke et al. (1994) [3]_.
-        
-        References
-        ----------
-        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744-757. https://doi.org/10.1016/j.icarus.2009.12.008
-        .. [2] Yue, Z., Johnson, B.C., Minton, D.A., Melosh, H.J., Di, K., Hu, W., Liu, Y., 2013. Projectile remnants in central peaks of lunar impact craters. Nature Geosci 6, 435 EP-. https://doi.org/10.1038/ngeo1828
-        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255-268. https://doi.org/10.1006/icar.1994.1021
-        """
-
-        if value is None: 
-            pmv = self.projectile_mean_velocity
-            vencounter_mean = np.sqrt(pmv**2 - self.target.escape_velocity**2)
-            vencounter = mc.get_random_velocity(vencounter_mean, rng=self.rng)
-            pv = np.sqrt(vencounter**2 + self.target.escape_velocity**2)
-            pang = mc.get_random_impact_angle(rng=self.rng)
-            self._projectile_vertical_velocity = pv * np.sin(np.deg2rad(pang))
-        elif isinstance(value, (int, float)):
-            if value < 0:
-                raise ValueError("projectile_vertical_velocity must be a positive number")
-            self._projectile_vertical_velocity = float(value)
-        else: 
-            raise TypeError("projectile_vertical_velocity must be a numeric value or None") 
-
-        return
-        
     @property
     def rng(self):
         """

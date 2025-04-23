@@ -18,7 +18,7 @@ class Target:
                  diameter: FloatLike | None = None,
                  mass: FloatLike | None = None, 
                  transition_scale_type: str | None = None,
-                 material_name: str | None = None,      
+                 material_name: str | None = None,
                  **kwargs: Any,
                  ):
         """
@@ -38,6 +38,9 @@ class Target:
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
         material_name : str or None
             Name of the material composition of the target body.
+        surface_density : FloatLike or None
+            Density of the upper surface of the target body in kg/m^3.
+
         **kwargs : Any
             Additional keyword argumments that could be set by the user.
 
@@ -271,17 +274,5 @@ class Target:
         float
             Gravitational acceleration in m/s^2. 
         """
-        return 4*np.pi*G.value*(self.radius)*self.bulk_density/3
-
-    @property
-    def bulk_density(self) -> float | None:
-        """
-        Calculate the bulk density of the target body in SI units.
-
-        Returns
-        -------
-        float
-            Bulk density in kg/m^3.
-        """
-        return self.mass / (4/3 * np.pi * (self.radius)**3)  # in kg/m^3
+        return G.value*self.mass / (self.radius**2)  
 
