@@ -138,7 +138,7 @@ class Simulation:
             raise ValueError(f"Error initializing production model {self.production_model}")
         
         if impactor_model is None:
-            if self.target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
+            if self.target.name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
                 self.impactor_model = "asteroids"
             else:
                 self.impactor_model = "comets"

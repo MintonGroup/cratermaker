@@ -37,8 +37,8 @@ class CometImpactors(ImpactorModel):
         kwargs["sample_velocities"] = True
         kwargs["sample_angles"] = True
         kwargs["sample_directions"] = True
-        kwargs["mean_velocity"] = self._set_mean_velocity()
         super().__init__(target_name=target_name, density=density, rng=rng, **kwargs)
+        self.mean_velocity = self._set_mean_velocity()
 
 
     def _set_mean_velocity(self):
