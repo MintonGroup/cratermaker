@@ -246,3 +246,8 @@ class Crater:
                 f"projectile_velocity={self.projectile_velocity} m/s, projectile_angle={self.projectile_angle} deg, "
                 f"projectile_vertical_velocity={self.projectile_vertical_velocity} m/s, projectile_direction={self.projectile_direction} deg, "
                 f"lon: {self.location[0]}, lat {self.location[1]} age={self.age} My)")
+
+    @classmethod
+    def from_args(cls, **kwargs):
+        filtered = {k: v for k, v in kwargs.items() if k in cls.__dataclass_fields__}
+        return cls(**filtered)
