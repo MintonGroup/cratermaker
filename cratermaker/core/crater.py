@@ -19,7 +19,6 @@ class Crater:
     projectile_direction: float | None = None
     location: tuple[float, float] | None = None
     age: float | None = None
-    morphology_type: str = field(init=False)
 
     def __repr__(self):
         return (f"Crater(final_diameter={self.final_diameter} m, "
@@ -49,9 +48,75 @@ def make_crater(final_diameter: float | None = None,
                 age: float | None = None,
                 scale: str | ScalingModel | None = None,
                 impactor: str | ImpactorModel | None = None,
+                target: str | Target = "Moon",
                 rng: Generator = np.random.default_rng(),
                 ) -> Crater:
-    """Create a Crater object with the given parameters."""
+    """
+    Create a Crater object with the given parameters.
+
+    Parameters
+    ----------
+    final_diameter : float, optional
+        The final diameter of the crater in meters.
+    final_radius : float, optional
+        The final radius of the crater in meters.
+    transient_diameter : float, optional
+        The transient diameter of the crater in meters.
+    transient_radius : float, optional
+        The transient radius of the crater in meters.
+    projectile_diameter : float, optional
+        The diameter of the projectile in meters.
+    projectile_radius : float, optional
+        The radius of the projectile in meters.
+    projectile_mass : float, optional
+        The mass of the projectile in kilograms.
+    projectile_density : float, optional
+        The density of the projectile in kg/m^3. If not provided, the target's density is used.
+    projectile_velocity : float, optional
+        The total impact velocity of the projectile in m/s.
+    projectile_mean_velocity : float, optional
+        The mean velocity from which to sample a projectile velocity.
+    projectile_vertical_velocity : float, optional
+        The vertical component of the velocity in m/s.
+    projectile_angle : float, optional
+        The impact angle in degrees (0–90).
+    projectile_direction : float, optional
+        The direction of the impact in degrees (0–360).
+    location : tuple of float, optional
+        The (longitude, latitude) location of the impact.
+    age : float, optional
+        The age of the crater in Myr.
+    scale : str or ScalingModel, optional
+        A string key or instance of a scaling model.
+    impactor : str or ImpactorModel, optional
+        A string key or instance of an impactor model.
+    target : str or Target, optional
+        The target body name or object. Used internally, not stored on Crater.
+    rng : numpy.random.Generator, optional
+        Random number generator.
+
+    Returns
+    -------
+    Crater
+        A frozen Crater dataclass with derived attributes.
+
+    Notes
+    -----
+    - Exactly one of the following must be provided: 
+      `final_diameter`, `final_radius`, `transient_diameter`, `transient_radius`, 
+      `projectile_diameter`, `projectile_radius`, or `projectile_mass`.
+
+    - Velocity may be specified in one of these ways:
+      - `projectile_mean_velocity` alone (samples a velocity)
+      - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`)
+        — the third is inferred.
+
+    - `impactor` is mutually exclusive with velocity-related inputs; if provided, 
+      it overrides velocity, angle, direction, and density unless explicitly set.
+
+    - The `target`, `scale`, and `rng` models are required for scaling and density inference, but are not stored
+      in the returned Crater object.
+    """
 
     if isinstance(target, str):
         try:
@@ -248,7 +313,5 @@ def make_crater(final_diameter: float | None = None,
                     projectile_velocity=pv,
                     projectile_angle=pang,
                     morphology_type=mt,
-                    )
-
-
-
+                    location=location,
+                    age=age)

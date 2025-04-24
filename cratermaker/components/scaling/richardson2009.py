@@ -95,6 +95,8 @@ class Richardson2009(ScalingModel):
         if arg_check > 0:
             raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
         # Initialize transition factors
+        if target.density is None:
+            target.density = self.material_catalogue[self.material_name]["density"]
         self._compute_simple_to_complex_transition_factors() 
         return
 

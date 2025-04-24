@@ -30,21 +30,16 @@ class ImpactorModel(ABC):
         object.__setattr__(self, "_sample_angles", None)
         object.__setattr__(self, "_sample_velocities", None)
         object.__setattr__(self, "_sample_directions", None)
-        object.__setattr__(self, "_mean_velocity", None)
-        object.__setattr__(self, "_density", None)
-        object.__setattr__(self, "_velocity", None)
-        object.__setattr__(self, "_direction", None)
-        object.__setattr__(self, "_angle", None)
+        object.__setattr__(self, "_mean_velocity", mean_velocity)
+        object.__setattr__(self, "_density", density)
+        object.__setattr__(self, "_velocity", velocity)
+        object.__setattr__(self, "_direction", direction)
+        object.__setattr__(self, "_angle", angle)
         object.__setattr__(self, "_rng", None)
         self.target_name = target_name
         self.sample_velocities = sample_velocities
         self.sample_angles = sample_angles
         self.sample_directions = sample_directions
-        self.mean_velocity = mean_velocity
-        self.velocity = velocity 
-        self.density = density
-        self.direction = direction
-        self.angle = angle
         self.rng = rng
 
 
@@ -234,11 +229,15 @@ class ImpactorModel(ABC):
     
     @velocity.setter
     def velocity(self, value):
-        if not isinstance(value, FloatLike):
-            raise TypeError("velocity must be a numeric value")
-        if value < 0:
-            raise ValueError("velocity must be a positive number")
-        self._velocity = float(value)
+        if value is not None:
+            if not isinstance(value, FloatLike):
+                raise TypeError("velocity must be a numeric value")
+            if value < 0:
+                raise ValueError("velocity must be a positive number")
+            self._velocity = float(value)
+        else:
+            self._velocity = None
+        return
 
     @parameter
     def density(self):
