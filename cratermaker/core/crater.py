@@ -13,11 +13,12 @@ class Crater:
     final_diameter: float | None = None
     transient_diameter: float | None = None
     projectile_diameter: float | None = None
-    projectile_mass: float | None = None
     projectile_velocity: float | None = None
     projectile_angle: float | None = None
     projectile_direction: float | None = None
+    projectile_density: float | None = None
     location: tuple[float, float] | None = None
+    morphology_type: str | None = None
     age: float | None = None
 
     def __repr__(self):
@@ -27,8 +28,28 @@ class Crater:
                 f"projectile_diameter={self.projectile_diameter} m, "
                 f"projectile_mass={self.projectile_mass} kg, projectile_density={self.projectile_density} kg/m^3, "
                 f"projectile_velocity={self.projectile_velocity} m/s, projectile_angle={self.projectile_angle} deg, "
-                f"projectile_vertical_velocity={self.projectile_vertical_velocity} m/s, projectile_direction={self.projectile_direction} deg, "
+                f"projectile_direction={self.projectile_direction} deg, "
                 f"lon: {self.location[0]}, lat {self.location[1]} age={self.age} My)")
+    
+    @property
+    def final_radius(self) -> float | None:
+        """Final radius of the crater in meters."""
+        return self.final_diameter / 2.0 if self.final_diameter is not None else None
+    @property
+    def transient_radius(self) -> float | None:
+        """Transient radius of the crater in meters."""
+        return self.transient_diameter / 2.0 if self.transient_diameter is not None else None
+    @property
+    def projectile_radius(self) -> float | None:
+        """Projectile radius in meters."""
+        return self.projectile_diameter / 2.0 if self.projectile_diameter is not None else None
+    @property
+    def projectile_mass(self) -> float | None:
+        """Projectile mass in kilograms."""
+        if self.projectile_density is not None and self.projectile_radius is not None:
+            return (4.0 / 3.0) * np.pi * self.projectile_radius**3 * self.projectile_density
+        return None
+
 
 
 def make_crater(final_diameter: float | None = None,
@@ -306,12 +327,11 @@ def make_crater(final_diameter: float | None = None,
         raise RuntimeError("Failed to infer crater/projectile properties.")
 
     return Crater(final_diameter=fd, 
-                    transient_diameter=td,
-                    projectile_diameter=pd,
-                    projectile_mass=pm,
-                    projectile_density=prho,
-                    projectile_velocity=pv,
-                    projectile_angle=pang,
-                    morphology_type=mt,
-                    location=location,
+                  transient_diameter=td,
+                  projectile_diameter=pd,
+                  projectile_density=prho,
+                  projectile_velocity=pv,
+                  projectile_angle=pang,
+                  morphology_type=mt,
+                  location=location,
                     age=age)
