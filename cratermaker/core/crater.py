@@ -332,6 +332,7 @@ def make_crater(final_diameter: float | None = None,
                   projectile_density=prho,
                   projectile_velocity=pv,
                   projectile_angle=pang,
+                  projectile_direction=pdir,
                   morphology_type=mt,
                   location=location,
                     age=age)
