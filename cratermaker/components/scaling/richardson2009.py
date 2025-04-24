@@ -279,7 +279,7 @@ class Richardson2009(ScalingModel):
         # Find dimensionless quantities
         pitwo = (self.target.gravity * projectile_radius)/(self.impactor.vertical_velocity**2)
         pithree = self.Ybar / (self.target.density * (self.impactor.vertical_velocity**2))
-        pifour = self.target.density / self.projectile.density
+        pifour = self.target.density / self.impactor.density
         pivol = self.K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
         pivolg = self.K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
         
