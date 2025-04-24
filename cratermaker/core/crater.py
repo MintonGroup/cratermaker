@@ -1,12 +1,13 @@
 import numpy as np
 from numpy.random import Generator
-from dataclasses import dataclass, field
+from pathlib import Path
+from dataclasses import dataclass
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..components.scaling import ScalingModel, get_scaling_model
 from ..components.impactor import ImpactorModel, get_impactor_model
-
+from typing import Any
 
 @dataclass(frozen=True, slots=True)
 class Crater:
@@ -73,7 +74,10 @@ def make_crater(final_diameter: float | None = None,
                 scale: str | ScalingModel | None = None,
                 impactor: str | ImpactorModel | None = None,
                 target: str | Target = "Moon",
-                rng: Generator = np.random.default_rng(),
+                seed: str | int | None = None,
+                simdir: str | Path = Path.cwd(),
+                rng: Generator = None,
+                **kwargs: Any 
                 ) -> Crater:
     """
     Create a Crater object with the given parameters.
@@ -116,8 +120,14 @@ def make_crater(final_diameter: float | None = None,
         A string key or instance of an impactor model.
     target : str or Target, optional
         The target body name or object. Used internally, not stored on Crater.
-    rng : numpy.random.Generator, optional
-        Random number generator.
+    simdir : str | Path
+        The main project simulation directory.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the seed if it is provided.
+    seed : int | None
+        The random seed for the simulation if rng is not provided. If None, a random seed is used.
+    kwargs : Any
+        Additional keyword arguments for subclasses.
 
     Returns
     -------
