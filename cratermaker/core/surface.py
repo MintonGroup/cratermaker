@@ -1,7 +1,7 @@
 import xarray as xr
 from xarray import DataArray, Dataset
 import uxarray as uxr
-from uxarray import Grid, UxDataArray, UxDataset
+from uxarray import INT_FILL_VALUE, Grid, UxDataArray, UxDataset
 import os
 import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
@@ -239,24 +239,7 @@ class Surface:
        
         surf.load_from_data(True)
         
-        return surf        
-        
-    def __getitem__(self, key):
-        """Override to make sure the result is an instance of ``cratermaker.Surface``"""
-
-        value = super().__getitem__(key)
-
-        if isinstance(value, uxr.UxDataset):
-            value = Surface(value,
-                            uxgrid=self.uxgrid,
-                            source_datasets=self.source_datasets,
-                            target=self.target,
-                            grid_file=self.grid_file,
-                            data_dir=self.data_dir,
-                            rng=self.rng,
-                            compute_face_areas=False,
-                            )
-        return value
+        return surf
     
     def _calculate_binary_op(self, *args, **kwargs):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
@@ -403,7 +386,7 @@ class Surface:
         Total surface area of the target body.
         """
         if self._area is None:
-            self._area = self['face_areas'].sum().assign_attrs({'long_name': 'total surface area', 'units': 'm^2'})
+            self._area = self.face_areas.sum()
         return self._area
 
     @property
@@ -603,7 +586,7 @@ class Surface:
         return radius * c
     
     def get_distance(self, 
-                     ind: NDArray,
+                     view: 'SurfaceView',
                      location: tuple[float, float]) -> UxDataArray:
         """
         Computes the distances between nodes and faces and a given location.
@@ -622,10 +605,10 @@ class Surface:
         """
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
-        node_lon2 = np.deg2rad(self.node_lon[ind])
-        node_lat2 = np.deg2rad(self.node_lat[ind])        
-        face_lon2 = np.deg2rad(self.face_lon[ind])
-        face_lat2 = np.deg2rad(self.face_lat[ind])
+        node_lon2 = np.deg2rad(self.node_lon[view.node_indices])
+        node_lat2 = np.deg2rad(self.node_lat[view.node_indices])
+        face_lon2 = np.deg2rad(self.face_lon[view.face_indices])
+        face_lat2 = np.deg2rad(self.face_lat[view.face_indices])
         return self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,self.target.radius), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,self.target.radius) 
 
     @staticmethod
@@ -665,7 +648,7 @@ class Surface:
 
         return initial_bearing
     
-    def get_initial_bearing(self, ind: NDArray, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
+    def get_initial_bearing(self, view: 'SurfaceView', location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
         Computes the initial bearing between nodes and faces and a given location.
 
@@ -683,10 +666,10 @@ class Surface:
         """
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
-        node_lon2 = np.deg2rad(self.node_lon[ind])
-        node_lat2 = np.deg2rad(self.node_lat[ind])
-        face_lon2 = np.deg2rad(self.face_lon[ind])
-        face_lat2 = np.deg2rad(self.face_lat[ind])       
+        node_lon2 = np.deg2rad(self.node_lon[view.node_indices])
+        node_lat2 = np.deg2rad(self.node_lat[view.node_indices])
+        face_lon2 = np.deg2rad(self.face_lon[view.face_indices])
+        face_lat2 = np.deg2rad(self.face_lat[view.face_indices])
         return self.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), self.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2)
     
     def find_nearest_index(self, location):
@@ -725,7 +708,7 @@ class Surface:
         return node_ind.item(), face_ind.item()
 
     def get_reference_surface(self, 
-                              ind: NDArray,
+                              view: 'SurfaceView',
                               face_crater_distance: NDArray, 
                               node_crater_distance: NDArray,
                               location: tuple[FloatLike, FloatLike], 
@@ -770,22 +753,23 @@ class Surface:
         faces_within_radius = face_crater_distance <= region_radius
         nodes_within_radius = node_crater_distance <= region_radius
 
-        face_elevation = self.face_elevation[ind]
-        node_elevation = self.node_elevation[ind]
+        face_elevation = self.face_elevation[view.face_indices]
+        node_elevation = self.node_elevation[view.node_indices]
         
         if np.sum(faces_within_radius) < 5 or not nodes_within_radius.any():
             return face_elevation, node_elevation
        
-        face_grid = np.dstack((self._data.uxgrid.face_x.values[ind], self._data.uxgrid.face_y.values[ind], self._data.uxgrid.face_z.values[ind]))
+        face_grid = np.column_stack((self._data.uxgrid.face_x.values[view.face_indices], 
+                               self._data.uxgrid.face_y.values[view.face_indices], 
+                               self._data.uxgrid.face_z.values[view.face_indices]))
         region_faces = face_grid[faces_within_radius]
-        region_elevation = faces_within_radius[face_elevation] / self.target.radius
+        region_elevation = face_elevation[faces_within_radius] / self.target.radius
         region_surf = self.elevation_to_cartesian(region_faces, region_elevation) 
 
-        x, y, z = region_surf
-        region_vectors = np.vstack((x, y, z)).T
+        x, y, z = region_surf.T
 
         # Initial guess for the sphere center and radius
-        guess_radius = 1.0 + region_elevation.mean().values.item() 
+        guess_radius = 1.0 + region_elevation.mean()
         initial_guess = [0, 0, 0, guess_radius]  
 
         # Perform the curve fitting
@@ -793,7 +777,7 @@ class Surface:
             warnings.simplefilter("ignore", OptimizeWarning)
             try:
                 bounds =([-1.0, -1.0, -1.0, 0.5],[1.0, 1.0, 1.0, 2.0]) 
-                popt, _  = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess, bounds=bounds)
+                popt, _  = curve_fit(sphere_function, region_surf[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess, bounds=bounds)
             except:
                 popt = initial_guess
 
@@ -825,19 +809,19 @@ class Surface:
             return elevations
         
         # Calculate the distances between the original face points and the intersection points
-        face_vectors  = np.column_stack((region_faces.face_x, region_faces.face_y, region_faces.face_z))
-        reference_face_elevation = np.where(faces_within_radius, find_reference_elevations(face_vectors), self.face_elevation)
+        reference_face_elevation = face_elevation
+        reference_face_elevation[faces_within_radius] = find_reference_elevations(region_faces)
         
         # Now do the same thing to compute the nodal values 
-        inc_node = self.n_node
-        node_vars = ['node_x', 'node_y', 'node_z'] 
-        node_grid = self.n_node.uxgrid._ds[node_vars].sel(n_node=inc_node)
-        region_nodes = node_grid.where(nodes_within_radius, drop=False) 
-        node_vectors  = np.vstack((region_nodes.node_x, region_nodes.node_y, region_nodes.node_z)).T
+        node_grid = np.column_stack((self._data.uxgrid.node_x.values[view.node_indices], 
+                               self._data.uxgrid.node_y.values[view.node_indices], 
+                               self._data.uxgrid.node_z.values[view.node_indices]))
+        region_nodes = node_grid[nodes_within_radius]
         
-        self['reference_node_elevation'] = xr.where(nodes_within_radius, find_reference_elevations(node_vectors), self['node_elevation'])
+        reference_node_elevation = node_elevation
+        reference_node_elevation[nodes_within_radius] = find_reference_elevations(region_nodes)
         
-        return
+        return reference_face_elevation, reference_node_elevation
 
     @staticmethod
     def elevation_to_cartesian(position: NDArray, 
@@ -847,7 +831,7 @@ class Surface:
         
         runit = position / np.linalg.norm(position, axis=1, keepdims=True)
         
-        return position + elevation * runit 
+        return position + elevation[:, np.newaxis] * runit
    
     def extract_region(self,
                        location: tuple[FloatLike, FloatLike],
@@ -893,7 +877,7 @@ class Surface:
         if len(ind) == 0:
             return None
         
-        return ind
+        return SurfaceView(self, ind)
     
     def get_random_location_on_face(self, 
                                     face_index: int, 
@@ -923,7 +907,7 @@ class Surface:
         This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
         """
         
-        return get_random_location_on_face(self.uxgrid, face_index, size,**kwargs)
+        return get_random_location_on_face(self._data.uxgrid, face_index, size,**kwargs)
 
     @staticmethod
     def _save_data(ds: xr.Dataset | xr.DataArray,
@@ -986,6 +970,20 @@ class Surface:
 
 
 
+class SurfaceView:
+    def __init__(self, 
+                 surf: Surface, 
+                 face_indices: NDArray, 
+                 node_indices: NDArray | None = None):
+        self.surf = surf
+        self.face_indices = face_indices
+        if node_indices is None:
+            node_indices = np.unique(surf._data.uxgrid.face_node_connectivity.values[face_indices].ravel())
+            node_indices = node_indices[node_indices != INT_FILL_VALUE]
+        
+        self.node_indices = node_indices
+
+
 def _save_surface(surf: Surface, 
          out_dir: os.PathLike | None = None,
          combine_data_files: bool = False,
@@ -1038,7 +1036,4 @@ def _save_surface(surf: Surface,
     surf._save_data(ds, out_dir, interval_number, combine_data_files)
 
     return
-
-
-
 

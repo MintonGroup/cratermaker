@@ -179,7 +179,7 @@ class Simulation:
         Get the smallest possible crater or projectile be formed on the surface.
         """
         if face_areas is None:
-            face_areas = self.surf['face_areas'].values
+            face_areas = self.surf.face_areas
         else:
             face_areas = np.asarray(face_areas)
         smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2        
@@ -335,7 +335,7 @@ class Simulation:
         impact_diameters = []
         impact_ages = []
         impact_locations = []
-        face_areas = self.surf['face_areas'].values
+        face_areas = self.surf.face_areas
         min_area = face_areas.min()
         n_face = face_areas.size
         surface_area = self.surf.area.item() 

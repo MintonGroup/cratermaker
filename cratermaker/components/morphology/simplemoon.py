@@ -104,8 +104,8 @@ class SimpleMoon(MorphologyModel):
 
         # Test if the crater is big enough to modify the surface
         rmax = self._compute_rmax(minimum_thickness=surf.smallest_length)
-        region_indices = surf.extract_region(self.crater.location, rmax)
-        if region_indices is None: # The crater is too small to change the surface
+        region_view = surf.extract_region(self.crater.location, rmax)
+        if region_view is None: # The crater is too small to change the surface
             return
         crater_area = np.pi * rmax**2
         
@@ -113,17 +113,17 @@ class SimpleMoon(MorphologyModel):
         if surf.face_areas[self.face_index] > crater_area:
             return
         
-        node_crater_distance, face_crater_distance = surf.get_distance(region_indices, self.crater.location)
-        reference_face_elevation, reference_node_elevation = surf.get_reference_surface(region_indices, face_crater_distance, node_crater_distance, self.crater.location, self.crater.final_radius)
+        node_crater_distance, face_crater_distance = surf.get_distance(region_view, self.crater.location)
+        reference_face_elevation, reference_node_elevation = surf.get_reference_surface(region_view, face_crater_distance, node_crater_distance, self.crater.location, self.crater.final_radius)
         
         try:
             node_elevation = self.crater_profile(node_crater_distance, 
                                                  reference_node_elevation)
-            surf.node_elevation[region_indices] = node_elevation
+            surf.node_elevation[region_view.node_indices] = node_elevation
             
             face_elevation = self.crater_profile(face_crater_distance, 
                                                  reference_face_elevation)
-            surf.face_elevation[region_indices] = face_elevation
+            surf.face_elevation[region_view.face_indices] = face_elevation
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
@@ -157,8 +157,8 @@ class SimpleMoon(MorphologyModel):
         rmax = self._compute_rmax(minimum_thickness=surf.smallest_length) 
         if not self.ejecta_truncation:
             self.ejecta_truncation = rmax / self.crater.final_radius
-        region_indices = surf.extract_region(self.crater.location, rmax)
-        if region_indices is None: # The crater is too small to change the surface
+        region_view = surf.extract_region(self.crater.location, rmax)
+        if region_view is None: # The crater is too small to change the surface
             return
         ejecta_area = np.pi * rmax**2
         
@@ -166,23 +166,23 @@ class SimpleMoon(MorphologyModel):
         if surf.face_areas[self.face_index] > ejecta_area:
             return                  
         
-        node_crater_distance, face_crater_distance = surf.get_distance(region_indices, self.crater.location)
-        node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(region_indices, self.crater.location)
+        node_crater_distance, face_crater_distance = surf.get_distance(region_view, self.crater.location)
+        node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(region_view, self.crater.location)
         
         try:
             node_thickness = self.ejecta_distribution(node_crater_distance, 
                                                       node_crater_bearing)
-            surf.node_elevation[region_indices] += node_thickness
+            surf.node_elevation[region_view.node_indices] += node_thickness
             
             face_thickness = self.ejecta_distribution(face_crater_distance, 
                                                       face_crater_bearing)
-            surf.face_elevation[region_indices] += face_thickness
-            surf.ejecta_thickness[region_indices] += face_thickness
+            surf.face_elevation[region_view.face_indices] += face_thickness
+            surf.ejecta_thickness[region_view.face_indices] += face_thickness
             
             if self.dorays: 
                 face_intensity = self.ray_intensity(face_crater_distance, 
                                                     face_crater_bearing)
-                surf.ray_intensity[region_indices] += face_intensity
+                surf.ray_intensity[region_view.face_indices] += face_intensity
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
