@@ -12,7 +12,7 @@ from numpy.typing import ArrayLike
 import warnings
 import yaml
 from .target import Target
-from .crater import Crater
+from .crater import Crater, make_crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
@@ -257,7 +257,7 @@ class Simulation:
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
          
-        crater = Crater.from_args(target=self.target, scale=self.scale, impactor=self.impactor, rng=self.rng, **kwargs)
+        crater = make_crater(target=self.target, scale=self.scale, impactor=self.impactor, rng=self.rng, **kwargs)
         
         return crater
     

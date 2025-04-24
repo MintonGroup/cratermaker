@@ -20,6 +20,9 @@ class ImpactorModel(ABC):
                  sample_angles : bool = True,
                  sample_directions : bool = True,
                  rng: Generator | None = None,
+                 angle: FloatLike = 90.0,
+                 velocity : FloatLike | None = None,
+                 direction : FloatLike | None = None,
                  **kwargs):
         object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_target_name", None)
@@ -38,7 +41,10 @@ class ImpactorModel(ABC):
         self.sample_angles = sample_angles
         self.sample_directions = sample_directions
         self.mean_velocity = mean_velocity
+        self.velocity = velocity 
         self.density = density
+        self.direction = direction
+        self.angle = angle
         self.rng = rng
 
 
@@ -60,21 +66,14 @@ class ImpactorModel(ABC):
             A dictionary containing the impactor properties.
         """
 
-        if self.sample_angles:
-            self._angle = mc.get_random_impact_angle(rng=self.rng)
-        else:
-            self._angle = 90.0
-
         if self.sample_velocities:
             self._velocity = mc.get_random_velocity(self.mean_velocity, rng=self.rng)
-        else:
-            self._velocity = self.mean_velocity
+
+        if self.sample_angles:
+            self.angle = mc.get_random_impact_angle(rng=self.rng)
 
         if self.sample_directions:
             self._direction = mc.get_random_impact_direction(rng=self.rng)
-        else:
-            self._direction = 0.0
-
 
         return {
             "projectile_velocity": self.velocity,
@@ -175,21 +174,6 @@ class ImpactorModel(ABC):
     
     @mean_velocity.setter
     def mean_velocity(self, value):
-        """
-        Sets the mean velocity of the projectile. If none is provided, it will look at the target name, and if it matches a known body, we will draw from a distribution using the predefined mean velocity value. Otherwise, it will raise an error.
-        
-        Parameters
-        ----------
-        value : float | None
-            The mean velocity in m/s or None to use a default value based on the target name.
-        
-        Raises
-        ------
-        ValueError
-            If the provided value is negative or None.
-        TypeError
-            If the provided value is not a numeric value or None.
-        """
         if isinstance(value, FloatLike):
             if value < 0:
                 raise ValueError("mean_velocity must be a positive number")
@@ -207,7 +191,15 @@ class ImpactorModel(ABC):
         -------
         float 
         """
-        return self._sample_angles
+        return self._angle
+    
+    @angle.setter
+    def angle(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("angle must be a numeric value")
+        if value < 0:
+            raise ValueError("angle must be a positive number")
+        self._angle = float(value)
 
 
     @property
@@ -220,6 +212,14 @@ class ImpactorModel(ABC):
         float 
         """
         return self._direction
+    
+    @direction.setter
+    def direction(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("direction must be a numeric value")
+        if value < 0:
+            raise ValueError("direction must be a positive number")
+        self._direction = float(value)
 
     @property
     def velocity(self):
@@ -231,6 +231,14 @@ class ImpactorModel(ABC):
         float 
         """
         return self._velocity
+    
+    @velocity.setter
+    def velocity(self, value):
+        if not isinstance(value, FloatLike):
+            raise TypeError("velocity must be a numeric value")
+        if value < 0:
+            raise ValueError("velocity must be a positive number")
+        self._velocity = float(value)
 
     @parameter
     def density(self):
