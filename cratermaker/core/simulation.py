@@ -11,6 +11,7 @@ from typing import Any
 from numpy.typing import ArrayLike
 import warnings
 import yaml
+from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR
 from .target import Target
 from .crater import Crater, make_crater
 from .surface import Surface, _save_surface
@@ -694,16 +695,10 @@ class Simulation:
     
     
     def export_vtk(self, 
-                   out_dir: os.PathLike | None = None,
                    *args, **kwargs
                    ) -> None:
         """
-        Export the surface mesh to a VTK file.
-
-        Parameters
-        ----------
-        out_dir : str, Default "vtk_files" in the simulation directory
-            Directory to store the VTK files.
+        Export the surface mesh to a VTK file and stores it in the default export directory.
         """
         from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkWarpScalar, vtkXMLPolyDataWriter
         from vtkmodules.util.numpy_support import numpy_to_vtk
@@ -711,13 +706,13 @@ class Simulation:
         from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
         
         self.save()  
-        if out_dir is None:
-            out_dir = os.path.join(self.simdir, "vtk_files")
-        if os.path.exists(out_dir):
-            shutil.rmtree(out_dir)
-        os.makedirs(out_dir)
-            
-        data_file_list = glob(os.path.join(self.surf.data_dir, "*.nc"))
+
+        # Create the output directory if it doesn't exist 
+        out_dir = self.simdir / _EXPORT_DIR
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        data_dir = self.simdir / _DATA_DIR
+        data_file_list = data_dir.glob("*.nc")
         if self.surf.grid_file in data_file_list:
             data_file_list.remove(self.surf.grid_file)
        
@@ -814,15 +809,15 @@ class Simulation:
             Longitudes of the circle centers in degrees.
         latitudes : FloatLike or ArrayLike of Floats
             Latitudes of the circle centers in degrees.
-        out_dir : str, Default "vtk_files" in the simulation directory
-            Directory to store the VTK files.
+        out_filename : os.PathLike, optional 
+            Name of the output file. If not provided, the default is "circle.vtp" 
         """ 
         import vtk 
 
         if output_filename is None:
-            output_filename = os.path.join(self.simdir, "circles.vtp") 
+            output_filename = self.simdir / _EXPORT_DIR / _CIRCLE_FILE_NAME
         else:
-            output_filename = os.path.join(self.simdir, output_filename)
+            output_filename = self.simdir / _EXPORT_DIR / output_filename
         
         diameters = np.atleast_1d(diameters)
         longitudes = np.atleast_1d(longitudes)
@@ -1458,7 +1453,7 @@ class Simulation:
         """
         The path to the configuration file for the simulation.
         """
-        return self.simdir / "cratermaker.yaml" 
+        return self.simdir / _CONFIG_FILE_NAME
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)

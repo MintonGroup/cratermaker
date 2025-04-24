@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation as R
@@ -26,7 +27,8 @@ class HiResLocalGrid(GridMaker):
     superdomain_scale_factor : FloatLike
         A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
         that are modeled outside the local region are those whose ejecta could just reach the boundary.
-        
+    simdir: os.PathLike
+        The directory where the simulation files are stored. Default is the current working directory.           
     Returns
     -------
     HiResLocalGrid
@@ -38,10 +40,10 @@ class HiResLocalGrid(GridMaker):
                  local_radius: FloatLike, 
                  local_location: PairOfFloats,
                  superdomain_scale_factor: FloatLike,
+                 simdir: os.PathLike = Path.cwd(),
                  **kwargs: Any):
-        super().__init__(**kwargs)
+        super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.pix = pix
-        self.radius = radius        
         self.local_radius = local_radius
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
@@ -229,9 +231,9 @@ class HiResLocalGrid(GridMaker):
 
     def generate_grid(self,
                       grid_file: os.PathLike,
-                      grid_hash: str | None = None,
+                      id: str | None = None,
                       **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
+        super().generate_grid(grid_file=grid_file, id=id, **kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_min = face_sizes.min().item() * self.radius

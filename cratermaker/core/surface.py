@@ -17,14 +17,7 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
 from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.components.grid import get_grid_type, available_grid_types
-
-# Default file names and directories
-_DATA_DIR = Path.cwd() / "surface_data"
-_COMBINED_DATA_FILE_NAME = "surf.nc"
-_GRID_FILE_NAME = "grid.nc"
-
-# This is a factor used to determine the smallest length scale in the grid
-_SMALLFAC = 1.0e-5
+from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME, _SMALLFAC
 
 class Surface(UxDataset):
     """
@@ -39,10 +32,8 @@ class Surface(UxDataset):
         Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
     target : Target, optional
         The target body or name of a known target body for the impact simulation. 
-    data_dir : os.PathLike, optional
-        The directory for data files.
-    grid_file : os.PathLike, optional
-        The file path to the grid file.
+    simdir : os.PathLike, optional
+        The directory where the simulation data is stored. Default is the current working directory.
     compute_face_areas : bool, optional
         Flag to indicate whether to compute face areas. Default is False.    
     rng : Generator, optional
@@ -55,10 +46,9 @@ class Surface(UxDataset):
     def __init__(self, 
                  *args, 
                  target: Target | str = "Moon", 
-                 data_dir: os.PathLike = _DATA_DIR,
-                 grid_file: os.PathLike = _DATA_DIR / _GRID_FILE_NAME,
                  compute_face_areas: bool = False,
                  rng: Generator | None = None, 
+                 simdir: os.PathLike = Path.cwd(),
                  **kwargs):
 
         # Call the super class constructor with the UxDataset
@@ -76,8 +66,8 @@ class Surface(UxDataset):
                 raise ValueError(f"Invalid target name {target}")
         else:
             self.target = target
-        self.data_dir = data_dir
-        self.grid_file = grid_file
+        self.data_dir = simdir / _DATA_DIR
+        self.grid_file = self.data_dir / _GRID_FILE_NAME
         self.rng = rng
         self.compute_face_areas = compute_face_areas
        
@@ -94,12 +84,11 @@ class Surface(UxDataset):
     @classmethod
     def initialize(cls, 
                    target: Target | None,
-                   data_dir: os.PathLike | None = None,
-                   grid_file: os.PathLike | None = None,
                    reset_surface: bool = True, 
                    gridtype: str | None = None,
-                   rng: Generator | None = None,
                    regrid: bool = False,
+                   simdir: os.PathLike = Path.cwd(),
+                   rng: Generator | None = None,
                    **kwargs):
         """
         Factory method to create a Surface instance from a grid file.
@@ -108,14 +97,14 @@ class Surface(UxDataset):
         ----------
         target : Target, optional
             Target object or name of known body for the simulation. Default is Target("Moon")
-        data_dir : os.PathLike
-            The directory for data files. Default is set to ``${PWD}/surface_data``.
-        grid_file : os.PathLike
-            The file path to the grid file. Default is set to be from the current working directory, to ``{data_dir}/grid.nc``.
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
         gridtype : str, optional
-            The type of grid to be generated. Default is "icosphere".            
+            The type of grid to be generated. Default is "icosphere".  
+        regrid : bool, optional
+            Flag to indicate whether to regrid the surface. Default is False.
+        simdir : os.PathLike, optional
+            The directory where the simulation data is stored. Default is the current working directory.
         rng : Generator, optional
             A random number generator instance. If not provided, the default numpy RNG will be used. 
         **kwargs : dict
@@ -128,6 +117,7 @@ class Surface(UxDataset):
         """
         grid_parameters = kwargs.pop("grid_parameters", {})
         gridtype = gridtype or grid_parameters.pop("gridtype", "icosphere")
+        simdir = grid_parameters.pop("simdir", simdir)
 
         # If there are any keys in kwargs that match those in grid_parameters, remove them from grid_parameters
         for key in kwargs.keys():
@@ -148,19 +138,13 @@ class Surface(UxDataset):
             radius = grid_parameters.pop("radius", radius)
         
         # Verify directory structure exists and create it if not
-        if not data_dir:
-            data_dir = _DATA_DIR
-        elif not isinstance(data_dir, Path):
-            data_dir = Path(data_dir)
-            
-        if not os.path.exists(data_dir):
-            os.mkdir(data_dir)
+        data_dir = simdir / _DATA_DIR
+
+        if not data_dir.exists():
+            data_dir.mkdir(parents=True)
             reset_surface = True
-      
-        if not grid_file: 
-            grid_file = data_dir / _GRID_FILE_NAME
-        elif not isinstance(grid_file, Path):
-            grid_file = Path(grid_file)
+
+        grid_file = data_dir / _GRID_FILE_NAME 
             
         # Process the grid parameters from the arguments and build the strategy object 
         try:

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import numpy as np
 from typing import Any
 from numpy.typing import NDArray
@@ -17,7 +18,9 @@ class IcosphereGrid(GridMaker):
         The subdivision level of the icosphere. The number of faces is 20 * 4**level. The default level is 8.
     radius: FloatLike
         The radius of the target body in meters.
-        
+    simdir: os.PathLike
+        The directory where the simulation files are stored. Default is the current working directory.   
+
     Returns
     -------
     IcosphereGrid
@@ -27,10 +30,10 @@ class IcosphereGrid(GridMaker):
     def __init__(self, 
                  gridlevel: int = 8, 
                  radius: FloatLike = 1.0, 
+                 simdir: os.PathLike = Path.cwd(),
                  **kwargs: Any):
-        super().__init__(**kwargs)
+        super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.gridlevel = gridlevel
-        self.radius = radius
         
         
     def generate_face_distribution(self, **kwargs: Any) -> NDArray:
@@ -52,9 +55,9 @@ class IcosphereGrid(GridMaker):
     
     def generate_grid(self,
                       grid_file: os.PathLike,
-                      grid_hash: str | None = None,
+                      id: str | None = None,
                       **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
+        super().generate_grid(grid_file=grid_file, id=id, **kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_mean = face_sizes.mean().item() * self.radius
@@ -70,4 +73,11 @@ class IcosphereGrid(GridMaker):
     def gridlevel(self, value: int) -> None:
         if value < 0:
             raise ValueError("Grid level must be a non-negative integer.")
-        self._gridlevel = value
+        self._gridlevel = int(value)
+
+    @property
+    def _hashvars(self):
+        """
+        The variables used to generate the hash.
+        """
+        return [self._gridtype, self._radius, self._gridlevel]

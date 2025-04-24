@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import numpy as np
 from typing import Any
 from numpy.typing import NDArray
@@ -17,7 +18,9 @@ class ArbitraryResolutionGrid(GridMaker):
         The approximate face size for the mesh in meters.
     radius: FloatLike
         The radius of the target body in meters.
-        
+    simdir: os.PathLike
+        The directory where the simulation files are stored. Default is the current working directory.  
+
     Returns
     -------
     ArbitraryResolutionGrid
@@ -25,15 +28,14 @@ class ArbitraryResolutionGrid(GridMaker):
     """    
     
     def __init__(self, 
-                 radius: FloatLike = 1.0, 
                  pix: FloatLike | None = None, 
+                 radius: FloatLike = 1.0, 
+                 simdir: os.PathLike = Path.cwd(),             
                  **kwargs: Any):
-        super().__init__(**kwargs)
-        self.radius = radius
-        if pix is not None:
-            self.pix = np.float64(pix)
-        else:    
-            self.pix = np.sqrt(4 * np.pi * radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
+        super().__init__(radius=radius, simdir=simdir, **kwargs)
+        self.pix = pix
+        
+
 
     @parameter
     def pix(self):
@@ -44,9 +46,11 @@ class ArbitraryResolutionGrid(GridMaker):
     
     @pix.setter
     def pix(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+        if value is None:
+            value= np.sqrt(4 * np.pi * self.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
+        elif not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
             raise TypeError("pix must be a positive float")
-        self._pix = value
+        self._pix = float(value)
 
     def generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
@@ -68,9 +72,9 @@ class ArbitraryResolutionGrid(GridMaker):
     
     def generate_grid(self,
                       grid_file: os.PathLike,
-                      grid_hash: str | None = None,
+                      id: str | None = None,
                       **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
+        super().generate_grid(grid_file=grid_file, id=id, **kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_mean = face_sizes.mean().item() * self.radius
