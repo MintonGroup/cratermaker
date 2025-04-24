@@ -29,8 +29,6 @@ class Surface(CratermakerBase, UxDataset):
     
     Parameters
     ----------
-    *args
-        Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
     target : Target, optional
         The target body or name of a known target body for the impact simulation. 
     compute_face_areas : bool, optional
@@ -40,7 +38,7 @@ class Surface(CratermakerBase, UxDataset):
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the seed if it is provided.
     seed : int | None
-        The random seed for the simulation if rng is not provided. If None, a random seed is used. 
+        The random seed for the simulation if rng is not provided. If None, a random seed is used.
     **kwargs
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
     """
@@ -51,16 +49,14 @@ class Surface(CratermakerBase, UxDataset):
     )
 
     def __init__(self, 
-                 *args, 
                  target: Target | str = "Moon", 
                  compute_face_areas: bool = False,
-                 simdir: os.PathLike = Path.cwd(),
                  rng: Generator | None = None, 
                  seed: int | None = None,
                  **kwargs):
 
         # Call the super class constructor with the UxDataset
-        super().__init__(*args, simdir=simdir, rng=rng, seed=seed, **kwargs)
+        super().__init__(rng=rng, seed=seed, **kwargs)
        
         # Additional initialization for Surface
         self._name = "Surface"
@@ -91,7 +87,7 @@ class Surface(CratermakerBase, UxDataset):
                    reset_surface: bool = True, 
                    gridtype: str | None = None,
                    regrid: bool = False,
-                   simdir: os.PathLike = Path.cwd(),
+                   simdir: str | Path = Path.cwd(),
                    rng: Generator | None = None,
                    seed: int | None = None,
                    **kwargs):
@@ -124,7 +120,7 @@ class Surface(CratermakerBase, UxDataset):
         """
         grid_parameters = kwargs.pop("grid_parameters", {})
         gridtype = gridtype or grid_parameters.pop("gridtype", "icosphere")
-        simdir = grid_parameters.pop("simdir", simdir)
+        grid_parameters.pop("simdir", None)
 
         # If there are any keys in kwargs that match those in grid_parameters, remove them from grid_parameters
         for key in kwargs.keys():
@@ -187,23 +183,23 @@ class Surface(CratermakerBase, UxDataset):
         # Initialize UxDataset with the loaded data
         try:
             if data_file_list:
-                surf = uxr.open_mfdataset(grid.file, data_file_list, use_dual=False).isel(time=-1)
-                surf.uxgrid = uxr.open_grid(grid.file, use_dual=False)
+                uds = uxr.open_mfdataset(grid.file, data_file_list, use_dual=False).isel(time=-1)
+                uds.uxgrid = uxr.open_grid(grid.file, use_dual=False)
             else:
-                surf = uxr.UxDataset()
-                surf.uxgrid = uxr.open_grid(grid.file, use_dual=False)
+                uds = uxr.UxDataset()
+                uds.uxgrid = uxr.open_grid(grid.file, use_dual=False)
         except:
             raise ValueError("Error loading grid and data files")
-        
-        surf = cls(surf,
-                   uxgrid=surf.uxgrid,
-                   source_datasets=surf.source_datasets,
+
+        compute_face_areas = kwargs.pop("compute_face_areas", True) 
+        surf = cls(uds,
+                   uxgrid=uds.uxgrid,
+                   source_datasets=uds.source_datasets,
                    target = target,
                    rng = rng,
                    seed = seed,
                    simdir = simdir,
-                   compute_face_areas = True,
-                  ) 
+                   compute_face_areas = compute_face_areas) 
         
         if reset_surface:
             surf.generate_data(data=0.0,
@@ -237,8 +233,7 @@ class Surface(CratermakerBase, UxDataset):
                             source_datasets=self.source_datasets,
                             target=self.target,
                             compute_face_areas=False,
-                            **vars(self.common_args),
-                            )
+                            **vars(self.common_args))
         return value
     
     def _calculate_binary_op(self, *args, **kwargs):
@@ -248,6 +243,7 @@ class Surface(CratermakerBase, UxDataset):
         if isinstance(ds, Surface):
             ds._name = self._name
             ds._description = self._description
+            ds._simdir = self._simdir
             ds._data_dir = self._data_dir
             ds._grid_file = self._grid_file
             ds._target = self._target
@@ -258,9 +254,8 @@ class Surface(CratermakerBase, UxDataset):
                          uxgrid=self.uxgrid,
                          source_datasets=self.source_datasets,
                          target=self.target,
-                         **vars(self.common_args),
                          compute_face_areas=False,
-                         )
+                         **vars(self.common_args))
         return ds
     
     @classmethod
