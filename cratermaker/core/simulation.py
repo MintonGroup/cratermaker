@@ -710,13 +710,13 @@ class Simulation:
             data_file_list.remove(self.surf.grid_file)
        
         # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
-        n_node = self.surf.uxgrid.n_node
-        n_face = self.surf.uxgrid.n_face
-        node_x = self.surf.uxgrid.node_x.values * self.target.radius
-        node_y = self.surf.uxgrid.node_y.values * self.target.radius
-        node_z = self.surf.uxgrid.node_z.values * self.target.radius
-        n_nodes_per_face = self.surf.uxgrid.n_nodes_per_face.values
-        face_node_connectivity = self.surf.uxgrid.face_node_connectivity.values
+        n_node = self.surf._data.uxgrid.n_node
+        n_face = self.surf._data.uxgrid.n_face
+        node_x = self.surf._data.uxgrid.node_x.values * self.target.radius
+        node_y = self.surf._data.uxgrid.node_y.values * self.target.radius
+        node_z = self.surf._data.uxgrid.node_z.values * self.target.radius
+        n_nodes_per_face = self.surf._data.uxgrid.n_nodes_per_face.values
+        face_node_connectivity = self.surf._data.uxgrid.face_node_connectivity.values
         
         vtk_data = vtkUnstructuredGrid()
         nodes = vtkPoints()
@@ -980,17 +980,18 @@ class Simulation:
             kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
             
         def _noisemaker(vars):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", Warning)           
-                x = self.surf.uxgrid[vars[0]].values * scale 
-                y = self.surf.uxgrid[vars[1]].values * scale 
-                z = self.surf.uxgrid[vars[2]].values * scale
-                noise = realistic.apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
+            raise NotImplementedError
+            # with warnings.catch_warnings():
+            #     warnings.simplefilter("ignore", Warning)           
+            #     x = self.surf.uxgrid[vars[0]].values * scale 
+            #     y = self.surf.uxgrid[vars[1]].values * scale 
+            #     z = self.surf.uxgrid[vars[2]].values * scale
+            #     noise = realistic.apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
         
-            # Make sure the noise is volume-conserving (i.e., the mean is zero)
-            # TODO: Take into account the nodes are not uniformly distributed on the sphere
-            noise = noise - np.mean(noise)
-            return noise                
+            # # Make sure the noise is volume-conserving (i.e., the mean is zero)
+            # # TODO: Take into account the nodes are not uniformly distributed on the sphere
+            # noise = noise - np.mean(noise)
+            # return noise                
         
         if to_nodes:
             vars = ['node_x', 'node_y', 'node_z']
