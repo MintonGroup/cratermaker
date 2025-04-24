@@ -9,6 +9,7 @@ class AsteroidImpactors(ImpactorModel):
                  target_name : str = "Moon",
                  density : float = 2000.0,
                  rng: Generator | None = None,
+                 seed: int | None = None,
                  **kwargs: Any):
         """
         An operations class for computing the impactor properties of an asteroid source population.
@@ -21,7 +22,8 @@ class AsteroidImpactors(ImpactorModel):
             The density of the impactor in kg/m^3. Default is 2000.0 kg/m^3.
         rng : Generator | None
             A random number generator for Monte Carlo simulations. If None, a default generator will be used.
-
+        seed : int | None
+            The random seed for the simulation if rng is not provided. If None, a random seed is used.
         **kwargs : Any
             Additional keyword arguments to be passed to internal functions.
         """
@@ -30,7 +32,7 @@ class AsteroidImpactors(ImpactorModel):
         kwargs["sample_velocities"] = True
         kwargs["sample_angles"] = True
         kwargs["sample_directions"] = True
-        super().__init__(target_name=target_name, density=density, rng=rng, **kwargs)
+        super().__init__(target_name=target_name, density=density, rng=rng, seed=seed, **kwargs)
         self.mean_velocity = self._set_mean_velocity()
 
 

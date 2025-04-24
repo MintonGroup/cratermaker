@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
@@ -27,8 +26,9 @@ class HiResLocalGrid(GridMaker):
     superdomain_scale_factor : FloatLike
         A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
         that are modeled outside the local region are those whose ejecta could just reach the boundary.
-    simdir: os.PathLike
-        The directory where the simulation files are stored. Default is the current working directory.           
+    simdir : str | Path
+        The main project simulation directory.
+         
     Returns
     -------
     HiResLocalGrid
@@ -40,13 +40,20 @@ class HiResLocalGrid(GridMaker):
                  local_radius: FloatLike, 
                  local_location: PairOfFloats,
                  superdomain_scale_factor: FloatLike,
-                 simdir: os.PathLike = Path.cwd(),
+                 simdir: str | Path = Path.cwd(),
                  **kwargs: Any):
         super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
+
+    @property
+    def _hashvars(self):
+        """
+        The variables used to generate the hash.
+        """
+        return [self._gridtype, self._radius, self._pix, self._local_radius, self._local_location, self._superdomain_scale_factor]
         
     def _generate_variable_size_array(self) -> tuple[NDArray, NDArray, NDArray]:
         """
@@ -229,11 +236,8 @@ class HiResLocalGrid(GridMaker):
         
         return points
 
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      id: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, id=id, **kwargs)
+    def generate_grid(self, **kwargs: Any): 
+        super().generate_grid(**kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_min = face_sizes.min().item() * self.radius

@@ -13,22 +13,21 @@ import hashlib
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.constants import _GRID_FILE_NAME, _DATA_DIR
+from cratermaker.core.base import CratermakerBase
 
-class GridMaker(ABC):
+class GridMaker(CratermakerBase, ABC):
     def __init__(self, 
-                 simdir: os.PathLike = Path.cwd(),
+                 simdir: str | Path = Path.cwd(),
                  radius: FloatLike = 1.0, 
                  **kwargs: Any):
-        object.__setattr__(self, "_user_defined", set())
+        super().__init__(simdir=simdir, **kwargs)
         object.__setattr__(self, "_simdir", None)
-        object.__setattr__(self, "_gridtype", None)
         object.__setattr__(self, "_grid", None)
         object.__setattr__(self, "_radius", None)
+        object.__setattr__(self, "_grid_file", None)
         self.simdir = simdir
         self.radius = radius
 
-    def to_config(self, **kwargs: Any) -> dict:
-        return _to_config(self)
     
     @abstractmethod
     def generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray,NDArray,NDArray]: ...
@@ -55,13 +54,12 @@ class GridMaker(ABC):
             os.fsync(temp_file.fileno())
             
         # Replace the original file only if writing succeeded
-        shutil.move(temp_file.name,grid_file)            
+        shutil.move(temp_file.name,self.file)            
         print("Mesh generation complete")
         self.grid = grid 
         return         
 
     def check_if_regrid(self,
-                         grid_file: os.PathLike,
                          **kwargs: Any,
                         ) -> bool:
         """
@@ -70,13 +68,6 @@ class GridMaker(ABC):
         This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these 
         parameters. If the grid does not exist or does not match the parameters it returns True. 
 
-        Parameters
-        ----------
-        grid_file : PathLike
-            The file path where the grid is saved or will be saved. 
-        grid_file : os.PathLike
-            The file path to the grid file. 
-
         Returns
         -------
         bool
@@ -84,10 +75,10 @@ class GridMaker(ABC):
         """
     
         # Find out if the file exists, if it does't we'll need to make a new grid
-        make_new_grid = not os.path.exists(grid_file)
+        make_new_grid = not os.path.exists(self.file)
         
         if not make_new_grid:
-            uxgrid = uxr.open_grid(grid_file)
+            uxgrid = uxr.open_grid(self.file)
             try: 
                 old_id = uxgrid.attrs.get("_id")
                 make_new_grid = old_id != self._id
@@ -96,29 +87,19 @@ class GridMaker(ABC):
                 
         return make_new_grid
 
-    def create_grid(self,
-                     grid_file: os.PathLike,
-                     **kwargs: Any,
-                     ) -> bool:
+    def create_grid(self, **kwargs: Any,):
         """
 
         Creates a new grid file based on the grid parameters and stores the new grid as the grid property of the object. 
 
-        Parameters
-        ----------
-        grid_file : PathLike
-            The file path where the grid will be saved. 
-        grid_file : os.PathLike
-            The file path to the grid file. 
         """
     
         # Generate the hash for the current parameters
-        if os.path.exists(grid_file):
-            os.remove(grid_file)
-        self.generate_grid(grid_file=grid_file, **kwargs) 
+        self.file.unlink(missing_ok=True)
+        self.generate_grid(**kwargs) 
         
         # Check to make sure we can open the grid file, then store the hash in the metadata
-        assert(self.check_if_regrid(grid_file=grid_file, **kwargs))
+        assert(self.check_if_regrid(**kwargs))
 
         return 
 
@@ -251,24 +232,11 @@ class GridMaker(ABC):
         return self._gridtype
     
     @property
-    def grid_file(self):
+    def file(self):
         """
         The grid file path.
         """
         return self._simdir / _DATA_DIR / _GRID_FILE_NAME
-
-    @parameter
-    def simdir(self):
-        """
-        The main project simulation directory.
-        """
-        return self._simdir
-
-    @simdir.setter
-    def grid_file(self, value: os.PathLike):
-        if not isinstance(value, os.PathLike):
-            raise TypeError("grid_file must be a valid file path")
-        self._simdir = Path(value)
 
 
 _registry: dict[str, GridMaker] = {}

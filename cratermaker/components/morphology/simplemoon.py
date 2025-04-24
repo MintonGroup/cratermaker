@@ -30,8 +30,9 @@ class SimpleMoon(MorphologyModel):
     
     def __init__(self, 
                  ejecta_truncation: FloatLike | None = None,
-                 rng: Generator | None = None,
                  dorays: bool = True,
+                 rng: Generator | None = None,
+                 seed: int | None = None,
                  **kwargs: Any 
                  ):
         super().__init__(**kwargs)
@@ -422,23 +423,6 @@ class SimpleMoon(MorphologyModel):
             raise TypeError("face_index must be of type int")
         self._face_index = value
 
-    @property
-    def rng(self):
-        """
-        A random number generator instance.
-        
-        Returns
-        -------
-        Generator
-        """ 
-        return self._rng
-    
-    @rng.setter
-    def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        self._rng = value or np.random.default_rng()   
-       
     @parameter
     def ejecta_truncation(self) -> float:
         """

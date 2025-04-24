@@ -2,7 +2,7 @@ import unittest
 import os
 import tempfile
 from cratermaker import Target, get_grid_type, available_grid_types
-from cratermaker.core.surface import  _GRID_FILE_NAME
+from cratermaker.constants import  _GRID_FILE_NAME
 
 gridtypes = available_grid_types()
 
@@ -59,8 +59,8 @@ class TestGrid(unittest.TestCase):
 
         for gridtype, args in gridargs.items():
             grid = get_grid_type(gridtype)(**args)
-            grid.generate_grid(grid_file=self.grid_file)
-            self.assertTrue(os.path.exists(self.grid_file))
+            grid.generate_grid()
+            self.assertTrue(os.path.exists(grid.file))
         
         return
 

@@ -3,7 +3,6 @@ from numpy.random import Generator
 import xarray as xr
 import os
 from pathlib import Path
-import shutil
 from tqdm import tqdm
 from glob import glob
 from collections.abc import Sequence
@@ -22,21 +21,23 @@ from ..components.scaling import ScalingModel, get_scaling_model, available_scal
 from ..components.production import ProductionModel, get_production_model, available_production_models
 from ..components.morphology import MorphologyModel, get_morphology_model, available_morphology_models
 from ..components.impactor import ImpactorModel, get_impactor_model, available_impactor_models
+from .base import CratermakerBase
 
-class Simulation:
+class Simulation(CratermakerBase):
     """
     This class orchestrates the processes involved in running a crater simulation.
 
     """
     def __init__(self, *, # Enforce keyword-only arguments
                  target_name: str = "Moon",
-                 seed: int | None = None,
                  scaling_model: str = "richardson2009",
                  production_model: str | None = None,
                  morphology_model: str = "simplemoon",
                  impactor_model: str = "asteroids",
                  reset_surface: bool = True,
-                 simdir: os.PathLike = Path.cwd(), 
+                 simdir: str | Path = Path.cwd(),
+                 rng: Generator | None = None, 
+                 seed: int | None = None,
                  **kwargs: Any):
         """
         Initialize the Simulation object.
@@ -45,8 +46,6 @@ class Simulation:
         ----------
         target_name: str, optional, default "Moon"
             Name of the target body or Target object for the simulation, default is "Moon".
-        seed : int, optional
-            Seed for the random number generator, default is None which will generate a random seed.
         scaling_model : str, optional
             The name of the impactor->crater size scaling model to use from the components library. The default is "richardson2009".
         production_model: str, optional
@@ -61,8 +60,12 @@ class Simulation:
         reset_surface : bool, optional
             Flag to reset the surface elevation, default is True. If False, the surface will be preserved and the simulation will
             continue from the last saved state.
-        simdir: PathLike, optional
-            Path to the simulation directory, default is current working directory.
+        simdir : str | Path
+            The main project simulation directory.
+        rng : Generator | None
+            A numpy random number generator. If None, a new generator is created using the seed.
+        seed : int | None
+            The random seed for the simulation. If None, a random seed is used.
         **kwargs : Any
             Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scale, 
             morphology, or production function constructors. Refer to the documentation of each component module for details.
@@ -71,6 +74,7 @@ class Simulation:
         --------
         cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
         """
+        super().__init__(simdir=simdir, rng=rng, seed=seed, **kwargs)
         object.__setattr__(self, "_target_name", None)
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_production_model", None)
@@ -91,14 +95,9 @@ class Simulation:
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
-        object.__setattr__(self, "_simdir", None)
-        object.__setattr__(self, "_rng", None)
         object.__setattr__(self, "_surf", None)
-        object.__setattr__(self, "_seed", None)
         object.__setattr__(self, "_reset_surface", None)
 
-        self.simdir = simdir
-        
         if self.config_file.exists():
             filename = self.config_file
         else:
@@ -126,15 +125,15 @@ class Simulation:
             if self.target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
                 self.production_model = "neukum"
                 if self.target_name in ['Moon', 'Mars']:
-                    self.production = get_production_model(self.production_model)(version=self.target_name, rng=self.rng, **kwargs)
+                    self.production = get_production_model(self.production_model)(version=self.target_name, **vars(self.common_args), **kwargs)
                 else:
-                    self.production = get_production_model(self.production_model)(version="projectile", rng=self.rng, **kwargs)
+                    self.production = get_production_model(self.production_model)(version="projectile", **vars(self.common_args), **kwargs)
             else:
-                self.production = get_production_model("powerlaw")(rng=self.rng, **kwargs)
+                self.production = get_production_model("powerlaw")(**vars(self.common_args), **kwargs)
         else:
             self.production_model = production_model
         try:
-            self.production = get_production_model(self.production_model)(rng=self.rng, **production_model_parameters, **kwargs)
+            self.production = get_production_model(self.production_model)(**vars(self.common_args), **production_model_parameters, **kwargs)
         except:
             raise ValueError(f"Error initializing production model {self.production_model}")
         
@@ -145,20 +144,20 @@ class Simulation:
                 self.impactor_model = "comets"
         try:
             self.impactor_model = impactor_model
-            self.impactor = get_impactor_model(self.impactor_model)(target_name=self.target.name, rng=self.rng, **kwargs) 
+            self.impactor = get_impactor_model(self.impactor_model)(target_name=self.target.name, **vars(self.common_args), **kwargs) 
         except:
             raise ValueError(f"Error initializing impactor model {self.impactor_model}")
             
         # Set the scaling law model for this simulation 
         self.scaling_model = scaling_model
         try:
-            self.scale = get_scaling_model(self.scaling_model)(target=self.target, impactor=self.impactor, rng=self.rng, **scaling_model_parameters, **kwargs)
+            self.scale = get_scaling_model(self.scaling_model)(target=self.target, impactor=self.impactor, **vars(self.common_args), **scaling_model_parameters, **kwargs)
         except:
             raise ValueError(f"Error initializing scaling model {self.scaling_model}")
       
         self.morphology_model = morphology_model
         try:
-            self.morphology = get_morphology_model(self.morphology_model)(rng=self.rng, **morphology_model_parameters, **kwargs)
+            self.morphology = get_morphology_model(self.morphology_model)(**vars(self.common_args), **morphology_model_parameters, **kwargs)
         except:
             raise ValueError(f"Error initializing {morphology_model}")
         
@@ -174,7 +173,7 @@ class Simulation:
                         superdomain_scale_factor = rmax / crater.final_radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-        self.surf = Surface.initialize(target=self.target, reset_surface=self.reset_surface, simdir=self.simdir, rng=self.rng, **surface_parameters, **kwargs)
+        self.surf = Surface.initialize(target=self.target, reset_surface=self.reset_surface, **vars(self.common_args), **surface_parameters, **kwargs)
 
         self._craterlist = []
         self._crater = None
@@ -258,7 +257,7 @@ class Simulation:
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
          
-        crater = make_crater(target=self.target, scale=self.scale, impactor=self.impactor, rng=self.rng, **kwargs)
+        crater = make_crater(target=self.target, scale=self.scale, impactor=self.impactor, **vars(self.common_args), **kwargs)
         
         return crater
     
@@ -664,7 +663,7 @@ class Simulation:
 
 
     def to_config(self, **kwargs: Any) -> dict:
-        sim_config = _to_config(self)
+        sim_config = super().to_config()
         sim_config['target_parameters'] = self.target.to_config()
         sim_config['scaling_model_parameters'] = self.scale.to_config()
         sim_config['production_model_parameters'] = self.production.to_config()
@@ -1092,35 +1091,6 @@ class Simulation:
             raise TypeError("surf must be an instance of Surface")
         self._surf = value
 
-    @parameter
-    def seed(self):
-        """
-        Seed for the random number generator. Set during initialization.
-        """
-        return self._seed
-
-    @seed.setter
-    def seed(self, value):
-        if value is None:
-            value = np.random.default_rng().integers(0, 2**32)
-        elif not isinstance(value, int):
-            raise TypeError("seed must be an integer or None")
-        self._seed = value
-
-    @property
-    def rng(self):
-        """
-        Random number generator instance. Set during initialization.
-        """
-        return self._rng
-
-    @rng.setter
-    def rng(self, value):
-        if value is None:
-            value = np.random.default_rng(seed=self.seed) 
-        elif not isinstance(value, Generator): 
-            raise TypeError("rng must be a numpy.random.Generator instance or None")
-        self._rng = value
 
     @parameter
     def reset_surface(self):
@@ -1135,24 +1105,6 @@ class Simulation:
             raise TypeError("reset_surface must be a boolean")
         self._reset_surface = value
     
-    @parameter
-    def simdir(self):
-        """
-        Directory where the simulation data is stored. Set during initialization.
-        """
-        return self._simdir
-
-    @simdir.setter
-    def simdir(self, value):
-        if value is None:
-            self._simdir = Path.cwd()
-        else:
-            p = Path(value)
-            if not p.is_absolute():
-                p = Path.cwd() / p
-            self._simdir = p
-
-        self._simdir.mkdir(parents=True, exist_ok=True)
 
     @property
     def production(self):

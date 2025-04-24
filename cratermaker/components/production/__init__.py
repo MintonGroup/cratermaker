@@ -9,11 +9,13 @@ from numpy.typing import ArrayLike
 from typing import Any, Union
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.montecarlo import get_random_size
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import parameter
+from cratermaker.core.base import CratermakerBase
 
-class ProductionModel(ABC):
+class ProductionModel(CratermakerBase, ABC):
     def __init__(self, 
-                 rng: Generator | None = None, 
+                 rng: Generator | None = None,
+                 seed: int | None = None, 
                  **kwargs: Any):
         
         """
@@ -27,14 +29,14 @@ class ProductionModel(ABC):
         impact_velocity_model : str, optional
             The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
             Only one of either mean_velocity or impact_velocity_model can be provided. Default is "Moon_MBA"
-        rng : numpy.random.Generator, optional
-            A random number generator to use for sampling. If None, a default generator will be used.
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the seed if it is provided.
+        seed : int | None
+            The random seed for the simulation if rng is not provided. If None, a random seed is used.
         """
+        super().__init__(rng=rng, seed=seed, **kwargs)
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
-        self.rng = rng
 
-    def to_config(self, **kwargs: Any) -> dict:
-        return _to_config(self)
 
     def sample(self,
                age: FloatLike | None = None,
@@ -94,7 +96,7 @@ class ProductionModel(ABC):
         input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
         cdf = self.function(diameter=input_diameters, age=age, age_end=age_end, **kwargs)
         expected_num = cdf[0] * area if area is not None else None
-        diameters = np.asarray(get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, rng=self.rng))
+        diameters = np.asarray(get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, **vars(self.common_args)))
         if diameters.size == 0:
             return np.empty(0), np.empty(0)
         elif diameters.size == 1:
@@ -490,19 +492,6 @@ class ProductionModel(ABC):
             raise ValueError("age must be a scalar or a sequence")
        
         return age, age_end 
-
-    @property
-    def rng(self):
-        """
-        A random number generator instance. If not provided, the default numpy RNG will be used.
-        """
-        return self._rng
-
-    @rng.setter
-    def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        self._rng = value or np.random.default_rng()
 
     @parameter
     def model(self):

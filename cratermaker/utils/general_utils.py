@@ -37,6 +37,7 @@ def parameter(fget=None):
     else:
         return Parameter(fget)
 
+
 def _set_properties(obj,
                     catalogue: dict | None = None,
                     key : str | None = None,
@@ -390,3 +391,4 @@ def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayL
         return N
     
     return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
+

@@ -1,10 +1,13 @@
 import numpy as np
 from typing import Any
-from ..utils.general_utils import _set_properties, _to_config, _create_catalogue
+from ..utils.general_utils import _set_properties, _create_catalogue
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
+from .base import CratermakerBase
+from pathlib import Path
+from numpy.random import Generator
 
-class Target:
+class Target(CratermakerBase):
     """
     Represents the target body in a crater simulation.
 
@@ -138,9 +141,6 @@ class Target:
         if value is not None and value <= 0:
             raise ValueError("Mass must be positive")
         setattr(self, "_mass", float(value))
-
-    def to_config(self, **kwargs: Any) -> dict:
-        return _to_config(self)
 
     @property
     def name(self):

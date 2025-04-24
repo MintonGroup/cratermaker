@@ -7,11 +7,9 @@ from numpy.random import Generator
 from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
+from cratermaker.core.base import CratermakerBase
 
-class ImpactorModel(ABC):
-    """
-    This is the abstract base class for all impactor models. It defines the interface for generating impactor velocities, angles, and densities for a given target body.
-    """
+class ImpactorModel(CratermakerBase, ABC):
     def __init__(self, 
                  target_name : str = "Moon",
                  mean_velocity : FloatLike = 22100.0, 
@@ -19,12 +17,43 @@ class ImpactorModel(ABC):
                  sample_velocities : bool = True,
                  sample_angles : bool = True,
                  sample_directions : bool = True,
-                 rng: Generator | None = None,
                  angle: FloatLike = 90.0,
                  velocity : FloatLike | None = None,
                  direction : FloatLike | None = None,
+                 rng: Generator | None = None,
+                 seed: int | None = None,
                  **kwargs):
-        object.__setattr__(self, "_user_defined", set())
+        """
+        This is the abstract base class for all impactor models. It defines the interface for generating impactor velocities, angles, and densities for a given target body.
+
+        Parameters
+        ----------
+        target_name : str
+            The name of the target body for the impact.
+        mean_velocity : float
+            The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
+        density : float
+            The density of the impactor in kg/m^3. Default is 2500.0 kg/m^3.
+        sample_velocities : bool
+            Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
+        sample_angles : bool
+            Flag that determines whether to sample impact angles from a distribution. If set to False, impact angles will be set to 90 degrees (vertical impact).
+        sample_directions : bool
+            Flag that determines whether to sample impact directions from a distribution. If set to False, impact directions will be set to the mean velocity.
+        angle : float
+            The impact angle in degrees. Default is 90.0 degrees.
+        velocity : float | None
+            The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
+        direction : float | None
+            The impact direction in degrees. If None, the direction will be sampled from a distribution.
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the seed if it is provided.
+        seed : int | None
+            The random seed for the simulation if rng is not provided. If None, a random seed is used.
+        kwargs : Any
+            Additional keyword arguments for subclasses. 
+        """
+        super().__init__(rng=rng, seed=seed, **kwargs)
         object.__setattr__(self, "_target_name", None)
         object.__setattr__(self, "_model", None)
         object.__setattr__(self, "_sample_angles", None)
@@ -35,17 +64,13 @@ class ImpactorModel(ABC):
         object.__setattr__(self, "_velocity", velocity)
         object.__setattr__(self, "_direction", direction)
         object.__setattr__(self, "_angle", angle)
-        object.__setattr__(self, "_rng", None)
+
         self.target_name = target_name
         self.sample_velocities = sample_velocities
         self.sample_angles = sample_angles
         self.sample_directions = sample_directions
-        self.rng = rng
 
 
-    def to_config(self, **kwargs: Any) -> dict:
-        return _to_config(self)
-    
     def new_projectile(self, **kwargs: Any) -> dict:
         """
         Updates the values of the velocities and angles and returns them as a dictionary of projectile properties that can be passed as arguments to the Crater class.
@@ -284,23 +309,6 @@ class ImpactorModel(ABC):
         """
         return self.velocity * np.sin(np.radians(self.angle))
     
-    
-    @property
-    def rng(self):
-        """
-        A random number generator instance.
-        
-        Returns
-        -------
-        Generator
-        """ 
-        return self._rng
-    
-    @rng.setter
-    def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        self._rng = value or np.random.default_rng()       
 
 
 _registry: dict[str, ImpactorModel] = {}

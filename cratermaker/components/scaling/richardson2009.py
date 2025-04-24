@@ -560,21 +560,3 @@ class Richardson2009(ScalingModel):
         if not isinstance(value, str) and value is not None:
             raise TypeError("name must be a string or None")
         self._material_name = value
-
-
-    @property
-    def rng(self):
-        """
-        A random number generator instance.
-        
-        Returns
-        -------
-        Generator
-        """ 
-        return self._rng
-    
-    @rng.setter
-    def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        self._rng = value or np.random.default_rng()       

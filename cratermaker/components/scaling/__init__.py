@@ -39,8 +39,6 @@ class ScalingModel(ABC):
     @abstractmethod
     def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
 
-    def to_config(self, **kwargs: Any) -> dict:
-        return _to_config(self)
 
     @parameter
     def model(self):

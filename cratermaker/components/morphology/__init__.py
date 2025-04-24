@@ -5,8 +5,9 @@ from typing import Any
 from cratermaker.core.crater import Crater
 from cratermaker.core.surface import Surface
 from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.core.base import CratermakerBase
 
-class MorphologyModel(ABC):
+class MorphologyModel(CratermakerBase, ABC):
     """
     Abstract base class for morphology models. A morphology model defines how the surface mesh is modified by a given crater.
     """
@@ -14,6 +15,7 @@ class MorphologyModel(ABC):
         """
         Initialize the morphology model with given parameters.
         """
+        super().__init__(**kwargs)
         object.__setattr__(self, "_model" , None)
         object.__setattr__(self, "_crater" , None)
 
@@ -22,12 +24,6 @@ class MorphologyModel(ABC):
                     surf: Surface,
                     crater: Crater | None = None,
                     **kwargs) -> None: ...    
-
-    def to_config(self, **kwargs: Any) -> dict:
-        """
-        Only include those parameters the user actually set.
-        """
-        return _to_config(self)
 
     @parameter
     def model(self):

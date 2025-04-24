@@ -18,8 +18,8 @@ class ArbitraryResolutionGrid(GridMaker):
         The approximate face size for the mesh in meters.
     radius: FloatLike
         The radius of the target body in meters.
-    simdir: os.PathLike
-        The directory where the simulation files are stored. Default is the current working directory.  
+    simdir : str | Path
+        The main project simulation directory.
 
     Returns
     -------
@@ -30,12 +30,17 @@ class ArbitraryResolutionGrid(GridMaker):
     def __init__(self, 
                  pix: FloatLike | None = None, 
                  radius: FloatLike = 1.0, 
-                 simdir: os.PathLike = Path.cwd(),             
+                 simdir: str | Path = Path.cwd(),
                  **kwargs: Any):
         super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.pix = pix
         
-
+    @property
+    def _hashvars(self):
+        """
+        The variables used to generate the hash.
+        """
+        return [self._gridtype, self._radius, self._pix]
 
     @parameter
     def pix(self):
@@ -70,11 +75,8 @@ class ArbitraryResolutionGrid(GridMaker):
         return points
    
     
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      id: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, id=id, **kwargs)
+    def generate_grid(self, **kwargs: Any): 
+        super().generate_grid(**kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_mean = face_sizes.mean().item() * self.radius

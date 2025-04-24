@@ -4,7 +4,7 @@ import shutil
 import numpy as np
 import tempfile
 from cratermaker import Target, Surface
-from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME
+from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
 
