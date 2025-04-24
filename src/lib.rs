@@ -4,11 +4,7 @@ pub mod crater_functions;
 pub mod ejecta_functions;
 pub mod surface_functions;
 
-use std::f64;
-
 use pyo3::prelude::*;
-
-const VSMALL: f64 = 10.0 * std::f64::EPSILON;
 
 #[pymodule]
 #[pyo3(name = "_cratermaker")]

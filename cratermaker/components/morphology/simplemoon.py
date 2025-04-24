@@ -170,11 +170,11 @@ class SimpleMoon(MorphologyModel):
         node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(region_view, self.crater.location)
         
         try:
-            node_thickness = self.ejecta_distribution(node_crater_distance, 
+            node_thickness = self.ejecta_distribution(node_crater_distance,
                                                       node_crater_bearing)
             surf.node_elevation[region_view.node_indices] += node_thickness
             
-            face_thickness = self.ejecta_distribution(face_crater_distance, 
+            face_thickness = self.ejecta_distribution(face_crater_distance,
                                                       face_crater_bearing)
             surf.face_elevation[region_view.face_indices] += face_thickness
             surf.ejecta_thickness[region_view.face_indices] += face_thickness
