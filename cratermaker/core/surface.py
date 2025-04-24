@@ -75,7 +75,7 @@ class Surface(UxDataset):
             except:
                 raise ValueError(f"Invalid target name {target}")
         else:
-            self.target = Target
+            self.target = target
         self.data_dir = data_dir
         self.grid_file = grid_file
         self.rng = rng
