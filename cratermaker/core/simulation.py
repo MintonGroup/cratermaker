@@ -14,7 +14,7 @@ import yaml
 from .target import Target
 from .crater import Crater
 from .surface import Surface, _save_surface
-from ..utils.general_utils import _set_properties, _to_config, parameter
+from ..utils.general_utils import _convert_for_yaml, _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..components.scaling import ScalingModel, get_scaling_model, available_scaling_models
 from ..components.production import ProductionModel, get_production_model, available_production_models
@@ -1425,7 +1425,8 @@ class Simulation:
         super().__setattr__(name, value)
         # Avoid recursive calls during initialization or early access
         if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)):
-            try:
-                self.to_config()
-            except Exception:
-                pass
+            if _convert_for_yaml(value) is not None:
+                try:
+                    self.to_config()
+                except Exception:
+                    pass

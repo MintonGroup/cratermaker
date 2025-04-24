@@ -64,6 +64,8 @@ class Surface:
         self._area = None
         self._smallest_length = None
         self._target = target
+        self._node_tree = None
+        self._face_tree = None
 
         self._data = data
         self.data_dir = data_dir
@@ -412,6 +414,20 @@ class Surface:
         Generator
         """ 
         return self._rng
+
+    @property
+    def node_tree(self):
+        if self._node_tree is None:
+            self._node_tree = self._data.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical")
+        
+        return self._node_tree
+
+    @property
+    def face_tree(self):
+        if self._face_tree is None:
+            self._face_tree = self._data.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical")
+        
+        return self._face_tree
     
     @rng.setter
     def rng(self, value):
@@ -700,11 +716,10 @@ class Surface:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", Warning)
-            node_tree = self._data.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical")
-            node_ind = node_tree.query(coords=coords, k=1, return_distance=False)
+            
+            node_ind = self.node_tree.query(coords=coords, k=1, return_distance=False)
         
-            face_tree = self._data.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical")
-            face_ind = face_tree.query(coords=coords, k=1, return_distance=False)
+            face_ind = self.face_tree.query(coords=coords, k=1, return_distance=False)
         return node_ind.item(), face_ind.item()
 
     def get_reference_surface(self, 
@@ -871,9 +886,7 @@ class Surface:
         region_angle = np.rad2deg(region_radius / self.target.radius)
         coords = np.asarray(location)
 
-        tree = self._data.uxgrid.get_ball_tree()
-
-        ind = tree.query_radius(coords, region_angle)
+        ind = self.face_tree.query_radius(coords, region_angle)
         if len(ind) == 0:
             return None
         
