@@ -22,14 +22,17 @@ class Crater:
     age: float | None = None
 
     def __repr__(self):
-        return (f"Crater(final_diameter={self.final_diameter} m, "
+        return (f"final_diameter={self.final_diameter} m, "
                 f"transient_diameter={self.transient_diameter} m, "
                 f"morphology_type={self.morphology_type} "
-                f"projectile_diameter={self.projectile_diameter} m, "
-                f"projectile_mass={self.projectile_mass} kg, projectile_density={self.projectile_density} kg/m^3, "
-                f"projectile_velocity={self.projectile_velocity} m/s, projectile_angle={self.projectile_angle} deg, "
+                f"projectile_diameter={self.projectile_diameter} m "
+                f"projectile_mass={self.projectile_mass} kg " 
+                f"projectile_density={self.projectile_density} kg/m^3 "
+                f"projectile_velocity={self.projectile_velocity} m/s "
+                f"projectile_angle={self.projectile_angle} deg, "
                 f"projectile_direction={self.projectile_direction} deg, "
-                f"lon: {self.location[0]}, lat {self.location[1]} age={self.age} My)")
+                f"lon: {self.location[0]}, lat {self.location[1]} "
+                f"age={self.age} My")
     
     @property
     def final_radius(self) -> float | None:
