@@ -59,9 +59,7 @@ class GridMaker(CratermakerBase, ABC):
         self.grid = grid 
         return         
 
-    def check_if_regrid(self,
-                         **kwargs: Any,
-                        ) -> bool:
+    def check_if_regrid(self, **kwargs: Any) -> bool:
         """
         Check if the existing grid matches the desired parameters determine if regridding is necessary.
 
@@ -87,7 +85,7 @@ class GridMaker(CratermakerBase, ABC):
                 
         return make_new_grid
 
-    def create_grid(self, **kwargs: Any,):
+    def create_grid(self, **kwargs: Any):
         """
 
         Creates a new grid file based on the grid parameters and stores the new grid as the grid property of the object. 
@@ -98,8 +96,9 @@ class GridMaker(CratermakerBase, ABC):
         self.file.unlink(missing_ok=True)
         self.generate_grid(**kwargs) 
         
-        # Check to make sure we can open the grid file, then store the hash in the metadata
-        assert(self.check_if_regrid(**kwargs))
+        # Check to make sure we can open the grid file and that the hash matches
+        regrid = self.check_if_regrid(**kwargs)
+        assert(not regrid)
 
         return 
 
@@ -115,7 +114,7 @@ class GridMaker(CratermakerBase, ABC):
         """
         The hash id of the grid. This is used for determining if the grid needs to be regridded.
         """
-        combined = ":".join(self._hashvars) 
+        combined = ":".join(str(v) for v in self._hashvars)
         hash_object = hashlib.sha256(combined.encode())
         return hash_object.hexdigest()
 
