@@ -74,6 +74,7 @@ class Richardson2009(ScalingModel):
         object.__setattr__(self, "_complex_enlargement_factor", None)
         object.__setattr__(self, "_simple_enlargement_factor", None)
         object.__setattr__(self, "_final_exp", None)
+        object.__setattr__(self, "_material_catalogue", None)
         self.rng = rng
 
         if material_name is not None:

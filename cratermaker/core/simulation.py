@@ -151,7 +151,7 @@ class Simulation:
         # Set the scaling law model for this simulation 
         self.scaling_model = scaling_model
         try:
-            self.scale = get_scaling_model(self.scaling_model)(target=self.target, rng=self.rng, **scaling_model_parameters, **kwargs)
+            self.scale = get_scaling_model(self.scaling_model)(target=self.target, impactor=self.impactor, rng=self.rng, **scaling_model_parameters, **kwargs)
         except:
             raise ValueError(f"Error initializing scaling model {self.scaling_model}")
       

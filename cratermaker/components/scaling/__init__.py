@@ -106,9 +106,13 @@ class ScalingModel(ABC):
     @impactor.setter
     def impactor(self, value):
         if value is None:
-            self._impactor = get_impactor_model("asteroids")
-            return
-        if not isinstance(value, ImpactorModel):
+            value = get_impactor_model("asteroids")
+        elif isinstance(value, str):
+            try:
+                value = get_impactor_model(value)
+            except KeyError:
+                raise ValueError(f"Invalid impactor name {value}")
+        elif not isinstance(value, ImpactorModel):
             raise TypeError("impactor must be an instance of ImpactorModel")
         self._impactor = value
         return
