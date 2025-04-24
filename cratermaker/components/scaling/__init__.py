@@ -8,8 +8,8 @@ from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.target import Target
 from cratermaker.components.impactor import ImpactorModel, get_impactor_model
-
-class ScalingModel(ABC):
+from cratermaker.core.base import CratermakerBase
+class ScalingModel(CratermakerBase, ABC):
     """
     This is the abstract base class for all scaling models. It defines the interface for converting between projectile and crater diameters.
     """

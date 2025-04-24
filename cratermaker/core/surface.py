@@ -156,7 +156,7 @@ class Surface(UxDataset):
             
         # Process the grid parameters from the arguments and build the strategy object 
         try:
-            grid = get_grid_type(gridtype)(radius=radius, **grid_parameters, **kwargs)
+            grid = get_grid_type(gridtype)(radius=radius, simdir=simdir, seed=seed, rng=rng, **grid_parameters, **kwargs)
         except:
             raise ValueError(f"Failed to generate {gridtype} grid")
    

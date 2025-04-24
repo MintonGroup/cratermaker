@@ -7,6 +7,7 @@ from scipy.stats import truncnorm
 from scipy.stats import maxwell
 from uxarray import Grid
 import uxarray as uxr
+from typing import Any
 
 
 def get_random_location(size: int=1, 
@@ -134,7 +135,8 @@ def get_random_location_on_face(grid: Grid,
 
 
 def get_random_impact_angle(size: int | tuple[int, ...]=1, 
-                            rng: Generator | None=None
+                            rng: Generator | None=None,
+                            **kwargs: Any
                             ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample impact angles from a distribution centered on 45deg.
@@ -168,7 +170,8 @@ def get_random_impact_angle(size: int | tuple[int, ...]=1,
 
 
 def get_random_impact_direction(size: int | tuple[int, ...]=1,
-                                rng: Generator | None=None
+                                rng: Generator | None=None,
+                                **kwargs: Any
                                 ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample impact direction from a uniform distribution.
@@ -201,7 +204,8 @@ def get_random_size(diameters: NDArray[np.float64],
                     cdf: NDArray[np.float64], 
                     size: int | tuple[int, ...] | None = None, 
                     mu: int | tuple[int, ...] | None = None,
-                    rng: Generator | None=None
+                    rng: Generator | None=None,
+                    **kwargs: Any
                     ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample diameters from a cumulative size-frequency distribution (SFD).
@@ -329,7 +333,8 @@ def get_random_size(diameters: NDArray[np.float64],
 
 def get_random_velocity(vmean: np.float64, 
                         size: int | tuple[int, ...]=1, 
-                        rng: Generator | None=None
+                        rng: Generator | None=None,
+                        **kwargs
                         ) -> Union[np.float64,NDArray[np.float64]]:
     """
     Sample impact velocities from a Maxwell-Boltzmann distribution given a mean velocity.
