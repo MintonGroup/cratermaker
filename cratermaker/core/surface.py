@@ -17,6 +17,7 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
 from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.components.grid import get_grid_type, available_grid_types
+from cratermaker._cratermaker import surface_functions
 
 # Default file names and directories
 _DATA_DIR = Path.cwd() / "surface_data"
@@ -686,7 +687,8 @@ class Surface:
         node_lat2 = np.deg2rad(self.node_lat[view.node_indices])
         face_lon2 = np.deg2rad(self.face_lon[view.face_indices])
         face_lat2 = np.deg2rad(self.face_lat[view.face_indices])
-        return self.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), self.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2)
+        return (surface_functions.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), 
+                surface_functions.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2))
     
     def find_nearest_index(self, location):
         """

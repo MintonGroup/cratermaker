@@ -2,6 +2,7 @@
 
 pub mod crater_functions;
 pub mod ejecta_functions;
+pub mod surface_functions;
 
 use std::f64;
 
@@ -24,5 +25,11 @@ mod cratermaker {
     mod ejecta_functions {
         #[pymodule_export]
         use crate::ejecta_functions::{distribution, profile, ray_intensity};
+    }
+
+    #[pymodule]
+    mod surface_functions {
+        #[pymodule_export]
+        use crate::surface_functions::calculate_initial_bearing;
     }
 }
