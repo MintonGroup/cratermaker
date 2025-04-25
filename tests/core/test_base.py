@@ -16,8 +16,8 @@ class TestBase(unittest.TestCase):
 
     def tearDown(self):
         # Clean up temporary directory
-        self.temp_dir.cleanup() 
         os.chdir(self.cwd)  # Change back to the original working directory
+        self.temp_dir.cleanup() 
         return       
 
     def test_rng_argument_validation(self):

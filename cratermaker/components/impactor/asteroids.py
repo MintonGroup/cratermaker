@@ -7,7 +7,7 @@ from warnings import warn
 class AsteroidImpactors(ImpactorModel):
     def __init__(self, 
                  target_name : str = "Moon",
-                 density : float = 2000.0,
+                 density : float = 2250.0,
                  rng: Generator | None = None,
                  rng_seed: int | None = None,
                  **kwargs: Any):
@@ -19,7 +19,7 @@ class AsteroidImpactors(ImpactorModel):
         target_name : str
             The name of the target body for the impact.
         density : float
-            The density of the impactor in kg/m^3. Default is 2000.0 kg/m^3.
+            The density of the impactor in kg/m^3. Default is 2250.0 kg/m^3.
         rng : Generator | None
             A random number generator for Monte Carlo simulations. If None, a default generator will be used.
         rng_seed : int | None

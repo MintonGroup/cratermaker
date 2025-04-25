@@ -7,7 +7,7 @@ from numpy.random import Generator
 from cratermaker.utils.general_utils import  parameter
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.target import Target, _init_target
-from cratermaker.components.impactor import ImpactorModel, get_impactor_model, _init_impactor
+from cratermaker.components.impactor import ImpactorModel, _init_impactor
 from cratermaker.core.base import CratermakerBase
 class ScalingModel(CratermakerBase, ABC):
     """
@@ -41,8 +41,8 @@ class ScalingModel(CratermakerBase, ABC):
         object.__setattr__(self, "_impactor", None)
         # combine the kwargs with the common_args, giving common_args priority
         kwargs = {**kwargs, **vars(self.common_args)}
-        self.target = _init_target(target, **kwargs)
-        self.impactor = _init_impactor(impactor, **kwargs)
+        self._target = _init_target(target, **kwargs)
+        self._impactor = _init_impactor(impactor, **kwargs)
 
     @abstractmethod
     def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
@@ -76,12 +76,7 @@ class ScalingModel(CratermakerBase, ABC):
     
     @target.setter
     def target(self, value):
-        if value is None:
-            self._target = Target(name="Moon")
-            return
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
-        self._target = value
+        self._target = _init_target(value, **vars(self.common_args))
         return 
 
     @property

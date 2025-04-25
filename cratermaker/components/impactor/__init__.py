@@ -353,6 +353,7 @@ for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
 
 def _init_impactor(impactor: ImpactorModel | str | None = None, 
+                   target: Target | str | None = None,
                    **kwargs: Any) -> ImpactorModel:
     """
     Initialize an impactor model based on the provided name or class.
@@ -376,12 +377,9 @@ def _init_impactor(impactor: ImpactorModel | str | None = None,
     TypeError
         If the specified impactor model is not a string or a subclass of ImpactorModel.
     """
+    target = _init_target(target, **kwargs)
     if impactor is None:
-        target = kwargs.get("target", "Moon")
-        if isinstance(target, str):
-            target_name = target.capitalize()
-        elif isinstance(target, Target):
-            target_name = target.name.capitalize()
+        target_name = target.name.capitalize()
         if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
             impactor = "asteroids"
         else:
@@ -390,9 +388,9 @@ def _init_impactor(impactor: ImpactorModel | str | None = None,
     if isinstance(impactor, str):
         if impactor not in available_impactor_models():
             raise KeyError(f"Impactor model '{impactor}' not found in registry.")
-        return get_impactor_model(impactor)(**kwargs)
+        return get_impactor_model(impactor)(target=target, **kwargs)
     elif isinstance(impactor, type) and issubclass(impactor, ImpactorModel):
-        return impactor(**kwargs)
+        return impactor(target=target, **kwargs)
     elif isinstance(impactor, ImpactorModel):
         return impactor
     else:

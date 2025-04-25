@@ -6,9 +6,9 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import _set_properties
 from cratermaker.utils.general_utils import _create_catalogue
-from cratermaker.core.target import Target
+from cratermaker.core.target import Target, _init_target
 from cratermaker.components.scaling import register_scaling_model, ScalingModel
-from cratermaker.components.impactor import ImpactorModel, get_impactor_model
+from cratermaker.components.impactor import ImpactorModel, _init_impactor
 
 @register_scaling_model("richardson2009")
 class Richardson2009(ScalingModel):
@@ -20,8 +20,10 @@ class Richardson2009(ScalingModel):
         
     Parameters
     ----------
-    target : Target or str, optional
-        The target body for the impact simulation, or the name of a target. If the name is provided, you can also provide additional keyword arguments that will be passed to the Target class. Default is "Moon".
+    target : Target | str, default="Moon"
+        The target body for the impact. Can be a Target object or a string representing the target name.
+    impactor : ImpactorModel | str, default="asteroids"
+        The impactor model for the impact. Can be an ImpactorModel object or a string representing the impactor name.
     material_name : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
@@ -32,9 +34,14 @@ class Richardson2009(ScalingModel):
         The strength of the target material, (Pa)
     target_density : FloatLike, optional
         Volumentric density of target material, (kg/m^3)
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used. 
-
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
     Notes
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.
@@ -56,7 +63,9 @@ class Richardson2009(ScalingModel):
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
-                 rng: Generator | None = None, 
+                 rng : Generator | None = None,
+                 rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs):
         """
 
@@ -64,27 +73,26 @@ class Richardson2009(ScalingModel):
         ----------
         .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
-        super().__init__(**kwargs)
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        self._target = _init_target(target, **kwargs)
+        self._impactor = _init_impactor(impactor=impactor, target=self._target, **kwargs)
+
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)
         object.__setattr__(self, "_Ybar", None)
-        object.__setattr__(self, "_rng", None)
         object.__setattr__(self, "_transition_diameter", None)
         object.__setattr__(self, "_transition_nominal", None)
         object.__setattr__(self, "_complex_enlargement_factor", None)
         object.__setattr__(self, "_simple_enlargement_factor", None)
         object.__setattr__(self, "_final_exp", None)
         object.__setattr__(self, "_material_catalogue", None)
-        self.rng = rng
 
         if material_name is not None:
             self.material_name = material_name
         else: 
-            self.material_name = target.material_name
+            self.material_name = self.target.material_name
 
         _set_properties(self,
-                        target=target,
-                        impactor=impactor,
                         material_name=self.material_name,
                         K1=K1,
                         mu=mu,
@@ -95,10 +103,8 @@ class Richardson2009(ScalingModel):
         if arg_check > 0:
             raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
         # Initialize transition factors
-        if target.density is None:
-            target.density = self.material_catalogue[self.material_name]["density"]
-        if impactor.density is None:
-            impactor.density = target.density
+        if self.target.density is None:
+            self.target.density = self.material_catalogue[self.material_name]["density"]
         self._compute_simple_to_complex_transition_factors() 
         return
 

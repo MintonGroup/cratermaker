@@ -3,6 +3,7 @@ import cratermaker
 from cratermaker import Target
 import tempfile
 import os
+from pathlib import Path
 import numpy as np
 import xarray as xr
 from cratermaker.core.surface import _COMBINED_DATA_FILE_NAME
@@ -27,11 +28,12 @@ class TestSimulation(unittest.TestCase):
         print(f"Temporary directory created: {self.simdir}")
         target = Target(name="Moon")
         self.pix = target.radius / 10.0
-        self.gridlevel = 5
-        os.chdir(self.simdir) 
+        self.cwd = Path.cwd()
+        os.chdir(self.temp_dir.name)
         
     def tearDown(self):
         # Clean up temporary directory
+        os.chdir(self.cwd)  # Change back to the original working directory
         self.temp_dir.cleanup() 
         return           
 
