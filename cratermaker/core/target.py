@@ -53,7 +53,8 @@ class Target(CratermakerBase):
         - The `radius` and `diameter` parameters are mutually exclusive. Only one of them should be provided.
         - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
         """    
-
+        object.__setattr__(self, "_updating", False)   # guard against recursive updates
+        super().__init__(**kwargs)
         object.__setattr__(self, "_name", None)
         object.__setattr__(self, "_radius", None)
         object.__setattr__(self, "_diameter", None)
@@ -62,8 +63,6 @@ class Target(CratermakerBase):
         object.__setattr__(self, "_material_name", None)
         object.__setattr__(self, "_density", None)
         object.__setattr__(self, "_catalogue", None)
-        object.__setattr__(self, "_user_defined", set())   # which public props were set by user
-        object.__setattr__(self, "_updating", False)   # guard against recursive updates
 
 
         # ensure that only either diamter of radius is passed

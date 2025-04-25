@@ -156,8 +156,6 @@ def make_crater(final_diameter: float | None = None,
     # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
     argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
     rng = argproc.rng
-    simdir = argproc.simdir
-    rng_seed = argproc.rng_seed
 
     target = _init_target(target, **vars(argproc.common_args), **kwargs)
     impactor = _init_impactor(impactor, target=target, **vars(argproc.common_args), **kwargs)

@@ -24,8 +24,14 @@ class SimpleMoon(MorphologyModel):
         A random number generator instance. If not provided, the default numpy RNG will be used.
     dorays : bool, optional
         A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket, default is True.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
     **kwargs : Any
-        Additional keyword arguments to be passed to internal functions.
+        Additional keyword arguments.
     """
     
     def __init__(self, 
@@ -33,11 +39,11 @@ class SimpleMoon(MorphologyModel):
                  dorays: bool = True,
                  rng: Generator | None = None,
                  rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs: Any 
                  ):
-        super().__init__(**kwargs)
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-        self.rng = rng
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
 

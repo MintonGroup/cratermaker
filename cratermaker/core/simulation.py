@@ -14,9 +14,9 @@ from .crater import Crater, make_crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..components.scaling import ScalingModel, get_scaling_model, available_scaling_models
+from ..components.scaling import ScalingModel, _init_scaling, get_scaling_model, available_scaling_models
 from ..components.production import ProductionModel, _init_production, available_production_models
-from ..components.morphology import MorphologyModel, get_morphology_model, available_morphology_models
+from ..components.morphology import MorphologyModel, _init_morphology, get_morphology_model, available_morphology_models
 from ..components.impactor import ImpactorModel, _init_impactor, get_impactor_model, available_impactor_models
 from .base import CratermakerBase
 
@@ -92,7 +92,7 @@ class Simulation(CratermakerBase):
             config_file = self.config_file
         else:
             config_file = None
-        matched, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, config_file=config_file)
+        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, config_file=config_file)
         production_model_parameters = unmatched.pop("production_model_parameters", {})
         scaling_model_parameters = unmatched.pop("scaling_model_parameters", {})
         surface_parameters = unmatched.pop("surface_parameters", {})
@@ -100,29 +100,28 @@ class Simulation(CratermakerBase):
         target_parameters = unmatched.pop("target_parameters", {})
         impactor_parameters = unmatched.pop("impactor_parameters", {})
         kwargs.update(unmatched)
+        kwargs = {**kwargs, **vars(self.common_args)}
 
         target = target_parameters.pop("name", target)
-        self.target = _init_target(target=target, **target_parameters, **kwargs)
+        target_parameters = {**target_parameters, **kwargs}
+        self.target = _init_target(target=target, **target_parameters)
 
         production = production_model_parameters.pop("model", production)
-        self.production = _init_production(production=production,  target=self.target, **production_model_parameters, **kwargs)
+        production_model_parameters = {**production_model_parameters, **kwargs}
+        self.production = _init_production(production=production,  target=self.target, **production_model_parameters)
 
         impactor = impactor_parameters.pop("model", impactor)
-        self.impactor = _init_impactor(impactor=impactor, target=self.target, **impactor_parameters, **kwargs)
+        impactor_parameters = {**impactor_parameters, **kwargs}
+        self.impactor = _init_impactor(impactor=impactor, target=self.target, **impactor_parameters)
 
-            
-        # Set the scaling law model for this simulation 
-        self.scaling = scaling
-        try:
-            self.scaling = get_scaling_model(self.scaling)(target=self.target, impactor=self.impactor, **vars(self.common_args), **scaling_model_parameters, **kwargs)
-        except:
-            raise ValueError(f"Error initializing scaling model {self.scaling}")
+        scaling = scaling_model_parameters.pop("model", scaling)
+        scaling_model_parameters = {**scaling_model_parameters, **kwargs}
+        self.scaling = _init_scaling(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
+
+        morphology = morphology_model_parameters.pop("model", morphology)
+        morphology_model_parameters = {**morphology_model_parameters, **kwargs}
+        self.morphology = _init_morphology(morphology=morphology, **morphology_model_parameters)
       
-        try:
-            self.morphology = get_morphology_model(morphology)(**vars(self.common_args), **morphology_model_parameters, **kwargs)
-        except:
-            raise ValueError(f"Error initializing {morphology}")
-        
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
             if 'superdomain_scale_factor' not in kwargs:
