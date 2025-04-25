@@ -46,8 +46,8 @@ class TestSimulation(unittest.TestCase):
        
         # Test that variables are saved correctly
         sim.surf.set_elevation(1.0)
-        np.testing.assert_array_equal(sim.surf["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node)) 
-        np.testing.assert_array_equal(sim.surf["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face)) 
+        np.testing.assert_array_equal(sim.surf.data["node_elevation"].values, np.ones(sim.surf.data.uxgrid.n_node)) 
+        np.testing.assert_array_equal(sim.surf.data["face_elevation"].values, np.ones(sim.surf.data.uxgrid.n_face)) 
         
         sim.save()
         
@@ -55,8 +55,8 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.exists(filename))
         with xr.open_dataset(filename) as ds:
             ds = ds.isel(time=-1)
-            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.data.uxgrid.n_node))
+            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.data.uxgrid.n_face))
     
         # Test saving combined data
         sim.save(combine_data_files=True)
@@ -66,8 +66,8 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.exists(filename))
         with xr.open_dataset(filename) as ds:
             ds = ds.isel(time=-1)
-            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.data.uxgrid.n_node))
+            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.data.uxgrid.n_face))
     
         return 
         

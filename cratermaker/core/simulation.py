@@ -710,13 +710,13 @@ class Simulation:
             data_file_list.remove(self.surf.grid_file)
        
         # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
-        n_node = self.surf._data.uxgrid.n_node
-        n_face = self.surf._data.uxgrid.n_face
-        node_x = self.surf._data.uxgrid.node_x.values * self.target.radius
-        node_y = self.surf._data.uxgrid.node_y.values * self.target.radius
-        node_z = self.surf._data.uxgrid.node_z.values * self.target.radius
-        n_nodes_per_face = self.surf._data.uxgrid.n_nodes_per_face.values
-        face_node_connectivity = self.surf._data.uxgrid.face_node_connectivity.values
+        n_node = self.surf.data.uxgrid.n_node
+        n_face = self.surf.data.uxgrid.n_face
+        node_x = self.surf.data.uxgrid.node_x.values * self.target.radius
+        node_y = self.surf.data.uxgrid.node_y.values * self.target.radius
+        node_z = self.surf.data.uxgrid.node_z.values * self.target.radius
+        n_nodes_per_face = self.surf.data.uxgrid.n_nodes_per_face.values
+        face_node_connectivity = self.surf.data.uxgrid.face_node_connectivity.values
         
         vtk_data = vtkUnstructuredGrid()
         nodes = vtkPoints()

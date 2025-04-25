@@ -68,7 +68,7 @@ class Surface:
         self._node_tree = None
         self._face_tree = None
 
-        self._data = data
+        self.data = data
         self.data_dir = data_dir
         self.grid_file = grid_file
         self.rng = rng
@@ -78,23 +78,26 @@ class Surface:
     def load_from_data(self, compute_face_areas):
         if compute_face_areas: 
             # Compute face area needed in the non-normalized units for future calculations
-            self.face_areas = self._data.uxgrid.face_areas.values * self.target.radius**2
+            self.face_areas = self.data.uxgrid.face_areas.values * self.target.radius**2
             self.smallest_length = np.sqrt(self.face_areas.min()) * _SMALLFAC   
         
-        self.face_lat = self._data.uxgrid.face_lat.values
-        self.face_lon = self._data.uxgrid.face_lon.values
-        self.node_lat = self._data.uxgrid.node_lat.values
-        self.node_lon = self._data.uxgrid.node_lon.values
-        self.node_elevation = self._data["node_elevation"].values
-        self.face_elevation = self._data["face_elevation"].values
-        self.ejecta_thickness = self._data["ejecta_thickness"].values
-        self.ray_intensity = self._data["ray_intensity"].values
+        self.face_lat = self.data.uxgrid.face_lat.values
+        self.face_lon = self.data.uxgrid.face_lon.values
+        self.node_lat = self.data.uxgrid.node_lat.values
+        self.node_lon = self.data.uxgrid.node_lon.values
+        self.node_elevation = self.data["node_elevation"].values
+        self.face_elevation = self.data["face_elevation"].values
+        self.ejecta_thickness = self.data["ejecta_thickness"].values
+        self.ray_intensity = self.data["ray_intensity"].values
     
     def save_to_data(self):
-        self._data["node_elevation"].values = self.node_elevation
-        self._data["face_elevation"].values = self.face_elevation
-        self._data["ejecta_thickness"].values = self.ejecta_thickness
-        self._data["ray_intensity"].values = self.ray_intensity
+        self.data["node_elevation"].values = self.node_elevation
+        self.data["face_elevation"].values = self.face_elevation
+        self.data["ejecta_thickness"].values = self.ejecta_thickness
+        self.data["ray_intensity"].values = self.ray_intensity
+    
+    def full_view(self):
+        return SurfaceView(self, slice(None), slice(None))
 
 
     def to_config(self, **kwargs):
@@ -419,14 +422,14 @@ class Surface:
     @property
     def node_tree(self):
         if self._node_tree is None:
-            self._node_tree = self._data.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical")
+            self._node_tree = self.data.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical")
         
         return self._node_tree
 
     @property
     def face_tree(self):
         if self._face_tree is None:
-            self._face_tree = self._data.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical")
+            self._face_tree = self.data.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical")
         
         return self._face_tree
     
@@ -504,7 +507,7 @@ class Surface:
             uxgrid=uxgrid,
         ) 
          
-        self._data[name] = uxda
+        self.data[name] = uxda
         
         if save_to_file:
             self._save_data(uxda, self.data_dir, interval_number, combine_data_files)
@@ -533,10 +536,10 @@ class Surface:
         if new_elev is None or np.isscalar(new_elev):
             gen_node = True
             gen_face = True 
-        elif new_elev.size == self.uxgrid.n_node:
+        elif new_elev.size == self.data.uxgrid.n_node:
             gen_node = True
             gen_face = False
-        elif new_elev.size == self.uxgrid.n_face:
+        elif new_elev.size == self.data.uxgrid.n_face:
             gen_node = False
             gen_face = True
         else:
@@ -544,6 +547,11 @@ class Surface:
             gen_face = False
             raise ValueError("new_elev must be None, a scalar, or an array with the same size as the number of nodes in the grid")
     
+        try:
+            self.save_to_data()
+        except AttributeError:
+            pass
+            
         if gen_node:
             self.generate_data(data=new_elev, 
                                name="node_elevation",
@@ -564,6 +572,7 @@ class Surface:
                                combine_data_files=combine_data_files,
                                interval_number=interval_number
                               )
+        self.load_from_data(False)
         return 
 
     @staticmethod
@@ -776,9 +785,9 @@ class Surface:
         if np.sum(faces_within_radius) < 5 or not nodes_within_radius.any():
             return face_elevation, node_elevation
        
-        face_grid = np.column_stack((self._data.uxgrid.face_x.values[view.face_indices], 
-                               self._data.uxgrid.face_y.values[view.face_indices], 
-                               self._data.uxgrid.face_z.values[view.face_indices]))
+        face_grid = np.column_stack((self.data.uxgrid.face_x.values[view.face_indices], 
+                               self.data.uxgrid.face_y.values[view.face_indices], 
+                               self.data.uxgrid.face_z.values[view.face_indices]))
         region_faces = face_grid[faces_within_radius]
         region_elevation = face_elevation[faces_within_radius] / self.target.radius
         region_surf = self.elevation_to_cartesian(region_faces, region_elevation) 
@@ -830,9 +839,9 @@ class Surface:
         reference_face_elevation[faces_within_radius] = find_reference_elevations(region_faces)
         
         # Now do the same thing to compute the nodal values 
-        node_grid = np.column_stack((self._data.uxgrid.node_x.values[view.node_indices], 
-                               self._data.uxgrid.node_y.values[view.node_indices], 
-                               self._data.uxgrid.node_z.values[view.node_indices]))
+        node_grid = np.column_stack((self.data.uxgrid.node_x.values[view.node_indices], 
+                               self.data.uxgrid.node_y.values[view.node_indices], 
+                               self.data.uxgrid.node_z.values[view.node_indices]))
         region_nodes = node_grid[nodes_within_radius]
         
         reference_node_elevation = node_elevation
@@ -922,7 +931,7 @@ class Surface:
         This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
         """
         
-        return get_random_location_on_face(self._data.uxgrid, face_index, size,**kwargs)
+        return get_random_location_on_face(self.data.uxgrid, face_index, size,**kwargs)
 
     @staticmethod
     def _save_data(ds: xr.Dataset | xr.DataArray,
@@ -988,12 +997,12 @@ class Surface:
 class SurfaceView:
     def __init__(self, 
                  surf: Surface, 
-                 face_indices: NDArray, 
-                 node_indices: NDArray | None = None):
+                 face_indices: NDArray | slice, 
+                 node_indices: NDArray | slice | None = None):
         self.surf = surf
         self.face_indices = face_indices
         if node_indices is None:
-            node_indices = np.unique(surf._data.uxgrid.face_node_connectivity.values[face_indices].ravel())
+            node_indices = np.unique(surf.data.uxgrid.face_node_connectivity.values[face_indices].ravel())
             node_indices = node_indices[node_indices != INT_FILL_VALUE]
         
         self.node_indices = node_indices
@@ -1038,9 +1047,9 @@ def _save_surface(surf: Surface,
     # Variables that we do not want to save as they are computed at runtime     
     
     surf.save_to_data()
-    surf._data.close()
+    surf.data.close()
     
-    ds = surf._data.expand_dims(dim="time").assign_coords({"time":[interval_number]})
+    ds = surf.data.expand_dims(dim="time").assign_coords({"time":[interval_number]})
     for k, v in time_variables.items():
         ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time":[interval_number]})
                 

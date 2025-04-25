@@ -56,10 +56,10 @@ class TestSurface(unittest.TestCase):
         surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=False)
         
         # Test regridding if the parameters change
-        n_face_orig = surf.uxgrid.n_face
+        n_face_orig = surf.data.uxgrid.n_face
     
         surf = Surface.initialize(gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
-        self.assertGreater(n_face_orig, surf.uxgrid.n_face)
+        self.assertGreater(n_face_orig, surf.data.uxgrid.n_face)
     
         # Test different target values
         surf = Surface.initialize(gridlevel=self.gridlevel, target=Target(name="Mars"), reset_surface=False)
@@ -78,11 +78,11 @@ class TestSurface(unittest.TestCase):
     def test_set_elevation(self):
         surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         # Test with valid elevation data
-        new_elev = np.random.rand(surf.uxgrid.n_node)  # Generate random elevation data
+        new_elev = np.random.rand(surf.data.uxgrid.n_node)  # Generate random elevation data
         surf.set_elevation(new_elev)
 
         # Test with invalid elevation data (wrong size)
-        new_elev = np.random.rand(surf.uxgrid.n_node + 1)  # Incorrect size
+        new_elev = np.random.rand(surf.data.uxgrid.n_node + 1)  # Incorrect size
 
         # Expect ValueError for incorrect size
         with self.assertRaises(ValueError):
@@ -92,8 +92,8 @@ class TestSurface(unittest.TestCase):
         surf.set_elevation(None)
 
         # Check if the elevation data is set to zero
-        np.testing.assert_array_equal(surf['node_elevation'].values, np.zeros(surf.uxgrid.n_node))
-        np.testing.assert_array_equal(surf['face_elevation'].values, np.zeros(surf.uxgrid.n_face))
+        np.testing.assert_array_equal(surf.data['node_elevation'].values, np.zeros(surf.data.uxgrid.n_node))
+        np.testing.assert_array_equal(surf.data['face_elevation'].values, np.zeros(surf.data.uxgrid.n_face))
         
         return
     
@@ -138,7 +138,7 @@ class TestSurface(unittest.TestCase):
         delta = 2*self.pix
 
         # Test distances
-        _,distances = surf.get_distance(location)
+        _,distances = surf.get_distance(surf.full_view(), location)
         self.assertAlmostEqual(distances[north_idx], north_distance, delta=delta, msg=f"North face distance ratio: {distances[north_idx].item()/north_distance}")
         self.assertAlmostEqual(distances[south_idx], south_distance, delta=delta, msg=f"South face distance ratio: {distances[south_idx].item()/south_distance}")
         self.assertAlmostEqual(distances[antipode_idx], antipode_distance, delta=delta, msg=f"Antipode face distance ratio: {distances[antipode_idx].item()/antipode_distance}")
@@ -170,7 +170,7 @@ class TestSurface(unittest.TestCase):
         delta = 2*self.pix
 
         # Test distances
-        node_distances,_ = surf.get_distance(location)
+        node_distances,_ = surf.get_distance(surf.full_view(), location)
         self.assertAlmostEqual(node_distances[north_idx], north_distance, delta=delta, msg=f"North node distance ratio: {node_distances[north_idx].item()/north_distance}")
         self.assertAlmostEqual(node_distances[south_idx], south_distance, delta=delta, msg=f"South node distance ratio: {node_distances[south_idx].item()/south_distance}")
         self.assertAlmostEqual(node_distances[antipode_idx], antipode_distance, delta=delta, msg=f"Antipode node distance ratio: {node_distances[antipode_idx].item()/antipode_distance}")
@@ -202,7 +202,7 @@ class TestSurface(unittest.TestCase):
     def test_face_surface_values(self):
         # Tests that the face_surface generates the correct values
         surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True) 
-        total_area_1 = surf.uxgrid.calculate_total_face_area()
+        total_area_1 = surf.data.uxgrid.calculate_total_face_area()
         total_area_2 = surf.face_areas.sum().item()
         ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius
         self.assertAlmostEqual(ratio, 1.0, places=2)
