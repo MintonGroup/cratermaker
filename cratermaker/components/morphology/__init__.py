@@ -16,7 +16,6 @@ class MorphologyModel(CratermakerBase, ABC):
         Initialize the morphology model with given parameters.
         """
         super().__init__(**kwargs)
-        object.__setattr__(self, "_model" , None)
         object.__setattr__(self, "_crater" , None)
 
     @abstractmethod
@@ -59,8 +58,8 @@ def register_morphology_model(name: str):
     Class decorator to register a morphology model component under the given key.
     """
     def decorator(cls):
-        _registry[name] = cls
         cls._model = name 
+        _registry[name] = cls
         return cls
     return decorator
 
@@ -79,14 +78,40 @@ for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
 
 
-def _init_morphology(morphology : str | MorphologyModel | None = None, **kwargs: Any) -> MorphologyModel:
+def _init_morphology(morphology : str | MorphologyModel | None = None, 
+                     **kwargs: Any) -> MorphologyModel:
+    """
+    Initialize the morphology model with the given name or instance.
+
+    Parameters
+    ----------
+    morphology : str or MorphologyModel or None
+        The name of the morphology model to use, or an instance of MorphologyModel. If None, defaults to "simplemoon".
+    kwargs : Any
+        Additional keyword arguments to pass to the morphology model constructor.
+
+    Returns
+    -------
+    MorphologyModel
+        An instance of the specified morphology model.
+
+    Raises
+    ------
+    KeyError
+        If the specified morphology model name is not found in the registry.
+    TypeError
+        If the specified morphology model is not a string or a subclass of MorphologyModel.
+    """
+
     if morphology is None:
         morphology = "simplemoon"
     if isinstance(morphology, str):
-        if morphology not in _registry:
+        if morphology not in available_morphology_models():
             raise KeyError(f"Unknown morphology model: {morphology}. Available models: {available_morphology_models()}")
-        return _registry[morphology](**kwargs)
+        return get_morphology_model(morphology)(**kwargs)
     elif issubclass(morphology, MorphologyModel):
         return morphology(**kwargs)
     elif isinstance(morphology, MorphologyModel):
         return morphology
+    else:
+        raise TypeError(f"morphology must be a string or a subclass of MorphologyModel, not {type(morphology)}")

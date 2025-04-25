@@ -27,7 +27,7 @@ class Simulation(CratermakerBase):
     """
     def __init__(self, *, # Enforce keyword-only arguments
                  target: Target | str = "Moon",
-                 scale: ScalingModel | str = "richardson2009",
+                 scaling: ScalingModel | str = "richardson2009",
                  production: ProductionModel | str = "neukum",
                  morphology: MorphologyModel | str = "simplemoon",
                  impactor: ImpactorModel | str = "asteroids",
@@ -43,7 +43,7 @@ class Simulation(CratermakerBase):
         ----------
         target: Target or str, optional, default "Moon"
             Name of the target body or Target object for the simulation, default is "Moon".
-        scale : str, optional
+        scaling : str, optional
             The name of the impactor->crater size scaling model to use from the components library. The default is "richardson2009".
         production_model: str, optional
             The name of the production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
@@ -63,7 +63,7 @@ class Simulation(CratermakerBase):
         rng_state : dict, optional
             The state of the random number generator. If None, a new state is created.
         **kwargs : Any
-            Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scale, 
+            Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scaling, 
             morphology, or production function constructors. Refer to the documentation of each component module for details.
             
         See Also
@@ -92,7 +92,7 @@ class Simulation(CratermakerBase):
             config_file = self.config_file
         else:
             config_file = None
-        matched, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scale=scale, production=production, morphology=morphology, config_file=config_file)
+        matched, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, config_file=config_file)
         production_model_parameters = unmatched.pop("production_model_parameters", {})
         scaling_model_parameters = unmatched.pop("scaling_model_parameters", {})
         surface_parameters = unmatched.pop("surface_parameters", {})
@@ -112,11 +112,11 @@ class Simulation(CratermakerBase):
 
             
         # Set the scaling law model for this simulation 
-        self.scale = scale
+        self.scaling = scaling
         try:
-            self.scale = get_scaling_model(self.scale)(target=self.target, impactor=self.impactor, **vars(self.common_args), **scaling_model_parameters, **kwargs)
+            self.scaling = get_scaling_model(self.scaling)(target=self.target, impactor=self.impactor, **vars(self.common_args), **scaling_model_parameters, **kwargs)
         except:
-            raise ValueError(f"Error initializing scaling model {self.scale}")
+            raise ValueError(f"Error initializing scaling model {self.scaling}")
       
         try:
             self.morphology = get_morphology_model(morphology)(**vars(self.common_args), **morphology_model_parameters, **kwargs)
@@ -129,7 +129,7 @@ class Simulation(CratermakerBase):
                 # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
                 # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
                 for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
-                    crater = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scale.projectile_mean_velocity*10)
+                    crater = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scaling.projectile_mean_velocity*10)
                     rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
                     if rmax < self.target.radius * 2 * np.pi:
                         superdomain_scale_factor = rmax / crater.final_radius
@@ -164,7 +164,7 @@ class Simulation(CratermakerBase):
             face_areas = np.asarray(face_areas)
         smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2        
         if from_projectile:
-            crater = self.generate_crater(final_diameter=smallest_crater, angle=90.0, projectile_velocity=self.scale.projectile_mean_velocity*10)
+            crater = self.generate_crater(final_diameter=smallest_crater, angle=90.0, projectile_velocity=self.scaling.projectile_mean_velocity*10)
             return crater.projectile_diameter 
         else:
             return smallest_crater 
@@ -177,7 +177,7 @@ class Simulation(CratermakerBase):
         """
         largest_crater = self.target.radius * 2
         if from_projectile:
-            crater = self.generate_crater(final_diameter=largest_crater, angle=1.0, projectile_velocity=self.scale.projectile_mean_velocity/10.0)
+            crater = self.generate_crater(final_diameter=largest_crater, angle=1.0, projectile_velocity=self.scaling.projectile_mean_velocity/10.0)
             return crater.projectile_diameter
         else:
             return largest_crater
@@ -204,7 +204,7 @@ class Simulation(CratermakerBase):
         -----
         The keyword arguments provided are passed to the constructor of 
         :class:`Crater`. Additionally, these arguments are used in 
-        :meth:`crater.scale.crater_to_projectile` method. Refer to the 
+        :meth:`crater.scaling.crater_to_projectile` method. Refer to the 
         documentation of these classes and methods for a detailed description 
         of valid keyword arguments.
 
@@ -219,7 +219,7 @@ class Simulation(CratermakerBase):
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
          
-        crater = make_crater(target=self.target, scale=self.scale, impactor=self.impactor, **vars(self.common_args), **kwargs)
+        crater = make_crater(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
         
         return crater
     
@@ -627,7 +627,7 @@ class Simulation(CratermakerBase):
     def to_config(self, **kwargs: Any) -> dict:
         sim_config = super().to_config()
         sim_config['target_parameters'] = self.target.to_config()
-        sim_config['scaling_model_parameters'] = self.scale.to_config()
+        sim_config['scaling_model_parameters'] = self.scaling.to_config()
         sim_config['production_model_parameters'] = self.production.to_config()
         sim_config['surface_parameters'] = self.surf.to_config()
         # Write the combined configuration to a YAML file
@@ -925,16 +925,16 @@ class Simulation(CratermakerBase):
         self._production = value
 
     @property
-    def scale(self):
+    def scaling(self):
         """
         The ScalingModel object that defines the crater scaling relationships model. Set during initialization.
         """
         return self._scale
 
-    @scale.setter
-    def scale(self, value):
+    @scaling.setter
+    def scaling(self, value):
         if not isinstance(value, ScalingModel):
-            raise TypeError("scale must be of ScalingModel type")
+            raise TypeError("scaling must be of ScalingModel type")
         self._scale = value
 
     @property

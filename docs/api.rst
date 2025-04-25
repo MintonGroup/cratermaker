@@ -60,7 +60,7 @@ Attributes
     Simulation.n_face
     Simulation.n_node
     Simulation.rng
-    Simulation.scale
+    Simulation.scaling
     Simulation.rng_seed
     Simulation.simdir
     Simulation.interval_number
@@ -393,7 +393,7 @@ Attributes
     Crater.morphology_cls
     Crater.morphology_type
     Crater.morphology
-    Crater.scale
+    Crater.scaling
     Crater.target
     Crater.rng
 

@@ -17,6 +17,7 @@ class ProductionModel(CratermakerBase, ABC):
     def __init__(self, 
                  rng: Generator | None = None,
                  rng_seed: int | None = None, 
+                 rng_state: dict | None = None,
                  **kwargs: Any):
         
         """
@@ -32,10 +33,14 @@ class ProductionModel(CratermakerBase, ABC):
             Only one of either mean_velocity or impact_velocity_model can be provided. Default is "Moon_MBA"
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-        rng_seed : int | None
-            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
+        **kwargs : Any
+            Additional keyword arguments.
         """
-        super().__init__(rng=rng, rng_seed=rng_seed, **kwargs)
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
 
 
@@ -576,7 +581,7 @@ for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
 
 
 def _init_production(production: str | ProductionModel | None = None,
-                     **kwargs: Any) -> Any:
+                     **kwargs: Any) -> ProductionModel:
     """
     This is a helper function that can be used to validate and initialize the production model.
 
@@ -585,6 +590,22 @@ def _init_production(production: str | ProductionModel | None = None,
     production : str | ProductionModel | None, optional
         The production model to use. This can be either a string or a ProductionModel instance. 
         If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
+
+    kwargs : Any
+        Additional keyword arguments to pass to the production model constructor.
+    Returns
+    -------
+    ProductionModel
+        An instance of the specified production model.
+    Raises
+    ------
+    KeyError
+        If the specified production model name is not found in the registry.
+    TypeError
+        If the specified production model is not a string or a subclass of ProductionModel.
+    ValueError
+        If there is an error initializing the production model.
+
     """
 
     if production is None:
@@ -603,13 +624,16 @@ def _init_production(production: str | ProductionModel | None = None,
             production = get_production_model("powerlaw")(**kwargs)
     elif isinstance(production, str):
         if production not in available_production_models():
-            raise ValueError(f"Invalid production model {production}. Must be one of {available_production_models()}")
+            raise KeyError(f"Invalid production model {production}. Must be one of {available_production_models()}")
         try:
             production = get_production_model(production)(**kwargs)
         except:
             raise ValueError(f"Error initializing production model {production_model}")    
     elif issubclass(production, ProductionModel):
-        production = production(**kwargs)
+        try:
+            production = production(**kwargs)
+        except:
+            raise ValueError(f"Error initializing production model {production_model}") 
     elif not isinstance(production, ProductionModel):
         raise TypeError("production must be a string or ProductionModel instance")
     

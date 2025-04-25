@@ -18,7 +18,6 @@ class Du2025(SimpleMoon):
     **kwargs : Any
         Additional keyword arguments to be passed to internal functions.
     """
-    
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
 

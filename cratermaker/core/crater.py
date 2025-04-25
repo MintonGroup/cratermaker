@@ -2,11 +2,11 @@ import numpy as np
 from numpy.random import Generator
 from pathlib import Path
 from dataclasses import dataclass
-from .target import Target
+from .target import Target, _init_target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
-from ..components.scaling import ScalingModel, get_scaling_model
-from ..components.impactor import ImpactorModel, get_impactor_model
+from ..components.scaling import ScalingModel, get_scaling_model, _init_scaling
+from ..components.impactor import ImpactorModel, get_impactor_model, _init_impactor
 from typing import Any
 from .base import CratermakerBase
 @dataclass(frozen=True, slots=True)
@@ -70,12 +70,13 @@ def make_crater(final_diameter: float | None = None,
                 projectile_direction: float | None = None,
                 location: tuple[float, float] | None = None,
                 age: float | None = None,
-                scale: str | ScalingModel = "richardson2009",
+                scaling: str | ScalingModel = "richardson2009",
                 impactor: str | ImpactorModel = "asteroids",
                 target: str | Target = "Moon",
-                rng_seed: str | int | None = None,
                 simdir: str | Path = Path.cwd(),
                 rng: Generator = None,
+                rng_seed: str | int | None = None,
+                rng_state: dict | None = None,
                 **kwargs: Any 
                 ) -> Crater:
     """
@@ -113,19 +114,21 @@ def make_crater(final_diameter: float | None = None,
         The (longitude, latitude) location of the impact.
     age : float, optional
         The age of the crater in Myr.
-    scale : str or ScalingModel, optional
+    scaling : str or ScalingModel, optional
         A string key or instance of a scaling model.
     impactor : str or ImpactorModel, optional
         A string key or instance of an impactor model.
     target : str or Target, optional
         The target body name or object. Used internally, not stored on Crater.
     simdir : str | Path
-        The main project simulation directory.
+        The main project simulation directory. Defaults to the current working directory if None.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-    rng_seed : int | None
-        The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
-    kwargs : Any
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
         Additional keyword arguments for subclasses.
 
     Returns
@@ -147,42 +150,18 @@ def make_crater(final_diameter: float | None = None,
     - `impactor` is mutually exclusive with velocity-related inputs; if provided, 
     it overrides velocity, angle, direction, and density unless explicitly set.
 
-    - The `target`, `scale`, and `rng` models are required for scaling and density inference, but are not stored
+    - The `target`, `scaling`, and `rng` models are required for scaling and density inference, but are not stored
     in the returned Crater object.
     """
     # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
-    argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, **kwargs)
+    argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
     rng = argproc.rng
     simdir = argproc.simdir
     rng_seed = argproc.rng_seed
 
-    # --- Normalize target ---
-    if isinstance(target, str):
-        try:
-            target = Target(target, **vars(argproc.common_args), **kwargs)
-        except:
-            raise ValueError(f"Invalid target name {target}")
-    elif not isinstance(target, Target):
-        raise TypeError("target must be an instance of Target or a valid name of a target body")
-    
-    # --- Normalize impactor ---
-    if isinstance(impactor, str):
-        try:
-            impactor = get_impactor_model(impactor)(target_name=target.name, **vars(argproc.common_args), **kwargs)
-        except:
-            raise ValueError(f"Invalid impactor model name {impactor}")
-    elif not isinstance(impactor, ImpactorModel):
-        raise TypeError("impactor must be an instance of ImpactorModel or a valid name of an impactor model")
-
-    # --- Normalize scale ---
-    if isinstance(scale, str):
-        try:
-            scale = get_scaling_model(scale)(target=target, **vars(argproc.common_args), **kwargs)
-        except:
-            raise ValueError(f"Invalid scale name {scale}")
-    elif not isinstance(scale, ScalingModel):
-        raise TypeError("scale must be an instance of ScalingModel or a valid name of a scaling model")
-    
+    target = _init_target(target, **vars(argproc.common_args), **kwargs)
+    impactor = _init_impactor(impactor, target=target, **vars(argproc.common_args), **kwargs)
+    scaling = _init_scaling(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
 
     # --- Normalize location and age ---
     if location is None:
@@ -200,79 +179,58 @@ def make_crater(final_diameter: float | None = None,
     pdir = projectile_direction
     prho = projectile_density
 
-    if impactor is not None:
-        vargs = sum(x is not None for x in [pv, pvv, pmv])
-        if vargs > 0:
-            raise ValueError("projectile_velocity, projectile_vertical_velocity, and projectile_mean_velocity cannot be used with an impactor model")
-        if isinstance(impactor, str):
-            try:
-                impactor = get_impactor_model(impactor)(target_name=target.name, rng=rng)
-            except ValueError as e:
-                raise ValueError(f"Invalid impactor name {impactor}") from e
-        elif not isinstance(impactor, ImpactorModel):
-            raise TypeError("impactor must be an instance of ImpactorModel or a valid name of an impactor model")
-        impactor.new_projectile()
-        pv = impactor.velocity
-        pvv = impactor.vertical_velocity
-        if pang is None:
-            pang = impactor.angle
-        if prho is None:
-            prho = impactor.density
-        if pdir is None:
-            pdir = impactor.direction
-    else:
-        # --- Resolve velocity input combinations ---
-        if pmv is not None:
-            if pv is not None or pvv is not None:
-                raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
-            pmv = float(pmv)
-            if pmv <= 0.0:
-                raise ValueError("projectile_mean_velocity must be positive.")
-            if pmv > target.escape_velocity:
-                vencounter_mean = np.sqrt(pmv ** 2 - target.escape_velocity ** 2)
-                vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)
-                pv = float(np.sqrt(vencounter ** 2 + target.escape_velocity ** 2))
-            else:
-                while True:
-                    pv = float(mc.get_random_velocity(pmv, rng=rng))
-                    if pv < target.escape_velocity:
-                        break
+
+    # --- Resolve velocity input combinations ---
+    if pmv is not None:
+        if pv is not None or pvv is not None:
+            raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
+        pmv = float(pmv)
+        if pmv <= 0.0:
+            raise ValueError("projectile_mean_velocity must be positive.")
+        if pmv > target.escape_velocity:
+            vencounter_mean = np.sqrt(pmv ** 2 - target.escape_velocity ** 2)
+            vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)
+            pv = float(np.sqrt(vencounter ** 2 + target.escape_velocity ** 2))
         else:
-            n_set = sum(x is not None for x in [pv, pvv, pang])
-            if n_set == 0:
-                impactor = get_impactor_model("asteroids")(target_name=target.name, rng=rng)
-                impactor.new_projectile()
-                pv = impactor.velocity
-                pvv = impactor.vertical_velocity
-                pang = impactor.angle
-                pdir = impactor.direction
-            elif n_set > 2:
-                raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
-            else:
-                if pv is not None:
-                    pv = float(pv)
-                    if pv <= 0.0:
-                        raise ValueError("projectile_velocity must be positive.")
-                if pvv is not None:
-                    pvv = float(pvv)
-                    if pvv <= 0.0:
-                        raise ValueError("projectile_vertical_velocity must be positive.")
-                if pang is not None:
-                    pang = float(pang)
-                    if not (0.0 <= pang <= 90.0):
-                        raise ValueError("projectile_angle must be between 0 and 90 degrees")
-                if pv is not None and pang is not None:
-                    pvv = pv * np.sin(np.deg2rad(pang))
-                elif pvv is not None and pang is not None:
-                    pv = pvv / np.sin(np.deg2rad(pang))
-                elif pv is not None and pvv is not None:
-                    pang = np.rad2deg(np.arcsin(pvv / pv))
-                elif pv is not None and pang is None:
-                    pang = mc.get_random_impact_angle(rng=rng)
-                    pvv = pv * np.sin(np.deg2rad(pang))
-                elif pvv is not None and pang is None:
-                    pang = mc.get_random_impact_angle(rng=rng)
-                    pv = pvv / np.sin(np.deg2rad(pang))
+            while True:
+                pv = float(mc.get_random_velocity(pmv, rng=rng))
+                if pv < target.escape_velocity:
+                    break
+    else:
+        n_set = sum(x is not None for x in [pv, pvv, pang])
+        if n_set == 0:
+            impactor.new_projectile()
+            pv = impactor.velocity
+            pvv = impactor.vertical_velocity
+            pang = impactor.angle
+            pdir = impactor.direction
+        elif n_set > 2:
+            raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
+        else:
+            if pv is not None:
+                pv = float(pv)
+                if pv <= 0.0:
+                    raise ValueError("projectile_velocity must be positive.")
+            if pvv is not None:
+                pvv = float(pvv)
+                if pvv <= 0.0:
+                    raise ValueError("projectile_vertical_velocity must be positive.")
+            if pang is not None:
+                pang = float(pang)
+                if not (0.0 <= pang <= 90.0):
+                    raise ValueError("projectile_angle must be between 0 and 90 degrees")
+            if pv is not None and pang is not None:
+                pvv = pv * np.sin(np.deg2rad(pang))
+            elif pvv is not None and pang is not None:
+                pv = pvv / np.sin(np.deg2rad(pang))
+            elif pv is not None and pvv is not None:
+                pang = np.rad2deg(np.arcsin(pvv / pv))
+            elif pv is not None and pang is None:
+                pang = mc.get_random_impact_angle(rng=rng)
+                pvv = pv * np.sin(np.deg2rad(pang))
+            elif pvv is not None and pang is None:
+                pang = mc.get_random_impact_angle(rng=rng)
+                pv = pvv / np.sin(np.deg2rad(pang))
         # Direction
         if pdir is None:
             pdir = float(rng.uniform(0.0, 360.0))
@@ -320,19 +278,19 @@ def make_crater(final_diameter: float | None = None,
         td = 2 * tr
 
     if fd is not None:
-        td, mt = scale.final_to_transient(fd)
-        pd = scale.transient_to_projectile(td)
+        td, mt = scaling.final_to_transient(fd)
+        pd = scaling.transient_to_projectile(td)
     elif td is not None:
-        fd, mt = scale.transient_to_final(td)
-        pd = scale.transient_to_projectile(td)
+        fd, mt = scaling.transient_to_final(td)
+        pd = scaling.transient_to_projectile(td)
     elif pd is not None:
-        td = scale.projectile_to_transient(pd)
-        fd, mt = scale.transient_to_final(td)
+        td = scaling.projectile_to_transient(pd)
+        fd, mt = scaling.transient_to_final(td)
     elif pm is not None:
         pr = ((3.0 * pm) / (4.0 * np.pi * prho)) ** (1.0 / 3.0)
         pd = 2.0 * pr
-        td = scale.projectile_to_transient(pd)
-        fd, mt = scale.transient_to_final(td)
+        td = scaling.projectile_to_transient(pd)
+        fd, mt = scaling.transient_to_final(td)
 
     pr = pd / 2
     tr = td / 2

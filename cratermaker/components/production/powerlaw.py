@@ -25,8 +25,12 @@ class PowerLawProduction(ProductionModel):
         Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-    rng_seed : int | None
-        The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments. 
     """
     def __init__(self, 
                 generator_type: str = "crater",
@@ -34,11 +38,10 @@ class PowerLawProduction(ProductionModel):
                 slope: FloatLike | None = None,
                 rng: Generator | None = None,
                 rng_seed: int | None = None,
+                rng_state: dict | None = None,
                 **kwargs: Any):
 
-        super().__init__(rng=rng, 
-                         rng_seed=rng_seed,
-                         **kwargs) 
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs) 
         self.generator_type = generator_type
         
         # Default values that are approximately equal to the NPF for the Moon

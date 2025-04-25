@@ -4,10 +4,10 @@ from abc import ABC, abstractmethod
 from typing import Any
 import numpy as np
 from numpy.random import Generator
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import  parameter
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.core.target import Target
-from cratermaker.components.impactor import ImpactorModel, get_impactor_model
+from cratermaker.core.target import Target, _init_target
+from cratermaker.components.impactor import ImpactorModel, get_impactor_model, _init_impactor
 from cratermaker.core.base import CratermakerBase
 class ScalingModel(CratermakerBase, ABC):
     """
@@ -17,18 +17,15 @@ class ScalingModel(CratermakerBase, ABC):
                  target: Target | str = "Moon",
                  impactor: ImpactorModel | str = "asteroids",
                  rng : Generator | None = None,
+                 rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs):
-        object.__setattr__(self, "_user_defined", set())
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_target_density", None)
         object.__setattr__(self, "_impactor", None)
-        if isinstance(target, str):
-            try:
-                self.target = Target(target,**kwargs)
-            except:
-                raise ValueError(f"Invalid target name {target}")
-        else:
-            self.target = Target
+        self.target = _init_target(target, **vars(self.common_args), **kwargs)
+        self.impactor = _init_impactor(impactor, **vars(self.common_args), **kwargs)
 
     @abstractmethod
     def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
@@ -103,16 +100,7 @@ class ScalingModel(CratermakerBase, ABC):
     
     @impactor.setter
     def impactor(self, value):
-        if value is None:
-            value = get_impactor_model("asteroids")
-        elif isinstance(value, str):
-            try:
-                value = get_impactor_model(value)
-            except KeyError:
-                raise ValueError(f"Invalid impactor name {value}")
-        elif not isinstance(value, ImpactorModel):
-            raise TypeError("impactor must be an instance of ImpactorModel")
-        self._impactor = value
+        self._impactor = _init_impactor(value, **vars(self.common_args))
         return
 
 
@@ -143,3 +131,40 @@ def get_scaling_model(name: str):
 package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
+
+
+def _init_scaling(scaling: str | ScalingModel | None = None, 
+                  **kwargs: Any) -> ScalingModel:
+    """
+    Initialize a scaling model based on the provided name or class.
+    Parameters
+    ----------
+    scaling : str, ScalingModel, or None, default=None
+        The name of the scaling model to initialize. If None, the default model is used.
+    kwargs : Any
+        Additional keyword arguments to pass to the scaling model constructor.
+
+    Returns
+    -------
+    ScalingModel
+        An instance of the specified scaling model.
+    Raises
+    ------
+    KeyError
+        If the specified scaling model name is not found in the registry.
+    TypeError
+        If the specified scaling model is not a string or a subclass of ScalingModel.
+    """
+
+    if scaling is None:
+        scaling = "simplemoon"
+    if isinstance(scaling, str):
+        if scaling not in available_scaling_models():
+            raise KeyError(f"Unknown scaling model: {scaling}. Available models: {available_scaling_models()}")
+        return get_scaling_model(scaling)(**kwargs)
+    elif issubclass(scaling, ScalingModel):
+        return scaling(**kwargs)
+    elif isinstance(scaling, ScalingModel):
+        return scaling
+    else:
+        raise TypeError(f"scaling must be a string or a subclass of ScalingModel, not {type(scaling)}")

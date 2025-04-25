@@ -3,7 +3,7 @@ import tempfile
 from cratermaker.components.morphology import available_morphology_models, get_morphology_model, _init_morphology
 from cratermaker.core.target import Target
 from cratermaker.core.surface import Surface
-from cratermaker import Crater
+from cratermaker import make_crater
 
 morphology_models = available_morphology_models()
 class TestMorphology(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestMorphology(unittest.TestCase):
         self.gridlevel = 4
         self.surf = Surface.initialize(data_dir=self.data_dir, target=self.target, reset_surface=True, gridlevel=self.gridlevel)
 
-        self.dummy_crater = Crater(
+        self.dummy_crater = make_crater(
             location=(0.0, 0.0),
             final_diameter=100000.0,
         )

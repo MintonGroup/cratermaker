@@ -211,8 +211,8 @@ class Richardson2009(ScalingModel):
         """ 
         # Invert the final -> transient functions for  each crater type
         final_diameter_simple = transient_diameter * self.simple_enlargement_factor
-        def root_func(final_diameter,Dt,scale):
-            return scale._f2t_complex(final_diameter) - Dt
+        def root_func(final_diameter,Dt,scaling):
+            return scaling._f2t_complex(final_diameter) - Dt
             
         sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(0.1*final_diameter_simple,10*final_diameter_simple), args=(transient_diameter, self))
         final_diameter_complex = sol.root
@@ -389,7 +389,7 @@ class Richardson2009(ScalingModel):
         # Draw from a truncated normal distribution for each component of the model
         simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)
         final_exp = mc.bounded_norm(final_exp_mean, final_exp_std)
-        simple_complex_fac = simple_complex_mean * np.exp(self.rng.normal(loc=0.0,scale=simple_complex_std))
+        simple_complex_fac = simple_complex_mean * np.exp(self.rng.normal(loc=0.0,scaling=simple_complex_std))
         transition_diameter = simple_complex_fac * self.target.gravity**simple_complex_exp
         self.transition_diameter = transition_diameter
         self._transition_nominal=transition_nominal

@@ -18,10 +18,14 @@ class NeukumProduction(ProductionModel):
     version : {"Moon", "Mars", "Projectile"}, optional
         The specific model to use for the production function. "Moon" and "Mars" are both crater production functions, and
         "Projectile" is a projectile function. Defaults to "Moon".
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
     **kwargs : Any
-        Includes arguments that were called from the parent class. These are not used in this class.
+        Additional keyword arguments. 
         
     Notes
     ----- 
@@ -49,21 +53,9 @@ class NeukumProduction(ProductionModel):
                  version: str = "Moon",
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs: Any):
-        """
-        Set the parameters for Neukum production. This will set the following attributes based on the value of the keyword argument
-        `version`, which is either "Moon", "Mars", or "Projectile".
-        
-        Parameters
-        ----------
-        version : str, {"Moon", "Mars", "Projectile"}
-            The specific model to use for the production function. Defaults to "Moon" 
-        rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-        rng_seed : int | None
-            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
-        """
-        super().__init__(rng=rng, rng_seed=rng_seed, **kwargs) 
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs) 
 
         self.version = version
 

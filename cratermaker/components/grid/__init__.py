@@ -21,11 +21,9 @@ class GridMaker(CratermakerBase, ABC):
                  radius: FloatLike = 1.0, 
                  **kwargs: Any):
         super().__init__(simdir=simdir, **kwargs)
-        object.__setattr__(self, "_simdir", None)
         object.__setattr__(self, "_grid", None)
         object.__setattr__(self, "_radius", None)
         object.__setattr__(self, "_grid_file", None)
-        self.simdir = simdir
         self.radius = radius
 
     
@@ -263,3 +261,34 @@ def get_grid_type(name: str):
 package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
+
+def _init_grid(grid: str | GridMaker | None = None, 
+               **kwargs: Any) -> GridMaker:
+    """
+    Initialize a grid object based on the given name or class.
+    
+    Parameters
+    ----------
+    grid : str or GridMaker, optional
+        The name of the grid type or an instance of a grid class. If None, a default grid type will be used.
+    **kwargs: Any
+        Additional keyword arguments to pass to the grid constructor.
+    
+    Returns
+    -------
+    GridMaker
+        An instance of the specified grid type.
+    """
+
+    if grid is None:
+        grid = "icosphere"
+    if isinstance(grid, str):
+        if grid not in available_grid_types():
+            raise KeyError(f"Unknown grid model: {grid}. Available models: {available_grid_types()}")
+        return get_grid_type(grid)(**kwargs)
+    elif issubclass(grid, GridMaker):
+        return grid(**kwargs)
+    elif isinstance(grid, GridMaker):
+        return grid
+    else:
+        raise TypeError(f"grid must be a string or a subclass of Gridmaker, not {type(grid)}")

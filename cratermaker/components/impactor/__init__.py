@@ -57,7 +57,7 @@ class ImpactorModel(CratermakerBase, ABC):
         kwargs : Any
             Additional keyword arguments for subclasses. 
         """
-        super().__init__(rng=rng, rng_seed=rng_seed, **kwargs)
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_model", None)
         object.__setattr__(self, "_sample_angles", None)
@@ -352,7 +352,8 @@ package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
 
-def _init_impactor(impactor: ImpactorModel | str | None = None, **kwargs: Any) -> ImpactorModel:
+def _init_impactor(impactor: ImpactorModel | str | None = None, 
+                   **kwargs: Any) -> ImpactorModel:
     """
     Initialize an impactor model based on the provided name or class.
     
@@ -372,6 +373,8 @@ def _init_impactor(impactor: ImpactorModel | str | None = None, **kwargs: Any) -
     ------
     KeyError
         If the specified impactor model is not found in the registry.
+    TypeError
+        If the specified impactor model is not a string or a subclass of ImpactorModel.
     """
     if impactor is None:
         target = kwargs.get("target", "Moon")
@@ -385,10 +388,12 @@ def _init_impactor(impactor: ImpactorModel | str | None = None, **kwargs: Any) -
             impactor = "comets"
 
     if isinstance(impactor, str):
-        if impactor not in _registry:
+        if impactor not in available_impactor_models():
             raise KeyError(f"Impactor model '{impactor}' not found in registry.")
-        return _registry[impactor](**kwargs)
+        return get_impactor_model(impactor)(**kwargs)
     elif issubclass(impactor, ImpactorModel):
         return impactor(**kwargs)
     elif isinstance(impactor, ImpactorModel):
         return impactor
+    else:
+        raise TypeError(f"impactor must be a string or a subclass of ImpactorModel, not {type(impactor)}")
