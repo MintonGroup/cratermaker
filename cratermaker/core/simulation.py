@@ -352,6 +352,8 @@ class Simulation:
         for bin_index, face_indices in bins.items():
             if not face_indices:
                 continue  # Skip empty bins
+            face_indices = np.array(face_indices)
+
             bin_areas = face_areas[face_indices]
             total_bin_area = bin_areas.sum()
             area_ratio = total_bin_area / surface_area 
@@ -380,8 +382,9 @@ class Simulation:
                 # Get the probability of impact onto any particular face then get the locations of the impacts
                 p = bin_areas / total_bin_area
                 locations = []
-                for _ in diameters: 
-                    face_index = self.rng.choice(face_indices, p=p)
+                generated = self.rng.choice(face_indices, size=diameters.shape)
+                for i in range(len(diameters)): 
+                    face_index = generated[i]
                     locations = self.surf.get_random_location_on_face(face_index)
                     impact_locations.append(locations) 
             
