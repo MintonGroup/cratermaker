@@ -70,8 +70,8 @@ def make_crater(final_diameter: float | None = None,
                 projectile_direction: float | None = None,
                 location: tuple[float, float] | None = None,
                 age: float | None = None,
-                scale: str | ScalingModel | None = None,
-                impactor: str | ImpactorModel | None = None,
+                scale: str | ScalingModel = "richardson2009",
+                impactor: str | ImpactorModel = "asteroids",
                 target: str | Target = "Moon",
                 seed: str | int | None = None,
                 simdir: str | Path = Path.cwd(),
@@ -150,30 +150,50 @@ def make_crater(final_diameter: float | None = None,
     - The `target`, `scale`, and `rng` models are required for scaling and density inference, but are not stored
     in the returned Crater object.
     """
+    # --- Normalize RNG, seed, simdir using CratermakerBase ---
     argproc = CratermakerBase(simdir=simdir, rng=rng, seed=seed, **kwargs)
     rng = argproc.rng
     simdir = argproc.simdir
     seed = argproc.seed
+
+    # --- Normalize target ---
     if isinstance(target, str):
         try:
-            target = Target(target)
+            target = Target(target, **vars(argproc.common_args), **kwargs)
         except:
             raise ValueError(f"Invalid target name {target}")
     elif not isinstance(target, Target):
         raise TypeError("target must be an instance of Target or a valid name of a target body")
 
-    # Validate location
+    # --- Normalize scale ---
+    if isinstance(scale, str):
+        try:
+            scale = get_scaling_model(scale)(target_name=target.name, **vars(argproc.common_args), **kwargs)
+        except:
+            raise ValueError(f"Invalid scale name {scale}")
+    elif not isinstance(scale, ScalingModel):
+        raise TypeError("scale must be an instance of ScalingModel or a valid name of a scaling model")
+    
+
+    # --- Normalize impactor ---
+    if isinstance(impactor, str):
+        try:
+            impactor = get_impactor_model(impactor)(target_name=target.name, **vars(argproc.common_args), **kwargs)
+        except:
+            raise ValueError(f"Invalid impactor model name {impactor}")
+    elif not isinstance(impactor, ImpactorModel):
+        raise TypeError("impactor must be an instance of ImpactorModel or a valid name of an impactor model")
+    
+
+    # --- Normalize location and age ---
     if location is None:
         location = mc.get_random_location(rng=rng)
     else:
         location = validate_and_convert_location(location)
-
-    # Validate age
     if age is not None:
         age = float(age)
 
-
-    # Handle velocities and angles
+    # --- Handle impactor vs. raw velocity input ---
     pmv = projectile_mean_velocity
     pv = projectile_velocity
     pvv = projectile_vertical_velocity
@@ -184,8 +204,7 @@ def make_crater(final_diameter: float | None = None,
     if impactor is not None:
         vargs = sum(x is not None for x in [pv, pvv, pmv])
         if vargs > 0:
-            raise ValueError("projectile_velocity, projectile_vertical_velocity, and projectile_mean_velocity cannot be used with an impactor model") 
-
+            raise ValueError("projectile_velocity, projectile_vertical_velocity, and projectile_mean_velocity cannot be used with an impactor model")
         if isinstance(impactor, str):
             try:
                 impactor = get_impactor_model(impactor)(target_name=target.name, rng=rng)
@@ -193,10 +212,7 @@ def make_crater(final_diameter: float | None = None,
                 raise ValueError(f"Invalid impactor name {impactor}") from e
         elif not isinstance(impactor, ImpactorModel):
             raise TypeError("impactor must be an instance of ImpactorModel or a valid name of an impactor model")
-            
         impactor.new_projectile()
-
-        # Only override with values from the impactor model if they are not already set
         pv = impactor.velocity
         pvv = impactor.vertical_velocity
         if pang is None:
@@ -206,13 +222,13 @@ def make_crater(final_diameter: float | None = None,
         if pdir is None:
             pdir = impactor.direction
     else:
+        # --- Resolve velocity input combinations ---
         if pmv is not None:
             if pv is not None or pvv is not None:
                 raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
             pmv = float(pmv)
             if pmv <= 0.0:
                 raise ValueError("projectile_mean_velocity must be positive.")
-            # Sample velocity from mean
             if pmv > target.escape_velocity:
                 vencounter_mean = np.sqrt(pmv ** 2 - target.escape_velocity ** 2)
                 vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)
@@ -223,7 +239,6 @@ def make_crater(final_diameter: float | None = None,
                     if pv < target.escape_velocity:
                         break
         else:
-            # Only two of pv, pvv, pang can be set
             n_set = sum(x is not None for x in [pv, pvv, pang])
             if n_set == 0:
                 impactor = get_impactor_model("asteroids")(target_name=target.name, rng=rng)
@@ -232,7 +247,6 @@ def make_crater(final_diameter: float | None = None,
                 pvv = impactor.vertical_velocity
                 pang = impactor.angle
                 pdir = impactor.direction
-
             elif n_set > 2:
                 raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
             else:
@@ -248,8 +262,6 @@ def make_crater(final_diameter: float | None = None,
                     pang = float(pang)
                     if not (0.0 <= pang <= 90.0):
                         raise ValueError("projectile_angle must be between 0 and 90 degrees")
-    
-                # Infer missing velocity/angle
                 if pv is not None and pang is not None:
                     pvv = pv * np.sin(np.deg2rad(pang))
                 elif pvv is not None and pang is not None:
@@ -262,26 +274,36 @@ def make_crater(final_diameter: float | None = None,
                 elif pvv is not None and pang is None:
                     pang = mc.get_random_impact_angle(rng=rng)
                     pv = pvv / np.sin(np.deg2rad(pang))
-    
         # Direction
         if pdir is None:
             pdir = float(rng.uniform(0.0, 360.0))
         else:
             pdir = float(pdir) % 360.0
-
         # Get or infer projectile density
         if prho is None:
             prho = target.density
-
-        # Create a basic impactor model
         impactor = ImpactorModel(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
 
-    # Ensure that none of the values of pv, pvv, and pang are still None
+    # --- Ensure velocity/angle are all set ---
     n_set = sum(x is not None for x in [pv, pvv, pang])
     if n_set != 3:
         raise ValueError("Not enough information to infer a projectile velocity.")
 
-    # Validate and resolve which size/mass is given
+    # --- Resolve projectile size/mass inputs ---
+    size_inputs = {
+        "final_diameter": final_diameter,
+        "final_radius": final_radius,
+        "transient_diameter": transient_diameter,
+        "transient_radius": transient_radius,
+        "projectile_diameter": projectile_diameter,
+        "projectile_radius": projectile_radius,
+        "projectile_mass": projectile_mass
+    }
+    n_set = sum(v is not None for v in size_inputs.values())
+    if n_set != 1:
+        raise ValueError("Exactly one of final_diameter, final_radius, transient_diameter, transient_radius, projectile_diameter, projectile_radius, or projectile_mass must be set.")
+
+    # --- Compute derived quantities ---
     fd = final_diameter
     fr = final_radius
     td = transient_diameter
@@ -290,12 +312,7 @@ def make_crater(final_diameter: float | None = None,
     pr = projectile_radius
     pm = projectile_mass
     mt = None
-    # Only one of fd, td, pd, pm can be set
-    n_set = sum(x is not None for x in [fd, fr, td, tr, pd, pr, pm])
-    if n_set != 1:
-        raise ValueError("Exactly one of final_diameter, final_radius, transient_diameter, transient_radius, projectile_diameter, projectile_radius, or projectile_mass must be set.")
 
-    # Compute all related sizes
     if pr is not None:
         pd = 2 * pr
     if fr is not None:
@@ -304,59 +321,32 @@ def make_crater(final_diameter: float | None = None,
         td = 2 * tr
 
     if fd is not None:
-        # Final diameter is given
-        fd = float(fd)
-        if fd <= 0.0:
-            raise ValueError("final_diameter must be positive.")
-        fr = fd / 2.0
         td, mt = scale.final_to_transient(fd)
-        tr = td / 2.0
         pd = scale.transient_to_projectile(td)
-        pr = pd / 2.0
-        pm = 4.0 / 3.0 * np.pi * pr**3 * prho
     elif td is not None:
-        # Transient diameter is given
-        td = float(td)
-        if td <= 0.0:
-            raise ValueError("transient_diameter must be positive.")
-        tr = td / 2.0
         fd, mt = scale.transient_to_final(td)
-        fr = fd / 2.0
         pd = scale.transient_to_projectile(td)
-        pr = pd / 2.0
-        pm = 4.0 / 3.0 * np.pi * pr**3 * prho
     elif pd is not None:
-        # Projectile diameter is given
-        pd = float(pd)
-        if pd <= 0.0:
-            raise ValueError("projectile_diameter must be positive.")
-        pr = pd / 2.0
-        pm = 4.0 / 3.0 * np.pi * pr**3 * prho
         td = scale.projectile_to_transient(pd)
-        tr = td / 2.0
         fd, mt = scale.transient_to_final(td)
-        fr = fd / 2.0
     elif pm is not None:
-        # Projectile mass is given
-        pm = float(pm)
-        if pm <= 0.0:
-            raise ValueError("projectile_mass must be positive.")
         pr = ((3.0 * pm) / (4.0 * np.pi * prho)) ** (1.0 / 3.0)
         pd = 2.0 * pr
         td = scale.projectile_to_transient(pd)
-        tr = td / 2.0
         fd, mt = scale.transient_to_final(td)
-        fr = fd / 2.0
-    else:
-        raise RuntimeError("Failed to infer crater/projectile properties.")
 
-    return Crater(final_diameter=fd, 
-                transient_diameter=td,
-                projectile_diameter=pd,
-                projectile_density=prho,
-                projectile_velocity=pv,
-                projectile_angle=pang,
-                projectile_direction=pdir,
-                morphology_type=mt,
-                location=location,
-                    age=age)
+    pr = pd / 2
+    tr = td / 2
+    fr = fd / 2
+    pm = (4.0 / 3.0) * np.pi * pr**3 * prho
+
+    return Crater(final_diameter=fd,
+                  transient_diameter=td,
+                  projectile_diameter=pd,
+                  projectile_density=prho,
+                  projectile_velocity=pv,
+                  projectile_angle=pang,
+                  projectile_direction=pdir,
+                  morphology_type=mt,
+                  location=location,
+                  age=age)
