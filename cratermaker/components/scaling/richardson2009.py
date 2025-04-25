@@ -97,6 +97,8 @@ class Richardson2009(ScalingModel):
         # Initialize transition factors
         if target.density is None:
             target.density = self.material_catalogue[self.material_name]["density"]
+        if impactor.density is None:
+            impactor.density = target.density
         self._compute_simple_to_complex_transition_factors() 
         return
 

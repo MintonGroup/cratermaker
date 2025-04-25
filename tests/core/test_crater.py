@@ -28,7 +28,6 @@ class Testmake_crater(unittest.TestCase):
         transient_radius = 400
         crater = make_crater(transient_radius=transient_radius)
         self.assertEqual(crater.transient_radius, transient_radius)
-        # Add more assertions as needed
 
     def test_invalid_negative_values(self):
         with self.assertRaises(ValueError):

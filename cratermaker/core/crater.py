@@ -53,6 +53,12 @@ class Crater:
         if self.projectile_density is not None and self.projectile_radius is not None:
             return (4.0 / 3.0) * np.pi * self.projectile_radius**3 * self.projectile_density
         return None
+    @property
+    def projectile_vertical_velocity(self) -> float | None:
+        """Projectile vertical velocity in m/s."""
+        if self.projectile_velocity is not None and self.projectile_angle is not None:
+            return self.projectile_velocity * np.sin(np.deg2rad(self.projectile_angle))
+        return None
 
 
 def make_crater(final_diameter: float | None = None,
@@ -159,7 +165,6 @@ def make_crater(final_diameter: float | None = None,
 
     target = _init_target(target, **vars(argproc.common_args), **kwargs)
     impactor = _init_impactor(impactor, target=target, **vars(argproc.common_args), **kwargs)
-    scaling = _init_scaling(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
 
     # --- Normalize location and age ---
     if location is None:
@@ -194,41 +199,40 @@ def make_crater(final_diameter: float | None = None,
                 pv = float(mc.get_random_velocity(pmv, rng=rng))
                 if pv < target.escape_velocity:
                     break
+    n_set = sum(x is not None for x in [pv, pvv, pang])
+    if n_set == 0:
+        impactor.new_projectile()
+        pv = impactor.velocity
+        pvv = impactor.vertical_velocity
+        pang = impactor.angle
+        pdir = impactor.direction
+    elif n_set > 2:
+        raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
     else:
-        n_set = sum(x is not None for x in [pv, pvv, pang])
-        if n_set == 0:
-            impactor.new_projectile()
-            pv = impactor.velocity
-            pvv = impactor.vertical_velocity
-            pang = impactor.angle
-            pdir = impactor.direction
-        elif n_set > 2:
-            raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
-        else:
-            if pv is not None:
-                pv = float(pv)
-                if pv <= 0.0:
-                    raise ValueError("projectile_velocity must be positive.")
-            if pvv is not None:
-                pvv = float(pvv)
-                if pvv <= 0.0:
-                    raise ValueError("projectile_vertical_velocity must be positive.")
-            if pang is not None:
-                pang = float(pang)
-                if not (0.0 <= pang <= 90.0):
-                    raise ValueError("projectile_angle must be between 0 and 90 degrees")
-            if pv is not None and pang is not None:
-                pvv = pv * np.sin(np.deg2rad(pang))
-            elif pvv is not None and pang is not None:
-                pv = pvv / np.sin(np.deg2rad(pang))
-            elif pv is not None and pvv is not None:
-                pang = np.rad2deg(np.arcsin(pvv / pv))
-            elif pv is not None and pang is None:
-                pang = mc.get_random_impact_angle(rng=rng)
-                pvv = pv * np.sin(np.deg2rad(pang))
-            elif pvv is not None and pang is None:
-                pang = mc.get_random_impact_angle(rng=rng)
-                pv = pvv / np.sin(np.deg2rad(pang))
+        if pv is not None:
+            pv = float(pv)
+            if pv <= 0.0:
+                raise ValueError("projectile_velocity must be positive.")
+        if pvv is not None:
+            pvv = float(pvv)
+            if pvv <= 0.0:
+                raise ValueError("projectile_vertical_velocity must be positive.")
+        if pang is not None:
+            pang = float(pang)
+            if not (0.0 <= pang <= 90.0):
+                raise ValueError("projectile_angle must be between 0 and 90 degrees")
+        if pv is not None and pang is not None:
+            pvv = pv * np.sin(np.deg2rad(pang))
+        elif pvv is not None and pang is not None:
+            pv = pvv / np.sin(np.deg2rad(pang))
+        elif pv is not None and pvv is not None:
+            pang = np.rad2deg(np.arcsin(pvv / pv))
+        elif pv is not None and pang is None:
+            pang = mc.get_random_impact_angle(rng=rng)
+            pvv = pv * np.sin(np.deg2rad(pang))
+        elif pvv is not None and pang is None:
+            pang = mc.get_random_impact_angle(rng=rng)
+            pv = pvv / np.sin(np.deg2rad(pang))
         # Direction
         if pdir is None:
             pdir = float(rng.uniform(0.0, 360.0))
@@ -238,6 +242,9 @@ def make_crater(final_diameter: float | None = None,
         if prho is None:
             prho = target.density
         impactor = ImpactorModel(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
+
+    scaling = _init_scaling(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
+    prho = scaling.impactor.density
 
     # --- Ensure velocity/angle are all set ---
     n_set = sum(x is not None for x in [pv, pvv, pang])
