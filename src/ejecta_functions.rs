@@ -38,6 +38,7 @@ pub fn distribution<'py>(
         let radial_distance = radial_distance.as_array();
         let crater_radius = crater_diameter / 2.0;
         let res = zip(intensity, radial_distance)
+            .par_bridge()
             .map(|(intensity, &radial_distance)| {
                 intensity * profile_func(radial_distance / crater_radius, ejrim)
             })
@@ -60,7 +61,7 @@ pub fn profile<'py>(
     Ok(PyArray1::from_vec(
         py,
         radial_distance
-            .iter()
+            .into_par_iter()
             .map(|&r| {
                 if r >= crater_radius {
                     profile_func(r / crater_radius, ejrim)
@@ -98,6 +99,7 @@ pub fn ray_intensity_internal<'py>(
 
     // Distribute ray patterns evenly around the crater
     let mut thetari: Vec<f64> = (0..NRAYMAX)
+        .into_par_iter()
         .map(|i| PI * 2.0 * (i + 1) as f64 / NRAYMAX as f64)
         .collect();
     thetari.shuffle(&mut rng);
@@ -125,6 +127,7 @@ pub fn ray_intensity_internal<'py>(
         .collect();
     let max_val = *intensity.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
     intensity = zip(intensity, radial_distance)
+        .par_bridge()
         .map(|(intensity, &radial_distance)| {
             if radial_distance >= crater_radius {
                 intensity / max_val
