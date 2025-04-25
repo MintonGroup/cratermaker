@@ -349,7 +349,7 @@ class Simulation:
             bins[bin_index].append(face_index)        
             
         # Process each bin
-        for bin_index, face_indices in bins.items():
+        for bin_index, face_indices in tqdm(bins.items(), "Processing bins"):
             if not face_indices:
                 continue  # Skip empty bins
             face_indices = np.array(face_indices)
@@ -383,7 +383,7 @@ class Simulation:
                 p = bin_areas / total_bin_area
                 locations = []
                 generated = self.rng.choice(face_indices, size=diameters.shape)
-                for i in range(len(diameters)): 
+                for i in tqdm(range(len(diameters)), f"Processing bin {bin_index}"): 
                     face_index = generated[i]
                     locations = self.surf.get_random_location_on_face(face_index)
                     impact_locations.append(locations) 
