@@ -919,7 +919,7 @@ class Simulation(CratermakerBase):
 
     @production.setter
     def production(self, value):
-        if not issubclass(value.__class__, ProductionModel):
+        if not isinstance(value, ProductionModel):
             raise TypeError("production must be a subclass of Production")
         self._production = value
 

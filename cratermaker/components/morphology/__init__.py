@@ -109,7 +109,7 @@ def _init_morphology(morphology : str | MorphologyModel | None = None,
         if morphology not in available_morphology_models():
             raise KeyError(f"Unknown morphology model: {morphology}. Available models: {available_morphology_models()}")
         return get_morphology_model(morphology)(**kwargs)
-    elif issubclass(morphology, MorphologyModel):
+    elif isinstance(morphology, type) and issubclass(morphology, MorphologyModel):
         return morphology(**kwargs)
     elif isinstance(morphology, MorphologyModel):
         return morphology

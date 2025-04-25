@@ -179,7 +179,7 @@ def _init_scaling(scaling: str | ScalingModel | None = None,
         if scaling not in available_scaling_models():
             raise KeyError(f"Unknown scaling model: {scaling}. Available models: {available_scaling_models()}")
         return get_scaling_model(scaling)(**kwargs)
-    elif issubclass(scaling, ScalingModel):
+    elif isinstance(scaling, type) and issubclass(scaling, ScalingModel):
         return scaling(**kwargs)
     elif isinstance(scaling, ScalingModel):
         return scaling

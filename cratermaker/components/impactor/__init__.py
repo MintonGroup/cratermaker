@@ -391,7 +391,7 @@ def _init_impactor(impactor: ImpactorModel | str | None = None,
         if impactor not in available_impactor_models():
             raise KeyError(f"Impactor model '{impactor}' not found in registry.")
         return get_impactor_model(impactor)(**kwargs)
-    elif issubclass(impactor, ImpactorModel):
+    elif isinstance(impactor, type) and issubclass(impactor, ImpactorModel):
         return impactor(**kwargs)
     elif isinstance(impactor, ImpactorModel):
         return impactor

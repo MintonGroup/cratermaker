@@ -629,7 +629,7 @@ def _init_production(production: str | ProductionModel | None = None,
             production = get_production_model(production)(**kwargs)
         except:
             raise ValueError(f"Error initializing production model {production_model}")    
-    elif issubclass(production, ProductionModel):
+    elif isinstance(production, type) and issubclass(production, ProductionModel):
         try:
             production = production(**kwargs)
         except:

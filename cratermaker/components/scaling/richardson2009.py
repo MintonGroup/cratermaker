@@ -389,7 +389,7 @@ class Richardson2009(ScalingModel):
         # Draw from a truncated normal distribution for each component of the model
         simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)
         final_exp = mc.bounded_norm(final_exp_mean, final_exp_std)
-        simple_complex_fac = simple_complex_mean * np.exp(self.rng.normal(loc=0.0,scaling=simple_complex_std))
+        simple_complex_fac = simple_complex_mean * np.exp(self.rng.normal(loc=0.0,scale=simple_complex_std))
         transition_diameter = simple_complex_fac * self.target.gravity**simple_complex_exp
         self.transition_diameter = transition_diameter
         self._transition_nominal=transition_nominal

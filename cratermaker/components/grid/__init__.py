@@ -286,7 +286,7 @@ def _init_grid(grid: str | GridMaker | None = None,
         if grid not in available_grid_types():
             raise KeyError(f"Unknown grid model: {grid}. Available models: {available_grid_types()}")
         return get_grid_type(grid)(**kwargs)
-    elif issubclass(grid, GridMaker):
+    elif isinstance(grid, type) and issubclass(grid, GridMaker):
         return grid(**kwargs)
     elif isinstance(grid, GridMaker):
         return grid
