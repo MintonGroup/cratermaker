@@ -382,11 +382,8 @@ class Simulation:
                 # Get the probability of impact onto any particular face then get the locations of the impacts
                 p = bin_areas / total_bin_area
                 locations = []
-                generated = self.rng.choice(face_indices, size=diameters.shape)
-                for i in tqdm(range(len(diameters)), f"Processing bin {bin_index}"): 
-                    face_index = generated[i]
-                    locations = self.surf.get_random_location_on_face(face_index)
-                    impact_locations.append(locations) 
+                face_indices = self.rng.choice(face_indices, size=diameters.shape)
+                impact_locations.extend(self.surf.get_random_location_on_face(face_indices).tolist())
             
         if len(impact_diameters) > 0: 
             if len(impact_diameters) == 1:
