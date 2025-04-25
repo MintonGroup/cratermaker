@@ -94,6 +94,7 @@ class Surface(UxDataset):
                    simdir: str | Path = Path.cwd(),
                    rng: Generator | None = None,
                    rng_seed: int | None = None,
+                   rng_state: dict | None = None,
                    **kwargs):
         """
         Factory method to create a Surface instance from a grid file.

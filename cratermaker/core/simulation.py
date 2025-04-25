@@ -134,7 +134,8 @@ class Simulation(CratermakerBase):
                         superdomain_scale_factor = rmax / crater.final_radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-        self.surf = Surface.initialize(target=self.target, reset_surface=self.reset_surface, **vars(self.common_args), **surface_parameters, **kwargs)
+        surface_parameters = {**surface_parameters, **kwargs}
+        self.surf = Surface.initialize(target=self.target, **kwargs)
 
         self._craterlist = []
         self._crater = None
