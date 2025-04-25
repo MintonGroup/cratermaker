@@ -63,6 +63,7 @@ class Richardson2009(ScalingModel):
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
+                 density: FloatLike | None = None,
                  rng : Generator | None = None,
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
@@ -99,12 +100,14 @@ class Richardson2009(ScalingModel):
                         Ybar=Ybar,
                         catalogue=self.material_catalogue,
                         **kwargs) 
-        arg_check = sum(x is None for x in [self.target, self.K1, self.mu, self.Ybar])
+        if density is not None:
+            self.target.density = density
+        elif self.target.density is None:
+            self.target.density = self.material_catalogue[self.material_name]["density"]
+        arg_check = sum(x is None for x in [self.target.density, self.K1, self.mu, self.Ybar])
         if arg_check > 0:
             raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
         # Initialize transition factors
-        if self.target.density is None:
-            self.target.density = self.material_catalogue[self.material_name]["density"]
         self._compute_simple_to_complex_transition_factors() 
         return
 
