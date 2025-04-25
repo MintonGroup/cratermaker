@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch, mock_open
 from cratermaker.utils.general_utils import _set_properties, parameter, _create_catalogue
-import textwrap
 
 mock_properties = [
     "name",       "prop",     "param"

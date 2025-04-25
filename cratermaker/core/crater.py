@@ -164,17 +164,7 @@ def make_crater(final_diameter: float | None = None,
             raise ValueError(f"Invalid target name {target}")
     elif not isinstance(target, Target):
         raise TypeError("target must be an instance of Target or a valid name of a target body")
-
-    # --- Normalize scale ---
-    if isinstance(scale, str):
-        try:
-            scale = get_scaling_model(scale)(target_name=target.name, **vars(argproc.common_args), **kwargs)
-        except:
-            raise ValueError(f"Invalid scale name {scale}")
-    elif not isinstance(scale, ScalingModel):
-        raise TypeError("scale must be an instance of ScalingModel or a valid name of a scaling model")
     
-
     # --- Normalize impactor ---
     if isinstance(impactor, str):
         try:
@@ -183,6 +173,15 @@ def make_crater(final_diameter: float | None = None,
             raise ValueError(f"Invalid impactor model name {impactor}")
     elif not isinstance(impactor, ImpactorModel):
         raise TypeError("impactor must be an instance of ImpactorModel or a valid name of an impactor model")
+
+    # --- Normalize scale ---
+    if isinstance(scale, str):
+        try:
+            scale = get_scaling_model(scale)(target=target, **vars(argproc.common_args), **kwargs)
+        except:
+            raise ValueError(f"Invalid scale name {scale}")
+    elif not isinstance(scale, ScalingModel):
+        raise TypeError("scale must be an instance of ScalingModel or a valid name of a scaling model")
     
 
     # --- Normalize location and age ---
