@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 
 from .core.simulation import Simulation
 from .core.target import Target
-from .core.crater import Crater
+from .core.crater import Crater, make_crater
 from .core.surface import Surface
 from .components.scaling import available_scaling_models, get_scaling_model
 from .components.production import available_production_models, get_production_model

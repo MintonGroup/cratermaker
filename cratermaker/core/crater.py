@@ -8,7 +8,7 @@ from ..utils import montecarlo as mc
 from ..components.scaling import ScalingModel, get_scaling_model
 from ..components.impactor import ImpactorModel, get_impactor_model
 from typing import Any
-
+from .base import CratermakerBase
 @dataclass(frozen=True, slots=True)
 class Crater:
     final_diameter: float | None = None
@@ -53,7 +53,6 @@ class Crater:
         if self.projectile_density is not None and self.projectile_radius is not None:
             return (4.0 / 3.0) * np.pi * self.projectile_radius**3 * self.projectile_density
         return None
-
 
 
 def make_crater(final_diameter: float | None = None,
@@ -137,21 +136,24 @@ def make_crater(final_diameter: float | None = None,
     Notes
     -----
     - Exactly one of the following must be provided: 
-      `final_diameter`, `final_radius`, `transient_diameter`, `transient_radius`, 
-      `projectile_diameter`, `projectile_radius`, or `projectile_mass`.
+    `final_diameter`, `final_radius`, `transient_diameter`, `transient_radius`, 
+    `projectile_diameter`, `projectile_radius`, or `projectile_mass`.
 
     - Velocity may be specified in one of these ways:
-      - `projectile_mean_velocity` alone (samples a velocity)
-      - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`)
+    - `projectile_mean_velocity` alone (samples a velocity)
+    - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`)
         — the third is inferred.
 
     - `impactor` is mutually exclusive with velocity-related inputs; if provided, 
-      it overrides velocity, angle, direction, and density unless explicitly set.
+    it overrides velocity, angle, direction, and density unless explicitly set.
 
     - The `target`, `scale`, and `rng` models are required for scaling and density inference, but are not stored
-      in the returned Crater object.
+    in the returned Crater object.
     """
-
+    argproc = CratermakerBase(simdir=simdir, rng=rng, seed=seed, **kwargs)
+    rng = argproc.rng
+    simdir = argproc.simdir
+    seed = argproc.seed
     if isinstance(target, str):
         try:
             target = Target(target)
@@ -223,35 +225,44 @@ def make_crater(final_diameter: float | None = None,
         else:
             # Only two of pv, pvv, pang can be set
             n_set = sum(x is not None for x in [pv, pvv, pang])
-            if n_set > 2:
+            if n_set == 0:
+                impactor = get_impactor_model("asteroids")(target_name=target.name, rng=rng)
+                impactor.new_projectile()
+                pv = impactor.velocity
+                pvv = impactor.vertical_velocity
+                pang = impactor.angle
+                pdir = impactor.direction
+
+            elif n_set > 2:
                 raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
-            if pv is not None:
-                pv = float(pv)
-                if pv <= 0.0:
-                    raise ValueError("projectile_velocity must be positive.")
-            if pvv is not None:
-                pvv = float(pvv)
-                if pvv <= 0.0:
-                    raise ValueError("projectile_vertical_velocity must be positive.")
-            if pang is not None:
-                pang = float(pang)
-                if not (0.0 <= pang <= 90.0):
-                    raise ValueError("projectile_angle must be between 0 and 90 degrees")
-
-            # Infer missing velocity/angle
-            if pv is not None and pang is not None:
-                pvv = pv * np.sin(np.deg2rad(pang))
-            elif pvv is not None and pang is not None:
-                pv = pvv / np.sin(np.deg2rad(pang))
-            elif pv is not None and pvv is not None:
-                pang = np.rad2deg(np.arcsin(pvv / pv))
-            elif pv is not None and pang is None:
-                pang = mc.get_random_impact_angle(rng=rng)
-                pvv = pv * np.sin(np.deg2rad(pang))
-            elif pvv is not None and pang is None:
-                pang = mc.get_random_impact_angle(rng=rng)
-                pv = pvv / np.sin(np.deg2rad(pang))
-
+            else:
+                if pv is not None:
+                    pv = float(pv)
+                    if pv <= 0.0:
+                        raise ValueError("projectile_velocity must be positive.")
+                if pvv is not None:
+                    pvv = float(pvv)
+                    if pvv <= 0.0:
+                        raise ValueError("projectile_vertical_velocity must be positive.")
+                if pang is not None:
+                    pang = float(pang)
+                    if not (0.0 <= pang <= 90.0):
+                        raise ValueError("projectile_angle must be between 0 and 90 degrees")
+    
+                # Infer missing velocity/angle
+                if pv is not None and pang is not None:
+                    pvv = pv * np.sin(np.deg2rad(pang))
+                elif pvv is not None and pang is not None:
+                    pv = pvv / np.sin(np.deg2rad(pang))
+                elif pv is not None and pvv is not None:
+                    pang = np.rad2deg(np.arcsin(pvv / pv))
+                elif pv is not None and pang is None:
+                    pang = mc.get_random_impact_angle(rng=rng)
+                    pvv = pv * np.sin(np.deg2rad(pang))
+                elif pvv is not None and pang is None:
+                    pang = mc.get_random_impact_angle(rng=rng)
+                    pv = pvv / np.sin(np.deg2rad(pang))
+    
         # Direction
         if pdir is None:
             pdir = float(rng.uniform(0.0, 360.0))
@@ -340,12 +351,12 @@ def make_crater(final_diameter: float | None = None,
         raise RuntimeError("Failed to infer crater/projectile properties.")
 
     return Crater(final_diameter=fd, 
-                  transient_diameter=td,
-                  projectile_diameter=pd,
-                  projectile_density=prho,
-                  projectile_velocity=pv,
-                  projectile_angle=pang,
-                  projectile_direction=pdir,
-                  morphology_type=mt,
-                  location=location,
+                transient_diameter=td,
+                projectile_diameter=pd,
+                projectile_density=prho,
+                projectile_velocity=pv,
+                projectile_angle=pang,
+                projectile_direction=pdir,
+                morphology_type=mt,
+                location=location,
                     age=age)
