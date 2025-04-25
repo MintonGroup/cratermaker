@@ -35,7 +35,7 @@ class TestMorphology(unittest.TestCase):
             self.assertIsInstance(morphology, object)
             self.assertEqual(morphology.model, model_name)
             morphology.crater = self.dummy_crater
-            self.assertIs(self.morphology.crater, self.dummy_crater)
+            self.assertIs(morphology.crater, self.dummy_crater)
 
     def test_invalid_crater_type_raises(self):
         with self.assertRaises(TypeError):

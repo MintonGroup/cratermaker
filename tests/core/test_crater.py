@@ -2,7 +2,7 @@ import unittest
 from cratermaker import make_crater, Target
 from numpy.random import default_rng
 
-class Testmake_crater(unittest.TestCase):
+class TestCrater(unittest.TestCase):
     
     def test_crater_initialization_with_diameter(self):
         final_diameter = 1000

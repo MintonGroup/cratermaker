@@ -893,8 +893,8 @@ class Simulation(CratermakerBase):
 
     @target.setter
     def target(self, value):
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
+        if not isinstance(value, (Target, str)):
+            raise TypeError("target must be an instance of Target or str")
         self._target = value
 
     @property
@@ -906,8 +906,8 @@ class Simulation(CratermakerBase):
     
     @surf.setter
     def surf(self, value):
-        if not isinstance(value, Surface):
-            raise TypeError("surf must be an instance of Surface")
+        if not isinstance(value, (Surface, str)):
+            raise TypeError("surf must be an instance of Surface or str")
         self._surf = value
 
     @property
@@ -919,8 +919,8 @@ class Simulation(CratermakerBase):
 
     @production.setter
     def production(self, value):
-        if not isinstance(value, ProductionModel):
-            raise TypeError("production must be a subclass of Production")
+        if not isinstance(value, (ProductionModel, str)):
+            raise TypeError("production must be a subclass of Production or str")
         self._production = value
 
     @property
@@ -932,8 +932,8 @@ class Simulation(CratermakerBase):
 
     @scaling.setter
     def scaling(self, value):
-        if not isinstance(value, ScalingModel):
-            raise TypeError("scaling must be of ScalingModel type")
+        if not isinstance(value, (ScalingModel, str)):
+            raise TypeError("scaling must be of ScalingModel type or str")
         self._scale = value
 
     @property
@@ -945,8 +945,8 @@ class Simulation(CratermakerBase):
 
     @morphology.setter
     def morphology(self, value):
-        if not isinstance(value, MorphologyModel):
-            raise TypeError("morpholog must be of MorphologyModel type")
+        if not isinstance(value, (MorphologyModel, str)):
+            raise TypeError("morpholog must be of MorphologyModel type or str")
         self._morphology = value
 
 
@@ -959,8 +959,8 @@ class Simulation(CratermakerBase):
 
     @impactor.setter
     def impactor(self, value):
-        if not isinstance(value, ImpactorModel):
-            raise TypeError("morpholog must be of impactorModel type")
+        if not isinstance(value, (ImpactorModel, str)):
+            raise TypeError("morpholog must be of ImpactorModel type or str")
         self._impactor = value
 
     @property
