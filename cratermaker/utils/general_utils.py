@@ -41,7 +41,7 @@ def parameter(fget=None):
 def _set_properties(obj,
                     catalogue: dict | None = None,
                     key : str | None = None,
-                    filename: os.PathLike | None = None,
+                    config_file : str | Path | None = None,
                     **kwargs: Any):
     """
     Set properties of a simulation object from various sources.
@@ -57,10 +57,10 @@ def _set_properties(obj,
         A dictionary representing a catalogue of properties. It must be in the form of a nested dict. If provided, it will be used to set properties. 
     key : str, optional
         The key to look up in the catalogue. It must be provided if the catalogue is provided.
-    filename : os.PathLike, optional
+    config_file : str or Path, optional
         The path to a YAML file containing properties. If provided, it will be used to set properties.
     **kwargs : dict
-        Keyword arguments that can include 'filename', 'catalogue', and other direct property settings.
+        Keyword arguments that can include 'config_file', 'catalogue', and other direct property settings.
 
     Returns
     -------
@@ -74,8 +74,8 @@ def _set_properties(obj,
     The order of property precedence is: 
     1. Direct keyword arguments (kwargs).
     2. Pre-defined catalogue (specified by 'catalogue' key in kwargs).
-    3. YAML file (specified by 'filename' key in kwargs).
-    Properties set by kwargs override those set by 'catalogue' or 'filename'.
+    3. YAML file (specified by 'config_file' key in kwargs).
+    Properties set by kwargs override those set by 'catalogue' or 'config_file'.
     """
     
     def _set_properties_from_arguments(obj, **kwargs):
@@ -121,29 +121,29 @@ def _set_properties(obj,
             matched,unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
         return matched, unmatched
             
-    def _set_properties_from_file(obj, filename, key=None, **kwargs):
+    def _set_properties_from_file(obj, config_file, key=None, **kwargs):
         try:
-            with open(filename, 'r') as f:
+            with open(config_file, 'r') as f:
                 properties = yaml.safe_load(f)
                 for k in kwargs.keys():
                     if k in properties:
                         del properties[k]
         except: 
-            warn(f"Could not read the file {filename}.") 
+            warn(f"Could not read the file {config_file}.") 
             return {}, {}
         
         if key is None:
             matched, unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
         else:
             if key not in properties:
-                raise ValueError(f"Key '{key}' not found in the file '{filename}'.")
+                raise ValueError(f"Key '{key}' not found in the file '{config_file}'.")
             matched, unmatched = _set_properties_from_catalogue(obj, key=key, catalogue=properties, **kwargs)
         return matched, unmatched
 
     matched = {}
     unmatched = {} 
-    if filename:
-        m, u = _set_properties_from_file(obj,filename=filename, key=key, **kwargs)
+    if config_file:
+        m, u = _set_properties_from_file(obj,config_file=config_file, key=key, **kwargs)
         matched.update(m)
         unmatched.update(u)
    

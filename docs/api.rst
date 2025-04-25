@@ -61,7 +61,7 @@ Attributes
     Simulation.n_node
     Simulation.rng
     Simulation.scale
-    Simulation.seed
+    Simulation.rng_seed
     Simulation.simdir
     Simulation.interval_number
     Simulation.elapsed_time

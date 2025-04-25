@@ -32,7 +32,7 @@ class SimpleMoon(MorphologyModel):
                  ejecta_truncation: FloatLike | None = None,
                  dorays: bool = True,
                  rng: Generator | None = None,
-                 seed: int | None = None,
+                 rng_seed: int | None = None,
                  **kwargs: Any 
                  ):
         super().__init__(**kwargs)

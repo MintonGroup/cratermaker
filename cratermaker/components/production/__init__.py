@@ -11,11 +11,12 @@ from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.montecarlo import get_random_size
 from cratermaker.utils.general_utils import parameter
 from cratermaker.core.base import CratermakerBase
+from cratermaker.core.target import Target
 
 class ProductionModel(CratermakerBase, ABC):
     def __init__(self, 
                  rng: Generator | None = None,
-                 seed: int | None = None, 
+                 rng_seed: int | None = None, 
                  **kwargs: Any):
         
         """
@@ -30,11 +31,11 @@ class ProductionModel(CratermakerBase, ABC):
             The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
             Only one of either mean_velocity or impact_velocity_model can be provided. Default is "Moon_MBA"
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the seed if it is provided.
-        seed : int | None
-            The random seed for the simulation if rng is not provided. If None, a random seed is used.
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : int | None
+            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
         """
-        super().__init__(rng=rng, seed=seed, **kwargs)
+        super().__init__(rng=rng, rng_seed=rng_seed, **kwargs)
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
 
 
@@ -572,3 +573,44 @@ def get_production_model(name: str):
 package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
+
+
+def _init_production(production: str | ProductionModel | None = None,
+                     **kwargs: Any) -> Any:
+    """
+    This is a helper function that can be used to validate and initialize the production model.
+
+    Parameters
+    ----------
+    production : str | ProductionModel | None, optional
+        The production model to use. This can be either a string or a ProductionModel instance. 
+        If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
+    """
+
+    if production is None:
+        target = kwargs.get("target", "Moon")
+        if isinstance(target, str):
+            target_name = target.capitalize()
+        elif isinstance(target, Target):
+            target_name = target.name.capitalize()
+        if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
+            production_model = "neukum"
+            if target_name in ['Moon', 'Mars']:
+                production = get_production_model(production_model)(version=target_name, **kwargs)
+            else:
+                production = get_production_model(production_model)(version="projectile", **kwargs)
+        else:
+            production = get_production_model("powerlaw")(**kwargs)
+    elif isinstance(production, str):
+        if production not in available_production_models():
+            raise ValueError(f"Invalid production model {production}. Must be one of {available_production_models()}")
+        try:
+            production = get_production_model(production)(**kwargs)
+        except:
+            raise ValueError(f"Error initializing production model {production_model}")    
+    elif issubclass(production, ProductionModel):
+        production = production(**kwargs)
+    elif not isinstance(production, ProductionModel):
+        raise TypeError("production must be a string or ProductionModel instance")
+    
+    return production

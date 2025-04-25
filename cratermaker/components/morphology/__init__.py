@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 from cratermaker.core.crater import Crater
 from cratermaker.core.surface import Surface
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import parameter
 from cratermaker.core.base import CratermakerBase
 
 class MorphologyModel(CratermakerBase, ABC):
@@ -50,6 +50,7 @@ class MorphologyModel(CratermakerBase, ABC):
         if value is not None and not isinstance(value, Crater):
             raise TypeError("crater must be an instance of Crater")
         self._crater = value
+
     
 _registry: dict[str, MorphologyModel] = {}
 
@@ -58,8 +59,8 @@ def register_morphology_model(name: str):
     Class decorator to register a morphology model component under the given key.
     """
     def decorator(cls):
-        cls._model = name 
         _registry[name] = cls
+        cls._model = name 
         return cls
     return decorator
 
@@ -76,3 +77,16 @@ def get_morphology_model(name: str):
 package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
+
+
+def _init_morphology(morphology : str | MorphologyModel | None = None, **kwargs: Any) -> MorphologyModel:
+    if morphology is None:
+        morphology = "simplemoon"
+    if isinstance(morphology, str):
+        if morphology not in _registry:
+            raise KeyError(f"Unknown morphology model: {morphology}. Available models: {available_morphology_models()}")
+        return _registry[morphology](**kwargs)
+    elif issubclass(morphology, MorphologyModel):
+        return morphology(**kwargs)
+    elif isinstance(morphology, MorphologyModel):
+        return morphology

@@ -302,3 +302,24 @@ class Target(CratermakerBase):
         """
         return G.value*self.mass / (self.radius**2)  
 
+
+def _init_target(target : Target | str = "Moon",
+                 **kwargs: Any) -> Target:
+    
+    if target is None:
+        try: 
+            target = Target(name="Moon", **kwargs)
+        except:
+            raise ValueError("Error initializing target.")
+    elif isinstance(target, str):
+        try:
+            target = Target(name=target, **kwargs)
+        except KeyError:
+            raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.")
+    elif not isinstance(target, Target):
+        raise TypeError("target must be a string or a Target object")
+    
+    return target
+    
+
+

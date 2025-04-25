@@ -73,7 +73,7 @@ def make_crater(final_diameter: float | None = None,
                 scale: str | ScalingModel = "richardson2009",
                 impactor: str | ImpactorModel = "asteroids",
                 target: str | Target = "Moon",
-                seed: str | int | None = None,
+                rng_seed: str | int | None = None,
                 simdir: str | Path = Path.cwd(),
                 rng: Generator = None,
                 **kwargs: Any 
@@ -122,9 +122,9 @@ def make_crater(final_diameter: float | None = None,
     simdir : str | Path
         The main project simulation directory.
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the seed if it is provided.
-    seed : int | None
-        The random seed for the simulation if rng is not provided. If None, a random seed is used.
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : int | None
+        The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
     kwargs : Any
         Additional keyword arguments for subclasses.
 
@@ -150,11 +150,11 @@ def make_crater(final_diameter: float | None = None,
     - The `target`, `scale`, and `rng` models are required for scaling and density inference, but are not stored
     in the returned Crater object.
     """
-    # --- Normalize RNG, seed, simdir using CratermakerBase ---
-    argproc = CratermakerBase(simdir=simdir, rng=rng, seed=seed, **kwargs)
+    # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
+    argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, **kwargs)
     rng = argproc.rng
     simdir = argproc.simdir
-    seed = argproc.seed
+    rng_seed = argproc.rng_seed
 
     # --- Normalize target ---
     if isinstance(target, str):

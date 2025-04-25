@@ -52,7 +52,7 @@ class Surface(UxDataset):
                  target: Target | str = "Moon", 
                  compute_face_areas: bool = False,
                  rng: Generator | None = None, 
-                 seed: int | None = None,
+                 rng_seed: int | None = None,
                  simdir: os.PathLike = Path.cwd(),
                  **kwargs):
 
@@ -72,7 +72,7 @@ class Surface(UxDataset):
         else:
             self.target = target
         self._rng = rng
-        self._seed = seed
+        self._seed = rng_seed
         self._simdir = simdir
         self._compute_face_areas = compute_face_areas
        
@@ -94,7 +94,7 @@ class Surface(UxDataset):
                    regrid: bool = False,
                    simdir: str | Path = Path.cwd(),
                    rng: Generator | None = None,
-                   seed: int | None = None,
+                   rng_seed: int | None = None,
                    **kwargs):
         """
         Factory method to create a Surface instance from a grid file.
@@ -112,9 +112,9 @@ class Surface(UxDataset):
         simdir : str | Path
             The main project simulation directory.
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the seed if it is provided.
-        seed : int | None
-            The random seed for the simulation if rng is not provided. If None, a random seed is used.
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : int | None
+            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
         **kwargs : dict
             Additional keyword arguments for initializing the Surface instance based on the specific gridtype.
 
@@ -156,7 +156,7 @@ class Surface(UxDataset):
             
         # Process the grid parameters from the arguments and build the strategy object 
         try:
-            grid = get_grid_type(gridtype)(radius=radius, simdir=simdir, seed=seed, rng=rng, **grid_parameters, **kwargs)
+            grid = get_grid_type(gridtype)(radius=radius, simdir=simdir, rng_seed=rng_seed, rng=rng, **grid_parameters, **kwargs)
         except:
             raise ValueError(f"Failed to generate {gridtype} grid")
    
@@ -203,7 +203,7 @@ class Surface(UxDataset):
                    target = target,
                    simdir = simdir,
                    rng = rng,
-                   seed = seed,
+                   rng_seed = rng_seed,
                    compute_face_areas = True,
                   ) 
         
@@ -240,7 +240,7 @@ class Surface(UxDataset):
                             target=self.target,
                             simdir=self.simdir,
                             rng=self.rng,
-                            seed=self.seed,
+                            rng_seed=self.rng_seed,
                             compute_face_areas=False,
                             )
         return value
@@ -265,7 +265,7 @@ class Surface(UxDataset):
                          target=self.target,
                          simdir=self.simdir,
                          rng=self.rng,
-                         seed=self.seed,
+                         rng_seed=self.rng_seed,
                          compute_face_areas=False,
                          )
         return ds
@@ -314,7 +314,7 @@ class Surface(UxDataset):
                          simdir=self.simdir,
                          compute_face_areas=False,
                          rng=self.rng,
-                         seed=self.seed)
+                         rng_seed=self.rng_seed)
             ds._smallest_length = self._smallest_length
             ds._area = self._area
         return ds   
@@ -442,17 +442,17 @@ class Surface(UxDataset):
         
 
     @parameter
-    def seed(self):
+    def rng_seed(self):
         """
-        The random seed for the simulation.
+        The random rng_seed for the simulation.
         """
         return self._seed
 
-    @seed.setter
-    def seed(self, value):
+    @rng_seed.setter
+    def rng_seed(self, value):
         if value is not None:
             if not isinstance(value, int) or np.isnan(value) or np.isinf(value) or value < 0:
-                raise TypeError("seed must be a positive integer")
+                raise TypeError("rng_seed must be a positive integer")
             self._seed = int(value)
         else:
             self._seed = None

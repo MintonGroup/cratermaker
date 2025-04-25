@@ -8,10 +8,11 @@ from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.core.base import CratermakerBase
+from cratermaker.core.target import Target, _init_target
 
 class ImpactorModel(CratermakerBase, ABC):
     def __init__(self, 
-                 target_name : str = "Moon",
+                 target : Target | str = "Moon",
                  mean_velocity : FloatLike = 22100.0, 
                  density : FloatLike = 2500.0,
                  sample_velocities : bool = True,
@@ -21,15 +22,16 @@ class ImpactorModel(CratermakerBase, ABC):
                  velocity : FloatLike | None = None,
                  direction : FloatLike | None = None,
                  rng: Generator | None = None,
-                 seed: int | None = None,
+                 rng_seed : int | None = None,
+                 rng_state : dict | None = None, 
                  **kwargs):
         """
         This is the abstract base class for all impactor models. It defines the interface for generating impactor velocities, angles, and densities for a given target body.
 
         Parameters
         ----------
-        target_name : str
-            The name of the target body for the impact.
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
         mean_velocity : float
             The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
         density : float
@@ -47,14 +49,16 @@ class ImpactorModel(CratermakerBase, ABC):
         direction : float | None
             The impact direction in degrees. If None, the direction will be sampled from a distribution.
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the seed if it is provided.
-        seed : int | None
-            The random seed for the simulation if rng is not provided. If None, a random seed is used.
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
         kwargs : Any
             Additional keyword arguments for subclasses. 
         """
-        super().__init__(rng=rng, seed=seed, **kwargs)
-        object.__setattr__(self, "_target_name", None)
+        super().__init__(rng=rng, rng_seed=rng_seed, **kwargs)
+        object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_model", None)
         object.__setattr__(self, "_sample_angles", None)
         object.__setattr__(self, "_sample_velocities", None)
@@ -65,7 +69,7 @@ class ImpactorModel(CratermakerBase, ABC):
         object.__setattr__(self, "_direction", direction)
         object.__setattr__(self, "_angle", angle)
 
-        self.target_name = target_name
+        self.target = _init_target(target, **kwargs)
         self.sample_velocities = sample_velocities
         self.sample_angles = sample_angles
         self.sample_directions = sample_directions
@@ -118,14 +122,23 @@ class ImpactorModel(CratermakerBase, ABC):
         -------
         str
         """ 
-        return self._target_name
+        return self._target.name
     
-    @target_name.setter
-    def target_name(self, value):
-        if not isinstance(value, str):
-            raise TypeError("target_name must be a string")
-        self._target_name = value
-        return 
+    @property
+    def target(self):
+        """
+        The target object for the impactor model.
+        
+        Returns
+        -------
+        Target
+        """
+        return self._target
+    
+    @target.setter
+    def target(self, value):
+        self._target = _init_target(value)
+
 
     @parameter
     def sample_angles(self):
@@ -338,3 +351,44 @@ def get_impactor_model(name: str):
 package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
+
+def _init_impactor(impactor: ImpactorModel | str | None = None, **kwargs: Any) -> ImpactorModel:
+    """
+    Initialize an impactor model based on the provided name or class.
+    
+    Parameters
+    ----------
+    impactor : ImpactorModel or str
+        The impactor model to initialize. Can be a class or a string representing the model name.
+    kwargs : Any
+        Additional keyword arguments to be passed to the model constructor.
+    
+    Returns
+    -------
+    ImpactorModel
+        The initialized impactor model.
+    
+    Raises
+    ------
+    KeyError
+        If the specified impactor model is not found in the registry.
+    """
+    if impactor is None:
+        target = kwargs.get("target", "Moon")
+        if isinstance(target, str):
+            target_name = target.capitalize()
+        elif isinstance(target, Target):
+            target_name = target.name.capitalize()
+        if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
+            impactor = "asteroids"
+        else:
+            impactor = "comets"
+
+    if isinstance(impactor, str):
+        if impactor not in _registry:
+            raise KeyError(f"Impactor model '{impactor}' not found in registry.")
+        return _registry[impactor](**kwargs)
+    elif issubclass(impactor, ImpactorModel):
+        return impactor(**kwargs)
+    elif isinstance(impactor, ImpactorModel):
+        return impactor
