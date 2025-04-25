@@ -422,14 +422,14 @@ class Surface:
     @property
     def node_tree(self):
         if self._node_tree is None:
-            self._node_tree = self.data.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical")
+            self._node_tree = self.data.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical", reconstruct=True)
         
         return self._node_tree
 
     @property
     def face_tree(self):
         if self._face_tree is None:
-            self._face_tree = self.data.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical")
+            self._face_tree = self.data.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical", reconstruct=True)
         
         return self._face_tree
     
