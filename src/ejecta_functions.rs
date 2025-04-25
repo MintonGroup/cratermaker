@@ -1,18 +1,15 @@
-use std::{
-    f64::{
-        self,
-        consts::{PI, SQRT_2},
-    },
-    iter::zip,
+use std::f64::{
+    self,
+    consts::{PI, SQRT_2},
 };
 
 use itertools::Itertools;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rand::prelude::*;
-use rayon::prelude::*;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-const VSMALL: f64 = 10.0 * std::f64::EPSILON;
+use crate::VSMALL;
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
 const FRAYREDUCTION: f64 = 0.5;
@@ -37,13 +34,15 @@ pub fn distribution<'py>(
         )?;
         let radial_distance = radial_distance.as_array();
         let crater_radius = crater_diameter / 2.0;
-        let res = zip(intensity, radial_distance)
-            .par_bridge()
-            .map(|(intensity, &radial_distance)| {
-                intensity * profile_func(radial_distance / crater_radius, ejrim)
-            })
-            .collect();
-        Ok(PyArray1::from_vec(py, res))
+        Ok(PyArray1::from_iter(
+            py,
+            intensity
+                .iter()
+                .zip(radial_distance)
+                .map(|(&intensity, &radial_distance)| {
+                    intensity * profile_func(radial_distance / crater_radius, ejrim)
+                }),
+        ))
     } else {
         profile(py, radial_distance, crater_diameter, ejrim)
     }
@@ -58,18 +57,15 @@ pub fn profile<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distance = radial_distance.as_array();
     let crater_radius = crater_diameter / 2.0;
-    Ok(PyArray1::from_vec(
+    Ok(PyArray1::from_iter(
         py,
-        radial_distance
-            .into_par_iter()
-            .map(|&r| {
-                if r >= crater_radius {
-                    profile_func(r / crater_radius, ejrim)
-                } else {
-                    0.0
-                }
-            })
-            .collect(),
+        radial_distance.iter().map(|&r| {
+            if r >= crater_radius {
+                profile_func(r / crater_radius, ejrim)
+            } else {
+                0.0
+            }
+        }),
     ))
 }
 
@@ -98,10 +94,9 @@ pub fn ray_intensity_internal<'py>(
     let mut rng = rand::rng();
 
     // Distribute ray patterns evenly around the crater
-    let mut thetari: Vec<f64> = (0..NRAYMAX)
-        .into_par_iter()
+    let mut thetari = (0..NRAYMAX)
         .map(|i| PI * 2.0 * (i + 1) as f64 / NRAYMAX as f64)
-        .collect();
+        .collect_vec();
     thetari.shuffle(&mut rng);
 
     let random_numbers: Vec<f64> = rng.random_iter().take(NPATT as usize).collect_vec();
@@ -126,8 +121,9 @@ pub fn ray_intensity_internal<'py>(
         })
         .collect();
     let max_val = *intensity.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
-    intensity = zip(intensity, radial_distance)
-        .par_bridge()
+    intensity = intensity
+        .into_iter()
+        .zip(radial_distance)
         .map(|(intensity, &radial_distance)| {
             if radial_distance >= crater_radius {
                 intensity / max_val
@@ -135,7 +131,7 @@ pub fn ray_intensity_internal<'py>(
                 intensity
             }
         })
-        .collect();
+        .collect_vec();
     Ok(intensity)
 }
 
