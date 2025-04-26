@@ -238,11 +238,11 @@ class HiResLocalGrid(Grid):
 
     def generate_grid(self, **kwargs: Any): 
         super().generate_grid(**kwargs)
-        face_areas = self.grid.face_areas 
+        face_areas = self.uxgrid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_min = face_sizes.min().item() * self.radius
         pix_max = face_sizes.max().item() * self.radius
-        print(f"Generated {self.grid.n_face} faces")
+        print(f"Generated {self.uxgrid.n_face} faces")
         print(f"Effective pixel size range: {pix_min:.2f},{pix_max:.2f} m")
         return
 

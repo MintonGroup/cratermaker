@@ -19,6 +19,7 @@ from cratermaker.utils.montecarlo import get_random_location_on_face
 from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.components.grid import Grid
 from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME, _SMALLFAC, _COMBINED_DATA_FILE_NAME
+from cratermaker._cratermaker import surface_functions
 from .base import CratermakerBase, _rng_init, _simdir_init, CommonArgs
 from typing import Any
 
@@ -160,7 +161,7 @@ class Surface:
             data_file_list.remove(grid.file)
             
         # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-        reset_surface = reset_surface or not data_file_list
+        reset_surface = reset_surface or not data_file_list or grid.regrid
         
         # If reset_surface is True, delete all data files except the grid file 
         if reset_surface or grid.regrid:
