@@ -83,7 +83,7 @@ class TestProduction(unittest.TestCase):
         for model_name in production_models:
             production = Production.make(production=model_name)
             self.assertIn(model_name, production_models)
-            self.assertIsInstance(production, Production.make(production=model_name))
+            self.assertIsInstance(production, Production)
         
 if __name__ == '__main__':
     unittest.main()

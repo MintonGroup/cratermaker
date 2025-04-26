@@ -9,7 +9,7 @@ from warnings import warn
 class AsteroidImpactors(Impactor):
     def __init__(self, 
                  target : Target | str | None = None,
-                 density : FloatLike = 2500.0,
+                 density : FloatLike = 2250.0,
                  rng: Generator | None = None,
                  rng_seed : int | None = None,
                  rng_state : dict | None = None, 
@@ -22,7 +22,7 @@ class AsteroidImpactors(Impactor):
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         density : float
-            The density of the impactor in kg/m^3. Default is 2500.0 kg/m^3.
+            The density of the impactor in kg/m^3. Default is 2250.0 kg/m^3.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional

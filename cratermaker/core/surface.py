@@ -94,7 +94,7 @@ class Surface(UxDataset):
              reset_surface: bool = True, 
              grid: str | None = None,
              regrid: bool = False,
-             simdir: str | Path = Path.cwd(),
+             simdir: str | None = None,
              rng: Generator | None = None,
              rng_seed: int | None = None,
              rng_state: dict | None = None,
@@ -147,7 +147,7 @@ class Surface(UxDataset):
         reset_surface = reset_surface or not data_file_list
         
         # If reset_surface is True, delete all data files except the grid file 
-        if reset_surface:
+        if reset_surface or grid.regrid:
             for f in data_file_list:
                 f.unlink()  
             data_file_list = []

@@ -13,7 +13,7 @@ class Impactor(ComponentBase):
     def __init__(self, 
                  target : Target | str | None = None,
                  mean_velocity : FloatLike = 22100.0, 
-                 density : FloatLike = 2500.0,
+                 density : FloatLike = 2250.0,
                  sample_velocities : bool = True,
                  sample_angles : bool = True,
                  sample_directions : bool = True,
@@ -34,7 +34,7 @@ class Impactor(ComponentBase):
         mean_velocity : float
             The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
         density : float
-            The density of the impactor in kg/m^3. Default is 2500.0 kg/m^3.
+            The density of the impactor in kg/m^3. Default is 2250.0 kg/m^3.
         sample_velocities : bool
             Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
         sample_angles : bool
@@ -78,7 +78,7 @@ class Impactor(ComponentBase):
              impactor: Impactor | str | None = None, 
              target : Target | str | None = None,
              mean_velocity : FloatLike = 22100.0, 
-             density : FloatLike = 2500.0,
+             density : FloatLike = 2250.0,
              sample_velocities : bool = True,
              sample_angles : bool = True,
              sample_directions : bool = True,
@@ -101,7 +101,7 @@ class Impactor(ComponentBase):
         mean_velocity : float
             The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
         density : float
-            The density of the impactor in kg/m^3. Default is 2500.0 kg/m^3.
+            The density of the impactor in kg/m^3. Default is 2250.0 kg/m^3.
         sample_velocities : bool
             Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
         sample_angles : bool

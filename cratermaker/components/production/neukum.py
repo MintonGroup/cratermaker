@@ -49,14 +49,14 @@ class NeukumProduction(Production):
 
     """
     def __init__(self, 
-                 version: str = "Moon",
+                 version: str | None = None,
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
                  **kwargs: Any):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs) 
 
-        self.version = version
+        self.version = version or "Moon"
 
 
     def function(self,

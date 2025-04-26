@@ -18,11 +18,12 @@ from cratermaker.utils.component_utils import ComponentBase, import_components
 class Grid(ComponentBase):
     _registry: dict[str, type[Grid]] = {}
 
-    def __init__(self, radius: FloatLike = 1.0, **kwargs: Any):
+    def __init__(self, radius: FloatLike = 1.0, regrid: bool = False, **kwargs: Any):
         super().__init__(**kwargs)
         object.__setattr__(self, "_grid", None)
         object.__setattr__(self, "_radius", None)
         object.__setattr__(self, "_file", None)
+        object.__setattr__(self, "_regrid", regrid)
         self.radius = radius
 
 
@@ -52,8 +53,8 @@ class Grid(ComponentBase):
 
         Returns
         -------
-        component
-            An instance of the specified component model.
+        Grid
+            An instance of the specified Grid model.
 
         Raises
         ------
@@ -64,7 +65,6 @@ class Grid(ComponentBase):
         """
 
         # Call the base class version of make and pass the morphology argument as the component argument
-
         if target is not None and isinstance(target, Target):
             radius = target.radius or radius
 
@@ -79,7 +79,7 @@ class Grid(ComponentBase):
         # Create the grid making object
         if grid is None:
             grid = "icosphere"
-        grid = super().make(component=grid, simdir=simdir, radius=radius, **kwargs)
+        grid = super().make(component=grid, simdir=simdir, radius=radius, regrid=regrid, **kwargs)
 
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
         if not regrid: 
@@ -90,6 +90,7 @@ class Grid(ComponentBase):
         if make_new_grid:
             print("Creating a new grid")
             grid.create_grid(**kwargs)
+            grid._regrid = True
         else:
             print("Using existing grid")
 
@@ -297,8 +298,12 @@ class Grid(ComponentBase):
         """
         return self._simdir / _DATA_DIR / _GRID_FILE_NAME
 
-
-
+    @property
+    def regrid(self):
+        """
+        Whether the grid was rebuilt when the class was constructed.
+        """
+        return self._regrid
 
 
 import_components(__name__, __path__, ignore_private=True)
