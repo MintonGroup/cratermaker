@@ -673,7 +673,7 @@ class Simulation(CratermakerBase):
         out_dir.mkdir(parents=True, exist_ok=True)
 
         data_dir = self.simdir / _DATA_DIR
-        data_file_list = data_dir.glob("*.nc")
+        data_file_list = list(data_dir.glob("*.nc"))
         if self.surf.grid_file in data_file_list:
             data_file_list.remove(self.surf.grid_file)
        
