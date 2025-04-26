@@ -189,7 +189,7 @@ def _rng_init(rng: Generator | None = None,
                 raise ValueError("Invalid rng_state provided.") from e
         elif rng_seed is not None:
             try:
-                rng = np.random.default_rng(rng_seed=rng_seed)
+                rng = np.random.default_rng(seed=rng_seed)
             except Exception as e:
                 raise ValueError("Invalid rng_seed provided.") from e
 
