@@ -9,7 +9,7 @@ gridtypes = available_grid_types()
 
 class TestGrid(unittest.TestCase):
     """
-    A collection of unit tests for the GridMaker classes in the cratermaker project.
+    A collection of unit tests for the Grid classes in the cratermaker project.
 
     Parameters
     ----------

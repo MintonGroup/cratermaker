@@ -5,12 +5,9 @@ from cratermaker.core.crater import Crater
 from cratermaker.core.surface import Surface
 from cratermaker.utils.general_utils import parameter
 from cratermaker.core.base import CratermakerBase
-from cratermaker.utils.component_loader import import_components
+from cratermaker.utils.component_utils import import_components
 
 class Morphology(CratermakerBase, ABC):
-    """
-    Abstract base class for morphology models. A morphology model defines how the surface mesh is modified by a given crater.
-    """
     _registry: dict[str, type[Morphology]] = {}
 
     def __init__(self, **kwargs: Any) -> None:

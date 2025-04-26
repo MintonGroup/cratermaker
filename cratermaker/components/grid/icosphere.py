@@ -3,11 +3,11 @@ import numpy as np
 from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.components.grid import register_grid_type, GridMaker
+from cratermaker.components.grid import register_grid_type, Grid
 from cratermaker.utils.general_utils import parameter
 
 @register_grid_type("icosphere")
-class IcosphereGrid(GridMaker):    
+class IcosphereGrid(Grid):    
     """
     Create a uniform grid configuration using an icosphere. This is the most accurate and efficient way to create a uniform grid, but is limited to a few resolutions.
     

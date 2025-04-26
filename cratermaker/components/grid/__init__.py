@@ -1,5 +1,4 @@
-import importlib
-import pkgutil
+from __future__ import annotations
 from pathlib import Path
 from abc import ABC, abstractmethod
 import os
@@ -11,11 +10,14 @@ from numpy.typing import NDArray
 from typing import Any
 import hashlib
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import  parameter
 from cratermaker.constants import _GRID_FILE_NAME, _DATA_DIR
 from cratermaker.core.base import CratermakerBase
+from cratermaker.utils.component_utils import import_components
 
-class GridMaker(CratermakerBase, ABC):
+class Grid(CratermakerBase, ABC):
+    _registry: dict[str, type[Grid]] = {}
+
     def __init__(self, 
                  simdir: str | Path = Path.cwd(),
                  radius: FloatLike = 1.0, 
@@ -236,7 +238,7 @@ class GridMaker(CratermakerBase, ABC):
         return self._simdir / _DATA_DIR / _GRID_FILE_NAME
 
 
-_registry: dict[str, GridMaker] = {}
+_registry: dict[str, Grid] = {}
 
 def register_grid_type(name: str):
     """
@@ -256,27 +258,22 @@ def get_grid_type(name: str):
     """Return the component instance for the given name (KeyError if not found)."""
     return _registry[name]
 
-# This loop will import every .py in this folder, causing those modules
-# (which use @register_grid_type) to run and register themselves.
-package_dir = __path__[0]
-for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
-    importlib.import_module(f"{__name__}.{module_name}")
 
-def make_grid(grid: str | GridMaker | None = None, 
-               **kwargs: Any) -> GridMaker:
+def make_grid(grid: str | Grid | None = None, 
+               **kwargs: Any) -> Grid:
     """
     Initialize a grid object based on the given name or class.
     
     Parameters
     ----------
-    grid : str or GridMaker, optional
+    grid : str or Grid, optional
         The name of the grid type or an instance of a grid class. If None, a default grid type will be used.
     **kwargs: Any
         Additional keyword arguments to pass to the grid constructor.
     
     Returns
     -------
-    GridMaker
+    Grid
         An instance of the specified grid type.
     """
 
@@ -286,9 +283,9 @@ def make_grid(grid: str | GridMaker | None = None,
         if grid not in available_grid_types():
             raise KeyError(f"Unknown grid model: {grid}. Available models: {available_grid_types()}")
         return get_grid_type(grid)(**kwargs)
-    elif isinstance(grid, type) and issubclass(grid, GridMaker):
+    elif isinstance(grid, type) and issubclass(grid, Grid):
         return grid(**kwargs)
-    elif isinstance(grid, GridMaker):
+    elif isinstance(grid, Grid):
         return grid
     else:
         raise TypeError(f"grid must be a string or a subclass of Gridmaker, not {type(grid)}")
