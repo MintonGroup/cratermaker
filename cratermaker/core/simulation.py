@@ -16,7 +16,7 @@ from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..components.scaling import ScalingModel, make_scaling, get_scaling_model, available_scaling_models
 from ..components.production import ProductionModel, make_production, available_production_models
-from ..components.morphology import MorphologyModel, make_morphology, get_morphology_model, available_morphology_models
+from ..components.morphology import MorphologyModel
 from ..components.impactor import ImpactorModel, make_impactor, get_impactor_model, available_impactor_models
 from .base import CratermakerBase
 
@@ -120,7 +120,7 @@ class Simulation(CratermakerBase):
 
         morphology = morphology_model_parameters.pop("model", morphology)
         morphology_model_parameters = {**morphology_model_parameters, **kwargs}
-        self.morphology = make_morphology(morphology=morphology, **morphology_model_parameters)
+        self.morphology = MorphologyModel.make(morphology=morphology, **morphology_model_parameters)
       
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':

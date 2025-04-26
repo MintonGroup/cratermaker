@@ -328,7 +328,6 @@ class Surface(UxDataset):
         """
         return self.simdir / _DATA_DIR / _GRID_FILE_NAME
 
-
     @parameter
     def gridtype(self):
         """
