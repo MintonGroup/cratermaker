@@ -1,11 +1,11 @@
 import unittest
 import tempfile
-from cratermaker.components.morphology import MorphologyModel
+from cratermaker.components.morphology import Morphology
 from cratermaker.core.target import Target
 from cratermaker.core.surface import Surface
 from cratermaker import make_crater
 
-morphology_models = MorphologyModel.available()
+morphology_models = Morphology.available()
 class TestMorphology(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
@@ -26,33 +26,33 @@ class TestMorphology(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_model_registration(self):
-        models = MorphologyModel.available()
+        models = Morphology.available()
         self.assertIn("simplemoon", models)
 
     def test_model_instantiation(self):
         for model_name in morphology_models:
-            morphology = MorphologyModel.make(model_name)
+            morphology = Morphology.make(model_name)
             self.assertIsInstance(morphology, object)
-            self.assertEqual(morphology.model, model_name)
+            self.assertEqual(morphology.name, model_name)
             morphology.crater = self.dummy_crater
             self.assertIs(morphology.crater, self.dummy_crater)
 
     def test_invalid_crater_type_raises(self):
         with self.assertRaises(TypeError):
             for model_name in morphology_models:
-                morphology = MorphologyModel.make(model_name)
+                morphology = Morphology.make(model_name)
                 morphology.crater = "not_a_crater"
 
     def test_form_crater_executes(self):
         for model_name in morphology_models:
-            morphology = MorphologyModel.make(model_name)
+            morphology = Morphology.make(model_name)
             morphology.form_crater(self.surf, crater=self.dummy_crater)
 
     def testmake_morphology(self):
         # Test the make_morphology function
         for model_name in morphology_models:
-            morphology = MorphologyModel.make(moprhology=model_name)
-            self.assertIsInstance(morphology, MorphologyModel)
+            morphology = Morphology.make(moprhology=model_name)
+            self.assertIsInstance(morphology, Morphology)
 
 if __name__ == '__main__':
     unittest.main()

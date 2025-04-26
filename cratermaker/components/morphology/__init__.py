@@ -1,5 +1,4 @@
-import pkgutil
-import importlib
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 from cratermaker.core.crater import Crater
@@ -8,31 +7,31 @@ from cratermaker.utils.general_utils import parameter
 from cratermaker.core.base import CratermakerBase
 from cratermaker.utils.component_loader import import_components
 
-class MorphologyModel(CratermakerBase, ABC):
+class Morphology(CratermakerBase, ABC):
     """
     Abstract base class for morphology models. A morphology model defines how the surface mesh is modified by a given crater.
     """
-    _registry: dict[str, type["MorphologyModel"]] = {}
+    _registry: dict[str, type[Morphology]] = {}
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         object.__setattr__(self, "_crater" , None)
 
     @classmethod
-    def make(cls, morphology : str | type["MorphologyModel"] | "MorphologyModel" | None = None, **kwargs: Any) -> type["MorphologyModel"]:
+    def make(cls, morphology : str | type[Morphology] | Morphology | None = None, **kwargs: Any) -> type[Morphology]:
         """
         Initialize the morphology model with the given name or instance.
 
         Parameters
         ----------
-        morphology : str or MorphologyModel or None
-            The name of the morphology model to use, or an instance of MorphologyModel. If None, defaults to "simplemoon".
+        morphology : str or Morphology or None
+            The name of the morphology model to use, or an instance of Morphology. If None, defaults to "simplemoon".
         kwargs : Any
             Additional keyword arguments to pass to the morphology model constructor.
 
         Returns
         -------
-        MorphologyModel
+        Morphology
             An instance of the specified morphology model.
 
         Raises
@@ -40,7 +39,7 @@ class MorphologyModel(CratermakerBase, ABC):
         KeyError
             If the specified morphology model name is not found in the registry.
         TypeError
-            If the specified morphology model is not a string or a subclass of MorphologyModel.
+            If the specified morphology model is not a string or a subclass of Morphology.
         """
 
         if morphology is None:
@@ -49,12 +48,12 @@ class MorphologyModel(CratermakerBase, ABC):
             if morphology not in cls.available():
                 raise KeyError(f"Unknown morphology model: {morphology}. Available models: {cls.available()}")
             return cls._registry[morphology](**kwargs)
-        elif isinstance(morphology, type) and issubclass(morphology, MorphologyModel):
+        elif isinstance(morphology, type) and issubclass(morphology, Morphology):
             return morphology(**kwargs)
-        elif isinstance(morphology, MorphologyModel):
+        elif isinstance(morphology, Morphology):
             return morphology
         else:
-            raise TypeError(f"morphology must be a string or a subclass of MorphologyModel, not {type(morphology)}")
+            raise TypeError(f"morphology must be a string or a subclass of Morphology, not {type(morphology)}")
 
     @abstractmethod
     def form_crater(self, 
@@ -63,11 +62,11 @@ class MorphologyModel(CratermakerBase, ABC):
                     **kwargs) -> None: ...    
 
     @parameter
-    def model(self):
+    def name(self):
         """
         The registered name of this scaling model set by the @register_scaling_model decorator.
         """ 
-        return self._model
+        return self._name
     
     @property
     def crater(self):
@@ -94,7 +93,7 @@ class MorphologyModel(CratermakerBase, ABC):
         Class decorator to register a morphology model component under the given key.
         """
         def decorator(subcls):
-            subcls._model = name 
+            subcls._name = name 
             subcls._registry[name] = subcls
             return subcls
         return decorator

@@ -5,10 +5,10 @@ import json
 import math
 from scipy import fft
 from typing import Any
-from cratermaker.components.morphology import register_morphology_model
+from cratermaker.components.morphology import Morphology
 from cratermaker.components.morphology.simplemoon import SimpleMoon
 
-@register_morphology_model("du2025")
+@Morphology.register("du2025")
 class Du2025(SimpleMoon):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh. This uses the morphology model of Du et al. 2025a,b

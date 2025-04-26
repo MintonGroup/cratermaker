@@ -256,7 +256,7 @@ Attributes
     Production.generator_type
     Production.impact_velocity_model
     Production.mean_velocity
-    Production.model
+    Production.name
     Production.N1_coef
     Production.slope
     Production.rng

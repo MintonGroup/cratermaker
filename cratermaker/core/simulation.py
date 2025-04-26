@@ -16,7 +16,7 @@ from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..components.scaling import ScalingModel, make_scaling, get_scaling_model, available_scaling_models
 from ..components.production import ProductionModel, make_production, available_production_models
-from ..components.morphology import MorphologyModel
+from ..components.morphology import Morphology
 from ..components.impactor import ImpactorModel, make_impactor, get_impactor_model, available_impactor_models
 from .base import CratermakerBase
 
@@ -29,7 +29,7 @@ class Simulation(CratermakerBase):
                  target: Target | str = "Moon",
                  scaling: ScalingModel | str = "richardson2009",
                  production: ProductionModel | str = "neukum",
-                 morphology: MorphologyModel | str = "simplemoon",
+                 morphology: Morphology | str = "simplemoon",
                  impactor: ImpactorModel | str = "asteroids",
                  simdir: str | Path = Path.cwd(),
                  rng: Generator | None = None, 
@@ -120,7 +120,7 @@ class Simulation(CratermakerBase):
 
         morphology = morphology_model_parameters.pop("model", morphology)
         morphology_model_parameters = {**morphology_model_parameters, **kwargs}
-        self.morphology = MorphologyModel.make(morphology=morphology, **morphology_model_parameters)
+        self.morphology = Morphology.make(morphology=morphology, **morphology_model_parameters)
       
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
@@ -946,8 +946,8 @@ class Simulation(CratermakerBase):
 
     @morphology.setter
     def morphology(self, value):
-        if not isinstance(value, (MorphologyModel, str)):
-            raise TypeError("morpholog must be of MorphologyModel type or str")
+        if not isinstance(value, (Morphology, str)):
+            raise TypeError("morpholog must be of Morphology type or str")
         self._morphology = value
 
 

@@ -40,7 +40,7 @@ class ArbitraryResolutionGrid(GridMaker):
         """
         The variables used to generate the hash.
         """
-        return [self._gridtype, self._radius, self._pix]
+        return [self._name, self._radius, self._pix]
 
     @parameter
     def pix(self):

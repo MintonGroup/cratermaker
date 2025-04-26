@@ -37,7 +37,7 @@ class GridMaker(CratermakerBase, ABC):
 
         Notes
         -----
-        The grid configuration is determined by the `gridtype` attribute of the Surface object. The `gridtype` attribute
+        The grid configuration is determined by the `name` attribute of the Surface object. The `name` attribute
         determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`UnifromIcosphereGrid`, 
         `ArbitraryResolutionGrid`, `HiResLocalGrid`, etc.).
         
@@ -105,7 +105,7 @@ class GridMaker(CratermakerBase, ABC):
         """
         The variables used to generate the hash.
         """
-        return [self._gridtype, self._radius]
+        return [self._name, self._radius]
     
     @property
     def _id(self):
@@ -222,11 +222,11 @@ class GridMaker(CratermakerBase, ABC):
         self._grid = value
 
     @parameter
-    def gridtype(self):
+    def name(self):
         """
-        The registered name of this scaling gridtype set by the @register_scaling_gridtype decorator.
+        The registered name of this scaling name set by the @register_scaling_gridtype decorator.
         """ 
-        return self._gridtype
+        return self._name
     
     @property
     def file(self):
@@ -243,7 +243,7 @@ def register_grid_type(name: str):
     Class decorator to register a grid component under the given key.
     """
     def decorator(cls):
-        cls._gridtype = name 
+        cls._name = name 
         _registry[name] = cls
         return cls
     return decorator

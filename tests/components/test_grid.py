@@ -60,8 +60,8 @@ class TestGrid(unittest.TestCase):
                 }
             }
 
-        for gridtype, args in gridargs.items():
-            grid = get_grid_type(gridtype)(**args)
+        for name, args in gridargs.items():
+            grid = get_grid_type(name)(**args)
             grid.generate_grid()
             self.assertTrue(os.path.exists(grid.file))
         

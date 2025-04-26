@@ -40,7 +40,7 @@ class IcosphereGrid(GridMaker):
         """
         The variables used to generate the hash.
         """
-        return [self._gridtype, self._radius, self._gridlevel] 
+        return [self._name, self._radius, self._gridlevel] 
 
 
     def generate_face_distribution(self, **kwargs: Any) -> NDArray:
@@ -84,4 +84,4 @@ class IcosphereGrid(GridMaker):
         """
         The variables used to generate the hash.
         """
-        return [self._gridtype, self._radius, self._gridlevel]
+        return [self._name, self._radius, self._gridlevel]

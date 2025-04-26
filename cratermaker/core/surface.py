@@ -46,7 +46,7 @@ class Surface(UxDataset):
     __slots__ = (
         '_name', '_description', '_data_dir', '_grid_file', '_smallest_length',
         '_area', '_target', '_rng', '_rng_seed', '_rng_state', '_simdir', '_user_defined',
-        '_compute_face_areas', '_gridtype', '_grid_parameters'
+        '_compute_face_areas', '_name', '_grid_parameters'
     )
 
     def __init__(self, 
@@ -89,7 +89,7 @@ class Surface(UxDataset):
     def initialize(cls, 
                    target: Target | None,
                    reset_surface: bool = True, 
-                   gridtype: str | None = None,
+                   name: str | None = None,
                    regrid: bool = False,
                    simdir: str | Path = Path.cwd(),
                    rng: Generator | None = None,
@@ -105,7 +105,7 @@ class Surface(UxDataset):
             Target object or name of known body for the simulation. Default is Target("Moon")
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        gridtype : str, optional
+        name : str, optional
             The type of grid to be generated. Default is "icosphere".  
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
@@ -116,7 +116,7 @@ class Surface(UxDataset):
         rng_seed : int | None
             The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
         **kwargs : dict
-            Additional keyword arguments for initializing the Surface instance based on the specific gridtype.
+            Additional keyword arguments for initializing the Surface instance based on the specific name.
 
         Returns
         -------
@@ -145,7 +145,7 @@ class Surface(UxDataset):
         regrid = regrid or not grid_file.exists()
 
         kwargs = {**kwargs, **grid_parameters, **vars(argproc.common_args)} 
-        grid = make_grid(grid=gridtype, radius=radius, **kwargs)
+        grid = make_grid(grid=name, radius=radius, **kwargs)
             
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
         if not regrid: 
@@ -213,7 +213,7 @@ class Surface(UxDataset):
 
         surf.grid_parameters = grid.to_config()
         surf.grid_parameters.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
-        surf.grid_parameters['gridtype'] = gridtype
+        surf.grid_parameters['name'] = name
         
         return surf        
         
@@ -329,20 +329,12 @@ class Surface(UxDataset):
         return self.simdir / _DATA_DIR / _GRID_FILE_NAME
 
     @parameter
-    def gridtype(self):
+    def name(self):
         """
         The type of grid used for the surface.
         """
-        return self._gridtype
+        return self._name
     
-    @gridtype.setter
-    def gridtype(self, value):
-        if not isinstance(value, str):
-            raise TypeError("gridtype must be a string")
-        if value not in available_grid_types():
-            raise ValueError(f"gridtype must be one of {available_grid_types()}")
-        self._gridtype = value
-
     @parameter
     def compute_face_areas(self):
         """

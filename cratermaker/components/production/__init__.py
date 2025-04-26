@@ -500,36 +500,12 @@ class ProductionModel(CratermakerBase, ABC):
         return age, age_end 
 
     @parameter
-    def model(self):
+    def name(self):
         """
         The registered name of this scaling model set by the @register_scaling_model decorator.
         """ 
-        return self._model
+        return self._name
 
-    @model.setter
-    def model(self, value):
-        """
-        Validates the given model string against the list of valid models.
-
-        Parameters
-        ----------
-        value : str | None
-            The model name to validate. If None, the first model in the valid models list is returned.
-
-        Raises
-        ------
-        ValueError
-            If the model is not a string or if the model is not in the list of valid models.
-        """       
-        if not value:
-            self._model = self.valid_models[0]
-            return
-        if not isinstance(value, str):
-            raise ValueError("model must be a string")
-        value = value.capitalize()
-        if value not in self.valid_models:
-            raise ValueError(f"Invalid model {value}. Must be one of {self.valid_models}")
-        self._model = value
     
     @parameter
     def generator_type(self):
@@ -560,7 +536,7 @@ def register_production_model(name: str):
     Class decorator to register a production model component under the given key.
     """
     def decorator(cls):
-        cls._model = name 
+        cls._name = name 
         _registry[name] = cls
         return cls
     return decorator
