@@ -4,9 +4,13 @@ import importlib
 from abc import ABC, abstractmethod
 from typing import Any
 from cratermaker.core.base import CratermakerBase
+from cratermaker.utils.general_utils import parameter
 
 class ComponentBase(CratermakerBase, ABC):
     _registry: dict[str, type[ComponentBase]] = {}
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
 
     @classmethod
     def make(cls, component: str | type[ComponentBase] | ComponentBase| None = None, **kwargs: Any) -> type[ComponentBase]:
@@ -46,6 +50,13 @@ class ComponentBase(CratermakerBase, ABC):
             return component
         else:
             raise TypeError(f"component must be a string or a subclass of component, not {type(component)}")
+        
+    @parameter
+    def name(self):
+        """
+        The registered name of this scaling model set by the @register_scaling_model decorator.
+        """ 
+        return self._component_name
 
     @classmethod
     def register(cls, name: str):
@@ -53,7 +64,7 @@ class ComponentBase(CratermakerBase, ABC):
         Class decorator to register a component model component under the given key.
         """
         def decorator(subcls):
-            subcls._name = name 
+            subcls._component_name = name 
             subcls._registry[name] = subcls
             return subcls
         return decorator

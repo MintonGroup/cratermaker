@@ -107,7 +107,7 @@ class Grid(CratermakerBase, ABC):
         """
         The variables used to generate the hash.
         """
-        return [self._name, self._radius]
+        return [self._component_name, self._radius]
     
     @property
     def _id(self):
@@ -224,11 +224,11 @@ class Grid(CratermakerBase, ABC):
         self._grid = value
 
     @parameter
-    def name(self):
+    def component_name(self):
         """
         The registered name of this scaling name set by the @register_scaling_gridtype decorator.
         """ 
-        return self._name
+        return self._component_name
     
     @property
     def file(self):
@@ -245,7 +245,7 @@ def register_grid_type(name: str):
     Class decorator to register a grid component under the given key.
     """
     def decorator(cls):
-        cls._name = name 
+        cls._component_name = name 
         _registry[name] = cls
         return cls
     return decorator

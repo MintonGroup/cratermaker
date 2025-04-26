@@ -1143,7 +1143,7 @@ class Simulation(CratermakerBase):
         self._largest_projectile = float(value)
 
     @property
-    def name(self):
+    def component_name(self):
         """
         The name of the simulation. 
         """

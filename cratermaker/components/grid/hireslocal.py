@@ -53,7 +53,7 @@ class HiResLocalGrid(Grid):
         """
         The variables used to generate the hash.
         """
-        return [self._name, self._radius, self._pix, self._local_radius, self._local_location, self._superdomain_scale_factor]
+        return [self._component_name, self._radius, self._pix, self._local_radius, self._local_location, self._superdomain_scale_factor]
         
     def _generate_variable_size_array(self) -> tuple[NDArray, NDArray, NDArray]:
         """

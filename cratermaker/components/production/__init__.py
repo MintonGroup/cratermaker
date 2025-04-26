@@ -500,11 +500,11 @@ class ProductionModel(CratermakerBase, ABC):
         return age, age_end 
 
     @parameter
-    def name(self):
+    def component_name(self):
         """
         The registered name of this scaling model set by the @register_scaling_model decorator.
         """ 
-        return self._name
+        return self._component_name
 
     
     @parameter
@@ -536,7 +536,7 @@ def register_production_model(name: str):
     Class decorator to register a production model component under the given key.
     """
     def decorator(cls):
-        cls._name = name 
+        cls._component_name = name 
         _registry[name] = cls
         return cls
     return decorator

@@ -59,7 +59,7 @@ class ImpactorModel(CratermakerBase, ABC):
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
-        object.__setattr__(self, "_name", None)
+        object.__setattr__(self, "_component_name", None)
         object.__setattr__(self, "_sample_angles", None)
         object.__setattr__(self, "_sample_velocities", None)
         object.__setattr__(self, "_sample_directions", None)
@@ -107,11 +107,11 @@ class ImpactorModel(CratermakerBase, ABC):
         }
 
     @parameter
-    def name(self):
+    def component_name(self):
         """
         The registered name of this impactor model set by the @register_impactor_model decorator.
         """ 
-        return self._name
+        return self._component_name
     
     @parameter
     def target_name(self):
@@ -331,7 +331,7 @@ def register_impactor_model(name: str):
     Class decorator to register an impactor->crater size impactor component under the given key.
     """
     def decorator(cls):
-        cls._name = name 
+        cls._component_name = name 
         cls._user_defined = set()
         cls._user_defined.add("name")
         _registry[name] = cls

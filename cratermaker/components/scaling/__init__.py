@@ -55,11 +55,11 @@ class ScalingModel(CratermakerBase, ABC):
 
 
     @parameter
-    def name(self):
+    def component_name(self):
         """
         The registered name of this scaling model set by the @register_scaling_model decorator.
         """ 
-        return self._name
+        return self._component_name
     
 
     
@@ -123,7 +123,7 @@ def register_scaling_model(name: str):
     Class decorator to register an impactor->crater size scaling component under the given key.
     """
     def decorator(cls):
-        cls._name = name 
+        cls._component_name = name 
         cls._user_defined = set()
         cls._user_defined.add("model")
         _registry[name] = cls

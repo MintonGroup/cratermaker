@@ -58,12 +58,6 @@ class Morphology(CratermakerBase, ABC):
                     crater: Crater | None = None,
                     **kwargs) -> None: ...    
 
-    @parameter
-    def name(self):
-        """
-        The registered name of this scaling model set by the @register_scaling_model decorator.
-        """ 
-        return self._name
     
     @property
     def crater(self):
@@ -90,7 +84,7 @@ class Morphology(CratermakerBase, ABC):
         Class decorator to register a morphology model component under the given key.
         """
         def decorator(subcls):
-            subcls._name = name 
+            subcls._component_name = name 
             subcls._registry[name] = subcls
             return subcls
         return decorator
