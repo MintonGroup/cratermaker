@@ -9,15 +9,15 @@ from typing import Any
 from numpy.typing import ArrayLike
 import yaml
 from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR
-from .target import Target, _init_target
+from .target import Target, make_target
 from .crater import Crater, make_crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..components.scaling import ScalingModel, _init_scaling, get_scaling_model, available_scaling_models
-from ..components.production import ProductionModel, _init_production, available_production_models
-from ..components.morphology import MorphologyModel, _init_morphology, get_morphology_model, available_morphology_models
-from ..components.impactor import ImpactorModel, _init_impactor, get_impactor_model, available_impactor_models
+from ..components.scaling import ScalingModel, make_scaling, get_scaling_model, available_scaling_models
+from ..components.production import ProductionModel, make_production, available_production_models
+from ..components.morphology import MorphologyModel, make_morphology, get_morphology_model, available_morphology_models
+from ..components.impactor import ImpactorModel, make_impactor, get_impactor_model, available_impactor_models
 from .base import CratermakerBase
 
 class Simulation(CratermakerBase):
@@ -104,23 +104,23 @@ class Simulation(CratermakerBase):
 
         target = target_parameters.pop("name", target)
         target_parameters = {**target_parameters, **kwargs}
-        self.target = _init_target(target=target, **target_parameters)
+        self.target = make_target(target=target, **target_parameters)
 
         production = production_model_parameters.pop("model", production)
         production_model_parameters = {**production_model_parameters, **kwargs}
-        self.production = _init_production(production=production,  target=self.target, **production_model_parameters)
+        self.production = make_production(production=production,  target=self.target, **production_model_parameters)
 
         impactor = impactor_parameters.pop("model", impactor)
         impactor_parameters = {**impactor_parameters, **kwargs}
-        self.impactor = _init_impactor(impactor=impactor, target=self.target, **impactor_parameters)
+        self.impactor = make_impactor(impactor=impactor, target=self.target, **impactor_parameters)
 
         scaling = scaling_model_parameters.pop("model", scaling)
         scaling_model_parameters = {**scaling_model_parameters, **kwargs}
-        self.scaling = _init_scaling(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
+        self.scaling = make_scaling(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
 
         morphology = morphology_model_parameters.pop("model", morphology)
         morphology_model_parameters = {**morphology_model_parameters, **kwargs}
-        self.morphology = _init_morphology(morphology=morphology, **morphology_model_parameters)
+        self.morphology = make_morphology(morphology=morphology, **morphology_model_parameters)
       
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':

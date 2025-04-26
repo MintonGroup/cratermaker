@@ -262,7 +262,7 @@ package_dir = __path__[0]
 for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
 
-def _init_grid(grid: str | GridMaker | None = None, 
+def make_grid(grid: str | GridMaker | None = None, 
                **kwargs: Any) -> GridMaker:
     """
     Initialize a grid object based on the given name or class.

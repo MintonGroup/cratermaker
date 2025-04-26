@@ -78,7 +78,7 @@ for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
 
 
-def _init_morphology(morphology : str | MorphologyModel | None = None, 
+def make_morphology(morphology : str | MorphologyModel | None = None, 
                      **kwargs: Any) -> MorphologyModel:
     """
     Initialize the morphology model with the given name or instance.

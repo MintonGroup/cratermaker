@@ -6,8 +6,8 @@ import numpy as np
 from numpy.random import Generator
 from cratermaker.utils.general_utils import  parameter
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.core.target import Target, _init_target
-from cratermaker.components.impactor import ImpactorModel, _init_impactor
+from cratermaker.core.target import Target, make_target
+from cratermaker.components.impactor import ImpactorModel, make_impactor
 from cratermaker.core.base import CratermakerBase
 class ScalingModel(CratermakerBase, ABC):
     """
@@ -41,8 +41,8 @@ class ScalingModel(CratermakerBase, ABC):
         object.__setattr__(self, "_impactor", None)
         # combine the kwargs with the common_args, giving common_args priority
         kwargs = {**kwargs, **vars(self.common_args)}
-        self._target = _init_target(target, **kwargs)
-        self._impactor = _init_impactor(impactor, **kwargs)
+        self._target = make_target(target, **kwargs)
+        self._impactor = make_impactor(impactor, **kwargs)
 
     @abstractmethod
     def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
@@ -76,7 +76,7 @@ class ScalingModel(CratermakerBase, ABC):
     
     @target.setter
     def target(self, value):
-        self._target = _init_target(value, **vars(self.common_args))
+        self._target = make_target(value, **vars(self.common_args))
         return 
 
     @property
@@ -112,7 +112,7 @@ class ScalingModel(CratermakerBase, ABC):
     
     @impactor.setter
     def impactor(self, value):
-        self._impactor = _init_impactor(value, **vars(self.common_args))
+        self._impactor = make_impactor(value, **vars(self.common_args))
         return
 
 
@@ -145,7 +145,7 @@ for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
 
 
-def _init_scaling(scaling: str | ScalingModel | None = None, 
+def make_scaling(scaling: str | ScalingModel | None = None, 
                   **kwargs: Any) -> ScalingModel:
     """
     Initialize a scaling model based on the provided name or class.

@@ -302,7 +302,7 @@ class Target(CratermakerBase):
         return G.value*self.mass / (self.radius**2)  
 
 
-def _init_target(target : Target | str = "Moon",
+def make_target(target : Target | str = "Moon",
                  **kwargs: Any) -> Target:
     
     if target is None:

@@ -2,11 +2,11 @@ import numpy as np
 from numpy.random import Generator
 from pathlib import Path
 from dataclasses import dataclass
-from .target import Target, _init_target
+from .target import Target, make_target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
-from ..components.scaling import ScalingModel, get_scaling_model, _init_scaling
-from ..components.impactor import ImpactorModel, get_impactor_model, _init_impactor
+from ..components.scaling import ScalingModel, get_scaling_model, make_scaling
+from ..components.impactor import ImpactorModel, get_impactor_model, make_impactor
 from typing import Any
 from .base import CratermakerBase
 @dataclass(frozen=True, slots=True)
@@ -163,8 +163,8 @@ def make_crater(final_diameter: float | None = None,
     argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
     rng = argproc.rng
 
-    target = _init_target(target, **vars(argproc.common_args), **kwargs)
-    impactor = _init_impactor(impactor, target=target, **vars(argproc.common_args), **kwargs)
+    target = make_target(target, **vars(argproc.common_args), **kwargs)
+    impactor = make_impactor(impactor, target=target, **vars(argproc.common_args), **kwargs)
 
     # --- Normalize location and age ---
     if location is None:
@@ -243,7 +243,7 @@ def make_crater(final_diameter: float | None = None,
         prho = prho or target.density
         impactor = ImpactorModel(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
 
-    scaling = _init_scaling(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
+    scaling = make_scaling(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
     prho = scaling.impactor.density
 
     # --- Ensure velocity/angle are all set ---

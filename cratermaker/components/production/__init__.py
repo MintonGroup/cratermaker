@@ -580,7 +580,7 @@ for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
     importlib.import_module(f"{__name__}.{module_name}")
 
 
-def _init_production(production: str | ProductionModel | None = None,
+def make_production(production: str | ProductionModel | None = None,
                      **kwargs: Any) -> ProductionModel:
     """
     This is a helper function that can be used to validate and initialize the production model.
