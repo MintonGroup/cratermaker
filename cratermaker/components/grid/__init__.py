@@ -12,23 +12,90 @@ import hashlib
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import  parameter
 from cratermaker.constants import _GRID_FILE_NAME, _DATA_DIR
-from cratermaker.core.base import CratermakerBase
-from cratermaker.utils.component_utils import import_components
+from cratermaker.core.target import Target
+from cratermaker.utils.component_utils import ComponentBase, import_components
 
-class Grid(CratermakerBase, ABC):
+class Grid(ComponentBase):
     _registry: dict[str, type[Grid]] = {}
 
-    def __init__(self, 
-                 simdir: str | Path = Path.cwd(),
-                 radius: FloatLike = 1.0, 
-                 **kwargs: Any):
-        super().__init__(simdir=simdir, **kwargs)
+    def __init__(self, radius: FloatLike = 1.0, **kwargs: Any):
+        super().__init__(**kwargs)
         object.__setattr__(self, "_grid", None)
         object.__setattr__(self, "_radius", None)
-        object.__setattr__(self, "_grid_file", None)
+        object.__setattr__(self, "_file", None)
         self.radius = radius
 
-    
+
+    @classmethod
+    def make(cls, 
+             grid : str | type[Grid] | Grid| None = None, 
+             target: Target | None = None,
+             radius: FloatLike = 1.0, 
+             simdir: str | Path = Path.cwd(),
+             regrid: bool = False,
+             **kwargs: Any) -> Grid:
+        """
+        Initialize a component model with the given name or instance.
+
+        Parameters
+        ----------
+        grid : str or Grid or None
+            The name of the grid construction model to use, or an instance of Grid. If None, the default "icosphere" is used.
+        target : Target, optional
+            The target object. If this is passed, the radius of the target will be used as the radius of the grid. 
+        radius : float, optional
+            The radius of the body to make the mesh grid with in meters. Default is 1.0. Ignored if target is passed.
+        regrid : bool, optional
+            If True, the grid will be regridded even if a grid file already exists. Default is False.
+        kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        component
+            An instance of the specified component model.
+
+        Raises
+        ------
+        KeyError
+            If the specified morphology model name is not found in the registry.
+        TypeError
+            If the specified morphology model is not a string or a subclass of Grid.
+        """
+
+        # Call the base class version of make and pass the morphology argument as the component argument
+
+        if target is not None and isinstance(target, Target):
+            radius = target.radius or radius
+
+        # Verify directory structure exists and create it if not
+        data_dir = simdir / _DATA_DIR
+
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        grid_file = data_dir / _GRID_FILE_NAME 
+        regrid = regrid or not grid_file.exists()
+
+        # Create the grid making object
+        if grid is None:
+            grid = "icosphere"
+        grid = super().make(component=grid, simdir=simdir, radius=radius, **kwargs)
+
+        # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
+        if not regrid: 
+            make_new_grid = grid.check_if_regrid(**kwargs)
+        else:
+            make_new_grid = True
+        
+        if make_new_grid:
+            print("Creating a new grid")
+            grid.create_grid(**kwargs)
+        else:
+            print("Using existing grid")
+
+        return grid
+
+
     @abstractmethod
     def generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray,NDArray,NDArray]: ...
 
@@ -238,54 +305,8 @@ class Grid(CratermakerBase, ABC):
         return self._simdir / _DATA_DIR / _GRID_FILE_NAME
 
 
-_registry: dict[str, Grid] = {}
-
-def register_grid_type(name: str):
-    """
-    Class decorator to register a grid component under the given key.
-    """
-    def decorator(cls):
-        cls._component_name = name 
-        _registry[name] = cls
-        return cls
-    return decorator
-
-def available_grid_types() -> list[str]:
-    """Return list of all registered catalogue names."""
-    return list(_registry.keys())
-
-def get_grid_type(name: str):
-    """Return the component instance for the given name (KeyError if not found)."""
-    return _registry[name]
 
 
-def make_grid(grid: str | Grid | None = None, 
-               **kwargs: Any) -> Grid:
-    """
-    Initialize a grid object based on the given name or class.
-    
-    Parameters
-    ----------
-    grid : str or Grid, optional
-        The name of the grid type or an instance of a grid class. If None, a default grid type will be used.
-    **kwargs: Any
-        Additional keyword arguments to pass to the grid constructor.
-    
-    Returns
-    -------
-    Grid
-        An instance of the specified grid type.
-    """
 
-    if grid is None:
-        grid = "icosphere"
-    if isinstance(grid, str):
-        if grid not in available_grid_types():
-            raise KeyError(f"Unknown grid model: {grid}. Available models: {available_grid_types()}")
-        return get_grid_type(grid)(**kwargs)
-    elif isinstance(grid, type) and issubclass(grid, Grid):
-        return grid(**kwargs)
-    elif isinstance(grid, Grid):
-        return grid
-    else:
-        raise TypeError(f"grid must be a string or a subclass of Gridmaker, not {type(grid)}")
+import_components(__name__, __path__, ignore_private=True)
+

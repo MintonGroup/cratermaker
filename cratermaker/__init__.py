@@ -24,4 +24,4 @@ from .components.scaling import ScalingModel, available_scaling_models, get_scal
 from .components.production import ProductionModel, available_production_models, get_production_model, make_production
 from .components.morphology import Morphology
 from .components.impactor import ImpactorModel, available_impactor_models, get_impactor_model, make_impactor
-from .components.grid import Grid, available_grid_types, get_grid_type, make_grid
+from .components.grid import Grid

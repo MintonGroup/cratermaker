@@ -1,3 +1,4 @@
+from __future__ import annotations
 import xarray as xr
 from xarray import DataArray, Dataset
 import uxarray as uxr
@@ -16,7 +17,7 @@ import warnings
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
 from cratermaker.utils.general_utils import _to_config, parameter
-from cratermaker.components.grid import make_grid, available_grid_types
+from cratermaker.components.grid import Grid
 from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME, _SMALLFAC, _COMBINED_DATA_FILE_NAME
 from .base import CratermakerBase, _rng_init, _simdir_init, CommonArgs
 from typing import Any
@@ -86,16 +87,16 @@ class Surface(UxDataset):
         return _to_config(self)
 
     @classmethod
-    def initialize(cls, 
-                   target: Target | None,
-                   reset_surface: bool = True, 
-                   name: str | None = None,
-                   regrid: bool = False,
-                   simdir: str | Path = Path.cwd(),
-                   rng: Generator | None = None,
-                   rng_seed: int | None = None,
-                   rng_state: dict | None = None,
-                   **kwargs):
+    def make(cls: Surface, 
+             target: Target | None = None, 
+             reset_surface: bool = True, 
+             name: str | None = None,
+             regrid: bool = False,
+             simdir: str | Path = Path.cwd(),
+             rng: Generator | None = None,
+             rng_seed: int | None = None,
+             rng_state: dict | None = None,
+             **kwargs) -> Surface:
         """
         Factory method to create a Surface instance from a grid file.
 
@@ -131,41 +132,17 @@ class Surface(UxDataset):
 
         target = Target.make(target, **kwargs)
 
-        grid_parameters = kwargs.pop("grid_parameters", {})
-        radius = target.radius
+        kwargs = {**kwargs, **vars(argproc.common_args)}
+        grid = Grid.make(grid=name, target=target, regrid=regrid, **kwargs) 
 
-        # Verify directory structure exists and create it if not
-        data_dir = simdir / _DATA_DIR
-
-        if not data_dir.exists():
-            data_dir.mkdir(parents=True)
-            reset_surface = True
-
-        grid_file = data_dir / _GRID_FILE_NAME 
-        regrid = regrid or not grid_file.exists()
-
-        kwargs = {**kwargs, **grid_parameters, **vars(argproc.common_args)} 
-        grid = make_grid(grid=name, radius=radius, **kwargs)
-            
-        # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
-        if not regrid: 
-            make_new_grid = grid.check_if_regrid(**kwargs)
-        else:
-            make_new_grid = True
-        
-        if make_new_grid:
-            print("Creating a new grid")
-            grid.create_grid(**kwargs)
-        else:
-            print("Using existing grid")
-        
         # Get the names of all data files in the data directory that are not the grid file
+        data_dir = grid.file.parent
         data_file_list = list(data_dir.glob("*.nc"))
-        if grid_file in data_file_list:
-            data_file_list.remove(grid_file)
+        if grid.file in data_file_list:
+            data_file_list.remove(grid.file)
             
         # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-        reset_surface = reset_surface or make_new_grid or not data_file_list
+        reset_surface = reset_surface or not data_file_list
         
         # If reset_surface is True, delete all data files except the grid file 
         if reset_surface:

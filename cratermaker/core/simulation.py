@@ -68,7 +68,7 @@ class Simulation(CratermakerBase):
             
         See Also
         --------
-        cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
+        cratermaker.core.surface.Surface.make : Parameters for initializing a surface mesh.
         """
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
@@ -135,7 +135,7 @@ class Simulation(CratermakerBase):
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
         surface_parameters = {**surface_parameters, **kwargs}
-        self.surf = Surface.initialize(target=self.target, **kwargs)
+        self.surf = Surface.make(target=self.target, **kwargs)
 
         self._craterlist = []
         self._crater = None

@@ -52,33 +52,33 @@ class TestSurface(unittest.TestCase):
                 print(f"Error: {directory} : {error}")
 
         # Initializing it first should run the jigsaw mesh generator
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         
         # Try initializing the surface again with the same parameters. This should find the existing grid file and load it 
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=False)
+        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=False)
         
         # Test regridding if the parameters change
         n_face_orig = surf.uxgrid.n_face
     
-        surf = Surface.initialize(gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
+        surf = Surface.make(gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
         self.assertGreater(n_face_orig, surf.uxgrid.n_face)
     
         # Test different target values
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=Target(name="Mars"), reset_surface=False)
-        surf = Surface.initialize(gridlevel=self.gridlevel, target="Mercury", reset_surface=False)
+        surf = Surface.make(gridlevel=self.gridlevel, target=Target(name="Mars"), reset_surface=False)
+        surf = Surface.make(gridlevel=self.gridlevel, target="Mercury", reset_surface=False)
         
         # Test bad values
         with self.assertRaises(TypeError):
-            surf = Surface.initialize(gridlevel=self.gridlevel, target=1, reset_surface=False)
+            surf = Surface.make(gridlevel=self.gridlevel, target=1, reset_surface=False)
         with self.assertRaises(ValueError):
-            surf = Surface.initialize(gridlevel=self.gridlevel, target="Arrakis", reset_surface=False)
+            surf = Surface.make(gridlevel=self.gridlevel, target="Arrakis", reset_surface=False)
         with self.assertRaises(ValueError):
-            surf = Surface.initialize(gridlevel=self.gridlevel, target=Target(name="Salusa Secundus"), reset_surface=False)
+            surf = Surface.make(gridlevel=self.gridlevel, target=Target(name="Salusa Secundus"), reset_surface=False)
         return
 
 
     def test_set_elevation(self):
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         # Test with valid elevation data
         new_elev = np.random.rand(surf.uxgrid.n_node)  # Generate random elevation data
         surf.set_elevation(new_elev)
@@ -115,7 +115,7 @@ class TestSurface(unittest.TestCase):
 
 
     def test_get_face_distance(self):
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         
         location = get_random_location()
         lon = location[0]
@@ -147,7 +147,7 @@ class TestSurface(unittest.TestCase):
         
         
     def test_get_node_distance(self):
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         
         location = get_random_location()
         lon = location[0]
@@ -192,7 +192,7 @@ class TestSurface(unittest.TestCase):
         
     # def test_get_random_on_face(self):
     #     # Tests that the random location is within the face we expect
-    #     surf = Surface.initialize(gridlevel=self.gridlevel*2, target=self.target, reset_surface=True)
+    #     surf = Surface.make(gridlevel=self.gridlevel*2, target=self.target, reset_surface=True)
     #     n_per_face = 10
     #     for i in surf.n_face:
     #         original_face_index = i.values.item()
@@ -203,7 +203,7 @@ class TestSurface(unittest.TestCase):
             
     def test_face_surface_values(self):
         # Tests that the face_surface generates the correct values
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True) 
+        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True) 
         total_area_1 = surf.uxgrid.calculate_total_face_area()
         total_area_2 = surf.face_areas.sum().item()
         ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius

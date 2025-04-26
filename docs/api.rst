@@ -95,7 +95,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Surface.initialize
+    Surface.make
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
     Surface.find_nearest_index

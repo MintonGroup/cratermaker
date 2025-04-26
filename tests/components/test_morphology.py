@@ -14,7 +14,7 @@ class TestMorphology(unittest.TestCase):
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
-        self.surf = Surface.initialize(data_dir=self.data_dir, target=self.target, reset_surface=True, gridlevel=self.gridlevel)
+        self.surf = Surface.make(data_dir=self.data_dir, target=self.target, reset_surface=True, gridlevel=self.gridlevel)
 
         self.dummy_crater = make_crater(
             location=(0.0, 0.0),
