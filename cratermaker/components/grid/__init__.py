@@ -1,5 +1,5 @@
-import importlib
-import pkgutil
+from __future__ import annotations
+from pathlib import Path
 from abc import ABC, abstractmethod
 import os
 import shutil
@@ -10,89 +10,129 @@ from numpy.typing import NDArray
 from typing import Any
 import hashlib
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import  parameter
+from cratermaker.constants import _GRID_FILE_NAME, _DATA_DIR
+from cratermaker.core.target import Target
+from cratermaker.utils.component_utils import ComponentBase, import_components
 
-class GridMaker(ABC):
-    def __init__(self, **kwargs: Any):
-        self._grid = None
+class Grid(ComponentBase):
+    _registry: dict[str, type[Grid]] = {}
 
-    def to_config(self, **kwargs: Any) -> dict:
-        return _to_config(self)
-    
+    def __init__(self, radius: FloatLike = 1.0, regrid: bool = False, **kwargs: Any):
+        super().__init__(**kwargs)
+        object.__setattr__(self, "_grid", None)
+        object.__setattr__(self, "_radius", None)
+        object.__setattr__(self, "_file", None)
+        object.__setattr__(self, "_regrid", regrid)
+        self.radius = radius
+
+
+    @classmethod
+    def make(cls, 
+             grid : str | type[Grid] | Grid| None = None, 
+             target: Target | None = None,
+             radius: FloatLike = 1.0, 
+             simdir: str | Path = Path.cwd(),
+             regrid: bool = False,
+             **kwargs: Any) -> Grid:
+        """
+        Initialize a component model with the given name or instance.
+
+        Parameters
+        ----------
+        grid : str or Grid or None
+            The name of the grid construction model to use, or an instance of Grid. If None, the default "icosphere" is used.
+        target : Target, optional
+            The target object. If this is passed, the radius of the target will be used as the radius of the grid. 
+        radius : float, optional
+            The radius of the body to make the mesh grid with in meters. Default is 1.0. Ignored if target is passed.
+        regrid : bool, optional
+            If True, the grid will be regridded even if a grid file already exists. Default is False.
+        kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        Grid
+            An instance of the specified Grid model.
+
+        Raises
+        ------
+        KeyError
+            If the specified morphology model name is not found in the registry.
+        TypeError
+            If the specified morphology model is not a string or a subclass of Grid.
+        """
+
+        # Call the base class version of make and pass the morphology argument as the component argument
+        if target is not None and isinstance(target, Target):
+            radius = target.radius or radius
+
+        # Verify directory structure exists and create it if not
+        data_dir = simdir / _DATA_DIR
+
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        grid_file = data_dir / _GRID_FILE_NAME 
+        regrid = regrid or not grid_file.exists()
+
+        # Create the grid making object
+        if grid is None:
+            grid = "icosphere"
+        grid = super().make(component=grid, simdir=simdir, radius=radius, regrid=regrid, **kwargs)
+
+        # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
+        if not regrid: 
+            make_new_grid = grid.check_if_regrid(**kwargs)
+        else:
+            make_new_grid = True
+        
+        if make_new_grid:
+            print("Creating a new grid")
+            grid.create_grid(**kwargs)
+            grid._regrid = True
+        else:
+            print("Using existing grid")
+
+        return grid
+
+
     @abstractmethod
     def generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray,NDArray,NDArray]: ...
 
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      grid_hash: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:                       
+    def generate_grid(self, **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:                       
         """
         Generate a tessellated mesh of a sphere of evenly distributed points
 
 
-        Parameters
-        ----------
-        grid_file : os.PathLike
-            The file path to the grid file.
-        grid_hash : str, optional
-            Hash of the grid parameters. Default is None, which will generate a new hash.
-            
         Notes
         -----
-        The grid configuration is determined by the `gridtype` attribute of the Surface object. The `gridtype` attribute
+        The grid configuration is determined by the `name` attribute of the Surface object. The `name` attribute
         determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`UnifromIcosphereGrid`, 
         `ArbitraryResolutionGrid`, `HiResLocalGrid`, etc.).
         
         """       
 
         points = self.generate_face_distribution(**kwargs) 
-        grid = Grid.from_points(points, method="spherical_voronoi")
-        if not grid_hash:
-            grid_hash = self.generate_hash(**kwargs) 
-        grid.attrs["grid_hash"] = grid_hash
+        grid = uxr.Grid.from_points(points, method="spherical_voronoi")
+        grid.attrs["_id"] = self._id
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             grid.to_xarray().to_netcdf(temp_file.name)
             temp_file.flush()
             os.fsync(temp_file.fileno())
             
         # Replace the original file only if writing succeeded
-        shutil.move(temp_file.name,grid_file)            
+        shutil.move(temp_file.name,self.file)            
         print("Mesh generation complete")
         self.grid = grid 
         return         
-    
-    def generate_hash(self, **kwargs: Any) -> str:
-        """
-        Generate a hash of the grid parameters.
 
-        Returns
-        -------
-        str
-            Hash of the grid parameters.
-        """
-        attribute_pairs = []
-        for attr, value in vars(self).items():
-            attribute_pairs.append(f"{attr}:{value}")
-        combined = ":".join(attribute_pairs) 
-        hash_object = hashlib.sha256(combined.encode())
-        return hash_object.hexdigest()
-
-    def check_if_regrid(self,
-                         grid_file: os.PathLike,
-                         **kwargs: Any,
-                        ) -> bool:
+    def check_if_regrid(self, **kwargs: Any) -> bool:
         """
         Check if the existing grid matches the desired parameters determine if regridding is necessary.
 
         This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these 
         parameters. If the grid does not exist or does not match the parameters it returns True. 
-
-        Parameters
-        ----------
-        grid_file : PathLike
-            The file path where the grid is saved or will be saved. 
-        grid_file : os.PathLike
-            The file path to the grid file. 
 
         Returns
         -------
@@ -100,51 +140,51 @@ class GridMaker(ABC):
             A boolean indicating whether the grid should be regenerated. 
         """
     
-        # Generate the hash for the current parameters
-        grid_hash = self.generate_hash()
-
         # Find out if the file exists, if it does't we'll need to make a new grid
-        make_new_grid = not os.path.exists(grid_file)
+        make_new_grid = not os.path.exists(self.file)
         
         if not make_new_grid:
-            uxgrid = open_grid(grid_file)
+            uxgrid = uxr.open_grid(self.file)
             try: 
-                old_hash = uxgrid.attrs.get("grid_hash")
-                make_new_grid = old_hash != grid_hash
+                old_id = uxgrid.attrs.get("_id")
+                make_new_grid = old_id != self._id
             except:
                 make_new_grid = True
                 
         return make_new_grid
 
-    def create_grid(self,
-                     grid_file: os.PathLike,
-                     **kwargs: Any,
-                     ) -> bool:
+    def create_grid(self, **kwargs: Any):
         """
 
         Creates a new grid file based on the grid parameters and stores the new grid as the grid property of the object. 
 
-        Parameters
-        ----------
-        grid_file : PathLike
-            The file path where the grid will be saved. 
-        grid_file : os.PathLike
-            The file path to the grid file. 
         """
     
         # Generate the hash for the current parameters
-        grid_hash = self.generate_hash()
-
-        if os.path.exists(grid_file):
-            os.remove(grid_file)
-        self.generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs) 
+        self.file.unlink(missing_ok=True)
+        self.generate_grid(**kwargs) 
         
-        # Check to make sure we can open the grid file, then store the hash in the metadata
-        uxgrid = open_grid(grid_file)
-        new_hash = uxgrid.attrs.get("grid_hash")
-        assert(new_hash == grid_hash)
+        # Check to make sure we can open the grid file and that the hash matches
+        regrid = self.check_if_regrid(**kwargs)
+        assert(not regrid)
 
         return 
+
+    @property
+    def _hashvars(self):
+        """
+        The variables used to generate the hash.
+        """
+        return [self._component_name, self._radius]
+    
+    @property
+    def _id(self):
+        """
+        The hash id of the grid. This is used for determining if the grid needs to be regridded.
+        """
+        combined = ":".join(str(v) for v in self._hashvars)
+        hash_object = hashlib.sha256(combined.encode())
+        return hash_object.hexdigest()
 
     @staticmethod 
     def _distribute_points(distance: FloatLike,
@@ -236,7 +276,7 @@ class GridMaker(ABC):
     def radius(self, value: FloatLike):
         if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
             raise TypeError("radius must be a positive float")
-        self._radius = value
+        self._radius = float(value)
         
     @property
     def grid(self):
@@ -251,35 +291,20 @@ class GridMaker(ABC):
             raise TypeError("grid must be an instance of uxarray.Grid")
         self._grid = value
 
-    @parameter
-    def gridtype(self):
+    @property
+    def file(self):
         """
-        The registered name of this scaling gridtype set by the @register_scaling_gridtype decorator.
-        """ 
-        return self._gridtype
+        The grid file path.
+        """
+        return self._simdir / _DATA_DIR / _GRID_FILE_NAME
 
-_registry: dict[str, GridMaker] = {}
+    @property
+    def regrid(self):
+        """
+        Whether the grid was rebuilt when the class was constructed.
+        """
+        return self._regrid
 
-def register_grid_type(name: str):
-    """
-    Class decorator to register a grid component under the given key.
-    """
-    def decorator(cls):
-        cls._gridtype = name 
-        _registry[name] = cls
-        return cls
-    return decorator
 
-def available_grid_types() -> list[str]:
-    """Return list of all registered catalogue names."""
-    return list(_registry.keys())
+import_components(__name__, __path__, ignore_private=True)
 
-def get_grid_type(name: str):
-    """Return the component instance for the given name (KeyError if not found)."""
-    return _registry[name]
-
-# This loop will import every .py in this folder, causing those modules
-# (which use @register_grid_type) to run and register themselves.
-package_dir = __path__[0]
-for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
-    importlib.import_module(f"{__name__}.{module_name}")

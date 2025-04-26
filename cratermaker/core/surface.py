@@ -1,3 +1,4 @@
+from __future__ import annotations
 import xarray as xr
 from xarray import DataArray, Dataset
 import uxarray as uxr
@@ -16,16 +17,10 @@ import warnings
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
 from cratermaker.utils.general_utils import _to_config, parameter
-from cratermaker.components.grid import get_grid_type, available_grid_types
-from cratermaker._cratermaker import surface_functions
-
-# Default file names and directories
-_DATA_DIR = Path.cwd() / "surface_data"
-_COMBINED_DATA_FILE_NAME = "surf.nc"
-_GRID_FILE_NAME = "grid.nc"
-
-# This is a factor used to determine the smallest length scale in the grid
-_SMALLFAC = 1.0e-5
+from cratermaker.components.grid import Grid
+from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME, _SMALLFAC, _COMBINED_DATA_FILE_NAME
+from .base import CratermakerBase, _rng_init, _simdir_init, CommonArgs
+from typing import Any
 
 class Surface:
     """
@@ -40,42 +35,54 @@ class Surface:
         Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
     target : Target, optional
         The target body or name of a known target body for the impact simulation. 
-    data_dir : os.PathLike, optional
-        The directory for data files.
-    grid_file : os.PathLike, optional
-        The file path to the grid file.
+    simdir : os.PathLike, optional
+        The directory where the simulation data is stored. Default is the current working directory.
     compute_face_areas : bool, optional
         Flag to indicate whether to compute face areas. Default is False.    
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used.        
     **kwargs
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
+<<<<<<<
     """ 
+=======
+    """
+    __slots__ = (
+        '_name', '_description', '_data_dir', '_grid_file', '_smallest_length',
+        '_area', '_target', '_rng', '_rng_seed', '_rng_state', '_simdir', '_user_defined',
+        '_compute_face_areas', '_grid_name', '_grid_parameters'
+    )
+>>>>>>>
 
     def __init__(self, 
                  data: UxDataset, 
-                 target: Target | None = None, 
-                 data_dir: os.PathLike = _DATA_DIR,
-                 grid_file: os.PathLike = _DATA_DIR / _GRID_FILE_NAME,
-                 rng: Generator | None = None):
+                 target: Target | str = "Moon", 
+                 compute_face_areas: bool = False,
+                 rng: Generator | None = None, 
+                 rng_seed: int | None = None,
+                 rng_state: dict | None = None,
+                 simdir: os.PathLike = Path.cwd(),
+                 grid_name: str = "icosphere",
+                 **kwargs):
+
+        argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
+        self._rng = argproc.rng
+        self._rng_seed = argproc.rng_seed
+        self._rng_state = argproc.rng_state
+        self._simdir = argproc.simdir
 
         # Additional initialization for Surface
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
         self._area = None
         self._smallest_length = None
-        self._target = target
+        self.data = data
         self._node_tree = None
         self._face_tree = None
-
-        self.data = data
-        self.data_dir = data_dir
-        self.grid_file = grid_file
-        self.rng = rng
-        
-        return
-    
-    def load_from_data(self, compute_face_areas):
+        self._target = Target.make(target, **kwargs)
+        self._compute_face_areas = compute_face_areas
+        self._grid_name = grid_name
+       
         if compute_face_areas: 
             # Compute face area needed in the non-normalized units for future calculations
             self.face_areas = self.data.uxgrid.face_areas.values * self.target.radius**2
@@ -104,15 +111,16 @@ class Surface:
         return _to_config(self)
 
     @classmethod
-    def initialize(cls, 
-                   target: Target | None,
-                   data_dir: os.PathLike | None = None,
-                   grid_file: os.PathLike | None = None,
-                   reset_surface: bool = True, 
-                   gridtype: str | None = None,
-                   rng: Generator | None = None,
-                   regrid: bool = False,
-                   **kwargs):
+    def make(cls: Surface, 
+             target: Target | None = None, 
+             reset_surface: bool = True, 
+             grid: str | None = None,
+             regrid: bool = False,
+             simdir: str | None = None,
+             rng: Generator | None = None,
+             rng_seed: int | None = None,
+             rng_state: dict | None = None,
+             **kwargs) -> Surface:
         """
         Factory method to create a Surface instance from a grid file.
 
@@ -120,88 +128,48 @@ class Surface:
         ----------
         target : Target, optional
             Target object or name of known body for the simulation. Default is Target("Moon")
-        data_dir : os.PathLike
-            The directory for data files. Default is set to ``${PWD}/surface_data``.
-        grid_file : os.PathLike
-            The file path to the grid file. Default is set to be from the current working directory, to ``{data_dir}/grid.nc``.
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        compute_face_areasridtype : str, optional
-            The type of grid to be generated. Default is "icosphere".            
-        rng : Generator, optional
-            A random number generator instance. If not provided, the default numpy RNG will be used. 
+        grid : str, optional
+            The type of grid to be generated. Default is "icosphere".  
+        regrid : bool, optional
+            Flag to indicate whether to regrid the surface. Default is False.
+        simdir : str | Path
+            The main project simulation directory.
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : int | None
+            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
         **kwargs : dict
-            Additional keyword arguments for initializing the Surface instance based on the specific gridtype.
+            Additional keyword arguments for initializing the Surface instance based on the specific name.
 
         Returns
         -------
         Surface
             An initialized Surface object.
         """
-        grid_parameters = kwargs.pop("grid_parameters", {})
-        gridtype = gridtype or grid_parameters.pop("gridtype", "icosphere")
+        argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
+        rng = argproc.rng
+        rng_seed = argproc.rng_seed
+        rng_state = argproc.rng_state
+        simdir = argproc.simdir
 
-        # If there are any keys in kwargs that match those in grid_parameters, remove them from grid_parameters
-        for key in kwargs.keys():
-            if key in grid_parameters:
-                del grid_parameters[key] 
+        target = Target.make(target, **kwargs)
 
-        if not target:
-            target = Target("Moon")
-        elif isinstance(target, str):
-            try:
-                target = Target(target)
-            except:
-                raise ValueError(f"Invalid target name {target}")
-        elif not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target or a valid name of a target body")
-        radius = target.radius
-        if grid_parameters is not None:
-            radius = grid_parameters.pop("radius", radius)
-        
-        # Verify directory structure exists and create it if not
-        if not data_dir:
-            data_dir = _DATA_DIR
-        elif not isinstance(data_dir, Path):
-            data_dir = Path(data_dir)
-            
-        if not os.path.exists(data_dir):
-            os.mkdir(data_dir)
-            reset_surface = True
-      
-        if not grid_file: 
-            grid_file = data_dir / _GRID_FILE_NAME
-        elif not isinstance(grid_file, Path):
-            grid_file = Path(grid_file)
-            
-        # Process the grid parameters from the arguments and build the strategy object 
-        try:
-            grid = get_grid_type(gridtype)(radius=radius, **grid_parameters, **kwargs)
-        except:
-            raise ValueError(f"Failed to generate {gridtype} grid")
-   
-        # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
-        if not regrid: 
-            make_new_grid = grid.check_if_regrid(grid_file=str(grid_file), **kwargs)
-        else:
-            make_new_grid = True
-        
-        if make_new_grid:
-            print("Creating a new grid")
-            grid.create_grid(grid_file=str(grid_file), **kwargs)
-        else:
-            print("Using existing grid")
-        
+        kwargs = {**kwargs, **vars(argproc.common_args)}
+        grid = Grid.make(grid=grid, target=target, regrid=regrid, **kwargs) 
+
         # Get the names of all data files in the data directory that are not the grid file
+        data_dir = grid.file.parent
         data_file_list = list(data_dir.glob("*.nc"))
-        if grid_file in data_file_list:
-            data_file_list.remove(grid_file)
+        if grid.file in data_file_list:
+            data_file_list.remove(grid.file)
             
         # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-        reset_surface = reset_surface or make_new_grid or not data_file_list
+        reset_surface = reset_surface or not data_file_list
         
         # If reset_surface is True, delete all data files except the grid file 
-        if reset_surface:
+        if reset_surface or grid.regrid:
             for f in data_file_list:
                 f.unlink()  
             data_file_list = []
@@ -209,19 +177,22 @@ class Surface:
         # Initialize UxDataset with the loaded data
         try:
             if data_file_list:
-                surf = uxr.open_mfdataset(grid_file, data_file_list, use_dual=False).isel(time=-1)
-                surf.uxgrid = uxr.open_grid(grid_file, use_dual=False)
+                surf = uxr.open_mfdataset(grid.file, data_file_list, use_dual=False).isel(time=-1)
+                surf.uxgrid = uxr.open_grid(grid.file, use_dual=False)
             else:
                 surf = uxr.UxDataset()
-                surf.uxgrid = uxr.open_grid(grid_file, use_dual=False)
+                surf.uxgrid = uxr.open_grid(grid.file, use_dual=False)
         except:
             raise ValueError("Error loading grid and data files")
         
         surf = cls(surf,
                    target = target,
-                   data_dir = data_dir,
-                   grid_file = grid_file,
+                   simdir = simdir,
                    rng = rng,
+                   rng_seed = rng_seed,
+                   rng_state = rng_state,
+                   compute_face_areas = True,
+                   grid_name = grid._component_name 
                   ) 
         
         if reset_surface:
@@ -241,8 +212,7 @@ class Surface:
 
         surf.grid_parameters = grid.to_config()
         surf.grid_parameters.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
-        surf.grid_parameters['gridtype'] = gridtype
-       
+        surf.grid_parameters['grid'] = grid
         surf.load_from_data(True)
         
         return surf
@@ -252,21 +222,24 @@ class Surface:
         ds = super()._calculate_binary_op(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._name = self._name
+            ds._grid_name = self._grid_name
             ds._description = self._description
-            ds._data_dir = self._data_dir
-            ds._grid_file = self._grid_file
+            ds._simdir = self._simdir
             ds._target = self._target
             ds._rng = self._rng
+            ds._rng_seed = self._rng_seed
+            ds._rng_state = self._rng_state
             ds._smallest_length = self._smallest_length
+            ds._compute_face_areas = False
         else:
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
                          source_datasets=self.source_datasets,
                          target=self.target,
-                         grid_file=self.grid_file,
-                         data_dir=self.data_dir,
+                         simdir=self.simdir,
                          rng=self.rng,
+                         rng_seed=self.rng_seed,
+                         rng_state=self.rng_state,
                          compute_face_areas=False,
                          )
         return ds
@@ -281,14 +254,16 @@ class Surface:
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
 
-        copied._name = self._name
+        copied._grid_name = self._grid_name
         copied._description = self._description
-        copied._data_dir = self._data_dir
-        copied._grid_file = self._grid_file
+        copied._simdir = self._simdir
         copied._smallest_length = self._smallest_length
         copied._area = self._area
         copied._target = self._target
         copied._rng = self._rng
+        copied._rng_seed = self._rng_seed
+        copied._rng_state = self._rng_state
+        copied._compute_face_areas = False
         
         return copied    
   
@@ -297,68 +272,51 @@ class Surface:
         ds = super()._replace(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._name = self._name
+            ds._grid_name = self._grid_name
             ds._description = self._description
-            ds._data_dir = self._data_dir
-            ds._grid_file = self._grid_file
+            ds._simdir = self._simdir
             ds._target = self._target
             ds._rng = self._rng
+            ds._rng_seed = self._rng_seed
+            ds._rng_state = self._rng_state
             ds._smallest_length = self._smallest_length
             ds._area = self._area
+            ds._compute_face_areas = False
         else:
             ds = Surface(ds,
                          uxgrid=self.uxgrid,
                          source_datasets=self.source_datasets,
                          target=self.target,
-                         grid_file=self.grid_file,
-                         data_dir=self.data_dir,
+                         simdir=self.simdir,
                          compute_face_areas=False,
                          rng=self.rng,
-                         )
+                         rng_seed=self.rng_seed,
+                         rng_state=self.rng_state)
             ds._smallest_length = self._smallest_length
             ds._area = self._area
         return ds   
 
-    @parameter
+    @property
     def data_dir(self):
         """
         Directory for data files.
         """
-        return self._data_dir
+        return self.simdir / _DATA_DIR
 
-    @data_dir.setter
-    def data_dir(self, value):
-        self._data_dir = value
-
-    @parameter
+    @property
     def grid_file(self):
         """
         Path to the grid file.
         """
-        return self._grid_file
-
-    @grid_file.setter
-    def grid_file(self, value):
-        # Convert to a Path object if not already one.
-        if not isinstance(value, Path):
-            value = Path(value)
-        self._grid_file = value
+        return self.simdir / _DATA_DIR / _GRID_FILE_NAME
 
     @parameter
-    def gridtype(self):
+    def grid_name(self):
         """
         The type of grid used for the surface.
         """
-        return self._gridtype
+        return self._grid_name
     
-    @gridtype.setter
-    def gridtype(self, value):
-        if not isinstance(value, str):
-            raise TypeError("gridtype must be a string")
-        if value not in available_grid_types():
-            raise ValueError(f"gridtype must be one of {available_grid_types()}")
-        self._gridtype = value
-
     @parameter
     def smallest_length(self):
         """
@@ -404,19 +362,78 @@ class Surface:
 
     @target.setter
     def target(self, value):
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
-        self._target = value    
+        self._target = Target.make(value)
+        return 
+    
+    def to_config(self, **kwargs: Any) -> dict[str, Any]:
+        """
+        Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. 
+
+        Parameters
+        ----------
+        obj : Any
+            The object whose attributes will be stored.  It must have a _user_defined attribute.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
+
+        Returns
+        -------
+        dict[str, Any]
+            A dictionary of the object's attributes that can be serialized to YAML.
+        Notes
+        -----
+        - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
+        - The function will convert Numpy types to their native Python types.
+        """
+        return _to_config(self)
+
+    @property
+    def simdir(self):
+        """
+        The main project simulation directory.
+
+        Returns
+        -------
+        Path
+            The initialized simulation directory as a Path object. Will be a relative path if possible, otherwise will be absolute. If it doesn't exist, it will be created.
+        """
+        return self._simdir
+
+    @simdir.setter
+    def simdir(self, value):
+        self._simdir = _simdir_init(value)
         
+    @property
+    def rng_seed(self):
+        """
+        The random rng_seed for the simulation RNG.
+
+        Returns
+        -------
+        int or None
+            The integer rng_seed used to initialize the RNG, or None if not set.
+        """
+        return self._rng_seed
+
+    @rng_seed.setter
+    def rng_seed(self, value):
+        if value is not None:
+            if not isinstance(value, int) or np.isnan(value) or np.isinf(value) or value < 0:
+                raise TypeError("rng_seed must be a positive integer")
+            self._rng_seed = int(value)
+        else:
+            self._rng_seed = None
+
     @property
     def rng(self):
         """
-        A random number generator instance.
-        
+        The random number generator used for stochastic elements of the simulation.
+
         Returns
         -------
-        Generator
-        """ 
+        numpy.random.Generator or None
+            The RNG instance, or None if not initialized.
+        """
         return self._rng
 
     @property
@@ -435,9 +452,27 @@ class Surface:
     
     @rng.setter
     def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        self._rng = value or np.random.default_rng()           
+        self._rng, _ = _rng_init(rng=value, rng_seed=self.rng_seed, rng_state=self.rng_state)
+
+    @property 
+    def rng_state(self):
+        """
+        The state of the random number generator.
+
+        Returns
+        -------
+        dict or None
+            A dictionary representing the RNG state, or None if the RNG is not initialized.
+        """
+        return self.rng.bit_generator.state if self.rng is not None else None
+    
+    @rng_state.setter
+    def rng_state(self, value):
+        _, self._rng_state = _rng_init(rng=self.rng, rng_seed=self.rng_seed, rng_state=value)
+
+    @property
+    def common_args(self) -> CommonArgs:
+        return CommonArgs(simdir=self.simdir, rng=self.rng, rng_seed=self.rng_seed, rng_state=self.rng_state)    
         
     def generate_data(self,
                       name: str,

@@ -1,5 +1,5 @@
 """
- Copyright 2023 - David Minton
+ Copyright 2025 - David Minton
  This file is part of Cratermaker.
  Cratermaker is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
  as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -20,7 +20,8 @@ from .core.simulation import Simulation
 from .core.target import Target
 from .core.crater import Crater
 from .core.surface import Surface
-from .components.scaling import available_scaling_models, get_scaling_model
-from .components.production import available_production_models, get_production_model
-from .components.morphology import available_morphology_models, get_morphology_model
-from .components.grid import available_grid_types, get_grid_type
+from .components.scaling import Scaling
+from .components.production import Production
+from .components.morphology import Morphology
+from .components.impactor import Impactor
+from .components.grid import Grid

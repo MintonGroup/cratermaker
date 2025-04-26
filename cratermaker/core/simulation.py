@@ -3,47 +3,47 @@ from numpy.random import Generator
 import xarray as xr
 import os
 from pathlib import Path
-import shutil
 from tqdm import tqdm
-from glob import glob
 from collections.abc import Sequence
 from typing import Any
 from numpy.typing import ArrayLike
-import warnings
 import yaml
+from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR
 from .target import Target
 from .crater import Crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _convert_for_yaml, _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..components.scaling import ScalingModel, get_scaling_model, available_scaling_models
-from ..components.production import ProductionModel, get_production_model, available_production_models
-from ..components.morphology import MorphologyModel, get_morphology_model, available_morphology_models
+from ..components.scaling import Scaling
+from ..components.production import Production
+from ..components.morphology import Morphology
+from ..components.impactor import Impactor
+from .base import CratermakerBase
 
-class Simulation:
+class Simulation(CratermakerBase):
     """
     This class orchestrates the processes involved in running a crater simulation.
 
     """
     def __init__(self, *, # Enforce keyword-only arguments
-                 target_name: str = "Moon",
-                 seed: int | None = None,
-                 scaling_model: str = "richardson2009",
-                 production_model: str | None = None,
-                 morphology_model: str = "simplemoon",
-                 reset_surface: bool = True,
-                 simdir: os.PathLike = Path.cwd(), 
+                 target: Target | str = "Moon",
+                 scaling: Scaling | str = "richardson2009",
+                 production: Production | str = "neukum",
+                 morphology: Morphology | str = "simplemoon",
+                 impactor: Impactor | str = "asteroids",
+                 simdir: str | Path = Path.cwd(),
+                 rng: Generator | None = None, 
+                 rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs: Any):
         """
         Initialize the Simulation object.
 
         Parameters
         ----------
-        target_name: str, optional, default "Moon"
+        target: Target or str, optional, default "Moon"
             Name of the target body or Target object for the simulation, default is "Moon".
-        seed : int, optional
-            Seed for the random number generator, default is None which will generate a random seed.
-        scaling_model : str, optional
+        scaling : str, optional
             The name of the impactor->crater size scaling model to use from the components library. The default is "richardson2009".
         production_model: str, optional
             The name of the production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
@@ -52,27 +52,30 @@ class Simulation:
             Earth, and a simple power law model otherwise.
         morphology_model : str, optional
             The name of the component model used to describe the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
-        reset_surface : bool, optional
-            Flag to reset the surface elevation, default is True. If False, the surface will be preserved and the simulation will
-            continue from the last saved state.
-        simdir: PathLike, optional
-            Path to the simulation directory, default is current working directory.
+        impactor_model : str, optional
+            The name of the impactor model to use from the components library. The default is "asteroids". This model is used to generate the impactor properties for the simulation, such as velocity and density.
+        simdir : str | Path
+            The main project simulation directory. Defaults to the current working directory if None.
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
         **kwargs : Any
-            Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scale, 
+            Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scaling, 
             morphology, or production function constructors. Refer to the documentation of each component module for details.
             
         See Also
         --------
-        cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
+        cratermaker.core.surface.Surface.make : Parameters for initializing a surface mesh.
         """
-        object.__setattr__(self, "_target_name", None)
+        super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
-        object.__setattr__(self, "_production_model", None)
         object.__setattr__(self, "_production", None)
-        object.__setattr__(self, "_scaling_model", None)
         object.__setattr__(self, "_scale", None)
-        object.__setattr__(self, "_morphology_model", None)
         object.__setattr__(self, "_morphology", None)
+        object.__setattr__(self, "_impactor", None)
         object.__setattr__(self, "_craterlist", None)
         object.__setattr__(self, "_crater", None)
         object.__setattr__(self, "_interval_number", None)
@@ -83,79 +86,56 @@ class Simulation:
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
-        object.__setattr__(self, "_simdir", None)
-        object.__setattr__(self, "_rng", None)
         object.__setattr__(self, "_surf", None)
-        object.__setattr__(self, "_seed", None)
-        object.__setattr__(self, "_reset_surface", None)
 
-        self.simdir = simdir
-        
         if self.config_file.exists():
-            filename = self.config_file
+            config_file = self.config_file
         else:
-            filename = None
-        matched, unmatched = _set_properties(self, target_name=target_name, seed=seed, scaling_model=scaling_model, production_model=production_model, morphology_model=morphology_model, reset_surface=reset_surface, filename=filename)
+            config_file = None
+        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, config_file=config_file)
         production_model_parameters = unmatched.pop("production_model_parameters", {})
         scaling_model_parameters = unmatched.pop("scaling_model_parameters", {})
         surface_parameters = unmatched.pop("surface_parameters", {})
         morphology_model_parameters = unmatched.pop("morphology_model_parameters", {})
         target_parameters = unmatched.pop("target_parameters", {})
-        if "name" in target_parameters:
-            self.target_name = target_parameters.pop("name")
-
+        impactor_parameters = unmatched.pop("impactor_parameters", {})
         kwargs.update(unmatched)
+        kwargs = {**kwargs, **vars(self.common_args)}
 
-        self.rng = np.random.default_rng(self.seed)
+        target = target_parameters.pop("name", target)
+        target_parameters = {**target_parameters, **kwargs}
+        self.target = Target.make(target=target, **target_parameters)
 
-        try:
-            self.target = Target(name=self.target_name, **target_parameters, **kwargs)
-        except:
-            raise ValueError(f"Error initializing target {self.target_name}")
-         
-        # Set the production function model for this simulation 
-        if production_model is None:
-            if self.target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
-                self.production_model = "neukum"
-                if self.target_name in ['Moon', 'Mars']:
-                    self.production = get_production_model(self.production_model)(version=self.target_name, rng=self.rng, **kwargs)
-                else:
-                    self.production = get_production_model(self.production_model)(version="projectile", rng=self.rng, **kwargs)
-            else:
-                self.production = get_production_model("powerlaw")(rng=self.rng, **kwargs)
-        else:
-            self.production_model = production_model
-        try:
-            self.production = get_production_model(self.production_model)(rng=self.rng, **production_model_parameters, **kwargs)
-        except:
-            raise ValueError(f"Error initializing production model {self.production_model}")
-            
-        # Set the scaling law model for this simulation 
-        self.scaling_model = scaling_model
-        try:
-            self.scale = get_scaling_model(self.scaling_model)(target=self.target, rng=self.rng, **scaling_model_parameters, **kwargs)
-        except:
-            raise ValueError(f"Error initializing scaling model {self.scaling_model}")
+        production = production_model_parameters.pop("model", production)
+        production_model_parameters = {**production_model_parameters, **kwargs}
+        self.production = Production.make(production=production,  target=self.target, **production_model_parameters)
+
+        impactor = impactor_parameters.pop("model", impactor)
+        impactor_parameters = {**impactor_parameters, **kwargs}
+        self.impactor = Impactor.make(impactor=impactor, target=self.target, **impactor_parameters)
+
+        scaling = scaling_model_parameters.pop("model", scaling)
+        scaling_model_parameters = {**scaling_model_parameters, **kwargs}
+        self.scaling = Scaling.make(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
+
+        morphology = morphology_model_parameters.pop("model", morphology)
+        morphology_model_parameters = {**morphology_model_parameters, **kwargs}
+        self.morphology = Morphology.make(morphology=morphology, **morphology_model_parameters)
       
-        self.morphology_model = morphology_model
-        try:
-            self.morphology = get_morphology_model(self.morphology_model)(rng=self.rng, **morphology_model_parameters, **kwargs)
-        except:
-            raise ValueError(f"Error initializing {morphology_model}")
-        
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
             if 'superdomain_scale_factor' not in kwargs:
                 # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
                 # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
                 for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
-                    crater, _ = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scale.projectile_mean_velocity*10)
+                    crater = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scaling.projectile_mean_velocity*10)
                     rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
                     if rmax < self.target.radius * 2 * np.pi:
                         superdomain_scale_factor = rmax / crater.final_radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-        self.surf = Surface.initialize(target=self.target, reset_surface=self.reset_surface, simdir=self.simdir, rng=self.rng, **surface_parameters, **kwargs)
+        surface_parameters = {**surface_parameters, **kwargs}
+        self.surf = Surface.make(target=self.target, **kwargs)
 
         self._craterlist = []
         self._crater = None
@@ -184,7 +164,7 @@ class Simulation:
             face_areas = np.asarray(face_areas)
         smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2        
         if from_projectile:
-            crater = self.generate_crater(final_diameter=smallest_crater, angle=90.0, projectile_velocity=self.scale.projectile_mean_velocity*10)
+            crater = self.generate_crater(final_diameter=smallest_crater, angle=90.0, projectile_velocity=self.scaling.projectile_mean_velocity*10)
             return crater.projectile_diameter 
         else:
             return smallest_crater 
@@ -197,7 +177,7 @@ class Simulation:
         """
         largest_crater = self.target.radius * 2
         if from_projectile:
-            crater = self.generate_crater(final_diameter=largest_crater, angle=1.0, projectile_velocity=self.scale.projectile_mean_velocity/10.0)
+            crater = self.generate_crater(final_diameter=largest_crater, angle=1.0, projectile_velocity=self.scaling.projectile_mean_velocity/10.0)
             return crater.projectile_diameter
         else:
             return largest_crater
@@ -224,7 +204,7 @@ class Simulation:
         -----
         The keyword arguments provided are passed to the constructor of 
         :class:`Crater`. Additionally, these arguments are used in 
-        :meth:`crater.scale.crater_to_projectile` method. Refer to the 
+        :meth:`crater.scaling.crater_to_projectile` method. Refer to the 
         documentation of these classes and methods for a detailed description 
         of valid keyword arguments.
 
@@ -233,19 +213,13 @@ class Simulation:
         .. code-block:: python
         
             # Create a crater and projectile pair with a specific diameter
-            crater, projectile = sim.generate_crater(diameter=1000.0)
+            crater = sim.generate_crater(diameter=1000.0)
     
             # Create a crater with a specific transient diameter and location (but ignore the projectile)
-            crater, _ = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
+            crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
-        # Create a new Crater object with the passed arguments and set it as the crater of this simulation
-        
-        if "projectile_velocity" not in kwargs and "projectile_mean_velocity" not in kwargs and "projectile_vertical_velocity" not in kwargs:
-            pmv = self.scale.projectile_mean_velocity
-            if pmv is None:
-                raise RuntimeError("No projectile_velocity value is set for this projectile")
-            kwargs['projectile_mean_velocity'] = pmv
-        crater = Crater.from_args(target=self.target, scale=self.scale, rng=self.rng, **kwargs)
+         
+        crater = Crater.make(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
         
         return crater
     
@@ -651,9 +625,9 @@ class Simulation:
 
 
     def to_config(self, **kwargs: Any) -> dict:
-        sim_config = _to_config(self)
+        sim_config = super().to_config()
         sim_config['target_parameters'] = self.target.to_config()
-        sim_config['scaling_model_parameters'] = self.scale.to_config()
+        sim_config['scaling_model_parameters'] = self.scaling.to_config()
         sim_config['production_model_parameters'] = self.production.to_config()
         sim_config['surface_parameters'] = self.surf.to_config()
         # Write the combined configuration to a YAML file
@@ -682,16 +656,10 @@ class Simulation:
     
     
     def export_vtk(self, 
-                   out_dir: os.PathLike | None = None,
                    *args, **kwargs
                    ) -> None:
         """
-        Export the surface mesh to a VTK file.
-
-        Parameters
-        ----------
-        out_dir : str, Default "vtk_files" in the simulation directory
-            Directory to store the VTK files.
+        Export the surface mesh to a VTK file and stores it in the default export directory.
         """
         from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkWarpScalar, vtkXMLPolyDataWriter
         from vtkmodules.util.numpy_support import numpy_to_vtk
@@ -699,13 +667,13 @@ class Simulation:
         from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
         
         self.save()  
-        if out_dir is None:
-            out_dir = os.path.join(self.simdir, "vtk_files")
-        if os.path.exists(out_dir):
-            shutil.rmtree(out_dir)
-        os.makedirs(out_dir)
-            
-        data_file_list = glob(os.path.join(self.surf.data_dir, "*.nc"))
+
+        # Create the output directory if it doesn't exist 
+        out_dir = self.simdir / _EXPORT_DIR
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        data_dir = self.simdir / _DATA_DIR
+        data_file_list = list(data_dir.glob("*.nc"))
         if self.surf.grid_file in data_file_list:
             data_file_list.remove(self.surf.grid_file)
        
@@ -802,15 +770,15 @@ class Simulation:
             Longitudes of the circle centers in degrees.
         latitudes : FloatLike or ArrayLike of Floats
             Latitudes of the circle centers in degrees.
-        out_dir : str, Default "vtk_files" in the simulation directory
-            Directory to store the VTK files.
+        out_filename : os.PathLike, optional 
+            Name of the output file. If not provided, the default is "circle.vtp" 
         """ 
         import vtk 
 
         if output_filename is None:
-            output_filename = os.path.join(self.simdir, "circles.vtp") 
+            output_filename = self.simdir / _EXPORT_DIR / _CIRCLE_FILE_NAME
         else:
-            output_filename = os.path.join(self.simdir, output_filename)
+            output_filename = self.simdir / _EXPORT_DIR / output_filename
         
         diameters = np.atleast_1d(diameters)
         longitudes = np.atleast_1d(longitudes)
@@ -903,121 +871,6 @@ class Simulation:
         return    
     
 
-    def apply_noise(self, 
-                    model="turbulence",
-                    noise_width=1000e3,
-                    noise_height=1e3,
-                    to_nodes=True,
-                    to_faces=True,
-                    **kwargs,
-                    ) -> None:
-        """
-        Applies a specified noise model to the simulation's surface elevation.
-
-        This method adjusts the surface elevation of the simulation based on the chosen noise model. It supports various noise models, each with its own set of default and customizable parameters. The method also ensures that the applied noise is volume-conserving.
-
-        Parameters
-        ----------
-        model : str, optional
-            The noise model to apply. Supported models include 'turbulence', 'billowed', 'plaw', 'ridged', 'swiss', and 'jordan'. The default is 'turbulence'.
-        noise_width : float, optional
-            The width scale of the noise in meters. The default is 1000e3 (1000 km).
-        noise_height : float, optional
-            The height scale of the noise in meters. The default is 20e3 (20 km).
-        to_nodes : bool, optional
-            Flag to apply the noise to the nodes of the mesh. The default is True.
-        to_faces : bool, optional
-            Flag to apply the noise to the faces of the mesh. The default is False.
-        **kwargs :
-            Additional keyword arguments specific to the noise model. Common parameters include 'num_octaves' and 'anchor'. Model-specific parameters like 'freq', 'pers', 'slope', 'lacunarity', 'gain', etc., can also be set.
-
-        Returns
-        -------
-        None
-            This method modifies the simulation's surface elevation in-place and does not return a value.
-
-        Notes
-        -----
-        - The noise is scaled to be volume-conserving, ensuring the mean of the noise is zero.
-        - The method internally calculates normalized coordinates based on the target radius and scales the noise appropriately.
-        - Default values for noise parameters are set based on the chosen model.
-        - For details on thes noise models, see https://www.decarpentier.nl/scape-procedural-basics
-
-        Examples
-        --------
-        .. code-block:: python
-        
-            # Apply default turbulence noise:
-            sim = cratermaker.Simulation()
-            sim.apply_noise()
-
-            #Apply ridged noise with custom Parameters
-            sim.apply_noise(model="ridged", noise_width=500e3, num_octaves=10, freq=1.5)
-        """      
-        scale = self.target.radius / noise_width
-        num_octaves = kwargs.pop("num_octaves", 12)
-        anchor = kwargs.pop("anchor", self.rng.uniform(0.0,scale, size=(num_octaves, 3))) 
-        
-        # Set reasonable default values for the different models
-        if model == "turbulence" or model == "billowed" or model == "plaw" or model == "ridged":
-            kwargs.setdefault("noise_height", noise_height)
-            kwargs.setdefault("freq", 2.00)
-            kwargs.setdefault("pers", 0.5)
-        if model == "plaw":
-            kwargs.setdefault("slope", 2.0)
-        if model == "swiss" or model == "jordan":
-            kwargs.setdefault("lacunarity", 2.00)
-            kwargs.setdefault("gain", 0.5)
-            kwargs.setdefault("warp", 0.35)
-        if model == "jordan":
-            kwargs.setdefault("gain0", 0.8)
-            kwargs.setdefault("warp0", 0.4)
-            kwargs.setdefault("damp0", 1.0)
-            kwargs.setdefault("damp", 0.8)
-            kwargs.setdefault("damp_scale", 1.0) 
-            
-        if "noise_height" in kwargs:
-            kwargs["noise_height"] = kwargs["noise_height"] / self.target.radius
-            
-        def _noisemaker(vars):
-            raise NotImplementedError
-            # with warnings.catch_warnings():
-            #     warnings.simplefilter("ignore", Warning)           
-            #     x = self.surf.uxgrid[vars[0]].values * scale 
-            #     y = self.surf.uxgrid[vars[1]].values * scale 
-            #     z = self.surf.uxgrid[vars[2]].values * scale
-            #     noise = realistic.apply_noise(model, x, y, z, num_octaves, anchor, **kwargs)
-        
-            # # Make sure the noise is volume-conserving (i.e., the mean is zero)
-            # # TODO: Take into account the nodes are not uniformly distributed on the sphere
-            # noise = noise - np.mean(noise)
-            # return noise                
-        
-        if to_nodes:
-            vars = ['node_x', 'node_y', 'node_z']
-            node_noise = _noisemaker(vars)
-        else:
-            node_noise = None
-        if to_faces:
-            vars = ['face_x', 'face_y', 'face_z']
-            face_noise = _noisemaker(vars)
-        else:
-            face_noise = None
-            
-        if model =="swiss" or model == "jordan":
-            if node_noise is not None:
-                self.surf['node_elevation'] += node_noise * noise_height
-            if face_noise is not None:
-                self.surf['face_elevation'] += face_noise * noise_height
-        else:
-            if node_noise is not None:
-                self.surf['node_elevation'] += node_noise * self.target.radius 
-            if face_noise is not None:
-                self.surf['face_elevation'] += face_noise * self.target.radius
-        
-        return
-    
-     
     def set_elevation(self, 
                       *args: Any, 
                       **kwargs: Any
@@ -1032,34 +885,6 @@ class Simulation:
         """
         return self.surf.set_elevation(*args, **kwargs)   
 
-    @parameter
-    def production_model(self):
-        """
-        The production model used for crater production. Set during initialization.
-        """
-        return self._production_model
-
-    @production_model.setter
-    def production_model(self, value):
-        if not isinstance(value, str):
-            raise TypeError("production_model must be a string")
-        if value.lower() not in available_production_models():
-            raise ValueError(f"production_model must be one of {available_production_models()}")
-        self._production_model = value.lower()
-
-    @parameter
-    def target_name(self):
-        """
-        The name of the target body for the impact simulation. Set during initialization.
-        """
-        return self._target_name
-    
-    @target_name.setter
-    def target_name(self, value):
-        if not isinstance(value, str):
-            raise TypeError("target_name must be a string")
-        self._target_name = value.title()
-
     @property
     def target(self):
         """
@@ -1069,8 +894,8 @@ class Simulation:
 
     @target.setter
     def target(self, value):
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
+        if not isinstance(value, (Target, str)):
+            raise TypeError("target must be an instance of Target or str")
         self._target = value
 
     @property
@@ -1082,71 +907,9 @@ class Simulation:
     
     @surf.setter
     def surf(self, value):
-        if not isinstance(value, Surface):
-            raise TypeError("surf must be an instance of Surface")
+        if not isinstance(value, (Surface, str)):
+            raise TypeError("surf must be an instance of Surface or str")
         self._surf = value
-
-    @parameter
-    def seed(self):
-        """
-        Seed for the random number generator. Set during initialization.
-        """
-        return self._seed
-
-    @seed.setter
-    def seed(self, value):
-        if value is None:
-            value = np.random.default_rng().integers(0, 2**32)
-        elif not isinstance(value, int):
-            raise TypeError("seed must be an integer or None")
-        self._seed = value
-
-    @property
-    def rng(self):
-        """
-        Random number generator instance. Set during initialization.
-        """
-        return self._rng
-
-    @rng.setter
-    def rng(self, value):
-        if value is None:
-            value = np.random.default_rng(seed=self.seed) 
-        elif not isinstance(value, Generator): 
-            raise TypeError("rng must be a numpy.random.Generator instance or None")
-        self._rng = value
-
-    @parameter
-    def reset_surface(self):
-        """
-        Flag to reset the surface before running the simulation. Set during initialization.
-        """
-        return self._reset_surface
-
-    @reset_surface.setter
-    def reset_surface(self, value):
-        if not isinstance(value, bool):
-            raise TypeError("reset_surface must be a boolean")
-        self._reset_surface = value
-    
-    @parameter
-    def simdir(self):
-        """
-        Directory where the simulation data is stored. Set during initialization.
-        """
-        return self._simdir
-
-    @simdir.setter
-    def simdir(self, value):
-        if value is None:
-            self._simdir = Path.cwd()
-        else:
-            p = Path(value)
-            if not p.is_absolute():
-                p = Path.cwd() / p
-            self._simdir = p
-
-        self._simdir.mkdir(parents=True, exist_ok=True)
 
     @property
     def production(self):
@@ -1157,36 +920,21 @@ class Simulation:
 
     @production.setter
     def production(self, value):
-        if not issubclass(value.__class__, ProductionModel):
-            raise TypeError("production must be a subclass of Production")
+        if not isinstance(value, (Production, str)):
+            raise TypeError("production must be a subclass of Production or str")
         self._production = value
 
-    @parameter
-    def scaling_model(self):
-        """
-        The scaling model used for crater scaling. Set during initialization.
-        """
-        return self._scaling_model
-
-    @scaling_model.setter
-    def scaling_model(self, value):
-        if not isinstance(value, str):
-            raise TypeError("scaling_model must be a string")
-        if value.lower() not in available_scaling_models():
-            raise ValueError(f"scaling_model must be one of {available_scaling_models()}")
-        self._scaling_model = value.lower()
-
     @property
-    def scale(self):
+    def scaling(self):
         """
-        The ScalingModel object that defines the crater scaling relationships model. Set during initialization.
+        The Scaling object that defines the crater scaling relationships model. Set during initialization.
         """
         return self._scale
 
-    @scale.setter
-    def scale(self, value):
-        if not isinstance(value, ScalingModel):
-            raise TypeError("scale must be of ScalingModel type")
+    @scaling.setter
+    def scaling(self, value):
+        if not isinstance(value, (Scaling, str)):
+            raise TypeError("scaling must be of Scaling type or str")
         self._scale = value
 
     @property
@@ -1198,24 +946,23 @@ class Simulation:
 
     @morphology.setter
     def morphology(self, value):
-        if not isinstance(value, MorphologyModel):
-            raise TypeError("morpholog must be of MorphologyModel type")
+        if not isinstance(value, (Morphology, str)):
+            raise TypeError("morpholog must be of Morphology type or str")
         self._morphology = value
 
-    @parameter
-    def morphology_model(self):
-        """
-        The name of the morphology model to load from the components library.
-        """
-        return self._morphology_model
 
-    @morphology_model.setter
-    def morphology_model(self, value):
-        if not isinstance(value, str):
-            raise TypeError("morphology_model must be a string")
-        if value.lower() not in available_morphology_models():
-            raise ValueError(f"morphology_model must be one of {available_morphology_models()}")
-        self._morphology_model = value.lower()
+    @property
+    def impactor(self):
+        """
+        The crater impactor model. Set during initialization.
+        """
+        return self._impactor
+
+    @impactor.setter
+    def impactor(self, value):
+        if not isinstance(value, (Impactor, str)):
+            raise TypeError("morpholog must be of Impactor type or str")
+        self._impactor = value
 
     @property
     def crater(self):
@@ -1265,18 +1012,6 @@ class Simulation:
         """
         return self.surf.uxgrid.n_face
 
-    @parameter
-    def target_name(self):
-        """
-        The name of the target body for the impact simulation. Set during initialization.
-        """
-        return self._target_name
-
-    @target_name.setter
-    def target_name(self, value):
-        if not isinstance(value, str):
-            raise TypeError("target_name must be a string")
-        self._target_name = value.title()
 
     @parameter
     def interval_number(self):
@@ -1419,7 +1154,7 @@ class Simulation:
         """
         The path to the configuration file for the simulation.
         """
-        return self.simdir / "cratermaker.yaml" 
+        return self.simdir / _CONFIG_FILE_NAME
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)

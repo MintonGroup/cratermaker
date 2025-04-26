@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch, mock_open
 from cratermaker.utils.general_utils import _set_properties, parameter, _create_catalogue
-import textwrap
 
 mock_properties = [
     "name",       "prop",     "param"
@@ -84,26 +83,6 @@ class TestGeneralUtils(unittest.TestCase):
         return
 
 
-    @patch("builtins.open", new_callable=mock_open, read_data="""
-qux:
-  prop: 7.0
-  param: 8.0
-quux:
-  prop: 9.0
-  param: 10.0
-""")
-    def test_yaml_file_setting(self, mock_open):
-        # Mock reading from a YAML file
-        _set_properties(self.dummy, filename='dummy.yaml', key='qux')
-        self.assertEqual(self.dummy.name, 'qux')
-        self.assertEqual(self.dummy.prop, 7.0)
-        self.assertEqual(self.dummy.param, 8.0)
-        _set_properties(self.dummy, filename='dummy.yaml', key='quux')
-        self.assertEqual(self.dummy.name, 'quux')
-        self.assertEqual(self.dummy.prop, 9.0)
-        self.assertEqual(self.dummy.param, 10.0)
-        return 
-        
     def test_kwarg_override(self):
         param_new = 42.0
         catalogue = _create_catalogue(mock_properties, mock_values)

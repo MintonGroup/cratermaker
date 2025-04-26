@@ -6,12 +6,12 @@ from typing import Any
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.surface import Surface
 from cratermaker.core.crater import Crater
-from cratermaker.components.morphology import register_morphology_model, MorphologyModel
+from cratermaker.components.morphology import Morphology
 from cratermaker.utils.general_utils import parameter
 from cratermaker._cratermaker import crater_functions, ejecta_functions
 
-@register_morphology_model("simplemoon")
-class SimpleMoon(MorphologyModel):
+@Morphology.register("simplemoon")
+class SimpleMoon(Morphology):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh.
 
@@ -24,19 +24,26 @@ class SimpleMoon(MorphologyModel):
         A random number generator instance. If not provided, the default numpy RNG will be used.
     dorays : bool, optional
         A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket, default is True.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
     **kwargs : Any
-        Additional keyword arguments to be passed to internal functions.
+        Additional keyword arguments.
     """
     
     def __init__(self, 
                  ejecta_truncation: FloatLike | None = None,
-                 rng: Generator | None = None,
                  dorays: bool = True,
+                 rng: Generator | None = None,
+                 rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs: Any 
                  ):
-        super().__init__(**kwargs)
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-        self.rng = rng
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
 
@@ -384,7 +391,7 @@ class SimpleMoon(MorphologyModel):
 
     @crater.setter
     def crater(self, value):
-        MorphologyModel.crater.fset(self, value)
+        Morphology.crater.fset(self, value)
         self._set_morphology_parameters()
 
     @property
@@ -421,23 +428,6 @@ class SimpleMoon(MorphologyModel):
             raise TypeError("face_index must be of type int")
         self._face_index = value
 
-    @property
-    def rng(self):
-        """
-        A random number generator instance.
-        
-        Returns
-        -------
-        Generator
-        """ 
-        return self._rng
-    
-    @rng.setter
-    def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        self._rng = value or np.random.default_rng()   
-       
     @parameter
     def ejecta_truncation(self) -> float:
         """

@@ -1,15 +1,14 @@
 import numpy as np
 from numpy.random import Generator
-from numpy.typing import NDArray
-from cratermaker.components.production import register_production_model, ProductionModel
+from cratermaker.components.production import Production
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.general_utils import R_to_CSFD, parameter
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 from typing import Any, Union
 
-@register_production_model("neukum")
-class NeukumProduction(ProductionModel):
+@Production.register("neukum")
+class NeukumProduction(Production):
     """
     An operations class for computing the the Neukum production function for the Moon and Mars.
 
@@ -18,10 +17,14 @@ class NeukumProduction(ProductionModel):
     version : {"Moon", "Mars", "Projectile"}, optional
         The specific model to use for the production function. "Moon" and "Mars" are both crater production functions, and
         "Projectile" is a projectile function. Defaults to "Moon".
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
     **kwargs : Any
-        Includes arguments that were called from the parent class. These are not used in this class.
+        Additional keyword arguments. 
         
     Notes
     ----- 
@@ -46,21 +49,14 @@ class NeukumProduction(ProductionModel):
 
     """
     def __init__(self, 
-                 version: str = "Moon",
+                 version: str | None = None,
                  rng: Generator | None = None, 
+                 rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs: Any):
-        """
-        Set the parameters for Neukum production. This will set the following attributes based on the value of the keyword argument
-        `version`, which is either "Moon", "Mars", or "Projectile".
-        
-        Parameters
-        ----------
-        version : str, {"Moon", "Mars", "Projectile"}
-            The specific model to use for the production function. Defaults to "Moon" 
-        """
-        super().__init__(rng=rng, **kwargs) 
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs) 
 
-        self.version = version
+        self.version = version or "Moon"
 
 
     def function(self,

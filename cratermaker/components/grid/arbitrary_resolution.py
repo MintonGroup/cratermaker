@@ -1,13 +1,14 @@
 import os
+from pathlib import Path
 import numpy as np
 from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.components.grid import register_grid_type, GridMaker
+from cratermaker.components.grid import Grid
 from cratermaker.utils.general_utils import parameter
 
-@register_grid_type("arbitrary_resolution")
-class ArbitraryResolutionGrid(GridMaker):
+@Grid.register("arbitrary_resolution")
+class ArbitraryResolutionGrid(Grid):
     """
     Create a uniform grid configuration with an arbitrary user-defined pixel size. This will not be as nice as the regular IcosphereGrid, but can be any resolution desired.
     
@@ -17,7 +18,9 @@ class ArbitraryResolutionGrid(GridMaker):
         The approximate face size for the mesh in meters.
     radius: FloatLike
         The radius of the target body in meters.
-        
+    simdir : str | Path
+        The main project simulation directory.
+
     Returns
     -------
     ArbitraryResolutionGrid
@@ -25,15 +28,19 @@ class ArbitraryResolutionGrid(GridMaker):
     """    
     
     def __init__(self, 
-                 radius: FloatLike = 1.0, 
                  pix: FloatLike | None = None, 
+                 radius: FloatLike = 1.0, 
+                 simdir: str | Path = Path.cwd(),
                  **kwargs: Any):
-        super().__init__(**kwargs)
-        self.radius = radius
-        if pix is not None:
-            self.pix = np.float64(pix)
-        else:    
-            self.pix = np.sqrt(4 * np.pi * radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
+        super().__init__(radius=radius, simdir=simdir, **kwargs)
+        self.pix = pix
+        
+    @property
+    def _hashvars(self):
+        """
+        The variables used to generate the hash.
+        """
+        return [self._component_name, self._radius, self._pix]
 
     @parameter
     def pix(self):
@@ -44,9 +51,11 @@ class ArbitraryResolutionGrid(GridMaker):
     
     @pix.setter
     def pix(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+        if value is None:
+            value= np.sqrt(4 * np.pi * self.radius**2) * 1e-3  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
+        elif not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
             raise TypeError("pix must be a positive float")
-        self._pix = value
+        self._pix = float(value)
 
     def generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
@@ -66,11 +75,8 @@ class ArbitraryResolutionGrid(GridMaker):
         return points
    
     
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      grid_hash: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
+    def generate_grid(self, **kwargs: Any): 
+        super().generate_grid(**kwargs)
         face_areas = self.grid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_mean = face_sizes.mean().item() * self.radius

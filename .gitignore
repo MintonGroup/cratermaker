@@ -7,6 +7,7 @@
 !cratermaker/components/production/
 !cratermaker/components/morphology/
 !cratermaker/components/grid/
+!cratermaker/components/impactor/
 !cratermaker/utils/
 !cratermaker/fortran_bindings/
 !cratermaker/**/*.py
