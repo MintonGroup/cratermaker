@@ -142,8 +142,9 @@ class Surface(UxDataset):
             reset_surface = True
 
         grid_file = data_dir / _GRID_FILE_NAME 
+        regrid = regrid or not grid_file.exists()
 
-        kwargs = {**kwargs, **grid_parameters} 
+        kwargs = {**kwargs, **grid_parameters, **vars(argproc.common_args)} 
         grid = _init_grid(grid=gridtype, radius=radius, **kwargs)
             
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
@@ -175,11 +176,11 @@ class Surface(UxDataset):
         # Initialize UxDataset with the loaded data
         try:
             if data_file_list:
-                surf = uxr.open_mfdataset(grid_file, data_file_list, use_dual=False).isel(time=-1)
-                surf.uxgrid = uxr.open_grid(grid_file, use_dual=False)
+                surf = uxr.open_mfdataset(grid.file, data_file_list, use_dual=False).isel(time=-1)
+                surf.uxgrid = uxr.open_grid(grid.file, use_dual=False)
             else:
                 surf = uxr.UxDataset()
-                surf.uxgrid = uxr.open_grid(grid_file, use_dual=False)
+                surf.uxgrid = uxr.open_grid(grid.file, use_dual=False)
         except:
             raise ValueError("Error loading grid and data files")
         
@@ -192,6 +193,7 @@ class Surface(UxDataset):
                    rng_seed = rng_seed,
                    rng_state = rng_state,
                    compute_face_areas = True,
+                   
                   ) 
         
         if reset_surface:

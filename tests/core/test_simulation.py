@@ -29,6 +29,7 @@ class TestSimulation(unittest.TestCase):
         target = Target(name="Moon")
         self.pix = target.radius / 10.0
         self.cwd = Path.cwd()
+        self.gridlevel = 5
         os.chdir(self.temp_dir.name)
         
     def tearDown(self):

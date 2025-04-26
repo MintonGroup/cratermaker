@@ -1,6 +1,6 @@
 import unittest
 import tempfile
-from cratermaker.components.morphology import available_morphology_models, get_morphology_model, _init_morphology
+from cratermaker.components.morphology import MorphologyModel, available_morphology_models, get_morphology_model, _init_morphology
 from cratermaker.core.target import Target
 from cratermaker.core.surface import Surface
 from cratermaker import make_crater
@@ -52,7 +52,7 @@ class TestMorphology(unittest.TestCase):
         # Test the _init_morphology function
         for model_name in morphology_models:
             morphology = _init_morphology(moprhology=model_name)
-            self.assertIsInstance(morphology, self.morphology.__class__)
+            self.assertIsInstance(morphology, MorphologyModel)
 
 if __name__ == '__main__':
     unittest.main()
