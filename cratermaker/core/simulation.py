@@ -9,8 +9,8 @@ from typing import Any
 from numpy.typing import ArrayLike
 import yaml
 from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR
-from .target import Target, make_target
-from .crater import Crater, make_crater
+from .target import Target
+from .crater import Crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
@@ -104,7 +104,7 @@ class Simulation(CratermakerBase):
 
         target = target_parameters.pop("name", target)
         target_parameters = {**target_parameters, **kwargs}
-        self.target = make_target(target=target, **target_parameters)
+        self.target = Target.make(target=target, **target_parameters)
 
         production = production_model_parameters.pop("model", production)
         production_model_parameters = {**production_model_parameters, **kwargs}
@@ -219,7 +219,7 @@ class Simulation(CratermakerBase):
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
          
-        crater = make_crater(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
+        crater = Crater.make(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
         
         return crater
     

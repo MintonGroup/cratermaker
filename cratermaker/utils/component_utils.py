@@ -1,7 +1,7 @@
 from __future__ import annotations
 import pkgutil
 import importlib
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Any
 from cratermaker.core.base import CratermakerBase
 from cratermaker.utils.general_utils import parameter
@@ -13,7 +13,7 @@ class ComponentBase(CratermakerBase, ABC):
         super().__init__(**kwargs)
 
     @classmethod
-    def make(cls, component: str | type[ComponentBase] | ComponentBase| None = None, **kwargs: Any) -> type[ComponentBase]:
+    def make(cls, component: str | type[ComponentBase] | ComponentBase| None = None, **kwargs: Any) -> ComponentBase:
         """
         Initialize a component model with the given name or instance.
 
@@ -39,14 +39,13 @@ class ComponentBase(CratermakerBase, ABC):
 
         if component is None:
             component = cls.available()[0]  # Default to the first available component
-            component = cls._registry
         if isinstance(component, str):
             if component not in cls.available():
                 raise KeyError(f"Unknown component model: {component}. Available models: {cls.available()}")
             return cls._registry[component](**kwargs)
-        elif isinstance(component, type) and issubclass(component, component):
+        elif isinstance(component, type) and issubclass(component, ComponentBase):
             return component(**kwargs)
-        elif isinstance(component, component):
+        elif isinstance(component, ComponentBase):
             return component
         else:
             raise TypeError(f"component must be a string or a subclass of component, not {type(component)}")

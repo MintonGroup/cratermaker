@@ -6,7 +6,7 @@ import numpy as np
 from numpy.random import Generator
 from cratermaker.utils.general_utils import  parameter
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.core.target import Target, make_target
+from cratermaker.core.target import Target
 from cratermaker.components.impactor import ImpactorModel, make_impactor
 from cratermaker.core.base import CratermakerBase
 class ScalingModel(CratermakerBase, ABC):
@@ -41,7 +41,7 @@ class ScalingModel(CratermakerBase, ABC):
         object.__setattr__(self, "_impactor", None)
         # combine the kwargs with the common_args, giving common_args priority
         kwargs = {**kwargs, **vars(self.common_args)}
-        self._target = make_target(target, **kwargs)
+        self._target = Target.make(target, **kwargs)
         self._impactor = make_impactor(impactor, **kwargs)
 
     @abstractmethod
@@ -76,7 +76,7 @@ class ScalingModel(CratermakerBase, ABC):
     
     @target.setter
     def target(self, value):
-        self._target = make_target(value, **vars(self.common_args))
+        self._target = Target.make(value, **vars(self.common_args))
         return 
 
     @property

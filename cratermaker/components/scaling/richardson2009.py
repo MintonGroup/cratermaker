@@ -6,7 +6,7 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import _set_properties
 from cratermaker.utils.general_utils import _create_catalogue
-from cratermaker.core.target import Target, make_target
+from cratermaker.core.target import Target
 from cratermaker.components.scaling import register_scaling_model, ScalingModel
 from cratermaker.components.impactor import ImpactorModel, make_impactor
 
@@ -69,7 +69,7 @@ class Richardson2009(ScalingModel):
                  rng_state: dict | None = None,
                  **kwargs):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        self._target = make_target(target, **kwargs)
+        self._target = Target.make(target, **kwargs)
         self._impactor = make_impactor(impactor=impactor, target=self._target, **kwargs)
 
         object.__setattr__(self, "_K1", None)

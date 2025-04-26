@@ -11,7 +11,7 @@ import tempfile
 from typing import List, Union
 from numpy.typing import NDArray, ArrayLike
 from numpy.random import Generator
-from .target import Target, make_target
+from .target import Target
 import warnings
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
@@ -72,7 +72,7 @@ class Surface(UxDataset):
         self._description = "Surface class for cratermaker"
         self._area = None
         self._smallest_length = None
-        self._target = make_target(target, **kwargs)
+        self._target = Target.make(target, **kwargs)
         self._compute_face_areas = compute_face_areas
        
         if compute_face_areas: 
@@ -129,7 +129,7 @@ class Surface(UxDataset):
         rng_state = argproc.rng_state
         simdir = argproc.simdir
 
-        target = make_target(target, **kwargs)
+        target = Target.make(target, **kwargs)
 
         grid_parameters = kwargs.pop("grid_parameters", {})
         radius = target.radius
@@ -397,7 +397,7 @@ class Surface(UxDataset):
 
     @target.setter
     def target(self, value):
-        self._target = make_target(value)
+        self._target = Target.make(value)
         return 
     
     def to_config(self, **kwargs: Any) -> dict[str, Any]:

@@ -1,35 +1,53 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Any
 from cratermaker.core.crater import Crater
 from cratermaker.core.surface import Surface
-from cratermaker.utils.general_utils import parameter
-from cratermaker.core.base import CratermakerBase
-from cratermaker.utils.component_utils import import_components
+from cratermaker.utils.component_utils import ComponentBase, import_components
 
-class Morphology(CratermakerBase, ABC):
-    _registry: dict[str, type[Morphology]] = {}
+class Morphology(ComponentBase):
+    def __init__(self, crater : Crater | None = None, **kwargs: Any) -> None:
+        """
+        Initialize the Morphology class.
 
-    def __init__(self, **kwargs: Any) -> None:
+        Parameters
+        ----------
+        crater : Crater, optional
+            The crater currently attached to the morphology model.
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Raises
+        -------
+
+        TypeError
+            If the crater is not an instance of Crater.
+
+        """
         super().__init__(**kwargs)
-        object.__setattr__(self, "_crater" , None)
+        object.__setattr__(self, "_crater" , crater)
 
     @classmethod
-    def make(cls, morphology : str | type[Morphology] | Morphology | None = None, **kwargs: Any) -> type[Morphology]:
+    def make(cls, 
+             morphology: str | type[Morphology] | Morphology| None = None, 
+             crater : Crater | None = None,
+             **kwargs: Any) -> Morphology:
         """
-        Initialize the morphology model with the given name or instance.
+        Initialize a component model with the given name or instance.
 
         Parameters
         ----------
         morphology : str or Morphology or None
-            The name of the morphology model to use, or an instance of Morphology. If None, defaults to "simplemoon".
+            The name of the morphology model to use, or an instance of Morphology. If None, the default "simplemoon" is used.
+        crater : Crater, optional
+            The crater currently attached to the morphology model.
         kwargs : Any
-            Additional keyword arguments to pass to the morphology model constructor.
+            Additional keyword arguments.
 
         Returns
         -------
-        Morphology
-            An instance of the specified morphology model.
+        component
+            An instance of the specified component model.
 
         Raises
         ------
@@ -39,25 +57,16 @@ class Morphology(CratermakerBase, ABC):
             If the specified morphology model is not a string or a subclass of Morphology.
         """
 
+        # Call the base class version of make and pass the morphology argument as the component argument
         if morphology is None:
             morphology = "simplemoon"
-        if isinstance(morphology, str):
-            if morphology not in cls.available():
-                raise KeyError(f"Unknown morphology model: {morphology}. Available models: {cls.available()}")
-            return cls._registry[morphology](**kwargs)
-        elif isinstance(morphology, type) and issubclass(morphology, Morphology):
-            return morphology(**kwargs)
-        elif isinstance(morphology, Morphology):
-            return morphology
-        else:
-            raise TypeError(f"morphology must be a string or a subclass of Morphology, not {type(morphology)}")
+        return super().make(component=morphology, crater=crater, **kwargs)
 
     @abstractmethod
     def form_crater(self, 
                     surf: Surface,
                     crater: Crater | None = None,
                     **kwargs) -> None: ...    
-
     
     @property
     def crater(self):
@@ -68,8 +77,6 @@ class Morphology(CratermakerBase, ABC):
         -------
         Crater
         """ 
-        if self._crater is None:
-            raise RuntimeError("No crater has been added to the morphology model yet.")
         return self._crater
     
     @crater.setter
@@ -78,21 +85,6 @@ class Morphology(CratermakerBase, ABC):
             raise TypeError("crater must be an instance of Crater")
         self._crater = value
 
-    @classmethod
-    def register(cls, name: str):
-        """
-        Class decorator to register a morphology model component under the given key.
-        """
-        def decorator(subcls):
-            subcls._component_name = name 
-            subcls._registry[name] = subcls
-            return subcls
-        return decorator
-
-    @classmethod 
-    def available(cls) -> list[str]:
-        """Return list of all registered catalogue names."""
-        return list(cls._registry.keys())
 
 import_components(__name__, __path__, ignore_private=True)
 

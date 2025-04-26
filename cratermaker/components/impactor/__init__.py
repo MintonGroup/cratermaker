@@ -8,7 +8,7 @@ from cratermaker.utils.general_utils import _to_config, parameter
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.core.base import CratermakerBase
-from cratermaker.core.target import Target, make_target
+from cratermaker.core.target import Target
 
 class ImpactorModel(CratermakerBase, ABC):
     def __init__(self, 
@@ -69,7 +69,7 @@ class ImpactorModel(CratermakerBase, ABC):
         object.__setattr__(self, "_direction", direction)
         object.__setattr__(self, "_angle", angle)
 
-        self.target = make_target(target, **kwargs)
+        self.target = Target.make(target, **kwargs)
         self.sample_velocities = sample_velocities
         self.sample_angles = sample_angles
         self.sample_directions = sample_directions
@@ -137,7 +137,7 @@ class ImpactorModel(CratermakerBase, ABC):
     
     @target.setter
     def target(self, value):
-        self._target = make_target(value)
+        self._target = Target.make(value)
 
 
     @parameter
@@ -377,7 +377,7 @@ def make_impactor(impactor: ImpactorModel | str | None = None,
     TypeError
         If the specified impactor model is not a string or a subclass of ImpactorModel.
     """
-    target = make_target(target, **kwargs)
+    target = Target.make(target, **kwargs)
     if impactor is None:
         target_name = target.name.capitalize()
         if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
