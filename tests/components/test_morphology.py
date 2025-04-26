@@ -3,7 +3,7 @@ import tempfile
 from cratermaker.components.morphology import Morphology
 from cratermaker.core.target import Target
 from cratermaker.core.surface import Surface
-from cratermaker import make_crater
+from cratermaker import Crater
 
 morphology_models = Morphology.available()
 class TestMorphology(unittest.TestCase):

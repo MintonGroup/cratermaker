@@ -58,6 +58,7 @@ class Surface(UxDataset):
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
                  simdir: os.PathLike = Path.cwd(),
+                 grid_name: str = "icosphere",
                  **kwargs):
 
         # Call the super class constructor with the UxDataset
@@ -75,6 +76,7 @@ class Surface(UxDataset):
         self._smallest_length = None
         self._target = Target.make(target, **kwargs)
         self._compute_face_areas = compute_face_areas
+        self._grid_name = grid_name
        
         if compute_face_areas: 
             # Compute face area needed in the non-normalized units for future calculations

@@ -96,7 +96,7 @@ class Scaling(ComponentBase):
         """
 
         if scaling is None:
-            scaling = "simplemoon"
+            scaling = "richardson2009"
         return super().make(component=scaling, target=target, impactor=impactor, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     @property
