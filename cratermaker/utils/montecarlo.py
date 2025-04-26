@@ -1,11 +1,12 @@
 import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike
-from typing import Union, Optional
+from typing import Any, Union, Optional
 from numpy.typing import NDArray
 from scipy.stats import truncnorm
 from scipy.stats import maxwell
 from uxarray import Grid
+
 
 def get_random_location(size: int=1, 
                         rng: Generator | None=None

@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker"
-version = "2025.4.1-a1.dev99+gd98f6b1.d20250423"
+version = "2025.4.1-a1.dev177+g3e9477d.d20250426"
 edition = "2021"
 
 [lib]
@@ -9,11 +9,14 @@ crate-type = [ "cdylib",]
 
 [dependencies]
 itertools = "0.14.0"
-ndarray = { version = "0.16.1", features = ["rayon"] }
 numpy = "0.24.0"
 pyo3 = "0.24.0"
 rand = "0.9.1"
 rayon = "1.10.0"
+
+[dependencies.ndarray]
+version = "0.16.1"
+features = [ "rayon",]
 
 [profile.release]
 codegen-units = 1

@@ -43,16 +43,7 @@ class Surface:
         A random number generator instance. If not provided, the default numpy RNG will be used.        
     **kwargs
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
-<<<<<<<
     """ 
-=======
-    """
-    __slots__ = (
-        '_name', '_description', '_data_dir', '_grid_file', '_smallest_length',
-        '_area', '_target', '_rng', '_rng_seed', '_rng_state', '_simdir', '_user_defined',
-        '_compute_face_areas', '_grid_name', '_grid_parameters'
-    )
->>>>>>>
 
     def __init__(self, 
                  data: UxDataset, 
@@ -82,7 +73,10 @@ class Surface:
         self._target = Target.make(target, **kwargs)
         self._compute_face_areas = compute_face_areas
         self._grid_name = grid_name
-       
+
+        return
+    
+    def load_from_data(self, compute_face_areas):
         if compute_face_areas: 
             # Compute face area needed in the non-normalized units for future calculations
             self.face_areas = self.data.uxgrid.face_areas.values * self.target.radius**2
