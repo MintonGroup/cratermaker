@@ -17,11 +17,11 @@ warnings.filterwarnings("ignore",category=FutureWarning,module="xarray")
 warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 
 from .core.simulation import Simulation
-from .core.target import Target
+from .core.target import Target, make_target
 from .core.crater import Crater, make_crater
 from .core.surface import Surface
-from .components.scaling import ScalingModel, available_scaling_models, get_scaling_model
-from .components.production import ProductionModel, available_production_models, get_production_model
-from .components.morphology import MorphologyModel, available_morphology_models, get_morphology_model
-from .components.impactor import ImpactorModel, available_impactor_models, get_impactor_model
-from .components.grid import GridMaker, available_grid_types, get_grid_type
+from .components.scaling import ScalingModel, available_scaling_models, get_scaling_model, make_scaling
+from .components.production import ProductionModel, available_production_models, get_production_model, make_production
+from .components.morphology import MorphologyModel, available_morphology_models, get_morphology_model, make_morphology
+from .components.impactor import ImpactorModel, available_impactor_models, get_impactor_model, make_impactor
+from .components.grid import GridMaker, available_grid_types, get_grid_type, make_grid
