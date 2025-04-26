@@ -7,7 +7,7 @@ from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..components.scaling import ScalingModel, get_scaling_model, make_scaling
-from ..components.impactor import ImpactorModel, get_impactor_model, make_impactor
+from ..components.impactor import Impactor
 from typing import Any
 from .base import CratermakerBase
 
@@ -80,7 +80,7 @@ class Crater:
             location: tuple[float, float] | None = None,
             age: float | None = None,
             scaling: str | ScalingModel = "richardson2009",
-            impactor: str | ImpactorModel = "asteroids",
+            impactor: str | Impactor = "asteroids",
             target: str | Target = "Moon",
             simdir: str | Path = Path.cwd(),
             rng: Generator = None,
@@ -124,7 +124,7 @@ class Crater:
             The age of the crater in Myr.
         scaling : str or ScalingModel, optional
             A string key or instance of a scaling model.
-        impactor : str or ImpactorModel, optional
+        impactor : str or Impactor, optional
             A string key or instance of an impactor model.
         target : str or Target, optional
             The target body name or object. Used internally, not stored on Crater.
@@ -166,7 +166,7 @@ class Crater:
         rng = argproc.rng
 
         target = Target.make(target, **vars(argproc.common_args), **kwargs)
-        impactor = make_impactor(impactor, target=target, **vars(argproc.common_args), **kwargs)
+        impactor = Impactor.make(impactor, target=target, **vars(argproc.common_args), **kwargs)
 
         # --- Normalize location and age ---
         if location is None:
@@ -243,7 +243,7 @@ class Crater:
                 pdir = float(pdir) % 360.0
             # Get or infer projectile density
             prho = prho or target.density
-            impactor = ImpactorModel(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
+            impactor = Impactor(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
 
         scaling = make_scaling(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
         prho = scaling.impactor.density

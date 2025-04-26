@@ -1,14 +1,15 @@
 from numpy.random import Generator
 from typing import Any
-from cratermaker.components.impactor import ImpactorModel, register_impactor_model
+from cratermaker.components.impactor import Impactor
 from warnings import warn
-@register_impactor_model("comets")
-class CometImpactors(ImpactorModel):
+@Impactor.register("comets")
+class CometImpactors(Impactor):
     def __init__(self, 
                  target_name : str = "Moon",
                  density : float = 500.0,
                  rng: Generator | None = None,
-                rng_seed: int | None = None,
+                 rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs: Any):
         """
         An operations class for computing the impactor properties of a comet source population.
@@ -22,7 +23,9 @@ class CometImpactors(ImpactorModel):
         rng : Generator | None
             A random number generator for Monte Carlo simulations. If None, a default generator will be used.
         rng_seed : int | None
-            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.        
+            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.    
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
         Notes
         -----
         The mean impact velocities come from Table 1 of Zahnle et al. [1]_.
@@ -39,7 +42,7 @@ class CometImpactors(ImpactorModel):
         kwargs["sample_velocities"] = True
         kwargs["sample_angles"] = True
         kwargs["sample_directions"] = True
-        super().__init__(target_name=target_name, density=density, rng=rng, rng_seed=rng_seed, **kwargs)
+        super().__init__(target_name=target_name, density=density, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         self.mean_velocity = self._set_mean_velocity()
 
 

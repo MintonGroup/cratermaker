@@ -23,5 +23,5 @@ from .core.surface import Surface
 from .components.scaling import ScalingModel, available_scaling_models, get_scaling_model, make_scaling
 from .components.production import ProductionModel, available_production_models, get_production_model, make_production
 from .components.morphology import Morphology
-from .components.impactor import ImpactorModel, available_impactor_models, get_impactor_model, make_impactor
+from .components.impactor import Impactor
 from .components.grid import Grid

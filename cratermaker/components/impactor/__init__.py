@@ -1,18 +1,17 @@
-import pkgutil
-import importlib
-from abc import ABC, abstractmethod
+from __future__ import annotations
 from typing import Any
 import numpy as np
 from numpy.random import Generator
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import parameter
+from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
-from cratermaker.core.base import CratermakerBase
 from cratermaker.core.target import Target
 
-class ImpactorModel(CratermakerBase, ABC):
+class Impactor(ComponentBase):
+    _registry: dict[str, Impactor] = {}
     def __init__(self, 
-                 target : Target | str = "Moon",
+                 target : Target | str | None = None,
                  mean_velocity : FloatLike = 22100.0, 
                  density : FloatLike = 2500.0,
                  sample_velocities : bool = True,
@@ -54,11 +53,11 @@ class ImpactorModel(CratermakerBase, ABC):
             The rng_rng_seed for the RNG. If None, a new RNG is created.
         rng_state : dict, optional
             The state of the random number generator. If None, a new state is created.
-        kwargs : Any
-            Additional keyword arguments for subclasses. 
+        **kwargs : Any
+            Additional keyword arguments.
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        object.__setattr__(self, "_target", None)
+        object.__setattr__(self, "_target", target)
         object.__setattr__(self, "_component_name", None)
         object.__setattr__(self, "_sample_angles", None)
         object.__setattr__(self, "_sample_velocities", None)
@@ -75,6 +74,92 @@ class ImpactorModel(CratermakerBase, ABC):
         self.sample_directions = sample_directions
 
 
+    @classmethod
+    def make(cls,
+             impactor: Impactor | str | None = None, 
+             target : Target | str | None = None,
+             mean_velocity : FloatLike = 22100.0, 
+             density : FloatLike = 2500.0,
+             sample_velocities : bool = True,
+             sample_angles : bool = True,
+             sample_directions : bool = True,
+             angle: FloatLike = 90.0,
+             velocity : FloatLike | None = None,
+             direction : FloatLike | None = None,
+             rng: Generator | None = None,
+             rng_seed : int | None = None,
+             rng_state : dict | None = None, 
+             **kwargs: Any) -> Impactor:
+        """
+        Initialize an impactor model based on the provided name or class.
+        
+        Parameters
+        ----------
+        impactor : Impactor or str
+            The impactor model to initialize. Can be a class or a string representing the model name.
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
+        mean_velocity : float
+            The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
+        density : float
+            The density of the impactor in kg/m^3. Default is 2500.0 kg/m^3.
+        sample_velocities : bool
+            Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
+        sample_angles : bool
+            Flag that determines whether to sample impact angles from a distribution. If set to False, impact angles will be set to 90 degrees (vertical impact).
+        sample_directions : bool
+            Flag that determines whether to sample impact directions from a distribution. If set to False, impact directions will be set to the mean velocity.
+        angle : float
+            The impact angle in degrees. Default is 90.0 degrees.
+        velocity : float | None
+            The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
+        direction : float | None
+            The impact direction in degrees. If None, the direction will be sampled from a distribution.
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
+        **kwargs : Any
+            Additional keyword arguments.
+        
+        Returns
+        -------
+        Impactor
+            The initialized impactor model.
+        
+        Raises
+        ------
+        KeyError
+            If the specified impactor model is not found in the registry.
+        TypeError
+            If the specified impactor model is not a string or a subclass of Impactor.
+        """
+        target = Target.make(target, **kwargs)
+        if impactor is None:
+            target_name = target.name.capitalize()
+            if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
+                impactor = "asteroids"
+            else:
+                impactor = "comets"
+
+        return super().make(component=impactor,
+                            target=target,
+                            mean_velocity=mean_velocity,
+                            density=density,
+                            sample_velocities=sample_velocities,
+                            sample_angles=sample_angles,
+                            sample_directions=sample_directions,
+                            angle=angle,
+                            velocity=velocity,
+                            direction=direction,
+                            rng=rng,
+                            rng_seed=rng_seed,
+                            rng_state=rng_state, 
+                            **kwargs) 
+
+        
     def new_projectile(self, **kwargs: Any) -> dict:
         """
         Updates the values of the velocities and angles and returns them as a dictionary of projectile properties that can be passed as arguments to the Crater class.
@@ -106,13 +191,6 @@ class ImpactorModel(CratermakerBase, ABC):
             "projectile_direction": self.direction, 
         }
 
-    @parameter
-    def component_name(self):
-        """
-        The registered name of this impactor model set by the @register_impactor_model decorator.
-        """ 
-        return self._component_name
-    
     @parameter
     def target_name(self):
         """
@@ -324,74 +402,7 @@ class ImpactorModel(CratermakerBase, ABC):
     
 
 
-_registry: dict[str, ImpactorModel] = {}
 
-def register_impactor_model(name: str):
-    """
-    Class decorator to register an impactor->crater size impactor component under the given key.
-    """
-    def decorator(cls):
-        cls._component_name = name 
-        cls._user_defined = set()
-        cls._user_defined.add("name")
-        _registry[name] = cls
-        return cls
-    return decorator
 
-def available_impactor_models() -> list[str]:
-    """Return list of all registered catalogue names."""
-    return list(_registry.keys())
+import_components(__name__, __path__, ignore_private=True)
 
-def get_impactor_model(name: str):
-    """Return the component instance for the given name (KeyError if not found)."""
-    return _registry[name]
-
-# This loop will import every .py in this folder, causing those modules
-# (which use @register_impactor_model) to run and register themselves.
-package_dir = __path__[0]
-for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
-    importlib.import_module(f"{__name__}.{module_name}")
-
-def make_impactor(impactor: ImpactorModel | str | None = None, 
-                   target: Target | str | None = None,
-                   **kwargs: Any) -> ImpactorModel:
-    """
-    Initialize an impactor model based on the provided name or class.
-    
-    Parameters
-    ----------
-    impactor : ImpactorModel or str
-        The impactor model to initialize. Can be a class or a string representing the model name.
-    kwargs : Any
-        Additional keyword arguments to be passed to the model constructor.
-    
-    Returns
-    -------
-    ImpactorModel
-        The initialized impactor model.
-    
-    Raises
-    ------
-    KeyError
-        If the specified impactor model is not found in the registry.
-    TypeError
-        If the specified impactor model is not a string or a subclass of ImpactorModel.
-    """
-    target = Target.make(target, **kwargs)
-    if impactor is None:
-        target_name = target.name.capitalize()
-        if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
-            impactor = "asteroids"
-        else:
-            impactor = "comets"
-
-    if isinstance(impactor, str):
-        if impactor not in available_impactor_models():
-            raise KeyError(f"Impactor model '{impactor}' not found in registry.")
-        return get_impactor_model(impactor)(target=target, **kwargs)
-    elif isinstance(impactor, type) and issubclass(impactor, ImpactorModel):
-        return impactor(target=target, **kwargs)
-    elif isinstance(impactor, ImpactorModel):
-        return impactor
-    else:
-        raise TypeError(f"impactor must be a string or a subclass of ImpactorModel, not {type(impactor)}")

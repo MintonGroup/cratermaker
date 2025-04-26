@@ -7,7 +7,7 @@ from numpy.random import Generator
 from cratermaker.utils.general_utils import  parameter
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.target import Target
-from cratermaker.components.impactor import ImpactorModel, make_impactor
+from cratermaker.components.impactor import Impactor
 from cratermaker.core.base import CratermakerBase
 class ScalingModel(CratermakerBase, ABC):
     """
@@ -17,8 +17,8 @@ class ScalingModel(CratermakerBase, ABC):
     ----------
     target : Target | str, default="Moon"
         The target body for the impact. Can be a Target object or a string representing the target name.
-    impactor : ImpactorModel | str, default="asteroids"
-        The impactor model for the impact. Can be an ImpactorModel object or a string representing the impactor name.
+    impactor : Impactor | str, default="asteroids"
+        The impactor model for the impact. Can be an Impactor object or a string representing the impactor name.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -30,7 +30,7 @@ class ScalingModel(CratermakerBase, ABC):
     """
     def __init__(self, 
                  target: Target | str = "Moon",
-                 impactor: ImpactorModel | str = "asteroids",
+                 impactor: Impactor | str = "asteroids",
                  rng : Generator | None = None,
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
@@ -42,7 +42,7 @@ class ScalingModel(CratermakerBase, ABC):
         # combine the kwargs with the common_args, giving common_args priority
         kwargs = {**kwargs, **vars(self.common_args)}
         self._target = Target.make(target, **kwargs)
-        self._impactor = make_impactor(impactor, **kwargs)
+        self._impactor = Impactor.make(impactor, **kwargs)
 
     @abstractmethod
     def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
@@ -106,13 +106,13 @@ class ScalingModel(CratermakerBase, ABC):
         
         Returns
         -------
-        ImpactorModel
+        Impactor
         """ 
         return self._impactor
     
     @impactor.setter
     def impactor(self, value):
-        self._impactor = make_impactor(value, **vars(self.common_args))
+        self._impactor = Impactor.make(value, **vars(self.common_args))
         return
 
 

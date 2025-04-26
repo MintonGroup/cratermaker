@@ -17,7 +17,7 @@ from ..utils.custom_types import FloatLike, PairOfFloats
 from ..components.scaling import ScalingModel, make_scaling, get_scaling_model, available_scaling_models
 from ..components.production import ProductionModel, make_production, available_production_models
 from ..components.morphology import Morphology
-from ..components.impactor import ImpactorModel, make_impactor, get_impactor_model, available_impactor_models
+from ..components.impactor import Impactor
 from .base import CratermakerBase
 
 class Simulation(CratermakerBase):
@@ -30,7 +30,7 @@ class Simulation(CratermakerBase):
                  scaling: ScalingModel | str = "richardson2009",
                  production: ProductionModel | str = "neukum",
                  morphology: Morphology | str = "simplemoon",
-                 impactor: ImpactorModel | str = "asteroids",
+                 impactor: Impactor | str = "asteroids",
                  simdir: str | Path = Path.cwd(),
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
@@ -112,7 +112,7 @@ class Simulation(CratermakerBase):
 
         impactor = impactor_parameters.pop("model", impactor)
         impactor_parameters = {**impactor_parameters, **kwargs}
-        self.impactor = make_impactor(impactor=impactor, target=self.target, **impactor_parameters)
+        self.impactor = Impactor.make(impactor=impactor, target=self.target, **impactor_parameters)
 
         scaling = scaling_model_parameters.pop("model", scaling)
         scaling_model_parameters = {**scaling_model_parameters, **kwargs}
@@ -960,8 +960,8 @@ class Simulation(CratermakerBase):
 
     @impactor.setter
     def impactor(self, value):
-        if not isinstance(value, (ImpactorModel, str)):
-            raise TypeError("morpholog must be of ImpactorModel type or str")
+        if not isinstance(value, (Impactor, str)):
+            raise TypeError("morpholog must be of Impactor type or str")
         self._impactor = value
 
     @property
