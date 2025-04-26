@@ -68,12 +68,6 @@ class Richardson2009(ScalingModel):
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
                  **kwargs):
-        """
-
-        References
-        ----------
-        .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
-        """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         self._target = _init_target(target, **kwargs)
         self._impactor = _init_impactor(impactor=impactor, target=self._target, **kwargs)
@@ -104,6 +98,9 @@ class Richardson2009(ScalingModel):
             self.target.density = density
         elif self.target.density is None:
             self.target.density = self.material_catalogue[self.material_name]["density"]
+        if self.impactor.density is None:
+            self.impactor.density = self.target.density
+        
         arg_check = sum(x is None for x in [self.target.density, self.K1, self.mu, self.Ybar])
         if arg_check > 0:
             raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")

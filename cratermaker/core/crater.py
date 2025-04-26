@@ -206,6 +206,7 @@ def make_crater(final_diameter: float | None = None,
         pvv = impactor.vertical_velocity
         pang = impactor.angle
         pdir = impactor.direction
+        prho = prho or impactor.density
     elif n_set > 2:
         raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
     else:
@@ -239,8 +240,7 @@ def make_crater(final_diameter: float | None = None,
         else:
             pdir = float(pdir) % 360.0
         # Get or infer projectile density
-        if prho is None:
-            prho = target.density
+        prho = prho or target.density
         impactor = ImpactorModel(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
 
     scaling = _init_scaling(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
