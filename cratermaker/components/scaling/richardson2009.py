@@ -6,12 +6,12 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import _set_properties
 from cratermaker.utils.general_utils import _create_catalogue
-from cratermaker.core.target import Target, _init_target
-from cratermaker.components.scaling import register_scaling_model, ScalingModel
-from cratermaker.components.impactor import ImpactorModel, _init_impactor
+from cratermaker.core.target import Target
+from cratermaker.components.scaling import Scaling
+from cratermaker.components.impactor import Impactor
 
-@register_scaling_model("richardson2009")
-class Richardson2009(ScalingModel):
+@Scaling.register("richardson2009")
+class Richardson2009(Scaling):
     """
     This is an operations class for computing the scaling relationships between impactors and craters.
 
@@ -22,8 +22,8 @@ class Richardson2009(ScalingModel):
     ----------
     target : Target | str, default="Moon"
         The target body for the impact. Can be a Target object or a string representing the target name.
-    impactor : ImpactorModel | str, default="asteroids"
-        The impactor model for the impact. Can be an ImpactorModel object or a string representing the impactor name.
+    impactor : Impactor | str, default="asteroids"
+        The impactor model for the impact. Can be an Impactor object or a string representing the impactor name.
     material_name : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
@@ -58,7 +58,7 @@ class Richardson2009(ScalingModel):
 
     def __init__(self, 
                  target: Target | str = "Moon",
-                 impactor: ImpactorModel | str = "asteroids",
+                 impactor: Impactor | str = "asteroids",
                  material_name: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
@@ -69,8 +69,8 @@ class Richardson2009(ScalingModel):
                  rng_state: dict | None = None,
                  **kwargs):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        self._target = _init_target(target, **kwargs)
-        self._impactor = _init_impactor(impactor=impactor, target=self._target, **kwargs)
+        self._target = Target.make(target, **kwargs)
+        self._impactor = Impactor.make(impactor=impactor, target=self._target, **kwargs)
 
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)

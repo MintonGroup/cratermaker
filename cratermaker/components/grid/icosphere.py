@@ -3,11 +3,11 @@ import numpy as np
 from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.components.grid import register_grid_type, GridMaker
+from cratermaker.components.grid import Grid
 from cratermaker.utils.general_utils import parameter
 
-@register_grid_type("icosphere")
-class IcosphereGrid(GridMaker):    
+@Grid.register("icosphere")
+class IcosphereGrid(Grid):    
     """
     Create a uniform grid configuration using an icosphere. This is the most accurate and efficient way to create a uniform grid, but is limited to a few resolutions.
     
@@ -40,7 +40,7 @@ class IcosphereGrid(GridMaker):
         """
         The variables used to generate the hash.
         """
-        return [self._gridtype, self._radius, self._gridlevel] 
+        return [self._component_name, self._radius, self._gridlevel] 
 
 
     def generate_face_distribution(self, **kwargs: Any) -> NDArray:
@@ -84,4 +84,4 @@ class IcosphereGrid(GridMaker):
         """
         The variables used to generate the hash.
         """
-        return [self._gridtype, self._radius, self._gridlevel]
+        return [self._component_name, self._radius, self._gridlevel]

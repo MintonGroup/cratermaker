@@ -1,13 +1,13 @@
 import numpy as np
 from numpy.random import Generator
-from cratermaker.components.production import register_production_model, ProductionModel
+from cratermaker.components.production import Production
 from cratermaker.utils.custom_types import FloatLike
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 from typing import Any, Union
 
-@register_production_model("powerlaw")
-class PowerLawProduction(ProductionModel):
+@Production.register("powerlaw")
+class PowerLawProduction(Production):
     """
     An operations class for computing the production function for craters and impactors. This impliments a very simple power law 
     production function that can be used as either a crater or projectile production function. The production function is defined as

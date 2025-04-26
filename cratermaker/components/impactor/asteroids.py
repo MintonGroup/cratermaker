@@ -1,38 +1,43 @@
 from numpy.random import Generator
 from typing import Any
-from cratermaker.components.impactor import ImpactorModel, register_impactor_model
+from cratermaker.core.target import Target
+from cratermaker.components.impactor import Impactor
+from cratermaker.utils.custom_types import FloatLike
 from warnings import warn
 
-@register_impactor_model("asteroids")
-class AsteroidImpactors(ImpactorModel):
+@Impactor.register("asteroids")
+class AsteroidImpactors(Impactor):
     def __init__(self, 
-                 target_name : str = "Moon",
-                 density : float = 2250.0,
+                 target : Target | str | None = None,
+                 density : FloatLike = 2250.0,
                  rng: Generator | None = None,
-                 rng_seed: int | None = None,
+                 rng_seed : int | None = None,
+                 rng_state : dict | None = None, 
                  **kwargs: Any):
         """
         An operations class for computing the impactor properties of an asteroid source population.
 
         Parameters
         ----------
-        target_name : str
-            The name of the target body for the impact.
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
         density : float
             The density of the impactor in kg/m^3. Default is 2250.0 kg/m^3.
-        rng : Generator | None
-            A random number generator for Monte Carlo simulations. If None, a default generator will be used.
-        rng_seed : int | None
-            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
         **kwargs : Any
-            Additional keyword arguments to be passed to internal functions.
+            Additional keyword arguments.
         """
 
         # This model always samples velocities, angles, and directions, so override any values that may have been passed.
         kwargs["sample_velocities"] = True
         kwargs["sample_angles"] = True
         kwargs["sample_directions"] = True
-        super().__init__(target_name=target_name, density=density, rng=rng, rng_seed=rng_seed, **kwargs)
+        super().__init__(target=target, density=density, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         self.mean_velocity = self._set_mean_velocity()
 
 

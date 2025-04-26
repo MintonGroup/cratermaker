@@ -4,11 +4,11 @@ import numpy as np
 from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.components.grid import register_grid_type, GridMaker
+from cratermaker.components.grid import Grid
 from cratermaker.utils.general_utils import parameter
 
-@register_grid_type("arbitrary_resolution")
-class ArbitraryResolutionGrid(GridMaker):
+@Grid.register("arbitrary_resolution")
+class ArbitraryResolutionGrid(Grid):
     """
     Create a uniform grid configuration with an arbitrary user-defined pixel size. This will not be as nice as the regular IcosphereGrid, but can be any resolution desired.
     
@@ -40,7 +40,7 @@ class ArbitraryResolutionGrid(GridMaker):
         """
         The variables used to generate the hash.
         """
-        return [self._gridtype, self._radius, self._pix]
+        return [self._component_name, self._radius, self._pix]
 
     @parameter
     def pix(self):

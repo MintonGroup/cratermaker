@@ -6,10 +6,10 @@ from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.general_utils import validate_and_convert_location, parameter
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.components.grid import register_grid_type, GridMaker
+from cratermaker.components.grid import Grid
 
-@register_grid_type("hireslocal")
-class HiResLocalGrid(GridMaker):
+@Grid.register("hireslocal")
+class HiResLocalGrid(Grid):
     """
     Create a uniform grid configuration with the given pixel size.
     
@@ -53,7 +53,7 @@ class HiResLocalGrid(GridMaker):
         """
         The variables used to generate the hash.
         """
-        return [self._gridtype, self._radius, self._pix, self._local_radius, self._local_location, self._superdomain_scale_factor]
+        return [self._component_name, self._radius, self._pix, self._local_radius, self._local_location, self._superdomain_scale_factor]
         
     def _generate_variable_size_array(self) -> tuple[NDArray, NDArray, NDArray]:
         """

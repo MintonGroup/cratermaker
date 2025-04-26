@@ -18,10 +18,10 @@ warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 
 from .core.simulation import Simulation
 from .core.target import Target
-from .core.crater import Crater, make_crater
+from .core.crater import Crater
 from .core.surface import Surface
-from .components.scaling import ScalingModel, available_scaling_models, get_scaling_model
-from .components.production import ProductionModel, available_production_models, get_production_model
-from .components.morphology import MorphologyModel, available_morphology_models, get_morphology_model
-from .components.impactor import ImpactorModel, available_impactor_models, get_impactor_model
-from .components.grid import GridMaker, available_grid_types, get_grid_type
+from .components.scaling import Scaling
+from .components.production import Production
+from .components.morphology import Morphology
+from .components.impactor import Impactor
+from .components.grid import Grid

@@ -95,7 +95,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Surface.initialize
+    Surface.make
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
     Surface.find_nearest_index
@@ -130,7 +130,7 @@ Generating grids
 .. autosummary::
     :toctree: generated/
 
-    GridMaker
+    Grid
 
 Methods
 -------
@@ -138,10 +138,10 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    GridMaker.generate_face_distribution
-    GridMaker.generate_grid
-    GridMaker.generate_hash
-    GridMaker.check_and_regrid
+    Grid.generate_face_distribution
+    Grid.generate_grid
+    Grid.generate_hash
+    Grid.check_and_regrid
 
 Generating a uniform Icosphere grid
 -----------------------------------
@@ -256,7 +256,7 @@ Attributes
     Production.generator_type
     Production.impact_velocity_model
     Production.mean_velocity
-    Production.model
+    Production.name
     Production.N1_coef
     Production.slope
     Production.rng
@@ -397,20 +397,20 @@ Attributes
     Crater.target
     Crater.rng
 
-.. _api-ScalingModel:
+.. _api-Scaling:
 
-ScalingModel
+Scaling
 ============
 
-The ScalingModel class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
+The Scaling class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
 
-Creating ScalingModel
+Creating Scaling
 --------------
 
 .. autosummary::
     :toctree: generated/
 
-    ScalingModel
+    Scaling
 
 Methods
 -------
@@ -418,13 +418,13 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    ScalingModel.get_morphology_type
-    ScalingModel.final_to_transient
-    ScalingModel.transient_to_final
-    ScalingModel.projectile_to_crater
-    ScalingModel.crater_to_projectile
-    ScalingModel.projectile_to_transient
-    ScalingModel.transient_to_projectile
+    Scaling.get_morphology_type
+    Scaling.final_to_transient
+    Scaling.transient_to_final
+    Scaling.projectile_to_crater
+    Scaling.crater_to_projectile
+    Scaling.projectile_to_transient
+    Scaling.transient_to_projectile
 
 Attributes
 ----------
@@ -432,15 +432,15 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    ScalingModel.target
-    ScalingModel.material
-    ScalingModel.material_name
-    ScalingModel.rng
-    ScalingModel.transition_diameter
-    ScalingModel.transition_nominal
-    ScalingModel.simple_enlargement_factor
-    ScalingModel.complex_enlargement_factor
-    ScalingModel.final_exp
+    Scaling.target
+    Scaling.material
+    Scaling.material_name
+    Scaling.rng
+    Scaling.transition_diameter
+    Scaling.transition_nominal
+    Scaling.simple_enlargement_factor
+    Scaling.complex_enlargement_factor
+    Scaling.final_exp
 
 
 .. _api-Morphology:

@@ -1,15 +1,14 @@
 import numpy as np
 from numpy.random import Generator
-from numpy.typing import NDArray
-from cratermaker.components.production import register_production_model, ProductionModel
+from cratermaker.components.production import Production
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.general_utils import R_to_CSFD, parameter
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 from typing import Any, Union
 
-@register_production_model("neukum")
-class NeukumProduction(ProductionModel):
+@Production.register("neukum")
+class NeukumProduction(Production):
     """
     An operations class for computing the the Neukum production function for the Moon and Mars.
 
@@ -50,14 +49,14 @@ class NeukumProduction(ProductionModel):
 
     """
     def __init__(self, 
-                 version: str = "Moon",
+                 version: str | None = None,
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
                  **kwargs: Any):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs) 
 
-        self.version = version
+        self.version = version or "Moon"
 
 
     def function(self,

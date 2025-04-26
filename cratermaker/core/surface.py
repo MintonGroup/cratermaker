@@ -1,3 +1,4 @@
+from __future__ import annotations
 import xarray as xr
 from xarray import DataArray, Dataset
 import uxarray as uxr
@@ -11,12 +12,12 @@ import tempfile
 from typing import List, Union
 from numpy.typing import NDArray, ArrayLike
 from numpy.random import Generator
-from .target import Target, _init_target
+from .target import Target
 import warnings
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
 from cratermaker.utils.general_utils import _to_config, parameter
-from cratermaker.components.grid import _init_grid, available_grid_types
+from cratermaker.components.grid import Grid
 from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME, _SMALLFAC, _COMBINED_DATA_FILE_NAME
 from .base import CratermakerBase, _rng_init, _simdir_init, CommonArgs
 from typing import Any
@@ -46,7 +47,7 @@ class Surface(UxDataset):
     __slots__ = (
         '_name', '_description', '_data_dir', '_grid_file', '_smallest_length',
         '_area', '_target', '_rng', '_rng_seed', '_rng_state', '_simdir', '_user_defined',
-        '_compute_face_areas', '_gridtype', '_grid_parameters'
+        '_compute_face_areas', '_grid_name', '_grid_parameters'
     )
 
     def __init__(self, 
@@ -57,6 +58,7 @@ class Surface(UxDataset):
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
                  simdir: os.PathLike = Path.cwd(),
+                 grid_name: str = "icosphere",
                  **kwargs):
 
         # Call the super class constructor with the UxDataset
@@ -72,8 +74,9 @@ class Surface(UxDataset):
         self._description = "Surface class for cratermaker"
         self._area = None
         self._smallest_length = None
-        self._target = _init_target(target, **kwargs)
+        self._target = Target.make(target, **kwargs)
         self._compute_face_areas = compute_face_areas
+        self._grid_name = grid_name
        
         if compute_face_areas: 
             # Compute face area needed in the non-normalized units for future calculations
@@ -86,16 +89,16 @@ class Surface(UxDataset):
         return _to_config(self)
 
     @classmethod
-    def initialize(cls, 
-                   target: Target | None,
-                   reset_surface: bool = True, 
-                   gridtype: str | None = None,
-                   regrid: bool = False,
-                   simdir: str | Path = Path.cwd(),
-                   rng: Generator | None = None,
-                   rng_seed: int | None = None,
-                   rng_state: dict | None = None,
-                   **kwargs):
+    def make(cls: Surface, 
+             target: Target | None = None, 
+             reset_surface: bool = True, 
+             grid: str | None = None,
+             regrid: bool = False,
+             simdir: str | None = None,
+             rng: Generator | None = None,
+             rng_seed: int | None = None,
+             rng_state: dict | None = None,
+             **kwargs) -> Surface:
         """
         Factory method to create a Surface instance from a grid file.
 
@@ -105,7 +108,7 @@ class Surface(UxDataset):
             Target object or name of known body for the simulation. Default is Target("Moon")
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        gridtype : str, optional
+        grid : str, optional
             The type of grid to be generated. Default is "icosphere".  
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
@@ -116,7 +119,7 @@ class Surface(UxDataset):
         rng_seed : int | None
             The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
         **kwargs : dict
-            Additional keyword arguments for initializing the Surface instance based on the specific gridtype.
+            Additional keyword arguments for initializing the Surface instance based on the specific name.
 
         Returns
         -------
@@ -129,46 +132,22 @@ class Surface(UxDataset):
         rng_state = argproc.rng_state
         simdir = argproc.simdir
 
-        target = _init_target(target, **kwargs)
+        target = Target.make(target, **kwargs)
 
-        grid_parameters = kwargs.pop("grid_parameters", {})
-        radius = target.radius
+        kwargs = {**kwargs, **vars(argproc.common_args)}
+        grid = Grid.make(grid=grid, target=target, regrid=regrid, **kwargs) 
 
-        # Verify directory structure exists and create it if not
-        data_dir = simdir / _DATA_DIR
-
-        if not data_dir.exists():
-            data_dir.mkdir(parents=True)
-            reset_surface = True
-
-        grid_file = data_dir / _GRID_FILE_NAME 
-        regrid = regrid or not grid_file.exists()
-
-        kwargs = {**kwargs, **grid_parameters, **vars(argproc.common_args)} 
-        grid = _init_grid(grid=gridtype, radius=radius, **kwargs)
-            
-        # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
-        if not regrid: 
-            make_new_grid = grid.check_if_regrid(**kwargs)
-        else:
-            make_new_grid = True
-        
-        if make_new_grid:
-            print("Creating a new grid")
-            grid.create_grid(**kwargs)
-        else:
-            print("Using existing grid")
-        
         # Get the names of all data files in the data directory that are not the grid file
+        data_dir = grid.file.parent
         data_file_list = list(data_dir.glob("*.nc"))
-        if grid_file in data_file_list:
-            data_file_list.remove(grid_file)
+        if grid.file in data_file_list:
+            data_file_list.remove(grid.file)
             
         # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-        reset_surface = reset_surface or make_new_grid or not data_file_list
+        reset_surface = reset_surface or not data_file_list
         
         # If reset_surface is True, delete all data files except the grid file 
-        if reset_surface:
+        if reset_surface or grid.regrid:
             for f in data_file_list:
                 f.unlink()  
             data_file_list = []
@@ -193,7 +172,7 @@ class Surface(UxDataset):
                    rng_seed = rng_seed,
                    rng_state = rng_state,
                    compute_face_areas = True,
-                   
+                   grid_name = grid._component_name 
                   ) 
         
         if reset_surface:
@@ -213,7 +192,7 @@ class Surface(UxDataset):
 
         surf.grid_parameters = grid.to_config()
         surf.grid_parameters.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
-        surf.grid_parameters['gridtype'] = gridtype
+        surf.grid_parameters['grid'] = grid
         
         return surf        
         
@@ -240,7 +219,7 @@ class Surface(UxDataset):
         ds = super()._calculate_binary_op(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._name = self._name
+            ds._grid_name = self._grid_name
             ds._description = self._description
             ds._simdir = self._simdir
             ds._target = self._target
@@ -272,7 +251,7 @@ class Surface(UxDataset):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
 
-        copied._name = self._name
+        copied._grid_name = self._grid_name
         copied._description = self._description
         copied._simdir = self._simdir
         copied._smallest_length = self._smallest_length
@@ -290,7 +269,7 @@ class Surface(UxDataset):
         ds = super()._replace(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._name = self._name
+            ds._grid_name = self._grid_name
             ds._description = self._description
             ds._simdir = self._simdir
             ds._target = self._target
@@ -328,22 +307,13 @@ class Surface(UxDataset):
         """
         return self.simdir / _DATA_DIR / _GRID_FILE_NAME
 
-
     @parameter
-    def gridtype(self):
+    def grid_name(self):
         """
         The type of grid used for the surface.
         """
-        return self._gridtype
+        return self._grid_name
     
-    @gridtype.setter
-    def gridtype(self, value):
-        if not isinstance(value, str):
-            raise TypeError("gridtype must be a string")
-        if value not in available_grid_types():
-            raise ValueError(f"gridtype must be one of {available_grid_types()}")
-        self._gridtype = value
-
     @parameter
     def compute_face_areas(self):
         """
@@ -406,7 +376,7 @@ class Surface(UxDataset):
 
     @target.setter
     def target(self, value):
-        self._target = _init_target(value)
+        self._target = Target.make(value)
         return 
     
     def to_config(self, **kwargs: Any) -> dict[str, Any]:

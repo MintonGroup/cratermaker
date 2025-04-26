@@ -9,15 +9,15 @@ from typing import Any
 from numpy.typing import ArrayLike
 import yaml
 from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR
-from .target import Target, _init_target
-from .crater import Crater, make_crater
+from .target import Target
+from .crater import Crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..components.scaling import ScalingModel, _init_scaling, get_scaling_model, available_scaling_models
-from ..components.production import ProductionModel, _init_production, available_production_models
-from ..components.morphology import MorphologyModel, _init_morphology, get_morphology_model, available_morphology_models
-from ..components.impactor import ImpactorModel, _init_impactor, get_impactor_model, available_impactor_models
+from ..components.scaling import Scaling
+from ..components.production import Production
+from ..components.morphology import Morphology
+from ..components.impactor import Impactor
 from .base import CratermakerBase
 
 class Simulation(CratermakerBase):
@@ -27,10 +27,10 @@ class Simulation(CratermakerBase):
     """
     def __init__(self, *, # Enforce keyword-only arguments
                  target: Target | str = "Moon",
-                 scaling: ScalingModel | str = "richardson2009",
-                 production: ProductionModel | str = "neukum",
-                 morphology: MorphologyModel | str = "simplemoon",
-                 impactor: ImpactorModel | str = "asteroids",
+                 scaling: Scaling | str = "richardson2009",
+                 production: Production | str = "neukum",
+                 morphology: Morphology | str = "simplemoon",
+                 impactor: Impactor | str = "asteroids",
                  simdir: str | Path = Path.cwd(),
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
@@ -68,7 +68,7 @@ class Simulation(CratermakerBase):
             
         See Also
         --------
-        cratermaker.core.surface.Surface.initialize : Parameters for initializing a surface mesh.
+        cratermaker.core.surface.Surface.make : Parameters for initializing a surface mesh.
         """
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
@@ -104,23 +104,23 @@ class Simulation(CratermakerBase):
 
         target = target_parameters.pop("name", target)
         target_parameters = {**target_parameters, **kwargs}
-        self.target = _init_target(target=target, **target_parameters)
+        self.target = Target.make(target=target, **target_parameters)
 
         production = production_model_parameters.pop("model", production)
         production_model_parameters = {**production_model_parameters, **kwargs}
-        self.production = _init_production(production=production,  target=self.target, **production_model_parameters)
+        self.production = Production.make(production=production,  target=self.target, **production_model_parameters)
 
         impactor = impactor_parameters.pop("model", impactor)
         impactor_parameters = {**impactor_parameters, **kwargs}
-        self.impactor = _init_impactor(impactor=impactor, target=self.target, **impactor_parameters)
+        self.impactor = Impactor.make(impactor=impactor, target=self.target, **impactor_parameters)
 
         scaling = scaling_model_parameters.pop("model", scaling)
         scaling_model_parameters = {**scaling_model_parameters, **kwargs}
-        self.scaling = _init_scaling(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
+        self.scaling = Scaling.make(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
 
         morphology = morphology_model_parameters.pop("model", morphology)
         morphology_model_parameters = {**morphology_model_parameters, **kwargs}
-        self.morphology = _init_morphology(morphology=morphology, **morphology_model_parameters)
+        self.morphology = Morphology.make(morphology=morphology, **morphology_model_parameters)
       
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
@@ -135,7 +135,7 @@ class Simulation(CratermakerBase):
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
         surface_parameters = {**surface_parameters, **kwargs}
-        self.surf = Surface.initialize(target=self.target, **kwargs)
+        self.surf = Surface.make(target=self.target, **kwargs)
 
         self._craterlist = []
         self._crater = None
@@ -219,7 +219,7 @@ class Simulation(CratermakerBase):
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
          
-        crater = make_crater(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
+        crater = Crater.make(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
         
         return crater
     
@@ -920,21 +920,21 @@ class Simulation(CratermakerBase):
 
     @production.setter
     def production(self, value):
-        if not isinstance(value, (ProductionModel, str)):
+        if not isinstance(value, (Production, str)):
             raise TypeError("production must be a subclass of Production or str")
         self._production = value
 
     @property
     def scaling(self):
         """
-        The ScalingModel object that defines the crater scaling relationships model. Set during initialization.
+        The Scaling object that defines the crater scaling relationships model. Set during initialization.
         """
         return self._scale
 
     @scaling.setter
     def scaling(self, value):
-        if not isinstance(value, (ScalingModel, str)):
-            raise TypeError("scaling must be of ScalingModel type or str")
+        if not isinstance(value, (Scaling, str)):
+            raise TypeError("scaling must be of Scaling type or str")
         self._scale = value
 
     @property
@@ -946,8 +946,8 @@ class Simulation(CratermakerBase):
 
     @morphology.setter
     def morphology(self, value):
-        if not isinstance(value, (MorphologyModel, str)):
-            raise TypeError("morpholog must be of MorphologyModel type or str")
+        if not isinstance(value, (Morphology, str)):
+            raise TypeError("morpholog must be of Morphology type or str")
         self._morphology = value
 
 
@@ -960,8 +960,8 @@ class Simulation(CratermakerBase):
 
     @impactor.setter
     def impactor(self, value):
-        if not isinstance(value, (ImpactorModel, str)):
-            raise TypeError("morpholog must be of ImpactorModel type or str")
+        if not isinstance(value, (Impactor, str)):
+            raise TypeError("morpholog must be of Impactor type or str")
         self._impactor = value
 
     @property

@@ -6,12 +6,12 @@ from typing import Any
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.surface import Surface
 from cratermaker.core.crater import Crater
-from cratermaker.components.morphology import register_morphology_model, MorphologyModel
+from cratermaker.components.morphology import Morphology
 from cratermaker.utils.general_utils import parameter
 from cratermaker import crater_functions, ejecta_functions
 
-@register_morphology_model("simplemoon")
-class SimpleMoon(MorphologyModel):
+@Morphology.register("simplemoon")
+class SimpleMoon(Morphology):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh.
 
@@ -392,7 +392,7 @@ class SimpleMoon(MorphologyModel):
 
     @crater.setter
     def crater(self, value):
-        MorphologyModel.crater.fset(self, value)
+        Morphology.crater.fset(self, value)
         self._set_morphology_parameters()
 
     @property
