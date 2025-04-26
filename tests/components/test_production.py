@@ -1,12 +1,12 @@
 import unittest
-from cratermaker.components.production import make_production, get_production_model, available_production_models
+from cratermaker.components.production import Production
 import numpy as np
 
-production_models = available_production_models()
+production_models = Production.available()
 class TestProduction(unittest.TestCase):
     def test_production_N_to_time(self):
         for model_name in production_models:
-            production = get_production_model(model_name)()
+            production = Production.make(production=model_name)
             for age_orig in np.linspace(0,4500,num=10):
                 D = np.logspace(-1,3,num=1000)
                 N = production.function(diameter=D,age=age_orig, check_valid_time=False)
@@ -15,7 +15,7 @@ class TestProduction(unittest.TestCase):
             
     def test_sample_arguments(self):
         for model_name in production_models:
-            production = get_production_model(model_name)()
+            production = Production.make(production=model_name)
 
             # Test valid arguments
             try:
@@ -72,18 +72,18 @@ class TestProduction(unittest.TestCase):
                 production.sample(diameter_number_end=(-100, 10), diameter_range=(10, 100))
 
     def test_small_sample(self):
-        neukum = get_production_model("neukum")(version="Moon")
+        neukum = Production.make(production="neukum", version="Moon")
         # Test that the number of craters is zero when the age and area are ridiculously tiny
         diameter, age = neukum.sample(age=1e-6, diameter_range=(300e3, 1000e3), area=1e-6)
         self.assertEqual(diameter.size, 0)
         self.assertEqual(age.size, 0) 
 
     def testmake_production(self):
-        # Test that make_production returns a valid production model
+        # Test that Production.make returns a valid production model
         for model_name in production_models:
-            production = make_production(model_name)
+            production = Production.make(production=model_name)
             self.assertIn(model_name, production_models)
-            self.assertIsInstance(production, get_production_model(model_name))
+            self.assertIsInstance(production, Production.make(production=model_name))
         
 if __name__ == '__main__':
     unittest.main()

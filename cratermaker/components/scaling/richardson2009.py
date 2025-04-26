@@ -7,11 +7,11 @@ from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import _set_properties
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
-from cratermaker.components.scaling import register_scaling_model, ScalingModel
+from cratermaker.components.scaling import Scaling
 from cratermaker.components.impactor import Impactor
 
-@register_scaling_model("richardson2009")
-class Richardson2009(ScalingModel):
+@Scaling.register("richardson2009")
+class Richardson2009(Scaling):
     """
     This is an operations class for computing the scaling relationships between impactors and craters.
 

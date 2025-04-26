@@ -1,12 +1,11 @@
 import unittest
-from cratermaker import Target, get_scaling_model
+from cratermaker import Target, Scaling
 
-Scaling = get_scaling_model("richardson2009")
 class TestScale(unittest.TestCase):
    
     def test_scale_from_catalogue(self):
         # Test creating a scaling from the catalogue
-        scaling = Scaling(material_name="Soft Rock")
+        scaling = Scaling.make(material_name="Soft Rock")
         self.assertEqual(scaling.K1, 0.20)
         self.assertEqual(scaling.mu, 0.55)
         self.assertEqual(scaling.Ybar, 7.60e6)
@@ -21,13 +20,13 @@ class TestScale(unittest.TestCase):
 
     def test_scale_override_catalogue(self):
         # Test overriding a property from the catalogue
-        scaling = Scaling(material_name="Soft Rock", Ybar=0.0)
+        scaling = Scaling.make(material_name="Soft Rock", Ybar=0.0)
         self.assertEqual(scaling.Ybar, 0.0)
         return
 
     def test_custom_scale(self):
         # Test creating a custom scaling
-        scaling = Scaling(material_name="Flubber", K1=3.8, mu=0.1, Ybar=1e7, density=2000.0)
+        scaling = Scaling.make(material_name="Flubber", K1=3.8, mu=0.1, Ybar=1e7, density=2000.0)
         self.assertEqual(scaling.K1, 3.8)
         self.assertEqual(scaling.mu, 0.1)
         self.assertEqual(scaling.Ybar, 1e7)
@@ -37,15 +36,15 @@ class TestScale(unittest.TestCase):
     def test_incomplete_custom_scale(self):
         # Test incomplete custom scaling creation
         with self.assertRaises(ValueError):
-            Scaling(material_name="Flubber", density=2000.0)
+            Scaling.make(material_name="Flubber", density=2000.0)
         with self.assertRaises(ValueError):
-            Scaling(material_name="Blorp", mu=0.1, Ybar=1e7, density=2000.0)
+            Scaling.make(material_name="Blorp", mu=0.1, Ybar=1e7, density=2000.0)
         return
     
     def test_scale_override_catalogue(self):
         # Test overriding a property from the catalogue
         target = Target(name="Mars")
-        scaling = Scaling(target=target,material_name="Sand")
+        scaling = Scaling.make(target=target,material_name="Sand")
         self.assertEqual(scaling.material_name, "Sand")    
 
 if __name__ == '__main__':

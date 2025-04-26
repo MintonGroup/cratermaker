@@ -14,8 +14,8 @@ from .crater import Crater
 from .surface import Surface, _save_surface
 from ..utils.general_utils import _set_properties, _to_config, parameter
 from ..utils.custom_types import FloatLike, PairOfFloats
-from ..components.scaling import ScalingModel, make_scaling, get_scaling_model, available_scaling_models
-from ..components.production import ProductionModel, make_production, available_production_models
+from ..components.scaling import Scaling
+from ..components.production import Production
 from ..components.morphology import Morphology
 from ..components.impactor import Impactor
 from .base import CratermakerBase
@@ -27,8 +27,8 @@ class Simulation(CratermakerBase):
     """
     def __init__(self, *, # Enforce keyword-only arguments
                  target: Target | str = "Moon",
-                 scaling: ScalingModel | str = "richardson2009",
-                 production: ProductionModel | str = "neukum",
+                 scaling: Scaling | str = "richardson2009",
+                 production: Production | str = "neukum",
                  morphology: Morphology | str = "simplemoon",
                  impactor: Impactor | str = "asteroids",
                  simdir: str | Path = Path.cwd(),
@@ -108,7 +108,7 @@ class Simulation(CratermakerBase):
 
         production = production_model_parameters.pop("model", production)
         production_model_parameters = {**production_model_parameters, **kwargs}
-        self.production = make_production(production=production,  target=self.target, **production_model_parameters)
+        self.production = Production.make(production=production,  target=self.target, **production_model_parameters)
 
         impactor = impactor_parameters.pop("model", impactor)
         impactor_parameters = {**impactor_parameters, **kwargs}
@@ -116,7 +116,7 @@ class Simulation(CratermakerBase):
 
         scaling = scaling_model_parameters.pop("model", scaling)
         scaling_model_parameters = {**scaling_model_parameters, **kwargs}
-        self.scaling = make_scaling(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
+        self.scaling = Scaling.make(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
 
         morphology = morphology_model_parameters.pop("model", morphology)
         morphology_model_parameters = {**morphology_model_parameters, **kwargs}
@@ -920,21 +920,21 @@ class Simulation(CratermakerBase):
 
     @production.setter
     def production(self, value):
-        if not isinstance(value, (ProductionModel, str)):
+        if not isinstance(value, (Production, str)):
             raise TypeError("production must be a subclass of Production or str")
         self._production = value
 
     @property
     def scaling(self):
         """
-        The ScalingModel object that defines the crater scaling relationships model. Set during initialization.
+        The Scaling object that defines the crater scaling relationships model. Set during initialization.
         """
         return self._scale
 
     @scaling.setter
     def scaling(self, value):
-        if not isinstance(value, (ScalingModel, str)):
-            raise TypeError("scaling must be of ScalingModel type or str")
+        if not isinstance(value, (Scaling, str)):
+            raise TypeError("scaling must be of Scaling type or str")
         self._scale = value
 
     @property
@@ -1143,7 +1143,7 @@ class Simulation(CratermakerBase):
         self._largest_projectile = float(value)
 
     @property
-    def component_name(self):
+    def name(self):
         """
         The name of the simulation. 
         """

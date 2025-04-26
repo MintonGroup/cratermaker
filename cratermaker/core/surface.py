@@ -45,9 +45,9 @@ class Surface(UxDataset):
         This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
     """
     __slots__ = (
-        '_component_name', '_description', '_data_dir', '_grid_file', '_smallest_length',
+        '_name', '_description', '_data_dir', '_grid_file', '_smallest_length',
         '_area', '_target', '_rng', '_rng_seed', '_rng_state', '_simdir', '_user_defined',
-        '_compute_face_areas', '_component_name', '_grid_parameters'
+        '_compute_face_areas', '_grid_name', '_grid_parameters'
     )
 
     def __init__(self, 
@@ -69,7 +69,7 @@ class Surface(UxDataset):
         self._simdir = argproc.simdir
 
         # Additional initialization for Surface
-        self._component_name = "Surface"
+        self._name = "Surface"
         self._description = "Surface class for cratermaker"
         self._area = None
         self._smallest_length = None
@@ -90,7 +90,7 @@ class Surface(UxDataset):
     def make(cls: Surface, 
              target: Target | None = None, 
              reset_surface: bool = True, 
-             name: str | None = None,
+             grid: str | None = None,
              regrid: bool = False,
              simdir: str | Path = Path.cwd(),
              rng: Generator | None = None,
@@ -106,7 +106,7 @@ class Surface(UxDataset):
             Target object or name of known body for the simulation. Default is Target("Moon")
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        name : str, optional
+        grid : str, optional
             The type of grid to be generated. Default is "icosphere".  
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
@@ -133,7 +133,7 @@ class Surface(UxDataset):
         target = Target.make(target, **kwargs)
 
         kwargs = {**kwargs, **vars(argproc.common_args)}
-        grid = Grid.make(grid=name, target=target, regrid=regrid, **kwargs) 
+        grid = Grid.make(grid=grid, target=target, regrid=regrid, **kwargs) 
 
         # Get the names of all data files in the data directory that are not the grid file
         data_dir = grid.file.parent
@@ -170,7 +170,7 @@ class Surface(UxDataset):
                    rng_seed = rng_seed,
                    rng_state = rng_state,
                    compute_face_areas = True,
-                   
+                   grid_name = grid._component_name 
                   ) 
         
         if reset_surface:
@@ -190,7 +190,7 @@ class Surface(UxDataset):
 
         surf.grid_parameters = grid.to_config()
         surf.grid_parameters.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
-        surf.grid_parameters['name'] = name
+        surf.grid_parameters['grid'] = grid
         
         return surf        
         
@@ -217,7 +217,7 @@ class Surface(UxDataset):
         ds = super()._calculate_binary_op(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._component_name = self._component_name
+            ds._grid_name = self._grid_name
             ds._description = self._description
             ds._simdir = self._simdir
             ds._target = self._target
@@ -249,7 +249,7 @@ class Surface(UxDataset):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
 
-        copied._component_name = self._component_name
+        copied._grid_name = self._grid_name
         copied._description = self._description
         copied._simdir = self._simdir
         copied._smallest_length = self._smallest_length
@@ -267,7 +267,7 @@ class Surface(UxDataset):
         ds = super()._replace(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._component_name = self._component_name
+            ds._grid_name = self._grid_name
             ds._description = self._description
             ds._simdir = self._simdir
             ds._target = self._target
@@ -306,11 +306,11 @@ class Surface(UxDataset):
         return self.simdir / _DATA_DIR / _GRID_FILE_NAME
 
     @parameter
-    def component_name(self):
+    def grid_name(self):
         """
         The type of grid used for the surface.
         """
-        return self._component_name
+        return self._grid_name
     
     @parameter
     def compute_face_areas(self):

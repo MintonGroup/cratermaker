@@ -58,7 +58,6 @@ class Impactor(ComponentBase):
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
-        object.__setattr__(self, "_component_name", None)
         object.__setattr__(self, "_sample_angles", None)
         object.__setattr__(self, "_sample_velocities", None)
         object.__setattr__(self, "_sample_directions", None)
@@ -400,9 +399,6 @@ class Impactor(ComponentBase):
         """
         return self.velocity * np.sin(np.radians(self.angle))
     
-
-
-
 
 import_components(__name__, __path__, ignore_private=True)
 

@@ -56,7 +56,7 @@ class Target(CratermakerBase):
         """    
         object.__setattr__(self, "_updating", False)   # guard against recursive updates
         super().__init__(**kwargs)
-        object.__setattr__(self, "_component_name", None)
+        object.__setattr__(self, "_name", None)
         object.__setattr__(self, "_radius", None)
         object.__setattr__(self, "_diameter", None)
         object.__setattr__(self, "_mass", None)

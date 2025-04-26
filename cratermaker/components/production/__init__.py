@@ -1,6 +1,5 @@
-import pkgutil
-import importlib
-from abc import ABC, abstractmethod
+from __future__ import annotations
+from abc import abstractmethod
 import numpy as np
 from numpy.random import Generator
 from scipy.optimize import root_scalar
@@ -10,10 +9,11 @@ from typing import Any, Union
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.montecarlo import get_random_size
 from cratermaker.utils.general_utils import parameter
-from cratermaker.core.base import CratermakerBase
+from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.core.target import Target
 
-class ProductionModel(CratermakerBase, ABC):
+class Production(ComponentBase):
+    _registry: dict[str, Production] = {}
     def __init__(self, 
                  rng: Generator | None = None,
                  rng_seed: int | None = None, 
@@ -26,11 +26,6 @@ class ProductionModel(CratermakerBase, ABC):
             
         Parameters
         ----------
-        mean_velocity : float, optional
-            The mean impact velocity to use for the impact simulation. Only one of either mean_velocity or impact_velocity_model can be provided.
-        impact_velocity_model : str, optional
-            The name of the mean impact velocity model to use for the impact simulation.  Valid options are "Mercury_MBA", "Venus_MBA", "Earth_MBA", "Moon_MBA", "Mars_MBA", and "MBA_MBA". 
-            Only one of either mean_velocity or impact_velocity_model can be provided. Default is "Moon_MBA"
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -42,6 +37,61 @@ class ProductionModel(CratermakerBase, ABC):
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
+
+    @classmethod
+    def make(cls,
+             production: str | Production | None = None,
+             target: Target | str | None = None,
+             rng: Generator | None = None,
+             rng_seed: int | None = None, 
+             rng_state: dict | None = None,
+             **kwargs: Any) -> Production:
+        """
+        This is a helper function that can be used to validate and initialize the production model.
+
+        Parameters
+        ----------
+        production : str | Production | None, optional
+            The production model to use. This can be either a string or a Production instance. 
+            If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
+        **kwargs : Any
+            Additional keyword arguments.
+        Returns
+        -------
+        Production
+            An instance of the specified production model.
+        Raises
+        ------
+        KeyError
+            If the specified production model name is not found in the registry.
+        TypeError
+            If the specified production model is not a string or a subclass of Production.
+        ValueError
+            If there is an error initializing the production model.
+
+        """
+
+        version = kwargs.pop("version", None)
+        if production is None:
+            target = Target.make(target, **kwargs)
+            target_name = target.name.capitalize()
+            if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
+                production = "neukum"
+                if version is None:
+                    if target_name in ['Moon', 'Mars']:
+                        version = target_name 
+                    else:
+                        version = "projectile"
+            else:
+                production = "powerlaw"
+        return super().make(component=production, version=version, target=target, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+         
 
 
     def sample(self,
@@ -498,14 +548,6 @@ class ProductionModel(CratermakerBase, ABC):
             raise ValueError("age must be a scalar or a sequence")
        
         return age, age_end 
-
-    @parameter
-    def component_name(self):
-        """
-        The registered name of this scaling model set by the @register_scaling_model decorator.
-        """ 
-        return self._component_name
-
     
     @parameter
     def generator_type(self):
@@ -529,88 +571,5 @@ class ProductionModel(CratermakerBase, ABC):
         self._generator_type = value.lower()
         return 
 
-_registry: dict[str, ProductionModel] = {}
+import_components(__name__, __path__, ignore_private=True)
 
-def register_production_model(name: str):
-    """
-    Class decorator to register a production model component under the given key.
-    """
-    def decorator(cls):
-        cls._component_name = name 
-        _registry[name] = cls
-        return cls
-    return decorator
-
-def available_production_models() -> list[str]:
-    """Return list of all registered model names."""
-    return list(_registry.keys())
-
-def get_production_model(name: str):
-    """Return the component instance for the given name (KeyError if not found)."""
-    return _registry[name]
-
-# This loop will import every .py in this folder, causing those modules
-# (which use @register_production_model) to run and register themselves.
-package_dir = __path__[0]
-for finder, module_name, is_pkg in pkgutil.iter_modules([package_dir]):
-    importlib.import_module(f"{__name__}.{module_name}")
-
-
-def make_production(production: str | ProductionModel | None = None,
-                     **kwargs: Any) -> ProductionModel:
-    """
-    This is a helper function that can be used to validate and initialize the production model.
-
-    Parameters
-    ----------
-    production : str | ProductionModel | None, optional
-        The production model to use. This can be either a string or a ProductionModel instance. 
-        If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
-
-    kwargs : Any
-        Additional keyword arguments to pass to the production model constructor.
-    Returns
-    -------
-    ProductionModel
-        An instance of the specified production model.
-    Raises
-    ------
-    KeyError
-        If the specified production model name is not found in the registry.
-    TypeError
-        If the specified production model is not a string or a subclass of ProductionModel.
-    ValueError
-        If there is an error initializing the production model.
-
-    """
-
-    if production is None:
-        target = kwargs.get("target", "Moon")
-        if isinstance(target, str):
-            target_name = target.capitalize()
-        elif isinstance(target, Target):
-            target_name = target.name.capitalize()
-        if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
-            production_model = "neukum"
-            if target_name in ['Moon', 'Mars']:
-                production = get_production_model(production_model)(version=target_name, **kwargs)
-            else:
-                production = get_production_model(production_model)(version="projectile", **kwargs)
-        else:
-            production = get_production_model("powerlaw")(**kwargs)
-    elif isinstance(production, str):
-        if production not in available_production_models():
-            raise KeyError(f"Invalid production model {production}. Must be one of {available_production_models()}")
-        try:
-            production = get_production_model(production)(**kwargs)
-        except:
-            raise ValueError(f"Error initializing production model {production_model}")    
-    elif isinstance(production, type) and issubclass(production, ProductionModel):
-        try:
-            production = production(**kwargs)
-        except:
-            raise ValueError(f"Error initializing production model {production_model}") 
-    elif not isinstance(production, ProductionModel):
-        raise TypeError("production must be a string or ProductionModel instance")
-    
-    return production

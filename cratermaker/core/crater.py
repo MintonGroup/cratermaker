@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
-from ..components.scaling import ScalingModel, get_scaling_model, make_scaling
+from ..components.scaling import Scaling
 from ..components.impactor import Impactor
 from typing import Any
 from .base import CratermakerBase
@@ -79,7 +79,7 @@ class Crater:
             projectile_direction: float | None = None,
             location: tuple[float, float] | None = None,
             age: float | None = None,
-            scaling: str | ScalingModel = "richardson2009",
+            scaling: str | Scaling = "richardson2009",
             impactor: str | Impactor = "asteroids",
             target: str | Target = "Moon",
             simdir: str | Path = Path.cwd(),
@@ -122,7 +122,7 @@ class Crater:
             The (longitude, latitude) location of the impact.
         age : float, optional
             The age of the crater in Myr.
-        scaling : str or ScalingModel, optional
+        scaling : str or Scaling, optional
             A string key or instance of a scaling model.
         impactor : str or Impactor, optional
             A string key or instance of an impactor model.
@@ -245,7 +245,7 @@ class Crater:
             prho = prho or target.density
             impactor = Impactor(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
 
-        scaling = make_scaling(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
+        scaling = Scaling.make(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
         prho = scaling.impactor.density
 
         # --- Ensure velocity/angle are all set ---

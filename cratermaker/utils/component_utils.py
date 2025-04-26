@@ -53,7 +53,7 @@ class ComponentBase(CratermakerBase, ABC):
     @parameter
     def name(self):
         """
-        The registered name of this scaling model set by the @register_scaling_model decorator.
+        The registered name of this scaling model set by the @ComponentBase.register decorator.
         """ 
         return self._component_name
 

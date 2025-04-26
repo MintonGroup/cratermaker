@@ -16,7 +16,7 @@ class TestMorphology(unittest.TestCase):
         self.gridlevel = 4
         self.surf = Surface.make(data_dir=self.data_dir, target=self.target, reset_surface=True, gridlevel=self.gridlevel)
 
-        self.dummy_crater = make_crater(
+        self.dummy_crater = Crater.make(
             location=(0.0, 0.0),
             final_diameter=100000.0,
         )

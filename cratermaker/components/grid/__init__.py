@@ -290,13 +290,6 @@ class Grid(ComponentBase):
             raise TypeError("grid must be an instance of uxarray.Grid")
         self._grid = value
 
-    @parameter
-    def component_name(self):
-        """
-        The registered name of this scaling name set by the @register_scaling_gridtype decorator.
-        """ 
-        return self._component_name
-    
     @property
     def file(self):
         """
