@@ -8,7 +8,7 @@ from cratermaker.core.surface import Surface
 from cratermaker.core.crater import Crater
 from cratermaker.components.morphology import Morphology
 from cratermaker.utils.general_utils import parameter
-from cratermaker._cratermaker import crater_functions, ejecta_functions
+from cratermaker._cratermaker import crater_functions, ejecta_functions, morphology_functions
 
 @Morphology.register("simplemoon")
 class SimpleMoon(Morphology):
@@ -171,30 +171,20 @@ class SimpleMoon(Morphology):
         
         # Check to make sure that the face at the crater location is not smaller than the ejecta blanket area
         if surf.face_areas[self.face_index] > ejecta_area:
-            return                  
+            return
         
         node_crater_distance, face_crater_distance = surf.get_distance(region_view, self.crater.location)
         node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(region_view, self.crater.location)
-        
-        try:
-            node_thickness = self.ejecta_distribution(node_crater_distance, 
-                                                      node_crater_bearing)
-            surf.node_elevation[region_view.node_indices] += node_thickness
-            
-            face_thickness = self.ejecta_distribution(face_crater_distance, 
-                                                      face_crater_bearing)
-            surf.face_elevation[region_view.face_indices] += face_thickness
-            surf.ejecta_thickness[region_view.face_indices] += face_thickness
-            
-            if self.dorays: 
-                face_intensity = self.ray_intensity(face_crater_distance, 
-                                                    face_crater_bearing)
-                surf.ray_intensity[region_view.face_indices] += face_intensity
-        except:
-            print(self)
-            raise ValueError("Something went wrong with this crater!")
-                 
-        return  
+        morphology_functions.form_ejecta(self, 
+                                         region_view, 
+                                         node_crater_distance, 
+                                         face_crater_distance, 
+                                         node_crater_bearing,
+                                         face_crater_bearing,
+                                         surf.node_elevation,
+                                         surf.face_elevation,
+                                         surf.ejecta_thickness,
+                                         surf.ray_intensity)
 
 
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> NDArray[np.float64]:

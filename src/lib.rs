@@ -2,6 +2,7 @@
 
 pub mod crater_functions;
 pub mod ejecta_functions;
+pub mod morphology_functions;
 pub mod surface_functions;
 
 use std::f64;
@@ -31,5 +32,11 @@ mod cratermaker {
     mod surface_functions {
         #[pymodule_export]
         use crate::surface_functions::calculate_initial_bearing;
+    }
+
+    #[pymodule]
+    mod morphology_functions {
+        #[pymodule_export]
+        use crate::morphology_functions::form_ejecta;
     }
 }

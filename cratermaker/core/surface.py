@@ -687,7 +687,7 @@ class Surface:
     
     def get_distance(self, 
                      view: 'SurfaceView',
-                     location: tuple[float, float]) -> UxDataArray:
+                     location: tuple[float, float]) -> tuple[float, float]:
         """
         Computes the distances between nodes and faces and a given location.
 

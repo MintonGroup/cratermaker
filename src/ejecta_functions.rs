@@ -4,6 +4,7 @@ use std::f64::{
 };
 
 use itertools::Itertools;
+use ndarray::ArrayView1;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rand::prelude::*;
@@ -25,26 +26,42 @@ pub fn distribution<'py>(
     ejecta_truncation: f64,
     dorays: bool,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    distribution_internal(
+        radial_distance.as_array(),
+        initial_bearing.as_array(),
+        crater_diameter,
+        ejrim,
+        ejecta_truncation,
+        dorays,
+    )
+    .map(|v| v.into_pyarray(py))
+}
+
+pub fn distribution_internal<'py>(
+    radial_distance: ArrayView1<'py, f64>,
+    initial_bearing: ArrayView1<'py, f64>,
+    crater_diameter: f64,
+    ejrim: f64,
+    ejecta_truncation: f64,
+    dorays: bool,
+) -> PyResult<Vec<f64>> {
     if dorays {
         let intensity = ray_intensity_internal(
-            &radial_distance,
-            &initial_bearing,
+            radial_distance,
+            initial_bearing,
             crater_diameter,
             ejecta_truncation,
         )?;
-        let radial_distance = radial_distance.as_array();
         let crater_radius = crater_diameter / 2.0;
-        Ok(PyArray1::from_iter(
-            py,
-            intensity
-                .iter()
-                .zip(radial_distance)
-                .map(|(&intensity, &radial_distance)| {
-                    intensity * profile_func(radial_distance / crater_radius, ejrim)
-                }),
-        ))
+        Ok(intensity
+            .iter()
+            .zip(radial_distance)
+            .map(|(&intensity, &radial_distance)| {
+                intensity * profile_func(radial_distance / crater_radius, ejrim)
+            })
+            .collect())
     } else {
-        profile(py, radial_distance, crater_diameter, ejrim)
+        Ok(profile_internal(radial_distance, crater_diameter, ejrim))
     }
 }
 
@@ -55,18 +72,28 @@ pub fn profile<'py>(
     crater_diameter: f64,
     ejrim: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let radial_distance = radial_distance.as_array();
-    let crater_radius = crater_diameter / 2.0;
-    Ok(PyArray1::from_iter(
+    Ok(PyArray1::from_vec(
         py,
-        radial_distance.iter().map(|&r| {
+        profile_internal(radial_distance.as_array(), crater_diameter, ejrim),
+    ))
+}
+
+pub fn profile_internal<'py>(
+    radial_distance: ArrayView1<'py, f64>,
+    crater_diameter: f64,
+    ejrim: f64,
+) -> Vec<f64> {
+    let crater_radius = crater_diameter / 2.0;
+    radial_distance
+        .iter()
+        .map(|&r| {
             if r >= crater_radius {
                 profile_func(r / crater_radius, ejrim)
             } else {
                 0.0
             }
-        }),
-    ))
+        })
+        .collect()
 }
 
 pub fn profile_func(r: f64, ejrim: f64) -> f64 {
@@ -74,13 +101,11 @@ pub fn profile_func(r: f64, ejrim: f64) -> f64 {
 }
 
 pub fn ray_intensity_internal<'py>(
-    radial_distance: &PyReadonlyArray1<'py, f64>,
-    initial_bearing: &PyReadonlyArray1<'py, f64>,
+    radial_distance: ArrayView1<'py, f64>,
+    initial_bearing: ArrayView1<'py, f64>,
     crater_diameter: f64,
     ejecta_truncation: f64,
 ) -> PyResult<Vec<f64>> {
-    let radial_distance = radial_distance.as_array();
-    let initial_bearing = initial_bearing.as_array();
     if radial_distance.len() != initial_bearing.len() {
         return Err(PyValueError::new_err(
             "initial_bearing and radial_distance arrays must be the same size.",
@@ -144,8 +169,8 @@ pub fn ray_intensity<'py>(
     ejecta_truncation: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let intensity = ray_intensity_internal(
-        &radial_distance,
-        &initial_bearing,
+        radial_distance.as_array(),
+        initial_bearing.as_array(),
         crater_diameter,
         ejecta_truncation,
     )?;
