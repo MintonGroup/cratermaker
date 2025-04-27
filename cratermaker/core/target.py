@@ -100,7 +100,8 @@ class Target(CratermakerBase):
 
     @property
     def diameter(self) -> float | None:
-        return 2 * self._radius
+        if self._radius is not None:
+            return 2 * self._radius
 
     @property
     def mass(self) -> float | None:
