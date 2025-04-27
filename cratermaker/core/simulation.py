@@ -142,13 +142,13 @@ class Simulation(CratermakerBase):
                 # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
                 for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
                     crater = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scaling.projectile_mean_velocity*10)
-                    rmax = crater.morphology.compute_rmax(minimum_thickness=1e-3) 
+                    rmax = self.morphology.compute_rmax(minimum_thickness=1e-3) 
                     if rmax < self.target.radius * 2 * np.pi:
                         superdomain_scale_factor = rmax / crater.final_radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
         surface_config = {**surface_config, **grid_config, **kwargs}
-        self.surf = Surface.make(target=self.target, grid=self.grid, **kwargs)
+        self.surf = Surface.make(target=self.target, grid=self.grid, **surface_config)
         self.grid = self.surf.grid
 
         self._craterlist = []
