@@ -12,13 +12,13 @@ from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA
 from .target import Target
 from .crater import Crater
 from .surface import Surface, _save_surface
-from ..utils.general_utils import _convert_for_yaml, _set_properties, _to_config, parameter
+
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..components.scaling import Scaling
 from ..components.production import Production
 from ..components.morphology import Morphology
 from ..components.impactor import Impactor
-from .base import CratermakerBase
+from .base import CratermakerBase, _convert_for_yaml, _to_config
 
 class Simulation(CratermakerBase):
     """

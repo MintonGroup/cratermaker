@@ -16,8 +16,9 @@ from .target import Target
 import warnings
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import parameter
 from cratermaker.components.grid import Grid
+from cratermaker.core.base import _to_config
 from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME, _SMALLFAC, _COMBINED_DATA_FILE_NAME
 from cratermaker._cratermaker import surface_functions
 from .base import CratermakerBase, _rng_init, _simdir_init, CommonArgs
