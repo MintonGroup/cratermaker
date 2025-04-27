@@ -231,7 +231,7 @@ class Surface:
                                save_to_file=True)                         
             surf.set_elevation(0.0,save_to_file=True)
 
-        surf.grid_config = grid.to_config()
+        surf.grid_config = grid.to_config(remove_common_args=True)
         surf.grid_config.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
         surf.load_from_data(compute_face_areas=True)
         
