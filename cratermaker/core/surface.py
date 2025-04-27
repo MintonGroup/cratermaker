@@ -32,29 +32,35 @@ class Surface:
     
     Parameters
     ----------
-    *args
-        Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
+    uxds : UxDataset
+        The UxDataset object that contains the surface data.
+    grid : str, optional
+        The name of the grid used for the surface. Default is "icosphere".
     target : Target, optional
         The target body or name of a known target body for the impact simulation. 
-    simdir : os.PathLike, optional
-        The directory where the simulation data is stored. Default is the current working directory.
     compute_face_areas : bool, optional
         Flag to indicate whether to compute face areas. Default is False.    
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used.        
-    **kwargs
-        This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
+    simdir : str | Path
+        The main project simulation directory. Defaults to the current working directory if None.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
     """ 
 
     def __init__(self, 
-                 data: UxDataset, 
-                 target: Target | str = "Moon", 
+                 uxds: UxDataset, 
+                 grid: Grid | str | None = None,
+                 target: Target | str | None = None,
                  compute_face_areas: bool = False,
+                 simdir: os.PathLike = Path.cwd(),
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
-                 simdir: os.PathLike = Path.cwd(),
-                 grid_name: str = "icosphere",
                  **kwargs):
 
         argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
@@ -64,7 +70,7 @@ class Surface:
         self._simdir = argproc.simdir
 
         # Additional initialization for Surface
-        self.grid_name = grid_name
+        self.grid = grid
         self._target = Target.make(target, **kwargs)
         self._compute_face_areas = compute_face_areas
         self._name = "Surface"
@@ -73,7 +79,7 @@ class Surface:
         self._smallest_length = None
         self._node_tree = None
         self._face_tree = None
-        self._data = data
+        self._uxds = uxds
 
         return
     
@@ -107,9 +113,9 @@ class Surface:
 
     @classmethod
     def make(cls: Surface, 
+             grid: str | None = None,
              target: Target | None = None, 
              reset_surface: bool = True, 
-             grid: str | None = None,
              regrid: bool = False,
              simdir: str | None = None,
              rng: Generator | None = None,
@@ -121,22 +127,24 @@ class Surface:
 
         Parameters
         ----------
+        grid : str, optional
+            The name of the grid used for the surface. Default is "icosphere".
         target : Target, optional
-            Target object or name of known body for the simulation. Default is Target("Moon")
+            The target body or name of a known target body for the impact simulation. 
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        grid : str, optional
-            The type of grid to be generated. Default is "icosphere".  
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
         simdir : str | Path
-            The main project simulation directory.
+            The main project simulation directory. Defaults to the current working directory if None.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-        rng_seed : int | None
-            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
-        **kwargs : dict
-            Additional keyword arguments for initializing the Surface instance based on the specific name.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
+        **kwargs : Any
+        Additional keyword arguments.
 
         Returns
         -------
@@ -187,22 +195,19 @@ class Surface:
                    rng_seed = rng_seed,
                    rng_state = rng_state,
                    compute_face_areas = True,
-                   grid_name = grid._component_name 
-                  ) 
+                   grid = grid) 
         
         if reset_surface:
             surf.generate_data(data=0.0,
                                name="ejecta_thickness",
                                long_name="ejecta thickness",
                                units= "m",
-                               save_to_file=True
-                              )     
+                               save_to_file=True)     
             surf.generate_data(data=0.0,
                                name="ray_intensity",
                                long_name="ray intensity value",
                                units= "",
-                               save_to_file=True
-                              )                         
+                               save_to_file=True)                         
             surf.set_elevation(0.0,save_to_file=True)
 
         surf.grid_config = grid.to_config()
@@ -216,7 +221,7 @@ class Surface:
         ds = super()._calculate_binary_op(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._grid_name = self._grid_name
+            ds._grid = self._grid
             ds._description = self._description
             ds._simdir = self._simdir
             ds._target = self._target
@@ -248,7 +253,7 @@ class Surface:
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
 
-        copied._grid_name = self._grid_name
+        copied._grid = self._grid
         copied._description = self._description
         copied._simdir = self._simdir
         copied._smallest_length = self._smallest_length
@@ -266,7 +271,7 @@ class Surface:
         ds = super()._replace(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._grid_name = self._grid_name
+            ds._grid = self._grid
             ds._description = self._description
             ds._simdir = self._simdir
             ds._target = self._target
@@ -291,17 +296,17 @@ class Surface:
         return ds   
 
     @property
-    def data(self) -> UxDataset:
+    def uxds(self) -> UxDataset:
         """
         The data associated with the surface. This is an instance of UxDataset.
         """
-        return self._data
+        return self._uxds
 
-    @data.setter
-    def data(self, value: UxDataset):
+    @uxds.setter
+    def uxds(self, value: UxDataset):
         if not isinstance(value, UxDataset):
             raise TypeError("data must be an instance of UxDataset")
-        self._data = value
+        self._uxds = value
 
     @property
     def data_dir(self):
@@ -317,12 +322,18 @@ class Surface:
         """
         return self.simdir / _DATA_DIR / _GRID_FILE_NAME
 
-    @parameter
-    def grid_name(self):
+    @property
+    def grid(self):
         """
         The type of grid used for the surface.
         """
-        return self._grid_name
+        return self._grid
+    
+    @grid.setter
+    def grid(self, value):
+        if not isinstance(value, (Grid, str)):
+            raise TypeError("grid must be a string or Grid object")
+        self._grid = value
     
     @parameter
     def smallest_length(self):
