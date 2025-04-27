@@ -5,7 +5,6 @@ from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
 from pathlib import Path
 from warnings import warn
-import os
 
 class Parameter(property):
     """

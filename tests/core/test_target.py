@@ -1,7 +1,6 @@
 import unittest
 from cratermaker import Target
 from cratermaker.utils.general_utils import _create_catalogue
-import numpy as np
 
 class TestTarget(unittest.TestCase):
 

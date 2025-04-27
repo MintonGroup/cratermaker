@@ -1,6 +1,5 @@
 from __future__ import annotations
 import xarray as xr
-from xarray import DataArray, Dataset
 import uxarray as uxr
 from uxarray import INT_FILL_VALUE, Grid, UxDataArray, UxDataset
 import os

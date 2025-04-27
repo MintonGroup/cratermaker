@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import numpy as np
 import xarray as xr
-from cratermaker.constants import _CONFIG_FILE_NAME, _COMBINED_DATA_FILE_NAME, _EXPORT_DIR
+from cratermaker.constants import _COMBINED_DATA_FILE_NAME, _EXPORT_DIR
 # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
 # The API change does not affect the functionality of the code, so we can safely ignore the warning
 import warnings
