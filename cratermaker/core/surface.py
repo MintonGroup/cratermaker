@@ -64,39 +64,39 @@ class Surface:
         self._simdir = argproc.simdir
 
         # Additional initialization for Surface
+        self.grid_name = grid_name
+        self._target = Target.make(target, **kwargs)
+        self._compute_face_areas = compute_face_areas
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
         self._area = None
         self._smallest_length = None
-        self.data = data
         self._node_tree = None
         self._face_tree = None
-        self._target = Target.make(target, **kwargs)
-        self._compute_face_areas = compute_face_areas
-        self._grid_name = grid_name
+        self._data = data
 
         return
     
     def load_from_data(self, compute_face_areas):
         if compute_face_areas: 
             # Compute face area needed in the non-normalized units for future calculations
-            self.face_areas = self.data.uxgrid.face_areas.values * self.target.radius**2
+            self.face_areas = self.uxds.uxgrid.face_areas.values * self.target.radius**2
             self.smallest_length = np.sqrt(self.face_areas.min()) * _SMALLFAC   
         
-        self.face_lat = self.data.uxgrid.face_lat.values
-        self.face_lon = self.data.uxgrid.face_lon.values
-        self.node_lat = self.data.uxgrid.node_lat.values
-        self.node_lon = self.data.uxgrid.node_lon.values
-        self.node_elevation = self.data["node_elevation"].values
-        self.face_elevation = self.data["face_elevation"].values
-        self.ejecta_thickness = self.data["ejecta_thickness"].values
-        self.ray_intensity = self.data["ray_intensity"].values
+        self.face_lat = self.uxds.uxgrid.face_lat.values
+        self.face_lon = self.uxds.uxgrid.face_lon.values
+        self.node_lat = self.uxds.uxgrid.node_lat.values
+        self.node_lon = self.uxds.uxgrid.node_lon.values
+        self.node_elevation = self.uxds["node_elevation"].values
+        self.face_elevation = self.uxds["face_elevation"].values
+        self.ejecta_thickness = self.uxds["ejecta_thickness"].values
+        self.ray_intensity = self.uxds["ray_intensity"].values
     
     def save_to_data(self):
-        self.data["node_elevation"].values = self.node_elevation
-        self.data["face_elevation"].values = self.face_elevation
-        self.data["ejecta_thickness"].values = self.ejecta_thickness
-        self.data["ray_intensity"].values = self.ray_intensity
+        self.uxds["node_elevation"].values = self.node_elevation
+        self.uxds["face_elevation"].values = self.face_elevation
+        self.uxds["ejecta_thickness"].values = self.ejecta_thickness
+        self.uxds["ray_intensity"].values = self.ray_intensity
     
     def full_view(self):
         return SurfaceView(self, slice(None), slice(None))
@@ -207,8 +207,7 @@ class Surface:
 
         surf.grid_parameters = grid.to_config()
         surf.grid_parameters.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
-        surf.grid_parameters['grid'] = grid
-        surf.load_from_data(True)
+        surf.load_from_data(compute_face_areas=True)
         
         return surf
     
@@ -290,6 +289,19 @@ class Surface:
             ds._smallest_length = self._smallest_length
             ds._area = self._area
         return ds   
+
+    @property
+    def data(self) -> UxDataset:
+        """
+        The data associated with the surface. This is an instance of UxDataset.
+        """
+        return self._data
+
+    @data.setter
+    def data(self, value: UxDataset):
+        if not isinstance(value, UxDataset):
+            raise TypeError("data must be an instance of UxDataset")
+        self._data = value
 
     @property
     def data_dir(self):
@@ -434,14 +446,14 @@ class Surface:
     @property
     def node_tree(self):
         if self._node_tree is None:
-            self._node_tree = self.data.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical", reconstruct=True)
+            self._node_tree = self.uxds.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical", reconstruct=True)
         
         return self._node_tree
 
     @property
     def face_tree(self):
         if self._face_tree is None:
-            self._face_tree = self.data.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical", reconstruct=True)
+            self._face_tree = self.uxds.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical", reconstruct=True)
         
         return self._face_tree
     
@@ -537,7 +549,7 @@ class Surface:
             uxgrid=uxgrid,
         ) 
          
-        self.data[name] = uxda
+        self.uxds[name] = uxda
         
         if save_to_file:
             self._save_data(uxda, self.data_dir, interval_number, combine_data_files)
@@ -566,10 +578,10 @@ class Surface:
         if new_elev is None or np.isscalar(new_elev):
             gen_node = True
             gen_face = True 
-        elif new_elev.size == self.data.uxgrid.n_node:
+        elif new_elev.size == self.uxds.uxgrid.n_node:
             gen_node = True
             gen_face = False
-        elif new_elev.size == self.data.uxgrid.n_face:
+        elif new_elev.size == self.uxds.uxgrid.n_face:
             gen_node = False
             gen_face = True
         else:
@@ -602,7 +614,7 @@ class Surface:
                                combine_data_files=combine_data_files,
                                interval_number=interval_number
                               )
-        self.load_from_data(False)
+        self.load_from_data(compute_face_areas=False)
         return 
 
     @staticmethod
@@ -815,9 +827,9 @@ class Surface:
         if np.sum(faces_within_radius) < 5 or not nodes_within_radius.any():
             return face_elevation, node_elevation
        
-        face_grid = np.column_stack((self.data.uxgrid.face_x.values[view.face_indices], 
-                               self.data.uxgrid.face_y.values[view.face_indices], 
-                               self.data.uxgrid.face_z.values[view.face_indices]))
+        face_grid = np.column_stack((self.uxds.uxgrid.face_x.values[view.face_indices], 
+                               self.uxds.uxgrid.face_y.values[view.face_indices], 
+                               self.uxds.uxgrid.face_z.values[view.face_indices]))
         region_faces = face_grid[faces_within_radius]
         region_elevation = face_elevation[faces_within_radius] / self.target.radius
         region_surf = self.elevation_to_cartesian(region_faces, region_elevation) 
@@ -869,9 +881,9 @@ class Surface:
         reference_face_elevation[faces_within_radius] = find_reference_elevations(region_faces)
         
         # Now do the same thing to compute the nodal values 
-        node_grid = np.column_stack((self.data.uxgrid.node_x.values[view.node_indices], 
-                               self.data.uxgrid.node_y.values[view.node_indices], 
-                               self.data.uxgrid.node_z.values[view.node_indices]))
+        node_grid = np.column_stack((self.uxds.uxgrid.node_x.values[view.node_indices], 
+                               self.uxds.uxgrid.node_y.values[view.node_indices], 
+                               self.uxds.uxgrid.node_z.values[view.node_indices]))
         region_nodes = node_grid[nodes_within_radius]
         
         reference_node_elevation = node_elevation
@@ -961,7 +973,7 @@ class Surface:
         This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
         """
         
-        return get_random_location_on_face(self.data.uxgrid, face_index, size,**kwargs)
+        return get_random_location_on_face(self.uxds.uxgrid, face_index, size,**kwargs)
 
     @staticmethod
     def _save_data(ds: xr.Dataset | xr.DataArray,
@@ -1032,7 +1044,7 @@ class SurfaceView:
         self.surf = surf
         self.face_indices = face_indices
         if node_indices is None:
-            node_indices = np.unique(surf.data.uxgrid.face_node_connectivity.values[face_indices].ravel())
+            node_indices = np.unique(surf.uxds.uxgrid.face_node_connectivity.values[face_indices].ravel())
             node_indices = node_indices[node_indices != INT_FILL_VALUE]
         
         self.node_indices = node_indices
@@ -1077,9 +1089,9 @@ def _save_surface(surf: Surface,
     # Variables that we do not want to save as they are computed at runtime     
     
     surf.save_to_data()
-    surf.data.close()
+    surf.uxds.close()
     
-    ds = surf.data.expand_dims(dim="time").assign_coords({"time":[interval_number]})
+    ds = surf.uxds.expand_dims(dim="time").assign_coords({"time":[interval_number]})
     for k, v in time_variables.items():
         ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time":[interval_number]})
                 

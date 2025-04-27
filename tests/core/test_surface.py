@@ -58,10 +58,10 @@ class TestSurface(unittest.TestCase):
         surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=False)
         
         # Test regridding if the parameters change
-        n_face_orig = surf.data.uxgrid.n_face
+        n_face_orig = surf.uxds.uxgrid.n_face
     
         surf = Surface.make(gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
-        self.assertGreater(n_face_orig, surf.data.uxgrid.n_face)
+        self.assertGreater(n_face_orig, surf.uxds.uxgrid.n_face)
     
         # Test different target values
         surf = Surface.make(gridlevel=self.gridlevel, target=Target(name="Mars"), reset_surface=False)
@@ -80,11 +80,11 @@ class TestSurface(unittest.TestCase):
     def test_set_elevation(self):
         surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         # Test with valid elevation data
-        new_elev = np.random.rand(surf.data.uxgrid.n_node)  # Generate random elevation data
+        new_elev = np.random.rand(surf.uxds.uxgrid.n_node)  # Generate random elevation data
         surf.set_elevation(new_elev)
 
         # Test with invalid elevation data (wrong size)
-        new_elev = np.random.rand(surf.data.uxgrid.n_node + 1)  # Incorrect size
+        new_elev = np.random.rand(surf.uxds.uxgrid.n_node + 1)  # Incorrect size
 
         # Expect ValueError for incorrect size
         with self.assertRaises(ValueError):
@@ -94,8 +94,8 @@ class TestSurface(unittest.TestCase):
         surf.set_elevation(None)
 
         # Check if the elevation data is set to zero
-        np.testing.assert_array_equal(surf.data['node_elevation'].values, np.zeros(surf.data.uxgrid.n_node))
-        np.testing.assert_array_equal(surf.data['face_elevation'].values, np.zeros(surf.data.uxgrid.n_face))
+        np.testing.assert_array_equal(surf.uxds['node_elevation'].values, np.zeros(surf.uxds.uxgrid.n_node))
+        np.testing.assert_array_equal(surf.uxds['face_elevation'].values, np.zeros(surf.uxds.uxgrid.n_face))
         
         return
     
@@ -204,7 +204,7 @@ class TestSurface(unittest.TestCase):
     def test_face_surface_values(self):
         # Tests that the face_surface generates the correct values
         surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True) 
-        total_area_1 = surf.data.uxgrid.calculate_total_face_area()
+        total_area_1 = surf.uxds.uxgrid.calculate_total_face_area()
         total_area_2 = surf.face_areas.sum().item()
         ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius
         self.assertAlmostEqual(ratio, 1.0, places=2)

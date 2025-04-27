@@ -630,6 +630,7 @@ class Simulation(CratermakerBase):
         sim_config['scaling_model_parameters'] = self.scaling.to_config()
         sim_config['production_model_parameters'] = self.production.to_config()
         sim_config['surface_parameters'] = self.surf.to_config()
+
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
             yaml.safe_dump(sim_config, f, indent=4)
@@ -678,13 +679,13 @@ class Simulation(CratermakerBase):
             data_file_list.remove(self.surf.grid_file)
        
         # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
-        n_node = self.surf.data.uxgrid.n_node
-        n_face = self.surf.data.uxgrid.n_face
-        node_x = self.surf.data.uxgrid.node_x.values * self.target.radius
-        node_y = self.surf.data.uxgrid.node_y.values * self.target.radius
-        node_z = self.surf.data.uxgrid.node_z.values * self.target.radius
-        n_nodes_per_face = self.surf.data.uxgrid.n_nodes_per_face.values
-        face_node_connectivity = self.surf.data.uxgrid.face_node_connectivity.values
+        n_node = self.surf.uxds.uxgrid.n_node
+        n_face = self.surf.uxds.uxgrid.n_face
+        node_x = self.surf.uxds.uxgrid.node_x.values * self.target.radius
+        node_y = self.surf.uxds.uxgrid.node_y.values * self.target.radius
+        node_z = self.surf.uxds.uxgrid.node_z.values * self.target.radius
+        n_nodes_per_face = self.surf.uxds.uxgrid.n_nodes_per_face.values
+        face_node_connectivity = self.surf.uxds.uxgrid.face_node_connectivity.values
         
         vtk_data = vtkUnstructuredGrid()
         nodes = vtkPoints()
