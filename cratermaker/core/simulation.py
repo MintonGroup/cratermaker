@@ -42,18 +42,18 @@ class Simulation(CratermakerBase):
         Parameters
         ----------
         target: Target or str, optional, default "Moon"
-            Name of the target body or Target object for the simulation, default is "Moon".
-        scaling : str, optional
-            The name of the impactor->crater size scaling model to use from the components library. The default is "richardson2009".
-        production_model: str, optional
-            The name of the production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
+            Name target body for the simulation, default is "Moon".
+        scaling : Scaling or str, optional
+            The impactor->crater size scaling model to use from the components library. The default is "richardson2009".
+        production: Production or str, optional
+            The production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
             then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
             body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
             Earth, and a simple power law model otherwise.
-        morphology_model : str, optional
-            The name of the component model used to describe the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
-        impactor_model : str, optional
-            The name of the impactor model to use from the components library. The default is "asteroids". This model is used to generate the impactor properties for the simulation, such as velocity and density.
+        morphology : str, optional
+            The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
+        impactor : str, optional
+            The impactor model to use from the components library, which is used to generate the impactor properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise. 
         simdir : str | Path
             The main project simulation directory. Defaults to the current working directory if None.
         rng : numpy.random.Generator | None
@@ -93,34 +93,34 @@ class Simulation(CratermakerBase):
         else:
             config_file = None
         _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, config_file=config_file)
-        production_model_parameters = unmatched.pop("production_model_parameters", {})
-        scaling_model_parameters = unmatched.pop("scaling_model_parameters", {})
-        surface_parameters = unmatched.pop("surface_parameters", {})
-        morphology_model_parameters = unmatched.pop("morphology_model_parameters", {})
-        target_parameters = unmatched.pop("target_parameters", {})
-        impactor_parameters = unmatched.pop("impactor_parameters", {})
+        production_config = unmatched.pop("production_config", {})
+        scaling_config = unmatched.pop("scaling_config", {})
+        surface_config = unmatched.pop("surface_config", {})
+        morphology_config = unmatched.pop("morphology_config", {})
+        target_config = unmatched.pop("target_config", {})
+        impactor_config = unmatched.pop("impactor_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
 
-        target = target_parameters.pop("name", target)
-        target_parameters = {**target_parameters, **kwargs}
-        self.target = Target.make(target=target, **target_parameters)
+        target = target_config.pop("name", target)
+        target_config = {**target_config, **kwargs}
+        self.target = Target.make(target=target, **target_config)
 
-        production = production_model_parameters.pop("model", production)
-        production_model_parameters = {**production_model_parameters, **kwargs}
-        self.production = Production.make(production=production,  target=self.target, **production_model_parameters)
+        production = production_config.pop("model", production)
+        production_config = {**production_config, **kwargs}
+        self.production = Production.make(production=production,  target=self.target, **production_config)
 
-        impactor = impactor_parameters.pop("model", impactor)
-        impactor_parameters = {**impactor_parameters, **kwargs}
-        self.impactor = Impactor.make(impactor=impactor, target=self.target, **impactor_parameters)
+        impactor = impactor_config.pop("model", impactor)
+        impactor_config = {**impactor_config, **kwargs}
+        self.impactor = Impactor.make(impactor=impactor, target=self.target, **impactor_config)
 
-        scaling = scaling_model_parameters.pop("model", scaling)
-        scaling_model_parameters = {**scaling_model_parameters, **kwargs}
-        self.scaling = Scaling.make(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_model_parameters)
+        scaling = scaling_config.pop("model", scaling)
+        scaling_config = {**scaling_config, **kwargs}
+        self.scaling = Scaling.make(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_config)
 
-        morphology = morphology_model_parameters.pop("model", morphology)
-        morphology_model_parameters = {**morphology_model_parameters, **kwargs}
-        self.morphology = Morphology.make(morphology=morphology, **morphology_model_parameters)
+        morphology = morphology_config.pop("model", morphology)
+        morphology_config = {**morphology_config, **kwargs}
+        self.morphology = Morphology.make(morphology=morphology, **morphology_config)
       
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
@@ -134,7 +134,7 @@ class Simulation(CratermakerBase):
                         superdomain_scale_factor = rmax / crater.final_radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-        surface_parameters = {**surface_parameters, **kwargs}
+        surface_config = {**surface_config, **kwargs}
         self.surf = Surface.make(target=self.target, **kwargs)
 
         self._craterlist = []
@@ -626,10 +626,12 @@ class Simulation(CratermakerBase):
 
     def to_config(self, **kwargs: Any) -> dict:
         sim_config = super().to_config()
-        sim_config['target_parameters'] = self.target.to_config()
-        sim_config['scaling_model_parameters'] = self.scaling.to_config()
-        sim_config['production_model_parameters'] = self.production.to_config()
-        sim_config['surface_parameters'] = self.surf.to_config()
+        sim_config['target_config'] = self.target.to_config()
+        sim_config['scaling_config'] = self.scaling.to_config()
+        sim_config['production_config'] = self.production.to_config()
+        sim_config['surface_config'] = self.surf.to_config()
+        sim_config['impactor_parameter'] = self.impactor.to_config()
+        sim_config['morphology_config'] = self.morphology.to_config()
 
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:

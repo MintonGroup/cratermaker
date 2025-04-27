@@ -205,8 +205,8 @@ class Surface:
                               )                         
             surf.set_elevation(0.0,save_to_file=True)
 
-        surf.grid_parameters = grid.to_config()
-        surf.grid_parameters.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
+        surf.grid_config = grid.to_config()
+        surf.grid_config.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
         surf.load_from_data(compute_face_areas=True)
         
         return surf
@@ -339,17 +339,17 @@ class Surface:
         self._smallest_length = value
 
     @parameter
-    def grid_parameters(self):
+    def grid_config(self):
         """
         The grid configuration used for the surface.
         """
-        return self._grid_parameters
+        return self._grid_config
     
-    @grid_parameters.setter
-    def grid_parameters(self, value):
+    @grid_config.setter
+    def grid_config(self, value):
         if not isinstance(value, dict):
             raise TypeError("grid_config must be a dictionary")
-        self._grid_parameters = value
+        self._grid_config = value
 
     @property
     def area(self):

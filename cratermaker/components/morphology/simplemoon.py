@@ -56,7 +56,7 @@ class SimpleMoon(Morphology):
         object.__setattr__(self, "_node" , None)
 
 
-    def _set_morphology_parameters(self) -> None:
+    def _set_morphology_config(self) -> None:
         """
         This method adds a crater to the morphology model and sets the parameters for the morphology based on the crater type. 
         """
@@ -392,7 +392,7 @@ class SimpleMoon(Morphology):
     @crater.setter
     def crater(self, value):
         Morphology.crater.fset(self, value)
-        self._set_morphology_parameters()
+        self._set_morphology_config()
 
     @property
     def node_index(self):
