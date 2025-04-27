@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22.0
 

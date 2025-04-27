@@ -14,13 +14,6 @@ jobs:
       matrix:
         os: [windows-latest]
     steps:
-      - name : Install Fortran compiler
-        uses: fortran-lang/setup-fortran@v1
-        id: setup-fortran
-        with:
-          compiler: intel-classic
-          version: 2021.6
-
       - name: Checkout source
         uses: actions/checkout@v4
 
@@ -28,6 +21,11 @@ jobs:
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*          
+
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release
 
       - name: Build wheels
         run: |
