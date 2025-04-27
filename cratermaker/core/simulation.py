@@ -12,7 +12,7 @@ from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA
 from .target import Target
 from .crater import Crater
 from .surface import Surface, _save_surface
-
+from ..utils.general_utils import parameter, _set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..components.scaling import Scaling
 from ..components.production import Production
