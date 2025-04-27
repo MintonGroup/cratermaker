@@ -356,7 +356,7 @@ class Surface:
             raise TypeError("grid must be a string or Grid object")
         self._grid = value
     
-    @parameter
+    @property
     def smallest_length(self):
         """
         Smallest length value that is directly modeled on the grid. This is used to determine the maximum distance of ejecta to 

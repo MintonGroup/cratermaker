@@ -92,7 +92,7 @@ class Simulation(CratermakerBase):
             config_file = self.config_file
         else:
             config_file = None
-        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, config_file=config_file)
+        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, impactor=impactor, config_file=config_file)
         production_config = unmatched.pop("production_config", {})
         scaling_config = unmatched.pop("scaling_config", {})
         surface_config = unmatched.pop("surface_config", {})
@@ -102,23 +102,18 @@ class Simulation(CratermakerBase):
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
 
-        target = target_config.pop("name", target)
         target_config = {**target_config, **kwargs}
         self.target = Target.make(target=target, **target_config)
 
-        production = production_config.pop("model", production)
         production_config = {**production_config, **kwargs}
         self.production = Production.make(production=production,  target=self.target, **production_config)
 
-        impactor = impactor_config.pop("model", impactor)
         impactor_config = {**impactor_config, **kwargs}
         self.impactor = Impactor.make(impactor=impactor, target=self.target, **impactor_config)
 
-        scaling = scaling_config.pop("model", scaling)
         scaling_config = {**scaling_config, **kwargs}
         self.scaling = Scaling.make(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_config)
 
-        morphology = morphology_config.pop("model", morphology)
         morphology_config = {**morphology_config, **kwargs}
         self.morphology = Morphology.make(morphology=morphology, **morphology_config)
       
@@ -653,6 +648,12 @@ class Simulation(CratermakerBase):
         sim_config['surface_config'] = self.surf.to_config(remove_common_args=True)
         sim_config['impactor_config'] = self.impactor.to_config(remove_common_args=True)
         sim_config['morphology_config'] = self.morphology.to_config(remove_common_args=True)
+        sim_config['target'] = self.target.name
+        sim_config['scaling'] = self.scaling._component_name
+        sim_config['production'] = self.production._component_name
+        sim_config['impactor'] = self.impactor._component_name
+        sim_config['morphology'] = self.morphology._component_name
+        sim_config['surface_config']['grid'] = self.surf.grid._component_name
 
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:

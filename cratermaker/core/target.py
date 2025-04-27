@@ -1,12 +1,10 @@
 from __future__ import annotations
 import numpy as np
 from typing import Any
-from ..utils.general_utils import _set_properties, _create_catalogue
+from ..utils.general_utils import _set_properties, _create_catalogue, parameter
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
 from .base import CratermakerBase
-from pathlib import Path
-from numpy.random import Generator
 
 class Target(CratermakerBase):
     """
@@ -99,7 +97,6 @@ class Target(CratermakerBase):
             param = getattr(cls, public_name, None)
             if isinstance(param, property) and getattr(param, 'fset', None) is not None:
                 # mark that the *public* name was user‐defined
-                self._user_defined.add(public_name)
                 if name in ("radius", "diameter"):
                     object.__setattr__(self, "_updating", True)
                     r = self._radius
@@ -112,7 +109,7 @@ class Target(CratermakerBase):
                         object.__setattr__(self, "_user_defined", self._user_defined - {"radius"})
                     object.__setattr__(self, "_updating", False)
 
-    @property
+    @parameter
     def radius(self) -> float | None:
         return self._radius
 
@@ -122,7 +119,7 @@ class Target(CratermakerBase):
             raise ValueError("Radius must be positive")
         setattr(self, "_radius", float(value))
 
-    @property
+    @parameter
     def diameter(self) -> float | None:
         return self._diameter
 
@@ -160,7 +157,7 @@ class Target(CratermakerBase):
             raise TypeError("name must be a string or None")
         self._name = value
 
-    @property
+    @parameter
     def material_name(self):
         """
         The name of the material composition of the target body.
@@ -177,7 +174,7 @@ class Target(CratermakerBase):
             raise TypeError("material_name must be a string or None")
         self._material_name = value
 
-    @property
+    @parameter
     def density(self):
         """
         The volumetric density of the surface of the target body in kg/m^3.
