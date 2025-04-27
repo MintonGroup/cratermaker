@@ -125,15 +125,12 @@ def _set_properties(obj,
         try:
             with open(config_file, 'r') as f:
                 properties = yaml.safe_load(f)
-                for k in kwargs.keys():
-                    if k in properties:
-                        del properties[k]
         except: 
             warn(f"Could not read the file {config_file}.") 
             return {}, {}
-        
+        merged = {**properties, **{k: v for k, v in kwargs.items() if v is not None}}
         if key is None:
-            matched, unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
+            matched, unmatched = _set_properties_from_arguments(obj, **merged)
         else:
             if key not in properties:
                 raise ValueError(f"Key '{key}' not found in the file '{config_file}'.")

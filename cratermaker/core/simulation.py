@@ -8,7 +8,8 @@ from collections.abc import Sequence
 from typing import Any
 from numpy.typing import ArrayLike
 import yaml
-from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR
+from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR, _COMPONENT_NAMES
+from .base import CratermakerBase, _convert_for_yaml, _to_config
 from .target import Target
 from .crater import Crater
 from .surface import Surface, _save_surface
@@ -18,7 +19,7 @@ from ..components.scaling import Scaling
 from ..components.production import Production
 from ..components.morphology import Morphology
 from ..components.impactor import Impactor
-from .base import CratermakerBase, _convert_for_yaml, _to_config
+from ..components.grid import Grid
 
 class Simulation(CratermakerBase):
     """
@@ -31,6 +32,7 @@ class Simulation(CratermakerBase):
                  production: Production | str | None = None,
                  morphology: Morphology | str | None = None,
                  impactor: Impactor | str | None = None,
+                 grid: Grid | str | None = None,
                  simdir: str | Path | None = None,
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
@@ -52,6 +54,8 @@ class Simulation(CratermakerBase):
             Earth, and a simple power law model otherwise.
         morphology : str, optional
             The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
+        grid : str, optional
+            The name of the grid used for the surface. Default is "icosphere".
         impactor : str, optional
             The impactor model to use from the components library, which is used to generate the impactor properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise. 
         simdir : str | Path
@@ -71,11 +75,12 @@ class Simulation(CratermakerBase):
         cratermaker.core.surface.Surface.make : Parameters for initializing a surface mesh.
         """
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        object.__setattr__(self, "_target", None)
-        object.__setattr__(self, "_production", None)
-        object.__setattr__(self, "_scale", None)
-        object.__setattr__(self, "_morphology", None)
-        object.__setattr__(self, "_impactor", None)
+        object.__setattr__(self, "_target", target)
+        object.__setattr__(self, "_scaling", scaling)
+        object.__setattr__(self, "_production", production)
+        object.__setattr__(self, "_morphology", morphology)
+        object.__setattr__(self, "_impactor", impactor)
+        object.__setattr__(self, "_grid", grid)
         object.__setattr__(self, "_craterlist", None)
         object.__setattr__(self, "_crater", None)
         object.__setattr__(self, "_interval_number", None)
@@ -92,13 +97,26 @@ class Simulation(CratermakerBase):
             config_file = self.config_file
         else:
             config_file = None
-        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, impactor=impactor, config_file=config_file)
+
+        config_override = {}
+        for component in _COMPONENT_NAMES:
+            # Set to true if a local variable from the argument list with the component name is set to something other than None, otherwise false
+            config_override[component] = getattr(self, f"_{component}") is not None 
+
+        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, impactor=impactor, grid=grid, config_file=config_file)
+
+        for component in _COMPONENT_NAMES:
+            if config_override[component]:
+                # If the component is set to something other than None, then remove it from the unmatched dictionary
+                unmatched.pop(f"{component}_config", None)
+
         production_config = unmatched.pop("production_config", {})
         scaling_config = unmatched.pop("scaling_config", {})
         surface_config = unmatched.pop("surface_config", {})
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
         impactor_config = unmatched.pop("impactor_config", {})
+        grid_config = unmatched.pop("grid_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
 
@@ -106,16 +124,16 @@ class Simulation(CratermakerBase):
         self.target = Target.make(target=target, **target_config)
 
         production_config = {**production_config, **kwargs}
-        self.production = Production.make(production=production,  target=self.target, **production_config)
+        self.production = Production.make(production=self.production,  target=self.target, **production_config)
 
         impactor_config = {**impactor_config, **kwargs}
-        self.impactor = Impactor.make(impactor=impactor, target=self.target, **impactor_config)
+        self.impactor = Impactor.make(impactor=self.impactor, target=self.target, **impactor_config)
 
         scaling_config = {**scaling_config, **kwargs}
-        self.scaling = Scaling.make(scaling=scaling, target=self.target, impactor=self.impactor, **scaling_config)
+        self.scaling = Scaling.make(scaling=self.scaling, target=self.target, impactor=self.impactor, **scaling_config)
 
         morphology_config = {**morphology_config, **kwargs}
-        self.morphology = Morphology.make(morphology=morphology, **morphology_config)
+        self.morphology = Morphology.make(morphology=self.morphology, **morphology_config)
       
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
@@ -129,8 +147,9 @@ class Simulation(CratermakerBase):
                         superdomain_scale_factor = rmax / crater.final_radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-        surface_config = {**surface_config, **kwargs}
-        self.surf = Surface.make(target=self.target, **kwargs)
+        surface_config = {**surface_config, **grid_config, **kwargs}
+        self.surf = Surface.make(target=self.target, grid=self.grid, **kwargs)
+        self.grid = self.surf.grid
 
         self._craterlist = []
         self._crater = None
@@ -648,12 +667,23 @@ class Simulation(CratermakerBase):
         sim_config['surface_config'] = self.surf.to_config(remove_common_args=True)
         sim_config['impactor_config'] = self.impactor.to_config(remove_common_args=True)
         sim_config['morphology_config'] = self.morphology.to_config(remove_common_args=True)
+        sim_config['grid_config'] = self.grid.to_config(remove_common_args=True)
+        sim_config['grid_config'].pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
         sim_config['target'] = self.target.name
         sim_config['scaling'] = self.scaling._component_name
         sim_config['production'] = self.production._component_name
         sim_config['impactor'] = self.impactor._component_name
         sim_config['morphology'] = self.morphology._component_name
-        sim_config['surface_config']['grid'] = self.surf.grid._component_name
+        sim_config['grid'] = self.grid._component_name
+
+        for config in ['target', 'scaling', 'production', 'impactor', 'morphology', 'grid', 'surface']:
+            # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
+            if config in sim_config:
+                if sim_config[config] is None or sim_config[config] == {}:
+                    sim_config.pop(config)
+            if f"{config}_config" in sim_config:
+                if sim_config[f"{config}_config"] is None or sim_config[f"{config}_config"] == {}:
+                    sim_config.pop(f"{config}_config")
 
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
@@ -954,13 +984,13 @@ class Simulation(CratermakerBase):
         """
         The Scaling object that defines the crater scaling relationships model. Set during initialization.
         """
-        return self._scale
+        return self._scaling
 
     @scaling.setter
     def scaling(self, value):
         if not isinstance(value, (Scaling, str)):
             raise TypeError("scaling must be of Scaling type or str")
-        self._scale = value
+        self._scaling = value
 
     @property
     def morphology(self):
@@ -1173,6 +1203,19 @@ class Simulation(CratermakerBase):
         The path to the configuration file for the simulation.
         """
         return self.simdir / _CONFIG_FILE_NAME
+    
+    @property
+    def grid(self):
+        """
+        The type of grid used for the surface.
+        """
+        return self._grid
+    
+    @grid.setter
+    def grid(self, value):
+        if not isinstance(value, (Grid, str)):
+            raise TypeError("grid must be a string or Grid object")
+        self._grid = value
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)

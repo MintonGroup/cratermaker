@@ -5,6 +5,7 @@ _EXPORT_DIR = "export"
 _COMBINED_DATA_FILE_NAME = "surf.nc"
 _GRID_FILE_NAME = "grid.nc"
 _CIRCLE_FILE_NAME = "circles.vtp"
+_COMPONENT_NAMES = ["target", "scaling", "production", "morphology", "impactor", "grid"]
 
 _SMALLFAC = 1.0e-5 # This is a factor used to determine the smallest length scale in the grid
 
