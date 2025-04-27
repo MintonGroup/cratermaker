@@ -1080,7 +1080,7 @@ class Simulation(CratermakerBase):
     @parameter
     def elapsed_time(self):
         """
-        The elasped time in My since the start of the simulation.
+        The elapsed time in My since the start of the simulation.
         """
         return self._elapsed_time
     
