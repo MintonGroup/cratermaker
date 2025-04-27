@@ -34,7 +34,7 @@ class CratermakerBase:
         rng_state : dict, optional
             The state of the random number generator. If None, a new state is created.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            Additional keyword arguments.
         """
         object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_rng", None)
