@@ -107,9 +107,29 @@ class Surface:
     def full_view(self):
         return SurfaceView(self, slice(None), slice(None))
 
+    def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
+        """
+        Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. 
 
-    def to_config(self, **kwargs):
-        return _to_config(self)
+        Parameters
+        ----------
+        obj : Any
+            The object whose attributes will be stored.  It must have a _user_defined attribute.
+        remove_common_args : bool, optional
+            If True, remove the set of common arguments that are shared among all components of the project from the configuration. Defaults to False.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
+
+        Returns
+        -------
+        dict[str, Any]
+            A dictionary of the object's attributes that can be serialized to YAML.
+        Notes
+        -----
+        - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
+        - The function will convert Numpy types to their native Python types.
+        """
+        return _to_config(self, remove_common_args=remove_common_args, **kwargs)
 
     @classmethod
     def make(cls: Surface, 
@@ -383,7 +403,7 @@ class Surface:
         self._target = Target.make(value)
         return 
     
-    def to_config(self, **kwargs: Any) -> dict[str, Any]:
+    def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
         """
         Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. 
 
@@ -391,6 +411,8 @@ class Surface:
         ----------
         obj : Any
             The object whose attributes will be stored.  It must have a _user_defined attribute.
+        remove_common_args : bool, optional
+            If True, remove the set of common arguments that are shared among all components of the project from the configuration. Defaults to False.
         **kwargs : Any
             Additional keyword arguments for subclasses.
 
@@ -403,7 +425,7 @@ class Surface:
         - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
         - The function will convert Numpy types to their native Python types.
         """
-        return _to_config(self)
+        return _to_config(self, remove_common_args=remove_common_args, **kwargs)
 
     @property
     def simdir(self):

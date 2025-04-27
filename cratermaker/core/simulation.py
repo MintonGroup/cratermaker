@@ -148,6 +148,7 @@ class Simulation(CratermakerBase):
         self._smallest_projectile = 0.0 # The smallest crater will be determined by the smallest face area
         self._largest_crater = np.inf # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf # The largest projectile will be determined by the target body radius
+        self.to_config()
 
         return
 
@@ -625,19 +626,39 @@ class Simulation(CratermakerBase):
 
 
     def to_config(self, **kwargs: Any) -> dict:
-        sim_config = super().to_config()
-        sim_config['target_config'] = self.target.to_config()
-        sim_config['scaling_config'] = self.scaling.to_config()
-        sim_config['production_config'] = self.production.to_config()
-        sim_config['surface_config'] = self.surf.to_config()
-        sim_config['impactor_parameter'] = self.impactor.to_config()
-        sim_config['morphology_config'] = self.morphology.to_config()
+        """
+        Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. This will consolidate all of the configuration
+        parameters into a single dictionary that can be saved to a YAML file. This will also remove any common arguments from the individual configurations for each component model to avoid repeating them.
+
+        Parameters
+        ----------
+        obj : Any
+            The object whose attributes will be stored.  It must have a _user_defined attribute.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
+
+        Returns
+        -------
+        dict[str, Any]
+            A dictionary of the object's attributes that can be serialized to YAML.
+        Notes
+        -----
+        - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
+        - The function will convert Numpy types to their native Python types.
+        """
+        sim_config = super().to_config(remove_common_args=False)
+        sim_config['target_config'] = self.target.to_config(remove_common_args=True)
+        sim_config['scaling_config'] = self.scaling.to_config(remove_common_args=True)
+        sim_config['production_config'] = self.production.to_config(remove_common_args=True)
+        sim_config['surface_config'] = self.surf.to_config(remove_common_args=True)
+        sim_config['impactor_config'] = self.impactor.to_config(remove_common_args=True)
+        sim_config['morphology_config'] = self.morphology.to_config(remove_common_args=True)
 
         # Write the combined configuration to a YAML file
         with open(self.config_file, 'w') as f:
             yaml.safe_dump(sim_config, f, indent=4)
 
-        return _to_config(self)
+        return _to_config(self, **kwargs)
 
     def save(self, **kwargs: Any) -> None:
                 
