@@ -6,9 +6,10 @@
 Cratermaker API reference
 #########################
 
-This section of the documentation provides a detailed reference for the Production classes in the Cratermaker project.
+This section of the documentation provides a detailed reference for the core functionality and modular components of the Cratermaker project.
 
 .. _api-Simulation:
+
 
 Simulation
 ==========
@@ -16,7 +17,7 @@ Simulation
 The Simulation class is the main class for the cratermaker project. It is used to create a simulation of a crater on a given target 
 body. The Simulation class is used to generate craters of a given size and morphology based on the production function, morphology
 function, and crater scaling relationship model. The surface of the target body is represented by a Surface attribute called
-`surf`, which is derived from a UxDataset object. This is an unstructured grid dataset that contains data for the target body surface.
+`surf`, which contains a UxDataset object called `surf.uxds`. This is an unstructured grid dataset that contains data for the target body surface.
 
 Creating a Simulation
 ---------------------
@@ -24,8 +25,7 @@ Creating a Simulation
 .. autosummary::
     :toctree: generated/
 
-    Simulation
-
+    Simulation.make
 
 Methods
 -------
@@ -42,6 +42,11 @@ Methods
     Simulation.save
     Simulation.export_vtk
     Simulation.set_elevation
+    Simulation.to_config
+    Simulation.make_circle_file
+    Simulation.get_smallest_diameter
+    Simulation.get_largest_diameter
+
 
 Attributes
 ----------
@@ -51,16 +56,18 @@ Attributes
 
     Simulation.surf
     Simulation.production
+    Simulation.scaling
     Simulation.crater
-    Simulation.projectile
+    Simulation.impactor
     Simulation.target
+    Simulation.morphology
+    Simulation.crater
+    Simulation.grid
     Simulation.data_dir
     Simulation.grid_file
-    Simulation.morphology_cls
     Simulation.n_face
     Simulation.n_node
     Simulation.rng
-    Simulation.scaling
     Simulation.rng_seed
     Simulation.simdir
     Simulation.interval_number
@@ -87,7 +94,7 @@ Creating a surface
 .. autosummary::
     :toctree: generated/
 
-    Surface
+    Surface.make
 
 Methods
 -------
@@ -95,7 +102,6 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Surface.make
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
     Surface.find_nearest_index
@@ -107,6 +113,7 @@ Methods
     Surface.elevation_to_cartesian
     Surface.extract_region
     Surface.get_random_location_on_face
+    Surface.to_config
 
 Attributes
 ----------
@@ -114,13 +121,99 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    Surface.uxds
+    Surface.grid
+    Surface.node_tree
+    Surface.face_tree
     Surface.data_dir
     Surface.grid_file
     Surface.smallest_length
     Surface.area
     Surface.target
     Surface.rng
+    Surface.rng_seed
+    Surface.simdir
 
+.. _api-Target:
+
+Target
+======
+
+The Target class represents the target body in a crater simulation. It encapsulates properties of the target, such as its material composition, size, and other physical characteristics.
+
+Creating a Target
+-----------------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.make
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.to_config
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.name
+    Target.material_name
+    Target.catalogue
+    Target.diameter
+    Target.escape_velocity
+    Target.gravity
+    Target.radius
+    Target.transition_scale_type
+
+.. _api-Crater:
+
+Crater
+======
+
+The ``Crater`` class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features. It also defines the properties of the projectile, such as its size, velocity, material, and angle of impact.
+
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Crater.make
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Crater.final_diameter
+    Crater.final_radius
+    Crater.transient_diameter
+    Crater.transient_radius
+    Crater.projectile_diameter
+    Crater.projectile_radius
+    Crater.projectile_density
+    Crater.projectile_mass
+    Crater.projectile_velocity
+    Crater.projectile_vertical_velocity
+    Crater.projectile_angle
+    Crater.projectile_direction
+    Crater.location
+    Crater.age
+
+
+Components
+==========
+
+.. currentmodule:: cratermaker.components.grid
 
 .. _api-Grid:
 
@@ -130,18 +223,6 @@ Generating grids
 .. autosummary::
     :toctree: generated/
 
-    Grid
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Grid.generate_face_distribution
-    Grid.generate_grid
-    Grid.generate_hash
-    Grid.check_and_regrid
 
 Generating a uniform Icosphere grid
 -----------------------------------
@@ -149,7 +230,7 @@ Generating a uniform Icosphere grid
 .. autosummary::
     :toctree: generated/
 
-    IcosphereGrid
+    IcosphereGrid.make
 
 Methods
 -------
@@ -157,7 +238,12 @@ Methods
 .. autosummary::
     :toctree: generated/
 
+    IcosphereGrid.available
     IcosphereGrid.generate_face_distribution
+    IcosphereGrid.generate_grid
+    IcosphereGrid.check_if_regrid
+    IcosphereGrid.create_grid
+    IcosphereGrid.to_config
 
 Attributes
 ----------
@@ -165,8 +251,13 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    IcosphereGrid.name
     IcosphereGrid.pix
     IcosphereGrid.radius
+    IcosphereGrid.uxgrid
+    IcosphereGrid.file
+    IcosphereGrid.regrid
+    IcosphereGrid.gridlevel
 
 Generating a uniform arbitrary resolution grid
 ----------------------------------------------
@@ -174,7 +265,7 @@ Generating a uniform arbitrary resolution grid
 .. autosummary::
     :toctree: generated/
 
-    ArbitraryResolutionGrid
+    ArbitraryResolutionGrid.make
 
 Methods
 -------
@@ -200,7 +291,7 @@ Generating a non-uniform grid with a high resolution local region
 .. autosummary::
     :toctree: generated/
 
-    HiResLocalGrid
+    HiResLocalGrid.make
 
 Methods
 -------
@@ -224,8 +315,6 @@ Attributes
 
 .. _api-Production:
 
-Production
-==========
 
 The Production class serves as a base class for computing the production function for craters and impactors.
 
@@ -235,36 +324,12 @@ Creating a Production Function
 .. autosummary::
     :toctree: generated/
 
-    Production
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Production.function
-    Production.function_inverse
-    Production.sample
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Production.generator_type
-    Production.impact_velocity_model
-    Production.mean_velocity
-    Production.name
-    Production.N1_coef
-    Production.slope
-    Production.rng
-    Production.valid_models
-    Production.valid_time
+    Production.make
 
 
 .. _api-NeukumProduction:
+
+.. currentmodule:: cratermaker.components.production
 
 NeukumProduction
 ================
@@ -277,7 +342,7 @@ Creating a Neukum Production Function
 .. autosummary::
     :toctree: generated/
 
-    NeukumProduction
+    NeukumProduction.make
 
 Methods
 -------
@@ -285,6 +350,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
+    NeukumProduction.sample
     NeukumProduction.function
     NeukumProduction.chronology
     NeukumProduction.size_frequency_distribution
@@ -301,106 +367,15 @@ Attributes
     NeukumProduction.tau
     NeukumProduction.Cexp
     NeukumProduction.Clin
+    NeukumProduction.generator_type
 
-.. currentmodule:: cratermaker
+.. currentmodule:: cratermaker.components.production
 
-.. _api-Target:
-
-Target
-======
-
-The Target class represents the target body in a crater simulation. It encapsulates properties of the target, such as its material composition, size, and other physical characteristics.
-
-Creating a Target
------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    Target
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Target.catalogue
-    Target.diameter
-    Target.escape_velocity
-    Target.gravity
-    Target.material_name
-    Target.name
-    Target.radius
-    Target.transition_scale_type
-
-.. _api-Material:
-
-Material
-========
-
-The Material class represents a material that can be used in the simulation. The properties defined in a Material object are used in crater scaling calculations.
-
-Creating a matererial
----------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    Material
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Material.name
-    Material.catalogue
-    Material.density
-    Material.K1
-    Material.mu
-    Material.Ybar
-
-.. _api-Crater:
-
-Crater
-======
-
-The ``Crater`` class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features. It also defines the properties of the projectile, such as its size, velocity, material, and angle of impact.
-
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Crater.final_diameter
-    Crater.final_radius
-    Crater.transient_diameter
-    Crater.transient_radius
-    Crater.projectiel_diameter
-    Crater.projectile_radius
-    Crater.projectile_density
-    Crater.projectile_mass
-    Crater.projectile_velocity
-    Crater.projectile_vertical_velocity
-    Crater.projectile_angle
-    Crater.projectile_direction
-    Crater.location
-    Crater.age
-    Crater.morphology_cls
-    Crater.morphology_type
-    Crater.morphology
-    Crater.scaling
-    Crater.target
-    Crater.rng
 
 .. _api-Scaling:
 
 Scaling
-============
+=======
 
 The Scaling class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
 
@@ -410,7 +385,7 @@ Creating Scaling
 .. autosummary::
     :toctree: generated/
 
-    Scaling
+    Scaling.make
 
 Methods
 -------
@@ -425,6 +400,7 @@ Methods
     Scaling.crater_to_projectile
     Scaling.projectile_to_transient
     Scaling.transient_to_projectile
+    Scaling.make
 
 Attributes
 ----------
@@ -442,6 +418,7 @@ Attributes
     Scaling.complex_enlargement_factor
     Scaling.final_exp
 
+.. currentmodule:: cratermaker.components.morphology
 
 .. _api-Morphology:
 
@@ -472,6 +449,7 @@ Methods
     Morphology.form_ejecta
     Morphology.form_secondaries
     Morphology.ray_intensity
+    Morphology.make
 
 Attributes
 ----------
@@ -493,6 +471,60 @@ Attributes
     Morphology.peakheight
     Morphology.target
     Morphology.rng
+
+.. currentmodule:: cratermaker.components.impactor
+
+.. _api-Morphology:
+
+Impactor
+==========
+
+The Impactor class is an operations class defining the interface for generating impactor velocities, angles, and densities for a given target body.
+
+Creating asteroids
+-------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    Impactor
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Impactor.compute_rmax
+    Impactor.crater_profile
+    Impactor.ejecta_profile
+    Impactor.ejecta_distribution
+    Impactor.form_crater
+    Impactor.form_ejecta
+    Impactor.form_secondaries
+    Impactor.ray_intensity
+    Impactor.make
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Impactor.crater
+    Impactor.final_diameter
+    Impactor.dorays
+    Impactor.ejrim
+    Impactor.ejecta_truncation
+    Impactor.floordepth
+    Impactor.floor_diameter
+    Impactor.morphology_type
+    Impactor.radius
+    Impactor.rimheight
+    Impactor.rimwidth
+    Impactor.peakheight
+    Impactor.target
+    Impactor.rng
 
 
 .. _api-Utility:
@@ -522,14 +554,6 @@ General utilities
     cratermaker.utils.general_utils.normalize_coords
     cratermaker.utils.general_utils.R_to_CSFD
 
-Realism
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    cratermaker.realistic.apply_noise
-
 
 Custom type definitions
 -----------------------
@@ -545,4 +569,3 @@ Fortran API Documentation
 =========================
 
 For detailed documentation of the Fortran API, see the `Fortran API <_static/fortran_docs/index.html>`_.
-

@@ -27,4 +27,3 @@ dependencies:
   - sphinxext-opengraph
   - nbsphinx
   - ipython
-  - ford
