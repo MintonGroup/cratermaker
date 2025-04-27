@@ -26,12 +26,12 @@ class Simulation(CratermakerBase):
 
     """
     def __init__(self, *, # Enforce keyword-only arguments
-                 target: Target | str = "Moon",
-                 scaling: Scaling | str = "richardson2009",
-                 production: Production | str = "neukum",
-                 morphology: Morphology | str = "simplemoon",
-                 impactor: Impactor | str = "asteroids",
-                 simdir: str | Path = Path.cwd(),
+                 target: Target | str | None = None,
+                 scaling: Scaling | str | None = None,
+                 production: Production | str | None = None,
+                 morphology: Morphology | str | None = None,
+                 impactor: Impactor | str | None = None,
+                 simdir: str | Path | None = None,
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
@@ -947,7 +947,7 @@ class Simulation(CratermakerBase):
     @morphology.setter
     def morphology(self, value):
         if not isinstance(value, (Morphology, str)):
-            raise TypeError("morpholog must be of Morphology type or str")
+            raise TypeError("morphology must be of Morphology type or str")
         self._morphology = value
 
 
@@ -961,7 +961,7 @@ class Simulation(CratermakerBase):
     @impactor.setter
     def impactor(self, value):
         if not isinstance(value, (Impactor, str)):
-            raise TypeError("morpholog must be of Impactor type or str")
+            raise TypeError("impactor must be of Impactor type or str")
         self._impactor = value
 
     @property
@@ -991,13 +991,6 @@ class Simulation(CratermakerBase):
         """
         return self.surf.grid_file
 
-    @property
-    def n_node(self):
-        """
-        Number of nodes in the simulation mesh. Dynamically set based on `surf` attribute.
-        """
-        return self.surf.uxgrid.n_node
-   
     @property
     def n_node(self):
         """

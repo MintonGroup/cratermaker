@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import numpy as np
 import xarray as xr
-from cratermaker.constants import _COMBINED_DATA_FILE_NAME, _EXPORT_DIR
+from cratermaker.constants import _CONFIG_FILE_NAME, _COMBINED_DATA_FILE_NAME, _EXPORT_DIR
 # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
 # The API change does not affect the functionality of the code, so we can safely ignore the warning
 import warnings
@@ -163,6 +163,21 @@ class TestSimulation(unittest.TestCase):
             sim.run(age=3.8e3, ninterval=100, age_interval=100.0)
 
         return
+
+    def test_simulation_to_config(self):
+
+        # First simulation: no target passed, should default to "Moon"
+        sim = cratermaker.Simulation(simdir=self.simdir, gridlevel=self.gridlevel)
+        self.assertIsInstance(sim.target, Target)
+        self.assertEqual(sim.target.name, "Moon")
+
+        # Second simulation: override target with "Mars"
+        sim2 = cratermaker.Simulation(simdir=self.simdir, target="Mars")
+        self.assertEqual(sim2.target.name, "Mars")
+
+        # Third simulation: no target passed, should read "Mars" from config
+        sim3 = cratermaker.Simulation(simdir=self.simdir)
+        self.assertEqual(sim3.target.name, "Mars")
 
 if __name__ == '__main__':
     unittest.main()
