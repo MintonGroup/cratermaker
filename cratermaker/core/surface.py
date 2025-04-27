@@ -1,8 +1,7 @@
 from __future__ import annotations
 import xarray as xr
-from xarray import DataArray, Dataset
 import uxarray as uxr
-from uxarray import UxDataArray, UxDataset
+from uxarray import INT_FILL_VALUE, Grid, UxDataArray, UxDataset
 import os
 import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
@@ -16,13 +15,15 @@ from .target import Target
 import warnings
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.montecarlo import get_random_location_on_face
-from cratermaker.utils.general_utils import _to_config, parameter
+from cratermaker.utils.general_utils import parameter
 from cratermaker.components.grid import Grid
+from cratermaker.core.base import _to_config
 from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME, _SMALLFAC, _COMBINED_DATA_FILE_NAME
+from cratermaker._cratermaker import surface_functions
 from .base import CratermakerBase, _rng_init, _simdir_init, CommonArgs
 from typing import Any
 
-class Surface(UxDataset):
+class Surface:
     """
     This class is used for handling surface-related data and operations in the cratermaker project. It provides methods for 
     setting elevation data, calculating distances and bearings, and other surface-related computations.
@@ -31,38 +32,38 @@ class Surface(UxDataset):
     
     Parameters
     ----------
-    *args
-        Variable length argument list for additional parameters to pass to the ``uxarray.UxDataset`` class.
+    uxds : UxDataset
+        The UxDataset object that contains the surface data.
+    grid : str, optional
+        The name of the grid used for the surface. Default is "icosphere".
     target : Target, optional
         The target body or name of a known target body for the impact simulation. 
-    simdir : os.PathLike, optional
-        The directory where the simulation data is stored. Default is the current working directory.
     compute_face_areas : bool, optional
         Flag to indicate whether to compute face areas. Default is False.    
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used.        
-    **kwargs
-        This is used to pass additional keyword arguments to pass to the ``uxarray.UxDataset`` class.
-    """
-    __slots__ = (
-        '_name', '_description', '_data_dir', '_grid_file', '_smallest_length',
-        '_area', '_target', '_rng', '_rng_seed', '_rng_state', '_simdir', '_user_defined',
-        '_compute_face_areas', '_grid_name', '_grid_parameters'
-    )
+    simdir : str | Path
+        The main project simulation directory. Defaults to the current working directory if None.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
+    """ 
 
     def __init__(self, 
-                 *args, 
-                 target: Target | str = "Moon", 
+                 uxds: UxDataset, 
+                 grid: Grid | str | None = None,
+                 target: Target | str | None = None,
                  compute_face_areas: bool = False,
+                 simdir: os.PathLike = Path.cwd(),
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
-                 simdir: os.PathLike = Path.cwd(),
-                 grid_name: str = "icosphere",
                  **kwargs):
 
-        # Call the super class constructor with the UxDataset
-        super().__init__(*args, **kwargs)
+        object.__setattr__(self, "_user_defined", set())
         argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
         self._rng = argproc.rng
         self._rng_seed = argproc.rng_seed
@@ -70,29 +71,72 @@ class Surface(UxDataset):
         self._simdir = argproc.simdir
 
         # Additional initialization for Surface
+        self.grid = grid
+        self._target = Target.make(target, **kwargs)
+        self._compute_face_areas = compute_face_areas
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
         self._area = None
         self._smallest_length = None
-        self._target = Target.make(target, **kwargs)
-        self._compute_face_areas = compute_face_areas
-        self._grid_name = grid_name
-       
+        self._node_tree = None
+        self._face_tree = None
+        self._uxds = uxds
+
+        return
+    
+    def load_from_data(self, compute_face_areas):
         if compute_face_areas: 
             # Compute face area needed in the non-normalized units for future calculations
-            self['face_areas'] = self.uxgrid.face_areas.assign_attrs(units='m^2') * self.target.radius**2
-            self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC     
+            self.face_areas = self.uxds.uxgrid.face_areas.values * self.target.radius**2
+            self.smallest_length = np.sqrt(self.face_areas.min()) * _SMALLFAC   
         
-        return   
+        self.face_lat = self.uxds.uxgrid.face_lat.values
+        self.face_lon = self.uxds.uxgrid.face_lon.values
+        self.node_lat = self.uxds.uxgrid.node_lat.values
+        self.node_lon = self.uxds.uxgrid.node_lon.values
+        self.node_elevation = self.uxds["node_elevation"].values
+        self.face_elevation = self.uxds["face_elevation"].values
+        self.ejecta_thickness = self.uxds["ejecta_thickness"].values
+        self.ray_intensity = self.uxds["ray_intensity"].values
+    
+    def save_to_data(self):
+        self.uxds["node_elevation"].values = self.node_elevation
+        self.uxds["face_elevation"].values = self.face_elevation
+        self.uxds["ejecta_thickness"].values = self.ejecta_thickness
+        self.uxds["ray_intensity"].values = self.ray_intensity
+    
+    def full_view(self):
+        return SurfaceView(self, slice(None), slice(None))
 
-    def to_config(self, **kwargs):
-        return _to_config(self)
+    def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
+        """
+        Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. 
+
+        Parameters
+        ----------
+        obj : Any
+            The object whose attributes will be stored.  It must have a _user_defined attribute.
+        remove_common_args : bool, optional
+            If True, remove the set of common arguments that are shared among all components of the project from the configuration. Defaults to False.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
+
+        Returns
+        -------
+        dict[str, Any]
+            A dictionary of the object's attributes that can be serialized to YAML.
+        Notes
+        -----
+        - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
+        - The function will convert Numpy types to their native Python types.
+        """
+        return _to_config(self, remove_common_args=remove_common_args, **kwargs)
 
     @classmethod
     def make(cls: Surface, 
+             grid: str | None = None,
              target: Target | None = None, 
              reset_surface: bool = True, 
-             grid: str | None = None,
              regrid: bool = False,
              simdir: str | None = None,
              rng: Generator | None = None,
@@ -104,22 +148,24 @@ class Surface(UxDataset):
 
         Parameters
         ----------
+        grid : str, optional
+            The name of the grid used for the surface. Default is "icosphere".
         target : Target, optional
-            Target object or name of known body for the simulation. Default is Target("Moon")
+            The target body or name of a known target body for the impact simulation. 
         reset_surface : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
-        grid : str, optional
-            The type of grid to be generated. Default is "icosphere".  
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
         simdir : str | Path
-            The main project simulation directory.
+            The main project simulation directory. Defaults to the current working directory if None.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-        rng_seed : int | None
-            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
-        **kwargs : dict
-            Additional keyword arguments for initializing the Surface instance based on the specific name.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
+        **kwargs : Any
+        Additional keyword arguments.
 
         Returns
         -------
@@ -144,7 +190,7 @@ class Surface(UxDataset):
             data_file_list.remove(grid.file)
             
         # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-        reset_surface = reset_surface or not data_file_list
+        reset_surface = reset_surface or not data_file_list or grid.regrid
         
         # If reset_surface is True, delete all data files except the grid file 
         if reset_surface or grid.regrid:
@@ -164,62 +210,37 @@ class Surface(UxDataset):
             raise ValueError("Error loading grid and data files")
         
         surf = cls(surf,
-                   uxgrid=surf.uxgrid,
-                   source_datasets=surf.source_datasets,
                    target = target,
                    simdir = simdir,
                    rng = rng,
                    rng_seed = rng_seed,
                    rng_state = rng_state,
                    compute_face_areas = True,
-                   grid_name = grid._component_name 
-                  ) 
+                   grid = grid) 
         
         if reset_surface:
             surf.generate_data(data=0.0,
                                name="ejecta_thickness",
                                long_name="ejecta thickness",
                                units= "m",
-                               save_to_file=True
-                              )     
+                               save_to_file=True)     
             surf.generate_data(data=0.0,
                                name="ray_intensity",
                                long_name="ray intensity value",
                                units= "",
-                               save_to_file=True
-                              )                         
+                               save_to_file=True)                         
             surf.set_elevation(0.0,save_to_file=True)
 
-        surf.grid_parameters = grid.to_config()
-        surf.grid_parameters.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
-        surf.grid_parameters['grid'] = grid
+        surf.load_from_data(compute_face_areas=True)
         
-        return surf        
-        
-    def __getitem__(self, key):
-        """Override to make sure the result is an instance of ``cratermaker.Surface``"""
-
-        value = super().__getitem__(key)
-
-        if isinstance(value, uxr.UxDataset):
-            value = Surface(value,
-                            uxgrid=self.uxgrid,
-                            source_datasets=self.source_datasets,
-                            target=self.target,
-                            simdir=self.simdir,
-                            rng=self.rng,
-                            rng_seed=self.rng_seed,
-                            rng_state=self.rng_state,
-                            compute_face_areas=False,
-                            )
-        return value
+        return surf
     
     def _calculate_binary_op(self, *args, **kwargs):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         ds = super()._calculate_binary_op(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._grid_name = self._grid_name
+            ds._grid = self._grid
             ds._description = self._description
             ds._simdir = self._simdir
             ds._target = self._target
@@ -251,7 +272,7 @@ class Surface(UxDataset):
         """Override to make the result a complete instance of ``cratermaker.Surface``."""
         copied = super()._copy(**kwargs)
 
-        copied._grid_name = self._grid_name
+        copied._grid = self._grid
         copied._description = self._description
         copied._simdir = self._simdir
         copied._smallest_length = self._smallest_length
@@ -269,7 +290,7 @@ class Surface(UxDataset):
         ds = super()._replace(*args, **kwargs)
 
         if isinstance(ds, Surface):
-            ds._grid_name = self._grid_name
+            ds._grid = self._grid
             ds._description = self._description
             ds._simdir = self._simdir
             ds._target = self._target
@@ -294,6 +315,19 @@ class Surface(UxDataset):
         return ds   
 
     @property
+    def uxds(self) -> UxDataset:
+        """
+        The data associated with the surface. This is an instance of UxDataset.
+        """
+        return self._uxds
+
+    @uxds.setter
+    def uxds(self, value: UxDataset):
+        if not isinstance(value, UxDataset):
+            raise TypeError("data must be an instance of UxDataset")
+        self._uxds = value
+
+    @property
     def data_dir(self):
         """
         Directory for data files.
@@ -307,31 +341,20 @@ class Surface(UxDataset):
         """
         return self.simdir / _DATA_DIR / _GRID_FILE_NAME
 
-    @parameter
-    def grid_name(self):
+    @property
+    def grid(self):
         """
         The type of grid used for the surface.
         """
-        return self._grid_name
+        return self._grid
     
-    @parameter
-    def compute_face_areas(self):
-        """
-        Flag to indicate whether to compute face areas.
-        """
-        return self._compute_face_areas
-
-    @compute_face_areas.setter
-    def compute_face_areas(self, value):
-        if not isinstance(value, bool):
-            raise TypeError("compute_face_areas must be a boolean")
-        self._compute_face_areas = value
-        if value:
-            # Compute face area needed in the non-normalized units for future calculations
-            self['face_areas'] = self.uxgrid.face_areas.assign_attrs(units='m^2') * self.target.radius**2
-            self.smallest_length = np.sqrt(self['face_areas'].min().item()) * _SMALLFAC
-
-    @parameter
+    @grid.setter
+    def grid(self, value):
+        if not isinstance(value, (Grid, str)):
+            raise TypeError("grid must be a string or Grid object")
+        self._grid = value
+    
+    @property
     def smallest_length(self):
         """
         Smallest length value that is directly modeled on the grid. This is used to determine the maximum distance of ejecta to 
@@ -346,17 +369,17 @@ class Surface(UxDataset):
         self._smallest_length = value
 
     @parameter
-    def grid_parameters(self):
+    def grid_config(self):
         """
         The grid configuration used for the surface.
         """
-        return self._grid_parameters
+        return self._grid_config
     
-    @grid_parameters.setter
-    def grid_parameters(self, value):
+    @grid_config.setter
+    def grid_config(self, value):
         if not isinstance(value, dict):
             raise TypeError("grid_config must be a dictionary")
-        self._grid_parameters = value
+        self._grid_config = value
 
     @property
     def area(self):
@@ -364,7 +387,7 @@ class Surface(UxDataset):
         Total surface area of the target body.
         """
         if self._area is None:
-            self._area = self['face_areas'].sum().assign_attrs({'long_name': 'total surface area', 'units': 'm^2'})
+            self._area = self.face_areas.sum()
         return self._area
 
     @property
@@ -379,7 +402,7 @@ class Surface(UxDataset):
         self._target = Target.make(value)
         return 
     
-    def to_config(self, **kwargs: Any) -> dict[str, Any]:
+    def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
         """
         Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. 
 
@@ -387,6 +410,8 @@ class Surface(UxDataset):
         ----------
         obj : Any
             The object whose attributes will be stored.  It must have a _user_defined attribute.
+        remove_common_args : bool, optional
+            If True, remove the set of common arguments that are shared among all components of the project from the configuration. Defaults to False.
         **kwargs : Any
             Additional keyword arguments for subclasses.
 
@@ -399,7 +424,7 @@ class Surface(UxDataset):
         - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
         - The function will convert Numpy types to their native Python types.
         """
-        return _to_config(self)
+        return _to_config(self, remove_common_args=remove_common_args, **kwargs)
 
     @property
     def simdir(self):
@@ -450,6 +475,20 @@ class Surface(UxDataset):
         """
         return self._rng
 
+    @property
+    def node_tree(self):
+        if self._node_tree is None:
+            self._node_tree = self.uxds.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical", reconstruct=True)
+        
+        return self._node_tree
+
+    @property
+    def face_tree(self):
+        if self._face_tree is None:
+            self._face_tree = self.uxds.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical", reconstruct=True)
+        
+        return self._face_tree
+    
     @rng.setter
     def rng(self, value):
         self._rng, _ = _rng_init(rng=value, rng_seed=self.rng_seed, rng_state=self.rng_state)
@@ -542,7 +581,7 @@ class Surface(UxDataset):
             uxgrid=uxgrid,
         ) 
          
-        self[name] = uxda
+        self.uxds[name] = uxda
         
         if save_to_file:
             self._save_data(uxda, self.data_dir, interval_number, combine_data_files)
@@ -571,10 +610,10 @@ class Surface(UxDataset):
         if new_elev is None or np.isscalar(new_elev):
             gen_node = True
             gen_face = True 
-        elif new_elev.size == self.uxgrid.n_node:
+        elif new_elev.size == self.uxds.uxgrid.n_node:
             gen_node = True
             gen_face = False
-        elif new_elev.size == self.uxgrid.n_face:
+        elif new_elev.size == self.uxds.uxgrid.n_face:
             gen_node = False
             gen_face = True
         else:
@@ -582,6 +621,11 @@ class Surface(UxDataset):
             gen_face = False
             raise ValueError("new_elev must be None, a scalar, or an array with the same size as the number of nodes in the grid")
     
+        try:
+            self.save_to_data()
+        except AttributeError:
+            pass
+            
         if gen_node:
             self.generate_data(data=new_elev, 
                                name="node_elevation",
@@ -602,6 +646,7 @@ class Surface(UxDataset):
                                combine_data_files=combine_data_files,
                                interval_number=interval_number
                               )
+        self.load_from_data(compute_face_areas=False)
         return 
 
     @staticmethod
@@ -641,7 +686,8 @@ class Surface(UxDataset):
         return radius * c
     
     def get_distance(self, 
-                     location: tuple[float, float]) -> UxDataArray:
+                     view: 'SurfaceView',
+                     location: tuple[float, float]) -> tuple[float, float]:
         """
         Computes the distances between nodes and faces and a given location.
 
@@ -659,10 +705,10 @@ class Surface(UxDataset):
         """
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
-        node_lon2 = np.deg2rad(self.uxgrid.node_lon)
-        node_lat2 = np.deg2rad(self.uxgrid.node_lat)        
-        face_lon2 = np.deg2rad(self.uxgrid.face_lon)
-        face_lat2 = np.deg2rad(self.uxgrid.face_lat)
+        node_lon2 = np.deg2rad(self.node_lon[view.node_indices])
+        node_lat2 = np.deg2rad(self.node_lat[view.node_indices])
+        face_lon2 = np.deg2rad(self.face_lon[view.face_indices])
+        face_lat2 = np.deg2rad(self.face_lat[view.face_indices])
         return self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,self.target.radius), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,self.target.radius) 
 
     @staticmethod
@@ -702,7 +748,7 @@ class Surface(UxDataset):
 
         return initial_bearing
     
-    def get_initial_bearing(self, location: tuple[float, float]) -> UxDataArray:
+    def get_initial_bearing(self, view: 'SurfaceView', location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
         Computes the initial bearing between nodes and faces and a given location.
 
@@ -720,11 +766,12 @@ class Surface(UxDataset):
         """
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
-        node_lon2 = np.deg2rad(self.uxgrid.node_lon)
-        node_lat2 = np.deg2rad(self.uxgrid.node_lat)
-        face_lon2 = np.deg2rad(self.uxgrid.face_lon)
-        face_lat2 = np.deg2rad(self.uxgrid.face_lat)       
-        return self.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), self.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2)
+        node_lon2 = np.deg2rad(self.node_lon[view.node_indices])
+        node_lat2 = np.deg2rad(self.node_lat[view.node_indices])
+        face_lon2 = np.deg2rad(self.face_lon[view.face_indices])
+        face_lat2 = np.deg2rad(self.face_lat[view.face_indices])
+        return (surface_functions.calculate_initial_bearing(lon1,lat1,node_lon2,node_lat2), 
+                surface_functions.calculate_initial_bearing(lon1,lat1,face_lon2,face_lat2))
     
     def find_nearest_index(self, location):
         """
@@ -754,16 +801,18 @@ class Surface(UxDataset):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", Warning)
-            node_tree = self.uxgrid.get_ball_tree("nodes", distance_metric="haversine", coordinate_system="spherical")
-            node_ind = node_tree.query(coords=coords, k=1, return_distance=False)
+            
+            node_ind = self.node_tree.query(coords=coords, k=1, return_distance=False)
         
-            face_tree = self.uxgrid.get_ball_tree("face centers",  distance_metric="haversine", coordinate_system="spherical")
-            face_ind = face_tree.query(coords=coords, k=1, return_distance=False)
+            face_ind = self.face_tree.query(coords=coords, k=1, return_distance=False)
         return node_ind.item(), face_ind.item()
 
-    def get_reference_surface(self,
-                            location: tuple[FloatLike, FloatLike], 
-                            region_radius: float) -> NDArray[np.float64]:
+    def get_reference_surface(self, 
+                              view: 'SurfaceView',
+                              face_crater_distance: NDArray, 
+                              node_crater_distance: NDArray,
+                              location: tuple[FloatLike, FloatLike], 
+                              region_radius: float) -> NDArray[np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
 
@@ -801,31 +850,26 @@ class Surface(UxDataset):
             return (x - x_c)**2 + (y - y_c)**2 + (z - z_c)**2 - r**2
    
         # Find cells within the crater radius
-        if 'face_crater_distance' and 'node_crater_distance' in self:
-            faces_within_radius = self['face_crater_distance'] <= region_radius
-            nodes_within_radius = self['node_crater_distance'] <= region_radius
-        else:
-            nodes_within_radius, faces_within_radius = self.get_distance(location)
-            faces_within_radius = faces_within_radius <= region_radius
-            nodes_within_radius = nodes_within_radius <= region_radius
+        faces_within_radius = face_crater_distance <= region_radius
+        nodes_within_radius = node_crater_distance <= region_radius
+
+        face_elevation = self.face_elevation[view.face_indices]
+        node_elevation = self.node_elevation[view.node_indices]
         
         if np.sum(faces_within_radius) < 5 or not nodes_within_radius.any():
-            self['reference_face_elevation'] = self['face_elevation']
-            self['reference_node_elevation'] = self['node_elevation']
-            return
+            return face_elevation, node_elevation
        
-        inc_face = self.n_face
-        face_vars = ['face_x', 'face_y', 'face_z'] 
-        face_grid = self.n_face.uxgrid._ds[face_vars].sel(n_face=inc_face)
-        region_faces = face_grid.where(faces_within_radius, drop=False)
-        region_elevation = self['face_elevation'].where(faces_within_radius, drop=False) / self.target.radius
+        face_grid = np.column_stack((self.uxds.uxgrid.face_x.values[view.face_indices], 
+                               self.uxds.uxgrid.face_y.values[view.face_indices], 
+                               self.uxds.uxgrid.face_z.values[view.face_indices]))
+        region_faces = face_grid[faces_within_radius]
+        region_elevation = face_elevation[faces_within_radius] / self.target.radius
         region_surf = self.elevation_to_cartesian(region_faces, region_elevation) 
 
-        x, y, z = region_surf['face_x'], region_surf['face_y'], region_surf['face_z']
-        region_vectors = np.vstack((x, y, z)).T
+        x, y, z = region_surf.T
 
         # Initial guess for the sphere center and radius
-        guess_radius = 1.0 + region_elevation.mean().values.item() 
+        guess_radius = 1.0 + region_elevation.mean()
         initial_guess = [0, 0, 0, guess_radius]  
 
         # Perform the curve fitting
@@ -833,7 +877,7 @@ class Surface(UxDataset):
             warnings.simplefilter("ignore", OptimizeWarning)
             try:
                 bounds =([-1.0, -1.0, -1.0, 0.5],[1.0, 1.0, 1.0, 2.0]) 
-                popt, _  = curve_fit(sphere_function, region_vectors[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess, bounds=bounds)
+                popt, _  = curve_fit(sphere_function, region_surf[faces_within_radius], np.zeros_like(x[faces_within_radius]), p0=initial_guess, bounds=bounds)
             except:
                 popt = initial_guess
 
@@ -865,42 +909,29 @@ class Surface(UxDataset):
             return elevations
         
         # Calculate the distances between the original face points and the intersection points
-        face_vectors  = np.vstack((region_faces.face_x, region_faces.face_y, region_faces.face_z)).T
-        self['reference_face_elevation'] = xr.where(faces_within_radius, find_reference_elevations(face_vectors), self['face_elevation'])
+        reference_face_elevation = face_elevation
+        reference_face_elevation[faces_within_radius] = find_reference_elevations(region_faces)
         
         # Now do the same thing to compute the nodal values 
-        inc_node = self.n_node
-        node_vars = ['node_x', 'node_y', 'node_z'] 
-        node_grid = self.n_node.uxgrid._ds[node_vars].sel(n_node=inc_node)
-        region_nodes = node_grid.where(nodes_within_radius, drop=False) 
-        node_vectors  = np.vstack((region_nodes.node_x, region_nodes.node_y, region_nodes.node_z)).T
+        node_grid = np.column_stack((self.uxds.uxgrid.node_x.values[view.node_indices], 
+                               self.uxds.uxgrid.node_y.values[view.node_indices], 
+                               self.uxds.uxgrid.node_z.values[view.node_indices]))
+        region_nodes = node_grid[nodes_within_radius]
         
-        self['reference_node_elevation'] = xr.where(nodes_within_radius, find_reference_elevations(node_vectors), self['node_elevation'])
+        reference_node_elevation = node_elevation
+        reference_node_elevation[nodes_within_radius] = find_reference_elevations(region_nodes)
         
-        return
+        return reference_face_elevation, reference_node_elevation
 
     @staticmethod
-    def elevation_to_cartesian(position: Dataset, 
-                            elevation: DataArray
-                            ) -> Dataset:
+    def elevation_to_cartesian(position: NDArray, 
+                            elevation: NDArray
+                            ) -> NDArray:
         
-        vars = list(position.data_vars)
-        if len(vars) != 3:
-            raise ValueError("Dataset must contain exactly three coordinate variables")
         
-        dim_var = list(position.dims)[0]
-
-        rvec = np.column_stack((position[vars[0]], position[vars[1]], position[vars[2]]))
-        runit = rvec / np.linalg.norm(rvec, axis=1, keepdims=True)
+        runit = position / np.linalg.norm(position, axis=1, keepdims=True)
         
-        ds_new = Dataset(
-                        {
-                        vars[0]: ((dim_var,), rvec[:,0] + elevation.values * runit[:,0]),
-                        vars[1]: ((dim_var,), rvec[:,1] + elevation.values * runit[:,1]),
-                        vars[2]: ((dim_var,), rvec[:,2] + elevation.values * runit[:,2]),
-                        }
-                        )
-        return ds_new    
+        return position + elevation[:, np.newaxis] * runit
    
     def extract_region(self,
                        location: tuple[FloatLike, FloatLike],
@@ -938,15 +969,13 @@ class Surface(UxDataset):
         """ 
         
         region_angle = np.rad2deg(region_radius / self.target.radius)
-        try:
-            region_grid = self.uxgrid.subset.bounding_circle(center_coord=location, r=region_angle,element="face centers")
-        except ValueError:
+        coords = np.asarray(location)
+
+        ind = self.face_tree.query_radius(coords, region_angle)
+        if len(ind) == 0:
             return None
         
-        region_surf = self.isel(n_face=region_grid._ds["subgrid_face_indices"], n_node=region_grid._ds["subgrid_node_indices"])
-        region_surf.uxgrid = region_grid
-      
-        return region_surf
+        return SurfaceView(self, ind)
     
     def get_random_location_on_face(self, 
                                     face_index: int, 
@@ -976,7 +1005,7 @@ class Surface(UxDataset):
         This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
         """
         
-        return get_random_location_on_face(self.uxgrid, face_index, size,**kwargs)
+        return get_random_location_on_face(self.uxds.uxgrid, face_index, size,**kwargs)
 
     @staticmethod
     def _save_data(ds: xr.Dataset | xr.DataArray,
@@ -1039,6 +1068,20 @@ class Surface(UxDataset):
 
 
 
+class SurfaceView:
+    def __init__(self, 
+                 surf: Surface, 
+                 face_indices: NDArray | slice, 
+                 node_indices: NDArray | slice | None = None):
+        self.surf = surf
+        self.face_indices = face_indices
+        if node_indices is None:
+            node_indices = np.unique(surf.uxds.uxgrid.face_node_connectivity.values[face_indices].ravel())
+            node_indices = node_indices[node_indices != INT_FILL_VALUE]
+        
+        self.node_indices = node_indices
+
+
 def _save_surface(surf: Surface, 
          out_dir: os.PathLike | None = None,
          combine_data_files: bool = False,
@@ -1076,10 +1119,11 @@ def _save_surface(surf: Surface,
             raise TypeError("time_variables must be a dictionary")
         
     # Variables that we do not want to save as they are computed at runtime     
-        
-    surf.close()
     
-    ds = surf.expand_dims(dim="time").assign_coords({"time":[interval_number]})
+    surf.save_to_data()
+    surf.uxds.close()
+    
+    ds = surf.uxds.expand_dims(dim="time").assign_coords({"time":[interval_number]})
     for k, v in time_variables.items():
         ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time":[interval_number]})
                 
@@ -1090,7 +1134,4 @@ def _save_surface(surf: Surface,
     surf._save_data(ds, out_dir, interval_number, combine_data_files)
 
     return
-
-
-
 

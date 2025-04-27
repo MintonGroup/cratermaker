@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import numpy as np
 from typing import Any
@@ -77,7 +76,7 @@ class ArbitraryResolutionGrid(Grid):
     
     def generate_grid(self, **kwargs: Any): 
         super().generate_grid(**kwargs)
-        face_areas = self.grid.face_areas 
+        face_areas = self.uxgrid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_mean = face_sizes.mean().item() * self.radius
         pix_std = face_sizes.std().item() * self.radius

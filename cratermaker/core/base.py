@@ -34,7 +34,7 @@ class CratermakerBase:
         rng_state : dict, optional
             The state of the random number generator. If None, a new state is created.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            Additional keyword arguments.
         """
         object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_rng", None)
@@ -48,7 +48,7 @@ class CratermakerBase:
 
         super().__init__()
 
-    def to_config(self, **kwargs: Any) -> dict[str, Any]:
+    def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
         """
         Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. 
 
@@ -56,6 +56,8 @@ class CratermakerBase:
         ----------
         obj : Any
             The object whose attributes will be stored.  It must have a _user_defined attribute.
+        remove_common_args : bool, optional
+            If True, remove the set of common arguments that are shared among all components of the project from the configuration. Defaults to False.
         **kwargs : Any
             Additional keyword arguments for subclasses.
 
@@ -68,7 +70,7 @@ class CratermakerBase:
         - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
         - The function will convert Numpy types to their native Python types.
         """
-        return _to_config(self)
+        return _to_config(self, remove_common_args=remove_common_args, **kwargs)
 
     @parameter
     def simdir(self):
@@ -229,48 +231,30 @@ def _simdir_init(simdir: str | Path | None = None, **kwargs: Any) -> Path:
         simdir = p
     return simdir
 
+def _convert_for_yaml(obj):
+    if isinstance(obj, dict):
+        return {k: _convert_for_yaml(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_for_yaml(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(_convert_for_yaml(v) for v in obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    elif isinstance(obj, Path):
+        return str(obj)
+    elif isinstance(obj, (str, int, float, bool)):
+        return obj
+    elif obj is None:
+        return None
+    else:
+        return str(obj)
 
-def _to_config(obj, **kwargs: Any) -> dict[str, Any]:
-    """
-    Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. 
-
-    Parameters
-    ----------
-    obj : Any
-        The object whose attributes will be stored.  It must have a _user_defined attribute.
-    **kwargs : Any
-        Additional keyword arguments for subclasses.
-
-    Returns
-    -------
-    dict[str, Any]
-        A dictionary of the object's attributes that can be serialized to YAML.
-    Notes
-    -----
-    - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
-    - The function will convert Numpy types to their native Python types.
-    """
-    def _convert_for_yaml(obj):
-        if isinstance(obj, dict):
-            return {k: _convert_for_yaml(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [_convert_for_yaml(v) for v in obj]
-        elif isinstance(obj, tuple):
-            return tuple(_convert_for_yaml(v) for v in obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, (np.integer, np.floating)):
-            return obj.item()
-        elif isinstance(obj, Path):
-            return str(obj)
-        elif isinstance(obj, (str, int, float, bool)):
-            return obj
-        elif obj is None:
-            return None
-        else:
-            return str(obj)
-
+def _to_config(obj, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
     config = _convert_for_yaml({name: getattr(obj, name) for name in obj._user_defined if hasattr(obj, name)})
+    if remove_common_args:
+        config = {key: value for key, value in config.items() if key not in obj.common_args.__dict__}
     return {key: value for key, value in config.items() if value is not None} 
 
 

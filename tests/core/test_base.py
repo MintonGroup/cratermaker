@@ -104,7 +104,7 @@ class TestBase(unittest.TestCase):
             _simdir_init(123)
 
 
-    def test_to_config(self):
+    def test_to_config(self, **kwargs):
         class Dummy:
             def __init__(self):
                 self._user_defined = [

@@ -49,8 +49,8 @@ class TestSimulation(unittest.TestCase):
        
         # Test that variables are saved correctly
         sim.surf.set_elevation(1.0)
-        np.testing.assert_array_equal(sim.surf["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node)) 
-        np.testing.assert_array_equal(sim.surf["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face)) 
+        np.testing.assert_array_equal(sim.surf.uxds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node)) 
+        np.testing.assert_array_equal(sim.surf.uxds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face)) 
         
         sim.save()
         
@@ -58,8 +58,8 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.exists(filename))
         with xr.open_dataset(filename) as ds:
             ds = ds.isel(time=-1)
-            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node))
+            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face))
     
         # Test saving combined data
         sim.save(combine_data_files=True)
@@ -69,8 +69,8 @@ class TestSimulation(unittest.TestCase):
         self.assertTrue(os.path.exists(filename))
         with xr.open_dataset(filename) as ds:
             ds = ds.isel(time=-1)
-            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxgrid.n_node))
-            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxgrid.n_face))
+            np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node))
+            np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face))
     
         return 
         
@@ -99,6 +99,8 @@ class TestSimulation(unittest.TestCase):
         sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
         # Test that populate will work even if no craters are returned
         sim.populate(age=1e-6)
+        
+        sim.populate(age=3.8e3)
         return
     
     def test_invalid_run_args(self):
@@ -161,6 +163,21 @@ class TestSimulation(unittest.TestCase):
             sim.run(age=3.8e3, ninterval=100, age_interval=100.0)
 
         return
+
+    def test_simulation_to_config(self):
+
+        # First simulation: no target passed, should default to "Moon"
+        sim = cratermaker.Simulation(simdir=self.simdir, gridlevel=self.gridlevel)
+        self.assertIsInstance(sim.target, Target)
+        self.assertEqual(sim.target.name, "Moon")
+
+        # Second simulation: override target with "Mars"
+        sim2 = cratermaker.Simulation(simdir=self.simdir, target="Mars")
+        self.assertEqual(sim2.target.name, "Mars")
+
+        # Third simulation: no target passed, should read "Mars" from config
+        sim3 = cratermaker.Simulation(simdir=self.simdir)
+        self.assertEqual(sim3.target.name, "Mars")
 
 if __name__ == '__main__':
     unittest.main()

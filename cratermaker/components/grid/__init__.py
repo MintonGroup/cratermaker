@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import os
 import shutil
 import tempfile
@@ -114,17 +114,18 @@ class Grid(ComponentBase):
         """       
 
         points = self.generate_face_distribution(**kwargs) 
-        grid = uxr.Grid.from_points(points, method="spherical_voronoi")
-        grid.attrs["_id"] = self._id
+        uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi")
+        uxgrid.attrs["_id"] = self._id
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            grid.to_xarray().to_netcdf(temp_file.name)
+            uxgrid.to_xarray().to_netcdf(temp_file.name)
             temp_file.flush()
             os.fsync(temp_file.fileno())
             
         # Replace the original file only if writing succeeded
-        shutil.move(temp_file.name,self.file)            
+        shutil.move(temp_file.name,self.file)      
+        self.uxgrid = uxgrid
         print("Mesh generation complete")
-        self.grid = grid 
+
         return         
 
     def check_if_regrid(self, **kwargs: Any) -> bool:
@@ -279,17 +280,17 @@ class Grid(ComponentBase):
         self._radius = float(value)
         
     @property
-    def grid(self):
+    def uxgrid(self):
         """
         The grid object.
         """
-        return self._grid
+        return self._uxgrid
     
-    @grid.setter
-    def grid(self, value: uxr.Grid):
+    @uxgrid.setter
+    def uxgrid(self, value: uxr.Grid):
         if not isinstance(value, uxr.Grid):
             raise TypeError("grid must be an instance of uxarray.Grid")
-        self._grid = value
+        self._uxgrid = value
 
     @property
     def file(self):

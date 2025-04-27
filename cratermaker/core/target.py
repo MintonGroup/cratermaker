@@ -1,12 +1,10 @@
 from __future__ import annotations
 import numpy as np
 from typing import Any
-from ..utils.general_utils import _set_properties, _create_catalogue
+from ..utils.general_utils import _set_properties, _create_catalogue, parameter
 from ..utils.custom_types import FloatLike
 from astropy.constants import G
 from .base import CratermakerBase
-from pathlib import Path
-from numpy.random import Generator
 
 class Target(CratermakerBase):
     """
@@ -58,7 +56,6 @@ class Target(CratermakerBase):
         super().__init__(**kwargs)
         object.__setattr__(self, "_name", None)
         object.__setattr__(self, "_radius", None)
-        object.__setattr__(self, "_diameter", None)
         object.__setattr__(self, "_mass", None)
         object.__setattr__(self, "_transition_scale_type", None)
         object.__setattr__(self, "_material_name", None)
@@ -70,6 +67,8 @@ class Target(CratermakerBase):
         size_values_set = sum(x is not None for x in [diameter, radius])
         if size_values_set > 1:
             raise ValueError("Only one of diameter or radius may be set")
+        if diameter is not None:
+            radius = diameter / 2.0
 
         catalogue = kwargs.pop("catalogue", self.catalogue)
 
@@ -77,7 +76,6 @@ class Target(CratermakerBase):
         _set_properties(self, 
                         name=name, 
                         radius=radius, 
-                        diameter=diameter,
                         mass=mass, 
                         material_name=material_name,
                         catalogue=catalogue,
@@ -89,30 +87,8 @@ class Target(CratermakerBase):
         if arg_check > 0:
             raise ValueError("Invalid Target")
         return
-    
-    def __setattr__(self, name, value):
-        object.__setattr__(self, name, value)
-        # If this attribute is not being updated internally, mark it as a user-defined parameter
-        if not self._updating:
-            public_name = name.lstrip("_")
-            cls = type(self)
-            param = getattr(cls, public_name, None)
-            if isinstance(param, property) and getattr(param, 'fset', None) is not None:
-                # mark that the *public* name was user‐defined
-                self._user_defined.add(public_name)
-                if name in ("radius", "diameter"):
-                    object.__setattr__(self, "_updating", True)
-                    r = self._radius
-                    d = self._diameter
-                    if r is not None and d != 2*r:
-                        object.__setattr__(self, "_diameter", 2*r)
-                        object.__setattr__(self, "_user_defined", self._user_defined - {"diameter"})
-                    elif d is not None and r != d/2:
-                        object.__setattr__(self, "_radius", d/2)
-                        object.__setattr__(self, "_user_defined", self._user_defined - {"radius"})
-                    object.__setattr__(self, "_updating", False)
 
-    @property
+    @parameter
     def radius(self) -> float | None:
         return self._radius
 
@@ -124,13 +100,8 @@ class Target(CratermakerBase):
 
     @property
     def diameter(self) -> float | None:
-        return self._diameter
-
-    @diameter.setter
-    def diameter(self, value: FloatLike):
-        if value is not None and value <= 0:
-            raise ValueError("Diameter must be positive")
-        setattr(self, "_diameter", float(value))
+        if self._radius is not None:
+            return 2 * self._radius
 
     @property
     def mass(self) -> float | None:
@@ -160,7 +131,7 @@ class Target(CratermakerBase):
             raise TypeError("name must be a string or None")
         self._name = value
 
-    @property
+    @parameter
     def material_name(self):
         """
         The name of the material composition of the target body.
@@ -177,7 +148,7 @@ class Target(CratermakerBase):
             raise TypeError("material_name must be a string or None")
         self._material_name = value
 
-    @property
+    @parameter
     def density(self):
         """
         The volumetric density of the surface of the target body in kg/m^3.

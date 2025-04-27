@@ -8,7 +8,7 @@ from cratermaker.core.surface import Surface
 from cratermaker.core.crater import Crater
 from cratermaker.components.morphology import Morphology
 from cratermaker.utils.general_utils import parameter
-from cratermaker import crater_functions, ejecta_functions
+from cratermaker._cratermaker import crater_functions, ejecta_functions, morphology_functions
 
 @Morphology.register("simplemoon")
 class SimpleMoon(Morphology):
@@ -56,7 +56,7 @@ class SimpleMoon(Morphology):
         object.__setattr__(self, "_node" , None)
 
 
-    def _set_morphology_parameters(self) -> None:
+    def _set_morphology_config(self) -> None:
         """
         This method adds a crater to the morphology model and sets the parameters for the morphology based on the crater type. 
         """
@@ -111,26 +111,26 @@ class SimpleMoon(Morphology):
 
         # Test if the crater is big enough to modify the surface
         rmax = self._compute_rmax(minimum_thickness=surf.smallest_length)
-        region_surf = surf.extract_region(self.crater.location, rmax)
-        if not region_surf: # The crater is too small to change the surface
+        region_view = surf.extract_region(self.crater.location, rmax)
+        if region_view is None: # The crater is too small to change the surface
             return
         crater_area = np.pi * rmax**2
         
         # Check to make sure that the face at the crater location is not smaller than the crater area
-        if surf['face_areas'].isel(n_face=self.face_index) > crater_area:
+        if surf.face_areas[self.face_index] > crater_area:
             return
         
-        region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
-        region_surf.get_reference_surface(self.crater.location, self.crater.final_radius)
+        node_crater_distance, face_crater_distance = surf.get_distance(region_view, self.crater.location)
+        reference_face_elevation, reference_node_elevation = surf.get_reference_surface(region_view, face_crater_distance, node_crater_distance, self.crater.location, self.crater.final_radius)
         
         try:
-            node_elevation = self.crater_profile(region_surf['node_crater_distance'].values, 
-                                                 region_surf['reference_node_elevation'].values)
-            surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] = node_elevation
+            node_elevation = self.crater_profile(node_crater_distance, 
+                                                 reference_node_elevation)
+            surf.node_elevation[region_view.node_indices] = node_elevation
             
-            face_elevation = self.crater_profile(region_surf['face_crater_distance'].values, 
-                                                 region_surf['reference_face_elevation'].values)
-            surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] = face_elevation
+            face_elevation = self.crater_profile(face_crater_distance, 
+                                                 reference_face_elevation)
+            surf.face_elevation[region_view.face_indices] = face_elevation
         except:
             print(self)
             raise ValueError("Something went wrong with this crater!")
@@ -164,37 +164,27 @@ class SimpleMoon(Morphology):
         rmax = self._compute_rmax(minimum_thickness=surf.smallest_length) 
         if not self.ejecta_truncation:
             self.ejecta_truncation = rmax / self.crater.final_radius
-        region_surf = surf.extract_region(self.crater.location, rmax)
-        if not region_surf: # The crater is too small to change the surface
+        region_view = surf.extract_region(self.crater.location, rmax)
+        if region_view is None: # The crater is too small to change the surface
             return
         ejecta_area = np.pi * rmax**2
         
         # Check to make sure that the face at the crater location is not smaller than the ejecta blanket area
-        if surf['face_areas'].isel(n_face=self.face_index) > ejecta_area:
-            return                  
+        if surf.face_areas[self.face_index] > ejecta_area:
+            return
         
-        region_surf['node_crater_distance'], region_surf['face_crater_distance'] = region_surf.get_distance(self.crater.location)
-        region_surf['node_crater_bearing'], region_surf['face_crater_bearing']  = region_surf.get_initial_bearing(self.crater.location)
-        
-        try:
-            node_thickness = self.ejecta_distribution(region_surf['node_crater_distance'].values, 
-                                                     region_surf['node_crater_bearing'].values)
-            surf['node_elevation'].loc[{'n_node': region_surf.uxgrid._ds["subgrid_node_indices"]}] += node_thickness
-            
-            face_thickness = self.ejecta_distribution(region_surf['face_crater_distance'].values, 
-                                                     region_surf['face_crater_bearing'].values)
-            surf['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
-            surf['ejecta_thickness'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_thickness
-            
-            if self.dorays: 
-                face_intensity = self.ray_intensity(region_surf['face_crater_distance'].values, 
-                                                     region_surf['face_crater_bearing'].values)
-                surf['ray_intensity'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] += face_intensity
-        except:
-            print(self)
-            raise ValueError("Something went wrong with this crater!")
-                 
-        return  
+        node_crater_distance, face_crater_distance = surf.get_distance(region_view, self.crater.location)
+        node_crater_bearing, face_crater_bearing  = surf.get_initial_bearing(region_view, self.crater.location)
+        morphology_functions.form_ejecta(self, 
+                                         region_view, 
+                                         node_crater_distance, 
+                                         face_crater_distance, 
+                                         node_crater_bearing,
+                                         face_crater_bearing,
+                                         surf.node_elevation,
+                                         surf.face_elevation,
+                                         surf.ejecta_thickness,
+                                         surf.ray_intensity)
 
 
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> NDArray[np.float64]:
@@ -233,7 +223,6 @@ class SimpleMoon(Morphology):
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
         intensity = ejecta_functions.ray_intensity(r, theta,
                                        self.crater.final_diameter, 
-                                       self.ejrim, 
                                        self.ejecta_truncation,
                                     )
         intensity = np.array(intensity, dtype=np.float64)
@@ -393,7 +382,7 @@ class SimpleMoon(Morphology):
     @crater.setter
     def crater(self, value):
         Morphology.crater.fset(self, value)
-        self._set_morphology_parameters()
+        self._set_morphology_config()
 
     @property
     def node_index(self):
