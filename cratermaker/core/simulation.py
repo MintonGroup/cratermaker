@@ -121,7 +121,7 @@ class Simulation(CratermakerBase):
         kwargs = {**kwargs, **vars(self.common_args)}
 
         target_config = {**target_config, **kwargs}
-        self.target = Target.make(target=target, **target_config)
+        self.target = Target.make(target=self.target, **target_config)
 
         production_config = {**production_config, **kwargs}
         self.production = Production.make(production=self.production,  target=self.target, **production_config)
