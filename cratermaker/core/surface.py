@@ -1,6 +1,5 @@
 from __future__ import annotations
 import xarray as xr
-from xarray import DataArray, Dataset
 import uxarray as uxr
 from uxarray import INT_FILL_VALUE, Grid, UxDataArray, UxDataset
 import os
@@ -64,6 +63,7 @@ class Surface:
                  rng_state: dict | None = None,
                  **kwargs):
 
+        object.__setattr__(self, "_user_defined", set())
         argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
         self._rng = argproc.rng
         self._rng_seed = argproc.rng_seed
@@ -231,8 +231,6 @@ class Surface:
                                save_to_file=True)                         
             surf.set_elevation(0.0,save_to_file=True)
 
-        surf.grid_config = grid.to_config(remove_common_args=True)
-        surf.grid_config.pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
         surf.load_from_data(compute_face_areas=True)
         
         return surf

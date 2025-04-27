@@ -9,7 +9,6 @@ from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
 
-
 class TestSurface(unittest.TestCase):
     """
     A collection of unit tests for the Surface class in the cratermaker project.
