@@ -439,6 +439,9 @@ Richardson 2009 scaling
 Methods
 -------
 
+.. autosummary::
+    :toctree: generated/
+
     richardson2009.Richardson2009.final_to_transient
     richardson2009.Richardson2009.transient_to_final
     richardson2009.Richardson2009.projectile_to_transient
@@ -447,6 +450,9 @@ Methods
 
 Attributes
 ----------
+
+.. autosummary::
+    :toctree: generated/
 
     richardson2009.Richardson2009.target
     richardson2009.Richardson2009.impactor
