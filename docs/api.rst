@@ -208,6 +208,8 @@ Attributes
 
 .. _api-Grid:
 
+.. currentmodule:: cratermaker.components.grid
+
 Grid
 ====
 
@@ -217,8 +219,6 @@ Grid
     Grid.make
 
 
-.. currentmodule:: cratermaker.components.grid.icosphere
-
 
 Icosphere grid
 ==============
@@ -226,7 +226,7 @@ Icosphere grid
 .. autosummary::
     :toctree: generated/
 
-    IcosphereGrid.make
+    icosphere.IcosphereGrid.make
 
 Methods
 -------
@@ -234,12 +234,12 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    IcosphereGrid.available
-    IcosphereGrid.generate_face_distribution
-    IcosphereGrid.generate_grid
-    IcosphereGrid.check_if_regrid
-    IcosphereGrid.create_grid
-    IcosphereGrid.to_config
+    icosphere.IcosphereGrid.available
+    icosphere.IcosphereGrid.generate_face_distribution
+    icosphere.IcosphereGrid.generate_grid
+    icosphere.IcosphereGrid.check_if_regrid
+    icosphere.IcosphereGrid.create_grid
+    icosphere.IcosphereGrid.to_config
 
 Attributes
 ----------
@@ -247,15 +247,14 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    IcosphereGrid.name
-    IcosphereGrid.pix
-    IcosphereGrid.radius
-    IcosphereGrid.uxgrid
-    IcosphereGrid.file
-    IcosphereGrid.regrid
-    IcosphereGrid.gridlevel
+    icosphere.IcosphereGrid.name
+    icosphere.IcosphereGrid.radius
+    icosphere.IcosphereGrid.uxgrid
+    icosphere.IcosphereGrid.file
+    icosphere.IcosphereGrid.regrid
+    icosphere.IcosphereGrid.gridlevel
 
-.. currentmodule:: cratermaker.components.grid.arbitrary_resolution
+.. currentmodule:: cratermaker.components.grid
 
 Arbitrary resolution grid
 =========================
@@ -263,7 +262,7 @@ Arbitrary resolution grid
 .. autosummary::
     :toctree: generated/
 
-    ArbitraryResolutionGrid.make
+    arbitrary_resolution.ArbitraryResolutionGrid.make
 
 Methods
 -------
@@ -271,7 +270,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    ArbitraryResolutionGrid.generate_face_distribution
+    arbitrary_resolution.ArbitraryResolutionGrid.generate_face_distribution
 
 Attributes
 ----------
@@ -279,11 +278,11 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    ArbitraryResolutionGrid.pix
-    ArbitraryResolutionGrid.radius
+    arbitrary_resolution.ArbitraryResolutionGrid.pix
+    arbitrary_resolution.ArbitraryResolutionGrid.radius
 
 
-.. currentmodule:: cratermaker.components.grid.hireslocal
+.. currentmodule:: cratermaker.components.grid
 
 Hi-res local grid
 =================
@@ -291,7 +290,7 @@ Hi-res local grid
 .. autosummary::
     :toctree: generated/
 
-    HiResLocalGrid.make
+    hireslocal.HiResLocalGrid.make
 
 Methods
 -------
@@ -299,7 +298,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    HiResLocalGrid.generate_face_distribution
+    hireslocal.HiResLocalGrid.generate_face_distribution
 
 Attributes
 ----------
@@ -307,11 +306,11 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    HiResLocalGrid.pix
-    HiResLocalGrid.radius
-    HiResLocalGrid.local_radius
-    HiResLocalGrid.local_location
-    HiResLocalGrid.superdomain_scale_factor
+    hireslocal.HiResLocalGrid.pix
+    hireslocal.HiResLocalGrid.radius
+    hireslocal.HiResLocalGrid.local_radius
+    hireslocal.HiResLocalGrid.local_location
+    hireslocal.HiResLocalGrid.superdomain_scale_factor
 
 .. _api-Production:
 
@@ -328,7 +327,7 @@ Production
 
 .. _api-NeukumProduction:
 
-.. currentmodule:: cratermaker.components.production.neukum
+.. currentmodule:: cratermaker.components.production
 
 NeukumProduction
 ================
@@ -338,7 +337,7 @@ The NeukumProduction class extends the Production class to implement the Neukum 
 .. autosummary::
     :toctree: generated/
 
-    NeukumProduction.make
+    neukum.NeukumProduction.make
 
 Methods
 -------
@@ -346,10 +345,10 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    NeukumProduction.sample
-    NeukumProduction.function
-    NeukumProduction.chronology
-    NeukumProduction.size_frequency_distribution
+    neukum.NeukumProduction.sample
+    neukum.NeukumProduction.function
+    neukum.NeukumProduction.chronology
+    neukum.NeukumProduction.size_frequency_distribution
 
 Attributes
 ----------
@@ -357,28 +356,29 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    NeukumProduction.sfd_coef
-    NeukumProduction.sfd_range
-    NeukumProduction.valid_time
-    NeukumProduction.tau
-    NeukumProduction.Cexp
-    NeukumProduction.Clin
-    NeukumProduction.generator_type
+    neukum.NeukumProduction.sfd_coef
+    neukum.NeukumProduction.sfd_range
+    neukum.NeukumProduction.valid_time
+    neukum.NeukumProduction.tau
+    neukum.NeukumProduction.Cexp
+    neukum.NeukumProduction.Clin
+    neukum.NeukumProduction.generator_type
 
 
 
 .. _api-PowerLawProduction:
 
-.. currentmodule:: cratermaker.components.production.powerlaw
+.. currentmodule:: cratermaker.components.production
 
 Power law production function
 =============================
 
 The PowerLawProduction class extends the Production class to implement a power law production function for the Moon and Mars.
+
 .. autosummary::
     :toctree: generated/
 
-    PowerLawProduction.make
+    powerlaw.PowerLawProduction.make
 
 Methods
 -------
@@ -386,10 +386,9 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    PowerLawProduction.sample
-    PowerLawProduction.function
-    PowerLawProduction.chronology
-    PowerLawProduction.size_frequency_distribution
+    powerlaw.PowerLawProduction.sample
+    powerlaw.PowerLawProduction.function
+    powerlaw.PowerLawProduction.chronology
 
 
 Attributes
@@ -398,8 +397,8 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    PowerLawProduction.N1_coef
-    PowerLawProduction.slope
+    powerlaw.PowerLawProduction.N1_coef
+    powerlaw.PowerLawProduction.slope
 
 .. _api-Scaling:
 
@@ -427,7 +426,7 @@ Attributes
     Scaling.target_density
 
 
-.. currentmodule:: cratermaker.components.scaling.richardson2009
+.. currentmodule:: cratermaker.components.scaling
 
 Richardson 2009 scaling
 ========================
@@ -435,34 +434,34 @@ Richardson 2009 scaling
 .. autosummary::
     :toctree: generated/
 
-    Richardson2009.make
+    richardson2009.Richardson2009.make
 
 Methods
 -------
 
-    Richardson2009.final_to_transient
-    Richardson2009.transient_to_final
-    Richardson2009.projectile_to_transient
-    Richardson2009.transient_to_projectile
-    Richardson2009.get_morphology_type
+    richardson2009.Richardson2009.final_to_transient
+    richardson2009.Richardson2009.transient_to_final
+    richardson2009.Richardson2009.projectile_to_transient
+    richardson2009.Richardson2009.transient_to_projectile
+    richardson2009.Richardson2009.get_morphology_type
 
 Attributes
 ----------
 
-    Richardson2009.target
-    Richardson2009.impactor
-    Richardson2009.target_density
-    Richardson2009.material_catalogue
-    Richardson2009.material_name
-    Richardson2009.K1
-    Richardson2009.mu
-    Richardson2009.Ybar
-    Richardson2009.catalogue_key
-    Richardson2009.transition_diameter
-    Richardson2009.transition_nominal
-    Richardson2009.complex_enlargment_factor
-    Richardson2009.simple_enlargment_factor
-    Richardson2009.final_exp
+    richardson2009.Richardson2009.target
+    richardson2009.Richardson2009.impactor
+    richardson2009.Richardson2009.target_density
+    richardson2009.Richardson2009.material_catalogue
+    richardson2009.Richardson2009.material_name
+    richardson2009.Richardson2009.K1
+    richardson2009.Richardson2009.mu
+    richardson2009.Richardson2009.Ybar
+    richardson2009.Richardson2009.catalogue_key
+    richardson2009.Richardson2009.transition_diameter
+    richardson2009.Richardson2009.transition_nominal
+    richardson2009.Richardson2009.complex_enlargment_factor
+    richardson2009.Richardson2009.simple_enlargment_factor
+    richardson2009.Richardson2009.final_exp
 
 
 .. currentmodule:: cratermaker.components.morphology
@@ -489,7 +488,7 @@ Attributes
     Morphology.crater
 
 
-.. currentmodule:: cratermaker.components.morphology.simplemoon
+.. currentmodule:: cratermaker.components.morphology
 
 SimpleMoon
 ==========
@@ -497,7 +496,7 @@ SimpleMoon
 .. autosummary::
     :toctree: generated/
 
-    SimpleMoon.make
+    simplemoon.SimpleMoon.make
 
 
 
@@ -507,15 +506,13 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    SimpleMoon.compute_rmax
-    SimpleMoon.crater_profile
-    SimpleMoon.ejecta_profile
-    SimpleMoon.ejecta_distribution
-    SimpleMoon.form_crater
-    SimpleMoon.form_ejecta
-    SimpleMoon.form_secondaries
-    SimpleMoon.ray_intensity
-    SimpleMoon.make
+    simplemoon.SimpleMoon.crater_profile
+    simplemoon.SimpleMoon.ejecta_profile
+    simplemoon.SimpleMoon.ejecta_distribution
+    simplemoon.SimpleMoon.form_crater
+    simplemoon.SimpleMoon.form_ejecta
+    simplemoon.SimpleMoon.ray_intensity
+    simplemoon.SimpleMoon.make
 
 Attributes
 ----------
@@ -523,20 +520,16 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    SimpleMoon.crater
-    SimpleMoon.final_diameter
-    SimpleMoon.dorays
-    SimpleMoon.ejrim
-    SimpleMoon.ejecta_truncation
-    SimpleMoon.floordepth
-    SimpleMoon.floor_diameter
-    SimpleMoon.morphology_type
-    SimpleMoon.radius
-    SimpleMoon.rimheight
-    SimpleMoon.rimwidth
-    SimpleMoon.peakheight
-    SimpleMoon.target
-    SimpleMoon.rng
+    simplemoon.SimpleMoon.crater
+    simplemoon.SimpleMoon.dorays
+    simplemoon.SimpleMoon.ejrim
+    simplemoon.SimpleMoon.ejecta_truncation
+    simplemoon.SimpleMoon.floordepth
+    simplemoon.SimpleMoon.floor_diameter
+    simplemoon.SimpleMoon.rimheight
+    simplemoon.SimpleMoon.rimwidth
+    simplemoon.SimpleMoon.peakheight
+    simplemoon.SimpleMoon.rng
 
 .. currentmodule:: cratermaker.components.impactor
 
@@ -571,7 +564,7 @@ Attributes
     Impactor.vertical_velocity
 
 
-.. currentmodule:: cratermaker.components.impactor.asteroids
+.. currentmodule:: cratermaker.components.impactor
 
 Asteroid impactors
 ================== 
@@ -579,7 +572,7 @@ Asteroid impactors
 .. autosummary::
     :toctree: generated/
 
-    AsteroidImpactors.make
+    asteroids.AsteroidImpactors.make
 
 
 Methods
@@ -588,7 +581,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    AsteroidImpactors.new_projectile
+    asteroids.AsteroidImpactors.new_projectile
 
 Attributes
 ----------
@@ -596,20 +589,20 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    AsteroidImpactors.target_name
-    AsteroidImpactors.target
-    AsteroidImpactors.sample_angles
-    AsteroidImpactors.sample_velocities
-    AsteroidImpactors.sample_directions
-    AsteroidImpactors.mean_velocity
-    AsteroidImpactors.angle
-    AsteroidImpactors.direction
-    AsteroidImpactors.velocity
-    AsteroidImpactors.density
-    AsteroidImpactors.vertical_velocity
+    asteroids.AsteroidImpactors.target_name
+    asteroids.AsteroidImpactors.target
+    asteroids.AsteroidImpactors.sample_angles
+    asteroids.AsteroidImpactors.sample_velocities
+    asteroids.AsteroidImpactors.sample_directions
+    asteroids.AsteroidImpactors.mean_velocity
+    asteroids.AsteroidImpactors.angle
+    asteroids.AsteroidImpactors.direction
+    asteroids.AsteroidImpactors.velocity
+    asteroids.AsteroidImpactors.density
+    asteroids.AsteroidImpactors.vertical_velocity
 
 
-.. currentmodule:: cratermaker.components.impactor.comets
+.. currentmodule:: cratermaker.components.impactor
 
 Comet impactors
 ===============
@@ -617,7 +610,7 @@ Comet impactors
 .. autosummary::
     :toctree: generated/
 
-    CometImpactors.make
+    comets.CometImpactors.make
 
 
 Methods
@@ -626,7 +619,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    CometImpactors.new_projectile
+    comets.CometImpactors.new_projectile
 
 Attributes
 ----------
@@ -634,17 +627,17 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    CometImpactors.target_name
-    CometImpactors.target
-    CometImpactors.sample_angles
-    CometImpactors.sample_velocities
-    CometImpactors.sample_directions
-    CometImpactors.mean_velocity
-    CometImpactors.angle
-    CometImpactors.direction
-    CometImpactors.velocity
-    CometImpactors.density
-    CometImpactors.vertical_velocity
+    comets.CometImpactors.target_name
+    comets.CometImpactors.target
+    comets.CometImpactors.sample_angles
+    comets.CometImpactors.sample_velocities
+    comets.CometImpactors.sample_directions
+    comets.CometImpactors.mean_velocity
+    comets.CometImpactors.angle
+    comets.CometImpactors.direction
+    comets.CometImpactors.velocity
+    comets.CometImpactors.density
+    comets.CometImpactors.vertical_velocity
 
 
 .. _api-Utility:
@@ -673,7 +666,6 @@ General utilities
     :toctree: generated/
 
     general_utils.Parameter
-    general_utils.parameter
     general_utils.validate_and_convert_location
     general_utils.normalize_coords
     general_utils.R_to_CSFD
@@ -687,7 +679,7 @@ Custom type definitions
 
     custom_types
 
-.. _api-Fortran:
+.. _api-ComponentAPI:
 
 
 Component API utilities

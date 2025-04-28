@@ -9,7 +9,6 @@
 !cratermaker/components/grid/
 !cratermaker/components/impactor/
 !cratermaker/utils/
-!cratermaker/fortran_bindings/
 !cratermaker/**/*.py
 !cratermaker/**/*.pyx
 !cratermaker/**/*.h
@@ -27,7 +26,6 @@
 !tests/core/
 !tests/components/
 !tests/utils/
-!tests/fortran_bindings/
 !tests/**/*.py
 !.gitignore
 !CMakeLists.txt
@@ -53,7 +51,6 @@ cratermaker/_version.py
 !docs/**/*.css
 !docs/**/*.png
 !docs/**/*.svg
-!fortran_docs.md
 !buildscripts/
 !buildscripts/*.py
 !buildscripts/*.sh

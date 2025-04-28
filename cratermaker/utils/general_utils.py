@@ -336,7 +336,7 @@ def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayL
         diameter in units of km.
     Dlim : FloatLike
         Upper limit on the diameter over which to evaluate the integral
-    *args : Any
+    args : Any
         Additional arguments to pass to the R function
 
     Returns

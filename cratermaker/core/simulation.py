@@ -251,7 +251,7 @@ class Simulation(CratermakerBase):
         Parameters
         ----------
         **kwargs : Any
-            Keyword arguments for initializing the :class:`Crater.
+            Keyword arguments for initializing the :class:`Crater`.
             Refer to the documentation of this class for details on valid keyword arguments.
 
         Notes
@@ -273,6 +273,7 @@ class Simulation(CratermakerBase):
             
             # Create a crater with a specific transient diameter and location
             sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
+
         """ 
         self.crater = self.generate_crater(**kwargs)
         self.morphology.form_crater(self.surf,self.crater,**kwargs)

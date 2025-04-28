@@ -26,6 +26,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.extlinks",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
@@ -39,6 +40,13 @@ extensions = [
     "sphinx_design",
     "sphinx_inline_tabs",
 ]
+
+extlinks = {
+    "issue": ("https://github.com/MintonGroup/cratermaker/issues/%s", "GH%s"),
+    "pull": ("https://github.com/MintonGroup/cratermaker/pull/%s", "PR%s"),
+    "discussion": ("https://github.com/MintonGroup/cratermaker/discussions/%s", "D%s"),
+    "release": ("https://github.com/MintonGroup/cratermaker/releases/tag/%s", "%s"),
+}
 
 
 templates_path = ['_templates']

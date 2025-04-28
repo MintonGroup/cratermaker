@@ -65,6 +65,7 @@ class Scaling(ComponentBase):
              **kwargs: Any) -> Scaling:
         """
         Initialize a scaling model based on the provided name or class.
+
         Parameters
         ----------
         scaling : str, Scaling, or None, default=None
