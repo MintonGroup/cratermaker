@@ -208,7 +208,7 @@ Attributes
 
 .. _api-Grid:
 
-.. currentmodule:: cratermaker.components.grid
+.. currentmodule:: cratermaker.components.grid.icosphere
 
 Grid
 ====
@@ -216,30 +216,13 @@ Grid
 .. autosummary::
     :toctree: generated/
 
-    Grid.make
-
-
-
-Icosphere grid
-==============
-
-.. autosummary::
-    :toctree: generated/
-
-    icosphere.IcosphereGrid.make
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    icosphere.IcosphereGrid.available
-    icosphere.IcosphereGrid.generate_face_distribution
-    icosphere.IcosphereGrid.generate_grid
-    icosphere.IcosphereGrid.check_if_regrid
-    icosphere.IcosphereGrid.create_grid
-    icosphere.IcosphereGrid.to_config
+    IcosphereGrid.make
+    IcosphereGrid.available
+    IcosphereGrid.generate_face_distribution
+    IcosphereGrid.generate_grid
+    IcosphereGrid.check_if_regrid
+    IcosphereGrid.create_grid
+    IcosphereGrid.to_config
 
 Attributes
 ----------
@@ -247,14 +230,23 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    icosphere.IcosphereGrid.name
-    icosphere.IcosphereGrid.radius
-    icosphere.IcosphereGrid.uxgrid
-    icosphere.IcosphereGrid.file
-    icosphere.IcosphereGrid.regrid
-    icosphere.IcosphereGrid.gridlevel
+    IcosphereGrid.name
+    IcosphereGrid.radius
+    IcosphereGrid.uxgrid
+    IcosphereGrid.file
+    IcosphereGrid.regrid
+    IcosphereGrid.gridlevel
 
-.. currentmodule:: cratermaker.components.grid
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.grid import IcosphereGrid
+    grid = IcosphereGrid.make(3, radius=1737.4)
+
+
+.. currentmodule:: cratermaker.components.grid.arbitrary_resolution
 
 Arbitrary resolution grid
 =========================
@@ -262,15 +254,8 @@ Arbitrary resolution grid
 .. autosummary::
     :toctree: generated/
 
-    arbitrary_resolution.ArbitraryResolutionGrid.make
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    arbitrary_resolution.ArbitraryResolutionGrid.generate_face_distribution
+    ArbitraryResolutionGrid.make
+    ArbitraryResolutionGrid.generate_face_distribution
 
 Attributes
 ----------
@@ -278,11 +263,19 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    arbitrary_resolution.ArbitraryResolutionGrid.pix
-    arbitrary_resolution.ArbitraryResolutionGrid.radius
+    ArbitraryResolutionGrid.pix
+    ArbitraryResolutionGrid.radius
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.grid import ArbitraryResolutionGrid
+    grid = ArbitraryResolutionGrid.make(pix=100, radius=1737.4)
 
 
-.. currentmodule:: cratermaker.components.grid
+.. currentmodule:: cratermaker.components.grid.hireslocal
 
 Hi-res local grid
 =================
@@ -290,15 +283,8 @@ Hi-res local grid
 .. autosummary::
     :toctree: generated/
 
-    hireslocal.HiResLocalGrid.make
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    hireslocal.HiResLocalGrid.generate_face_distribution
+    HiResLocalGrid.make
+    HiResLocalGrid.generate_face_distribution
 
 Attributes
 ----------
@@ -306,11 +292,20 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    hireslocal.HiResLocalGrid.pix
-    hireslocal.HiResLocalGrid.radius
-    hireslocal.HiResLocalGrid.local_radius
-    hireslocal.HiResLocalGrid.local_location
-    hireslocal.HiResLocalGrid.superdomain_scale_factor
+    HiResLocalGrid.pix
+    HiResLocalGrid.radius
+    HiResLocalGrid.local_radius
+    HiResLocalGrid.local_location
+    HiResLocalGrid.superdomain_scale_factor
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.grid import HiResLocalGrid
+    grid = HiResLocalGrid.make(pix=50, radius=1737.4, local_radius=100)
+
 
 .. _api-Production:
 
@@ -324,31 +319,30 @@ Production
 
     Production.make
 
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.production import Production
+    production = Production.make("neukum")
+
 
 .. _api-NeukumProduction:
 
-.. currentmodule:: cratermaker.components.production
+.. currentmodule:: cratermaker.components.production.neukum
 
 NeukumProduction
 ================
 
-The NeukumProduction class extends the Production class to implement the Neukum production function for the Moon and Mars.
-
 .. autosummary::
     :toctree: generated/
 
-    neukum.NeukumProduction.make
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    neukum.NeukumProduction.sample
-    neukum.NeukumProduction.function
-    neukum.NeukumProduction.chronology
-    neukum.NeukumProduction.size_frequency_distribution
+    NeukumProduction.make
+    NeukumProduction.sample
+    NeukumProduction.function
+    NeukumProduction.chronology
+    NeukumProduction.size_frequency_distribution
 
 Attributes
 ----------
@@ -356,40 +350,37 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    neukum.NeukumProduction.sfd_coef
-    neukum.NeukumProduction.sfd_range
-    neukum.NeukumProduction.valid_time
-    neukum.NeukumProduction.tau
-    neukum.NeukumProduction.Cexp
-    neukum.NeukumProduction.Clin
-    neukum.NeukumProduction.generator_type
+    NeukumProduction.sfd_coef
+    NeukumProduction.sfd_range
+    NeukumProduction.valid_time
+    NeukumProduction.tau
+    NeukumProduction.Cexp
+    NeukumProduction.Clin
+    NeukumProduction.generator_type
 
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.production.neukum import NeukumProduction
+    neukum = NeukumProduction.make()
 
 
 .. _api-PowerLawProduction:
 
-.. currentmodule:: cratermaker.components.production
+.. currentmodule:: cratermaker.components.production.powerlaw
 
 Power law production function
 =============================
 
-The PowerLawProduction class extends the Production class to implement a power law production function for the Moon and Mars.
-
 .. autosummary::
     :toctree: generated/
 
-    powerlaw.PowerLawProduction.make
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    powerlaw.PowerLawProduction.sample
-    powerlaw.PowerLawProduction.function
-    powerlaw.PowerLawProduction.chronology
-
+    PowerLawProduction.make
+    PowerLawProduction.sample
+    PowerLawProduction.function
+    PowerLawProduction.chronology
 
 Attributes
 ----------
@@ -397,8 +388,17 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    powerlaw.PowerLawProduction.N1_coef
-    powerlaw.PowerLawProduction.slope
+    PowerLawProduction.N1_coef
+    PowerLawProduction.slope
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.production.powerlaw import PowerLawProduction
+    powerlaw = PowerLawProduction.make()
+
 
 .. _api-Scaling:
 
@@ -407,13 +407,24 @@ Attributes
 Scaling
 =======
 
-The Scaling class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
+The `Scaling` class is an abstract base class for crater scaling relationships. 
+Use the `Scaling.make` method to create a specific scaling model. 
+Available models: see `Scaling.available()`.
+
+Example:
+
+.. code-block:: python
+
+    from cratermaker import Scaling
+    scaling_model = Scaling.make("richardson2009")
+
+Main Method
+-----------
 
 .. autosummary::
     :toctree: generated/
 
     Scaling.make
-
 
 Attributes
 ----------
@@ -425,28 +436,42 @@ Attributes
     Scaling.impactor
     Scaling.target_density
 
+Usage example
+-------------
 
-.. currentmodule:: cratermaker.components.scaling
+.. code-block:: python
 
-Richardson 2009 scaling
-========================
+    from cratermaker.components.scaling import Scaling
+    scaling_model = Scaling.make("richardson2009")
+
+
+.. _api-Richardson2009:
+
+.. currentmodule:: cratermaker.components.scaling.richardson2009
+
+Richardson 2009 Scaling Model
+=============================
+
+The `Richardson2009` model implements crater scaling based on Richardson (2009). 
+
+To create this model:
+
+.. code-block:: python
+
+    from cratermaker.components.scaling import Scaling
+    scaling_model = Scaling.make("richardson2009")
+
+Available Methods
+------------------
 
 .. autosummary::
     :toctree: generated/
 
-    richardson2009.Richardson2009.make
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    richardson2009.Richardson2009.final_to_transient
-    richardson2009.Richardson2009.transient_to_final
-    richardson2009.Richardson2009.projectile_to_transient
-    richardson2009.Richardson2009.transient_to_projectile
-    richardson2009.Richardson2009.get_morphology_type
+    Richardson2009.final_to_transient
+    Richardson2009.transient_to_final
+    Richardson2009.projectile_to_transient
+    Richardson2009.transient_to_projectile
+    Richardson2009.get_morphology_type
 
 Attributes
 ----------
@@ -454,20 +479,28 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    richardson2009.Richardson2009.target
-    richardson2009.Richardson2009.impactor
-    richardson2009.Richardson2009.target_density
-    richardson2009.Richardson2009.material_catalogue
-    richardson2009.Richardson2009.material_name
-    richardson2009.Richardson2009.K1
-    richardson2009.Richardson2009.mu
-    richardson2009.Richardson2009.Ybar
-    richardson2009.Richardson2009.catalogue_key
-    richardson2009.Richardson2009.transition_diameter
-    richardson2009.Richardson2009.transition_nominal
-    richardson2009.Richardson2009.complex_enlargement_factor
-    richardson2009.Richardson2009.simple_enlargement_factor
-    richardson2009.Richardson2009.final_exp
+    Richardson2009.target
+    Richardson2009.impactor
+    Richardson2009.target_density
+    Richardson2009.material_catalogue
+    Richardson2009.material_name
+    Richardson2009.K1
+    Richardson2009.mu
+    Richardson2009.Ybar
+    Richardson2009.catalogue_key
+    Richardson2009.transition_diameter
+    Richardson2009.transition_nominal
+    Richardson2009.complex_enlargement_factor
+    Richardson2009.simple_enlargement_factor
+    Richardson2009.final_exp
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.scaling.richardson2009 import Richardson2009
+    scaling = Richardson2009()
 
 
 .. currentmodule:: cratermaker.components.morphology
@@ -493,8 +526,16 @@ Attributes
 
     Morphology.crater
 
+Usage example
+-------------
 
-.. currentmodule:: cratermaker.components.morphology
+.. code-block:: python
+
+    from cratermaker.components.morphology import Morphology
+    morphology = Morphology.make()
+
+
+.. currentmodule:: cratermaker.components.morphology.simplemoon
 
 SimpleMoon
 ==========
@@ -502,23 +543,14 @@ SimpleMoon
 .. autosummary::
     :toctree: generated/
 
-    simplemoon.SimpleMoon.make
-
-
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    simplemoon.SimpleMoon.crater_profile
-    simplemoon.SimpleMoon.ejecta_profile
-    simplemoon.SimpleMoon.ejecta_distribution
-    simplemoon.SimpleMoon.form_crater
-    simplemoon.SimpleMoon.form_ejecta
-    simplemoon.SimpleMoon.ray_intensity
-    simplemoon.SimpleMoon.make
+    SimpleMoon.make
+    SimpleMoon.crater_profile
+    SimpleMoon.ejecta_profile
+    SimpleMoon.ejecta_distribution
+    SimpleMoon.form_crater
+    SimpleMoon.form_ejecta
+    SimpleMoon.ray_intensity
+    SimpleMoon.make
 
 Attributes
 ----------
@@ -526,16 +558,25 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    simplemoon.SimpleMoon.crater
-    simplemoon.SimpleMoon.dorays
-    simplemoon.SimpleMoon.ejrim
-    simplemoon.SimpleMoon.ejecta_truncation
-    simplemoon.SimpleMoon.floordepth
-    simplemoon.SimpleMoon.floor_diameter
-    simplemoon.SimpleMoon.rimheight
-    simplemoon.SimpleMoon.rimwidth
-    simplemoon.SimpleMoon.peakheight
-    simplemoon.SimpleMoon.rng
+    SimpleMoon.crater
+    SimpleMoon.dorays
+    SimpleMoon.ejrim
+    SimpleMoon.ejecta_truncation
+    SimpleMoon.floordepth
+    SimpleMoon.floor_diameter
+    SimpleMoon.rimheight
+    SimpleMoon.rimwidth
+    SimpleMoon.peakheight
+    SimpleMoon.rng
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.morphology.simplemoon import SimpleMoon
+    simplemoon = SimpleMoon.make()
+
 
 .. currentmodule:: cratermaker.components.impactor
 
@@ -569,8 +610,16 @@ Attributes
     Impactor.density
     Impactor.vertical_velocity
 
+Usage example
+-------------
 
-.. currentmodule:: cratermaker.components.impactor
+.. code-block:: python
+
+    from cratermaker.components.impactor import Impactor
+    impactor = Impactor.make()
+
+
+.. currentmodule:: cratermaker.components.impactor.asteroids
 
 Asteroid impactors
 ================== 
@@ -578,16 +627,8 @@ Asteroid impactors
 .. autosummary::
     :toctree: generated/
 
-    asteroids.AsteroidImpactors.make
-
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    asteroids.AsteroidImpactors.new_projectile
+    AsteroidImpactors.make
+    AsteroidImpactors.new_projectile
 
 Attributes
 ----------
@@ -595,20 +636,28 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    asteroids.AsteroidImpactors.target_name
-    asteroids.AsteroidImpactors.target
-    asteroids.AsteroidImpactors.sample_angles
-    asteroids.AsteroidImpactors.sample_velocities
-    asteroids.AsteroidImpactors.sample_directions
-    asteroids.AsteroidImpactors.mean_velocity
-    asteroids.AsteroidImpactors.angle
-    asteroids.AsteroidImpactors.direction
-    asteroids.AsteroidImpactors.velocity
-    asteroids.AsteroidImpactors.density
-    asteroids.AsteroidImpactors.vertical_velocity
+    AsteroidImpactors.target_name
+    AsteroidImpactors.target
+    AsteroidImpactors.sample_angles
+    AsteroidImpactors.sample_velocities
+    AsteroidImpactors.sample_directions
+    AsteroidImpactors.mean_velocity
+    AsteroidImpactors.angle
+    AsteroidImpactors.direction
+    AsteroidImpactors.velocity
+    AsteroidImpactors.density
+    AsteroidImpactors.vertical_velocity
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.impactor.asteroids import AsteroidImpactors
+    asteroids = AsteroidImpactors.make()
 
 
-.. currentmodule:: cratermaker.components.impactor
+.. currentmodule:: cratermaker.components.impactor.comets
 
 Comet impactors
 ===============
@@ -616,16 +665,8 @@ Comet impactors
 .. autosummary::
     :toctree: generated/
 
-    comets.CometImpactors.make
-
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    comets.CometImpactors.new_projectile
+    CometImpactors.make
+    CometImpactors.new_projectile
 
 Attributes
 ----------
@@ -633,17 +674,25 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    comets.CometImpactors.target_name
-    comets.CometImpactors.target
-    comets.CometImpactors.sample_angles
-    comets.CometImpactors.sample_velocities
-    comets.CometImpactors.sample_directions
-    comets.CometImpactors.mean_velocity
-    comets.CometImpactors.angle
-    comets.CometImpactors.direction
-    comets.CometImpactors.velocity
-    comets.CometImpactors.density
-    comets.CometImpactors.vertical_velocity
+    CometImpactors.target_name
+    CometImpactors.target
+    CometImpactors.sample_angles
+    CometImpactors.sample_velocities
+    CometImpactors.sample_directions
+    CometImpactors.mean_velocity
+    CometImpactors.angle
+    CometImpactors.direction
+    CometImpactors.velocity
+    CometImpactors.density
+    CometImpactors.vertical_velocity
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.impactor.comets import CometImpactors
+    comets = CometImpactors.make()
 
 
 .. _api-Utility:
@@ -700,4 +749,3 @@ Component API utilities
     component_utils.ComponentBase.register
     component_utils.ComponentBase.available
     component_utils.import_components
-
