@@ -45,12 +45,14 @@ cratermaker/_version.py
 !docs/_static/logos/
 !docs/_templates/
 !docs/_templates/autosummary/
+!docs/_exts/
 !docs/getting-started-guide/
 !docs/user-guide/
 !docs/**/*.rst
 !docs/**/*.css
 !docs/**/*.png
 !docs/**/*.svg
+!docs/**/*.py
 !buildscripts/
 !buildscripts/*.py
 !buildscripts/*.sh

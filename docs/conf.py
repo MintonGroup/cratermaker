@@ -2,13 +2,7 @@ import datetime
 import os
 import sys
 import inspect
-from contextlib import suppress
-
-import sphinx_autosummary_accessors
-from sphinx.application import Sphinx
-from sphinx.util import logging
 import os
-
 import cratermaker
 
 # -- Project information -----------------------------------------------------
@@ -22,6 +16,7 @@ release = version
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+sys.path.insert(0, os.path.abspath('_exts'))
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -39,6 +34,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_inline_tabs",
+    'cratermaker_autodoc'
 ]
 
 extlinks = {

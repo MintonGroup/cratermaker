@@ -121,19 +121,19 @@ class Simulation(CratermakerBase):
         kwargs = {**kwargs, **vars(self.common_args)}
 
         target_config = {**target_config, **kwargs}
-        self.target = Target.make(target=self.target, **target_config)
+        self.target = Target.make(self.target, **target_config)
 
         production_config = {**production_config, **kwargs}
-        self.production = Production.make(production=self.production,  target=self.target, **production_config)
+        self.production = Production.make(self.production,  target=self.target, **production_config)
 
         impactor_config = {**impactor_config, **kwargs}
-        self.impactor = Impactor.make(impactor=self.impactor, target=self.target, **impactor_config)
+        self.impactor = Impactor.make(self.impactor, target=self.target, **impactor_config)
 
         scaling_config = {**scaling_config, **kwargs}
-        self.scaling = Scaling.make(scaling=self.scaling, target=self.target, impactor=self.impactor, **scaling_config)
+        self.scaling = Scaling.make(self.scaling, target=self.target, impactor=self.impactor, **scaling_config)
 
         morphology_config = {**morphology_config, **kwargs}
-        self.morphology = Morphology.make(morphology=self.morphology, **morphology_config)
+        self.morphology = Morphology.make(self.morphology, **morphology_config)
       
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
