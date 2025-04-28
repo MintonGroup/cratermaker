@@ -1069,7 +1069,9 @@ class Surface:
     def __del__(self):
         try:
             if hasattr(self, "_uxds") and hasattr(self._uxds, "close"):
+                self._uxds.uxgrid._ds.close()
                 self._uxds.close()
+
         except Exception:
             pass
 
