@@ -324,7 +324,7 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.production import Production
+    from cratermaker import Production
     production = Production.make("neukum")
 
 
