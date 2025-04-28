@@ -465,8 +465,8 @@ Attributes
     richardson2009.Richardson2009.catalogue_key
     richardson2009.Richardson2009.transition_diameter
     richardson2009.Richardson2009.transition_nominal
-    richardson2009.Richardson2009.complex_enlargment_factor
-    richardson2009.Richardson2009.simple_enlargment_factor
+    richardson2009.Richardson2009.complex_enlargement_factor
+    richardson2009.Richardson2009.simple_enlargement_factor
     richardson2009.Richardson2009.final_exp
 
 
