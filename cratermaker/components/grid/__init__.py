@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import numpy as np
 import uxarray as uxr
+import xarray as xr
 from numpy.typing import NDArray
 from typing import Any
 import hashlib
@@ -145,12 +146,13 @@ class Grid(ComponentBase):
         make_new_grid = not os.path.exists(self.file)
         
         if not make_new_grid:
-            uxgrid = uxr.open_grid(self.file)
-            try: 
-                old_id = uxgrid.attrs.get("_id")
-                make_new_grid = old_id != self._id
-            except:
-                make_new_grid = True
+            with xr.open_dataset(self.file) as ds:
+                uxgrid = uxr.Grid.from_dataset(ds)
+                try: 
+                    old_id = uxgrid.attrs.get("_id")
+                    make_new_grid = old_id != self._id
+                except:
+                    make_new_grid = True
                 
         return make_new_grid
 
