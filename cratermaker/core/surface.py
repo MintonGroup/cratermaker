@@ -202,7 +202,8 @@ class Surface:
         try:
             with xr.open_dataset(grid.file) as uxgrid:
                 if data_file_list:
-                    surf = uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False).isel(time=-1)
+                    with uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False) as ds:
+                        surf = ds.isel(time=-1)
                     surf.uxgrid = uxr.Grid.from_dataset(uxgrid)
                 else:
                     surf = uxr.UxDataset()
