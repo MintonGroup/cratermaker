@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker"
-version = "2025.4.1-a1.dev225+gbc64e7f"
+version = "2025.4.1-a1.dev226+g956ba3e.d20250428"
 edition = "2021"
 
 [lib]
@@ -22,6 +22,6 @@ features = [ "rayon",]
 codegen-units = 1
 lto = "fat"
 
-[target."cfg(not(target_env = \"msvc\"))".dependencies.tikv-jemallocator]
+[target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"
 features = [ "disable_initial_exec_tls",]
