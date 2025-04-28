@@ -265,7 +265,7 @@ class Richardson2009(Scaling):
                                 projectile_diameter: FloatLike, 
                                 **kwargs: Any) -> float:
         """
-        Calculate the transient diameter of a crater based on the properties of the projectile and target.
+        Calculate the transient diameter of a crater based on the properties of the projectile and target. Based on [1]_
 
 
         Returns
@@ -275,7 +275,7 @@ class Richardson2009(Scaling):
 
         References
         ----------
-            .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
+        .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         # Compute some auxiliary quantites
         projectile_radius = projectile_diameter / 2

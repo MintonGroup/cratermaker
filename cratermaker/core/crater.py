@@ -146,20 +146,13 @@ class Crater:
 
         Notes
         -----
-        - Exactly one of the following must be provided: 
-        `final_diameter`, `final_radius`, `transient_diameter`, `transient_radius`, 
-        `projectile_diameter`, `projectile_radius`, or `projectile_mass`.
-
+        - Exactly one of the following must be provided: `final_diameter`, `final_radius`, `transient_diameter`, `transient_radius`, `projectile_diameter`, `projectile_radius`, or `projectile_mass`. 
         - Velocity may be specified in one of these ways:
         - `projectile_mean_velocity` alone (samples a velocity)
-        - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`)
-            — the third is inferred.
+        - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`). the third is inferred.
+        - `impactor` is mutually exclusive with velocity-related inputs; if provided, it overrides velocity, angle, direction, and density unless explicitly set.
+        - The `target`, `scaling`, and `rng` models are required for scaling and density inference, but are not stored in the returned Crater object.
 
-        - `impactor` is mutually exclusive with velocity-related inputs; if provided, 
-        it overrides velocity, angle, direction, and density unless explicitly set.
-
-        - The `target`, `scaling`, and `rng` models are required for scaling and density inference, but are not stored
-        in the returned Crater object.
         """
         # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
         argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)

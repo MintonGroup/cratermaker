@@ -7,7 +7,6 @@ SPHINXBUILD     = sphinx-build
 SPHINXATUOBUILD = sphinx-autobuild
 PAPER           =
 BUILDDIR        = _build
-FORTRANDIR      = _static/fortran_docs
 
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4
@@ -21,7 +20,6 @@ help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  html       to make standalone HTML files"
 	@echo "  rtdhtml    Build html using same settings used on ReadtheDocs"
-	@echo "  fortran-doc to make Fortran documentation with FORD"
 	@echo "  livehtml   Make standalone HTML files and rebuild the documentation when a change is detected. Also includes a livereload enabled web server"
 	@echo "  dirhtml    to make HTML files named index.html in directories"
 	@echo "  singlehtml to make a single large HTML file"
@@ -52,22 +50,18 @@ help:
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)
-	rm -rf $(FORTRANDIR)
 	rm -rf generated/*
 	rm -rf auto_gallery/
 
-.PHONY: fortran-doc
-fortran-doc:
-	cd .. && ford fortran_docs.md
 
 .PHONY: html
-html: fortran-doc
+html: 
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
 .PHONY: rtdhtml
-rtdhtml: fortran-doc
+rtdhtml: 
 	$(SPHINXBUILD) -T -j 1 -E -W --keep-going -b html -d $(BUILDDIR)/doctrees -D language=en . $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

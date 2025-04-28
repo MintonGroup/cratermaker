@@ -6,9 +6,10 @@
 Cratermaker API reference
 #########################
 
-This section of the documentation provides a detailed reference for the Production classes in the Cratermaker project.
+This section of the documentation provides a detailed reference for the core functionality and modular components of the Cratermaker project.
 
 .. _api-Simulation:
+
 
 Simulation
 ==========
@@ -16,7 +17,7 @@ Simulation
 The Simulation class is the main class for the cratermaker project. It is used to create a simulation of a crater on a given target 
 body. The Simulation class is used to generate craters of a given size and morphology based on the production function, morphology
 function, and crater scaling relationship model. The surface of the target body is represented by a Surface attribute called
-`surf`, which is derived from a UxDataset object. This is an unstructured grid dataset that contains data for the target body surface.
+`surf`, which contains a UxDataset object called `surf.uxds`. This is an unstructured grid dataset that contains data for the target body surface.
 
 Creating a Simulation
 ---------------------
@@ -25,7 +26,6 @@ Creating a Simulation
     :toctree: generated/
 
     Simulation
-
 
 Methods
 -------
@@ -37,11 +37,14 @@ Methods
     Simulation.populate
     Simulation.emplace_crater
     Simulation.generate_crater
-    Simulation.generate_projectile
-    Simulation.apply_noise
     Simulation.save
     Simulation.export_vtk
     Simulation.set_elevation
+    Simulation.to_config
+    Simulation.make_circle_file
+    Simulation.get_smallest_diameter
+    Simulation.get_largest_diameter
+
 
 Attributes
 ----------
@@ -51,23 +54,24 @@ Attributes
 
     Simulation.surf
     Simulation.production
+    Simulation.scaling
     Simulation.crater
-    Simulation.projectile
+    Simulation.impactor
     Simulation.target
+    Simulation.morphology
+    Simulation.crater
+    Simulation.grid
     Simulation.data_dir
     Simulation.grid_file
-    Simulation.morphology_cls
     Simulation.n_face
     Simulation.n_node
     Simulation.rng
-    Simulation.scaling
     Simulation.rng_seed
     Simulation.simdir
     Simulation.interval_number
     Simulation.elapsed_time
     Simulation.current_age
     Simulation.elapsed_n1
-    Simulation.ejecta_truncation
     Simulation.smallest_crater
     Simulation.largest_crater
     Simulation.smallest_projectile
@@ -87,7 +91,7 @@ Creating a surface
 .. autosummary::
     :toctree: generated/
 
-    Surface
+    Surface.make
 
 Methods
 -------
@@ -95,7 +99,6 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Surface.make
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
     Surface.find_nearest_index
@@ -107,6 +110,7 @@ Methods
     Surface.elevation_to_cartesian
     Surface.extract_region
     Surface.get_random_location_on_face
+    Surface.to_config
 
 Attributes
 ----------
@@ -114,195 +118,18 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    Surface.uxds
+    Surface.grid
+    Surface.node_tree
+    Surface.face_tree
     Surface.data_dir
     Surface.grid_file
     Surface.smallest_length
     Surface.area
     Surface.target
     Surface.rng
-
-
-.. _api-Grid:
-
-Generating grids
-----------------
-
-.. autosummary::
-    :toctree: generated/
-
-    Grid
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Grid.generate_face_distribution
-    Grid.generate_grid
-    Grid.generate_hash
-    Grid.check_and_regrid
-
-Generating a uniform Icosphere grid
------------------------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    IcosphereGrid
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    IcosphereGrid.generate_face_distribution
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    IcosphereGrid.pix
-    IcosphereGrid.radius
-
-Generating a uniform arbitrary resolution grid
-----------------------------------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    ArbitraryResolutionGrid
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    ArbitraryResolutionGrid.generate_face_distribution
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    ArbitraryResolutionGrid.pix
-    ArbitraryResolutionGrid.radius
-
-
-Generating a non-uniform grid with a high resolution local region
------------------------------------------------------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    HiResLocalGrid
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    HiResLocalGrid.generate_face_distribution
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    HiResLocalGrid.pix
-    HiResLocalGrid.radius
-    HiResLocalGrid.local_radius
-    HiResLocalGrid.local_location
-    HiResLocalGrid.superdomain_scale_factor
-
-.. _api-Production:
-
-Production
-==========
-
-The Production class serves as a base class for computing the production function for craters and impactors.
-
-Creating a Production Function
-------------------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    Production
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Production.function
-    Production.function_inverse
-    Production.sample
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Production.generator_type
-    Production.impact_velocity_model
-    Production.mean_velocity
-    Production.name
-    Production.N1_coef
-    Production.slope
-    Production.rng
-    Production.valid_models
-    Production.valid_time
-
-
-.. _api-NeukumProduction:
-
-NeukumProduction
-================
-
-The NeukumProduction class extends the Production class to implement the Neukum production function for the Moon and Mars.
-
-Creating a Neukum Production Function
--------------------------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    NeukumProduction
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    NeukumProduction.function
-    NeukumProduction.chronology
-    NeukumProduction.size_frequency_distribution
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    NeukumProduction.sfd_coef
-    NeukumProduction.sfd_range
-    NeukumProduction.valid_time
-    NeukumProduction.tau
-    NeukumProduction.Cexp
-    NeukumProduction.Clin
-
-.. currentmodule:: cratermaker
+    Surface.rng_seed
+    Surface.simdir
 
 .. _api-Target:
 
@@ -317,7 +144,15 @@ Creating a Target
 .. autosummary::
     :toctree: generated/
 
-    Target
+    Target.make
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.to_config
 
 Attributes
 ----------
@@ -325,42 +160,14 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    Target.name
+    Target.material_name
     Target.catalogue
     Target.diameter
     Target.escape_velocity
     Target.gravity
-    Target.material_name
-    Target.name
     Target.radius
     Target.transition_scale_type
-
-.. _api-Material:
-
-Material
-========
-
-The Material class represents a material that can be used in the simulation. The properties defined in a Material object are used in crater scaling calculations.
-
-Creating a matererial
----------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    Material
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Material.name
-    Material.catalogue
-    Material.density
-    Material.K1
-    Material.mu
-    Material.Ybar
 
 .. _api-Crater:
 
@@ -369,6 +176,14 @@ Crater
 
 The ``Crater`` class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features. It also defines the properties of the projectile, such as its size, velocity, material, and angle of impact.
 
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Crater.make
 
 Attributes
 ----------
@@ -380,7 +195,7 @@ Attributes
     Crater.final_radius
     Crater.transient_diameter
     Crater.transient_radius
-    Crater.projectiel_diameter
+    Crater.projectile_diameter
     Crater.projectile_radius
     Crater.projectile_density
     Crater.projectile_mass
@@ -390,27 +205,28 @@ Attributes
     Crater.projectile_direction
     Crater.location
     Crater.age
-    Crater.morphology_cls
-    Crater.morphology_type
-    Crater.morphology
-    Crater.scaling
-    Crater.target
-    Crater.rng
 
-.. _api-Scaling:
+.. _api-Grid:
 
-Scaling
-============
+.. currentmodule:: cratermaker.components.grid
 
-The Scaling class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
-
-Creating Scaling
---------------
+Grid
+====
 
 .. autosummary::
     :toctree: generated/
 
-    Scaling
+    Grid.make
+
+
+
+Icosphere grid
+==============
+
+.. autosummary::
+    :toctree: generated/
+
+    icosphere.IcosphereGrid.make
 
 Methods
 -------
@@ -418,13 +234,186 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Scaling.get_morphology_type
-    Scaling.final_to_transient
-    Scaling.transient_to_final
-    Scaling.projectile_to_crater
-    Scaling.crater_to_projectile
-    Scaling.projectile_to_transient
-    Scaling.transient_to_projectile
+    icosphere.IcosphereGrid.available
+    icosphere.IcosphereGrid.generate_face_distribution
+    icosphere.IcosphereGrid.generate_grid
+    icosphere.IcosphereGrid.check_if_regrid
+    icosphere.IcosphereGrid.create_grid
+    icosphere.IcosphereGrid.to_config
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    icosphere.IcosphereGrid.name
+    icosphere.IcosphereGrid.radius
+    icosphere.IcosphereGrid.uxgrid
+    icosphere.IcosphereGrid.file
+    icosphere.IcosphereGrid.regrid
+    icosphere.IcosphereGrid.gridlevel
+
+.. currentmodule:: cratermaker.components.grid
+
+Arbitrary resolution grid
+=========================
+
+.. autosummary::
+    :toctree: generated/
+
+    arbitrary_resolution.ArbitraryResolutionGrid.make
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    arbitrary_resolution.ArbitraryResolutionGrid.generate_face_distribution
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    arbitrary_resolution.ArbitraryResolutionGrid.pix
+    arbitrary_resolution.ArbitraryResolutionGrid.radius
+
+
+.. currentmodule:: cratermaker.components.grid
+
+Hi-res local grid
+=================
+
+.. autosummary::
+    :toctree: generated/
+
+    hireslocal.HiResLocalGrid.make
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    hireslocal.HiResLocalGrid.generate_face_distribution
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    hireslocal.HiResLocalGrid.pix
+    hireslocal.HiResLocalGrid.radius
+    hireslocal.HiResLocalGrid.local_radius
+    hireslocal.HiResLocalGrid.local_location
+    hireslocal.HiResLocalGrid.superdomain_scale_factor
+
+.. _api-Production:
+
+.. currentmodule:: cratermaker.components.production
+
+Production
+==========
+
+.. autosummary::
+    :toctree: generated/
+
+    Production.make
+
+
+.. _api-NeukumProduction:
+
+.. currentmodule:: cratermaker.components.production
+
+NeukumProduction
+================
+
+The NeukumProduction class extends the Production class to implement the Neukum production function for the Moon and Mars.
+
+.. autosummary::
+    :toctree: generated/
+
+    neukum.NeukumProduction.make
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    neukum.NeukumProduction.sample
+    neukum.NeukumProduction.function
+    neukum.NeukumProduction.chronology
+    neukum.NeukumProduction.size_frequency_distribution
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    neukum.NeukumProduction.sfd_coef
+    neukum.NeukumProduction.sfd_range
+    neukum.NeukumProduction.valid_time
+    neukum.NeukumProduction.tau
+    neukum.NeukumProduction.Cexp
+    neukum.NeukumProduction.Clin
+    neukum.NeukumProduction.generator_type
+
+
+
+.. _api-PowerLawProduction:
+
+.. currentmodule:: cratermaker.components.production
+
+Power law production function
+=============================
+
+The PowerLawProduction class extends the Production class to implement a power law production function for the Moon and Mars.
+
+.. autosummary::
+    :toctree: generated/
+
+    powerlaw.PowerLawProduction.make
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    powerlaw.PowerLawProduction.sample
+    powerlaw.PowerLawProduction.function
+    powerlaw.PowerLawProduction.chronology
+
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    powerlaw.PowerLawProduction.N1_coef
+    powerlaw.PowerLawProduction.slope
+
+.. _api-Scaling:
+
+.. currentmodule:: cratermaker.components.scaling
+
+Scaling
+=======
+
+The Scaling class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
+
+.. autosummary::
+    :toctree: generated/
+
+    Scaling.make
+
 
 Attributes
 ----------
@@ -433,15 +422,55 @@ Attributes
     :toctree: generated/
 
     Scaling.target
-    Scaling.material
-    Scaling.material_name
-    Scaling.rng
-    Scaling.transition_diameter
-    Scaling.transition_nominal
-    Scaling.simple_enlargement_factor
-    Scaling.complex_enlargement_factor
-    Scaling.final_exp
+    Scaling.impactor
+    Scaling.target_density
 
+
+.. currentmodule:: cratermaker.components.scaling
+
+Richardson 2009 scaling
+========================
+
+.. autosummary::
+    :toctree: generated/
+
+    richardson2009.Richardson2009.make
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    richardson2009.Richardson2009.final_to_transient
+    richardson2009.Richardson2009.transient_to_final
+    richardson2009.Richardson2009.projectile_to_transient
+    richardson2009.Richardson2009.transient_to_projectile
+    richardson2009.Richardson2009.get_morphology_type
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    richardson2009.Richardson2009.target
+    richardson2009.Richardson2009.impactor
+    richardson2009.Richardson2009.target_density
+    richardson2009.Richardson2009.material_catalogue
+    richardson2009.Richardson2009.material_name
+    richardson2009.Richardson2009.K1
+    richardson2009.Richardson2009.mu
+    richardson2009.Richardson2009.Ybar
+    richardson2009.Richardson2009.catalogue_key
+    richardson2009.Richardson2009.transition_diameter
+    richardson2009.Richardson2009.transition_nominal
+    richardson2009.Richardson2009.complex_enlargement_factor
+    richardson2009.Richardson2009.simple_enlargement_factor
+    richardson2009.Richardson2009.final_exp
+
+
+.. currentmodule:: cratermaker.components.morphology
 
 .. _api-Morphology:
 
@@ -450,28 +479,11 @@ Morphology
 
 The Morphology class is an operations class for computing the morphology of a crater based on its size and target properties. It encapsulates the logic for altering the topography of the surface based on the crater properties.
 
-Creating Morphology
--------------------
 
 .. autosummary::
     :toctree: generated/
 
-    Morphology
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Morphology.compute_rmax
-    Morphology.crater_profile
-    Morphology.ejecta_profile
-    Morphology.ejecta_distribution
-    Morphology.form_crater
-    Morphology.form_ejecta
-    Morphology.form_secondaries
-    Morphology.ray_intensity
+    Morphology.make
 
 Attributes
 ----------
@@ -480,22 +492,163 @@ Attributes
     :toctree: generated/
 
     Morphology.crater
-    Morphology.final_diameter
-    Morphology.dorays
-    Morphology.ejrim
-    Morphology.ejecta_truncation
-    Morphology.floordepth
-    Morphology.floor_diameter
-    Morphology.morphology_type
-    Morphology.radius
-    Morphology.rimheight
-    Morphology.rimwidth
-    Morphology.peakheight
-    Morphology.target
-    Morphology.rng
+
+
+.. currentmodule:: cratermaker.components.morphology
+
+SimpleMoon
+==========
+
+.. autosummary::
+    :toctree: generated/
+
+    simplemoon.SimpleMoon.make
+
+
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    simplemoon.SimpleMoon.crater_profile
+    simplemoon.SimpleMoon.ejecta_profile
+    simplemoon.SimpleMoon.ejecta_distribution
+    simplemoon.SimpleMoon.form_crater
+    simplemoon.SimpleMoon.form_ejecta
+    simplemoon.SimpleMoon.ray_intensity
+    simplemoon.SimpleMoon.make
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    simplemoon.SimpleMoon.crater
+    simplemoon.SimpleMoon.dorays
+    simplemoon.SimpleMoon.ejrim
+    simplemoon.SimpleMoon.ejecta_truncation
+    simplemoon.SimpleMoon.floordepth
+    simplemoon.SimpleMoon.floor_diameter
+    simplemoon.SimpleMoon.rimheight
+    simplemoon.SimpleMoon.rimwidth
+    simplemoon.SimpleMoon.peakheight
+    simplemoon.SimpleMoon.rng
+
+.. currentmodule:: cratermaker.components.impactor
+
+.. _api-Impactor:
+
+Impactor
+==========
+
+The Impactor class is an operations class defining the interface for generating impactor velocities, angles, and densities for a given target body.
+
+.. autosummary::
+    :toctree: generated/
+
+    Impactor.make
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Impactor.target_name
+    Impactor.target
+    Impactor.sample_angles
+    Impactor.sample_velocities
+    Impactor.sample_directions
+    Impactor.mean_velocity
+    Impactor.angle
+    Impactor.direction
+    Impactor.velocity
+    Impactor.density
+    Impactor.vertical_velocity
+
+
+.. currentmodule:: cratermaker.components.impactor
+
+Asteroid impactors
+================== 
+
+.. autosummary::
+    :toctree: generated/
+
+    asteroids.AsteroidImpactors.make
+
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    asteroids.AsteroidImpactors.new_projectile
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    asteroids.AsteroidImpactors.target_name
+    asteroids.AsteroidImpactors.target
+    asteroids.AsteroidImpactors.sample_angles
+    asteroids.AsteroidImpactors.sample_velocities
+    asteroids.AsteroidImpactors.sample_directions
+    asteroids.AsteroidImpactors.mean_velocity
+    asteroids.AsteroidImpactors.angle
+    asteroids.AsteroidImpactors.direction
+    asteroids.AsteroidImpactors.velocity
+    asteroids.AsteroidImpactors.density
+    asteroids.AsteroidImpactors.vertical_velocity
+
+
+.. currentmodule:: cratermaker.components.impactor
+
+Comet impactors
+===============
+
+.. autosummary::
+    :toctree: generated/
+
+    comets.CometImpactors.make
+
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    comets.CometImpactors.new_projectile
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    comets.CometImpactors.target_name
+    comets.CometImpactors.target
+    comets.CometImpactors.sample_angles
+    comets.CometImpactors.sample_velocities
+    comets.CometImpactors.sample_directions
+    comets.CometImpactors.mean_velocity
+    comets.CometImpactors.angle
+    comets.CometImpactors.direction
+    comets.CometImpactors.velocity
+    comets.CometImpactors.density
+    comets.CometImpactors.vertical_velocity
 
 
 .. _api-Utility:
+
+.. currentmodule:: cratermaker.utils
 
 Utility functions
 =================
@@ -506,11 +659,11 @@ Monte Carlo
 .. autosummary::
    :toctree: generated/
 
-    cratermaker.utils.montecarlo.get_random_location
-    cratermaker.utils.montecarlo.get_random_impact_angle
-    cratermaker.utils.montecarlo.get_random_velocity
-    cratermaker.utils.montecarlo.get_random_size
-    cratermaker.utils.montecarlo.bounded_norm
+    montecarlo.get_random_location
+    montecarlo.get_random_impact_angle
+    montecarlo.get_random_velocity
+    montecarlo.get_random_size
+    montecarlo.bounded_norm
 
 General utilities
 -----------------
@@ -518,17 +671,10 @@ General utilities
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.utils.general_utils.validate_and_convert_location
-    cratermaker.utils.general_utils.normalize_coords
-    cratermaker.utils.general_utils.R_to_CSFD
-
-Realism
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    cratermaker.realistic.apply_noise
+    general_utils.Parameter
+    general_utils.validate_and_convert_location
+    general_utils.normalize_coords
+    general_utils.R_to_CSFD
 
 
 Custom type definitions
@@ -537,12 +683,21 @@ Custom type definitions
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.utils.custom_types
+    custom_types
 
-.. _api-Fortran:
+.. _api-ComponentAPI:
 
-Fortran API Documentation
-=========================
 
-For detailed documentation of the Fortran API, see the `Fortran API <_static/fortran_docs/index.html>`_.
+Component API utilities
+-----------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    component_utils.ComponentBase
+    component_utils.ComponentBase.make
+    component_utils.ComponentBase.name
+    component_utils.ComponentBase.register
+    component_utils.ComponentBase.available
+    component_utils.import_components
 

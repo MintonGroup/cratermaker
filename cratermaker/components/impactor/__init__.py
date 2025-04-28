@@ -216,7 +216,6 @@ class Impactor(ComponentBase):
     def target(self, value):
         self._target = Target.make(value)
 
-
     @parameter
     def sample_angles(self):
         """
@@ -310,7 +309,6 @@ class Impactor(ComponentBase):
         if value < 0:
             raise ValueError("angle must be a positive number")
         self._angle = float(value)
-
 
     @property
     def direction(self):
