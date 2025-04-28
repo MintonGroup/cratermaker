@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           pip install setuptools_scm
-          python -c "import setuptools_scm; v = setuptools_scm.get_version(); open('cratermaker/_version.py', 'w').write(f'__version__ = version = \"{v}\"\n')"
+          python -c "import setuptools_scm.version; setuptools_scm.version.write_to('cratermaker/_version.py')"
           python buildscripts/set_version.py
 
       - name: Build wheels
