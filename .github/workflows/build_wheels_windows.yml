@@ -20,22 +20,24 @@ jobs:
       - name: Get history and tags for SCM versioning to work
         run: |
           git fetch --prune --unshallow
-          git fetch --depth=1 origin +refs/tags/*:refs/tags/*          
-
-      - uses: PyO3/maturin-action@v1
-        with:
-          command: build
-          args: --release
-
+          git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+          
       - name: Build wheels
-        run: |
-          ${{ env.FC }} /QV
-          pipx run cibuildwheel 
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      # - name: Build wheels
+      #   run: |
+      #     ${{ env.FC }} /QV
+      #     pipx run cibuildwheel 
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
+          path: dist/*.whl
           retention-days: 1
 

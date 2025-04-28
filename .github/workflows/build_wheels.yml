@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-      - name: Build rust
+      - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           command: build
