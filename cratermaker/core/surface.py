@@ -200,13 +200,13 @@ class Surface:
         
         # Initialize UxDataset with the loaded data
         try:
-            with xr.open_dataset(grid.file) as ds:
+            with xr.open_dataset(grid.file) as uxgrid:
                 if data_file_list:
-                    surf = uxr.open_mfdataset(ds, data_file_list, use_dual=False).isel(time=-1)
-                    surf.uxgrid = uxr.open_grid(ds, use_dual=False)
+                    surf = uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False).isel(time=-1)
+                    surf.uxgrid = uxr.Grid.from_dataset(uxgrid)
                 else:
                     surf = uxr.UxDataset()
-                    surf.uxgrid = uxr.open_grid(grid.file, use_dual=False)
+                    surf.uxgrid = uxr.Grid.from_dataset(uxgrid)
         except:
             raise ValueError("Error loading grid and data files")
         
@@ -551,7 +551,7 @@ class Surface:
         None
         """    
         with xr.open_dataset(self.grid_file) as ds:
-            uxgrid = uxr.open_grid(ds,use_dual=False)
+            uxgrid = uxr.Grid.from_dataset(ds)
         if long_name is None and units is None:
             attrs = None
         else:
@@ -1053,8 +1053,8 @@ class Surface:
                 
             data_file = os.path.join(out_dir, filename)
             if os.path.exists(data_file):
-                ds_file = xr.open_mfdataset(data_file)
-                ds_file = ds.merge(ds_file, compat="override")
+                with xr.open_mfdataset(data_file) as ds_file:
+                    ds_file = ds.merge(ds_file, compat="override")
             else:
                 ds_file = ds    
                 
