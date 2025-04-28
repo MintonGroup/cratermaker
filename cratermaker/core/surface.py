@@ -1056,6 +1056,7 @@ class Surface:
             if data_file.exists():
                 with xr.open_mfdataset(data_file) as ds_file:
                     ds_file = ds.merge(ds_file, compat="override")
+                    ds_file.load()
             else:
                 ds_file = ds    
                 
