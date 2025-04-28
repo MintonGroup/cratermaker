@@ -550,6 +550,8 @@ General utilities
 .. autosummary::
     :toctree: generated/
 
+    cratermaker.utils.general_utils.Parameter
+    cratermaker.utils.general_utils.parameter
     cratermaker.utils.general_utils.validate_and_convert_location
     cratermaker.utils.general_utils.normalize_coords
     cratermaker.utils.general_utils.R_to_CSFD
@@ -565,7 +567,17 @@ Custom type definitions
 
 .. _api-Fortran:
 
-Fortran API Documentation
-=========================
 
-For detailed documentation of the Fortran API, see the `Fortran API <_static/fortran_docs/index.html>`_.
+Component API utilities
+-----------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    cratermaker.utils.component_utils.ComponentBase
+    cratermaker.utils.component_utils.ComponentBase.make
+    cratermaker.utils.component_utils.ComponentBase.name
+    cratermaker.utils.component_utils.ComponentBase.register
+    cratermaker.utils.component_utils.ComponentBase.available
+    cratermaker.utils.component_utils.import_components
+
