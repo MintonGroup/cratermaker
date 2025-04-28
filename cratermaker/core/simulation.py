@@ -274,7 +274,7 @@ class Simulation(CratermakerBase):
             # Create a crater with a specific transient diameter and location
             sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
 
-        """ 
+        """
         self.crater = self.generate_crater(**kwargs)
         self.morphology.form_crater(self.surf,self.crater,**kwargs)
         
@@ -1220,6 +1220,8 @@ class Simulation(CratermakerBase):
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
+        if name not in self._user_defined:
+            return
         # Avoid recursive calls during initialization or early access
         if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)):
             if _convert_for_yaml(value) is not None:
