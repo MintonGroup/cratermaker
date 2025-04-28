@@ -2,7 +2,6 @@ from __future__ import annotations
 import xarray as xr
 import uxarray as uxr
 from uxarray import INT_FILL_VALUE, Grid, UxDataArray, UxDataset
-import os
 import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import shutil
@@ -57,7 +56,7 @@ class Surface:
                  grid: Grid | str | None = None,
                  target: Target | str | None = None,
                  compute_face_areas: bool = False,
-                 simdir: os.PathLike = Path.cwd(),
+                 simdir: str | Path | None = None,
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
@@ -1096,7 +1095,7 @@ class SurfaceView:
 
 
 def _save_surface(surf: Surface, 
-         out_dir: os.PathLike | None = None,
+         out_dir: str | Path | None = None,
          combine_data_files: bool = False,
          interval_number: int = 0,
          time_variables: dict | None = None,
@@ -1109,7 +1108,7 @@ def _save_surface(surf: Surface,
     ----------
     surface : Surface
         The surface object to be saved. 
-    out_dir : str, optional
+    out_dir : str, or Path, optional
         Directory to save the surface data. If None, the data is saved to the current working directory.
     combine_data_files : bool, optional
         If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
@@ -1121,9 +1120,8 @@ def _save_surface(surf: Surface,
     do_not_save = ["face_areas"]
     if out_dir is None:
         out_dir = surf.data_dir
-        
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)         
+
+    Path(out_dir).mkdir(parents=True, exist_ok=True) 
       
     if time_variables is None:
         time_variables = {"elapsed_time":float(interval_number)}  

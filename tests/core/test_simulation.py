@@ -54,8 +54,8 @@ class TestSimulation(unittest.TestCase):
         
         sim.save()
         
-        filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc"))
-        self.assertTrue(os.path.exists(filename))
+        filename = Path(sim.data_dir) / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc")
+        self.assertTrue(filename.exists())
         with xr.open_dataset(filename) as ds:
             ds = ds.isel(time=-1)
             np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node))
@@ -65,8 +65,8 @@ class TestSimulation(unittest.TestCase):
         sim.save(combine_data_files=True)
         filename = _COMBINED_DATA_FILE_NAME
         
-        filename = os.path.join(sim.data_dir,_COMBINED_DATA_FILE_NAME)
-        self.assertTrue(os.path.exists(filename))
+        filename = Path(sim.data_dir) / _COMBINED_DATA_FILE_NAME
+        self.assertTrue(filename.exists())
         with xr.open_dataset(filename) as ds:
             ds = ds.isel(time=-1)
             np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node))
@@ -78,12 +78,12 @@ class TestSimulation(unittest.TestCase):
       
         sim = cratermaker.Simulation(simdir=self.simdir,gridlevel=self.gridlevel)
         # Test with default parameters
-        default_out_dir = os.path.join(sim.simdir, _EXPORT_DIR)
+        default_out_dir = Path(sim.simdir) / _EXPORT_DIR
         expected_files = ["surf000000.vtp"]
         sim.export_vtk()
-        self.assertTrue(os.path.isdir(default_out_dir))
+        self.assertTrue(Path(default_out_dir).is_dir()) 
         for f in expected_files:
-            self.assertTrue(os.path.exists(os.path.join(default_out_dir, f)))
+            self.assertTrue((Path(default_out_dir / f).exists()))
         
     def test_emplace_crater(self):
         cdiam = 2*self.pix

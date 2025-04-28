@@ -28,7 +28,7 @@ class TestSurface(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.grid_file = os.path.join(self.temp_dir.name, _GRID_FILE_NAME)
+        self.grid_file = Path(self.temp_dir.name) / _GRID_FILE_NAME
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
@@ -43,8 +43,8 @@ class TestSurface(unittest.TestCase):
         return
 
     def test_initialize_surface(self):
-        directory = os.path.join(os.getcwd(), _DATA_DIR)
-        if os.path.exists(directory) and os.path.isdir(directory):
+        directory = Path.cwd() / _DATA_DIR
+        if directory.exists() and directory.is_dir():
             try:
                 shutil.rmtree(directory)
             except Exception as error:

@@ -101,10 +101,9 @@ class Grid(ComponentBase):
     @abstractmethod
     def generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray,NDArray,NDArray]: ...
 
-    def generate_grid(self, **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:                       
+    def generate_grid(self, **kwargs: Any) -> None: 
         """
         Generate a tessellated mesh of a sphere of evenly distributed points
-
 
         Notes
         -----
@@ -143,7 +142,7 @@ class Grid(ComponentBase):
         """
     
         # Find out if the file exists, if it does't we'll need to make a new grid
-        make_new_grid = not os.path.exists(self.file)
+        make_new_grid = not Path(self.file).exists()
         
         if not make_new_grid:
             with xr.open_dataset(self.file) as ds:

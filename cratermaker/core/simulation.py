@@ -1,7 +1,6 @@
 import numpy as np
 from numpy.random import Generator
 import xarray as xr
-import os
 from pathlib import Path
 from tqdm import tqdm
 from collections.abc import Sequence
@@ -800,7 +799,7 @@ class Simulation(CratermakerBase):
                 warp.SetInputData(polyDataWithNormals)
                 warp.Update()
                 warped_output = warp.GetOutput()
-                output_filename = os.path.join(out_dir, f"surf{i:06d}.vtp")
+                output_filename = out_dir / f"surf{i:06d}.vtp"
                 writer.SetFileName(output_filename)
                 writer.SetInputData(warped_output) 
                 writer.Write()               
@@ -812,7 +811,7 @@ class Simulation(CratermakerBase):
                          diameters: FloatLike | Sequence[FloatLike] | ArrayLike ,
                          longitudes: FloatLike | ArrayLike,
                          latitudes: FloatLike | ArrayLike,
-                         output_filename: os.PathLike | None = None,
+                         output_filename: str | Path | None = None,
                          *args, **kwargs
                         ) -> None:
         """
@@ -826,7 +825,7 @@ class Simulation(CratermakerBase):
             Longitudes of the circle centers in degrees.
         latitudes : FloatLike or ArrayLike of Floats
             Latitudes of the circle centers in degrees.
-        out_filename : os.PathLike, optional 
+        out_filename : str or Path, optional 
             Name of the output file. If not provided, the default is "circle.vtp" 
         """ 
         import vtk 
