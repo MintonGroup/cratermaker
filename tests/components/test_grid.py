@@ -1,5 +1,4 @@
 import unittest
-import os
 from pathlib import Path
 import tempfile
 from cratermaker import Target, Grid
@@ -26,18 +25,16 @@ class TestGrid(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.grid_file = Path(self.temp_dir.name) / _GRID_FILE_NAME
+        self.simdir = self.temp_dir.name
+        self.grid_file = Path(self.simdir) / _GRID_FILE_NAME
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
-        self.cwd = Path.cwd()
-        os.chdir(self.temp_dir.name)
         
         return
     
     def tearDown(self):
         # Clean up temporary directory
-        os.chdir(self.cwd)
         self.temp_dir.cleanup() 
         return
 
@@ -61,7 +58,7 @@ class TestGrid(unittest.TestCase):
             }
 
         for name, args in gridargs.items():
-            grid = Grid.make(grid=name,**args)
+            grid = Grid.make(simdir=self.simdir,grid=name,**args)
             self.assertTrue(Path(grid.file).exists())
         
         return

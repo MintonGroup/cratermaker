@@ -30,7 +30,7 @@ class IcosphereGrid(Grid):
     def __init__(self, 
                  gridlevel: int = 8, 
                  radius: FloatLike = 1.0, 
-                 simdir: str | Path = Path.cwd(),
+                 simdir: str | Path | None = None,
                  **kwargs: Any):
         super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.gridlevel = gridlevel

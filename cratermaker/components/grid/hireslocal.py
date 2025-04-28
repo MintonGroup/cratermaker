@@ -40,7 +40,7 @@ class HiResLocalGrid(Grid):
                  local_radius: FloatLike, 
                  local_location: PairOfFloats,
                  superdomain_scale_factor: FloatLike,
-                 simdir: str | Path = Path.cwd(),
+                 simdir: str | Path | None = None,
                  **kwargs: Any):
         super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.pix = pix

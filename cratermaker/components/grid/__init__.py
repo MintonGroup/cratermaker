@@ -10,17 +10,22 @@ import xarray as xr
 from numpy.typing import NDArray
 from typing import Any
 import hashlib
-from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.utils.general_utils import  parameter
 from cratermaker.constants import _GRID_FILE_NAME, _DATA_DIR
 from cratermaker.core.target import Target
+from cratermaker.core.base import _simdir_init
+from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+from cratermaker.utils.general_utils import  parameter
 from cratermaker.utils.component_utils import ComponentBase, import_components
 
 class Grid(ComponentBase):
     _registry: dict[str, type[Grid]] = {}
 
-    def __init__(self, radius: FloatLike = 1.0, regrid: bool = False, **kwargs: Any):
-        super().__init__(**kwargs)
+    def __init__(self, 
+                 radius: FloatLike = 1.0, 
+                 regrid: bool = False, 
+                 simdir: str | Path | None = None,
+                 **kwargs: Any):
+        super().__init__(simdir=simdir,**kwargs)
         object.__setattr__(self, "_grid", None)
         object.__setattr__(self, "_radius", None)
         object.__setattr__(self, "_file", None)
@@ -33,8 +38,8 @@ class Grid(ComponentBase):
              grid : str | type[Grid] | Grid| None = None, 
              target: Target | None = None,
              radius: FloatLike = 1.0, 
-             simdir: str | Path = Path.cwd(),
              regrid: bool = False,
+             simdir: str | Path = None,
              **kwargs: Any) -> Grid:
         """
         Initialize a component model with the given name or instance.
@@ -70,6 +75,7 @@ class Grid(ComponentBase):
             radius = target.radius or radius
 
         # Verify directory structure exists and create it if not
+        simdir = _simdir_init(simdir)
         data_dir = simdir / _DATA_DIR
 
         data_dir.mkdir(parents=True, exist_ok=True)

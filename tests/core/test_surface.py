@@ -1,5 +1,4 @@
 import unittest
-import os
 from pathlib import Path
 import shutil
 import numpy as np
@@ -28,17 +27,15 @@ class TestSurface(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.grid_file = Path(self.temp_dir.name) / _GRID_FILE_NAME
+        self.simdir = self.temp_dir.name
+        self.grid_file = Path(self.simdir) / _GRID_FILE_NAME
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
-        self.cwd = Path.cwd()
-        os.chdir(self.temp_dir.name)
         
         return
     
     def tearDown(self):
-        os.chdir(self.cwd)  # Change back to the original working directory
         self.temp_dir.cleanup() 
         return
 
@@ -51,15 +48,15 @@ class TestSurface(unittest.TestCase):
                 print(f"Error: {directory} : {error}")
 
         # Initializing it first should run the jigsaw mesh generator
-        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+        surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         
         # Try initializing the surface again with the same parameters. This should find the existing grid file and load it 
-        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=False)
+        surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=False)
         
         # Test regridding if the parameters change
         n_face_orig = surf.uxds.uxgrid.n_face
     
-        surf = Surface.make(gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
+        surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
         self.assertGreater(n_face_orig, surf.uxds.uxgrid.n_face)
     
         # Test different target values
@@ -68,16 +65,16 @@ class TestSurface(unittest.TestCase):
         
         # Test bad values
         with self.assertRaises(TypeError):
-            surf = Surface.make(gridlevel=self.gridlevel, target=1, reset_surface=False)
+            surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target=1, reset_surface=False)
         with self.assertRaises(ValueError):
-            surf = Surface.make(gridlevel=self.gridlevel, target="Arrakis", reset_surface=False)
+            surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target="Arrakis", reset_surface=False)
         with self.assertRaises(ValueError):
-            surf = Surface.make(gridlevel=self.gridlevel, target=Target(name="Salusa Secundus"), reset_surface=False)
+            surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target=Target(name="Salusa Secundus"), reset_surface=False)
         return
 
 
     def test_set_elevation(self):
-        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+        surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         # Test with valid elevation data
         new_elev = np.random.rand(surf.uxds.uxgrid.n_node)  # Generate random elevation data
         surf.set_elevation(new_elev)
@@ -114,7 +111,7 @@ class TestSurface(unittest.TestCase):
 
 
     def test_get_face_distance(self):
-        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+        surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         
         location = get_random_location()
         lon = location[0]
@@ -146,7 +143,7 @@ class TestSurface(unittest.TestCase):
         
         
     def test_get_node_distance(self):
-        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+        surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
         
         location = get_random_location()
         lon = location[0]
@@ -202,7 +199,7 @@ class TestSurface(unittest.TestCase):
             
     def test_face_surface_values(self):
         # Tests that the face_surface generates the correct values
-        surf = Surface.make(gridlevel=self.gridlevel, target=self.target, reset_surface=True) 
+        surf = Surface.make(simdir=self.simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True) 
         total_area_1 = surf.uxds.uxgrid.calculate_total_face_area()
         total_area_2 = surf.face_areas.sum().item()
         ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius

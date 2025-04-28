@@ -12,11 +12,9 @@ class TestBase(unittest.TestCase):
         # Create a temporary directory for testing
         self.temp_dir = tempfile.TemporaryDirectory()
         self.simdir = self.temp_dir.name
-        self.cwd = Path.cwd()
 
     def tearDown(self):
         # Clean up temporary directory
-        os.chdir(self.cwd)  # Change back to the original working directory
         self.temp_dir.cleanup() 
         return       
 
@@ -93,11 +91,13 @@ class TestBase(unittest.TestCase):
         self.assertEqual(simdir_path, target_path)
 
         # Test with a relative path 
+        cwd = Path.cwd()
         os.chdir(self.simdir)
         relative_path = "relative_simdir"
         simdir = _simdir_init(simdir=relative_path)
         self.assertTrue(simdir.is_dir())
         self.assertEqual(str(simdir), relative_path)
+        os.chdir(cwd)
 
         # Test with an invalid path
         with self.assertRaises(TypeError):

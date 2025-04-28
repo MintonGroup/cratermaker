@@ -82,7 +82,7 @@ class Crater:
             scaling: str | Scaling = "richardson2009",
             impactor: str | Impactor = "asteroids",
             target: str | Target = "Moon",
-            simdir: str | Path = Path.cwd(),
+            simdir: str | Path | None = None,
             rng: Generator = None,
             rng_seed: str | int | None = None,
             rng_state: dict | None = None,

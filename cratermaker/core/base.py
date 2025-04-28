@@ -15,7 +15,7 @@ class CommonArgs:
 
 class CratermakerBase:
     def __init__(self, 
-                 simdir: str | Path = Path.cwd(),
+                 simdir: str | Path | None = None,
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,

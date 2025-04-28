@@ -29,7 +29,7 @@ class ArbitraryResolutionGrid(Grid):
     def __init__(self, 
                  pix: FloatLike | None = None, 
                  radius: FloatLike = 1.0, 
-                 simdir: str | Path = Path.cwd(),
+                 simdir: str | Path | None = None,
                  **kwargs: Any):
         super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.pix = pix
