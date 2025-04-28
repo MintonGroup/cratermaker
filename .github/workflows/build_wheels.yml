@@ -17,10 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: PyO3/maturin-action@v1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Build rust
+        uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: --release
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: auto
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22.0
