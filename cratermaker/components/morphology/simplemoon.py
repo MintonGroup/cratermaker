@@ -271,8 +271,6 @@ class SimpleMoon(Morphology):
 
         return float(rmax)
 
-
-
     @property
     def rimheight(self) -> float:
         """
