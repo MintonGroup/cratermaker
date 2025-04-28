@@ -17,12 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libhdf5-dev libnetcdf-dev
-
       - name: Get history and tags for SCM versioning to work
         run: |
           git fetch --prune --unshallow
@@ -50,10 +44,6 @@ jobs:
       - name: pytest
         shell: bash
         run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            export XR_DISABLE_NETCDF4=1
-            export HDF5_USE_FILE_LOCKING=FALSE
-          fi
           set -e
           python3 -m venv .venv
           if [[ "$RUNNER_OS" == "Windows" ]]; then

@@ -1012,7 +1012,7 @@ class Surface:
 
     @staticmethod
     def _save_data(ds: xr.Dataset | xr.DataArray,
-                out_dir: os.PathLike,
+                out_dir: str | Path,
                 interval_number: int = 0,
                 combine_data_files: bool = False
                 ) -> None:
@@ -1052,14 +1052,14 @@ class Surface:
             else:
                 filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
                 
-            data_file = os.path.join(out_dir, filename)
-            if os.path.exists(data_file):
+            data_file = Path(out_dir) / filename
+            if data_file.exists():
                 with xr.open_mfdataset(data_file) as ds_file:
                     ds_file = ds.merge(ds_file, compat="override")
             else:
                 ds_file = ds    
                 
-            temp_file = os.path.join(temp_dir, filename)
+            temp_file = Path(temp_dir) / filename
             
             comp = dict(zlib=True, complevel=9)
             encoding = {var: comp for var in ds_file.data_vars}
