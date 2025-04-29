@@ -91,13 +91,11 @@ class TestBase(unittest.TestCase):
         self.assertEqual(simdir_path, target_path)
 
         # Test with a relative path 
-        cwd = Path.cwd()
-        os.chdir(self.simdir)
         relative_path = "relative_simdir"
         simdir = _simdir_init(simdir=relative_path)
         self.assertTrue(simdir.is_dir())
         self.assertEqual(str(simdir), relative_path)
-        os.chdir(cwd)
+        simdir.rmdir()
 
         # Test with an invalid path
         with self.assertRaises(TypeError):
