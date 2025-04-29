@@ -84,7 +84,3 @@ module-name = "cratermaker._cratermaker"
 
 [tool.setuptools_scm]  
 write_to = "cratermaker/_version.py"
-
-[tool.cibuildwheel]
-skip = ["*-musllinux_i686"]
-
