@@ -5,12 +5,13 @@ from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import _set_properties
-from cratermaker.components.scaling import register_scaling_model, ScalingModel
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
+from cratermaker.components.scaling import Scaling
+from cratermaker.components.impactor import Impactor
 
-@register_scaling_model("richardson2009")
-class Richardson2009(ScalingModel):
+@Scaling.register("richardson2009")
+class Richardson2009(Scaling):
     """
     This is an operations class for computing the scaling relationships between impactors and craters.
 
@@ -19,8 +20,10 @@ class Richardson2009(ScalingModel):
         
     Parameters
     ----------
-    target : Target or str, optional
-        The target body for the impact simulation, or the name of a target. If the name is provided, you can also provide additional keyword arguments that will be passed to the Target class. Default is "Moon".
+    target : Target | str, default="Moon"
+        The target body for the impact. Can be a Target object or a string representing the target name.
+    impactor : Impactor | str, default="asteroids"
+        The impactor model for the impact. Can be an Impactor object or a string representing the impactor name.
     material_name : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
@@ -31,13 +34,14 @@ class Richardson2009(ScalingModel):
         The strength of the target material, (Pa)
     target_density : FloatLike, optional
         Volumentric density of target material, (kg/m^3)
-    projectile_density : FloatLike, optional
-        Volumetric density of the projectile, (kg/m^3)
-    projectile_vertical_velocity : FloatLike, optional
-        The mean velocity of the projectile, (m/s)
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used. 
-
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
     Notes
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.
@@ -54,63 +58,50 @@ class Richardson2009(ScalingModel):
 
     def __init__(self, 
                  target: Target | str = "Moon",
+                 impactor: Impactor | str = "asteroids",
                  material_name: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
-                 target_density: FloatLike | None = None,
-                 projectile_density: FloatLike | None = None,
-                 projectile_vertical_velocity: FloatLike | None = None,
-                 rng: Generator | None = None, 
+                 density: FloatLike | None = None,
+                 rng : Generator | None = None,
+                 rng_seed: int | None = None,
+                 rng_state: dict | None = None,
                  **kwargs):
-        """
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        self._target = Target.make(target, **kwargs)
+        self._impactor = Impactor.make(impactor=impactor, target=self._target, **kwargs)
 
-        References
-        ----------
-        .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
-        """
-        super().__init__()
-        if isinstance(target, str):
-            try:
-                target = Target(target,**kwargs)
-            except:
-                raise ValueError(f"Invalid target name {target}")
-        elif not isinstance(target, Target):
-            raise TypeError("target must be an instance of Target or a valid name of a target body")
-
-        object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)
         object.__setattr__(self, "_Ybar", None)
-        object.__setattr__(self, "_target_density", None)
-        object.__setattr__(self, "_projectile_density", None)
-        object.__setattr__(self, "_projectile_vertical_velocity", None)
-        object.__setattr__(self, "_rng", None)
         object.__setattr__(self, "_transition_diameter", None)
         object.__setattr__(self, "_transition_nominal", None)
         object.__setattr__(self, "_complex_enlargement_factor", None)
         object.__setattr__(self, "_simple_enlargement_factor", None)
         object.__setattr__(self, "_final_exp", None)
-        self.rng = rng
+        object.__setattr__(self, "_material_catalogue", None)
 
         if material_name is not None:
             self.material_name = material_name
         else: 
-            self.material_name = target.material_name
+            self.material_name = self.target.material_name
 
         _set_properties(self,
-                        target=target,
                         material_name=self.material_name,
                         K1=K1,
                         mu=mu,
                         Ybar=Ybar,
-                        target_density=target_density,
-                        projectile_density=projectile_density,
-                        projectile_vertical_velocity=projectile_vertical_velocity,
                         catalogue=self.material_catalogue,
-                        **kwargs
-                    ) 
-        arg_check = sum(x is None for x in [self.target, self.K1, self.mu, self.Ybar, self.target_density, self.projectile_density, self.projectile_vertical_velocity])
+                        **kwargs) 
+        if density is not None:
+            self.target.density = density
+        elif self.target.density is None:
+            self.target.density = self.material_catalogue[self.material_name]["density"]
+        if self.impactor.density is None:
+            self.impactor.density = self.target.density
+        
+        arg_check = sum(x is None for x in [self.target.density, self.K1, self.mu, self.Ybar])
         if arg_check > 0:
             raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
         # Initialize transition factors
@@ -120,7 +111,7 @@ class Richardson2009(ScalingModel):
 
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
-        include_list=("material_name", "K1", "mu", "Ybar", "target_density", "projectile_density", "projectile_vertical_velocity")
+        include_list=("material_name", "K1", "mu", "Ybar")
         # Add it to the set of user-defined parameters if it is in the list of parameters
         public_name = name.lstrip("_")
         if public_name in include_list:
@@ -228,8 +219,8 @@ class Richardson2009(ScalingModel):
         """ 
         # Invert the final -> transient functions for  each crater type
         final_diameter_simple = transient_diameter * self.simple_enlargement_factor
-        def root_func(final_diameter,Dt,scale):
-            return scale._f2t_complex(final_diameter) - Dt
+        def root_func(final_diameter,Dt,scaling):
+            return scaling._f2t_complex(final_diameter) - Dt
             
         sol = root_scalar(lambda x, *args: root_func(x, *args),bracket=(0.1*final_diameter_simple,10*final_diameter_simple), args=(transient_diameter, self))
         final_diameter_complex = sol.root
@@ -274,7 +265,7 @@ class Richardson2009(ScalingModel):
                                 projectile_diameter: FloatLike, 
                                 **kwargs: Any) -> float:
         """
-        Calculate the transient diameter of a crater based on the properties of the projectile and target.
+        Calculate the transient diameter of a crater based on the properties of the projectile and target. Based on [1]_
 
 
         Returns
@@ -284,25 +275,25 @@ class Richardson2009(ScalingModel):
 
         References
         ----------
-            .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
+        .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         # Compute some auxiliary quantites
         projectile_radius = projectile_diameter / 2
-        projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * self.projectile_density
+        projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * self.impactor.density
 
         c1 = 1.0 + 0.5 * self.mu
         c2 = (-3 * self.mu)/(2.0 + self.mu)
 
         # Find dimensionless quantities
-        pitwo = (self.target.gravity * projectile_radius)/(self.projectile_vertical_velocity**2)
-        pithree = self.Ybar / (self.target_density * (self.projectile_vertical_velocity**2))
-        pifour = self.target_density / self.projectile_density
+        pitwo = (self.target.gravity * projectile_radius)/(self.impactor.vertical_velocity**2)
+        pithree = self.Ybar / (self.target.density * (self.impactor.vertical_velocity**2))
+        pifour = self.target.density / self.impactor.density
         pivol = self.K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
         pivolg = self.K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
         
         # find transient crater volume and radii (depth = 1/3 diameter)
-        cvol = pivol * (projectile_mass / self.target_density)
-        cvolg = pivolg * (projectile_mass / self.target_density)
+        cvol = pivol * (projectile_mass / self.target.density)
+        cvolg = pivolg * (projectile_mass / self.target.density)
         transient_radius = (3 * cvol / np.pi)**(1.0/3.0)
         #TODO: transient_radius_gravscale = (3 * cvolg / np.pi)**(1.0/3.0)
         
@@ -358,7 +349,7 @@ class Richardson2009(ScalingModel):
             # Define some built-in catalogue values for known solar system materials of interest
             # Define some default crater scaling relationship terms (see Richardson 2009, Table 1, and Kraus et al. 2011 for Ice) 
             material_properties = [
-                "name",       "K1",     "mu",   "Ybar",     "target_density" 
+                "name",       "K1",     "mu",   "Ybar",     "density" 
             ]
             material_values = [
                 ("Water",     2.30,     0.55,   0.0,        1000.0),
@@ -482,27 +473,7 @@ class Richardson2009(ScalingModel):
         float
         """
         return self._final_exp
-    
-    @property
-    def target(self):
-        """
-        The target body for the impact.
-        
-        Returns
-        -------
-        Target
-        """ 
-        return self._target
-    
-    @target.setter
-    def target(self, value):
-        if value is None:
-            self._target = Target(name="Moon")
-            return
-        if not isinstance(value, Target):
-            raise TypeError("target must be an instance of Target")
-        self._target = value
-        return 
+
 
     @property
     def K1(self):
@@ -573,126 +544,27 @@ class Richardson2009(ScalingModel):
         if value is not None and value < 0:
             raise ValueError("Ybar must be a positive number")
         self._Ybar = float(value)
-        
+
     @property
-    def target_density(self):
+    def catalogue_key(self):
         """
-        Volumentric density of material in kg/m^3.
+        The key used to identify the property used as the key in a catalogue.
+        """
+        return "material_name"
+    
+    @property
+    def material_name(self):
+        """
+        The name of the material composition of the target body.
         
         Returns
         -------
-        float 
+        str 
         """
-        return self._target_density
-    
-    @target_density.setter
-    def target_density(self, value):
-        if value is not None:
-            if not isinstance(value, FloatLike):
-                raise TypeError("target_density must be a numeric value or None")
-            if value < 0:
-                raise ValueError("target_density must be a positive number")
-            self._target_density = float(value)
+        return self._material_name
 
-
-    @property
-    def projectile_density(self):
-        """
-        Volumetric density of the projectile in kg/m^3.
-        
-        Returns
-        -------
-        float 
-        """
-        if self._projectile_density is None:
-            self.projectile_density = None
-        return self._projectile_density
-    
-    @projectile_density.setter
-    def projectile_density(self, value):
-        if value is not None:
-            if not isinstance(value, FloatLike): 
-                raise TypeError("projectile_density must be a numeric value or None")
-            if value < 0:
-                raise ValueError("projectile_density must be a positive number")
-            self._projectile_density = float(value)
-        else:
-            if self.target_density is not None:
-                self._projectile_density = self.target_density
-
-    @property
-    def projectile_mean_velocity(self):
-        """
-        The mean velocity of the projectile in m/s.
-        
-        Returns
-        -------
-        float 
-        """
-        predefined_models = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'MBA']
-        predefined_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0]
-        predefined = dict(zip(predefined_models, predefined_velocities))
-        if self.target.name in predefined_models:
-            pmv = float(predefined[self.target.name])
-        elif self.target.name in ["Ceres", "Vesta"]:
-            pmv = float(predefined["MBA"])
-        else:
-            pmv = None
-        return pmv
-    
-
-    @property
-    def projectile_vertical_velocity(self):
-        """Get the impact velocity model name."""
-        if self._projectile_vertical_velocity is None:
-            self.projectile_vertical_velocity = None
-        return self._projectile_vertical_velocity
-
-    @projectile_vertical_velocity.setter
-    def projectile_vertical_velocity(self, value):
-        """"
-        Sets the vertical component of the impact velocity. If none is provided, it will look at the target name, and if it matches a known body, we will draw from a distribution using the predefined mean velocityvalue. Otherwise, it will raise an error.
-            
-        Notes
-        ----- 
-        Mean velocities for terrestrial planets and the Moon are based on analysis of simulations of main-belt derived asteroids from Minton & Malhotra (2010) [1]_  and Yue et al. (2013) [2]_. Mean velocities for the asteroids are from Bottke et al. (1994) [3]_.
-        
-        References
-        ----------
-        .. [1] Minton, D.A., Malhotra, R., 2010. Dynamical erosion of the asteroid belt and implications for large impacts in the inner Solar System. Icarus 207, 744-757. https://doi.org/10.1016/j.icarus.2009.12.008
-        .. [2] Yue, Z., Johnson, B.C., Minton, D.A., Melosh, H.J., Di, K., Hu, W., Liu, Y., 2013. Projectile remnants in central peaks of lunar impact craters. Nature Geosci 6, 435 EP-. https://doi.org/10.1038/ngeo1828
-        .. [3] Bottke, W.F., Nolan, M.C., Greenberg, R., Kolvoord, R.A., 1994. Velocity distributions among colliding asteroids. Icarus 107, 255-268. https://doi.org/10.1006/icar.1994.1021
-        """
-
-        if value is None: 
-            pmv = self.projectile_mean_velocity
-            vencounter_mean = np.sqrt(pmv**2 - self.target.escape_velocity**2)
-            vencounter = mc.get_random_velocity(vencounter_mean, rng=self.rng)
-            pv = np.sqrt(vencounter**2 + self.target.escape_velocity**2)
-            pang = mc.get_random_impact_angle(rng=self.rng)
-            self._projectile_vertical_velocity = pv * np.sin(np.deg2rad(pang))
-        elif isinstance(value, (int, float)):
-            if value < 0:
-                raise ValueError("projectile_vertical_velocity must be a positive number")
-            self._projectile_vertical_velocity = float(value)
-        else: 
-            raise TypeError("projectile_vertical_velocity must be a numeric value or None") 
-
-        return
-        
-    @property
-    def rng(self):
-        """
-        A random number generator instance.
-        
-        Returns
-        -------
-        Generator
-        """ 
-        return self._rng
-    
-    @rng.setter
-    def rng(self, value):
-        if not isinstance(value, Generator) and value is not None:
-            raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-        self._rng = value or np.random.default_rng()       
+    @material_name.setter
+    def material_name(self, value):
+        if not isinstance(value, str) and value is not None:
+            raise TypeError("name must be a string or None")
+        self._material_name = value
