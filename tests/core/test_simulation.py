@@ -165,20 +165,21 @@ class TestSimulation(unittest.TestCase):
 
     def test_simulation_to_config(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            
-
             # First simulation: no target passed, should default to "Moon"
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
             self.assertIsInstance(sim.target, Target)
             self.assertEqual(sim.target.name, "Moon")
+            del sim
 
             # Second simulation: override target with "Mars"
             sim = cratermaker.Simulation(simdir=simdir, target="Mars")
             self.assertEqual(sim.target.name, "Mars")
+            del sim
 
             # Third simulation: no target passed, should read "Mars" from config
             sim = cratermaker.Simulation(simdir=simdir)
             self.assertEqual(sim.target.name, "Mars")
+            del sim
         return
 
 if __name__ == '__main__':
