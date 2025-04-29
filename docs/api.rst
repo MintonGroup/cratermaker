@@ -6,9 +6,10 @@
 Cratermaker API reference
 #########################
 
-This section of the documentation provides a detailed reference for the Production classes in the Cratermaker project.
+This section of the documentation provides a detailed reference for the core functionality and modular components of the Cratermaker project.
 
 .. _api-Simulation:
+
 
 Simulation
 ==========
@@ -16,7 +17,7 @@ Simulation
 The Simulation class is the main class for the cratermaker project. It is used to create a simulation of a crater on a given target 
 body. The Simulation class is used to generate craters of a given size and morphology based on the production function, morphology
 function, and crater scaling relationship model. The surface of the target body is represented by a Surface attribute called
-`surf`, which is derived from a UxDataset object. This is an unstructured grid dataset that contains data for the target body surface.
+`surf`, which contains a UxDataset object called `surf.uxds`. This is an unstructured grid dataset that contains data for the target body surface.
 
 Creating a Simulation
 ---------------------
@@ -25,7 +26,6 @@ Creating a Simulation
     :toctree: generated/
 
     Simulation
-
 
 Methods
 -------
@@ -37,11 +37,14 @@ Methods
     Simulation.populate
     Simulation.emplace_crater
     Simulation.generate_crater
-    Simulation.generate_projectile
-    Simulation.apply_noise
     Simulation.save
     Simulation.export_vtk
     Simulation.set_elevation
+    Simulation.to_config
+    Simulation.make_circle_file
+    Simulation.get_smallest_diameter
+    Simulation.get_largest_diameter
+
 
 Attributes
 ----------
@@ -51,23 +54,24 @@ Attributes
 
     Simulation.surf
     Simulation.production
+    Simulation.scaling
     Simulation.crater
-    Simulation.projectile
+    Simulation.impactor
     Simulation.target
+    Simulation.morphology
+    Simulation.crater
+    Simulation.grid
     Simulation.data_dir
     Simulation.grid_file
-    Simulation.morphology_cls
     Simulation.n_face
     Simulation.n_node
     Simulation.rng
-    Simulation.scale
-    Simulation.seed
+    Simulation.rng_seed
     Simulation.simdir
     Simulation.interval_number
     Simulation.elapsed_time
     Simulation.current_age
     Simulation.elapsed_n1
-    Simulation.ejecta_truncation
     Simulation.smallest_crater
     Simulation.largest_crater
     Simulation.smallest_projectile
@@ -87,7 +91,7 @@ Creating a surface
 .. autosummary::
     :toctree: generated/
 
-    Surface
+    Surface.make
 
 Methods
 -------
@@ -95,7 +99,6 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    Surface.initialize
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
     Surface.find_nearest_index
@@ -107,6 +110,7 @@ Methods
     Surface.elevation_to_cartesian
     Surface.extract_region
     Surface.get_random_location_on_face
+    Surface.to_config
 
 Attributes
 ----------
@@ -114,23 +118,33 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    Surface.uxds
+    Surface.grid
+    Surface.node_tree
+    Surface.face_tree
     Surface.data_dir
     Surface.grid_file
     Surface.smallest_length
     Surface.area
     Surface.target
     Surface.rng
+    Surface.rng_seed
+    Surface.simdir
 
+.. _api-Target:
 
-.. _api-Grid:
+Target
+======
 
-Generating grids
-----------------
+The Target class represents the target body in a crater simulation. It encapsulates properties of the target, such as its material composition, size, and other physical characteristics.
+
+Creating a Target
+-----------------
 
 .. autosummary::
     :toctree: generated/
 
-    GridMaker
+    Target.make
 
 Methods
 -------
@@ -138,26 +152,7 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    GridMaker.generate_face_distribution
-    GridMaker.generate_grid
-    GridMaker.generate_hash
-    GridMaker.check_and_regrid
-
-Generating a uniform Icosphere grid
------------------------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    IcosphereGrid
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    IcosphereGrid.generate_face_distribution
+    Target.to_config
 
 Attributes
 ----------
@@ -165,16 +160,22 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    IcosphereGrid.pix
-    IcosphereGrid.radius
+    Target.name
+    Target.material_name
+    Target.catalogue
+    Target.diameter
+    Target.escape_velocity
+    Target.gravity
+    Target.radius
+    Target.transition_scale_type
 
-Generating a uniform arbitrary resolution grid
-----------------------------------------------
+.. _api-Crater:
 
-.. autosummary::
-    :toctree: generated/
+Crater
+======
 
-    ArbitraryResolutionGrid
+The ``Crater`` class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features. It also defines the properties of the projectile, such as its size, velocity, material, and angle of impact.
+
 
 Methods
 -------
@@ -182,6 +183,78 @@ Methods
 .. autosummary::
     :toctree: generated/
 
+    Crater.make
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Crater.final_diameter
+    Crater.final_radius
+    Crater.transient_diameter
+    Crater.transient_radius
+    Crater.projectile_diameter
+    Crater.projectile_radius
+    Crater.projectile_density
+    Crater.projectile_mass
+    Crater.projectile_velocity
+    Crater.projectile_vertical_velocity
+    Crater.projectile_angle
+    Crater.projectile_direction
+    Crater.location
+    Crater.age
+
+.. _api-Grid:
+
+.. currentmodule:: cratermaker.components.grid.icosphere
+
+Grid
+====
+
+.. autosummary::
+    :toctree: generated/
+
+    IcosphereGrid.make
+    IcosphereGrid.available
+    IcosphereGrid.generate_face_distribution
+    IcosphereGrid.generate_grid
+    IcosphereGrid.check_if_regrid
+    IcosphereGrid.create_grid
+    IcosphereGrid.to_config
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    IcosphereGrid.name
+    IcosphereGrid.radius
+    IcosphereGrid.uxgrid
+    IcosphereGrid.file
+    IcosphereGrid.regrid
+    IcosphereGrid.gridlevel
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.grid import IcosphereGrid
+    grid = IcosphereGrid.make(3, radius=1737.4)
+
+
+.. currentmodule:: cratermaker.components.grid.arbitrary_resolution
+
+Arbitrary resolution grid
+=========================
+
+.. autosummary::
+    :toctree: generated/
+
+    ArbitraryResolutionGrid.make
     ArbitraryResolutionGrid.generate_face_distribution
 
 Attributes
@@ -193,21 +266,24 @@ Attributes
     ArbitraryResolutionGrid.pix
     ArbitraryResolutionGrid.radius
 
+Usage example
+-------------
 
-Generating a non-uniform grid with a high resolution local region
------------------------------------------------------------------
+.. code-block:: python
+
+    from cratermaker.components.grid import ArbitraryResolutionGrid
+    grid = ArbitraryResolutionGrid.make(pix=100, radius=1737.4)
+
+
+.. currentmodule:: cratermaker.components.grid.hireslocal
+
+Hi-res local grid
+=================
 
 .. autosummary::
     :toctree: generated/
 
-    HiResLocalGrid
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
+    HiResLocalGrid.make
     HiResLocalGrid.generate_face_distribution
 
 Attributes
@@ -222,69 +298,48 @@ Attributes
     HiResLocalGrid.local_location
     HiResLocalGrid.superdomain_scale_factor
 
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.grid import HiResLocalGrid
+    grid = HiResLocalGrid.make(pix=50, radius=1737.4, local_radius=100)
+
+
 .. _api-Production:
+
+.. currentmodule:: cratermaker.components.production
 
 Production
 ==========
 
-The Production class serves as a base class for computing the production function for craters and impactors.
-
-Creating a Production Function
-------------------------------
-
 .. autosummary::
     :toctree: generated/
 
-    Production
+    Production.make
 
-Methods
--------
+Usage example
+-------------
 
-.. autosummary::
-    :toctree: generated/
+.. code-block:: python
 
-    Production.function
-    Production.function_inverse
-    Production.sample
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Production.generator_type
-    Production.impact_velocity_model
-    Production.mean_velocity
-    Production.model
-    Production.N1_coef
-    Production.slope
-    Production.rng
-    Production.valid_models
-    Production.valid_time
+    from cratermaker import Production
+    production = Production.make("neukum")
 
 
 .. _api-NeukumProduction:
 
+.. currentmodule:: cratermaker.components.production.neukum
+
 NeukumProduction
 ================
 
-The NeukumProduction class extends the Production class to implement the Neukum production function for the Moon and Mars.
-
-Creating a Neukum Production Function
--------------------------------------
-
 .. autosummary::
     :toctree: generated/
 
-    NeukumProduction
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
+    NeukumProduction.make
+    NeukumProduction.sample
     NeukumProduction.function
     NeukumProduction.chronology
     NeukumProduction.size_frequency_distribution
@@ -301,23 +356,31 @@ Attributes
     NeukumProduction.tau
     NeukumProduction.Cexp
     NeukumProduction.Clin
+    NeukumProduction.generator_type
 
-.. currentmodule:: cratermaker
+Usage example
+-------------
 
-.. _api-Target:
+.. code-block:: python
 
-Target
-======
+    from cratermaker.components.production.neukum import NeukumProduction
+    neukum = NeukumProduction.make()
 
-The Target class represents the target body in a crater simulation. It encapsulates properties of the target, such as its material composition, size, and other physical characteristics.
 
-Creating a Target
------------------
+.. _api-PowerLawProduction:
+
+.. currentmodule:: cratermaker.components.production.powerlaw
+
+Power law production function
+=============================
 
 .. autosummary::
     :toctree: generated/
 
-    Target
+    PowerLawProduction.make
+    PowerLawProduction.sample
+    PowerLawProduction.function
+    PowerLawProduction.chronology
 
 Attributes
 ----------
@@ -325,29 +388,43 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Target.catalogue
-    Target.diameter
-    Target.escape_velocity
-    Target.gravity
-    Target.material_name
-    Target.name
-    Target.radius
-    Target.transition_scale_type
+    PowerLawProduction.N1_coef
+    PowerLawProduction.slope
 
-.. _api-Material:
+Usage example
+-------------
 
-Material
-========
+.. code-block:: python
 
-The Material class represents a material that can be used in the simulation. The properties defined in a Material object are used in crater scaling calculations.
+    from cratermaker.components.production.powerlaw import PowerLawProduction
+    powerlaw = PowerLawProduction.make()
 
-Creating a matererial
----------------------
+
+.. _api-Scaling:
+
+.. currentmodule:: cratermaker.components.scaling
+
+Scaling
+=======
+
+The `Scaling` class is an abstract base class for crater scaling relationships. 
+Use the `Scaling.make` method to create a specific scaling model. 
+Available models: see `Scaling.available()`.
+
+Example:
+
+.. code-block:: python
+
+    from cratermaker import Scaling
+    scaling_model = Scaling.make("richardson2009")
+
+Main Method
+-----------
 
 .. autosummary::
     :toctree: generated/
 
-    Material
+    Scaling.make
 
 Attributes
 ----------
@@ -355,20 +432,46 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Material.name
-    Material.catalogue
-    Material.density
-    Material.K1
-    Material.mu
-    Material.Ybar
+    Scaling.target
+    Scaling.impactor
+    Scaling.target_density
 
-.. _api-Crater:
+Usage example
+-------------
 
-Crater
-======
+.. code-block:: python
 
-The ``Crater`` class represents a single crater in the simulation. It is used to model the crater resulting from an impact, including its size, shape, depth, and other morphological features. It also defines the properties of the projectile, such as its size, velocity, material, and angle of impact.
+    from cratermaker.components.scaling import Scaling
+    scaling_model = Scaling.make("richardson2009")
 
+
+.. _api-Richardson2009:
+
+.. currentmodule:: cratermaker.components.scaling.richardson2009
+
+Richardson 2009 Scaling Model
+=============================
+
+The `Richardson2009` model implements crater scaling based on Richardson (2009). 
+
+To create this model:
+
+.. code-block:: python
+
+    from cratermaker.components.scaling import Scaling
+    scaling_model = Scaling.make("richardson2009")
+
+Available Methods
+------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    Richardson2009.final_to_transient
+    Richardson2009.transient_to_final
+    Richardson2009.projectile_to_transient
+    Richardson2009.transient_to_projectile
+    Richardson2009.get_morphology_type
 
 Attributes
 ----------
@@ -376,72 +479,31 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Crater.final_diameter
-    Crater.final_radius
-    Crater.transient_diameter
-    Crater.transient_radius
-    Crater.projectiel_diameter
-    Crater.projectile_radius
-    Crater.projectile_density
-    Crater.projectile_mass
-    Crater.projectile_velocity
-    Crater.projectile_vertical_velocity
-    Crater.projectile_angle
-    Crater.projectile_direction
-    Crater.location
-    Crater.age
-    Crater.morphology_cls
-    Crater.morphology_type
-    Crater.morphology
-    Crater.scale
-    Crater.target
-    Crater.rng
+    Richardson2009.target
+    Richardson2009.impactor
+    Richardson2009.target_density
+    Richardson2009.material_catalogue
+    Richardson2009.material_name
+    Richardson2009.K1
+    Richardson2009.mu
+    Richardson2009.Ybar
+    Richardson2009.catalogue_key
+    Richardson2009.transition_diameter
+    Richardson2009.transition_nominal
+    Richardson2009.complex_enlargement_factor
+    Richardson2009.simple_enlargement_factor
+    Richardson2009.final_exp
 
-.. _api-ScalingModel:
+Usage example
+-------------
 
-ScalingModel
-============
+.. code-block:: python
 
-The ScalingModel class is an operations class for computing the scaling relationships between impactors and craters. It encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties.
+    from cratermaker.components.scaling.richardson2009 import Richardson2009
+    scaling = Richardson2009()
 
-Creating ScalingModel
---------------
 
-.. autosummary::
-    :toctree: generated/
-
-    ScalingModel
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    ScalingModel.get_morphology_type
-    ScalingModel.final_to_transient
-    ScalingModel.transient_to_final
-    ScalingModel.projectile_to_crater
-    ScalingModel.crater_to_projectile
-    ScalingModel.projectile_to_transient
-    ScalingModel.transient_to_projectile
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    ScalingModel.target
-    ScalingModel.material
-    ScalingModel.material_name
-    ScalingModel.rng
-    ScalingModel.transition_diameter
-    ScalingModel.transition_nominal
-    ScalingModel.simple_enlargement_factor
-    ScalingModel.complex_enlargement_factor
-    ScalingModel.final_exp
-
+.. currentmodule:: cratermaker.components.morphology
 
 .. _api-Morphology:
 
@@ -450,28 +512,11 @@ Morphology
 
 The Morphology class is an operations class for computing the morphology of a crater based on its size and target properties. It encapsulates the logic for altering the topography of the surface based on the crater properties.
 
-Creating Morphology
--------------------
 
 .. autosummary::
     :toctree: generated/
 
-    Morphology
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Morphology.compute_rmax
-    Morphology.crater_profile
-    Morphology.ejecta_profile
-    Morphology.ejecta_distribution
-    Morphology.form_crater
-    Morphology.form_ejecta
-    Morphology.form_secondaries
-    Morphology.ray_intensity
+    Morphology.make
 
 Attributes
 ----------
@@ -480,22 +525,179 @@ Attributes
     :toctree: generated/
 
     Morphology.crater
-    Morphology.final_diameter
-    Morphology.dorays
-    Morphology.ejrim
-    Morphology.ejecta_truncation
-    Morphology.floordepth
-    Morphology.floor_diameter
-    Morphology.morphology_type
-    Morphology.radius
-    Morphology.rimheight
-    Morphology.rimwidth
-    Morphology.peakheight
-    Morphology.target
-    Morphology.rng
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.morphology import Morphology
+    morphology = Morphology.make()
+
+
+.. currentmodule:: cratermaker.components.morphology.simplemoon
+
+SimpleMoon
+==========
+
+.. autosummary::
+    :toctree: generated/
+
+    SimpleMoon.make
+    SimpleMoon.crater_profile
+    SimpleMoon.ejecta_profile
+    SimpleMoon.ejecta_distribution
+    SimpleMoon.form_crater
+    SimpleMoon.form_ejecta
+    SimpleMoon.ray_intensity
+    SimpleMoon.make
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    SimpleMoon.crater
+    SimpleMoon.dorays
+    SimpleMoon.ejrim
+    SimpleMoon.ejecta_truncation
+    SimpleMoon.floordepth
+    SimpleMoon.floor_diameter
+    SimpleMoon.rimheight
+    SimpleMoon.rimwidth
+    SimpleMoon.peakheight
+    SimpleMoon.rng
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.morphology.simplemoon import SimpleMoon
+    simplemoon = SimpleMoon.make()
+
+
+.. currentmodule:: cratermaker.components.impactor
+
+.. _api-Impactor:
+
+Impactor
+==========
+
+The Impactor class is an operations class defining the interface for generating impactor velocities, angles, and densities for a given target body.
+
+.. autosummary::
+    :toctree: generated/
+
+    Impactor.make
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Impactor.target_name
+    Impactor.target
+    Impactor.sample_angles
+    Impactor.sample_velocities
+    Impactor.sample_directions
+    Impactor.mean_velocity
+    Impactor.angle
+    Impactor.direction
+    Impactor.velocity
+    Impactor.density
+    Impactor.vertical_velocity
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.impactor import Impactor
+    impactor = Impactor.make()
+
+
+.. currentmodule:: cratermaker.components.impactor.asteroids
+
+Asteroid impactors
+================== 
+
+.. autosummary::
+    :toctree: generated/
+
+    AsteroidImpactors.make
+    AsteroidImpactors.new_projectile
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    AsteroidImpactors.target_name
+    AsteroidImpactors.target
+    AsteroidImpactors.sample_angles
+    AsteroidImpactors.sample_velocities
+    AsteroidImpactors.sample_directions
+    AsteroidImpactors.mean_velocity
+    AsteroidImpactors.angle
+    AsteroidImpactors.direction
+    AsteroidImpactors.velocity
+    AsteroidImpactors.density
+    AsteroidImpactors.vertical_velocity
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.impactor.asteroids import AsteroidImpactors
+    asteroids = AsteroidImpactors.make()
+
+
+.. currentmodule:: cratermaker.components.impactor.comets
+
+Comet impactors
+===============
+
+.. autosummary::
+    :toctree: generated/
+
+    CometImpactors.make
+    CometImpactors.new_projectile
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    CometImpactors.target_name
+    CometImpactors.target
+    CometImpactors.sample_angles
+    CometImpactors.sample_velocities
+    CometImpactors.sample_directions
+    CometImpactors.mean_velocity
+    CometImpactors.angle
+    CometImpactors.direction
+    CometImpactors.velocity
+    CometImpactors.density
+    CometImpactors.vertical_velocity
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker.components.impactor.comets import CometImpactors
+    comets = CometImpactors.make()
 
 
 .. _api-Utility:
+
+.. currentmodule:: cratermaker.utils
 
 Utility functions
 =================
@@ -506,11 +708,11 @@ Monte Carlo
 .. autosummary::
    :toctree: generated/
 
-    cratermaker.utils.montecarlo.get_random_location
-    cratermaker.utils.montecarlo.get_random_impact_angle
-    cratermaker.utils.montecarlo.get_random_velocity
-    cratermaker.utils.montecarlo.get_random_size
-    cratermaker.utils.montecarlo.bounded_norm
+    montecarlo.get_random_location
+    montecarlo.get_random_impact_angle
+    montecarlo.get_random_velocity
+    montecarlo.get_random_size
+    montecarlo.bounded_norm
 
 General utilities
 -----------------
@@ -518,17 +720,10 @@ General utilities
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.utils.general_utils.validate_and_convert_location
-    cratermaker.utils.general_utils.normalize_coords
-    cratermaker.utils.general_utils.R_to_CSFD
-
-Realism
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    cratermaker.realistic.apply_noise
+    general_utils.Parameter
+    general_utils.validate_and_convert_location
+    general_utils.normalize_coords
+    general_utils.R_to_CSFD
 
 
 Custom type definitions
@@ -537,12 +732,20 @@ Custom type definitions
 .. autosummary::
     :toctree: generated/
 
-    cratermaker.utils.custom_types
+    custom_types
 
-.. _api-Fortran:
+.. _api-ComponentAPI:
 
-Fortran API Documentation
-=========================
 
-For detailed documentation of the Fortran API, see the `Fortran API <_static/fortran_docs/index.html>`_.
+Component API utilities
+-----------------------
 
+.. autosummary::
+    :toctree: generated/
+
+    component_utils.ComponentBase
+    component_utils.ComponentBase.make
+    component_utils.ComponentBase.name
+    component_utils.ComponentBase.register
+    component_utils.ComponentBase.available
+    component_utils.import_components
