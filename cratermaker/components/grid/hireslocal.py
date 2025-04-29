@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation as R
@@ -6,10 +6,10 @@ from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.general_utils import validate_and_convert_location, parameter
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.components.grid import register_grid_type, GridMaker
+from cratermaker.components.grid import Grid
 
-@register_grid_type("hireslocal")
-class HiResLocalGrid(GridMaker):
+@Grid.register("hireslocal")
+class HiResLocalGrid(Grid):
     """
     Create a uniform grid configuration with the given pixel size.
     
@@ -26,7 +26,9 @@ class HiResLocalGrid(GridMaker):
     superdomain_scale_factor : FloatLike
         A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
         that are modeled outside the local region are those whose ejecta could just reach the boundary.
-        
+    simdir : str | Path
+        The main project simulation directory.
+         
     Returns
     -------
     HiResLocalGrid
@@ -38,13 +40,20 @@ class HiResLocalGrid(GridMaker):
                  local_radius: FloatLike, 
                  local_location: PairOfFloats,
                  superdomain_scale_factor: FloatLike,
+                 simdir: str | Path | None = None,
                  **kwargs: Any):
-        super().__init__(**kwargs)
+        super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.pix = pix
-        self.radius = radius        
         self.local_radius = local_radius
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
+
+    @property
+    def _hashvars(self):
+        """
+        The variables used to generate the hash.
+        """
+        return [self._component_name, self._radius, self._pix, self._local_radius, self._local_location, self._superdomain_scale_factor]
         
     def _generate_variable_size_array(self) -> tuple[NDArray, NDArray, NDArray]:
         """
@@ -227,16 +236,13 @@ class HiResLocalGrid(GridMaker):
         
         return points
 
-    def generate_grid(self,
-                      grid_file: os.PathLike,
-                      grid_hash: str | None = None,
-                      **kwargs: Any) -> tuple[os.PathLike, os.PathLike]:        
-        super().generate_grid(grid_file=grid_file, grid_hash=grid_hash, **kwargs)
-        face_areas = self.grid.face_areas 
+    def generate_grid(self, **kwargs: Any): 
+        super().generate_grid(**kwargs)
+        face_areas = self.uxgrid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_min = face_sizes.min().item() * self.radius
         pix_max = face_sizes.max().item() * self.radius
-        print(f"Generated {self.grid.n_face} faces")
+        print(f"Generated {self.uxgrid.n_face} faces")
         print(f"Effective pixel size range: {pix_min:.2f},{pix_max:.2f} m")
         return
 
