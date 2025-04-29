@@ -152,7 +152,6 @@ class Simulation(CratermakerBase):
 
         self._craterlist = []
         self._crater = None
-        self._projectile = None
         self._interval_number = 0
         self._elapsed_time = 0.0
         self._current_age = 0.0
