@@ -38,6 +38,7 @@ cratermaker/_version.py
 !.readthedocs.yaml
 !environments/
 !environments/*.yml
+!environments/*.txt
 !docs/
 !docs/Makefile
 !docs/conf.py

@@ -61,6 +61,22 @@ jobs:
           path: dist/*.whl
           retention-days: 1
 
+      - name: Build documentation 
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: docs
+        run: |
+          source ../.venv/bin/activate
+          make clean
+          make rtdhtml
+
+      - name: Upload documentation artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-html
+          path: docs/_build
+          retention-days: 1
+
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
