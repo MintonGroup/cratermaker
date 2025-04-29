@@ -8,7 +8,7 @@ on:
 
 jobs:
   build_wheels:
-    name: Build wheels on all platforms
+    name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -19,13 +19,12 @@ jobs:
 
       - name: Get history and tags for SCM versioning to work
         run: |
-          git fetch --prune --unshallow || true
+          git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
 
-      - name: Set up Python (needed for setuptools_scm)
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: 3.x  
+          python-version: 3.x
 
       - name: Set version
         shell: bash
@@ -34,17 +33,13 @@ jobs:
           python -c "import setuptools_scm; v = setuptools_scm.get_version(); open('cratermaker/_version.py', 'w').write(f'__version__ = version = \"{v}\"\n')"
           python buildscripts/set_version.py
 
-      - name: Install cibuildwheel
-        shell: bash
-        run: pip install cibuildwheel
-
       - name: Build wheels
-        shell: bash
-        run: cibuildwheel --output-dir dist
-        env:
-          CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
-          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
-          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: auto
 
       - name: pytest
         shell: bash
@@ -62,7 +57,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
           path: dist/*.whl
           retention-days: 1
 
@@ -71,6 +66,7 @@ jobs:
         working-directory: docs
         run: |
           source ../.venv/bin/activate
+          pip install -r ../environments/requirements-docdev.txt 
           make clean
           make rtdhtml
 
