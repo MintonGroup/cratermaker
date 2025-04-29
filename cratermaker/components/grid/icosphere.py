@@ -14,7 +14,7 @@ class IcosphereGrid(Grid):
     Parameters
     ----------
     gridlevel : float
-        The subdivision level of the icosphere. The number of faces is 20 * 4**level. The default level is 8.
+        The subdivision level of the icosphere. The number of faces is 20 * 4**gridlevel. The default gridlevel is 8.
     radius: FloatLike
         The radius of the target body in meters.
     simdir : str | Path
