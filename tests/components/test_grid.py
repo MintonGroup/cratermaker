@@ -24,42 +24,37 @@ class TestGrid(unittest.TestCase):
     """    
     def setUp(self):
         # Initialize a target and surface for testing
-        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        self.simdir = self.temp_dir.name
-        self.grid_file = Path(self.simdir) / _GRID_FILE_NAME
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
         
         return
     
-    def tearDown(self):
-        # Clean up temporary directory
-        self.temp_dir.cleanup() 
-        return
 
     def test_generate_grid(self):
-        gridargs = {
-            "icosphere": {
-                "level" :self.gridlevel, 
-                "radius": self.target.radius
-                },
-            "arbitrary_resolution": {
-                "pix": self.pix, 
-                "radius": self.target.radius
-                },
-            "hireslocal": {
-                "pix": self.pix, 
-                "radius": self.target.radius, 
-                "local_location": (0, 0), 
-                "local_radius": 100e3, 
-                "superdomain_scale_factor": 10
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            
+            gridargs = {
+                "icosphere": {
+                    "level" :self.gridlevel, 
+                    "radius": self.target.radius
+                    },
+                "arbitrary_resolution": {
+                    "pix": self.pix, 
+                    "radius": self.target.radius
+                    },
+                "hireslocal": {
+                    "pix": self.pix, 
+                    "radius": self.target.radius, 
+                    "local_location": (0, 0), 
+                    "local_radius": 100e3, 
+                    "superdomain_scale_factor": 10
+                    }
                 }
-            }
 
-        for name, args in gridargs.items():
-            grid = Grid.make(simdir=self.simdir,grid=name,**args)
-            self.assertTrue(Path(grid.file).exists())
+            for name, args in gridargs.items():
+                grid = Grid.make(simdir=simdir,grid=name,**args)
+                self.assertTrue(Path(grid.file).exists())
         
         return
 

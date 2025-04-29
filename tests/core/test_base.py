@@ -62,31 +62,28 @@ class TestBase(unittest.TestCase):
         self.assertNotEqual(u4, u6)
 
     def test_init_simdir(self):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            simdir = temp_dir.name
-
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             # Test with None
-            simdir = _simdir_init(temp_dir.name)
-            self.assertTrue(simdir.is_dir())
-            self.assertEqual(simdir, Path.cwd().relative_to(Path.cwd())) 
+            newsimdir = _simdir_init(simdir)
+            self.assertTrue(newsimdir.is_dir())
 
             # Test with a string path
-            target_path = Path(temp_dir.name).resolve()
-            simdir = _simdir_init(simdir=temp_dir.name)
-            self.assertTrue(simdir.is_dir())
-            self.assertEqual(simdir, target_path)
+            target_path = Path(simdir).resolve()
+            newsimdir = _simdir_init(simdir=simdir)
+            self.assertTrue(newsimdir.is_dir())
+            self.assertEqual(newsimdir, target_path)
 
             # Test with a Path object
-            simdir_path = _simdir_init(simdir=Path(temp_dir.name))
+            simdir_path = _simdir_init(simdir=Path(simdir))
             self.assertTrue(simdir_path.is_dir())
             self.assertEqual(simdir_path, target_path)
 
             # Test with a relative path 
             relative_path = "relative_simdir"
-            simdir = _simdir_init(simdir=relative_path)
-            self.assertTrue(simdir.is_dir())
-            self.assertEqual(str(simdir), relative_path)
-            simdir.rmdir()
+            newsimdir = _simdir_init(simdir=relative_path)
+            self.assertTrue(newsimdir.is_dir())
+            self.assertEqual(str(newsimdir), relative_path)
+            newsimdir.rmdir()
 
             # Test with an invalid path
             with self.assertRaises(TypeError):
@@ -145,8 +142,8 @@ class TestBase(unittest.TestCase):
         self.assertNotIn('none_attr', config)
 
     def test_cratermakerbase_and_commonargs(self):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            simdir = temp_dir.name
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            
             # Set up test values
             simdir = Path(simdir).resolve()
             rng, rng_state = _rng_init(rng_seed=123)
