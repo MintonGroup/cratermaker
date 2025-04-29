@@ -26,6 +26,7 @@ class TestSurface(unittest.TestCase):
     """    
     def setUp(self):
         # Initialize a target and surface for testing
+        self.cwd = Path.cwd()
         self.temp_dir = tempfile.TemporaryDirectory()
         self.simdir = self.temp_dir.name
         self.grid_file = Path(self.simdir) / _GRID_FILE_NAME
@@ -36,6 +37,7 @@ class TestSurface(unittest.TestCase):
         return
     
     def tearDown(self):
+        os.chdir(self.cwd)
         self.temp_dir.cleanup() 
         return
 
