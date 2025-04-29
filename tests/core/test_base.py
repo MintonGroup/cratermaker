@@ -9,7 +9,7 @@ from cratermaker.core.base import CratermakerBase, CommonArgs, _rng_init, _simdi
 class TestBase(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory for testing
-        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.simdir = self.temp_dir.name
 
     def tearDown(self):

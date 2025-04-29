@@ -24,7 +24,7 @@ class TestGrid(unittest.TestCase):
     """    
     def setUp(self):
         # Initialize a target and surface for testing
-        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.simdir = self.temp_dir.name
         self.grid_file = Path(self.simdir) / _GRID_FILE_NAME
         self.target = Target(name="Moon")

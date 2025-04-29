@@ -23,7 +23,7 @@ class TestSimulation(unittest.TestCase):
     
     def setUp(self):
         # Initialize a target and surface for testing
-        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.simdir = self.temp_dir.name
         print(f"Temporary directory created: {self.simdir}")
         target = Target(name="Moon")

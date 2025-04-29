@@ -9,7 +9,7 @@ morphology_models = Morphology.available()
 class TestMorphology(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
-        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.data_dir = self.temp_dir.name
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
