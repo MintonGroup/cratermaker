@@ -142,7 +142,7 @@ class TestBase(unittest.TestCase):
         self.assertEqual(config['np_int_attr'], 3)
         self.assertEqual(config['np_float_attr'], 4.5)
         self.assertEqual(config['np_array_attr'], [1, 2, 3])
-        self.assertEqual(config['path_attr'], "/tmp/test")
+        self.assertEqual(config['path_attr'], str(Path("/tmp/test")))
         self.assertEqual(config['dict_attr']['a'], 10)
         self.assertAlmostEqual(config['dict_attr']['b'][0], 1.1, places=6)
         self.assertEqual(config['dict_attr']['b'][1], "x")

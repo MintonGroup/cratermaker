@@ -169,12 +169,12 @@ class TestSimulation(unittest.TestCase):
         self.assertEqual(sim.target.name, "Moon")
 
         # Second simulation: override target with "Mars"
-        sim2 = cratermaker.Simulation(simdir=self.simdir, target="Mars")
-        self.assertEqual(sim2.target.name, "Mars")
+        sim = cratermaker.Simulation(simdir=self.simdir, target="Mars")
+        self.assertEqual(sim.target.name, "Mars")
 
         # Third simulation: no target passed, should read "Mars" from config
-        sim3 = cratermaker.Simulation(simdir=self.simdir)
-        self.assertEqual(sim3.target.name, "Mars")
+        sim = cratermaker.Simulation(simdir=self.simdir)
+        self.assertEqual(sim.target.name, "Mars")
 
 if __name__ == '__main__':
     unittest.main()
