@@ -103,7 +103,7 @@ Cratermaker is mostly Python, but it does have some Rust components. To install 
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-The build Then, you can install Cratermaker from source using the following command:
+The build and install an editable version  you can install Cratermaker from source using the following command:
 
 .. code-block:: bash
 
