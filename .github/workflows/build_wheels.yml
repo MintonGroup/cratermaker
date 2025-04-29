@@ -8,75 +8,44 @@ on:
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels on all platforms
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-13, macos-14, macos-15, windows-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Get history and tags for SCM versioning to work
         run: |
-          git fetch --prune --unshallow
+          git fetch --prune --unshallow || true
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python (needed for setuptools_scm)
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.12'  
 
-      - name: Set version
-        shell: bash
+      - name: Install setuptools_scm and write version file
         run: |
           pip install setuptools_scm
           python -c "import setuptools_scm; v = setuptools_scm.get_version(); open('cratermaker/_version.py', 'w').write(f'__version__ = version = \"{v}\"\n')"
           python buildscripts/set_version.py
 
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter $(which python)
-          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          manylinux: auto
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel
 
-      - name: pytest
-        shell: bash
-        run: |
-          set -e
-          python3 -m venv .venv
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            source .venv/Scripts/activate
-          else
-            source .venv/bin/activate
-          fi
-          pip install cratermaker --find-links dist --force-reinstall
-          pip install pytest
-          pytest
+      - name: Build wheels
+        run: cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
+          CIBW_SKIP: "*-musllinux*"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          name: cibw-wheels-${{ matrix.os }}
           path: dist/*.whl
-          retention-days: 1
-
-      - name: Build documentation 
-        if: matrix.os == 'ubuntu-latest'
-        working-directory: docs
-        run: |
-          source ../.venv/bin/activate
-          pip install -r ../environments/requirements-docdev.txt 
-          make clean
-          make rtdhtml
-
-      - name: Upload documentation artifact
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation-html
-          path: docs/_build
           retention-days: 1
 
   build_sdist:
