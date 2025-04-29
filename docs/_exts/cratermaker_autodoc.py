@@ -13,7 +13,7 @@ def process_component_docstring(app, what, name, obj, options, lines):
         "Impactor": Impactor,
     }
 
-    if name.endswith('.make'):
+    if name.endswith('.maker'):
         parent_name = name.rsplit('.', 1)[0]
         cls_name = parent_name.split('.')[-1].capitalize()
         cls = component_classes.get(cls_name)
