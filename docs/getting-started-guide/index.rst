@@ -50,8 +50,9 @@ Simulating a single crater
 
 Here’s a simple example demonstrating how to initialize a simulation for the Moon, then emplace a single 100 km diameter crater at a random location on the surface:
 
-.. code-block:: python
-
+.. ipython:: python
+    :okwarning:
+    
     import cratermaker
     sim = cratermaker.Simulation()
     sim.emplace_crater(final_diameter=100e3)
@@ -68,8 +69,11 @@ Visualizing the surface with `ParaView <https://www.paraview.org/>`__
 =====================================================================
 
 Cratermaker can export the surface mesh to a VTK file, which can be visualized with ParaView. The following will export the 
-surface mesh to two files inside a folder called ``vtk_files``::
+surface mesh to two files inside a folder called ``vtk_files``:
 
+.. ipython:: python
+    :okwarning:
+    
       sim.export_vtk()
 
 This will generate a series of files with the patern ``surfXXXXXX.vtp``, which represent the grid and its associated data at each output time interval of the simulation. If you haven't already, be sure to `download <https://www.paraview.org/download/>`__ and install ParaView. 
@@ -87,9 +91,9 @@ Simulating a population of craters
 
 Simulating a single crater is useful for testing, but Cratermaker is designed to simulate populations of craters over time. The following example demonstrates how to initialize a simulation of the Moon and emplace a population of craters using the default production function, which is the Neukum production function. The simulation will run for 1 billion years.
 
-.. code-block:: python
+.. ipython:: python
+    :okwarning:
 
-    import cratermaker
     sim = cratermaker.Simulation()
     sim.run(age=1000)
 
@@ -100,7 +104,7 @@ Simulating a single crater is useful for testing, but Cratermaker is designed to
 
 Default Behavior
 ================
-As Cratermaker is designed to be easy to use, all of its component classes are built to be invoked without any arguments. It is important to understand what the default behavior of these classes is, as this will affect the results of your simulation.
+As Cratermaker is designed to be easy to use, all of its component classes are built to be invoked without any arguments. When a ``Simulation`` object is created as in the examples above, a set of component objects are created with their default parameters. It is important to understand what the default behavior of these classes is, as this will affect the results of your simulation.
 
 - **Target**: The default target is the Moon. There are a number of known bodies that can be selected as targets, including some jovian satellites, and small bodies, but currently few of them have been tested. 
 - **Scaling**: The default scaling model is called ``richardson2009``, as it is similar to the one used by the Cratered Terrain Evolution Model (CTEM) that is a progenitor to Cratermaker [1]_. The projectile to transient scaling model is mostly based on Holsapple (1993) [2]_ with some additional scaling parameters for ice given by Kraus et al. (2011) [3]_.
@@ -109,6 +113,12 @@ As Cratermaker is designed to be easy to use, all of its component classes are b
 - **Grid**: There are three grid models available: ``icosphere``, ``arbitrary_resolution``, and ``hireslocal``. The default is ``icosphere``, which builds fast an efficient representation of a sphere. The *resolution* of the grid (the number of faces of the mesh) is determined by the formula :math:`20 \times 4^n`, where :math:`n` is given by the argument ``gridlevel`` with a default value of 8.
 - **Morphology**: Currently one morphology model is available: ``simplemoon``. This is a model that similar to that used by CTEM. Most of the parameters are taken from Pike (1977) [10]_, except for simple crater profiles, which use a model from Fassett and Thomson (2014) [11]_. Ejecta blanket scaling is from McGetchin et al. (1973) [12]_.  
 
+Each of the components can be accessed through the ``sim`` object. For example, to access the scaling model:
+
+.. ipython:: python
+    :okwarning:
+
+    print(sim.scaling)
 
 
 References

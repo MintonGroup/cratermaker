@@ -108,6 +108,17 @@ class Richardson2009(Scaling):
         self._compute_simple_to_complex_transition_factors() 
         return
 
+    def __repr__(self) -> str:
+        return (
+            f"<Richardson2009 Scaling Model>\n"
+            f"Target: {self.target.name}\n"
+            f"Projectile: {self.projectile.name}\n"
+            f"Material: {self.material_name}\n"
+            f"K1: {self.K1:.3f}, mu: {self.mu:.3f}, Ybar: {self.Ybar:.2e} Pa\n"
+            f"Target density: {self.target.density:.0f} kg/m³\n"
+            f"Projectile density: {self.projectile.density:.0f} kg/m³\n"
+            f"Simple-complex transition Diameter: {self.transition_diameter:.0f} m\n"
+        )
 
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
