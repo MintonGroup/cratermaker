@@ -29,5 +29,4 @@ sphinxext-rediraffe
 sphinxext-opengraph
 nbsphinx
 ipython
-ford
-graphviz
+setuptools_scm
