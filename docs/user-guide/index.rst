@@ -310,10 +310,10 @@ Example: Sample a power law and lunar Neukum Production Function
    :hidden:
 
 ##########################
-Using the Scale Module
+Using the scaling Module
 ##########################
 
-Cratermaker's ``Scale`` module provides tools to convert impactor parameters (e.g., projectile diameter, velocity, and target properties) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**.
+Cratermaker's ``scaling`` module provides tools to convert impactor parameters (e.g., projectile diameter, velocity, and target properties) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**.
 
 This example simulates how crater diameters vary with projectile size across different planetary bodies — specifically **Mars**, **Venus**, **Mercury**, and the **Moon** — and visualizes this relationship.
 
@@ -326,7 +326,7 @@ Example: Crater scaling for various planetary surfaces
    import matplotlib.pyplot as plt
 
    from cratermaker import (
-       Projectile, Target, Scale
+       Projectile, Target, scaling
    )
 
    def plot_projectile_to_crater_scaling():
@@ -352,7 +352,7 @@ Example: Crater scaling for various planetary surfaces
 
        for body in bodies:
            target = Target(body)
-           scale = Scale(target=target)
+           scaling = scaling(target=target)
            crater_diams = []
            morphs = []
 
@@ -362,9 +362,9 @@ Example: Crater scaling for various planetary surfaces
                    mean_velocity=target.escape_velocity + 1000,
                    target=target
                )
-               crater = scale.projectile_to_crater(proj)
+               crater = scaling.projectile_to_crater(proj)
                crater_diams.append(crater.diameter)
-               morphs.append(scale.get_morphology_type(crater.diameter))
+               morphs.append(scaling.get_morphology_type(crater.diameter))
 
            for morph in np.unique(morphs):
                mask = np.array(morphs) == morph
@@ -401,9 +401,9 @@ Explanation
 -----------
 
 - The function creates a range of projectile diameters from 10 to 10,000 meters.
-- For each body, a ``Target`` and corresponding ``Scale`` object are created.
+- For each body, a ``Target`` and corresponding ``scaling`` object are created.
 - Projectiles are launched at a velocity just above escape velocity.
-- The resulting crater diameter and morphology are computed using ``Scale.projectile_to_crater`` and ``Scale.get_morphology_type``.
+- The resulting crater diameter and morphology are computed using ``scaling.projectile_to_crater`` and ``scaling.get_morphology_type``.
 - Crater types are plotted using basic colors, categorized by body and morphology.
 
 This visualization helps compare how gravity and crustal properties of each planetary body influence the final crater size and morphology classification.
