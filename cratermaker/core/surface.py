@@ -71,7 +71,7 @@ class Surface:
 
         # Additional initialization for Surface
         self.grid = grid
-        self._target = Target.make(target, **kwargs)
+        self._target = Target.maker(target, **kwargs)
         self._compute_face_areas = compute_face_areas
         self._name = "Surface"
         self._description = "Surface class for cratermaker"
@@ -132,7 +132,7 @@ class Surface:
         return _to_config(self, remove_common_args=remove_common_args, **kwargs)
 
     @classmethod
-    def make(cls: Surface, 
+    def maker(cls: Surface, 
              grid: str | None = None,
              target: Target | None = None, 
              reset_surface: bool = True, 
@@ -177,10 +177,10 @@ class Surface:
         rng_state = argproc.rng_state
         simdir = argproc.simdir
 
-        target = Target.make(target, **kwargs)
+        target = Target.maker(target, **kwargs)
 
         kwargs = {**kwargs, **vars(argproc.common_args)}
-        grid = Grid.make(grid=grid, target=target, regrid=regrid, **kwargs) 
+        grid = Grid.maker(grid=grid, target=target, regrid=regrid, **kwargs) 
 
         # Get the names of all data files in the data directory that are not the grid file
         data_dir = grid.file.parent
@@ -400,7 +400,7 @@ class Surface:
 
     @target.setter
     def target(self, value):
-        self._target = Target.make(value)
+        self._target = Target.maker(value)
         return 
     
     def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
