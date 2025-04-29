@@ -66,6 +66,7 @@ jobs:
         working-directory: docs
         run: |
           source ../.venv/bin/activate
+          pip install -r ../environments/requirements-docdev.txt 
           make clean
           make rtdhtml
 
