@@ -67,14 +67,14 @@ class Impactor(ComponentBase):
         object.__setattr__(self, "_direction", direction)
         object.__setattr__(self, "_angle", angle)
 
-        self.target = Target.make(target, **kwargs)
+        self.target = Target.maker(target, **kwargs)
         self.sample_velocities = sample_velocities
         self.sample_angles = sample_angles
         self.sample_directions = sample_directions
 
 
     @classmethod
-    def make(cls,
+    def maker(cls,
              impactor: Impactor | str | None = None, 
              target : Target | str | None = None,
              mean_velocity : FloatLike = 22100.0, 
@@ -135,7 +135,7 @@ class Impactor(ComponentBase):
         TypeError
             If the specified impactor model is not a string or a subclass of Impactor.
         """
-        target = Target.make(target, **kwargs)
+        target = Target.maker(target, **kwargs)
         if impactor is None:
             target_name = target.name.capitalize()
             if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
@@ -143,7 +143,7 @@ class Impactor(ComponentBase):
             else:
                 impactor = "comets"
 
-        return super().make(component=impactor,
+        return super().maker(component=impactor,
                             target=target,
                             mean_velocity=mean_velocity,
                             density=density,
@@ -214,7 +214,7 @@ class Impactor(ComponentBase):
     
     @target.setter
     def target(self, value):
-        self._target = Target.make(value)
+        self._target = Target.maker(value)
 
     @parameter
     def sample_angles(self):

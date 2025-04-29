@@ -34,7 +34,7 @@ class Grid(ComponentBase):
 
 
     @classmethod
-    def make(cls, 
+    def maker(cls, 
              grid : str | type[Grid] | Grid| None = None, 
              target: Target | None = None,
              radius: FloatLike = 1.0, 
@@ -86,7 +86,7 @@ class Grid(ComponentBase):
         # Create the grid making object
         if grid is None:
             grid = "icosphere"
-        grid = super().make(component=grid, simdir=simdir, radius=radius, regrid=regrid, **kwargs)
+        grid = super().maker(component=grid, simdir=simdir, radius=radius, regrid=regrid, **kwargs)
 
         # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
         if not regrid: 
