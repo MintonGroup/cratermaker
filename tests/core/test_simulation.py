@@ -1,3 +1,4 @@
+import os
 import unittest
 import cratermaker 
 from cratermaker import Target
@@ -23,6 +24,7 @@ class TestSimulation(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
         self.temp_dir = tempfile.TemporaryDirectory()
+        self.cwd = Path.cwd()
         self.simdir = self.temp_dir.name
         print(f"Temporary directory created: {self.simdir}")
         target = Target(name="Moon")
@@ -31,6 +33,7 @@ class TestSimulation(unittest.TestCase):
         
     def tearDown(self):
         # Clean up temporary directory
+        os.chdir(self.cwd)
         self.temp_dir.cleanup() 
         return           
 
