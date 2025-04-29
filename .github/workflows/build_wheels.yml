@@ -25,28 +25,61 @@ jobs:
       - name: Set up Python (needed for setuptools_scm)
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'  
+          python-version: 3.x  
 
-      - name: Install setuptools_scm and write version file
+      - name: Set version
+        shell: bash
         run: |
           pip install setuptools_scm
           python -c "import setuptools_scm; v = setuptools_scm.get_version(); open('cratermaker/_version.py', 'w').write(f'__version__ = version = \"{v}\"\n')"
           python buildscripts/set_version.py
 
       - name: Install cibuildwheel
+        shell: bash
         run: pip install cibuildwheel
 
       - name: Build wheels
+        shell: bash
         run: cibuildwheel --output-dir dist
         env:
           CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
 
+      - name: pytest
+        shell: bash
+        run: |
+          set -e
+          python3 -m venv .venv
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          pip install cratermaker --find-links dist --force-reinstall
+          pip install pytest
+          pytest
+
       - uses: actions/upload-artifact@v4
         with:
           name: cibw-wheels-${{ matrix.os }}
           path: dist/*.whl
+          retention-days: 1
+
+      - name: Build documentation 
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: docs
+        run: |
+          source ../.venv/bin/activate
+          make clean
+          make rtdhtml
+
+      - name: Upload documentation artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-html
+          path: docs/_build
           retention-days: 1
 
   build_sdist:
