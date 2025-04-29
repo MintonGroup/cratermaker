@@ -59,13 +59,10 @@ class TestSurface(unittest.TestCase):
             # Test bad values
             with self.assertRaises(TypeError):
                 surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=1, reset_surface=False)
-            del surf
             with self.assertRaises(ValueError):
                 surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target="Arrakis", reset_surface=False)
-            del surf
             with self.assertRaises(ValueError):
                 surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=Target(name="Salusa Secundus"), reset_surface=False)
-            del surf
         return
 
 
