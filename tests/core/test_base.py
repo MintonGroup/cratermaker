@@ -7,18 +7,7 @@ from pathlib import Path
 from cratermaker.core.base import CratermakerBase, CommonArgs, _rng_init, _simdir_init, _to_config
 
 class TestBase(unittest.TestCase):
-    def setUp(self):
-        # Create a temporary directory for testing
-        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        self.simdir = self.temp_dir.name
-
-    def tearDown(self):
-        # Clean up temporary directory
-        self.temp_dir.cleanup() 
-        return       
-
     def test_rng_argument_validation(self):
-
         # Invalid rng argument (not a Generator)
         with self.assertRaises(ValueError):
             _rng_init(rng=42)
@@ -73,32 +62,35 @@ class TestBase(unittest.TestCase):
         self.assertNotEqual(u4, u6)
 
     def test_init_simdir(self):
-        # Test with None
-        simdir = _simdir_init()
-        self.assertTrue(simdir.is_dir())
-        self.assertEqual(simdir, Path.cwd().relative_to(Path.cwd())) 
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+            simdir = temp_dir.name
 
-        # Test with a string path
-        target_path = Path(self.simdir).resolve()
-        simdir = _simdir_init(simdir=self.simdir)
-        self.assertTrue(simdir.is_dir())
-        self.assertEqual(simdir, target_path)
+            # Test with None
+            simdir = _simdir_init(temp_dir.name)
+            self.assertTrue(simdir.is_dir())
+            self.assertEqual(simdir, Path.cwd().relative_to(Path.cwd())) 
 
-        # Test with a Path object
-        simdir_path = _simdir_init(simdir=Path(self.simdir))
-        self.assertTrue(simdir_path.is_dir())
-        self.assertEqual(simdir_path, target_path)
+            # Test with a string path
+            target_path = Path(temp_dir.name).resolve()
+            simdir = _simdir_init(simdir=temp_dir.name)
+            self.assertTrue(simdir.is_dir())
+            self.assertEqual(simdir, target_path)
 
-        # Test with a relative path 
-        relative_path = "relative_simdir"
-        simdir = _simdir_init(simdir=relative_path)
-        self.assertTrue(simdir.is_dir())
-        self.assertEqual(str(simdir), relative_path)
-        simdir.rmdir()
+            # Test with a Path object
+            simdir_path = _simdir_init(simdir=Path(temp_dir.name))
+            self.assertTrue(simdir_path.is_dir())
+            self.assertEqual(simdir_path, target_path)
 
-        # Test with an invalid path
-        with self.assertRaises(TypeError):
-            _simdir_init(123)
+            # Test with a relative path 
+            relative_path = "relative_simdir"
+            simdir = _simdir_init(simdir=relative_path)
+            self.assertTrue(simdir.is_dir())
+            self.assertEqual(str(simdir), relative_path)
+            simdir.rmdir()
+
+            # Test with an invalid path
+            with self.assertRaises(TypeError):
+                _simdir_init(123)
 
 
     def test_to_config(self, **kwargs):
@@ -153,33 +145,35 @@ class TestBase(unittest.TestCase):
         self.assertNotIn('none_attr', config)
 
     def test_cratermakerbase_and_commonargs(self):
-        # Set up test values
-        simdir = Path(self.simdir).resolve()
-        rng, rng_state = _rng_init(rng_seed=123)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+            simdir = temp_dir.name
+            # Set up test values
+            simdir = Path(simdir).resolve()
+            rng, rng_state = _rng_init(rng_seed=123)
 
-        # Test CommonArgs dataclass
-        args = CommonArgs(simdir=simdir, rng=rng, rng_seed=123, rng_state=rng_state)
-        self.assertEqual(args.simdir, simdir)
-        self.assertEqual(args.rng_seed, 123)
-        self.assertEqual(args.rng, rng)
-        self.assertEqual(args.rng_state, rng_state)
+            # Test CommonArgs dataclass
+            args = CommonArgs(simdir=simdir, rng=rng, rng_seed=123, rng_state=rng_state)
+            self.assertEqual(args.simdir, simdir)
+            self.assertEqual(args.rng_seed, 123)
+            self.assertEqual(args.rng, rng)
+            self.assertEqual(args.rng_state, rng_state)
 
-        # Test CratermakerBase initialization
-        base = CratermakerBase(simdir=simdir, rng=rng, rng_seed=123, rng_state=rng_state)
+            # Test CratermakerBase initialization
+            base = CratermakerBase(simdir=simdir, rng=rng, rng_seed=123, rng_state=rng_state)
 
-        # Attributes
-        self.assertEqual(base.simdir, simdir)
-        self.assertEqual(base._rng_seed, 123)
-        self.assertEqual(base._rng, rng)  # direct access
-        self.assertEqual(base._rng_state, rng_state)
-        self.assertIsInstance(base.rng, Generator)
-        self.assertEqual(base.rng_state, rng_state)
+            # Attributes
+            self.assertEqual(base.simdir, simdir)
+            self.assertEqual(base._rng_seed, 123)
+            self.assertEqual(base._rng, rng)  # direct access
+            self.assertEqual(base._rng_state, rng_state)
+            self.assertIsInstance(base.rng, Generator)
+            self.assertEqual(base.rng_state, rng_state)
 
-        # Test RNG reproducibility
-        val1 = base.rng.uniform()
-        new_rng, _ = _rng_init(rng_state=rng_state)
-        val2 = new_rng.uniform()
-        self.assertAlmostEqual(val1, val2, places=7)
+            # Test RNG reproducibility
+            val1 = base.rng.uniform()
+            new_rng, _ = _rng_init(rng_state=rng_state)
+            val2 = new_rng.uniform()
+            self.assertAlmostEqual(val1, val2, places=7)
 
 if __name__ == '__main__':
     unittest.main()
