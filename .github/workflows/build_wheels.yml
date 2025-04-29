@@ -39,8 +39,9 @@ jobs:
       - name: Build wheels
         run: cibuildwheel --output-dir dist
         env:
-          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
-          CIBW_SKIP: "*-musllinux*"
+          CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
 
       - uses: actions/upload-artifact@v4
         with:
