@@ -4,19 +4,16 @@ import numpy as np
 from numpy.random import Generator
 import tempfile
 from pathlib import Path
-import os
 from cratermaker.core.base import CratermakerBase, CommonArgs, _rng_init, _simdir_init, _to_config
 
 class TestBase(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory for testing
-        self.cwd = Path.cwd()
         self.temp_dir = tempfile.TemporaryDirectory()
         self.simdir = self.temp_dir.name
 
     def tearDown(self):
         # Clean up temporary directory
-        os.chdir(self.cwd)
         self.temp_dir.cleanup() 
         return       
 
