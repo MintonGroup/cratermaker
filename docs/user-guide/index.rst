@@ -8,7 +8,7 @@ Like Cratermaker itself, this user guide is under development. More information 
 Using the Production Module
 ###########################
 
-Cratermaker's production module provides a robust way to compute the production function for craters and impactors. The production function is defined as the cumulative number of craters greater than a given diameter per unit m\ :sup:`2` surface area. 
+Cratermaker's production module provides a robust way to compute the production function for craters and projectiles. The production function is defined as the cumulative number of craters greater than a given diameter per unit m\ :sup:`2` surface area. 
 
 The Production class
 ====================
@@ -16,8 +16,8 @@ The Production class
 The :ref:`api-Production` class implements a simple power law production function that can be used as either a crater or projectile production function. It has the following parameters:
 
 - **generator_type**: Can be either ``"crater"`` (default) or ``"projectile"``.
-- **N1_coef**: The coefficient for the power law at 1m diameter per 1 My. Default depends on generator type: It is ``7.9e-3`` for craters or ``2.2e-8`` for impactors. These are both based on fits to the lunar production function.
-- **slope**: This is the slope of the power law. Like N1, it differs based on craters or impactors and is based on fits to the lunar production function. Default for craters is ``-3.33`` and for impactors is ``-2.26``.
+- **N1_coef**: The coefficient for the power law at 1m diameter per 1 My. Default depends on generator type: It is ``7.9e-3`` for craters or ``2.2e-8`` for projectiles. These are both based on fits to the lunar production function.
+- **slope**: This is the slope of the power law. Like N1, it differs based on craters or projectiles and is based on fits to the lunar production function. Default for craters is ``-3.33`` and for projectiles is ``-2.26``.
 - **impact_velocity_model**: The mean impact velocity model to use in the impact simulation. Valid option are ``"Mercury_MBA"``", ``"Venus_MBA"``, ``"Earth_MBA"``, ``"Moon_MBA"``, ``"Mars_MBA"``, and ``"MBA_MBA"``.
 - **mean_velocity**: Instead of using a mean impact velocity model for an Inner Solar System planet or Main Asteroid Belt, you can use this parameter to manually define a mean impact velocity. Either ``mean_velocity`` or ``impact_velocity_model`` must be provided.
 
@@ -30,7 +30,7 @@ The :ref:`api-Production` class implements a simple power law production functio
 Example: Using Production.function
 ==================================
 
-For this example, we are going to use :func:`cratermaker.Production.function` to find the cumulative number of craters greater than 1 km per square meter expected to form on a surface in 3 Ga using a power law with a slope of -2. We will use ``"Moon_MBA"`` for the impactor velocity model.
+For this example, we are going to use :func:`cratermaker.Production.function` to find the cumulative number of craters greater than 1 km per square meter expected to form on a surface in 3 Ga using a power law with a slope of -2. We will use ``"Moon_MBA"`` for the projectile velocity model.
 
 .. code-block:: python
 
@@ -313,7 +313,7 @@ Example: Sample a power law and lunar Neukum Production Function
 Using the scaling Module
 ##########################
 
-Cratermaker's ``scaling`` module provides tools to convert impactor parameters (e.g., projectile diameter, velocity, and target properties) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**.
+Cratermaker's ``scaling`` module provides tools to convert projectile parameters (e.g., projectile diameter, velocity, and target properties) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**.
 
 This example simulates how crater diameters vary with projectile size across different planetary bodies — specifically **Mars**, **Venus**, **Mercury**, and the **Moon** — and visualizes this relationship.
 

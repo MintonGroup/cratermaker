@@ -7,7 +7,7 @@
 !cratermaker/components/production/
 !cratermaker/components/morphology/
 !cratermaker/components/grid/
-!cratermaker/components/impactor/
+!cratermaker/components/projectile/
 !cratermaker/utils/
 !cratermaker/**/*.py
 !cratermaker/**/*.pyx

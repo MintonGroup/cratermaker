@@ -56,7 +56,7 @@ Attributes
     Simulation.production
     Simulation.scaling
     Simulation.crater
-    Simulation.impactor
+    Simulation.projectile
     Simulation.target
     Simulation.morphology
     Simulation.crater
@@ -433,7 +433,7 @@ Attributes
     :toctree: generated/
 
     Scaling.target
-    Scaling.impactor
+    Scaling.projectile
     Scaling.target_density
 
 Usage example
@@ -480,7 +480,7 @@ Attributes
     :toctree: generated/
 
     Richardson2009.target
-    Richardson2009.impactor
+    Richardson2009.projectile
     Richardson2009.target_density
     Richardson2009.material_catalogue
     Richardson2009.material_name
@@ -578,19 +578,19 @@ Usage example
     simplemoon = SimpleMoon.maker()
 
 
-.. currentmodule:: cratermaker.components.impactor
+.. currentmodule:: cratermaker.components.projectile
 
-.. _api-Impactor:
+.. _api-Projectile:
 
-Impactor
+Projectile
 ==========
 
-The Impactor class is an operations class defining the interface for generating impactor velocities, angles, and densities for a given target body.
+The Projectile class is an operations class defining the interface for generating projectile velocities, angles, and densities for a given target body.
 
 .. autosummary::
     :toctree: generated/
 
-    Impactor.maker
+    Projectile.maker
 
 Attributes
 ----------
@@ -598,37 +598,37 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Impactor.target_name
-    Impactor.target
-    Impactor.sample_angles
-    Impactor.sample_velocities
-    Impactor.sample_directions
-    Impactor.mean_velocity
-    Impactor.angle
-    Impactor.direction
-    Impactor.velocity
-    Impactor.density
-    Impactor.vertical_velocity
+    Projectile.target_name
+    Projectile.target
+    Projectile.sample_angles
+    Projectile.sample_velocities
+    Projectile.sample_directions
+    Projectile.mean_velocity
+    Projectile.angle
+    Projectile.direction
+    Projectile.velocity
+    Projectile.density
+    Projectile.vertical_velocity
 
 Usage example
 -------------
 
 .. code-block:: python
 
-    from cratermaker.components.impactor import Impactor
-    impactor = Impactor.maker()
+    from cratermaker.components.projectile import Projectile
+    projectile = Projectile.maker()
 
 
-.. currentmodule:: cratermaker.components.impactor.asteroids
+.. currentmodule:: cratermaker.components.projectile.asteroids
 
-Asteroid impactors
-================== 
+Asteroid projectiles
+==================== 
 
 .. autosummary::
     :toctree: generated/
 
-    AsteroidImpactors.maker
-    AsteroidImpactors.new_projectile
+    AsteroidProjectiles.maker
+    AsteroidProjectiles.new_projectile
 
 Attributes
 ----------
@@ -636,37 +636,37 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    AsteroidImpactors.target_name
-    AsteroidImpactors.target
-    AsteroidImpactors.sample_angles
-    AsteroidImpactors.sample_velocities
-    AsteroidImpactors.sample_directions
-    AsteroidImpactors.mean_velocity
-    AsteroidImpactors.angle
-    AsteroidImpactors.direction
-    AsteroidImpactors.velocity
-    AsteroidImpactors.density
-    AsteroidImpactors.vertical_velocity
+    AsteroidProjectiles.target_name
+    AsteroidProjectiles.target
+    AsteroidProjectiles.sample_angles
+    AsteroidProjectiles.sample_velocities
+    AsteroidProjectiles.sample_directions
+    AsteroidProjectiles.mean_velocity
+    AsteroidProjectiles.angle
+    AsteroidProjectiles.direction
+    AsteroidProjectiles.velocity
+    AsteroidProjectiles.density
+    AsteroidProjectiles.vertical_velocity
 
 Usage example
 -------------
 
 .. code-block:: python
 
-    from cratermaker.components.impactor.asteroids import AsteroidImpactors
-    asteroids = AsteroidImpactors.maker()
+    from cratermaker.components.projectile.asteroids import AsteroidProjectiles
+    asteroids = AsteroidProjectiles.maker()
 
 
-.. currentmodule:: cratermaker.components.impactor.comets
+.. currentmodule:: cratermaker.components.projectile.comets
 
-Comet impactors
-===============
+Comet projectiles
+=================
 
 .. autosummary::
     :toctree: generated/
 
-    CometImpactors.maker
-    CometImpactors.new_projectile
+    CometProjectiles.maker
+    CometProjectiles.new_projectile
 
 Attributes
 ----------
@@ -674,25 +674,25 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    CometImpactors.target_name
-    CometImpactors.target
-    CometImpactors.sample_angles
-    CometImpactors.sample_velocities
-    CometImpactors.sample_directions
-    CometImpactors.mean_velocity
-    CometImpactors.angle
-    CometImpactors.direction
-    CometImpactors.velocity
-    CometImpactors.density
-    CometImpactors.vertical_velocity
+    CometProjectiles.target_name
+    CometProjectiles.target
+    CometProjectiles.sample_angles
+    CometProjectiles.sample_velocities
+    CometProjectiles.sample_directions
+    CometProjectiles.mean_velocity
+    CometProjectiles.angle
+    CometProjectiles.direction
+    CometProjectiles.velocity
+    CometProjectiles.density
+    CometProjectiles.vertical_velocity
 
 Usage example
 -------------
 
 .. code-block:: python
 
-    from cratermaker.components.impactor.comets import CometImpactors
-    comets = CometImpactors.maker()
+    from cratermaker.components.projectile.comets import CometProjectiles
+    comets = CometProjectiles.maker()
 
 
 .. _api-Utility:

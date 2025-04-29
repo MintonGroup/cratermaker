@@ -1,9 +1,9 @@
 from numpy.random import Generator
 from typing import Any
-from cratermaker.components.impactor import Impactor
+from cratermaker.components.projectile import Projectile
 from warnings import warn
-@Impactor.register("comets")
-class CometImpactors(Impactor):
+@Projectile.register("comets")
+class CometProjectiles(Projectile):
     def __init__(self, 
                  target_name : str = "Moon",
                  density : float = 500.0,
@@ -12,14 +12,14 @@ class CometImpactors(Impactor):
                  rng_state: dict | None = None,
                  **kwargs: Any):
         """
-        An operations class for computing the impactor properties of a comet source population.
+        An operations class for computing the projectile properties of a comet source population.
 
         Parameters
         ----------
         target_name : str
             The name of the target body for the impact.
         density : float
-            The density of the impactor in kg/m^3. Default is 500.0 kg/m^3.
+            The density of the projectile in kg/m^3. Default is 500.0 kg/m^3.
         rng : Generator | None
             A random number generator for Monte Carlo simulations. If None, a default generator will be used.
         rng_seed : int | None

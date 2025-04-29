@@ -5,7 +5,7 @@ import numpy as np
 from numpy.random import Generator
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.core.target import Target
-from cratermaker.components.impactor import Impactor
+from cratermaker.components.projectile import Projectile
 from cratermaker.utils.component_utils import ComponentBase, import_components
 
 class Scaling(ComponentBase):
@@ -18,8 +18,8 @@ class Scaling(ComponentBase):
     ----------
     target : Target | str, default="Moon"
         The target body for the impact. Can be a Target object or a string representing the target name.
-    impactor : Impactor | str, default="asteroids"
-        The impactor model for the impact. Can be an Impactor object or a string representing the impactor name.
+    projectile : Projectile | str, default="asteroids"
+        The projectile model for the impact. Can be an Projectile object or a string representing the projectile name.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -31,7 +31,7 @@ class Scaling(ComponentBase):
     """
     def __init__(self, 
                  target: Target | str | None = None,
-                 impactor: Impactor | str | None = None,
+                 projectile: Projectile | str | None = None,
                  rng : Generator | None = None,
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
@@ -39,11 +39,11 @@ class Scaling(ComponentBase):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_target_density", None)
-        object.__setattr__(self, "_impactor", None)
+        object.__setattr__(self, "_projectile", None)
         # combine the kwargs with the common_args, giving common_args priority
         kwargs = {**kwargs, **vars(self.common_args)}
         self._target = Target.maker(target, **kwargs)
-        self._impactor = Impactor.maker(impactor, **kwargs)
+        self._projectile = Projectile.maker(projectile, **kwargs)
 
     @abstractmethod
     def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
@@ -58,7 +58,7 @@ class Scaling(ComponentBase):
     def maker(cls,
              scaling: str | Scaling | None = None, 
              target: Target | str | None = None,
-             impactor: Impactor | str | None = None,
+             projectile: Projectile | str | None = None,
              rng : Generator | None = None,
              rng_seed: int | None = None,
              rng_state: dict | None = None,
@@ -72,8 +72,8 @@ class Scaling(ComponentBase):
             The name of the scaling model to initialize. If None, the default model is used.
         target : Target | str, default="Moon"
             The target body for the impact. Can be a Target object or a string representing the target name.
-        impactor : Impactor | str, default="asteroids"
-            The impactor model for the impact. Can be an Impactor object or a string representing the impactor name.
+        projectile : Projectile | str, default="asteroids"
+            The projectile model for the impact. Can be an Projectile object or a string representing the projectile name.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -98,7 +98,7 @@ class Scaling(ComponentBase):
 
         if scaling is None:
             scaling = "richardson2009"
-        return super().maker(component=scaling, target=target, impactor=impactor, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        return super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     @property
     def target(self):
@@ -137,19 +137,19 @@ class Scaling(ComponentBase):
             self._target_density = float(value)
 
     @property
-    def impactor(self):
+    def projectile(self):
         """
-        The impactor model for the impact.
+        The projectile model for the impact.
         
         Returns
         -------
-        Impactor
+        Projectile
         """ 
-        return self._impactor
+        return self._projectile
     
-    @impactor.setter
-    def impactor(self, value):
-        self._impactor = Impactor.maker(value, **vars(self.common_args))
+    @projectile.setter
+    def projectile(self, value):
+        self._projectile = Projectile.maker(value, **vars(self.common_args))
         return
 
 import_components(__name__, __path__, ignore_private=True)

@@ -7,7 +7,7 @@ from .target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..components.scaling import Scaling
-from ..components.impactor import Impactor
+from ..components.projectile import Projectile
 from typing import Any
 from .base import CratermakerBase
 
@@ -80,7 +80,7 @@ class Crater:
             location: tuple[float, float] | None = None,
             age: float | None = None,
             scaling: str | Scaling = "richardson2009",
-            impactor: str | Impactor = "asteroids",
+            projectile: str | Projectile = "asteroids",
             target: str | Target = "Moon",
             simdir: str | Path | None = None,
             rng: Generator = None,
@@ -124,8 +124,8 @@ class Crater:
             The age of the crater in Myr.
         scaling : str or Scaling, optional
             A string key or instance of a scaling model.
-        impactor : str or Impactor, optional
-            A string key or instance of an impactor model.
+        projectile : str or Projectile, optional
+            A string key or instance of an projectile model.
         target : str or Target, optional
             The target body name or object. Used internally, not stored on Crater.
         simdir : str | Path
@@ -150,7 +150,7 @@ class Crater:
         - Velocity may be specified in one of these ways:
         - `projectile_mean_velocity` alone (samples a velocity)
         - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`). the third is inferred.
-        - `impactor` is mutually exclusive with velocity-related inputs; if provided, it overrides velocity, angle, direction, and density unless explicitly set.
+        - `projectile` is mutually exclusive with velocity-related inputs; if provided, it overrides velocity, angle, direction, and density unless explicitly set.
         - The `target`, `scaling`, and `rng` models are required for scaling and density inference, but are not stored in the returned Crater object.
 
         """
@@ -159,7 +159,7 @@ class Crater:
         rng = argproc.rng
 
         target = Target.maker(target, **vars(argproc.common_args), **kwargs)
-        impactor = Impactor.maker(impactor, target=target, **vars(argproc.common_args), **kwargs)
+        projectile = Projectile.maker(projectile, target=target, **vars(argproc.common_args), **kwargs)
 
         # --- Normalize location and age ---
         if location is None:
@@ -169,7 +169,7 @@ class Crater:
         if age is not None:
             age = float(age)
 
-        # --- Handle impactor vs. raw velocity input ---
+        # --- Handle projectile vs. raw velocity input ---
         pmv = projectile_mean_velocity
         pv = projectile_velocity
         pvv = projectile_vertical_velocity
@@ -196,12 +196,12 @@ class Crater:
                         break
         n_set = sum(x is not None for x in [pv, pvv, pang])
         if n_set == 0:
-            impactor.new_projectile()
-            pv = impactor.velocity
-            pvv = impactor.vertical_velocity
-            pang = impactor.angle
-            pdir = impactor.direction
-            prho = prho or impactor.density
+            projectile.new_projectile()
+            pv = projectile.velocity
+            pvv = projectile.vertical_velocity
+            pang = projectile.angle
+            pdir = projectile.direction
+            prho = prho or projectile.density
         elif n_set > 2:
             raise ValueError("Only two of projectile_velocity, projectile_vertical_velocity, projectile_angle may be set")
         else:
@@ -236,10 +236,10 @@ class Crater:
                 pdir = float(pdir) % 360.0
             # Get or infer projectile density
             prho = prho or target.density
-            impactor = Impactor(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
+            projectile = Projectile(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
 
-        scaling = Scaling.maker(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
-        prho = scaling.impactor.density
+        scaling = Scaling.maker(scaling, target=target, projectile=projectile, **vars(argproc.common_args), **kwargs)
+        prho = scaling.projectile.density
 
         # --- Ensure velocity/angle are all set ---
         n_set = sum(x is not None for x in [pv, pvv, pang])

@@ -1,12 +1,12 @@
 from numpy.random import Generator
 from typing import Any
 from cratermaker.core.target import Target
-from cratermaker.components.impactor import Impactor
+from cratermaker.components.projectile import Projectile
 from cratermaker.utils.custom_types import FloatLike
 from warnings import warn
 
-@Impactor.register("asteroids")
-class AsteroidImpactors(Impactor):
+@Projectile.register("asteroids")
+class AsteroidProjectiles(Projectile):
     def __init__(self, 
                  target : Target | str | None = None,
                  density : FloatLike = 2250.0,
@@ -15,14 +15,14 @@ class AsteroidImpactors(Impactor):
                  rng_state : dict | None = None, 
                  **kwargs: Any):
         """
-        An operations class for computing the impactor properties of an asteroid source population.
+        An operations class for computing the projectile properties of an asteroid source population.
 
         Parameters
         ----------
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         density : float
-            The density of the impactor in kg/m^3. Default is 2250.0 kg/m^3.
+            The density of the projectile in kg/m^3. Default is 2250.0 kg/m^3.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional

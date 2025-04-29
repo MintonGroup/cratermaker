@@ -17,7 +17,7 @@ from ..utils.custom_types import FloatLike, PairOfFloats
 from ..components.scaling import Scaling
 from ..components.production import Production
 from ..components.morphology import Morphology
-from ..components.impactor import Impactor
+from ..components.projectile import Projectile
 from ..components.grid import Grid
 
 class Simulation(CratermakerBase):
@@ -30,7 +30,7 @@ class Simulation(CratermakerBase):
                  scaling: Scaling | str | None = None,
                  production: Production | str | None = None,
                  morphology: Morphology | str | None = None,
-                 impactor: Impactor | str | None = None,
+                 projectile: Projectile | str | None = None,
                  grid: Grid | str | None = None,
                  simdir: str | Path | None = None,
                  rng: Generator | None = None, 
@@ -45,7 +45,7 @@ class Simulation(CratermakerBase):
         target: Target or str, optional, default "Moon"
             Name target body for the simulation, default is "Moon".
         scaling : Scaling or str, optional
-            The impactor->crater size scaling model to use from the components library. The default is "richardson2009".
+            The projectile->crater size scaling model to use from the components library. The default is "richardson2009".
         production: Production or str, optional
             The production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
             then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
@@ -55,8 +55,8 @@ class Simulation(CratermakerBase):
             The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
         grid : str, optional
             The name of the grid used for the surface. Default is "icosphere".
-        impactor : str, optional
-            The impactor model to use from the components library, which is used to generate the impactor properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise. 
+        projectile : str, optional
+            The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise. 
         simdir : str | Path
             The main project simulation directory. Defaults to the current working directory if None.
         rng : numpy.random.Generator | None
@@ -78,7 +78,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_scaling", scaling)
         object.__setattr__(self, "_production", production)
         object.__setattr__(self, "_morphology", morphology)
-        object.__setattr__(self, "_impactor", impactor)
+        object.__setattr__(self, "_projectile", projectile)
         object.__setattr__(self, "_grid", grid)
         object.__setattr__(self, "_craterlist", None)
         object.__setattr__(self, "_crater", None)
@@ -102,7 +102,7 @@ class Simulation(CratermakerBase):
             # Set to true if a local variable from the argument list with the component name is set to something other than None, otherwise false
             config_override[component] = getattr(self, f"_{component}") is not None 
 
-        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, impactor=impactor, grid=grid, config_file=config_file)
+        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, projectile=projectile, grid=grid, config_file=config_file)
 
         for component in _COMPONENT_NAMES:
             if config_override[component]:
@@ -114,7 +114,7 @@ class Simulation(CratermakerBase):
         surface_config = unmatched.pop("surface_config", {})
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
-        impactor_config = unmatched.pop("impactor_config", {})
+        projectile_config = unmatched.pop("projectile_config", {})
         grid_config = unmatched.pop("grid_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
@@ -125,11 +125,11 @@ class Simulation(CratermakerBase):
         production_config = {**production_config, **kwargs}
         self.production = Production.maker(self.production,  target=self.target, **production_config)
 
-        impactor_config = {**impactor_config, **kwargs}
-        self.impactor = Impactor.maker(self.impactor, target=self.target, **impactor_config)
+        projectile_config = {**projectile_config, **kwargs}
+        self.projectile = Projectile.maker(self.projectile, target=self.target, **projectile_config)
 
         scaling_config = {**scaling_config, **kwargs}
-        self.scaling = Scaling.maker(self.scaling, target=self.target, impactor=self.impactor, **scaling_config)
+        self.scaling = Scaling.maker(self.scaling, target=self.target, projectile=self.projectile, **scaling_config)
 
         morphology_config = {**morphology_config, **kwargs}
         self.morphology = Morphology.maker(self.morphology, **morphology_config)
@@ -233,7 +233,7 @@ class Simulation(CratermakerBase):
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
          
-        crater = Crater.maker(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
+        crater = Crater.maker(target=self.target, scaling=self.scaling, projectile=self.projectile, **vars(self.common_args), **kwargs)
         
         return crater
     
@@ -665,18 +665,18 @@ class Simulation(CratermakerBase):
         sim_config['scaling_config'] = self.scaling.to_config(remove_common_args=True)
         sim_config['production_config'] = self.production.to_config(remove_common_args=True)
         sim_config['surface_config'] = self.surf.to_config(remove_common_args=True)
-        sim_config['impactor_config'] = self.impactor.to_config(remove_common_args=True)
+        sim_config['projectile_config'] = self.projectile.to_config(remove_common_args=True)
         sim_config['morphology_config'] = self.morphology.to_config(remove_common_args=True)
         sim_config['grid_config'] = self.grid.to_config(remove_common_args=True)
         sim_config['grid_config'].pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
         sim_config['target'] = self.target.name
         sim_config['scaling'] = self.scaling._component_name
         sim_config['production'] = self.production._component_name
-        sim_config['impactor'] = self.impactor._component_name
+        sim_config['projectile'] = self.projectile._component_name
         sim_config['morphology'] = self.morphology._component_name
         sim_config['grid'] = self.grid._component_name
 
-        for config in ['target', 'scaling', 'production', 'impactor', 'morphology', 'grid', 'surface']:
+        for config in ['target', 'scaling', 'production', 'projectile', 'morphology', 'grid', 'surface']:
             # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
             if config in sim_config:
                 if sim_config[config] is None or sim_config[config] == {}:
@@ -1007,17 +1007,17 @@ class Simulation(CratermakerBase):
 
 
     @property
-    def impactor(self):
+    def projectile(self):
         """
-        The crater impactor model. Set during initialization.
+        The crater projectile model. Set during initialization.
         """
-        return self._impactor
+        return self._projectile
 
-    @impactor.setter
-    def impactor(self, value):
-        if not isinstance(value, (Impactor, str)):
-            raise TypeError("impactor must be of Impactor type or str")
-        self._impactor = value
+    @projectile.setter
+    def projectile(self, value):
+        if not isinstance(value, (Projectile, str)):
+            raise TypeError("projectile must be of Projectile type or str")
+        self._projectile = value
 
     @property
     def crater(self):

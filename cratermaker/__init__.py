@@ -23,5 +23,5 @@ from .core.surface import Surface
 from .components.scaling import Scaling
 from .components.production import Production
 from .components.morphology import Morphology
-from .components.impactor import Impactor
+from .components.projectile import Projectile
 from .components.grid import Grid

@@ -21,7 +21,7 @@ class Production(ComponentBase):
                  **kwargs: Any):
         
         """
-        An abstract operations class that forms the base of classes that compute the production function for craters and impactors.  The production function is defined as
+        An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.  The production function is defined as
         the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
             
         Parameters
@@ -258,17 +258,17 @@ class Production(ComponentBase):
         else:
             raise ValueError(f"The root finding algorithm did not converge for all values of diameter and cumulative_number. Flag {flag}")
 
-    def get_impactor_properties(self, 
+    def get_projectile_properties(self, 
                                 projectile_mean_velocity: FloatLike | None = None,
                                 **kwargs) -> dict:
                      
         """
-        Generates basic impactor properties including density, velocity, and angle.
+        Generates basic projectile properties including density, velocity, and angle.
 
         Returns
         -------
         dict
-            A dictionary containing the impactor properties.
+            A dictionary containing the projectile properties.
         """
 
         return {"projectile_density": 0.0,
@@ -356,11 +356,11 @@ class Production(ComponentBase):
             The default is 0 (present day).
         diameter_number : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N), which gives the total cumulative number of 
-            impactors, N, larger than diameter, D. If provided, the function convert this value to a corresponding age and use the 
+            projectiles, N, larger than diameter, D. If provided, the function convert this value to a corresponding age and use the 
             production function for a given age.
         diameter_number_end : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N), which gives the total cumulative number of 
-            impactors, N, larger than diameter, D.. If provided, the function will convert this value to a corresponding age_end
+            projectiles, N, larger than diameter, D.. If provided, the function will convert this value to a corresponding age_end
             and use the production function for a given age. The default is (1000.0, 0) (present day). 
         diameter_range : PairOfFloats
             The minimum and maximum crater diameter to sample from in meters.

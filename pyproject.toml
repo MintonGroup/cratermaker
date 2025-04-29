@@ -63,9 +63,9 @@ arbitrary_resolution = "cratermaker.components.grid.arbitrary_resolution:Arbitra
 icosphere = "cratermaker.components.grid.icosphere:IcosphereGrid"
 hireslocal = "cratermaker.components.grid.hireslocal:HiResLocalGrid"
 
-[project.entry-points."cratermaker.components.impactor"]
-asteroids = "cratermaker.components.impactor.asteroids:AsteroidImpactors"
-comets = "cratermaker.components.impactor.comets:CometImpactors"
+[project.entry-points."cratermaker.components.projectile"]
+asteroids = "cratermaker.components.projectile.asteroids:AsteroidProjectiles"
+comets = "cratermaker.components.projectile.comets:CometProjectiles"
 
 [build-system]
 requires = [

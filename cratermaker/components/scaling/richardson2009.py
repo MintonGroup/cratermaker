@@ -8,12 +8,12 @@ from cratermaker.utils.general_utils import _set_properties
 from cratermaker.utils.general_utils import _create_catalogue
 from cratermaker.core.target import Target
 from cratermaker.components.scaling import Scaling
-from cratermaker.components.impactor import Impactor
+from cratermaker.components.projectile import Projectile
 
 @Scaling.register("richardson2009")
 class Richardson2009(Scaling):
     """
-    This is an operations class for computing the scaling relationships between impactors and craters.
+    This is an operations class for computing the scaling relationships between projectiles and craters.
 
     This class encapsulates the logic for converting between projectile properties and crater properties, 
     as well as determining crater morphology based on size and target propertiesImplements the scaling laws described in Richardson (2009) [1]_ that were implemented in CTEM.
@@ -22,8 +22,8 @@ class Richardson2009(Scaling):
     ----------
     target : Target | str, default="Moon"
         The target body for the impact. Can be a Target object or a string representing the target name.
-    impactor : Impactor | str, default="asteroids"
-        The impactor model for the impact. Can be an Impactor object or a string representing the impactor name.
+    projectile : Projectile | str, default="asteroids"
+        The projectile model for the impact. Can be an Projectile object or a string representing the projectile name.
     material_name : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
@@ -58,7 +58,7 @@ class Richardson2009(Scaling):
 
     def __init__(self, 
                  target: Target | str = "Moon",
-                 impactor: Impactor | str = "asteroids",
+                 projectile: Projectile | str = "asteroids",
                  material_name: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
@@ -70,7 +70,7 @@ class Richardson2009(Scaling):
                  **kwargs):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         self._target = Target.maker(target, **kwargs)
-        self._impactor = Impactor.maker(impactor=impactor, target=self._target, **kwargs)
+        self._projectile = Projectile.maker(projectile=projectile, target=self._target, **kwargs)
 
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)
@@ -98,8 +98,8 @@ class Richardson2009(Scaling):
             self.target.density = density
         elif self.target.density is None:
             self.target.density = self.material_catalogue[self.material_name]["density"]
-        if self.impactor.density is None:
-            self.impactor.density = self.target.density
+        if self.projectile.density is None:
+            self.projectile.density = self.target.density
         
         arg_check = sum(x is None for x in [self.target.density, self.K1, self.mu, self.Ybar])
         if arg_check > 0:
@@ -279,15 +279,15 @@ class Richardson2009(Scaling):
         """
         # Compute some auxiliary quantites
         projectile_radius = projectile_diameter / 2
-        projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * self.impactor.density
+        projectile_mass = (4.0/3.0) * np.pi * (projectile_radius**3) * self.projectile.density
 
         c1 = 1.0 + 0.5 * self.mu
         c2 = (-3 * self.mu)/(2.0 + self.mu)
 
         # Find dimensionless quantities
-        pitwo = (self.target.gravity * projectile_radius)/(self.impactor.vertical_velocity**2)
-        pithree = self.Ybar / (self.target.density * (self.impactor.vertical_velocity**2))
-        pifour = self.target.density / self.impactor.density
+        pitwo = (self.target.gravity * projectile_radius)/(self.projectile.vertical_velocity**2)
+        pithree = self.Ybar / (self.target.density * (self.projectile.vertical_velocity**2))
+        pifour = self.target.density / self.projectile.density
         pivol = self.K1 * ((pitwo * (pifour**(-1.0/3.0))) + (pithree**c1))**c2
         pivolg = self.K1 * (pitwo * (pifour**(-1.0/3.0)))**c2
         

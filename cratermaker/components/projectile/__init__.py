@@ -8,8 +8,8 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.core.target import Target
 
-class Impactor(ComponentBase):
-    _registry: dict[str, Impactor] = {}
+class Projectile(ComponentBase):
+    _registry: dict[str, Projectile] = {}
     def __init__(self, 
                  target : Target | str | None = None,
                  mean_velocity : FloatLike = 22100.0, 
@@ -25,7 +25,7 @@ class Impactor(ComponentBase):
                  rng_state : dict | None = None, 
                  **kwargs):
         """
-        This is the abstract base class for all impactor models. It defines the interface for generating impactor velocities, angles, and densities for a given target body.
+        This is the abstract base class for all projectile models. It defines the interface for generating projectile velocities, angles, and densities for a given target body.
 
         Parameters
         ----------
@@ -34,7 +34,7 @@ class Impactor(ComponentBase):
         mean_velocity : float
             The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
         density : float
-            The density of the impactor in kg/m^3. Default is 2250.0 kg/m^3.
+            The density of the projectile in kg/m^3. Default is 2250.0 kg/m^3.
         sample_velocities : bool
             Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
         sample_angles : bool
@@ -75,7 +75,7 @@ class Impactor(ComponentBase):
 
     @classmethod
     def maker(cls,
-             impactor: Impactor | str | None = None, 
+             projectile: Projectile | str | None = None, 
              target : Target | str | None = None,
              mean_velocity : FloatLike = 22100.0, 
              density : FloatLike = 2250.0,
@@ -88,20 +88,20 @@ class Impactor(ComponentBase):
              rng: Generator | None = None,
              rng_seed : int | None = None,
              rng_state : dict | None = None, 
-             **kwargs: Any) -> Impactor:
+             **kwargs: Any) -> Projectile:
         """
-        Initialize an impactor model based on the provided name or class.
+        Initialize an projectile model based on the provided name or class.
         
         Parameters
         ----------
-        impactor : Impactor or str
-            The impactor model to initialize. Can be a class or a string representing the model name.
+        projectile : Projectile or str
+            The projectile model to initialize. Can be a class or a string representing the model name.
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         mean_velocity : float
             The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
         density : float
-            The density of the impactor in kg/m^3. Default is 2250.0 kg/m^3.
+            The density of the projectile in kg/m^3. Default is 2250.0 kg/m^3.
         sample_velocities : bool
             Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
         sample_angles : bool
@@ -125,25 +125,25 @@ class Impactor(ComponentBase):
         
         Returns
         -------
-        Impactor
-            The initialized impactor model.
+        Projectile
+            The initialized projectile model.
         
         Raises
         ------
         KeyError
-            If the specified impactor model is not found in the registry.
+            If the specified projectile model is not found in the registry.
         TypeError
-            If the specified impactor model is not a string or a subclass of Impactor.
+            If the specified projectile model is not a string or a subclass of Projectile.
         """
         target = Target.maker(target, **kwargs)
-        if impactor is None:
+        if projectile is None:
             target_name = target.name.capitalize()
             if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
-                impactor = "asteroids"
+                projectile = "asteroids"
             else:
-                impactor = "comets"
+                projectile = "comets"
 
-        return super().maker(component=impactor,
+        return super().maker(component=projectile,
                             target=target,
                             mean_velocity=mean_velocity,
                             density=density,
@@ -171,7 +171,7 @@ class Impactor(ComponentBase):
         Returns
         -------
         dict
-            A dictionary containing the impactor properties.
+            A dictionary containing the projectile properties.
         """
 
         if self.sample_velocities:
@@ -204,7 +204,7 @@ class Impactor(ComponentBase):
     @property
     def target(self):
         """
-        The target object for the impactor model.
+        The target object for the projectile model.
         
         Returns
         -------
@@ -355,7 +355,7 @@ class Impactor(ComponentBase):
     @parameter
     def density(self):
         """
-        The density of the impactor in kg/m^3.
+        The density of the projectile in kg/m^3.
         
         Returns
         -------
@@ -366,7 +366,7 @@ class Impactor(ComponentBase):
     @density.setter
     def density(self, value):
         """
-        Sets the density of the impactor in kg/m^3. 
+        Sets the density of the projectile in kg/m^3. 
         
         Parameters
         ----------

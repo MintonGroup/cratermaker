@@ -10,12 +10,12 @@ class TestScale(unittest.TestCase):
         self.assertEqual(scaling.mu, 0.55)
         self.assertEqual(scaling.Ybar, 7.60e6)
         self.assertEqual(scaling.target.density, 2250.0)
-        self.assertEqual(scaling.impactor.density, 2250.0)
+        self.assertEqual(scaling.projectile.density, 2250.0)
         self.assertIsInstance(scaling.K1, float)
         self.assertIsInstance(scaling.mu, float)
         self.assertIsInstance(scaling.Ybar, float)
         self.assertIsInstance(scaling.target.density, float)
-        self.assertIsInstance(scaling.impactor.density, float)
+        self.assertIsInstance(scaling.projectile.density, float)
         return
 
     def test_scale_override_catalogue(self):
