@@ -20,13 +20,29 @@ While some components require others to function (for instance, a Scaling model 
 
 In thhis guide, we will walk through the basic process of installing Cratermaker and running through some basic examples to demonstrate its functionality.
 
-Installation
-============
+Normal installation
+===================
 To begin, simply install Cratermaker using pip into the Python environment of your choice, provided it is at least Python 3.10 or above.
 
 .. code-block:: bash 
 
       pip install cratermaker
+
+
+Installing Cratermaker from Source
+==================================
+
+Cratermaker is mostly Python, but it does have some Rust components. To install Cratermaker from source, you will need to have Rust installed. You can install Rust using the following command:
+
+.. code-block:: bash
+
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+The build and install an editable version  you can install Cratermaker from source using the following command:
+
+.. code-block:: bash
+
+    pip install -e .      
 
 
 Simulating a single crater
@@ -94,20 +110,6 @@ As Cratermaker is designed to be easy to use, all of its component classes are b
 - **Morphology**: Currently one morphology model is available: ``simplemoon``. This is a model that similar to that used by CTEM. Most of the parameters are taken from Pike (1977) [10]_, except for simple crater profiles, which use a model from Fassett and Thomson (2014) [11]_. Ejecta blanket scaling is from McGetchin et al. (1973) [12]_.  
 
 
-Installing Cratermaker from Source
-==================================
-
-Cratermaker is mostly Python, but it does have some Rust components. To install Cratermaker from source, you will need to have Rust installed. You can install Rust using the following command:
-
-.. code-block:: bash
-
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-The build and install an editable version  you can install Cratermaker from source using the following command:
-
-.. code-block:: bash
-
-    pip install -e .
 
 References
 ==========
