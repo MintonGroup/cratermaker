@@ -28,7 +28,7 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_crater" , crater)
 
     @classmethod
-    def make(cls, 
+    def maker(cls, 
              morphology: str | type[Morphology] | Morphology| None = None, 
              crater : Crater | None = None,
              **kwargs: Any) -> Morphology:
@@ -60,7 +60,7 @@ class Morphology(ComponentBase):
         # Call the base class version of make and pass the morphology argument as the component argument
         if morphology is None:
             morphology = "simplemoon"
-        return super().make(component=morphology, crater=crater, **kwargs)
+        return super().maker(component=morphology, crater=crater, **kwargs)
 
     @abstractmethod
     def form_crater(self, 

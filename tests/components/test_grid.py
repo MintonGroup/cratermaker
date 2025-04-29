@@ -53,7 +53,7 @@ class TestGrid(unittest.TestCase):
                 }
 
             for name, args in gridargs.items():
-                grid = Grid.make(simdir=simdir,grid=name,**args)
+                grid = Grid.maker(simdir=simdir,grid=name,**args)
                 self.assertTrue(Path(grid.file).exists())
         
         return

@@ -39,7 +39,7 @@ class Production(ComponentBase):
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
 
     @classmethod
-    def make(cls,
+    def maker(cls,
              production: str | Production | None = None,
              target: Target | str | None = None,
              rng: Generator | None = None,
@@ -79,7 +79,7 @@ class Production(ComponentBase):
 
         version = kwargs.pop("version", None)
         if production is None or production == "neukum":
-            target = Target.make(target, **kwargs)
+            target = Target.maker(target, **kwargs)
             target_name = target.name.capitalize()
             if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
                 production = "neukum"
@@ -89,7 +89,7 @@ class Production(ComponentBase):
                     version = "projectile"
             else:
                 production = "powerlaw"
-        return super().make(component=production, version=version, target=target, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        return super().maker(component=production, version=version, target=target, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
          
 
 

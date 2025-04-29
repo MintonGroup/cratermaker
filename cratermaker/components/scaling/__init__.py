@@ -42,8 +42,8 @@ class Scaling(ComponentBase):
         object.__setattr__(self, "_impactor", None)
         # combine the kwargs with the common_args, giving common_args priority
         kwargs = {**kwargs, **vars(self.common_args)}
-        self._target = Target.make(target, **kwargs)
-        self._impactor = Impactor.make(impactor, **kwargs)
+        self._target = Target.maker(target, **kwargs)
+        self._impactor = Impactor.maker(impactor, **kwargs)
 
     @abstractmethod
     def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
@@ -55,7 +55,7 @@ class Scaling(ComponentBase):
     def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
 
     @classmethod
-    def make(cls,
+    def maker(cls,
              scaling: str | Scaling | None = None, 
              target: Target | str | None = None,
              impactor: Impactor | str | None = None,
@@ -98,7 +98,7 @@ class Scaling(ComponentBase):
 
         if scaling is None:
             scaling = "richardson2009"
-        return super().make(component=scaling, target=target, impactor=impactor, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        return super().maker(component=scaling, target=target, impactor=impactor, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     @property
     def target(self):
@@ -113,7 +113,7 @@ class Scaling(ComponentBase):
     
     @target.setter
     def target(self, value):
-        self._target = Target.make(value, **vars(self.common_args))
+        self._target = Target.maker(value, **vars(self.common_args))
         return 
 
     @property
@@ -149,7 +149,7 @@ class Scaling(ComponentBase):
     
     @impactor.setter
     def impactor(self, value):
-        self._impactor = Impactor.make(value, **vars(self.common_args))
+        self._impactor = Impactor.maker(value, **vars(self.common_args))
         return
 
 import_components(__name__, __path__, ignore_private=True)

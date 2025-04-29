@@ -14,7 +14,7 @@ class TestMorphology(unittest.TestCase):
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
 
-        self.dummy_crater = Crater.make(
+        self.dummy_crater = Crater.maker(
             location=(0.0, 0.0),
             final_diameter=100000.0,
         )
@@ -25,7 +25,7 @@ class TestMorphology(unittest.TestCase):
 
     def test_model_instantiation(self):
         for model_name in morphology_models:
-            morphology = Morphology.make(model_name)
+            morphology = Morphology.maker(model_name)
             self.assertIsInstance(morphology, object)
             self.assertEqual(morphology.name, model_name)
             morphology.crater = self.dummy_crater
@@ -34,20 +34,20 @@ class TestMorphology(unittest.TestCase):
     def test_invalid_crater_type_raises(self):
         with self.assertRaises(TypeError):
             for model_name in morphology_models:
-                morphology = Morphology.make(model_name)
+                morphology = Morphology.maker(model_name)
                 morphology.crater = "not_a_crater"
 
     def test_form_crater_executes(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surf = Surface.make(simdir=simdir, target=self.target, reset_surface=True, gridlevel=self.gridlevel)
+            surf = Surface.maker(simdir=simdir, target=self.target, reset_surface=True, gridlevel=self.gridlevel)
             for model_name in morphology_models:
-                morphology = Morphology.make(model_name)
+                morphology = Morphology.maker(model_name)
                 morphology.form_crater(surf, crater=self.dummy_crater)
 
     def testmake_morphology(self):
         # Test the make_morphology function
         for model_name in morphology_models:
-            morphology = Morphology.make(moprhology=model_name)
+            morphology = Morphology.maker(moprhology=model_name)
             self.assertIsInstance(morphology, Morphology)
 
 if __name__ == '__main__':

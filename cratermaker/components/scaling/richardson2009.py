@@ -69,8 +69,8 @@ class Richardson2009(Scaling):
                  rng_state: dict | None = None,
                  **kwargs):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        self._target = Target.make(target, **kwargs)
-        self._impactor = Impactor.make(impactor=impactor, target=self._target, **kwargs)
+        self._target = Target.maker(target, **kwargs)
+        self._impactor = Impactor.maker(impactor=impactor, target=self._target, **kwargs)
 
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)
