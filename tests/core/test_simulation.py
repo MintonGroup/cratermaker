@@ -100,6 +100,19 @@ class TestSimulation(unittest.TestCase):
         sim.populate(age=3.8e3)
         return
     
+    def test_run(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(simdir=simdir,gridlevel=self.gridlevel)
+            sim.run(age=1000)
+            
+            sim = cratermaker.Simulation(simdir=simdir,gridlevel=self.gridlevel)
+            sim.run(age=1000, age_interval=100)
+
+            # Test that the simulation doesn't fail when the age doesn't divide evenly by the age_interval
+            sim = cratermaker.Simulation(simdir=simdir,gridlevel=self.gridlevel)
+            sim.run(age=1010, age_interval=100)
+
+    
     def test_invalid_run_args(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             

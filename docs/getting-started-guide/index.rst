@@ -89,13 +89,12 @@ Then, open ParaView and select ``File -> Open``, navigate to the ``vtk_files`` d
 Simulating a population of craters
 ==================================
 
-Simulating a single crater is useful for testing, but Cratermaker is designed to simulate populations of craters over time. The following example demonstrates how to initialize a simulation of the Moon and emplace a population of craters using the default production function, which is the Neukum production function. The simulation will run for 1 billion years.
+Simulating a single crater is useful for testing, but Cratermaker is designed to simulate populations of craters over time. The following example demonstrates how to initialize a simulation of the Moon and emplace a population of craters using the default production function, which is the Neukum production function. The simulation will run for 4.31 Gy, and save the state of the surface in intervals of 50 My.
 
-.. ipython:: python
-    :okwarning:
+.. code-block:: python
 
     sim = cratermaker.Simulation()
-    sim.run(age=1000)
+    sim.run(age=4300, age_interval=50)
 
 .. note::
 

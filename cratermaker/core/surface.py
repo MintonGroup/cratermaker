@@ -705,6 +705,8 @@ class Surface:
         UxDataArray
             DataArray of distances for each face in meters.
         """
+        if len(location) == 1:
+            location = location.item()
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
         node_lon2 = np.deg2rad(self.node_lon[view.node_indices])
@@ -766,6 +768,8 @@ class Surface:
         DataArray
             DataArray of initial bearings for each face in radians.
         """
+        if len(location) == 1:
+            location = location.item()
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
         node_lon2 = np.deg2rad(self.node_lon[view.node_indices])
@@ -799,6 +803,8 @@ class Surface:
         The method uses the ball tree query method that is included in the UxArray.Grid class.
         """          
         
+        if len(location) == 1:
+            location = location.item()
         coords = np.asarray(location)
 
         with warnings.catch_warnings():
@@ -971,7 +977,9 @@ class Surface:
         """ 
         
         region_angle = np.rad2deg(region_radius / self.target.radius)
-        coords = np.asarray(location)
+        if len(location) == 1:
+            location = location.item()
+        coords = np.asarray(location)  
 
         ind = self.face_tree.query_radius(coords, region_angle)
         if len(ind) == 0:

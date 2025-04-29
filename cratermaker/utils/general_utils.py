@@ -1,6 +1,6 @@
 import yaml
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 from cratermaker.utils.custom_types import FloatLike
 from typing import Callable, Union, Any
 from pathlib import Path
@@ -206,7 +206,7 @@ def validate_and_convert_location(location):
     Valid formats for location include a tuple, a dictionary, or a structured 
     array with latitude ('lon') and longitude ('lat').
 
-    Parameter
+    Parameters
     ----------
     location : tuple, dict, ArrayLike
         The input location data. It can be:
@@ -243,25 +243,27 @@ def validate_and_convert_location(location):
     'lon' and 'lat' fields for consistent handling of location data across different
     input formats.
     """    
-    # Check if it's already a tuple
-    if isinstance(location, tuple) and len(location) == 2:
-        return location
-    
+
+
     # Check if it's already a structured array with 'lon' and 'lat'
-    if isinstance(location, ArrayLike) and location.dtype.names == ('lon', 'lat'):
-        return location
+    if isinstance(location, np.ndarray): 
+        if hasattr(location, 'dtype'):
+            if hasattr(location, 'dtype.names') and location.dtype.names == ('lon', 'lat'):
+                return location
     
     # Check if it's a dictionary with 'lon' and 'lat' keys
     if isinstance(location, dict):
         if "lon" in location and "lat" in location:
-            return np.array([(location['lon'], location['lon'])], dtype=[('lon', 'f8'), ('lat', 'f8')])
+            return np.array([(location['lon'], location['lat'])], dtype=[('lon', 'f8'), ('lat', 'f8')])
     
     # Check if it's a tuple, list, or array of the correct shape
     if isinstance(location, (tuple, list, ArrayLike)):
         if len(location) == 2:
-            return np.array([(location[0], location[1])], dtype=[('lon', 'f8'), ('lat', 'f8')])
+            # Additional validation: check if both elements are numbers
+            if isinstance(location[0], (float, int)) and isinstance(location[1], (float, int)):
+                return np.array([(location[0], location[1])], dtype=[('lon', 'f8'), ('lat', 'f8')])
     
-    raise ValueError("location must be a dict with 'lon' and 'lat', a 2-element tuple/list, or a structured array with 'lon' and 'lat'")
+    raise ValueError("location must be a dict with 'lon' and 'lat', a 2-element tuple/list of numbers, or a structured array with 'lon' and 'lat' fields.")
 
 
 def normalize_coords(loc):
@@ -363,4 +365,3 @@ def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayL
         return N
     
     return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
-
