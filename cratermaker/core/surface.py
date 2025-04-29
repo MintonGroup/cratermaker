@@ -1072,12 +1072,16 @@ class Surface:
     def __del__(self):
         try:
             if hasattr(self, "_uxds") and hasattr(self._uxds, "close"):
-                self._uxds.uxgrid._ds.close()
+                if hasattr(self._uxds, "uxgrid") and hasattr(self._uxds.uxgrid, "_ds"):
+                    self._uxds.uxgrid._ds.close()
                 self._uxds.close()
-
         except Exception:
             pass
-
+        try:
+            if hasattr(self, "_grid") and hasattr(self._grid, "uxgrid") and hasattr(self._grid.uxgrid, "_ds"):
+                self._grid.uxgrid._ds.close()
+        except Exception:
+            pass
 
 
 class SurfaceView:
