@@ -24,13 +24,11 @@ Cratermaker is designed to be both user-friendly and highly configurable, ensuri
 Default Behavior
 ================
 
-By default, Cratermaker emulates impacts on the Moon's surface. The ``Simulation`` class initializes with the following default parameters:
+By default, Cratermaker simulates impacts on the Moon's surface. The ``Simulation`` class initializes with the following default parameters:
 
-- **Target Body**: Moon, represented by the ``target`` parameter. Other bodies can be specified. See :ref:`api-Target`.
-- **Material**: The default material for the Moon is ``soft rock``. Custom materials can be specified. See :ref:`api-Material`.
-- **Production**: The default production function depends on the target body. For inner solar system bodies (Mercury, Venus, Earth, Moon, and Mars) the ``NeukumProduction``, and a simple power law production function is used. For details, see :ref:`api-Production` and :ref:`api-NeukumProduction`.
-- **Scaling**: The default projectile to crater scaling relationship model is based on Holsapple (1993), with some modifications. See :ref:`api-ScalingModel` for details.
-- **Pixel Resolution**: Cratermaker uses an unstructured mesh to represent the surface, and so does not have a fixed resolution. When generating the mesh, you can set an approximate size scale for the mesh faces using the ``pix`` parameter. The default value is 10\ :sup:`-3`` times the surface area of the target body.  
+- **Target**: Moon, represented by the ``target`` parameter. Other bodies can be specified. See :ref:`api-Target`.
+- **Production**: The default production function depends on the target body. For inner solar system bodies (Mercury, Venus, Earth, Moon, and Mars) the ``NeukumProduction``, and a simple power law production function is used. For details, see :ref:`api-Production`. 
+- **Scaling**: The default projectile to crater scaling relationship model is based on Richardson (2009), with some modifications. See :ref:`api-Scaling` for details.
 
 These defaults provide a balanced starting point for typical crater simulations, making it straightforward for new users to begin without extensive configuration. See :ref:`api-Simulation` for details on the ``Simulation`` class and its parameters.
 

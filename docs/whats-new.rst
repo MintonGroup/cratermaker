@@ -6,7 +6,7 @@ What's New
 .. _whats-new.2025.4.1-alpha:
 
 :release:`v2025.4.1-alpha`
--------------------------
+--------------------------
 
 Bug Fixes
 ~~~~~~~~~
@@ -21,7 +21,7 @@ Contributors
 .. _whats-new.2025.4.0-alpha:
 
 :release:`v2025.4.0-alpha`
--------------------------
+--------------------------
 
 What’s Changed
 ~~~~~~~~~~~~~~
@@ -50,7 +50,7 @@ Contributors
 .. _whats-new.2024.8.0-alpha:
 
 :release:`v2024.8.0-alpha`
----------------------------
+--------------------------
 
 - Prerelease for development and testing.
 

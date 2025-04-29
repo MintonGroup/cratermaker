@@ -1,13 +1,12 @@
 import unittest
-import os
+from pathlib import Path
 import shutil
 import numpy as np
 import tempfile
 from cratermaker import Target, Surface
-from cratermaker.core.surface import _DATA_DIR, _GRID_FILE_NAME
+from cratermaker.constants import _DATA_DIR, _GRID_FILE_NAME
 from cratermaker.utils.montecarlo import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
-
 
 class TestSurface(unittest.TestCase):
     """
@@ -27,74 +26,67 @@ class TestSurface(unittest.TestCase):
     """    
     def setUp(self):
         # Initialize a target and surface for testing
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.grid_file = os.path.join(self.temp_dir.name, _GRID_FILE_NAME)
         self.target = Target(name="Moon")
         self.pix = self.target.radius / 10.0
         self.gridlevel = 4
-        os.chdir(self.temp_dir.name)
         
         return
     
-    def tearDown(self):
-        # Clean up temporary directory
-        self.temp_dir.cleanup() 
-        return
-
     def test_initialize_surface(self):
-        directory = os.path.join(os.getcwd(), _DATA_DIR)
-        if os.path.exists(directory) and os.path.isdir(directory):
-            try:
-                shutil.rmtree(directory)
-            except Exception as error:
-                print(f"Error: {directory} : {error}")
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            # Initializing it first should run the jigsaw mesh generator
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+            del surf
 
-        # Initializing it first should run the jigsaw mesh generator
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
-        
-        # Try initializing the surface again with the same parameters. This should find the existing grid file and load it 
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=False)
-        
-        # Test regridding if the parameters change
-        n_face_orig = surf.uxgrid.n_face
-    
-        surf = Surface.initialize(gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
-        self.assertGreater(n_face_orig, surf.uxgrid.n_face)
-    
-        # Test different target values
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=Target(name="Mars"), reset_surface=False)
-        surf = Surface.initialize(gridlevel=self.gridlevel, target="Mercury", reset_surface=False)
-        
-        # Test bad values
-        with self.assertRaises(TypeError):
-            surf = Surface.initialize(gridlevel=self.gridlevel, target=1, reset_surface=False)
-        with self.assertRaises(ValueError):
-            surf = Surface.initialize(gridlevel=self.gridlevel, target="Arrakis", reset_surface=False)
-        with self.assertRaises(ValueError):
-            surf = Surface.initialize(gridlevel=self.gridlevel, target=Target(name="Salusa Secundus"), reset_surface=False)
+            # Try initializing the surface again with the same parameters. This should find the existing grid file and load it 
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=False)
+
+            # Test regridding if the parameters change
+            n_face_orig = surf.uxds.uxgrid.n_face
+            del surf
+
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
+            self.assertGreater(n_face_orig, surf.uxds.uxgrid.n_face)
+            del surf
+
+            # Test different target values
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=Target(name="Mars"), reset_surface=False)
+            del surf
+
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target="Mercury", reset_surface=False)
+            del surf
+            
+            # Test bad values
+            with self.assertRaises(TypeError):
+                surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=1, reset_surface=False)
+            with self.assertRaises(ValueError):
+                surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target="Arrakis", reset_surface=False)
+            with self.assertRaises(ValueError):
+                surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=Target(name="Salusa Secundus"), reset_surface=False)
         return
 
 
     def test_set_elevation(self):
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
-        # Test with valid elevation data
-        new_elev = np.random.rand(surf.uxgrid.n_node)  # Generate random elevation data
-        surf.set_elevation(new_elev)
-
-        # Test with invalid elevation data (wrong size)
-        new_elev = np.random.rand(surf.uxgrid.n_node + 1)  # Incorrect size
-
-        # Expect ValueError for incorrect size
-        with self.assertRaises(ValueError):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+            # Test with valid elevation data
+            new_elev = np.random.rand(surf.uxds.uxgrid.n_node)  # Generate random elevation data
             surf.set_elevation(new_elev)
 
-        # Test setting elevation to None (should set to zero)
-        surf.set_elevation(None)
+            # Test with invalid elevation data (wrong size)
+            new_elev = np.random.rand(surf.uxds.uxgrid.n_node + 1)  # Incorrect size
 
-        # Check if the elevation data is set to zero
-        np.testing.assert_array_equal(surf['node_elevation'].values, np.zeros(surf.uxgrid.n_node))
-        np.testing.assert_array_equal(surf['face_elevation'].values, np.zeros(surf.uxgrid.n_face))
-        
+            # Expect ValueError for incorrect size
+            with self.assertRaises(ValueError):
+                surf.set_elevation(new_elev)
+
+            # Test setting elevation to None (should set to zero)
+            surf.set_elevation(None)
+
+            # Check if the elevation data is set to zero
+            np.testing.assert_array_equal(surf.uxds['node_elevation'].values, np.zeros(surf.uxds.uxgrid.n_node))
+            np.testing.assert_array_equal(surf.uxds['face_elevation'].values, np.zeros(surf.uxds.uxgrid.n_face))
+            
         return
     
     
@@ -113,68 +105,72 @@ class TestSurface(unittest.TestCase):
 
 
     def test_get_face_distance(self):
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
-        
-        location = get_random_location()
-        lon = location[0]
-        lat = location[1]
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+            
+            location = get_random_location()
+            lon = location[0]
+            lat = location[1]
 
-        # Convert important points to radians
-        north = (lon, lat + 90)
-        south = (lon, lat - 90)
-        antipode = (lon-180, -lat)
-        
-        north = normalize_coords(north)
-        south = normalize_coords(south)
-        antipode = normalize_coords(antipode)
-        
-        _,north_idx = surf.find_nearest_index(north)
-        _,south_idx = surf.find_nearest_index(south)
-        _,antipode_idx = surf.find_nearest_index(antipode)
-        
-        north_distance = surf.target.radius * np.pi / 2 
-        south_distance = surf.target.radius * np.pi / 2
-        antipode_distance = surf.target.radius * np.pi
-        delta = 2*self.pix
+            # Convert important points to radians
+            north = (lon, lat + 90)
+            south = (lon, lat - 90)
+            antipode = (lon-180, -lat)
+            
+            north = normalize_coords(north)
+            south = normalize_coords(south)
+            antipode = normalize_coords(antipode)
+            
+            _,north_idx = surf.find_nearest_index(north)
+            _,south_idx = surf.find_nearest_index(south)
+            _,antipode_idx = surf.find_nearest_index(antipode)
+            
+            north_distance = surf.target.radius * np.pi / 2 
+            south_distance = surf.target.radius * np.pi / 2
+            antipode_distance = surf.target.radius * np.pi
+            delta = 2*self.pix
 
-        # Test distances
-        _,distances = surf.get_distance(location)
-        self.assertAlmostEqual(distances[north_idx], north_distance, delta=delta, msg=f"North face distance ratio: {distances[north_idx].item()/north_distance}")
-        self.assertAlmostEqual(distances[south_idx], south_distance, delta=delta, msg=f"South face distance ratio: {distances[south_idx].item()/south_distance}")
-        self.assertAlmostEqual(distances[antipode_idx], antipode_distance, delta=delta, msg=f"Antipode face distance ratio: {distances[antipode_idx].item()/antipode_distance}")
+            # Test distances
+            _,distances = surf.get_distance(surf.full_view(), location)
+            self.assertAlmostEqual(distances[north_idx], north_distance, delta=delta, msg=f"North face distance ratio: {distances[north_idx].item()/north_distance}")
+            self.assertAlmostEqual(distances[south_idx], south_distance, delta=delta, msg=f"South face distance ratio: {distances[south_idx].item()/south_distance}")
+            self.assertAlmostEqual(distances[antipode_idx], antipode_distance, delta=delta, msg=f"Antipode face distance ratio: {distances[antipode_idx].item()/antipode_distance}")
         
         
     def test_get_node_distance(self):
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True)
-        
-        location = get_random_location()
-        lon = location[0]
-        lat = location[1]
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
+            
+            location = get_random_location()
+            lon = location[0]
+            lat = location[1]
 
-        # Convert important points to radians
-        north = (lon, lat + 90)
-        south = (lon, lat - 90)
-        antipode = (lon+180, -lat)
-        
-        north = normalize_coords(north)
-        south = normalize_coords(south)
-        antipode = normalize_coords(antipode)
-        
-        north_idx,_ = surf.find_nearest_index(north)
-        south_idx,_ = surf.find_nearest_index(south)
-        antipode_idx,_ = surf.find_nearest_index(antipode)
+            # Convert important points to radians
+            north = (lon, lat + 90)
+            south = (lon, lat - 90)
+            antipode = (lon+180, -lat)
+            
+            north = normalize_coords(north)
+            south = normalize_coords(south)
+            antipode = normalize_coords(antipode)
+            
+            north_idx,_ = surf.find_nearest_index(north)
+            south_idx,_ = surf.find_nearest_index(south)
+            antipode_idx,_ = surf.find_nearest_index(antipode)
 
-        north_distance = surf.target.radius * np.pi / 2 
-        south_distance = surf.target.radius * np.pi / 2
-        antipode_distance = surf.target.radius * np.pi
-        delta = 2*self.pix
+            north_distance = surf.target.radius * np.pi / 2 
+            south_distance = surf.target.radius * np.pi / 2
+            antipode_distance = surf.target.radius * np.pi
+            delta = 2*self.pix
 
-        # Test distances
-        node_distances,_ = surf.get_distance(location)
-        self.assertAlmostEqual(node_distances[north_idx], north_distance, delta=delta, msg=f"North node distance ratio: {node_distances[north_idx].item()/north_distance}")
-        self.assertAlmostEqual(node_distances[south_idx], south_distance, delta=delta, msg=f"South node distance ratio: {node_distances[south_idx].item()/south_distance}")
-        self.assertAlmostEqual(node_distances[antipode_idx], antipode_distance, delta=delta, msg=f"Antipode node distance ratio: {node_distances[antipode_idx].item()/antipode_distance}")
-        
+            # Test distances
+            node_distances,_ = surf.get_distance(surf.full_view(), location)
+            self.assertAlmostEqual(node_distances[north_idx], north_distance, delta=delta, msg=f"North node distance ratio: {node_distances[north_idx].item()/north_distance}")
+            self.assertAlmostEqual(node_distances[south_idx], south_distance, delta=delta, msg=f"South node distance ratio: {node_distances[south_idx].item()/south_distance}")
+            self.assertAlmostEqual(node_distances[antipode_idx], antipode_distance, delta=delta, msg=f"Antipode node distance ratio: {node_distances[antipode_idx].item()/antipode_distance}")
+            
         
     def test_calculate_initial_bearing(self):
         # Example coordinates (lat/lon in radians)
@@ -190,7 +186,7 @@ class TestSurface(unittest.TestCase):
         
     # def test_get_random_on_face(self):
     #     # Tests that the random location is within the face we expect
-    #     surf = Surface.initialize(gridlevel=self.gridlevel*2, target=self.target, reset_surface=True)
+    #     surf = Surface.make(gridlevel=self.gridlevel*2, target=self.target, reset_surface=True)
     #     n_per_face = 10
     #     for i in surf.n_face:
     #         original_face_index = i.values.item()
@@ -200,13 +196,15 @@ class TestSurface(unittest.TestCase):
     #             self.assertEqual(original_face_index, new_face_index) 
             
     def test_face_surface_values(self):
-        # Tests that the face_surface generates the correct values
-        surf = Surface.initialize(gridlevel=self.gridlevel, target=self.target, reset_surface=True) 
-        total_area_1 = surf.uxgrid.calculate_total_face_area()
-        total_area_2 = surf.face_areas.sum().item()
-        ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius
-        self.assertAlmostEqual(ratio, 1.0, places=2)
-        self.assertAlmostEqual(total_area_2/ (4*np.pi*self.target.radius**2), 1.0, places=2)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            
+            # Tests that the face_surface generates the correct values
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True) 
+            total_area_1 = surf.uxds.uxgrid.calculate_total_face_area()
+            total_area_2 = surf.face_areas.sum().item()
+            ratio = np.sqrt(total_area_2/total_area_1) / self.target.radius
+            self.assertAlmostEqual(ratio, 1.0, places=2)
+            self.assertAlmostEqual(total_area_2/ (4*np.pi*self.target.radius**2), 1.0, places=2)
 
 if __name__ == '__main__':
     unittest.main()

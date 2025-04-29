@@ -19,11 +19,9 @@ build:
     - build-essential
     - cmake
     - ninja-build
-    - gfortran-12
   jobs:
     post_create_environment: 
       - pip install .
-      - ford fortran_docs.md 
 
 conda:
   environment: environments/cratermaker-docs.yml
