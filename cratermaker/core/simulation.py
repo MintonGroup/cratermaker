@@ -71,7 +71,7 @@ class Simulation(CratermakerBase):
             
         See Also
         --------
-        cratermaker.core.surface.Surface.make : Parameters for initializing a surface mesh.
+        cratermaker.core.surface.Surface.maker : Parameters for initializing a surface mesh.
         """
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
@@ -120,19 +120,19 @@ class Simulation(CratermakerBase):
         kwargs = {**kwargs, **vars(self.common_args)}
 
         target_config = {**target_config, **kwargs}
-        self.target = Target.make(self.target, **target_config)
+        self.target = Target.maker(self.target, **target_config)
 
         production_config = {**production_config, **kwargs}
-        self.production = Production.make(self.production,  target=self.target, **production_config)
+        self.production = Production.maker(self.production,  target=self.target, **production_config)
 
         impactor_config = {**impactor_config, **kwargs}
-        self.impactor = Impactor.make(self.impactor, target=self.target, **impactor_config)
+        self.impactor = Impactor.maker(self.impactor, target=self.target, **impactor_config)
 
         scaling_config = {**scaling_config, **kwargs}
-        self.scaling = Scaling.make(self.scaling, target=self.target, impactor=self.impactor, **scaling_config)
+        self.scaling = Scaling.maker(self.scaling, target=self.target, impactor=self.impactor, **scaling_config)
 
         morphology_config = {**morphology_config, **kwargs}
-        self.morphology = Morphology.make(self.morphology, **morphology_config)
+        self.morphology = Morphology.maker(self.morphology, **morphology_config)
       
         grid_type = kwargs.get('grid_type', None)
         if grid_type is not None and grid_type == 'hires local':
@@ -147,7 +147,7 @@ class Simulation(CratermakerBase):
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
         surface_config = {**surface_config, **grid_config, **kwargs}
-        self.surf = Surface.make(target=self.target, grid=self.grid, **surface_config)
+        self.surf = Surface.maker(target=self.target, grid=self.grid, **surface_config)
         self.grid = self.surf.grid
 
         self._craterlist = []
@@ -233,7 +233,7 @@ class Simulation(CratermakerBase):
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
          
-        crater = Crater.make(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
+        crater = Crater.maker(target=self.target, scaling=self.scaling, impactor=self.impactor, **vars(self.common_args), **kwargs)
         
         return crater
     

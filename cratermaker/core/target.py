@@ -274,7 +274,7 @@ class Target(CratermakerBase):
         return G.value*self.mass / (self.radius**2)  
 
     @classmethod
-    def make(cls : type[Target], 
+    def maker(cls : type[Target], 
              target : Target | str = "Moon", 
              **kwargs: Any) -> Target:
         

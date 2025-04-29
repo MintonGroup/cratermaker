@@ -13,7 +13,7 @@ class ComponentBase(CratermakerBase, ABC):
         super().__init__(**kwargs)
 
     @classmethod
-    def make(cls, component: str | type[ComponentBase] | ComponentBase| None = None, **kwargs: Any) -> ComponentBase:
+    def maker(cls, component: str | type[ComponentBase] | ComponentBase| None = None, **kwargs: Any) -> ComponentBase:
         """
         Initialize a component model with the given name or instance.
 

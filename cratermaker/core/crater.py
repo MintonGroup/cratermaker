@@ -63,7 +63,7 @@ class Crater:
         return None
 
     @classmethod
-    def make(cls : type[Crater],
+    def maker(cls : type[Crater],
             final_diameter: float | None = None,
             final_radius: float | None = None,
             transient_diameter: float | None = None,
@@ -158,8 +158,8 @@ class Crater:
         argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
         rng = argproc.rng
 
-        target = Target.make(target, **vars(argproc.common_args), **kwargs)
-        impactor = Impactor.make(impactor, target=target, **vars(argproc.common_args), **kwargs)
+        target = Target.maker(target, **vars(argproc.common_args), **kwargs)
+        impactor = Impactor.maker(impactor, target=target, **vars(argproc.common_args), **kwargs)
 
         # --- Normalize location and age ---
         if location is None:
@@ -238,7 +238,7 @@ class Crater:
             prho = prho or target.density
             impactor = Impactor(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
 
-        scaling = Scaling.make(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
+        scaling = Scaling.maker(scaling, target=target, impactor=impactor, **vars(argproc.common_args), **kwargs)
         prho = scaling.impactor.density
 
         # --- Ensure velocity/angle are all set ---
