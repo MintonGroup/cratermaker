@@ -34,45 +34,43 @@ class TestSurface(unittest.TestCase):
     
     def test_initialize_surface(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            
-            directory = Path.cwd() / _DATA_DIR
-            if directory.exists() and directory.is_dir():
-                try:
-                    shutil.rmtree(directory)
-                except Exception as error:
-                    print(f"Error: {directory} : {error}")
-
             # Initializing it first should run the jigsaw mesh generator
             surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
-            
+            del surf
+
             # Try initializing the surface again with the same parameters. This should find the existing grid file and load it 
             surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=False)
-            
+
             # Test regridding if the parameters change
             n_face_orig = surf.uxds.uxgrid.n_face
-        
+            del surf
+
             surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel-1, target=self.target, reset_surface=False)
             self.assertGreater(n_face_orig, surf.uxds.uxgrid.n_face)
-        
+            del surf
+
             # Test different target values
-            surf = Surface.make(gridlevel=self.gridlevel, target=Target(name="Mars"), reset_surface=False)
-            surf = Surface.make(gridlevel=self.gridlevel, target="Mercury", reset_surface=False)
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=Target(name="Mars"), reset_surface=False)
+            del surf
+
+            surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target="Mercury", reset_surface=False)
+            del surf
             
             # Test bad values
             with self.assertRaises(TypeError):
                 surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=1, reset_surface=False)
+            del surf
             with self.assertRaises(ValueError):
                 surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target="Arrakis", reset_surface=False)
+            del surf
             with self.assertRaises(ValueError):
                 surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=Target(name="Salusa Secundus"), reset_surface=False)
+            del surf
         return
 
 
     def test_set_elevation(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            
-
-
             surf = Surface.make(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
             # Test with valid elevation data
             new_elev = np.random.rand(surf.uxds.uxgrid.n_node)  # Generate random elevation data
