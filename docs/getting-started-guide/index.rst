@@ -38,7 +38,7 @@ Here’s a simple example demonstrating how to initialize a simulation for the M
 
     import cratermaker
     sim = cratermaker.Simulation()
-    sim.emplace_crater(diameter=100e3)
+    sim.emplace_crater(final_diameter=100e3)
 
 
 This example uses the default Moon target and emplaces a crater of 100 km in diameter. The ``emplace_crater`` method handles the complexities of crater formation, including the selection of a random location and the necessary calculations to model the impact.
