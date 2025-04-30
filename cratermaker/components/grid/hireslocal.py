@@ -51,7 +51,7 @@ class HiResLocalGrid(Grid):
     def __repr__(self) -> str:
         base = super().__repr__()
         return (
-            f"{base}"
+            f"{base}\n"
             f"Pixel Size: {self.pix:.2f} m\n"
             f"Local Radius: {self.local_radius:.2f} m\n"
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
@@ -85,8 +85,9 @@ class HiResLocalGrid(Grid):
             from cratermaker.core.surface import Surface
             lon_rad = np.radians(lon)
             lat_rad = np.radians(lat)
-            loc_lon_rad = 0.0 #np.radians(self.local_location[0])
-            loc_lat_rad = 0.0 #np.radians(self.local_location[1])
+            # This will be rotated into the correct position later
+            loc_lon_rad = 0.0 
+            loc_lat_rad = 0.0 
 
             # Calculate distance from the location to the grid point
             distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius)
@@ -177,7 +178,7 @@ class HiResLocalGrid(Grid):
         """
 
         # Convert target lon, lat to radians
-        lon_rad, lat_rad = np.radians(self.local_location)
+        lon_rad, lat_rad = np.radians(self.local_location[0]), np.radians(self.local_location[1])
         
         # Compute target unit vector (correcting for lon,lat convention)
         target = np.array([

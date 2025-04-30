@@ -41,7 +41,7 @@ class Grid(ComponentBase):
         return (
             f"<Grid structure: {self.structure}>\n"
             f"Grid File: {self.file}\n"
-            f"Radius: {self.radius:.1f} m\n"
+            f"Radius: {self.radius:.1f} m"
         )
 
 

@@ -61,11 +61,11 @@ class NeukumProduction(Production):
     def __repr__(self) -> str:
         base = super().__repr__()
         return (
-            f"{base}"
+            f"{base}\n"
             f"Version: {self.version}\n"
             f"Valid Time Range: {self.valid_time[0]}–{self.valid_time[1]} My\n"
             f"Valid Diameter Range: {self.sfd_range[0]:.1f}–{self.sfd_range[1]/1e3:.1f} km\n"
-            f"Clin: {self.Clin:.2e}, Cexp: {self.Cexp:.2e}, tau: {self.tau:.3f} Gy\n"
+            f"Clin: {self.Clin:.2e}, Cexp: {self.Cexp:.2e}, tau: {self.tau:.3f} Gy"
         )
 
     def function(self,

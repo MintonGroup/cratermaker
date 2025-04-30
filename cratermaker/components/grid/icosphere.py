@@ -37,9 +37,9 @@ class IcosphereGrid(Grid):
     def __repr__(self) -> str:
         base = super().__repr__()
         return (
-            f"{base}"
+            f"{base}\n"
             f"Grid Level: {self.gridlevel}\n" 
-            f"Effective pixel size: {self.pix_mean:.2f} +/- {self.pix_std:.2f} m\n"
+            f"Effective pixel size: {self.pix_mean:.2f} +/- {self.pix_std:.2f} m"
         )   
 
     @property

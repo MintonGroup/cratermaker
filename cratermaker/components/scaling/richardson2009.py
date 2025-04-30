@@ -111,12 +111,12 @@ class Richardson2009(Scaling):
     def __repr__(self) -> str:
         base = super().__repr__()
         return (
-            f"{base}"
+            f"{base}\n"
             f"Material: {self.material_name}\n"
             f"K1: {self.K1:.3f}, mu: {self.mu:.3f}, Ybar: {self.Ybar:.2e} Pa\n"
             f"Target density: {self.target.density:.0f} kg/m³\n"
             f"Projectile density: {self.projectile.density:.0f} kg/m³\n"
-            f"Simple-complex transition Diameter: {self.transition_diameter:.0f} m\n"
+            f"Simple-complex transition Diameter: {self.transition_diameter:.0f} m"
         )
 
     def __setattr__(self, name, value):

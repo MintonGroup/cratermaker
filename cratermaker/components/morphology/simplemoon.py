@@ -58,12 +58,12 @@ class SimpleMoon(Morphology):
     def __repr__(self) -> str:
         base = super().__repr__()
         if self.ejecta_truncation is not None:
-            base += f"Ejecta Trunction: {self.ejecta_truncation:.2f} * crater.final_radius\n"
+            base += f"\nEjecta Trunction: {self.ejecta_truncation:.2f} * crater.final_radius"
         else:
-            base += f"Ejecta Truncation: Off\n"
+            base += f"\nEjecta Truncation: Off"
         return (
-            f"{base}"
-            f"Ejecta Rays: {self.dorays}\n"
+            f"{base}\n"
+            f"Ejecta Rays: {self.dorays}"
         )
 
     def _set_morphology_config(self) -> None:

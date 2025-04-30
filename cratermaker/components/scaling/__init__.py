@@ -104,7 +104,7 @@ class Scaling(ComponentBase):
         return (
             f"<Scaling Model: {self.model}\n"
             f"Target: {self.target}\n"
-            f"Projectile: {self.projectile}\n>"
+            f"Projectile: {self.projectile}>"
         )
 
     @property

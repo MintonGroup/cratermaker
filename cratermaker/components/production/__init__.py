@@ -42,7 +42,7 @@ class Production(ComponentBase):
         return (
             f"<Production Model: {type(self).__name__}>\n"
             f"Generator Type: {self.generator_type}\n"
-            f"Target: {self.target.name if hasattr(self, 'target') else 'Not set'}\n"
+            f"Target: {self.target.name if hasattr(self, 'target') else 'Not set'}"
         )
 
     @classmethod

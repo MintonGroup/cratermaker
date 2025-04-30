@@ -87,7 +87,7 @@ class Surface:
         return (
             f"<Surface: {self._name}>\n"
             f"{self._description}\n"
-            f"Target: {self.target.name}, Grid: {self.grid}\n"
+            f"Target: {self.target.name}, Grid: {self.grid}"
         )
     
     def load_from_data(self, compute_face_areas):

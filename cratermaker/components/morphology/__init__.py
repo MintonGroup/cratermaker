@@ -30,7 +30,7 @@ class Morphology(ComponentBase):
     def __repr__(self) -> str:
         return (
             f"<Morphology Model: {type(self).__name__}>\n"
-            f"Crater:\n{self.crater}\n"
+            f"Crater:\n{self.crater}"
         )
 
     @classmethod

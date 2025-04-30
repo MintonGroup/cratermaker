@@ -78,9 +78,9 @@ class PowerLawProduction(Production):
     def __repr__(self) -> str:
         base = super().__repr__()
         return (
-            f"{base}"
+            f"{base}\n"
             f"N1 Coefficient: {self.N1_coef:.2e}\n"
-            f"Slope: {self.slope:.3f}\n"
+            f"Slope: {self.slope:.3f}"
         )
       
     def function(self,

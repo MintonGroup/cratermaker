@@ -80,7 +80,7 @@ class Projectile(ComponentBase):
             f"Mean Velocity: {self.mean_velocity:.1f} m/s\n"
             f"Sample Velocities: {self.sample_velocities}, "
             f"Sample Angles: {self.sample_angles}, "
-            f"Sample Directions: {self.sample_directions}\n"
+            f"Sample Directions: {self.sample_directions}"
         )
 
 

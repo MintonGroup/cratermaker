@@ -101,8 +101,6 @@ Simulating a single crater is useful for testing, but Cratermaker is designed to
       The default units for Cratermaker are meters for length and million years for time.
 
 
-
-
 #########################
 Components of Cratermaker
 #########################

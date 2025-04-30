@@ -37,8 +37,8 @@ class ArbitraryResolutionGrid(Grid):
     def __repr__(self) -> str:
         base = super().__repr__()
         return (
-            f"{base}"
-            f"Effective pixel size: {self.pix_mean:.2f} +/- {self.pix_std:.2f} m\n"
+            f"{base}\n"
+            f"Effective pixel size: {self.pix_mean:.2f} +/- {self.pix_std:.2f} m"
         )           
 
     @property
