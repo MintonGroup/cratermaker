@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.components.surface import Surface
 from cratermaker.utils.general_utils import parameter
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 
 @Surface.register("arbitrary_resolution")
 class ArbitraryResolutionSurface(Surface):

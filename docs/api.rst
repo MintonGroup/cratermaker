@@ -78,43 +78,6 @@ Attributes
     Simulation.largest_projectile
 
 
-.. _api-Target:
-
-Target
-======
-
-The Target class represents the target body in a crater simulation. It encapsulates properties of the target, such as its material composition, size, and other physical characteristics.
-
-Creating a Target
------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    Target.maker
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Target.to_config
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Target.name
-    Target.material_name
-    Target.catalogue
-    Target.diameter
-    Target.escape_velocity
-    Target.gravity
-    Target.radius
-    Target.transition_scale_type
 
 .. _api-Crater:
 
@@ -152,6 +115,44 @@ Attributes
     Crater.projectile_direction
     Crater.location
     Crater.age
+
+.. _api-Target:
+
+Target
+======
+
+The Target class represents the target body in a crater simulation. It encapsulates properties of the target, such as its material composition, size, and other physical characteristics.
+
+Creating a Target
+-----------------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.maker
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.to_config
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    Target.name
+    Target.material_name
+    Target.catalogue
+    Target.diameter
+    Target.escape_velocity
+    Target.gravity
+    Target.radius
+    Target.transition_scale_type
 
 .. _api-Surface:
 

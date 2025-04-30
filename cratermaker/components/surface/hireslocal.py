@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from cratermaker.utils.general_utils import validate_and_convert_location, parameter
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.components.surface import Surface
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 
 @Surface.register("hireslocal")
 class HiResLocalSurface(Surface):

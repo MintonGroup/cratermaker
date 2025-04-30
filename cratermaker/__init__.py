@@ -17,8 +17,8 @@ warnings.filterwarnings("ignore",category=FutureWarning,module="xarray")
 warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
 
 from .core.simulation import Simulation
-from .core.target import Target
 from .core.crater import Crater
+from .components.target import Target
 from .components.scaling import Scaling
 from .components.production import Production
 from .components.morphology import Morphology

@@ -3,7 +3,7 @@ import numpy as np
 from numpy.random import Generator
 from pathlib import Path
 from dataclasses import dataclass
-from .target import Target
+from ..components.target import Target
 from ..utils.general_utils import validate_and_convert_location
 from ..utils import montecarlo as mc
 from ..components.scaling import Scaling

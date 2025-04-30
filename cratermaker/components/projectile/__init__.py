@@ -6,7 +6,7 @@ from cratermaker.utils.general_utils import parameter
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 
 class Projectile(ComponentBase):
     _registry: dict[str, Projectile] = {}

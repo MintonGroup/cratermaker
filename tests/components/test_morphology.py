@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 from cratermaker.components.morphology import Morphology
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 from cratermaker.components.surface import Surface
 from cratermaker import Crater
 

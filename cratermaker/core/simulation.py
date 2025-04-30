@@ -9,7 +9,7 @@ from numpy.typing import ArrayLike
 import yaml
 from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR, _COMPONENT_NAMES
 from .base import CratermakerBase, _convert_for_yaml, _to_config
-from .target import Target
+from ..components.target import Target
 from .crater import Crater
 from ..utils.general_utils import parameter, _set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats

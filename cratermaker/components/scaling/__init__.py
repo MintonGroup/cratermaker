@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from numpy.random import Generator
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 from cratermaker.components.projectile import Projectile
 from cratermaker.utils.component_utils import ComponentBase, import_components
 

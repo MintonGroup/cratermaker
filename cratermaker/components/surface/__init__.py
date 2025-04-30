@@ -13,7 +13,7 @@ from numpy.typing import NDArray, ArrayLike
 from typing import Any
 import hashlib
 from cratermaker.constants import _GRID_FILE_NAME, _DATA_DIR, _SMALLFAC, _COMBINED_DATA_FILE_NAME 
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.montecarlo import get_random_location_on_face
 from cratermaker.utils.component_utils import ComponentBase, import_components
