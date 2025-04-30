@@ -73,8 +73,9 @@ class Projectile(ComponentBase):
         self.sample_directions = sample_directions
 
     def __repr__(self) -> str:
+        base = super().__repr__()
         return (
-            f"<Projectile population: {self.population}>\n"
+            f"{base}\n"
             f"Target: {self.target.name}\n"
             f"Density: {self.density:.1f} kg/m³\n"
             f"Mean Velocity: {self.mean_velocity:.1f} m/s\n"

@@ -101,8 +101,9 @@ class Scaling(ComponentBase):
         return super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def __repr__(self) -> str:
+        base = super().__repr__()
         return (
-            f"<Scaling Model: {self.model}\n"
+            f"{base}\n"
             f"Target: {self.target}\n"
             f"Projectile: {self.projectile}>"
         )

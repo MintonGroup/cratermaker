@@ -39,8 +39,9 @@ class Production(ComponentBase):
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
 
     def __repr__(self) -> str:
+        base = super().__repr__()
         return (
-            f"<Production Model: {type(self).__name__}>\n"
+            f"{base}\n"
             f"Generator Type: {self.generator_type}\n"
             f"Target: {self.target.name if hasattr(self, 'target') else 'Not set'}"
         )

@@ -40,9 +40,9 @@ class TestSimulation(unittest.TestCase):
             sim.save()
         
             # Test that variables are saved correctly
-            sim.surf.set_elevation(1.0)
-            np.testing.assert_array_equal(sim.surf.uxds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node)) 
-            np.testing.assert_array_equal(sim.surf.uxds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face)) 
+            sim.surface.set_elevation(1.0)
+            np.testing.assert_array_equal(sim.surface.uxds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node)) 
+            np.testing.assert_array_equal(sim.surface.uxds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face)) 
             
             sim.save()
             
@@ -50,8 +50,8 @@ class TestSimulation(unittest.TestCase):
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
-                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node))
-                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face))
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
         
             # Test saving combined data
             sim.save(combine_data_files=True)
@@ -61,8 +61,8 @@ class TestSimulation(unittest.TestCase):
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
-                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node))
-                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face))
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
     
         return 
         

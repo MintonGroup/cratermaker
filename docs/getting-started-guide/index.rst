@@ -11,8 +11,7 @@ Cratermaker is designed to be both user-friendly and highly configurable, ensuri
 - **Projectile**: Models the properties of projectiles, including their size, velocity, and density. 
 - **Production**: Manages the production function, which determines the number of craters/projectiles produced over time and surface area.
 - **Target**: Models the properties of the target body, including its size, material properties, and surface gravity.
-- **Surface**: Represents the surface of the target body, including its topography and material properties.
-- **Grid**: Handles the construction of the unstructured grid used for the modeling the surface, including its resolution and geometry.
+- **Surface**: Represents the surface of the target body, including its resolution, topography, material properties.
 - **Morphology**: Used to construct the three-dimensional representation of a crater onto the surface.
 - **Crater**: Represents a single crater and the properties of the projectile that formed it.
 

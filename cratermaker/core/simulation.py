@@ -11,14 +11,13 @@ from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA
 from .base import CratermakerBase, _convert_for_yaml, _to_config
 from .target import Target
 from .crater import Crater
-from .surface import Surface, _save_surface
 from ..utils.general_utils import parameter, _set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..components.scaling import Scaling
 from ..components.production import Production
 from ..components.morphology import Morphology
 from ..components.projectile import Projectile
-from ..components.grid import Grid
+from ..components.surface import Surface, _save_surface
 
 class Simulation(CratermakerBase):
     """
@@ -31,7 +30,7 @@ class Simulation(CratermakerBase):
                  production: Production | str | None = None,
                  morphology: Morphology | str | None = None,
                  projectile: Projectile | str | None = None,
-                 grid: Grid | str | None = None,
+                 surface: Surface | str | None = None,
                  simdir: str | Path | None = None,
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
@@ -53,8 +52,8 @@ class Simulation(CratermakerBase):
             Earth, and a simple power law model otherwise.
         morphology : str, optional
             The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
-        grid : str, optional
-            The name of the grid used for the surface. Default is "icosphere".
+        surface : str, optional
+            The name of the surface used for the surface. Default is "icosphere".
         projectile : str, optional
             The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise. 
         simdir : str | Path
@@ -71,7 +70,7 @@ class Simulation(CratermakerBase):
             
         See Also
         --------
-        cratermaker.core.surface.Surface.maker : Parameters for initializing a surface mesh.
+        cratermaker.Surface.maker : Parameters for initializing a surface mesh.
         """
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
@@ -79,7 +78,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_production", production)
         object.__setattr__(self, "_morphology", morphology)
         object.__setattr__(self, "_projectile", projectile)
-        object.__setattr__(self, "_grid", grid)
+        object.__setattr__(self, "_surface", surface)
         object.__setattr__(self, "_craterlist", None)
         object.__setattr__(self, "_crater", None)
         object.__setattr__(self, "_interval_number", None)
@@ -102,7 +101,7 @@ class Simulation(CratermakerBase):
             # Set to true if a local variable from the argument list with the component name is set to something other than None, otherwise false
             config_override[component] = getattr(self, f"_{component}") is not None 
 
-        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, projectile=projectile, grid=grid, config_file=config_file)
+        _, unmatched = _set_properties(self, target=target, rng_seed=rng_seed, scaling=scaling, production=production, morphology=morphology, projectile=projectile, surface=surface, config_file=config_file)
 
         for component in _COMPONENT_NAMES:
             if config_override[component]:
@@ -115,7 +114,6 @@ class Simulation(CratermakerBase):
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
         projectile_config = unmatched.pop("projectile_config", {})
-        grid_config = unmatched.pop("grid_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
 
@@ -134,8 +132,7 @@ class Simulation(CratermakerBase):
         morphology_config = {**morphology_config, **kwargs}
         self.morphology = Morphology.maker(self.morphology, **morphology_config)
       
-        grid_type = kwargs.get('grid_type', None)
-        if grid_type is not None and grid_type == 'hires local':
+        if self.surface is not None and self.surface == 'hireslocal':
             if 'superdomain_scale_factor' not in kwargs:
                 # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
                 # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
@@ -146,9 +143,8 @@ class Simulation(CratermakerBase):
                         superdomain_scale_factor = rmax / crater.final_radius
                         break
                 kwargs['superdomain_scale_factor'] = superdomain_scale_factor
-        surface_config = {**surface_config, **grid_config, **kwargs}
-        self.surf = Surface.maker(target=self.target, grid=self.grid, **surface_config)
-        self.grid = self.surf.grid
+        surface_config = {**surface_config, **kwargs}
+        self.surface = Surface.maker(self.surface, target=self.target, **surface_config)
 
         self._craterlist = []
         self._crater = None
@@ -172,7 +168,7 @@ class Simulation(CratermakerBase):
         Get the smallest possible crater or projectile be formed on the surface.
         """
         if face_areas is None:
-            face_areas = self.surf.face_areas
+            face_areas = self.surface.face_areas
         else:
             face_areas = np.asarray(face_areas)
         smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2        
@@ -274,7 +270,7 @@ class Simulation(CratermakerBase):
 
         """
         self.crater = self.generate_crater(**kwargs)
-        self.morphology.form_crater(self.surf,self.crater,**kwargs)
+        self.morphology.form_crater(self.surface,self.crater,**kwargs)
         
         return  
 
@@ -323,10 +319,10 @@ class Simulation(CratermakerBase):
         impact_diameters = []
         impact_ages = []
         impact_locations = []
-        face_areas = self.surf.face_areas
+        face_areas = self.surface.face_areas
         min_area = face_areas.min()
         n_face = face_areas.size
-        surface_area = self.surf.area.item() 
+        surface_area = self.surface.area.item() 
          
         # Group surfaces into bins based on their area. All bins within a factor of 2 in surface area are grouped together.
         max_bin_index = np.ceil(np.log2(face_areas.max() / min_area)).astype(int)
@@ -370,7 +366,7 @@ class Simulation(CratermakerBase):
                 # Get the probability of impact onto any particular face then get the locations of the impacts
                 p = bin_areas / total_bin_area
                 face_indices = self.rng.choice(face_indices, size=diameters.shape)
-                locations = np.vectorize(self.surf.get_random_location_on_face)(face_indices)
+                locations = np.vectorize(self.surface.get_random_location_on_face)(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
             
         if len(impact_diameters) > 0: 
@@ -579,7 +575,7 @@ class Simulation(CratermakerBase):
         if 'diameter_range' not in kwargs:
             kwargs['diameter_range'] = (self.get_smallest_diameter(), self.get_largest_diameter())
         if 'area' not in kwargs:
-            kwargs['area'] = self.surf.area.item()
+            kwargs['area'] = self.surface.area.item()
         kwargs  = self.production._validate_sample_args(**kwargs)
        
         if is_age_interval:
@@ -672,19 +668,17 @@ class Simulation(CratermakerBase):
         sim_config['target_config'] = self.target.to_config(remove_common_args=True)
         sim_config['scaling_config'] = self.scaling.to_config(remove_common_args=True)
         sim_config['production_config'] = self.production.to_config(remove_common_args=True)
-        sim_config['surface_config'] = self.surf.to_config(remove_common_args=True)
+        sim_config['surface_config'] = self.surface.to_config(remove_common_args=True)
         sim_config['projectile_config'] = self.projectile.to_config(remove_common_args=True)
         sim_config['morphology_config'] = self.morphology.to_config(remove_common_args=True)
-        sim_config['grid_config'] = self.grid.to_config(remove_common_args=True)
-        sim_config['grid_config'].pop("radius", None) # Radius is determined by the target when the grid is associated with a Surface, so this is redundant 
         sim_config['target'] = self.target.name
         sim_config['scaling'] = self.scaling._component_name
         sim_config['production'] = self.production._component_name
         sim_config['projectile'] = self.projectile._component_name
         sim_config['morphology'] = self.morphology._component_name
-        sim_config['grid'] = self.grid._component_name
+        sim_config['surface'] = self.surface._component_name
 
-        for config in ['target', 'scaling', 'production', 'projectile', 'morphology', 'grid', 'surface']:
+        for config in ['target', 'scaling', 'production', 'projectile', 'morphology', 'surface']:
             # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
             if config in sim_config:
                 if sim_config[config] is None or sim_config[config] == {}:
@@ -711,7 +705,7 @@ class Simulation(CratermakerBase):
             "elapsed_n1": self.elapsed_n1
             }
          
-        _save_surface(self.surf, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
+        _save_surface(self.surface, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
 
         self.to_config(**kwargs)
         
@@ -737,17 +731,17 @@ class Simulation(CratermakerBase):
 
         data_dir = self.simdir / _DATA_DIR
         data_file_list = list(data_dir.glob("*.nc"))
-        if self.surf.grid_file in data_file_list:
-            data_file_list.remove(self.surf.grid_file)
+        if self.grid_file in data_file_list:
+            data_file_list.remove(self.grid_file)
        
         # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
-        n_node = self.surf.uxds.uxgrid.n_node
-        n_face = self.surf.uxds.uxgrid.n_face
-        node_x = self.surf.uxds.uxgrid.node_x.values * self.target.radius
-        node_y = self.surf.uxds.uxgrid.node_y.values * self.target.radius
-        node_z = self.surf.uxds.uxgrid.node_z.values * self.target.radius
-        n_nodes_per_face = self.surf.uxds.uxgrid.n_nodes_per_face.values
-        face_node_connectivity = self.surf.uxds.uxgrid.face_node_connectivity.values
+        n_node = self.surface.uxgrid.n_node
+        n_face = self.surface.uxgrid.n_face
+        node_x = self.surface.uxgrid.node_x.values * self.target.radius
+        node_y = self.surface.uxgrid.node_y.values * self.target.radius
+        node_z = self.surface.uxgrid.node_z.values * self.target.radius
+        n_nodes_per_face = self.surface.uxgrid.n_nodes_per_face.values
+        face_node_connectivity = self.surface.uxgrid.face_node_connectivity.values
         
         vtk_data = vtkUnstructuredGrid()
         nodes = vtkPoints()
@@ -807,7 +801,7 @@ class Simulation(CratermakerBase):
                 warp.SetInputData(polyDataWithNormals)
                 warp.Update()
                 warped_output = warp.GetOutput()
-                output_filename = out_dir / f"surf{i:06d}.vtp"
+                output_filename = out_dir / f"surface{i:06d}.vtp"
                 writer.SetFileName(output_filename)
                 writer.SetInputData(warped_output) 
                 writer.Write()               
@@ -943,10 +937,10 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
-        *args: Variable length argument list to pass to self.surf.set_elevation.
-        **kwargs: Arbitrary keyword arguments to pass to self.surf.set_elevation.
+        *args: Variable length argument list to pass to self.surface.set_elevation.
+        **kwargs: Arbitrary keyword arguments to pass to self.surface.set_elevation.
         """
-        return self.surf.set_elevation(*args, **kwargs)   
+        return self.surface.set_elevation(*args, **kwargs)   
 
     @property
     def target(self):
@@ -962,16 +956,16 @@ class Simulation(CratermakerBase):
         self._target = value
 
     @property
-    def surf(self):
+    def surface(self):
         """
         Surface mesh data for the simulation. Set during initialization.
         """
         return self._surf
     
-    @surf.setter
-    def surf(self, value):
+    @surface.setter
+    def surface(self, value):
         if not isinstance(value, (Surface, str)):
-            raise TypeError("surf must be an instance of Surface or str")
+            raise TypeError("surface must be an instance of Surface or str")
         self._surf = value
 
     @property
@@ -1043,30 +1037,30 @@ class Simulation(CratermakerBase):
     @property
     def data_dir(self):
         """
-        Directory where the data files are stored. Dynamically set based on `surf` attribute.
+        Directory where the data files are stored. Dynamically set based on `surface` attribute.
         """
-        return self.surf.data_dir
+        return self.surface.data_dir
 
     @property
     def grid_file(self):
         """
-        File path of the grid file. Dynamically set based on `surf` attribute.
+        File path of the grid file. Dynamically set based on `surface` attribute.
         """
-        return self.surf.grid_file
+        return self.surface.grid_file
 
     @property
     def n_node(self):
         """
-        Number of nodes in the simulation mesh. Dynamically set based on `surf` attribute.
+        Number of nodes in the simulation mesh. Dynamically set based on `surface` attribute.
         """
-        return self.surf.uxgrid.n_node
+        return self.surface.uxgrid.n_node
 
     @property
     def n_face(self):
         """
-        Number of faces in the simulation mesh. Dynamically set based on `surf` attribute.
+        Number of faces in the simulation mesh. Dynamically set based on `surface` attribute.
         """
-        return self.surf.uxgrid.n_face
+        return self.surface.uxgrid.n_face
 
 
     @parameter
@@ -1212,19 +1206,6 @@ class Simulation(CratermakerBase):
         """
         return self.simdir / _CONFIG_FILE_NAME
     
-    @property
-    def grid(self):
-        """
-        The type of grid used for the surface.
-        """
-        return self._grid
-    
-    @grid.setter
-    def grid(self, value):
-        if not isinstance(value, (Grid, str)):
-            raise TypeError("grid must be a string or Grid object")
-        self._grid = value
-
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
         if name not in self._user_defined:

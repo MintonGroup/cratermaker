@@ -1,13 +1,12 @@
 from pathlib import Path
-import numpy as np
 from typing import Any
 from numpy.typing import NDArray
-from cratermaker.utils.custom_types import FloatLike
-from cratermaker.components.grid import Grid
+from cratermaker.components.surface import Surface
 from cratermaker.utils.general_utils import parameter
+from cratermaker.core.target import Target
 
-@Grid.register("icosphere")
-class IcosphereGrid(Grid):    
+@Surface.register("icosphere")
+class IcosphereSurface(Surface):    
     """
     Create a uniform grid configuration using an icosphere. This is the most accurate and efficient way to create a uniform grid, but is limited to a few resolutions.
     
@@ -15,24 +14,30 @@ class IcosphereGrid(Grid):
     ----------
     gridlevel : float
         The subdivision level of the icosphere. The number of faces is 20 * 4**gridlevel. The default gridlevel is 8.
-    radius: FloatLike
-        The radius of the target body in meters.
+    target : Target, optional
+        The target body or name of a known target body for the impact simulation. 
+    reset_surface : bool, optional
+        Flag to indicate whether to reset the surface. Default is True.
+    regrid : bool, optional
+        Flag to indicate whether to regrid the surface. Default is False.
     simdir : str | Path
-        The main project simulation directory.
+        The main project simulation directory. Defaults to the current working directory if None.
 
     Returns
     -------
-    IcosphereGrid
-        An instance of the IcosphereGrid class initialized with the given pixel size. 
+    IcosphereSurface
+        An instance of the IcosphereSurface class initialized with the given pixel size. 
     """    
     
     def __init__(self, 
                  gridlevel: int = 8, 
-                 radius: FloatLike = 1.0, 
+                 target: Target | str | None = None,
+                 reset_surface: bool = False,
+                 regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs: Any):
-        super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.gridlevel = gridlevel
+        super().__init__(target=target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
 
     def __repr__(self) -> str:
         base = super().__repr__()
@@ -82,5 +87,5 @@ class IcosphereGrid(Grid):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self._radius, self._gridlevel]
+        return [self._component_name, self._target.radius, self._gridlevel]
     

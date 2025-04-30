@@ -17,7 +17,7 @@ Simulation
 The Simulation class is the main class for the cratermaker project. It is used to create a simulation of a crater on a given target 
 body. The Simulation class is used to generate craters of a given size and morphology based on the production function, morphology
 function, and crater scaling relationship model. The surface of the target body is represented by a Surface attribute called
-`surf`, which contains a UxDataset object called `surf.uxds`. This is an unstructured grid dataset that contains data for the target body surface.
+`surface`, which contains a UxDataset object called `surface.uxds`. This is an unstructured grid dataset that contains data for the target body surface.
 
 Creating a Simulation
 ---------------------
@@ -52,7 +52,7 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Simulation.surf
+    Simulation.surface
     Simulation.production
     Simulation.scaling
     Simulation.crater
@@ -77,59 +77,6 @@ Attributes
     Simulation.smallest_projectile
     Simulation.largest_projectile
 
-
-.. _api-Surface:
-
-Surface
-=======
-
-The Surface class is used for handling surface-related data and operations in the cratermaker project. It provides methods for setting elevation data, calculating distances and bearings, and other surface-related computations. The Surface class extends UxDataset for the cratermaker project.
-
-Creating a surface
-------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    Surface.maker
-
-Methods
--------
-
-.. autosummary::
-    :toctree: generated/
-
-    Surface.calculate_haversine_distance
-    Surface.calculate_initial_bearing
-    Surface.find_nearest_index
-    Surface.get_reference_surface
-    Surface.get_distance
-    Surface.get_initial_bearing
-    Surface.generate_data
-    Surface.set_elevation
-    Surface.elevation_to_cartesian
-    Surface.extract_region
-    Surface.get_random_location_on_face
-    Surface.to_config
-
-Attributes
-----------
-
-.. autosummary::
-    :toctree: generated/
-
-    Surface.uxds
-    Surface.grid
-    Surface.node_tree
-    Surface.face_tree
-    Surface.data_dir
-    Surface.grid_file
-    Surface.smallest_length
-    Surface.area
-    Surface.target
-    Surface.rng
-    Surface.rng_seed
-    Surface.simdir
 
 .. _api-Target:
 
@@ -206,20 +153,57 @@ Attributes
     Crater.location
     Crater.age
 
-.. _api-Grid:
+.. _api-Surface:
 
-.. currentmodule:: cratermaker.components.grid
+.. currentmodule:: cratermaker.components.surface
 
-Grid
-====
+Surface
+=======
 
 .. autosummary::
     :toctree: generated/
 
-    Grid.maker
-    Grid.available
-    Grid.generate_grid
-    Grid.check_if_regrid
+    Surface.maker
+    Surface.available
+    Surface.generate_grid
+    Surface.check_if_regrid
+
+
+
+
+.. _api-Surface:
+
+Surface
+=======
+
+The Surface class is used for handling surface-related data and operations in the cratermaker project. It provides methods for setting elevation data, calculating distances and bearings, and other surface-related computations. The Surface class extends UxDataset for the cratermaker project.
+
+Creating a surface
+------------------
+
+.. autosummary::
+    :toctree: generated/
+
+    Surface.maker
+
+Methods
+-------
+
+.. autosummary::
+    :toctree: generated/
+
+    Surface.calculate_haversine_distance
+    Surface.calculate_initial_bearing
+    Surface.find_nearest_index
+    Surface.get_reference_surface
+    Surface.get_distance
+    Surface.get_initial_bearing
+    Surface.generate_data
+    Surface.set_elevation
+    Surface.elevation_to_cartesian
+    Surface.extract_region
+    Surface.get_random_location_on_face
+    Surface.to_config
 
 Attributes
 ----------
@@ -227,20 +211,39 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    IcosphereGrid.name
-    IcosphereGrid.radius
-    IcosphereGrid.uxgrid
-    IcosphereGrid.file
-    IcosphereGrid.regrid
-    IcosphereGrid.gridlevel
+    Surface.uxds
+    Surface.uxgrid
+    Surface.node_tree
+    Surface.face_tree
+    Surface.data_dir
+    Surface.grid_file
+    Surface.smallest_length
+    Surface.area
+    Surface.target
+    Surface.rng
+    Surface.rng_seed
+    Surface.simdir
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    IcosphereSurface.name
+    IcosphereSurface.radius
+    IcosphereSurface.uxgrid
+    IcosphereSurface.file
+    IcosphereSurface.regrid
+    IcosphereSurface.gridlevel
 
 Usage example
 -------------
 
 .. code-block:: python
 
-    from cratermaker.components.grid import IcosphereGrid
-    grid = IcosphereGrid.maker(3, radius=1737.4)
+    from cratermaker.components.grid import IcosphereSurface
+    grid = IcosphereSurface.maker(3, radius=1737.4)
 
 
 .. currentmodule:: cratermaker.components.grid.arbitrary_resolution
@@ -251,12 +254,12 @@ Arbitrary resolution grid
 .. autosummary::
     :toctree: generated/
 
-    ArbitraryResolutionGrid.maker
-    ArbitraryResolutionGrid.generate_face_distribution
-    IcosphereGrid.generate_face_distribution
-    IcosphereGrid.generate_grid
-    IcosphereGrid.check_if_regrid
-    IcosphereGrid.to_config
+    ArbitraryResolutionSurface.maker
+    ArbitraryResolutionSurface.generate_face_distribution
+    IcosphereSurface.generate_face_distribution
+    IcosphereSurface.generate_grid
+    IcosphereSurface.check_if_regrid
+    IcosphereSurface.to_config
 
 Attributes
 ----------
@@ -264,16 +267,16 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    ArbitraryResolutionGrid.pix
-    ArbitraryResolutionGrid.radius
+    ArbitraryResolutionSurface.pix
+    ArbitraryResolutionSurface.radius
 
 Usage example
 -------------
 
 .. code-block:: python
 
-    from cratermaker.components.grid import ArbitraryResolutionGrid
-    grid = ArbitraryResolutionGrid.maker(pix=100, radius=1737.4)
+    from cratermaker.components.grid import ArbitraryResolutionSurface
+    grid = ArbitraryResolutionSurface.maker(pix=100, radius=1737.4)
 
 
 .. currentmodule:: cratermaker.components.grid.hireslocal
@@ -284,8 +287,8 @@ Hi-res local grid
 .. autosummary::
     :toctree: generated/
 
-    HiResLocalGrid.maker
-    HiResLocalGrid.generate_face_distribution
+    HiResLocalSurface.maker
+    HiResLocalSurface.generate_face_distribution
 
 Attributes
 ----------
@@ -293,19 +296,19 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    HiResLocalGrid.pix
-    HiResLocalGrid.radius
-    HiResLocalGrid.local_radius
-    HiResLocalGrid.local_location
-    HiResLocalGrid.superdomain_scale_factor
+    HiResLocalSurface.pix
+    HiResLocalSurface.radius
+    HiResLocalSurface.local_radius
+    HiResLocalSurface.local_location
+    HiResLocalSurface.superdomain_scale_factor
 
 Usage example
 -------------
 
 .. code-block:: python
 
-    from cratermaker.components.grid import HiResLocalGrid
-    grid = HiResLocalGrid.maker(pix=50, radius=1737.4, local_radius=100)
+    from cratermaker.components.grid import HiResLocalSurface
+    grid = HiResLocalSurface.maker(pix=50, radius=1737.4, local_radius=100)
 
 
 .. _api-Production:

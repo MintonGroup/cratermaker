@@ -3,11 +3,12 @@
 !cratermaker/core/
 !cratermaker/models/
 !cratermaker/components/
-!cratermaker/components/scaling/
-!cratermaker/components/production/
 !cratermaker/components/morphology/
-!cratermaker/components/grid/
+!cratermaker/components/production/
 !cratermaker/components/projectile/
+!cratermaker/components/scaling/
+!cratermaker/components/surface/
+!cratermaker/components/target/
 !cratermaker/utils/
 !cratermaker/**/*.py
 !cratermaker/**/*.pyx

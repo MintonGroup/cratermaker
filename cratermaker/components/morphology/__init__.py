@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import Any
 from cratermaker.core.crater import Crater
-from cratermaker.core.surface import Surface
+from cratermaker.components.surface import Surface
 from cratermaker.utils.component_utils import ComponentBase, import_components
 
 class Morphology(ComponentBase):
@@ -28,8 +28,9 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_crater" , crater)
 
     def __repr__(self) -> str:
+        base = super().__repr__()
         return (
-            f"<Morphology Model: {type(self).__name__}>\n"
+            f"{base}\n"
             f"Crater:\n{self.crater}"
         )
 
@@ -70,7 +71,7 @@ class Morphology(ComponentBase):
 
     @abstractmethod
     def form_crater(self, 
-                    surf: Surface,
+                    surface: Surface,
                     crater: Crater | None = None,
                     **kwargs) -> None: ...    
     

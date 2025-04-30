@@ -3,36 +3,43 @@ import numpy as np
 from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.components.grid import Grid
+from cratermaker.components.surface import Surface
 from cratermaker.utils.general_utils import parameter
+from cratermaker.core.target import Target
 
-@Grid.register("arbitrary_resolution")
-class ArbitraryResolutionGrid(Grid):
+@Surface.register("arbitrary_resolution")
+class ArbitraryResolutionSurface(Surface):
     """
-    Create a uniform grid configuration with an arbitrary user-defined pixel size. This will not be as nice as the regular IcosphereGrid, but can be any resolution desired.
+    Create a uniform grid configuration with an arbitrary user-defined pixel size. This will not be as nice as the regular IcosphereSurface, but can be any resolution desired.
     
     Parameters
     ----------
     pix : float
         The approximate face size for the mesh in meters.
-    radius: FloatLike
-        The radius of the target body in meters.
+    target : Target, optional
+        The target body or name of a known target body for the impact simulation. 
+    reset_surface : bool, optional
+        Flag to indicate whether to reset the surface. Default is True.
+    regrid : bool, optional
+        Flag to indicate whether to regrid the surface. Default is False.
     simdir : str | Path
-        The main project simulation directory.
+        The main project simulation directory. Defaults to the current working directory if None.
 
     Returns
     -------
-    ArbitraryResolutionGrid
-        An instance of the ArbitraryResolutionGrid class initialized with the given pixel size. 
+    ArbitraryResolutionSurface
+        An instance of the ArbitraryResolutionSurface class initialized with the given pixel size. 
     """    
     
     def __init__(self, 
                  pix: FloatLike | None = None, 
-                 radius: FloatLike = 1.0, 
+                 target: Target | str | None = None,
+                 reset_surface: bool = False,
+                 regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs: Any):
-        super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.pix = pix
+        super().__init__(target=target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
 
     def __repr__(self) -> str:
         base = super().__repr__()
@@ -46,7 +53,7 @@ class ArbitraryResolutionGrid(Grid):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self._radius, self._pix]
+        return [self._component_name, self._target.radius, self._pix]
 
     @parameter
     def pix(self):
