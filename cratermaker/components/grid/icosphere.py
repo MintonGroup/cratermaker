@@ -20,7 +20,6 @@ class IcosphereGrid(Grid):
     simdir : str | Path
         The main project simulation directory.
 
-
     Returns
     -------
     IcosphereGrid
@@ -34,7 +33,15 @@ class IcosphereGrid(Grid):
                  **kwargs: Any):
         super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.gridlevel = gridlevel
-        
+
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        return (
+            f"{base}"
+            f"Grid Level: {self.gridlevel}\n" 
+            f"Effective pixel size: {self.pix_mean:.2f} +/- {self.pix_std:.2f} m\n"
+        )   
+
     @property
     def _hashvars(self):
         """
@@ -60,15 +67,6 @@ class IcosphereGrid(Grid):
         return points
    
     
-    def generate_grid(self, **kwargs: Any):
-        super().generate_grid(**kwargs)
-        face_areas = self.uxgrid.face_areas 
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_mean = face_sizes.mean().item() * self.radius
-        pix_std = face_sizes.std().item() * self.radius
-        print(f"Effective pixel size: {pix_mean:.2f} +/- {pix_std:.2f} m")
-        return    
-    
     @parameter
     def gridlevel(self) -> int:
         return self._gridlevel
@@ -85,3 +83,4 @@ class IcosphereGrid(Grid):
         The variables used to generate the hash.
         """
         return [self._component_name, self._radius, self._gridlevel]
+    

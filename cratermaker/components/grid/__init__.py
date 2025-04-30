@@ -29,8 +29,20 @@ class Grid(ComponentBase):
         object.__setattr__(self, "_grid", None)
         object.__setattr__(self, "_radius", None)
         object.__setattr__(self, "_file", None)
+        object.__setattr__(self, "_uxgrid", None)
         object.__setattr__(self, "_regrid", regrid)
+        object.__setattr__(self, "_pix_mean", None)
+        object.__setattr__(self, "_pix_std", None)
+        object.__setattr__(self, "_pix_min", None)
+        object.__setattr__(self, "_pix_max", None)
         self.radius = radius
+
+    def __repr__(self) -> str:
+        return (
+            f"<Grid structure: {self.structure}>\n"
+            f"Grid File: {self.file}\n"
+            f"Radius: {self.radius:.1f} m\n"
+        )
 
 
     @classmethod
@@ -96,7 +108,7 @@ class Grid(ComponentBase):
         
         if make_new_grid:
             print("Creating a new grid")
-            grid.create_grid(**kwargs)
+            grid.generate_grid(**kwargs)
             grid._regrid = True
         else:
             print("Using existing grid")
@@ -118,6 +130,7 @@ class Grid(ComponentBase):
         `ArbitraryResolutionGrid`, `HiResLocalGrid`, etc.).
         
         """       
+        self.file.unlink(missing_ok=True)
 
         points = self.generate_face_distribution(**kwargs) 
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi")
@@ -130,9 +143,14 @@ class Grid(ComponentBase):
         # Replace the original file only if writing succeeded
         shutil.move(temp_file.name,self.file)      
         self.uxgrid = uxgrid
-        print("Mesh generation complete")
 
-        return         
+        regrid = self.check_if_regrid(**kwargs)
+        assert(not regrid)
+
+        self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size()
+
+        print(self)
+        return
 
     def check_if_regrid(self, **kwargs: Any) -> bool:
         """
@@ -151,32 +169,17 @@ class Grid(ComponentBase):
         make_new_grid = not Path(self.file).exists()
         
         if not make_new_grid:
-            with xr.open_dataset(self.file) as ds:
-                uxgrid = uxr.Grid.from_dataset(ds)
-                try: 
+            try: 
+                with xr.open_dataset(self.file) as ds:
+                    uxgrid = uxr.Grid.from_dataset(ds)
                     old_id = uxgrid.attrs.get("_id")
                     make_new_grid = old_id != self._id
-                except:
-                    make_new_grid = True
-                
+            except:
+                make_new_grid = True
+        if not make_new_grid:
+            self.uxgrid = uxgrid 
         return make_new_grid
 
-    def create_grid(self, **kwargs: Any):
-        """
-
-        Creates a new grid file based on the grid parameters and stores the new grid as the grid property of the object. 
-
-        """
-    
-        # Generate the hash for the current parameters
-        self.file.unlink(missing_ok=True)
-        self.generate_grid(**kwargs) 
-        
-        # Check to make sure we can open the grid file and that the hash matches
-        regrid = self.check_if_regrid(**kwargs)
-        assert(not regrid)
-
-        return 
 
     @property
     def _hashvars(self):
@@ -312,7 +315,68 @@ class Grid(ComponentBase):
         Whether the grid was rebuilt when the class was constructed.
         """
         return self._regrid
+    
+    def _compute_pix_size(self) -> tuple[float, float]:
+        """
+        Compute the effective pixel size of the mesh based on the face areas.
+
+        Returns
+        -------
+        tuple[float, float, float, float]
+            The mean, standard deviation, minimum, and maximum of the pixel size in meters.
+        """
+        if self.uxgrid is None:
+            return None, None
+        face_areas = self.uxgrid.face_areas 
+        face_sizes = np.sqrt(face_areas / (4 * np.pi))
+        pix_mean = face_sizes.mean().item() * self.radius
+        pix_std = face_sizes.std().item() * self.radius
+        pix_min = face_sizes.min().item() * self.radius
+        pix_max = face_sizes.max().item() * self.radius
+        return float(pix_mean), float(pix_std), float(pix_min), float(pix_max)
+    
+    @property
+    def pix_mean(self):
+        """
+        The mean pixel size of the mesh.
+        """
+        if self._pix_mean is None and self.uxgrid is not None:
+            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size()
+        return self._pix_mean
+    
+    @property
+    def pix_std(self):
+        """
+        The standard deviation of the pixel size of the mesh.
+        """
+        if self._pix_std is None and self.uxgrid is not None:
+            self._pix_mean, self._pix_std, self._pix_min = self._compute_pix_size()
+        return self._pix_std
+    
+    @property
+    def pix_min(self):
+        """
+        The minimum pixel size of the mesh.
+        """
+        if self._pix_min is None and self.uxgrid is not None:
+            self._pix_mean, self._pix_std, self._pix_min = self._compute_pix_size()
+        return self._pix_min
+    
+    @property
+    def pix_max(self):
+        """
+        The maximum pixel size of the mesh.
+        """
+        if self._pix_max is None and self.uxgrid is not None:
+            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size()
+        return self._pix_max
+    
+    @property
+    def structure(self):
+        """
+        The structure of the grid, which describes how the grid points were distributed.
+        """
+        return self._component_name
 
 
 import_components(__name__, __path__, ignore_private=True)
-

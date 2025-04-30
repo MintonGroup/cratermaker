@@ -27,6 +27,12 @@ class Morphology(ComponentBase):
         super().__init__(**kwargs)
         object.__setattr__(self, "_crater" , crater)
 
+    def __repr__(self) -> str:
+        return (
+            f"<Morphology Model: {type(self).__name__}>\n"
+            f"Crater:\n{self.crater}\n"
+        )
+
     @classmethod
     def maker(cls, 
              morphology: str | type[Morphology] | Morphology| None = None, 

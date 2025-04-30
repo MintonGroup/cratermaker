@@ -75,7 +75,13 @@ class PowerLawProduction(Production):
             slope *= -1
         self.slope = slope 
 
-
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        return (
+            f"{base}"
+            f"N1 Coefficient: {self.N1_coef:.2e}\n"
+            f"Slope: {self.slope:.3f}\n"
+        )
       
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -161,5 +167,6 @@ class PowerLawProduction(Production):
         if not isinstance(value, FloatLike):
             raise TypeError("slope must be a numeric value (float or int)")
         self._slope = value
+
 
 

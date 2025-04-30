@@ -208,7 +208,7 @@ Attributes
 
 .. _api-Grid:
 
-.. currentmodule:: cratermaker.components.grid.icosphere
+.. currentmodule:: cratermaker.components.grid
 
 Grid
 ====
@@ -216,13 +216,10 @@ Grid
 .. autosummary::
     :toctree: generated/
 
-    IcosphereGrid.maker
-    IcosphereGrid.available
-    IcosphereGrid.generate_face_distribution
-    IcosphereGrid.generate_grid
-    IcosphereGrid.check_if_regrid
-    IcosphereGrid.create_grid
-    IcosphereGrid.to_config
+    Grid.maker
+    Grid.available
+    Grid.generate_grid
+    Grid.check_if_regrid
 
 Attributes
 ----------
@@ -256,6 +253,10 @@ Arbitrary resolution grid
 
     ArbitraryResolutionGrid.maker
     ArbitraryResolutionGrid.generate_face_distribution
+    IcosphereGrid.generate_face_distribution
+    IcosphereGrid.generate_grid
+    IcosphereGrid.check_if_regrid
+    IcosphereGrid.to_config
 
 Attributes
 ----------

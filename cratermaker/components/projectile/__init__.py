@@ -72,6 +72,17 @@ class Projectile(ComponentBase):
         self.sample_angles = sample_angles
         self.sample_directions = sample_directions
 
+    def __repr__(self) -> str:
+        return (
+            f"<Projectile population: {self.population}>\n"
+            f"Target: {self.target.name}\n"
+            f"Density: {self.density:.1f} kg/m³\n"
+            f"Mean Velocity: {self.mean_velocity:.1f} m/s\n"
+            f"Sample Velocities: {self.sample_velocities}, "
+            f"Sample Angles: {self.sample_angles}, "
+            f"Sample Directions: {self.sample_directions}\n"
+        )
+
 
     @classmethod
     def maker(cls,
@@ -397,6 +408,16 @@ class Projectile(ComponentBase):
         """
         return self.velocity * np.sin(np.radians(self.angle))
     
+    @property
+    def population(self):
+        """
+        The name of the population of the projectile model.
+        
+        Returns
+        -------
+        int
+        """
+        return self._component_name
 
 import_components(__name__, __path__, ignore_private=True)
 

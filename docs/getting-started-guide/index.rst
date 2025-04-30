@@ -53,8 +53,8 @@ Here’s a simple example demonstrating how to initialize a simulation for the M
 .. ipython:: python
     :okwarning:
     
-    import cratermaker
-    sim = cratermaker.Simulation()
+    import cratermaker as cm
+    sim = cm.Simulation()
     sim.emplace_crater(final_diameter=100e3)
 
 
@@ -92,8 +92,8 @@ Simulating a population of craters
 Simulating a single crater is useful for testing, but Cratermaker is designed to simulate populations of craters over time. The following example demonstrates how to initialize a simulation of the Moon and emplace a population of craters using the default Neukum production function. The simulation will run for 4.31 Gy, and save the state of the surface in intervals of 50 My.
 
 .. code-block:: python
-
-    sim = cratermaker.Simulation()
+    import cratermaker as cm
+    sim = cm.Simulation()
     sim.run(age=4300, age_interval=50)
 
 .. note::
@@ -133,7 +133,10 @@ Each of the components can be accessed through the ``sim`` object. For example:
     from cratermaker import Simulation
     sim = Simulation(target="Venus")
     print(sim.target)
+    print(sim.projectile)
     print(sim.production)
+    print(sim.scaling)
+    print(sim.surface)
 
 
 

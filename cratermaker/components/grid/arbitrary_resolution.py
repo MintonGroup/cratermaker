@@ -33,7 +33,14 @@ class ArbitraryResolutionGrid(Grid):
                  **kwargs: Any):
         super().__init__(radius=radius, simdir=simdir, **kwargs)
         self.pix = pix
-        
+
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        return (
+            f"{base}"
+            f"Effective pixel size: {self.pix_mean:.2f} +/- {self.pix_std:.2f} m\n"
+        )           
+
     @property
     def _hashvars(self):
         """
@@ -47,6 +54,7 @@ class ArbitraryResolutionGrid(Grid):
         The approximate face size for a cell of the mesh.
         """
         return self._pix
+
     
     @pix.setter
     def pix(self, value: FloatLike):
@@ -72,14 +80,5 @@ class ArbitraryResolutionGrid(Grid):
         points[:,0] = np.array([0,0,1])
         points[:,-1] = np.array([0,0,-1])
         return points
-   
     
-    def generate_grid(self, **kwargs: Any): 
-        super().generate_grid(**kwargs)
-        face_areas = self.uxgrid.face_areas 
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_mean = face_sizes.mean().item() * self.radius
-        pix_std = face_sizes.std().item() * self.radius
-        print(f"Effective pixel size: {pix_mean:.2f} +/- {pix_std:.2f} m")
-        return
 

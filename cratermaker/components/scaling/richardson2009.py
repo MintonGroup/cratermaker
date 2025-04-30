@@ -109,10 +109,9 @@ class Richardson2009(Scaling):
         return
 
     def __repr__(self) -> str:
+        base = super().__repr__()
         return (
-            f"<Richardson2009 Scaling Model>\n"
-            f"Target: {self.target.name}\n"
-            f"Projectile: {self.projectile.name}\n"
+            f"{base}"
             f"Material: {self.material_name}\n"
             f"K1: {self.K1:.3f}, mu: {self.mu:.3f}, Ybar: {self.Ybar:.2e} Pa\n"
             f"Target density: {self.target.density:.0f} kg/m³\n"

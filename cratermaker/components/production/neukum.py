@@ -58,6 +58,15 @@ class NeukumProduction(Production):
 
         self.version = version or "Moon"
 
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        return (
+            f"{base}"
+            f"Version: {self.version}\n"
+            f"Valid Time Range: {self.valid_time[0]}–{self.valid_time[1]} My\n"
+            f"Valid Diameter Range: {self.sfd_range[0]:.1f}–{self.sfd_range[1]/1e3:.1f} km\n"
+            f"Clin: {self.Clin:.2e}, Cexp: {self.Cexp:.2e}, tau: {self.tau:.3f} Gy\n"
+        )
 
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,

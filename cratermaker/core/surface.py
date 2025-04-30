@@ -70,7 +70,7 @@ class Surface:
         self._simdir = argproc.simdir
 
         # Additional initialization for Surface
-        self.grid = grid
+        self._grid = grid
         self._target = Target.maker(target, **kwargs)
         self._compute_face_areas = compute_face_areas
         self._name = "Surface"
@@ -82,6 +82,13 @@ class Surface:
         self._uxds = uxds
 
         return
+
+    def __repr__(self) -> str:
+        return (
+            f"<Surface: {self._name}>\n"
+            f"{self._description}\n"
+            f"Target: {self.target.name}, Grid: {self.grid}\n"
+        )
     
     def load_from_data(self, compute_face_areas):
         if compute_face_areas: 

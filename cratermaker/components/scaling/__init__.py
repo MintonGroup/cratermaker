@@ -100,6 +100,13 @@ class Scaling(ComponentBase):
             scaling = "richardson2009"
         return super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
+    def __repr__(self) -> str:
+        return (
+            f"<Scaling Model: {self.model}\n"
+            f"Target: {self.target}\n"
+            f"Projectile: {self.projectile}\n>"
+        )
+
     @property
     def target(self):
         """
@@ -151,6 +158,17 @@ class Scaling(ComponentBase):
     def projectile(self, value):
         self._projectile = Projectile.maker(value, **vars(self.common_args))
         return
+    
+    @property
+    def model(self):
+        """
+        The name of the scaling model.
+        
+        Returns
+        -------
+        str
+        """ 
+        return self._component_name
 
 import_components(__name__, __path__, ignore_private=True)
 

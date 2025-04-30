@@ -43,10 +43,7 @@ class SimpleMoon(Morphology):
                  **kwargs: Any 
                  ):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-
-        self.ejecta_truncation = ejecta_truncation
-        self.dorays = dorays
-
+        object.__setattr__(self, "_ejecta_truncation" , None)
         object.__setattr__(self, "_rimheight" , None)
         object.__setattr__(self, "_rimwidth" , None)
         object.__setattr__(self, "_peakheight" , None)
@@ -55,6 +52,19 @@ class SimpleMoon(Morphology):
         object.__setattr__(self, "_ejrim" , None)
         object.__setattr__(self, "_node" , None)
 
+        self.ejecta_truncation = ejecta_truncation
+        self.dorays = dorays
+
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        if self.ejecta_truncation is not None:
+            base += f"Ejecta Trunction: {self.ejecta_truncation:.2f} * crater.final_radius\n"
+        else:
+            base += f"Ejecta Truncation: Off\n"
+        return (
+            f"{base}"
+            f"Ejecta Rays: {self.dorays}\n"
+        )
 
     def _set_morphology_config(self) -> None:
         """

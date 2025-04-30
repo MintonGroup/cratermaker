@@ -48,6 +48,16 @@ class HiResLocalGrid(Grid):
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
 
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        return (
+            f"{base}"
+            f"Pixel Size: {self.pix:.2f} m\n"
+            f"Local Radius: {self.local_radius:.2f} m\n"
+            f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
+            f"Superdomain Scale Factor: {self.superdomain_scale_factor:.2f}"
+        )
+
     @property
     def _hashvars(self):
         """
@@ -235,17 +245,7 @@ class HiResLocalGrid(Grid):
         points = self._rotate_point_cloud(points.T).T
         
         return points
-
-    def generate_grid(self, **kwargs: Any): 
-        super().generate_grid(**kwargs)
-        face_areas = self.uxgrid.face_areas 
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_min = face_sizes.min().item() * self.radius
-        pix_max = face_sizes.max().item() * self.radius
-        print(f"Generated {self.uxgrid.n_face} faces")
-        print(f"Effective pixel size range: {pix_min:.2f},{pix_max:.2f} m")
-        return
-
+    
     @parameter
     def pix(self):
         """

@@ -38,6 +38,13 @@ class Production(ComponentBase):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
 
+    def __repr__(self) -> str:
+        return (
+            f"<Production Model: {type(self).__name__}>\n"
+            f"Generator Type: {self.generator_type}\n"
+            f"Target: {self.target.name if hasattr(self, 'target') else 'Not set'}\n"
+        )
+
     @classmethod
     def maker(cls,
              production: str | Production | None = None,
