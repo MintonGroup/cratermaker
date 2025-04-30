@@ -86,7 +86,22 @@ class Target(CratermakerBase):
         arg_check = sum(x is None for x in [self.name, self.diameter, self.mass, self.transition_scale_type])
         if arg_check > 0:
             raise ValueError("Invalid Target")
-        return
+
+        if self._density is None:
+            if self.material_name in self.density_catalogue:
+                self._density = self.density_catalogue[self.material_name]
+
+
+    def __repr__(self) -> str:
+        return (
+            f"<Target: {self.name}>\n"
+            f"Material: {self.material_name}\n"
+            f"Radius: {self.radius:.0f} m\n"
+            f"Mass: {self.mass:.2e} kg\n"
+            f"Surface density: {self.density:.1f} kg/m³\n"
+            f"Transition Type: {self.transition_scale_type}\n"
+            f"Escape Velocity: {self.escape_velocity:.1f} m/s, Gravity: {self.gravity:.3f} m/s²"
+        )
 
     @parameter
     def radius(self) -> float | None:
@@ -130,6 +145,23 @@ class Target(CratermakerBase):
         if not isinstance(value, str) and value is not None:
             raise TypeError("name must be a string or None")
         self._name = value
+
+    @property
+    def density_catalogue(self):
+        """
+        The target catalogue used for the target body.
+        
+        Returns
+        -------
+        dict 
+        """
+        return {"Water" : 1000.0,
+                "Sand" : 1750.0,
+                "Dry Soil" : 1500.0,
+                "Wet Soil" : 2000.0,
+                "Soft Rock" :2250.0, 
+                "Hard Rock" : 2500.0,
+                "Ice" : 900.0}   
 
     @parameter
     def material_name(self):
@@ -276,16 +308,48 @@ class Target(CratermakerBase):
     @classmethod
     def maker(cls : type[Target], 
              target : Target | str = "Moon", 
+             radius: FloatLike | None = None, 
+             diameter: FloatLike | None = None,
+             mass: FloatLike | None = None, 
+             transition_scale_type: str | None = None,
+             material_name: str | None = None,
+             density: FloatLike | None = None,
              **kwargs: Any) -> Target:
-        
+        """
+        Initialize the target object, setting properties from the provided arguments.
+
+        Parameters
+        ----------
+        target : str, Target, or None
+            Name of the target body or a Target object.
+        radius : FloatLike or None
+            Radius of the target body in km.
+        diameter : FloatLike or None
+            Diameter of the target body in km.
+        mass : FloatLike or None
+            Mass of the target body in kg.
+        transition_scale_type : str or None
+            Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
+        material_name : str or None
+            Name of the material composition of the target body.
+        density : FloatLike or None
+            Volumetric density of the surface of the target body in kg/m^3.
+        **kwargs : Any
+            Additional keyword argumments that could be set by the user.
+
+        Notes
+        -----
+        - The `radius` and `diameter` parameters are mutually exclusive. Only one of them should be provided.
+        - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
+        """            
         if target is None:
             try: 
-                target = cls(name="Moon", **kwargs)
+                target = cls(name="Moon", radius=radius, diameter=diameter, mass=mass, transition_scale_type=transition_scale_type, material_name=material_name, density=density, **kwargs)
             except:
                 raise ValueError("Error initializing target.")
         elif isinstance(target, str):
             try:
-                target = cls(name=target, **kwargs)
+                target = cls(name=target, radius=radius, diameter=diameter, mass=mass, transition_scale_type=transition_scale_type, material_name=material_name, density=density, **kwargs)
             except KeyError:
                 raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.")
         elif not isinstance(target, Target):

@@ -89,7 +89,7 @@ Then, open ParaView and select ``File -> Open``, navigate to the ``vtk_files`` d
 Simulating a population of craters
 ==================================
 
-Simulating a single crater is useful for testing, but Cratermaker is designed to simulate populations of craters over time. The following example demonstrates how to initialize a simulation of the Moon and emplace a population of craters using the default production function, which is the Neukum production function. The simulation will run for 4.31 Gy, and save the state of the surface in intervals of 50 My.
+Simulating a single crater is useful for testing, but Cratermaker is designed to simulate populations of craters over time. The following example demonstrates how to initialize a simulation of the Moon and emplace a population of craters using the default Neukum production function. The simulation will run for 4.31 Gy, and save the state of the surface in intervals of 50 My.
 
 .. code-block:: python
 
@@ -101,23 +101,53 @@ Simulating a single crater is useful for testing, but Cratermaker is designed to
       The default units for Cratermaker are meters for length and million years for time.
 
 
+
+
+#########################
+Components of Cratermaker
+#########################
+
+The components of Cratermaker are designed to be modular and can be used independently of the simulation. Each component has its own set of parameters and methods, which can be customized to suit the needs of the user. The following sections provide a brief overview of each component and its functionality.
+
+Target
+======
+
+The Target class represents a celestial body on which craters are emplaced. It contains information about the body's size, material properties, and surface gravity. To create a standalone target body, you use the :func:`cratermaker.Targetr.maker` method. 
+
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Target
+    target = Target.maker("Mars")
+    print(target)
+
+
+Simulation
+==========
+
+Each of the components can be accessed through the ``sim`` object. For example:
+
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Simulation
+    sim = Simulation(target="Venus")
+    print(sim.target)
+    print(sim.production)
+
+
+
 Default Behavior
 ================
 As Cratermaker is designed to be easy to use, all of its component classes are built to be invoked without any arguments. When a ``Simulation`` object is created as in the examples above, a set of component objects are created with their default parameters. It is important to understand what the default behavior of these classes is, as this will affect the results of your simulation.
 
 - **Target**: The default target is the Moon. There are a number of known bodies that can be selected as targets, including some jovian satellites, and small bodies, but currently few of them have been tested. 
-- **Scaling**: The default scaling model is called ``richardson2009``, as it is similar to the one used by the Cratered Terrain Evolution Model (CTEM) that is a progenitor to Cratermaker [1]_. The projectile to transient scaling model is mostly based on Holsapple (1993) [2]_ with some additional scaling parameters for ice given by Kraus et al. (2011) [3]_.
+- **Scaling**: The default scaling model is called ``richardson2009``, as it is similar to the one used by the Cratered Terrain Evolution Model (CTEM) that is a progenitor to Cratermaker [1]_. The projectile to transient scaling model is mostly based on Holsapple (1993) [2]_ with some additional scaling parameters for ice given by Kraus et al. (2011) [3]_. 
 - **Production**: There are two production function models available: ``neukum`` and ``powerlaw``. The default is ``neukum``, and there are three versions available of this model: ``Moon`` [4]_, ``Mars`` [5]_, and ``Projectile`` [6]_.  The version will be selected based on the target body. When the target body is either ``Moon`` or ``Mars``, then one of the two crater-based production functions are selected, and projectile sizes are determined by the Scaling model. For other bodies, ``Projectile`` is chosen, and the crater size is determined by the Scaling model.  
 - **Projectile**: There are two projectile velocity and density models available: ``asteroids`` and ``comets``. The default projectile model is determined by the target body. If the body is an inner solar system body, then ``asteroids`` is chosen, otherwise ``comets`` is chosen. The asteroid velocity distributions for the Moon are from Yue et al. (2013) [7]_, and for all other inner planets from Minton et al. (2010) [8]_. Comet velocities are from Zahnle et al. (2003) [9]_.
 - **Grid**: There are three grid models available: ``icosphere``, ``arbitrary_resolution``, and ``hireslocal``. The default is ``icosphere``, which builds fast an efficient representation of a sphere. The *resolution* of the grid (the number of faces of the mesh) is determined by the formula :math:`20 \times 4^n`, where :math:`n` is given by the argument ``gridlevel`` with a default value of 8.
 - **Morphology**: Currently one morphology model is available: ``simplemoon``. This is a model that similar to that used by CTEM. Most of the parameters are taken from Pike (1977) [10]_, except for simple crater profiles, which use a model from Fassett and Thomson (2014) [11]_. Ejecta blanket scaling is from McGetchin et al. (1973) [12]_.  
 
-Each of the components can be accessed through the ``sim`` object. For example, to access the scaling model:
-
-.. ipython:: python
-    :okwarning:
-
-    print(sim.scaling)
 
 
 References
