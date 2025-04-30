@@ -35,6 +35,7 @@ class Simulation(CratermakerBase):
                  rng: Generator | None = None, 
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
+                 resume_old: bool = False,
                  **kwargs: Any):
         """
         Initialize the Simulation object.
@@ -64,6 +65,8 @@ class Simulation(CratermakerBase):
             The rng_rng_seed for the RNG. If None, a new RNG is created.
         rng_state : dict, optional
             The state of the random number generator. If None, a new state is created.
+        resume_old : bool, optional
+            Flag to indicate whether to resume from an old simulation. If True, the simulation will attempt to load the previous state from the config file.
         **kwargs : Any
             Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scaling, 
             morphology, or production function constructors. Refer to the documentation of each component module for details.
@@ -93,6 +96,8 @@ class Simulation(CratermakerBase):
 
         if self.config_file.exists():
             config_file = self.config_file
+            if not resume_old:
+                config_file = None
         else:
             config_file = None
 

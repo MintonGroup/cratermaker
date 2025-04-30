@@ -879,7 +879,7 @@ class Surface(ComponentBase):
         regrid = self.check_if_regrid(**kwargs)
         assert(not regrid)
 
-        self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size()
+        self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size(uxgrid)
 
         print(self)
         return
@@ -1013,18 +1013,26 @@ class Surface(ComponentBase):
         if self.uxds is not None:
             return self.uxds.uxgrid
 
-    def _compute_pix_size(self) -> tuple[float, float]:
+    def _compute_pix_size(self, uxgrid: UxDataset | None = None) -> tuple[float, float]:
         """
         Compute the effective pixel size of the mesh based on the face areas.
+
+        Parameters
+        ----------
+        uxgrid : UxDataset
+            The grid object containing the mesh information. If not set, it will be retrieved self.uxds.uxgrid
 
         Returns
         -------
         tuple[float, float, float, float]
             The mean, standard deviation, minimum, and maximum of the pixel size in meters.
         """
-        if self.uxgrid is None:
-            return None, None
-        face_areas = self.uxgrid.face_areas 
+        if uxgrid is None:
+            if self.uxgrid is None:
+                return None, None, None, None
+            else:
+                uxgrid = self.uxgrid
+        face_areas = uxgrid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_mean = face_sizes.mean().item() * self.target.radius
         pix_std = face_sizes.std().item() * self.target.radius
@@ -1074,6 +1082,16 @@ class Surface(ComponentBase):
         The name of the grid type.
         """
         return self._component_name
+    
+    @property
+    def face_areas(self):
+        """
+        The face areas of the mesh.
+        """
+        if self.uxgrid is not None:
+            return self.uxgrid.face_areas.values
+        else:
+            return None
 
 
 class SurfaceView:
