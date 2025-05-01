@@ -305,6 +305,9 @@ def validate_and_normalize_location(location):
     if isinstance(location, dict):
         if "lon" in location and "lat" in location:
             return normalize_coords((location['lon'], location['lat']))
+        
+    if len(location) == 2:
+        return normalize_coords((location[0], location[1]))
     
     raise ValueError("location must a tuple, list, or ArrayLike of len==2, a dict with 'lon' and 'lat', or a structured array with 'lon' and 'lat' names")
 

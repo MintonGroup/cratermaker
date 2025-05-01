@@ -253,7 +253,7 @@ class Crater:
 
         # --- Normalize location and age ---
         if args["location"] is None:
-            args["location"] = mc.get_random_location(rng=rng)
+            args["location"] = mc.get_random_location(rng=rng)[0]
         location = validate_and_normalize_location(args["location"])
 
         # --- Handle projectile vs. raw velocity input ---

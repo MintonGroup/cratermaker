@@ -94,7 +94,7 @@ class TestSurface(unittest.TestCase):
             
             surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
             
-            location = get_random_location()
+            location = get_random_location()[0]
             lon = location[0]
             lat = location[1]
 
@@ -128,7 +128,7 @@ class TestSurface(unittest.TestCase):
             
             surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
             
-            location = get_random_location()
+            location = get_random_location()[0]
             lon = location[0]
             lat = location[1]
 

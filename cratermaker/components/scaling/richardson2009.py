@@ -410,10 +410,10 @@ class Richardson2009(Scaling):
         simple_complex_fac = simple_complex_mean * np.exp(self.rng.normal(loc=0.0,scale=simple_complex_std))
         transition_diameter = simple_complex_fac * self.target.gravity**simple_complex_exp
         self.transition_diameter = transition_diameter
-        self._transition_nominal=transition_nominal
-        self._simple_enlargement_factor = simple_enlargement_factor
-        self._complex_enlargement_factor = complex_enlargement_factor
-        self._final_exp = final_exp
+        self._transition_nominal=float(transition_nominal)
+        self._simple_enlargement_factor = float(simple_enlargement_factor)
+        self._complex_enlargement_factor = float(complex_enlargement_factor)
+        self._final_exp = float(final_exp)
         return 
 
 
