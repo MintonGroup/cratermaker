@@ -112,8 +112,7 @@ class SimpleMoon(Morphology):
         **kwargs : dict
             Additional keyword arguments to be passed to internal functions (not used here).
         """
-        if crater:
-            self.crater = crater
+        self.crater = Crater.maker(crater, **kwargs)
 
         if not isinstance(surface, Surface):
             raise TypeError("surface must be an instance of Surface")
