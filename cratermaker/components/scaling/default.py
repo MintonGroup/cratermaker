@@ -264,7 +264,7 @@ class DefaultScaling(Scaling):
                     p = self.rng.random()
                 else:
                     p = 0.5
-                is_simple = p < math.abs(final_diameter_complex - self.transition_diameter) / math.abs(final_diameter_simple - final_diameter_complex)
+                is_simple = p < abs(final_diameter_complex - self.transition_diameter) / abs(final_diameter_simple - final_diameter_complex)
                 if is_simple:
                     final_diameter = final_diameter_simple
                     morphology_type = morphology_options[sind] 
