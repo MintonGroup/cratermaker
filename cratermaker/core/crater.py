@@ -278,14 +278,7 @@ class Crater:
                     pv = float(mc.get_random_velocity(pmv, rng=rng)[0])
                     if pv < target.escape_velocity:
                         break
-        if n_velocity_inputs == 0:
-            projectile.new_projectile()
-            pv = projectile.velocity
-            pvv = projectile.vertical_velocity
-            pang = projectile.angle
-            pdir = projectile.direction
-            prho = prho or projectile.density
-        else:
+        if n_velocity_inputs != 0:
             if pv is not None:
                 pv = float(pv)
                 if pv <= 0.0:
@@ -326,6 +319,10 @@ class Crater:
             projectile.sample_velocities = False
 
         scaling = Scaling.maker(scaling, target=target, projectile=projectile, **vars(argproc.common_args), **kwargs)
+        pv = scaling.projectile.velocity
+        pvv = scaling.projectile.vertical_velocity
+        pang = scaling.projectile.angle
+        pdir = scaling.projectile.direction
         prho = scaling.projectile.density
 
         # --- Ensure velocity/angle are all set ---
