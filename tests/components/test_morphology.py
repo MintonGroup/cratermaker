@@ -1,9 +1,8 @@
 import unittest
 import tempfile
-from pathlib import Path
 from cratermaker.components.morphology import Morphology
-from cratermaker.core.target import Target
-from cratermaker.core.surface import Surface
+from cratermaker.components.target import Target
+from cratermaker.components.surface import Surface
 from cratermaker import Crater
 
 morphology_models = Morphology.available()
@@ -39,10 +38,10 @@ class TestMorphology(unittest.TestCase):
 
     def test_form_crater_executes(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surf = Surface.maker(simdir=simdir, target=self.target, reset_surface=True, gridlevel=self.gridlevel)
+            surface = Surface.maker(simdir=simdir, target=self.target, reset_surface=True, gridlevel=self.gridlevel)
             for model_name in morphology_models:
                 morphology = Morphology.maker(model_name)
-                morphology.form_crater(surf, crater=self.dummy_crater)
+                morphology.form_crater(surface, crater=self.dummy_crater)
 
     def testmake_morphology(self):
         # Test the make_morphology function

@@ -6,7 +6,7 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import _set_properties
 from cratermaker.utils.general_utils import _create_catalogue
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.projectile import Projectile
 

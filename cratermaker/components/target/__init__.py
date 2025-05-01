@@ -1,12 +1,12 @@
 from __future__ import annotations
 import numpy as np
-from typing import Any
-from ..utils.general_utils import _set_properties, _create_catalogue, parameter
-from ..utils.custom_types import FloatLike
 from astropy.constants import G
-from .base import CratermakerBase
+from typing import Any
+from cratermaker.utils.general_utils import _set_properties, _create_catalogue, parameter
+from cratermaker.utils.custom_types import FloatLike
+from cratermaker.utils.component_utils import ComponentBase
 
-class Target(CratermakerBase):
+class Target(ComponentBase):
     """
     Represents the target body in a crater simulation.
 
@@ -342,6 +342,7 @@ class Target(CratermakerBase):
         - The `radius` and `diameter` parameters are mutually exclusive. Only one of them should be provided.
         - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
         """            
+
         if target is None:
             try: 
                 target = cls(name="Moon", radius=radius, diameter=diameter, mass=mass, transition_scale_type=transition_scale_type, material_name=material_name, density=density, **kwargs)
@@ -354,8 +355,7 @@ class Target(CratermakerBase):
                 raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.")
         elif not isinstance(target, Target):
             raise TypeError("target must be a string or a Target object")
+        target._component_name = target.name
         
         return target
         
-
-

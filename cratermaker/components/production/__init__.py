@@ -10,7 +10,7 @@ from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.montecarlo import get_random_size
 from cratermaker.utils.general_utils import parameter
 from cratermaker.utils.component_utils import ComponentBase, import_components
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 
 class Production(ComponentBase):
     _registry: dict[str, Production] = {}
@@ -39,8 +39,9 @@ class Production(ComponentBase):
         object.__setattr__(self, "_valid_generator_types" , ["crater", "projectile"])
 
     def __repr__(self) -> str:
+        base = super().__repr__()
         return (
-            f"<Production Model: {type(self).__name__}>\n"
+            f"{base}\n"
             f"Generator Type: {self.generator_type}\n"
             f"Target: {self.target.name if hasattr(self, 'target') else 'Not set'}"
         )

@@ -40,9 +40,9 @@ class TestSimulation(unittest.TestCase):
             sim.save()
         
             # Test that variables are saved correctly
-            sim.surf.set_elevation(1.0)
-            np.testing.assert_array_equal(sim.surf.uxds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node)) 
-            np.testing.assert_array_equal(sim.surf.uxds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face)) 
+            sim.surface.set_elevation(1.0)
+            np.testing.assert_array_equal(sim.surface.uxds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node)) 
+            np.testing.assert_array_equal(sim.surface.uxds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face)) 
             
             sim.save()
             
@@ -50,8 +50,8 @@ class TestSimulation(unittest.TestCase):
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
-                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node))
-                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face))
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
         
             # Test saving combined data
             sim.save(combine_data_files=True)
@@ -61,8 +61,8 @@ class TestSimulation(unittest.TestCase):
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
-                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_node))
-                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surf.uxds.uxgrid.n_face))
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
     
         return 
         
@@ -72,7 +72,7 @@ class TestSimulation(unittest.TestCase):
             sim = cratermaker.Simulation(simdir=simdir,gridlevel=self.gridlevel)
             # Test with default parameters
             default_out_dir = Path(sim.simdir) / _EXPORT_DIR
-            expected_files = ["surf000000.vtp"]
+            expected_files = ["surface000000.vtp"]
             sim.export_vtk()
             self.assertTrue(Path(default_out_dir).is_dir()) 
             for f in expected_files:
@@ -185,12 +185,12 @@ class TestSimulation(unittest.TestCase):
             del sim
 
             # Second simulation: override target with "Mars"
-            sim = cratermaker.Simulation(simdir=simdir, target="Mars")
+            sim = cratermaker.Simulation(simdir=simdir, target="Mars", resume_old=True)
             self.assertEqual(sim.target.name, "Mars")
             del sim
 
             # Third simulation: no target passed, should read "Mars" from config
-            sim = cratermaker.Simulation(simdir=simdir)
+            sim = cratermaker.Simulation(simdir=simdir, resume_old=True)
             self.assertEqual(sim.target.name, "Mars")
             del sim
         return

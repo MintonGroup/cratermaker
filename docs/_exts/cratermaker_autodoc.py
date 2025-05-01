@@ -2,14 +2,14 @@ def process_component_docstring(app, what, name, obj, options, lines):
     from cratermaker.components.scaling import Scaling
     from cratermaker.components.production import Production
     from cratermaker.components.morphology import Morphology
-    from cratermaker.components.grid import Grid
+    from cratermaker.components.surface import Surface
     from cratermaker.components.projectile import Projectile
 
     component_classes = {
         "Scaling": Scaling,
         "Production": Production,
         "Morphology": Morphology,
-        "Grid": Grid,
+        "Surface": Surface,
         "Projectile": Projectile,
     }
 

@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from numpy.random import Generator
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.core.target import Target
+from cratermaker.components.target import Target
 from cratermaker.components.projectile import Projectile
 from cratermaker.utils.component_utils import ComponentBase, import_components
 
@@ -101,8 +101,9 @@ class Scaling(ComponentBase):
         return super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def __repr__(self) -> str:
+        base = super().__repr__()
         return (
-            f"<Scaling Model: {self.model}\n"
+            f"{base}\n"
             f"Target: {self.target}\n"
             f"Projectile: {self.projectile}>"
         )

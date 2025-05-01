@@ -6,10 +6,11 @@ from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.general_utils import validate_and_convert_location, parameter
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.components.grid import Grid
+from cratermaker.components.surface import Surface
+from cratermaker.components.target import Target
 
-@Grid.register("hireslocal")
-class HiResLocalGrid(Grid):
+@Surface.register("hireslocal")
+class HiResLocalSurface(Surface):
     """
     Create a uniform grid configuration with the given pixel size.
     
@@ -17,8 +18,6 @@ class HiResLocalGrid(Grid):
     ----------
     pix : FloatLike
         The approximate face size inside the local region in meters.
-    radius: FloatLike
-        The radius of the target body in meters.
     local_radius : FloatLike
         The radius of the local region in meters.
     local_location : PairOfFloats
@@ -26,27 +25,36 @@ class HiResLocalGrid(Grid):
     superdomain_scale_factor : FloatLike
         A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
         that are modeled outside the local region are those whose ejecta could just reach the boundary.
+    target : Target, optional
+        The target body or name of a known target body for the impact simulation. 
+    reset_surface : bool, optional
+        Flag to indicate whether to reset the surface. Default is True.
+    regrid : bool, optional
+        Flag to indicate whether to regrid the surface. Default is False.
     simdir : str | Path
-        The main project simulation directory.
+        The main project simulation directory. Defaults to the current working directory if None.
          
     Returns
     -------
-    HiResLocalGrid
-        An instance of the HiResLocalGrid clas initialized with the given point distribution
+    HiResLocalSurface
+        An instance of the HiResLocalSurface clas initialized with the given point distribution
     """        
     def __init__(self, 
                  pix: FloatLike, 
-                 radius: FloatLike, 
                  local_radius: FloatLike, 
                  local_location: PairOfFloats,
                  superdomain_scale_factor: FloatLike,
+                 target: Target | str | None = None,
+                 reset_surface: bool = False,
+                 regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs: Any):
-        super().__init__(radius=radius, simdir=simdir, **kwargs)
+        self.target = Target.maker(target, **kwargs) 
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
+        super().__init__(target=self.target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
 
     def __repr__(self) -> str:
         base = super().__repr__()
@@ -63,7 +71,7 @@ class HiResLocalGrid(Grid):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self._radius, self._pix, self._local_radius, self._local_location, self._superdomain_scale_factor]
+        return [self._component_name, self.radius, self.pix, self.local_radius, self.local_location, self.superdomain_scale_factor]
         
     def _generate_variable_size_array(self) -> tuple[NDArray, NDArray, NDArray]:
         """
@@ -82,7 +90,6 @@ class HiResLocalGrid(Grid):
         """
         
         def _pix_func(lon,lat):
-            from cratermaker.core.surface import Surface
             lon_rad = np.radians(lon)
             lat_rad = np.radians(lat)
             # This will be rotated into the correct position later
@@ -90,7 +97,7 @@ class HiResLocalGrid(Grid):
             loc_lat_rad = 0.0 
 
             # Calculate distance from the location to the grid point
-            distance = Surface.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius)
+            distance = self.calculate_haversine_distance(loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius)
             ans = np.where(distance <= self.local_radius, self.pix, (distance - self.local_radius) / self.superdomain_scale_factor + self.pix)
             return ans
         

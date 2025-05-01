@@ -489,7 +489,7 @@ if __name__ == "__main__":
     from scipy.optimize import curve_fit
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
-    from cratermaker.core.target import Target
+    from cratermaker.components.target import Target
     
     def plot_npf_csfd():
         fig = plt.figure(1, figsize=(8, 7))
