@@ -97,8 +97,14 @@ class Scaling(ComponentBase):
         """
 
         if scaling is None:
-            scaling = "richardson2009"
-        return super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+            scaling = "default"
+        scaling = super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        if target is not None:
+            scaling.target = target
+        if projectile is not None:
+            scaling.projectile = projectile
+        
+        return scaling
 
     def __repr__(self) -> str:
         base = super().__repr__()

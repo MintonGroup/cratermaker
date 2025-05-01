@@ -84,7 +84,7 @@ class Crater:
             projectile_direction: float | None = None,
             location: tuple[float, float] | None = None,
             age: float | None = None,
-            scaling: str | Scaling = "richardson2009",
+            scaling: str | Scaling = "default",
             projectile: str | Projectile = "asteroids",
             target: str | Target = "Moon",
             simdir: str | Path | None = None,
@@ -317,7 +317,13 @@ class Crater:
                 pdir = float(pdir) % 360.0
             # Get or infer projectile density
             prho = prho or target.density
-            projectile = Projectile(velocity=pv, angle=pang, density=prho, direction=pdir, sample_velocities=False, sample_angles=False, sample_directions=False, sample_direction=False)
+            projectile.velocity = pv
+            projectile.angle = pang
+            projectile.direction = pdir
+            projectile.density = prho  
+            projectile.sample_angles = False
+            projectile.sample_directions = False
+            projectile.sample_velocities = False
 
         scaling = Scaling.maker(scaling, target=target, projectile=projectile, **vars(argproc.common_args), **kwargs)
         prho = scaling.projectile.density

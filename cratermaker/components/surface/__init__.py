@@ -171,12 +171,15 @@ class Surface(ComponentBase):
         if surface is None:
             surface = "icosphere"
 
-        return super().maker(component=surface, 
+        surface = super().maker(component=surface, 
                              target=target, 
                              reset_surface = reset_surface,
                              regrid = regrid,
                              simdir=simdir, 
                              **kwargs)
+        if target is not None:
+            surface.target = target
+        return surface
 
     def load_from_data(self):
         self.face_lat = self.uxgrid.face_lat.values

@@ -421,7 +421,7 @@ Example:
 .. code-block:: python
 
     from cratermaker import Scaling
-    scaling_model = Scaling.maker("richardson2009")
+    scaling_model = Scaling.maker("default")
 
 Main Method
 -----------
@@ -447,24 +447,24 @@ Usage example
 .. code-block:: python
 
     from cratermaker.components.scaling import Scaling
-    scaling_model = Scaling.maker("richardson2009")
+    scaling_model = Scaling.maker("default")
 
 
-.. _api-Richardson2009:
+.. _api-DefaultScaling:
 
-.. currentmodule:: cratermaker.components.scaling.richardson2009
+.. currentmodule:: cratermaker.components.scaling.default
 
 Richardson 2009 Scaling Model
 =============================
 
-The `Richardson2009` model implements crater scaling based on Richardson (2009). 
+The `DefaultScaling` model implements crater scaling based on Richardson (2009). 
 
 To create this model:
 
 .. code-block:: python
 
     from cratermaker.components.scaling import Scaling
-    scaling_model = Scaling.maker("richardson2009")
+    scaling_model = Scaling.maker("default")
 
 Available Methods
 ------------------
@@ -472,11 +472,11 @@ Available Methods
 .. autosummary::
     :toctree: generated/
 
-    Richardson2009.final_to_transient
-    Richardson2009.transient_to_final
-    Richardson2009.projectile_to_transient
-    Richardson2009.transient_to_projectile
-    Richardson2009.get_morphology_type
+    DefaultScaling.final_to_transient
+    DefaultScaling.transient_to_final
+    DefaultScaling.projectile_to_transient
+    DefaultScaling.transient_to_projectile
+    DefaultScaling.get_morphology_type
 
 Attributes
 ----------
@@ -484,28 +484,28 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    Richardson2009.target
-    Richardson2009.projectile
-    Richardson2009.target_density
-    Richardson2009.material_catalogue
-    Richardson2009.material_name
-    Richardson2009.K1
-    Richardson2009.mu
-    Richardson2009.Ybar
-    Richardson2009.catalogue_key
-    Richardson2009.transition_diameter
-    Richardson2009.transition_nominal
-    Richardson2009.complex_enlargement_factor
-    Richardson2009.simple_enlargement_factor
-    Richardson2009.final_exp
+    DefaultScaling.target
+    DefaultScaling.projectile
+    DefaultScaling.target_density
+    DefaultScaling.material_catalogue
+    DefaultScaling.material_name
+    DefaultScaling.K1
+    DefaultScaling.mu
+    DefaultScaling.Ybar
+    DefaultScaling.catalogue_key
+    DefaultScaling.transition_diameter
+    DefaultScaling.transition_nominal
+    DefaultScaling.complex_enlargement_factor
+    DefaultScaling.simple_enlargement_factor
+    DefaultScaling.final_exp
 
 Usage example
 -------------
 
 .. code-block:: python
 
-    from cratermaker.components.scaling.richardson2009 import Richardson2009
-    scaling = Richardson2009()
+    from cratermaker.components.scaling.default import DefaultScaling
+    scaling = DefaultScaling()
 
 
 .. currentmodule:: cratermaker.components.morphology

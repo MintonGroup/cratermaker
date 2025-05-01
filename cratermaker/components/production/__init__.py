@@ -62,6 +62,8 @@ class Production(ComponentBase):
         production : str | Production | None, optional
             The production model to use. This can be either a string or a Production instance. 
             If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
+        target : Target | str | None, optional
+            The target body for the impact. Can be a Target object or a string representing the target name.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -98,8 +100,6 @@ class Production(ComponentBase):
             else:
                 production = "powerlaw"
         return super().maker(component=production, version=version, target=target, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-         
-
 
     def sample(self,
                age: FloatLike | None = None,
