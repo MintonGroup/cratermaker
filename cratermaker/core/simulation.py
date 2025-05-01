@@ -368,10 +368,10 @@ class Simulation(CratermakerBase):
                 impact_diameters.extend(diameters.tolist())
                 impact_ages.extend(ages.tolist())
                 
-                # Get the probability of impact onto any particular face then get the locations of the impacts
+                # Get the relative probability of impact onto any particular face then get the locations of the impacts
                 p = bin_areas / total_bin_area
-                face_indices = self.rng.choice(face_indices, size=diameters.shape)
-                locations = np.vectorize(self.surface.get_random_location_on_face)(face_indices)
+                face_indices = self.rng.choice(face_indices, size=diameters.shape, p=p)
+                locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
             
         if len(impact_diameters) > 0: 

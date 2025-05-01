@@ -1,10 +1,10 @@
 from __future__ import annotations
-import numpy as np
+import math
 from numpy.random import Generator
 from pathlib import Path
 from dataclasses import dataclass
 from ..components.target import Target
-from ..utils.general_utils import validate_and_convert_location
+from ..utils.general_utils import validate_and_normalize_location
 from ..utils import montecarlo as mc
 from ..components.scaling import Scaling
 from ..components.projectile import Projectile
@@ -57,13 +57,13 @@ class Crater:
     def projectile_mass(self) -> float | None:
         """Projectile mass in kilograms."""
         if self.projectile_density is not None and self.projectile_radius is not None:
-            return (4.0 / 3.0) * np.pi * self.projectile_radius**3 * self.projectile_density
+            return (4.0 / 3.0) * math.pi * self.projectile_radius**3 * self.projectile_density
         return None
     @property
     def projectile_vertical_velocity(self) -> float | None:
         """Projectile vertical velocity in m/s."""
         if self.projectile_velocity is not None and self.projectile_angle is not None:
-            return self.projectile_velocity * np.sin(np.deg2rad(self.projectile_angle))
+            return self.projectile_velocity * math.sin(math.radians(self.projectile_angle))
         return None
 
     @classmethod
@@ -254,7 +254,7 @@ class Crater:
         # --- Normalize location and age ---
         if args["location"] is None:
             args["location"] = mc.get_random_location(rng=rng)
-        location = validate_and_convert_location(args["location"])
+        location = validate_and_normalize_location(args["location"])
 
         # --- Handle projectile vs. raw velocity input ---
         pmv = projectile_mean_velocity
@@ -270,12 +270,12 @@ class Crater:
             if pmv <= 0.0:
                 raise ValueError("projectile_mean_velocity must be positive.")
             if pmv > target.escape_velocity:
-                vencounter_mean = np.sqrt(pmv ** 2 - target.escape_velocity ** 2)
-                vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)
-                pv = float(np.sqrt(vencounter ** 2 + target.escape_velocity ** 2))
+                vencounter_mean = math.sqrt(pmv ** 2 - target.escape_velocity ** 2)
+                vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)[0]
+                pv = float(math.sqrt(vencounter ** 2 + target.escape_velocity ** 2))
             else:
                 while True:
-                    pv = float(mc.get_random_velocity(pmv, rng=rng))
+                    pv = float(mc.get_random_velocity(pmv, rng=rng)[0])
                     if pv < target.escape_velocity:
                         break
         if n_velocity_inputs == 0:
@@ -299,17 +299,17 @@ class Crater:
                 if not (0.0 <= pang <= 90.0):
                     raise ValueError("projectile_angle must be between 0 and 90 degrees")
             if pv is not None and pang is not None:
-                pvv = pv * np.sin(np.deg2rad(pang))
+                pvv = pv * math.sin(math.radians(pang))
             elif pvv is not None and pang is not None:
-                pv = pvv / np.sin(np.deg2rad(pang))
+                pv = pvv / math.sin(math.radians(pang))
             elif pv is not None and pvv is not None:
-                pang = np.rad2deg(np.arcsin(pvv / pv))
+                pang = math.radians(math.radians(pvv / pv))
             elif pv is not None and pang is None:
-                pang = mc.get_random_impact_angle(rng=rng)
-                pvv = pv * np.sin(np.deg2rad(pang))
+                pang = float(mc.get_random_impact_angle(rng=rng)[0])
+                pvv = pv * math.sin(math.radians(pang))
             elif pvv is not None and pang is None:
-                pang = mc.get_random_impact_angle(rng=rng)
-                pv = pvv / np.sin(np.deg2rad(pang))
+                pang = float(mc.get_random_impact_angle(rng=rng)[0])
+                pv = pvv / math.sin(math.radians(pang))
             # Direction
             if pdir is None:
                 pdir = float(rng.uniform(0.0, 360.0))
@@ -354,7 +354,7 @@ class Crater:
             td = scaling.projectile_to_transient(pd)
             fd, mt = scaling.transient_to_final(td)
         elif pm is not None:
-            pr = ((3.0 * pm) / (4.0 * np.pi * prho)) ** (1.0 / 3.0)
+            pr = ((3.0 * pm) / (4.0 * math.pi * prho)) ** (1.0 / 3.0)
             pd = 2.0 * pr
             td = scaling.projectile_to_transient(pd)
             fd, mt = scaling.transient_to_final(td)
@@ -362,7 +362,7 @@ class Crater:
         pr = pd / 2
         tr = td / 2
         fr = fd / 2
-        pm = (4.0 / 3.0) * np.pi * pr**3 * prho
+        pm = (4.0 / 3.0) * math.pi * pr**3 * prho
 
         # Assemble final arguments
         args = {

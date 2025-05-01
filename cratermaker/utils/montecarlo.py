@@ -1,16 +1,20 @@
 import numpy as np
 from numpy.random import Generator
-from numpy.typing import ArrayLike
-from typing import Any, Union, Optional
+from numba import njit
+from numpy.linalg import norm
+from numpy import cross
+from typing import Any
 from numpy.typing import NDArray
 from scipy.stats import truncnorm
-from scipy.stats import maxwell
 from uxarray import Grid
-
+from cratermaker.core.base import _rng_init
+from cratermaker.utils.custom_types import FloatLike
 
 def get_random_location(size: int=1, 
-                        rng: Generator | None=None
-                        ) -> Union[np.float64, tuple[np.float64, np.float64], ArrayLike]:
+                        rng: Generator | None = None, 
+                        rng_seed: int | None = None,
+                        rng_state: dict | None = None,
+                        **kwargs: Any) -> NDArray[np.float64]:
     """
     Computes random longitude and latitude values.
     
@@ -21,20 +25,20 @@ def get_random_location(size: int=1,
     size : int or tuple of ints, optional
         The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1, 
         then a structured array with fields 'lon' and 'lat' is returned.
-    rng : numpy.random.Generator, optional
-        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used 
-        to create a new instance.
-    
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
     Returns
     -------
-    (lon,lat) or ndarray[(lon,lat)] of given size
-        A pair or array of pairs of longitude and latitude values in degrees.
+    A structured numpy array with the location data in the format [('lon', 'f8'), ('lat', 'f8')].
     """
 
-    if rng and not isinstance(rng, Generator):
-        raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-    if rng is None:
-        rng = np.random.default_rng() 
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     u = rng.uniform(size=size)
     v = rng.uniform(size=size)
@@ -47,26 +51,59 @@ def get_random_location(size: int=1,
     lon = np.rad2deg(theta - np.pi) # Use the convention that longitude is in the range [-180, 180]
     lat = np.rad2deg(phi - np.pi / 2.0)
     
-    if size == 1: 
-        return np.float64(lon.item()),np.float64(lat.item())
-    else:
-        # Reshape lat and lon to the original size if necessary
-        lon = lon.reshape(size)
-        lat = lat.reshape(size)
+    lonlat_arr = np.empty(size, dtype=[('lon', 'f8'), ('lat', 'f8')])
+
+    # Reshape lat and lon to the original size if necessary
+    lon = lon.reshape(size)
+    lat = lat.reshape(size)
   
-        # Combine lat and lon into a structured array
-        lonlat_arr = np.empty(size, dtype=[('lon', 'float'), ('lat', 'float')])
-        lonlat_arr['lon'] = lon
-        lonlat_arr['lat'] = lat
+    # Combine lat and lon into a structured array
+    lonlat_arr['lon'] = lon
+    lonlat_arr['lat'] = lat
     
     return lonlat_arr
 
 
+@njit
+def _get_one_random_location(face_nodes, node_x, node_y, node_z, rng_vals):
+    valid_nodes = face_nodes[face_nodes > 0]
+    n = len(valid_nodes)
+    tris = [(0, j, j+1) for j in range(1, n - 1)]
+
+    n_valid = len(valid_nodes)
+    vertices = np.empty((n_valid, 3), dtype=np.float64)
+    for i in range(n_valid):
+        idx = valid_nodes[i]
+        vertices[i, 0] = node_x[idx]
+        vertices[i, 1] = node_y[idx]
+        vertices[i, 2] = node_z[idx]
+
+    areas = np.empty(len(tris))
+    for i in range(len(tris)):
+        j0, j1, j2 = tris[i]
+        v0, v1, v2 = vertices[j0], vertices[j1], vertices[j2]
+        areas[i] = 0.5 * norm(cross(v1 - v0, v2 - v0))
+    areas /= areas.sum()
+    cum_areas = np.cumsum(areas)
+
+    # triangle selection
+    tri_idx = np.searchsorted(cum_areas, rng_vals[0])
+    j0, j1, j2 = tris[tri_idx]
+    v0, v1, v2 = vertices[j0], vertices[j1], vertices[j2]
+
+    r1, r2 = rng_vals[1], rng_vals[2]
+    if r1 + r2 > 1.0:
+        r1, r2 = 1.0 - r1, 1.0 - r2
+    r0 = 1.0 - r1 - r2
+    return r0 * v0 + r1 * v1 + r2 * v2
+
+
 def get_random_location_on_face(grid: Grid, 
-                                face_index: int, 
-                                size: int=1, 
-                                rng: Generator | None=None
-                                ) -> Union[np.float64, tuple[np.float64, np.float64], ArrayLike]:
+                                face_index: int | NDArray[np.int64], 
+                                rng: Generator | None = None, 
+                                rng_seed: int | None = None,
+                                rng_state: dict | None = None,
+                                **kwargs: Any) -> NDArray[np.float64]:
     """
     Generate a random coordinate within a given face of an unstructured mesh.
 
@@ -74,69 +111,51 @@ def get_random_location_on_face(grid: Grid,
     ----------
     grid : uxarray.Grid
         The grid object containing the mesh information.
-    face_index : int
-        The index of the face within the grid to obtain the random sample.
-    size : int or tuple of ints, optional
-        The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1, 
-        then a structured array with fields 'lon' and 'lat' is returned.
-    rng : numpy.random.Generator, optional
-        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used
-        
+    face_index : int | NDArray[np.int64]
+        The index or array of indices of the face within the grid to obtain the random sample.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments. 
+
     Returns
     -------
-    (lon,lat) or ndarray[(lon,lat)] of given size
-        A pair or array of pairs of longitude and latitude values in degrees.
+    A structured numpy array with the location data in the format of the same shape as face_index [('lon', 'f8'), ('lat', 'f8')].
     """
     from uxarray.grid import coordinates
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-    if rng and not isinstance(rng, Generator):
-        raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-    if rng is None:
-        rng = np.random.default_rng() 
-        
-    # Extract node indices for the given face
+    # Extract node indices for the given face(s)
     node_indices = grid.face_node_connectivity[face_index, :]
-    node_indices = node_indices[node_indices >= 0]
-    
-    # Initialize the array for storing locations
-    locations = np.empty(size, dtype=[('lon', 'float64'), ('lat', 'float64')])
+    face_index = np.atleast_1d(face_index)
+    size = len(face_index)
 
+    # Prepare index arrays
+    locations = np.empty(size, dtype=[('lon', 'f8'), ('lat', 'f8')])
+
+    node_x = grid.node_x.values
+    node_y = grid.node_y.values
+    node_z = grid.node_z.values
+    node_indices = node_indices.values
+    rng_vals = rng.random((size, 3))
     for i in range(size):
-        # Retrieve the x, y, z values for these nodes
-        x = grid.node_x[node_indices]
-        y = grid.node_y[node_indices]
-        z = grid.node_z[node_indices]
-        
-        # Generate two random indices to define a triangle with the reference point
-        idx1, idx2 = rng.choice(range(1, len(node_indices)), 2, replace=False)
-        p0, p1, p2 = np.array([x[0], y[0], z[0]]), np.array([x[idx1], y[idx1], z[idx1]]), np.array([x[idx2], y[idx2], z[idx2]])
-        
-        # Generate random barycentric coordinates for interpolation within the triangle
-        r1, r2 = rng.random(), rng.random()
-        if r1 + r2 > 1:
-            r1, r2 = 1 - r1, 1 - r2
-        
-        # Interpolate in Cartesian space
-        p_random = r1 * p1 + r2 * p2 + (1 - r1 - r2) * p0
-        
-        # Convert the random Cartesian point back to lon/lat
-        lon_lat = coordinates._xyz_to_lonlat_deg(p_random[0],p_random[1],p_random[2])
-        
-        # Store the generated lon/lat values in the structured array
-        locations['lon'][i] = lon_lat[0]
-        locations['lat'][i] = lon_lat[1]
+        p = _get_one_random_location(node_indices[i], node_x, node_y, node_z, rng_vals=rng_vals[i,:])
+        lon, lat = coordinates._xyz_to_lonlat_deg(*p)
+        locations['lon'][i] = np.float64(lon)
+        locations['lat'][i] = np.float64(lat)
 
-    # Return the appropriate format based on 'size'
-    if size == 1:
-        return locations['lon'][0], locations['lat'][0]
-    else:
-        return locations
+    return locations
 
 
 def get_random_impact_angle(size: int | tuple[int, ...]=1, 
-                            rng: Generator | None=None,
-                            **kwargs: Any
-                            ) -> Union[np.float64,NDArray[np.float64]]:
+                            rng: Generator | None = None, 
+                            rng_seed: int | None = None,
+                            rng_state: dict | None = None,
+                            **kwargs: Any) -> NDArray[np.float64]:
     """
     Sample impact angles from a distribution centered on 45deg.
     
@@ -146,32 +165,33 @@ def get_random_impact_angle(size: int | tuple[int, ...]=1,
     ----------
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
-    rng : numpy.random.Generator, optional
-        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used to create a new instance.     
-        
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments. 
+
     Returns
     ----------
-    np.float64 or ndarray of np.float64 
-        A scalar or array of impact angles (in degrees).
+    ndarray of np.float64 
+        An array of impact angles (in degrees).
     """    
     
-    if rng and not isinstance(rng, Generator):
-        raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-    if rng is None:
-        rng = np.random.default_rng() 
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     u = np.sqrt(rng.uniform(size=size))
     impact_angle = np.arcsin(u)
-    if size == 1:
-        return np.rad2deg(impact_angle[0])
-    else:
-        return np.rad2deg(impact_angle)
+    return np.rad2deg(impact_angle)
 
 
 def get_random_impact_direction(size: int | tuple[int, ...]=1,
-                                rng: Generator | None=None,
-                                **kwargs: Any
-                                ) -> Union[np.float64,NDArray[np.float64]]:
+                                rng: Generator | None = None, 
+                                rng_seed: int | None = None,
+                                rng_state: dict | None = None,
+                                **kwargs: Any) -> NDArray[np.float64]:
     """
     Sample impact direction from a uniform distribution.
 
@@ -179,33 +199,34 @@ def get_random_impact_direction(size: int | tuple[int, ...]=1,
     ----------
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single scalar value is returned.
-    rng : numpy.random.Generator, optional
-        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used to create a new instance.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments. 
 
     Returns
     -------
-    np.float64 or ndarray of np.float64
-        A scalar or array of impact angles (in degrees).
+    ndarray of np.float64 
+        An array of impact angles (in degrees).
     """
-    if rng and not isinstance(rng, Generator):
-        raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-    if rng is None:
-        rng = np.random.default_rng() 
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
     
     pdir = rng.uniform(0.0, 360.0, size=size)
-    if size == 1:
-        return pdir[0]
-    else:
-        return pdir
+    return pdir
 
 
 def get_random_size(diameters: NDArray[np.float64], 
                     cdf: NDArray[np.float64], 
                     size: int | tuple[int, ...] | None = None, 
                     mu: int | tuple[int, ...] | None = None,
-                    rng: Generator | None=None,
-                    **kwargs: Any
-                    ) -> Union[np.float64,NDArray[np.float64]]:
+                    rng: Generator | None = None, 
+                    rng_seed: int | None = None,
+                    rng_state: dict | None = None,
+                    **kwargs: Any) -> NDArray[np.float64]:
     """
     Sample diameters from a cumulative size-frequency distribution (SFD).
     
@@ -221,13 +242,19 @@ def get_random_size(diameters: NDArray[np.float64],
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None and mu is None then a single value is returned. Note: mu and size are mutually exclusive. 
     mu : int or tuple of ints, optional
         The expected number of samples to generate using a Poisson random number genertor. If the shape is (m, n, k), then m * n * k samples are drawn. Note: mu and size are mutually exclusive. 
-    rng : numpy.random.Generator, optional
-        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used to create a new instance.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments. 
     
     Returns
     -------
-    np.float64 or ndarray of np.float 64 
-        A scalar or array of sampled diameter values from the SFD. 
+    ndarray of np.float64 
+        An array of sampled diameter values from the SFD. 
     
     Notes
     -----
@@ -240,18 +267,9 @@ def get_random_size(diameters: NDArray[np.float64],
     >>> ncumul = np.array([1.  , 0.51, 0.21, 0.06, 0.01])
     >>> sample_from_sfd(diameters, cdf=ncumul, size=4)
     array([14.80803668, 44.95292261, 29.80797715, 23.11082091])
-    
-    See Also
-    --------
-    numpy.random.Generator : The numpy random generator class used for random sampling.
-    
     """
 
-    # Check if rng has 'uniform' method which is a characteristic of numpy's random generator objects and use that to generate our values
-    if rng and not isinstance(rng, Generator):
-        raise TypeError("The 'rng' argument must be a numpy.random.Generator instance or None")
-    if rng is None:
-        rng = np.random.default_rng() 
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         
     # Check that the shapes and sizes of diameters and cdf are compatible
     if np.isscalar(diameters) or np.isscalar(cdf):
@@ -324,17 +342,15 @@ def get_random_size(diameters: NDArray[np.float64],
     # Add a small random noise to the diameters
     noise = 1e-8 * rng.uniform(size=new_diameters.shape)
     new_diameters *= (1 + noise)
-    if size == 1:
-        return new_diameters[0]
-    else:
-        return new_diameters
+    return new_diameters
 
 
 def get_random_velocity(vmean: np.float64, 
                         size: int | tuple[int, ...]=1, 
-                        rng: Generator | None=None,
-                        **kwargs
-                        ) -> Union[np.float64,NDArray[np.float64]]:
+                        rng: Generator | None = None, 
+                        rng_seed: int | None = None,
+                        rng_state: dict | None = None,
+                        **kwargs: Any) -> NDArray[np.float64]:
     """
     Sample impact velocities from a Maxwell-Boltzmann distribution given a mean velocity.
     
@@ -344,22 +360,22 @@ def get_random_velocity(vmean: np.float64,
         The mean velocity of the distribution.
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
-    rng : numpy.random.Generator, optional
-        An instance of a random number generator compatible with numpy's random generators. If not provided, `default_rng` is used to create a new instance.    
-       
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments. 
+
     Returns
     ----------
     ndarray 
         An array of impact velocities (in m/s).
     """
     
-    # Check if rng has 'uniform' method which is a characteristic of numpy's random generator objects and use that to generate our values
-    if rng and hasattr(rng, 'normal'):
-        pass
-    elif rng is None:  # Just use the basic normal random number generator
-        rng = np.random.default_rng()
-    else:
-        raise TypeError("The 'rng' argument must be a compatible with numpy random generator or None")
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
     
     sigma = vmean / np.sqrt(8/np.pi)
     
@@ -368,22 +384,25 @@ def get_random_velocity(vmean: np.float64,
     vz = rng.normal(0, sigma, size=size)
     velocities = np.sqrt(vx**2 + vy**2 + vz**2)
  
-    if size == 1:
-        return velocities[0]
-    else:
-        return velocities
+    return velocities
 
 
-def bounded_norm(loc: np.float64,scale: np.float64,size: Optional[Union[int, tuple[int, ...]]]=1):
+def bounded_norm(mean: FloatLike,
+                 scale: FloatLike,
+                 size: int | tuple[int, ...]=1,
+                 **kwargs: Any) -> FloatLike: 
     """
     Sample from a truncated normal distribution that is bounded by 1-sigma stdev
     
     Parameters 
     ----------
-    loc : float
+    loc : FloatLike
        mean of the distribution
-    scale : float
+    scale : FloatLike
        standard deviation and bounds of the distribution
+    size : int or tuple of ints, optional
+        The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
+    **kwargs : Any
        
     Returns
     ----------
@@ -391,18 +410,14 @@ def bounded_norm(loc: np.float64,scale: np.float64,size: Optional[Union[int, tup
        Truncated norm bounded by loc-scale, loc+scale
     """    
     
-    lower_bound = loc - scale
-    upper_bound = loc + scale
-    truncated_normal = truncnorm(
-          (lower_bound - loc) / scale,
-            (upper_bound - loc) / scale,
-            loc=loc, scale=scale
-        )
+    lower_bound = mean - scale
+    upper_bound = mean + scale
+    truncated_normal = truncnorm((lower_bound - mean) / scale, 
+                                 (upper_bound - mean) / scale, 
+                                 loc=mean, 
+                                 scale=scale)
     
-    if size == 1:
-        return truncated_normal.rvs(1)[0]
-    else:
-        return truncated_normal.rvs(size)
+    return truncated_normal.rvs(size)
     
            
 if __name__ == '__main__':

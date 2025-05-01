@@ -4,7 +4,7 @@ from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation as R
 from typing import Any
 from numpy.typing import NDArray
-from cratermaker.utils.general_utils import validate_and_convert_location, parameter
+from cratermaker.utils.general_utils import validate_and_normalize_location, parameter
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.components.surface import Surface
 from cratermaker.components.target import Target
@@ -293,7 +293,7 @@ class HiResLocalSurface(Surface):
     def local_location(self, value: PairOfFloats):
         if not isinstance(value, tuple) or len(value) != 2:
             raise TypeError("local_location must be a tuple of two floats")
-        self._local_location = validate_and_convert_location(value)
+        self._local_location = validate_and_normalize_location(value)
         
     @parameter
     def superdomain_scale_factor(self):

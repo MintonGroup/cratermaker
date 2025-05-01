@@ -726,7 +726,7 @@ General utilities
     :toctree: generated/
 
     general_utils.Parameter
-    general_utils.validate_and_convert_location
+    general_utils.validate_and_normalize_location
     general_utils.normalize_coords
     general_utils.R_to_CSFD
 
