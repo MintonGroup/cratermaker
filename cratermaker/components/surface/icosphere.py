@@ -52,7 +52,7 @@ class IcosphereSurface(Surface):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self._radius, self._gridlevel] 
+        return [self._component_name, self.radius, self.gridlevel] 
 
 
     def generate_face_distribution(self, **kwargs: Any) -> NDArray:
@@ -82,10 +82,5 @@ class IcosphereSurface(Surface):
             raise ValueError("Grid level must be a non-negative integer.")
         self._gridlevel = int(value)
 
-    @property
-    def _hashvars(self):
-        """
-        The variables used to generate the hash.
-        """
-        return [self._component_name, self._target.radius, self._gridlevel]
+
     

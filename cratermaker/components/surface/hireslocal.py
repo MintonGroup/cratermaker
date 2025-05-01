@@ -49,11 +49,12 @@ class HiResLocalSurface(Surface):
                  regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs: Any):
+        self.target = Target.maker(target, **kwargs) 
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
         self.superdomain_scale_factor = superdomain_scale_factor
-        super().__init__(target=target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
+        super().__init__(target=self.target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
 
     def __repr__(self) -> str:
         base = super().__repr__()
@@ -70,7 +71,7 @@ class HiResLocalSurface(Surface):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self._radius, self._pix, self._local_radius, self._local_location, self._superdomain_scale_factor]
+        return [self._component_name, self.radius, self.pix, self.local_radius, self.local_location, self.superdomain_scale_factor]
         
     def _generate_variable_size_array(self) -> tuple[NDArray, NDArray, NDArray]:
         """

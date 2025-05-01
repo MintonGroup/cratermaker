@@ -72,7 +72,7 @@ class TestSimulation(unittest.TestCase):
             sim = cratermaker.Simulation(simdir=simdir,gridlevel=self.gridlevel)
             # Test with default parameters
             default_out_dir = Path(sim.simdir) / _EXPORT_DIR
-            expected_files = ["surf000000.vtp"]
+            expected_files = ["surface000000.vtp"]
             sim.export_vtk()
             self.assertTrue(Path(default_out_dir).is_dir()) 
             for f in expected_files:
@@ -185,12 +185,12 @@ class TestSimulation(unittest.TestCase):
             del sim
 
             # Second simulation: override target with "Mars"
-            sim = cratermaker.Simulation(simdir=simdir, target="Mars")
+            sim = cratermaker.Simulation(simdir=simdir, target="Mars", resume_old=True)
             self.assertEqual(sim.target.name, "Mars")
             del sim
 
             # Third simulation: no target passed, should read "Mars" from config
-            sim = cratermaker.Simulation(simdir=simdir)
+            sim = cratermaker.Simulation(simdir=simdir, resume_old=True)
             self.assertEqual(sim.target.name, "Mars")
             del sim
         return

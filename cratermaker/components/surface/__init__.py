@@ -58,9 +58,10 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_pix_min", None)
         object.__setattr__(self, "_pix_max", None)
         object.__setattr__(self, "_area", None)
-        object.__setattr__(self, "_smallest_length", None)
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
+        object.__setattr__(self, "_face_areas", None)
+        object.__setattr__(self, "_smallest_length", None)
         super().__init__(simdir=simdir, **kwargs)
 
         self.target = Target.maker(target, **kwargs)
@@ -123,7 +124,7 @@ class Surface(ComponentBase):
                                save_to_file=True)                         
             self.set_elevation(0.0,save_to_file=True)
 
-        self.load_from_data(compute_face_areas=True)
+        self.load_from_data()
         
         return
 
@@ -177,12 +178,7 @@ class Surface(ComponentBase):
                              simdir=simdir, 
                              **kwargs)
 
-    def load_from_data(self, compute_face_areas):
-        if compute_face_areas: 
-            # Compute face area needed in the non-normalized units for future calculations
-            self._face_areas = self.uxgrid.face_areas.values * self.target.radius**2
-            self._smallest_length = np.sqrt(self.uxgrid.face_areas.min()) * _SMALLFAC   
-        
+    def load_from_data(self):
         self.face_lat = self.uxgrid.face_lat.values
         self.face_lon = self.uxgrid.face_lon.values
         self.node_lat = self.uxgrid.node_lat.values
@@ -223,20 +219,6 @@ class Surface(ComponentBase):
         return self.simdir / _DATA_DIR / _GRID_FILE_NAME
 
     @property
-    def smallest_length(self):
-        """
-        Smallest length value that is directly modeled on the grid. This is used to determine the maximum distance of ejecta to 
-        consider, for instance
-        """
-        return self._smallest_length
-
-    @smallest_length.setter
-    def smallest_length(self, value):
-        if not isinstance(value, float):
-            raise TypeError("smallest_length must be a float")
-        self._smallest_length = value
-
-    @property
     def area(self):
         """
         Total surface area of the target body.
@@ -256,7 +238,14 @@ class Surface(ComponentBase):
     def target(self, value):
         self._target = Target.maker(value)
         return 
-    
+
+    @property
+    def radius(self):
+        """
+        Radius of the target body.
+        """
+        return self.target.radius
+
     @property
     def node_tree(self):
         if self._node_tree is None:
@@ -405,7 +394,7 @@ class Surface(ComponentBase):
                                combine_data_files=combine_data_files,
                                interval_number=interval_number
                               )
-        self.load_from_data(compute_face_areas=False)
+        self.load_from_data()
         return 
 
     @staticmethod
@@ -470,7 +459,7 @@ class Surface(ComponentBase):
         node_lat2 = np.deg2rad(self.node_lat[view.node_indices])
         face_lon2 = np.deg2rad(self.face_lon[view.face_indices])
         face_lat2 = np.deg2rad(self.face_lat[view.face_indices])
-        return self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,self.target.radius), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,self.target.radius) 
+        return self.calculate_haversine_distance(lon1,lat1,node_lon2,node_lat2,self.radius), self.calculate_haversine_distance(lon1,lat1,face_lon2,face_lat2,self.radius) 
 
     @staticmethod
     def calculate_initial_bearing(lon1: FloatLike, 
@@ -628,7 +617,7 @@ class Surface(ComponentBase):
                                self.uxds.uxgrid.face_y.values[view.face_indices], 
                                self.uxds.uxgrid.face_z.values[view.face_indices]))
         region_faces = face_grid[faces_within_radius]
-        region_elevation = face_elevation[faces_within_radius] / self.target.radius
+        region_elevation = face_elevation[faces_within_radius] / self.radius
         region_surf = self.elevation_to_cartesian(region_faces, region_elevation) 
 
         x, y, z = region_surf.T
@@ -652,7 +641,7 @@ class Surface(ComponentBase):
         
         def find_reference_elevations(coords):
             # Find the point along the original vector that intersects the sphere 
-            f_vec = coords / self.target.radius      
+            f_vec = coords / self.radius      
             A = f_vec[:,0]**2 + f_vec[:,1]**2 + f_vec[:,2]**2
             B = -2 * (f_vec[:,0] * reference_sphere_center[0] + f_vec[:,1] * reference_sphere_center[1] + f_vec[:,2] * reference_sphere_center[2])
             C = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
@@ -670,7 +659,7 @@ class Surface(ComponentBase):
             if np.any(t[valid] < 0):
                 t = np.where(valid & (t < 0), (-B - sqrt_valid_term) / (2 * A), t)
                 
-            elevations = self.target.radius * (t * np.linalg.norm(f_vec, axis=1)  - 1)
+            elevations = self.radius * (t * np.linalg.norm(f_vec, axis=1)  - 1)
             return elevations
         
         # Calculate the distances between the original face points and the intersection points
@@ -733,7 +722,7 @@ class Surface(ComponentBase):
             
         """ 
         
-        region_angle = np.rad2deg(region_radius / self.target.radius)
+        region_angle = np.rad2deg(region_radius / self.radius)
         if len(location) == 1:
             location = location.item()
         coords = np.asarray(location)  
@@ -1034,10 +1023,10 @@ class Surface(ComponentBase):
                 uxgrid = self.uxgrid
         face_areas = uxgrid.face_areas 
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_mean = face_sizes.mean().item() * self.target.radius
-        pix_std = face_sizes.std().item() * self.target.radius
-        pix_min = face_sizes.min().item() * self.target.radius
-        pix_max = face_sizes.max().item() * self.target.radius
+        pix_mean = face_sizes.mean().item() * self.radius
+        pix_std = face_sizes.std().item() * self.radius
+        pix_min = face_sizes.min().item() * self.radius
+        pix_max = face_sizes.max().item() * self.radius
         return float(pix_mean), float(pix_std), float(pix_min), float(pix_max)
     
     @property
@@ -1088,10 +1077,18 @@ class Surface(ComponentBase):
         """
         The face areas of the mesh.
         """
-        if self.uxgrid is not None:
-            return self.uxgrid.face_areas.values
-        else:
-            return None
+        if self._face_areas is None:
+            self._face_areas = self.uxgrid.face_areas.values * self.radius**2
+        return self._face_areas
+    
+    @property
+    def smallest_length(self):
+        """
+        The smallest length of the mesh.
+        """
+        if self._smallest_length is None:
+            self._smallest_length = np.sqrt(np.min(self.face_areas)) * _SMALLFAC  
+        return self._smallest_length
 
 
 class SurfaceView:
