@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from numpy.typing import ArrayLike
 from typing import Any, Union
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.utils.montecarlo import get_random_size
+from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import parameter
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.components.target import Target
@@ -62,6 +62,8 @@ class Production(ComponentBase):
         production : str | Production | None, optional
             The production model to use. This can be either a string or a Production instance. 
             If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
+        target : Target | str | None, optional
+            The target body for the impact. Can be a Target object or a string representing the target name.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -98,8 +100,6 @@ class Production(ComponentBase):
             else:
                 production = "powerlaw"
         return super().maker(component=production, version=version, target=target, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-         
-
 
     def sample(self,
                age: FloatLike | None = None,
@@ -159,15 +159,13 @@ class Production(ComponentBase):
         input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
         cdf = self.function(diameter=input_diameters, age=age, age_end=age_end, **kwargs)
         expected_num = cdf[0] * area if area is not None else None
-        diameters = np.asarray(get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, **vars(self.common_args)))
+        diameters = mc.get_random_size(diameters=input_diameters, cdf=cdf, mu=expected_num, **vars(self.common_args))
         if diameters.size == 0:
             return np.empty(0), np.empty(0)
-        elif diameters.size == 1:
-            diameters = np.array([diameters])
        
         if return_age: 
             age_subinterval = np.linspace(age_end, age, num=1000) 
-            N_vs_age = np.asarray(self.function(diameter=diameters, age=age_subinterval, **kwargs))
+            N_vs_age = self.function(diameter=diameters, age=age_subinterval, **kwargs)
             
             # Normalize the weights for each diameter
             if N_vs_age.ndim > 1:

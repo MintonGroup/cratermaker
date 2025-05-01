@@ -48,7 +48,8 @@ tests = [
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
 [project.entry-points."cratermaker.components.scaling"]
-richardson2009 = "cratermaker.components.scaling.richardson2009:Richardson2009"
+default = "cratermaker.components.scaling.default:DefaultScaling"
+ctem = "cratermaker.components.scaling.ctem:CTEMScaling"
 
 [project.entry-points."cratermaker.components.production"]
 powerlaw = "cratermaker.components.production.powerlaw:PowerLawProduction"

@@ -67,7 +67,10 @@ class Morphology(ComponentBase):
         # Call the base class version of make and pass the morphology argument as the component argument
         if morphology is None:
             morphology = "simplemoon"
-        return super().maker(component=morphology, crater=crater, **kwargs)
+        morphology = super().maker(component=morphology, crater=crater, **kwargs)
+        if crater is not None:
+            morphology.crater = crater
+        return morphology
 
     @abstractmethod
     def form_crater(self, 

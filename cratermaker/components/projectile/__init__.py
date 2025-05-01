@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any
 import numpy as np
+import math
 from numpy.random import Generator
 from cratermaker.utils.general_utils import parameter
 from cratermaker.utils.component_utils import ComponentBase, import_components
@@ -155,7 +156,7 @@ class Projectile(ComponentBase):
             else:
                 projectile = "comets"
 
-        return super().maker(component=projectile,
+        projectile = super().maker(component=projectile,
                             target=target,
                             mean_velocity=mean_velocity,
                             density=density,
@@ -169,6 +170,10 @@ class Projectile(ComponentBase):
                             rng_seed=rng_seed,
                             rng_state=rng_state, 
                             **kwargs) 
+        if target is not None:
+            projectile.target = target
+        projectile.new_projectile(**kwargs)
+        return projectile
 
         
     def new_projectile(self, **kwargs: Any) -> dict:
@@ -187,13 +192,19 @@ class Projectile(ComponentBase):
         """
 
         if self.sample_velocities:
-            self._velocity = mc.get_random_velocity(self.mean_velocity, rng=self.rng)
+            self._velocity = float(mc.get_random_velocity(self.mean_velocity, rng=self.rng)[0])
+        elif self.velocity is None:
+            self._velocity = float(self.mean_velocity)
 
         if self.sample_angles:
-            self.angle = mc.get_random_impact_angle(rng=self.rng)
+            self._angle = float(mc.get_random_impact_angle(rng=self.rng)[0])
+        elif self.angle is None:
+            self._angle = float(90.0)
 
         if self.sample_directions:
-            self._direction = mc.get_random_impact_direction(rng=self.rng)
+            self._direction = float(mc.get_random_impact_direction(rng=self.rng)[0])
+        elif self._direction is None:
+            self._direction = float(0.0)
 
         return {
             "projectile_velocity": self.velocity,
@@ -295,6 +306,8 @@ class Projectile(ComponentBase):
     
     @mean_velocity.setter
     def mean_velocity(self, value):
+        if isinstance(value, np.ndarray):
+            value = value.item()
         if isinstance(value, FloatLike):
             if value < 0:
                 raise ValueError("mean_velocity must be a positive number")
@@ -316,6 +329,8 @@ class Projectile(ComponentBase):
     
     @angle.setter
     def angle(self, value):
+        if isinstance(value, np.ndarray):
+            value = value.item()
         if not isinstance(value, FloatLike):
             raise TypeError("angle must be a numeric value")
         if value < 0:
@@ -335,6 +350,8 @@ class Projectile(ComponentBase):
     
     @direction.setter
     def direction(self, value):
+        if isinstance(value, np.ndarray):
+            value = value.item()
         if not isinstance(value, FloatLike):
             raise TypeError("direction must be a numeric value")
         if value < 0:
@@ -407,7 +424,7 @@ class Projectile(ComponentBase):
         -------
         float 
         """
-        return self.velocity * np.sin(np.radians(self.angle))
+        return self.velocity * math.sin(math.radians(self.angle))
     
     @property
     def population(self):

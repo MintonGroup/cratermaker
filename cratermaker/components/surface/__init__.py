@@ -171,12 +171,15 @@ class Surface(ComponentBase):
         if surface is None:
             surface = "icosphere"
 
-        return super().maker(component=surface, 
+        surface = super().maker(component=surface, 
                              target=target, 
                              reset_surface = reset_surface,
                              regrid = regrid,
                              simdir=simdir, 
                              **kwargs)
+        if target is not None:
+            surface.target = target
+        return surface
 
     def load_from_data(self):
         self.face_lat = self.uxgrid.face_lat.values
@@ -735,7 +738,6 @@ class Surface(ComponentBase):
     
     def get_random_location_on_face(self, 
                                     face_index: int, 
-                                    size: int = 1,
                                     **kwargs
                                     ) -> float | tuple[float, float] | ArrayLike:
         """
@@ -745,11 +747,11 @@ class Surface(ComponentBase):
         ----------
         grid : uxarray.Grid
             The grid object containing the mesh information.
-        face_index : int
-            The index of the face within the grid to obtain the random sample.
+        face_index : int | NDArray[np.int64]
+            The index or array of indices of the face within the grid to obtain the random sample.
         size : int or tuple of ints, optional
             The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1, 
-            then a gridtyped array with fields 'lon' and 'lat' is returned.
+            then an array of tuples is returned. The default is 1.
                 
         Returns
         -------
@@ -761,7 +763,7 @@ class Surface(ComponentBase):
         This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
         """
         
-        return get_random_location_on_face(self.uxds.uxgrid, face_index, size,**kwargs)
+        return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
 
     @staticmethod
     def _save_data(ds: xr.Dataset | xr.DataArray,
