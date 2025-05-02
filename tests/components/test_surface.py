@@ -194,26 +194,23 @@ class TestSurface(unittest.TestCase):
 
 
     def test_generate_grid(self):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             
-            gridargs = {
-                "icosphere": {
-                    "level" :self.gridlevel, 
-                    "radius": self.target.radius
-                    },
-                "arbitrary_resolution": {
-                    "pix": self.pix, 
-                    "radius": self.target.radius
-                    },
-                "hireslocal": {
-                    "pix": self.pix, 
-                    "radius": self.target.radius, 
-                    "local_location": (0, 0), 
-                    "local_radius": 100e3, 
-                    "superdomain_scale_factor": 10
-                    }
+        gridargs = {
+            "icosphere": {
+                "level" :self.gridlevel, 
+                },
+            "arbitrary_resolution": {
+                "pix": self.pix, 
+                },
+            "hireslocal": {
+                "pix": self.pix, 
+                "local_location": (0, 0), 
+                "local_radius": 100e3, 
+                "superdomain_scale_factor": 10
                 }
+            }
 
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             for name, args in gridargs.items():
                 surface = Surface.maker(name,simdir=simdir,**args)
                 self.assertTrue(Path(surface.grid_file).exists())
