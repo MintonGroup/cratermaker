@@ -65,19 +65,27 @@ class Surface(ComponentBase):
             "node_elevation": {
                 "units" : "m", 
                 "long_name": "elevation of nodes", 
-                "initial_value" : 0.0 },
+                "initial_value" : 0.0,
+                "isfacedata" : False 
+            },
             "face_elevation": {
                 "units" : "m",
                 "long_name": "elevation of faces",
-                "initial_value" : 0.0 },
+                "initial_value" : 0.0,
+                "isfacedata" : True
+            },
             "ejecta_thickness": {
                 "units" : "m",
                 "long_name": "ejecta thickness",
-                "initial_value" : 0.0 },
+                "initial_value" : 0.0,
+                "isfacedata" : True
+            },
             "ray_intensity": {
                 "units" : "",
                 "long_name": "ray intensity value",
-                "initial_value" : 0.0 },
+                "initial_value" : 0.0,
+                "isfacedata" : True
+            },
         }
 
         self.target = Target.maker(target, **kwargs)
@@ -304,7 +312,9 @@ class Surface(ComponentBase):
                                data=entry["initial_value"],
                                long_name=entry["long_name"],
                                units=entry["units"],
+                               isfacedata=entry["isfacedata"],
                                save_to_file=True)
+                               
 
         self.load_from_data()
 

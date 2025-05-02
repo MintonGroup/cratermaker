@@ -13,8 +13,13 @@
 # The API change does not affect the functionality of the code, so we can safely ignore the warning
 import warnings
 from ._version import version as __version__
-warnings.filterwarnings("ignore",category=FutureWarning,module="xarray")
-warnings.filterwarnings("ignore",category=FutureWarning,module="uxarray")
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="xarray")
+warnings.filterwarnings("ignore", category=FutureWarning, module="uxarray")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="geopandas._compat")
+warnings.filterwarnings("ignore", category=RuntimeWarning, message="numpy.ndarray size changed")
+warnings.filterwarnings("ignore", category=UserWarning, module="uxarray.grid.coordinates")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="tqdm.std")
 
 from .core.simulation import Simulation
 from .core.crater import Crater
