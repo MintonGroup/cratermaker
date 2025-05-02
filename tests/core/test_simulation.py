@@ -73,14 +73,13 @@ class TestSimulation(unittest.TestCase):
             # Test with default parameters
             default_out_dir = Path(sim.simdir) / _EXPORT_DIR
             expected_files = ["surface000000.vtp"]
-            sim.export_vtk()
+            sim.export("vtk")
             self.assertTrue(Path(default_out_dir).is_dir()) 
             for f in expected_files:
                 self.assertTrue((Path(default_out_dir / f).exists()))
             
     def test_emplace_crater(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            
             cdiam = 2*self.pix
             sim = cratermaker.Simulation(simdir=simdir,gridlevel=self.gridlevel)
             sim.emplace_crater(final_diameter=cdiam)

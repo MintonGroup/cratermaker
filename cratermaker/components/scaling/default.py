@@ -16,7 +16,7 @@ class DefaultScaling(Scaling):
     """
     This is an operations class for computing the scaling relationships between projectiles and craters.  This class encapsulates the 
     logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size 
-    and target propertiesImplements the scaling laws described in Richardson (2009) [1]_ that were implemented in CTEM. However, unlike
+    and target properties. This implements the scaling laws described in Richardson (2009) [1]_ that were implemented in CTEM. However, unlike
     in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws.
         
     Parameters
@@ -47,7 +47,7 @@ class DefaultScaling(Scaling):
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.
     - The `material_name` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
-    - The `K1`, `mu`, `Ybar`, and `target_density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
+    - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
     - The built-in material property values are from Holsapple (1993) [2]_ and Kraus et al. (2011) [3]_. 
     
     References
@@ -129,7 +129,6 @@ class DefaultScaling(Scaling):
         if public_name in include_list:
             self._user_defined.add(public_name)
 
-
     def get_morphology_type(self, 
                             final_diameter: FloatLike | None = None, 
                             **kwargs: Any) -> str:
@@ -146,6 +145,8 @@ class DefaultScaling(Scaling):
         str
             The type of crater "simple", "complex", or "transitional" 
         """
+        if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
+            raise ValueError("final_diameter must be a positive finite number")
         
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular  
         transition_range = (0.5*self.transition_nominal,2*self.transition_nominal)
@@ -172,7 +173,6 @@ class DefaultScaling(Scaling):
         
         return morphology_type    
 
-
     def final_to_transient(self, 
                            final_diameter: FloatLike | None = None,
                            morphology_type: str | None = None, **kwargs) -> float:
@@ -195,6 +195,8 @@ class DefaultScaling(Scaling):
         float
             Returns the crater transient diameter in meters
         """       
+        if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
+            raise ValueError("final_diameter must be a positive finite number")
         if not morphology_type:
             morphology_type = self.get_morphology_type(final_diameter) 
         
@@ -206,9 +208,8 @@ class DefaultScaling(Scaling):
         transient_diameter = float(transient_diameter)
         return transient_diameter, morphology_type
 
-
     def transient_to_final(self, 
-                           transient_diameter: FloatLike | None = None, 
+                           transient_diameter: FloatLike, 
                            **kwargs: Any) -> tuple[float, str]:
         """
         Computes the final diameter of a crater based on its transient diameter and morphology type.
@@ -232,6 +233,10 @@ class DefaultScaling(Scaling):
         str
             The morphology type of the crater
         """ 
+        # validate that transient_diameter is number and that it is positive and finite
+        if not isinstance(transient_diameter, FloatLike) or transient_diameter <= 0 or not np.isfinite(transient_diameter):
+            raise ValueError("transient_diameter must be a positive finite number")
+
         # Invert the final -> transient functions for  each crater type
         final_diameter_simple = transient_diameter * self.simple_enlargement_factor
         def root_func(final_diameter,Dt,scaling):
@@ -282,7 +287,6 @@ class DefaultScaling(Scaling):
         morphology_type = morphology_type
         return final_diameter, morphology_type
 
-
     def projectile_to_transient(self, 
                                 projectile_diameter: FloatLike, 
                                 **kwargs: Any) -> float:
@@ -299,6 +303,9 @@ class DefaultScaling(Scaling):
         ----------
         .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
+        if not isinstance(projectile_diameter, FloatLike) or projectile_diameter <= 0 or not np.isfinite(projectile_diameter):
+            raise ValueError("projectile_diameter must be a positive finite number")
+
         # Compute some auxiliary quantites
         projectile_radius = projectile_diameter / 2
         projectile_mass = (4.0/3.0) * math.pi * (projectile_radius**3) * self.projectile.density
@@ -326,7 +333,6 @@ class DefaultScaling(Scaling):
         
         return transient_diameter
 
-
     def transient_to_projectile(self, 
                                 transient_diameter: FloatLike, 
                                 **kwargs: Any) -> float: 
@@ -348,6 +354,9 @@ class DefaultScaling(Scaling):
         Crater
             The computed projectile for the crater.
         """
+        if not isinstance(transient_diameter, FloatLike) or transient_diameter <= 0 or not np.isfinite(transient_diameter):
+            raise ValueError("transient_diameter must be a positive finite number")
+
         def root_func(projectile_diameter) -> float:
             value = self.projectile_to_transient(projectile_diameter)
             return value - transient_diameter 
@@ -386,7 +395,6 @@ class DefaultScaling(Scaling):
         if self._material_catalogue is None:
             self._material_catalogue = _create_material_catalogue()
         return self._material_catalogue
-    
 
     def _compute_simple_to_complex_transition_factors(self):
         """
@@ -418,8 +426,8 @@ class DefaultScaling(Scaling):
         
         # Draw from a truncated normal distribution for each component of the model
         if self._montecarlo_scaling:
-            simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)
-            final_exp = mc.bounded_norm(final_exp_mean, final_exp_std)
+            simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)[0]
+            final_exp = mc.bounded_norm(final_exp_mean, final_exp_std)[0]
             simple_complex_fac = simple_complex_mean * math.exp(self.rng.normal(loc=0.0,scale=simple_complex_std))
             transition_diameter = simple_complex_fac * self.target.gravity**simple_complex_exp
         else:
@@ -432,14 +440,11 @@ class DefaultScaling(Scaling):
         self._final_exp = float(final_exp)
         return 
 
-
     def _f2t_simple(self, Df):
         return Df / self.simple_enlargement_factor
 
-
     def _f2t_complex(self, Df):
         return Df / (self.simple_enlargement_factor * self.complex_enlargement_factor) * (Df / self.transition_diameter)**-self.final_exp
-
 
     @property
     def transition_diameter(self) -> float:
@@ -499,7 +504,6 @@ class DefaultScaling(Scaling):
         float
         """
         return self._final_exp
-
 
     @property
     def K1(self):

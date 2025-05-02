@@ -71,8 +71,7 @@ class TestCrater(unittest.TestCase):
     
     def test_non_default_target_and_rng(self):
         rng = default_rng()
-        target = Target("Mars") 
-        crater = Crater.maker(projectile_diameter=1000,target=target,rng=rng,projectile_mean_velocity=10e3)
+        crater = Crater.maker(projectile_diameter=1000,rng=rng,projectile_mean_velocity=10e3)
         self.assertEqual(crater.projectile_diameter, 1000)
 
     def test_invalid_target_or_rng_type(self):

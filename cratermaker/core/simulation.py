@@ -16,7 +16,7 @@ from ..components.scaling import Scaling
 from ..components.production import Production
 from ..components.morphology import Morphology
 from ..components.projectile import Projectile
-from ..components.surface import Surface, _save_surface
+from ..components.surface import Surface
 
 class Simulation(CratermakerBase):
     """
@@ -129,18 +129,6 @@ class Simulation(CratermakerBase):
         morphology_config = {**morphology_config, **kwargs}
         self.morphology = Morphology.maker(self.morphology, **morphology_config)
       
-        if self.surface is not None and self.surface == 'hireslocal':
-            if 'superdomain_scale_factor' not in kwargs:
-                # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
-                # superdomain. This will be used to set the superdomain scale factor. 
-                # TODO: Streamline this a bit and move it into the hireslocal component.
-                for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
-                    crater = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scaling.projectile_mean_velocity*10)
-                    rmax = self.morphology.compute_rmax(minimum_thickness=1e-3) 
-                    if rmax < self.target.radius * 2 * np.pi:
-                        superdomain_scale_factor = rmax / crater.final_radius
-                        break
-                kwargs['superdomain_scale_factor'] = superdomain_scale_factor
         surface_config = {**surface_config, **kwargs}
         self.surface = Surface.maker(self.surface, target=self.target, **surface_config)
 
@@ -226,13 +214,14 @@ class Simulation(CratermakerBase):
             crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
         """       
          
-        crater = Crater.maker(target=self.target, scaling=self.scaling, projectile=self.projectile, **vars(self.common_args), **kwargs)
+        crater = Crater.maker(scaling=self.scaling, **vars(self.common_args), **kwargs)
         
         return crater
     
     
-    def emplace_crater(self, **kwargs: Any
-                      ) -> None:
+    def emplace_crater(self, 
+                       crater: Crater | None = None, 
+                       **kwargs: Any) -> None:
         """
         Emplace a crater in the simulation, optionally based on a projectile.
 
@@ -242,6 +231,8 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
+        crater : Crater, optional
+            A Crater object to be emplaced. If provided, this will be used directly.
         **kwargs : Any
             Keyword arguments for initializing the :class:`Crater`.
             Refer to the documentation of this class for details on valid keyword arguments.
@@ -267,7 +258,10 @@ class Simulation(CratermakerBase):
             sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
 
         """
-        self.crater = self.generate_crater(**kwargs)
+        if crater is None:
+            self.crater = self.generate_crater(**kwargs)
+        else:
+            self.crater = crater
         self.morphology.form_crater(self.surface,self.crater,**kwargs)
         
         return  
@@ -703,7 +697,7 @@ class Simulation(CratermakerBase):
             "elapsed_n1": self.elapsed_n1
             }
          
-        _save_surface(self.surface, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
+        self.surface.save_to_files(interval_number=self.interval_number, time_variables=time_variables, **kwargs)
 
         self.to_config(**kwargs)
         

@@ -48,8 +48,8 @@ class Morphology(ComponentBase):
             The name of the morphology model to use, or an instance of Morphology. If None, the default "simplemoon" is used.
         crater : Crater, optional
             The crater currently attached to the morphology model.
-        kwargs : Any
-            Additional keyword arguments.
+        **kwargs : Any
+            Additional keyword arguments that are required for the specific morphology model being created.
 
         Returns
         -------

@@ -18,7 +18,7 @@ class ArbitraryResolutionSurface(Surface):
         The approximate face size for the mesh in meters.
     target : Target, optional
         The target body or name of a known target body for the impact simulation. 
-    reset_surface : bool, optional
+    reset : bool, optional
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
@@ -34,12 +34,13 @@ class ArbitraryResolutionSurface(Surface):
     def __init__(self, 
                  pix: FloatLike | None = None, 
                  target: Target | str | None = None,
-                 reset_surface: bool = False,
+                 reset: bool = False,
                  regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs: Any):
+        super().__init__(target=target, simdir=simdir, **kwargs)
         self.pix = pix
-        super().__init__(target=target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
+        self.load_from_files(reset=reset, regrid=regrid, **kwargs)
 
     def __repr__(self) -> str:
         base = super().__repr__()
@@ -62,7 +63,6 @@ class ArbitraryResolutionSurface(Surface):
         """
         return self._pix
 
-    
     @pix.setter
     def pix(self, value: FloatLike):
         if value is None:

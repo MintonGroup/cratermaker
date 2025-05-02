@@ -119,7 +119,7 @@ class SimpleMoon(Morphology):
         self.node_index, self.face_index = surface.find_nearest_index(self.crater.location)
 
         # Test if the crater is big enough to modify the surface
-        rmax = self._compute_rmax(minimum_thickness=surface.smallest_length)
+        rmax = self.rmax(minimum_thickness=surface.smallest_length)
         region_view = surface.extract_region(self.crater.location, rmax)
         if region_view is None: # The crater is too small to change the surface
             return
@@ -170,7 +170,7 @@ class SimpleMoon(Morphology):
         self.node_index, self.face_index = surface.find_nearest_index(self.crater.location) 
 
         # Test if the ejecta is big enough to modify the surface
-        rmax = self._compute_rmax(minimum_thickness=surface.smallest_length) 
+        rmax = self.rmax(minimum_thickness=surface.smallest_length) 
         if not self.ejecta_truncation:
             self.ejecta_truncation = rmax / self.crater.final_radius
         region_view = surface.extract_region(self.crater.location, rmax)
@@ -238,9 +238,10 @@ class SimpleMoon(Morphology):
         return intensity
 
 
-    def _compute_rmax(self, 
-                     minimum_thickness: FloatLike,
-                     feature: str = "ejecta") -> float:
+    def rmax(self, 
+            minimum_thickness: FloatLike,
+            feature: str = "ejecta",
+            crater: Crater | None = None) -> float:
         """
         Compute the maximum extent of the crater based on the minimum thickness of a feature, or the ejecta_truncation factor,
         whichever is smaller.
@@ -252,6 +253,8 @@ class SimpleMoon(Morphology):
         feature : str, optional, default = "ejecta"
             The feature to compute the maximum extent. Either "crater" or "ejecta". If "crater" is chosen, the rmax is based
             on where the raised rim is smaller than minimum thickness. 
+        crater : Crater, optional
+            The crater object to be used. If None, the current crater object is used. If passed, the current crater object is replaced.
         Returns
         -------
         float
@@ -259,6 +262,8 @@ class SimpleMoon(Morphology):
         """ 
         
         # Compute the reference surface for the crater 
+        if crater is not None:
+            self.crater = crater
 
         if feature == "ejecta":
             def _profile_invert(r):
