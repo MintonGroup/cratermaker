@@ -19,7 +19,7 @@ class TestSurface(unittest.TestCase):
     
     def test_initialize_surface(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            # Initializing it first should run the jigsaw mesh generator
+            # Initializing it first should run the mesh generator
             surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset_surface=True)
             del surface
 

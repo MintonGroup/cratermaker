@@ -84,9 +84,7 @@ class Crater:
             projectile_direction: float | None = None,
             location: tuple[float, float] | None = None,
             age: float | None = None,
-            scaling: str | Scaling = "default",
-            projectile: str | Projectile = "asteroids",
-            target: str | Target = "Moon",
+            scaling: str | Scaling | None = None,
             simdir: str | Path | None = None,
             rng: Generator = None,
             rng_seed: str | int | None = None,
@@ -130,11 +128,7 @@ class Crater:
         age : float, optional
             The age of the crater in Myr.
         scaling : str or Scaling, optional
-            A string key or instance of a scaling model.
-        projectile : str or Projectile, optional
-            A string key or instance of an projectile model.
-        target : str or Target, optional
-            The target body name or object. Used internally, not stored on Crater.
+            A string key or instance of a scaling model. If none provided, a default will be used
         simdir : str | Path
             The main project simulation directory. Defaults to the current working directory if None.
         rng : numpy.random.Generator | None
@@ -158,8 +152,7 @@ class Crater:
         - `projectile_mean_velocity` alone (samples a velocity)
         - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`). the third is inferred.
         - `projectile` is mutually exclusive with velocity-related inputs; if provided, it overrides velocity, angle, direction, and density unless explicitly set.
-        - The `target`, `scaling`, and `rng` models are required for scaling and density inference, but are not stored in the returned Crater object.
-
+        - The `scaling`, and `rng` models are required for scaling and density inference, but are not stored in the returned Crater object.
         """
 
         # Validate that mutually exclusive arguments hve not been passed
@@ -200,6 +193,9 @@ class Crater:
             if projectile_velocity is not None or projectile_vertical_velocity is not None:
                 raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
             
+        if scaling is not None and isinstance(scaling, Scaling):
+            projectile = scaling.projectile
+
         n_size_inputs = sum(v is not None for v in size_inputs.values()) 
 
         # Process input crater object if provided
@@ -247,7 +243,12 @@ class Crater:
         # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
         argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
         rng = argproc.rng
-
+        if scaling is not None and isinstance(scaling, Scaling):
+            target = scaling.target
+            projectile = scaling.projectile
+        else: # Setting these to None will  cause them to instantiate to their default models.
+            target = None
+            projectile = None
         target = Target.maker(target, **vars(argproc.common_args), **kwargs)
         projectile = Projectile.maker(projectile, target=target, **vars(argproc.common_args), **kwargs)
 
@@ -319,11 +320,13 @@ class Crater:
             projectile.sample_velocities = False
 
         scaling = Scaling.maker(scaling, target=target, projectile=projectile, **vars(argproc.common_args), **kwargs)
-        pv = scaling.projectile.velocity
-        pvv = scaling.projectile.vertical_velocity
-        pang = scaling.projectile.angle
-        pdir = scaling.projectile.direction
-        prho = scaling.projectile.density
+        projectile = scaling.projectile
+        target = scaling.target
+        pv = projectile.velocity
+        pvv = projectile.vertical_velocity
+        pang = projectile.angle
+        pdir = projectile.direction
+        prho = projectile.density
 
         # --- Ensure velocity/angle are all set ---
         n_set = sum(x is not None for x in [pv, pvv, pang])

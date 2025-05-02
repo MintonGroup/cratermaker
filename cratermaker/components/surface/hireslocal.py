@@ -6,8 +6,11 @@ from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.general_utils import validate_and_normalize_location, parameter
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
+from cratermaker.core.crater import Crater
 from cratermaker.components.surface import Surface
 from cratermaker.components.target import Target
+from cratermaker.components.morphology import Morphology
+from cratermaker.components.scaling import Scaling
 
 @Surface.register("hireslocal")
 class HiResLocalSurface(Surface):
@@ -22,11 +25,16 @@ class HiResLocalSurface(Surface):
         The radius of the local region in meters.
     local_location : PairOfFloats
         The longitude and latitude of the location in degrees.
-    superdomain_scale_factor : FloatLike
+    superdomain_scale_factor : FloatLike, optional
         A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters 
-        that are modeled outside the local region are those whose ejecta could just reach the boundary.
+        that are modeled outside the local region are those whose ejecta could just reach the boundary. If not provide, then it will 
+        be computed based on a provided (or default) scaling and morphology model
     target : Target, optional
-        The target body or name of a known target body for the impact simulation. 
+        The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default, or extracted from the scaling model if it is provied 
+    scaling : Scaling, optional
+        A scaling model or the name of a scaling model for the impact simulation. This is only needed to set the superdomain_scale_factor if it is not specified
+    morphology : Morphology, optional
+        A morphology model or the name of a morphology model for the impact simulation. This is only needed to set the superdomain_scale_factor if it is not specified
     reset_surface : bool, optional
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
@@ -43,16 +51,35 @@ class HiResLocalSurface(Surface):
                  pix: FloatLike, 
                  local_radius: FloatLike, 
                  local_location: PairOfFloats,
-                 superdomain_scale_factor: FloatLike,
+                 superdomain_scale_factor: FloatLike | None = None,
                  target: Target | str | None = None,
+                 scaling: Scaling | str | None = None,
+                 morphology: Morphology | str | None = None,
                  reset_surface: bool = False,
                  regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs: Any):
+        
+        if target is None:
+            if scaling is not None and isinstance(scaling, Scaling):
+                target = scaling.target
         self.target = Target.maker(target, **kwargs) 
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
+        if superdomain_scale_factor is None:
+            # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
+            # superdomain. This will be used to set the superdomain scale factor. 
+            scaling = Scaling.maker(scaling, target=self.target, **kwargs)
+            morphology = Morphology.maker(morphology, target=self.target, **kwargs)
+            projectile_velocity = scaling.projectile.mean_velocity * 10
+             
+            for final_diameter in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
+                crater = Crater.maker(final_diameter=final_diameter, angle=90.0, scaling=scaling, projectile_velocity=projectile_velocity, **kwargs)
+                rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3) 
+                if rmax < self.target.radius * 2 * np.pi:
+                    superdomain_scale_factor = rmax / crater.final_radius
+                    break
         self.superdomain_scale_factor = superdomain_scale_factor
         super().__init__(target=self.target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
 
