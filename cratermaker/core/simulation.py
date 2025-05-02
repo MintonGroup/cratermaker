@@ -84,7 +84,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
-        object.__setattr__(self, "_surf", None)
+        object.__setattr__(self, "_surface", None)
 
         if self.config_file.exists():
             config_file = self.config_file
@@ -132,7 +132,8 @@ class Simulation(CratermakerBase):
         if self.surface is not None and self.surface == 'hireslocal':
             if 'superdomain_scale_factor' not in kwargs:
                 # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the 
-                # superdomain. This will be used to set the superdomain scale factor. TODO: Streamline this a bit
+                # superdomain. This will be used to set the superdomain scale factor. 
+                # TODO: Streamline this a bit and move it into the hireslocal component.
                 for d in np.logspace(np.log10(self.target.radius*2), np.log10(self.target.radius / 1e6), 1000):
                     crater = self.generate_crater(diameter=d, angle=90.0, projectile_velocity=self.scaling.projectile_mean_velocity*10)
                     rmax = self.morphology.compute_rmax(minimum_thickness=1e-3) 
@@ -712,6 +713,7 @@ class Simulation(CratermakerBase):
         """
         Export the surface mesh to a file in the specified format. Currently only VTK is supported.
         """
+        self.save()
         if format == "vtk":
             export.to_vtk(self.surface, *args, **kwargs)
         else:
@@ -749,13 +751,13 @@ class Simulation(CratermakerBase):
         """
         Surface mesh data for the simulation. Set during initialization.
         """
-        return self._surf
+        return self._surface
     
     @surface.setter
     def surface(self, value):
         if not isinstance(value, (Surface, str)):
             raise TypeError("surface must be an instance of Surface or str")
-        self._surf = value
+        self._surface = value
 
     @property
     def production(self):
