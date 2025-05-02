@@ -249,6 +249,7 @@ class Crater:
         else: # Setting these to None will  cause them to instantiate to their default models.
             target = None
             projectile = None
+        target = kwargs.pop("target", target)
         target = Target.maker(target, **vars(argproc.common_args), **kwargs)
         projectile = Projectile.maker(projectile, target=target, **vars(argproc.common_args), **kwargs)
 

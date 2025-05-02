@@ -412,8 +412,8 @@ class DefaultScaling(Scaling):
         
         # Draw from a truncated normal distribution for each component of the model
         if self._montecarlo_scaling:
-            simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)
-            final_exp = mc.bounded_norm(final_exp_mean, final_exp_std)
+            simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)[0]
+            final_exp = mc.bounded_norm(final_exp_mean, final_exp_std)[0]
             simple_complex_fac = simple_complex_mean * math.exp(self.rng.normal(loc=0.0,scale=simple_complex_std))
             transition_diameter = simple_complex_fac * self.target.gravity**simple_complex_exp
         else:
