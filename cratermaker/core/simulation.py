@@ -772,7 +772,7 @@ class Simulation(CratermakerBase):
             # Warp the surface based on node_elevation data
             for i in tqdm(range(len(ds.time))):
                 
-                ids = ds.isel(time=i)
+                ids = ds.isel(time=i).load()
                 current_grid = vtkUnstructuredGrid()
                 current_grid.DeepCopy(vtk_data) 
                  
