@@ -16,7 +16,7 @@ class IcosphereSurface(Surface):
         The subdivision level of the icosphere. The number of faces is 20 * 4**gridlevel. The default gridlevel is 8.
     target : Target, optional
         The target body or name of a known target body for the impact simulation. 
-    reset_surface : bool, optional
+    reset : bool, optional
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
@@ -32,12 +32,13 @@ class IcosphereSurface(Surface):
     def __init__(self, 
                  gridlevel: int = 8, 
                  target: Target | str | None = None,
-                 reset_surface: bool = False,
+                 reset: bool = False,
                  regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs: Any):
+        super().__init__(target=target, simdir=simdir, **kwargs)
         self.gridlevel = gridlevel
-        super().__init__(target=target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
+        self.load_from_files(reset=reset, regrid=regrid, **kwargs)
 
     def __repr__(self) -> str:
         base = super().__repr__()
@@ -53,7 +54,6 @@ class IcosphereSurface(Surface):
         The variables used to generate the hash.
         """
         return [self._component_name, self.radius, self.gridlevel] 
-
 
     def generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
@@ -71,7 +71,6 @@ class IcosphereSurface(Surface):
         points = mesh.vertices.T
         return points
    
-    
     @parameter
     def gridlevel(self) -> int:
         return self._gridlevel

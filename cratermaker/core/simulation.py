@@ -16,7 +16,7 @@ from ..components.scaling import Scaling
 from ..components.production import Production
 from ..components.morphology import Morphology
 from ..components.projectile import Projectile
-from ..components.surface import Surface, _save_surface
+from ..components.surface import Surface
 
 class Simulation(CratermakerBase):
     """
@@ -691,7 +691,7 @@ class Simulation(CratermakerBase):
             "elapsed_n1": self.elapsed_n1
             }
          
-        _save_surface(self.surface, interval_number=self.interval_number, time_variables=time_variables, **kwargs)
+        self.surface.save_to_files(interval_number=self.interval_number, time_variables=time_variables, **kwargs)
 
         self.to_config(**kwargs)
         

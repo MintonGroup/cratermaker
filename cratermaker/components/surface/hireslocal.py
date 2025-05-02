@@ -35,7 +35,7 @@ class HiResLocalSurface(Surface):
         A scaling model or the name of a scaling model for the impact simulation. This is only needed to set the superdomain_scale_factor if it is not specified
     morphology : Morphology, optional
         A morphology model or the name of a morphology model for the impact simulation. This is only needed to set the superdomain_scale_factor if it is not specified
-    reset_surface : bool, optional
+    reset : bool, optional
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
@@ -55,15 +55,15 @@ class HiResLocalSurface(Surface):
                  target: Target | str | None = None,
                  scaling: Scaling | str | None = None,
                  morphology: Morphology | str | None = None,
-                 reset_surface: bool = False,
+                 reset: bool = False,
                  regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs: Any):
         
+        super().__init__(target=target, simdir=simdir, **kwargs)
         if target is None:
             if scaling is not None and isinstance(scaling, Scaling):
                 target = scaling.target
-        self.target = Target.maker(target, **kwargs) 
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
@@ -80,8 +80,11 @@ class HiResLocalSurface(Surface):
                 if rmax < self.target.radius * 2 * np.pi:
                     superdomain_scale_factor = rmax / crater.final_radius
                     break
+
         self.superdomain_scale_factor = superdomain_scale_factor
-        super().__init__(target=self.target, reset_surface=reset_surface, regrid=regrid, simdir=simdir, **kwargs)
+        self.load_from_files(reset=reset, regrid=regrid, **kwargs)
+
+        return
 
     def __repr__(self) -> str:
         base = super().__repr__()

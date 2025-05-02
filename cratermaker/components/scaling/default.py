@@ -16,7 +16,7 @@ class DefaultScaling(Scaling):
     """
     This is an operations class for computing the scaling relationships between projectiles and craters.  This class encapsulates the 
     logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size 
-    and target propertiesImplements the scaling laws described in Richardson (2009) [1]_ that were implemented in CTEM. However, unlike
+    and target properties. This implements the scaling laws described in Richardson (2009) [1]_ that were implemented in CTEM. However, unlike
     in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws.
         
     Parameters
@@ -47,7 +47,7 @@ class DefaultScaling(Scaling):
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.
     - The `material_name` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
-    - The `K1`, `mu`, `Ybar`, and `target_density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
+    - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
     - The built-in material property values are from Holsapple (1993) [2]_ and Kraus et al. (2011) [3]_. 
     
     References
@@ -129,7 +129,6 @@ class DefaultScaling(Scaling):
         if public_name in include_list:
             self._user_defined.add(public_name)
 
-
     def get_morphology_type(self, 
                             final_diameter: FloatLike | None = None, 
                             **kwargs: Any) -> str:
@@ -172,7 +171,6 @@ class DefaultScaling(Scaling):
         
         return morphology_type    
 
-
     def final_to_transient(self, 
                            final_diameter: FloatLike | None = None,
                            morphology_type: str | None = None, **kwargs) -> float:
@@ -205,7 +203,6 @@ class DefaultScaling(Scaling):
 
         transient_diameter = float(transient_diameter)
         return transient_diameter, morphology_type
-
 
     def transient_to_final(self, 
                            transient_diameter: FloatLike | None = None, 
@@ -282,7 +279,6 @@ class DefaultScaling(Scaling):
         morphology_type = morphology_type
         return final_diameter, morphology_type
 
-
     def projectile_to_transient(self, 
                                 projectile_diameter: FloatLike, 
                                 **kwargs: Any) -> float:
@@ -325,7 +321,6 @@ class DefaultScaling(Scaling):
             transient_diameter = projectile_diameter
         
         return transient_diameter
-
 
     def transient_to_projectile(self, 
                                 transient_diameter: FloatLike, 
@@ -386,7 +381,6 @@ class DefaultScaling(Scaling):
         if self._material_catalogue is None:
             self._material_catalogue = _create_material_catalogue()
         return self._material_catalogue
-    
 
     def _compute_simple_to_complex_transition_factors(self):
         """
@@ -432,14 +426,11 @@ class DefaultScaling(Scaling):
         self._final_exp = float(final_exp)
         return 
 
-
     def _f2t_simple(self, Df):
         return Df / self.simple_enlargement_factor
 
-
     def _f2t_complex(self, Df):
         return Df / (self.simple_enlargement_factor * self.complex_enlargement_factor) * (Df / self.transition_diameter)**-self.final_exp
-
 
     @property
     def transition_diameter(self) -> float:
@@ -499,7 +490,6 @@ class DefaultScaling(Scaling):
         float
         """
         return self._final_exp
-
 
     @property
     def K1(self):

@@ -33,7 +33,7 @@ class Surface(ComponentBase):
     ----------
     target : Target, optional
         The target body or name of a known target body for the impact simulation. 
-    reset_surface : bool, optional
+    reset : bool, optional
         Flag to indicate whether to reset the surface. Default is the value of `regrid`
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False. 
@@ -45,14 +45,11 @@ class Surface(ComponentBase):
 
     def __init__(self, 
                  target: Target | str | None = None,
-                 reset_surface: bool = False,
-                 regrid: bool = False, 
                  simdir: str | Path | None = None,
                  **kwargs):
 
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_uxds", None)
-        object.__setattr__(self, "_grid_file", None)
         object.__setattr__(self, "_pix_mean", None)
         object.__setattr__(self, "_pix_std", None)
         object.__setattr__(self, "_pix_min", None)
@@ -63,69 +60,28 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_face_areas", None)
         object.__setattr__(self, "_smallest_length", None)
         super().__init__(simdir=simdir, **kwargs)
+                       
+        self._data_variable_init = {
+            "node_elevation": {
+                "units" : "m", 
+                "long_name": "elevation of nodes", 
+                "initial_value" : 0.0 },
+            "face_elevation": {
+                "units" : "m",
+                "long_name": "elevation of faces",
+                "initial_value" : 0.0 },
+            "ejecta_thickness": {
+                "units" : "m",
+                "long_name": "ejecta thickness",
+                "initial_value" : 0.0 },
+            "ray_intensity": {
+                "units" : "",
+                "long_name": "ray intensity value",
+                "initial_value" : 0.0 },
+        }
 
         self.target = Target.maker(target, **kwargs)
 
-        # Verify directory gridtype exists and create it if not
-
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-
-        regrid = regrid or not self.grid_file.exists()
-
-        # Check if a grid file exists and matches the specified parameters based on a unique hash generated from these parameters. 
-        if not regrid: 
-            regrid = self.check_if_regrid(**kwargs)
-        
-        if regrid:
-            print("Creating a new grid")
-            self.generate_grid(**kwargs)
-            reset_surface = True
-        else:
-            print("Using existing grid")
-
-        # Get the names of all data files in the data directory that are not the grid file
-        data_file_list = list(self.data_dir.glob("*.nc"))
-        if self.grid_file in data_file_list:
-            data_file_list.remove(self.grid_file)
-            
-        # Generate a new surface if either it is explicitly requested via parameter or a data file doesn't yet exist 
-        reset_surface = reset_surface or not data_file_list or regrid
-        
-        # If reset_surface is True, delete all data files except the grid file 
-        if reset_surface: 
-            for f in data_file_list:
-                f.unlink()  
-            data_file_list = []
-        
-        # Initialize UxDataset with the loaded data
-        try:
-            with xr.open_dataset(self.grid_file) as uxgrid:
-                if data_file_list:
-                    with uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False) as ds:
-                        self._uxds = ds.isel(time=-1)
-                    self._uxds.uxgrid = uxr.Grid.from_dataset(uxgrid)
-                else:
-                    self._uxds = uxr.UxDataset()
-                    self._uxds.uxgrid = uxr.Grid.from_dataset(uxgrid)
-                self._uxgrid = uxgrid
-        except:
-            raise ValueError("Error loading grid and data files")
-        
-        if reset_surface:
-            self.generate_data(data=0.0,
-                               name="ejecta_thickness",
-                               long_name="ejecta thickness",
-                               units= "m",
-                               save_to_file=True)     
-            self.generate_data(data=0.0,
-                               name="ray_intensity",
-                               long_name="ray intensity value",
-                               units= "",
-                               save_to_file=True)                         
-            self.set_elevation(0.0,save_to_file=True)
-
-        self.load_from_data()
-        
         return
 
     def __repr__(self) -> str:
@@ -140,7 +96,7 @@ class Surface(ComponentBase):
     def maker(cls: Surface, 
              surface: str | Surface | None = None,
              target: Target | str | None = None,
-             reset_surface: bool = False,
+             reset: bool = False,
              regrid: bool = False, 
              simdir: str | Path | None = None,
              **kwargs) -> Surface:
@@ -153,7 +109,7 @@ class Surface(ComponentBase):
             The name of the type of grid used for the surface. Default is "icosphere".
         target : Target, optional
             The target body or name of a known target body for the impact simulation. 
-        reset_surface : bool, optional
+        reset : bool, optional
             Flag to indicate whether to reset the surface. Default is True.
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
@@ -173,13 +129,184 @@ class Surface(ComponentBase):
 
         surface = super().maker(component=surface, 
                              target=target, 
-                             reset_surface = reset_surface,
+                             reset = reset,
                              regrid = regrid,
                              simdir=simdir, 
                              **kwargs)
         if target is not None:
             surface.target = target
         return surface
+
+    def load_from_files(self, reset: bool = False, **kwargs: Any) -> None:
+        """
+        Load the grid and data files into the surface object.
+        This function loads the grid file and data files from the specified directory. If the grid file does not exist, it will attempt to create a new grid.
+        If the data files do not exist, it will create an empty dataset. If reset is True, it will delete all data files except the grid file.
+
+        Parameters
+        ----------
+        reset : bool, optional
+            Flag to indicate whether to reset the surface. Default is False.
+        """
+
+        # Get the names of all data files in the data directory that are not the grid file
+        regrid = self.regrid_if_needed(**kwargs)
+        reset = reset or regrid
+
+        data_file_list = list(self.data_dir.glob("*.nc"))
+        if self.grid_file in data_file_list:
+            data_file_list.remove(self.grid_file)
+
+        # if data_file_list is empty, set reset to True
+        reset = reset or not data_file_list
+
+        # If reset is True, delete all data files except the grid file 
+        if reset: 
+            for f in data_file_list:
+                f.unlink()  
+            data_file_list = []
+        
+        try:
+            with xr.open_dataset(self.grid_file) as uxgrid:
+                if reset: # Create an empty dataset 
+                    self._uxds = uxr.UxDataset()
+                else: # Read data from from existing datafiles
+                    with uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False) as ds:
+                        self._uxds = ds.isel(time=-1).load()
+                self._uxds.uxgrid = uxr.Grid.from_dataset(uxgrid)
+                self._uxgrid = uxgrid
+        except:
+            raise ValueError("Error loading grid and data files")
+        
+        if reset:
+            self.reset(**kwargs)
+        else:
+            self.load_from_data()
+
+        return
+
+    def save_to_files(self, 
+                      combine_data_files: bool = False,
+                      interval_number: int = 0,
+                      time_variables: dict | None = None,
+                      *args, **kwargs) -> None:
+        """
+        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+
+        Parameters
+        ----------
+        combine_data_files : bool, optional
+            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        """
+        do_not_save = ["face_areas"]
+
+        self.data_dir.mkdir(parents=True, exist_ok=True) 
+        
+        if time_variables is None:
+            time_variables = {"elapsed_time":float(interval_number)}  
+        else:
+            if not isinstance(time_variables, dict):
+                raise TypeError("time_variables must be a dictionary")
+            
+        # Variables that we do not want to save as they are computed at runtime     
+        
+        self.save_to_data()
+        self.uxds.close()
+        
+        ds = self.uxds.expand_dims(dim="time").assign_coords({"time":[interval_number]})
+        for k, v in time_variables.items():
+            ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time":[interval_number]})
+                    
+        drop_vars = [k for k in ds.data_vars if k in do_not_save]
+        if len(drop_vars) > 0:
+            ds = ds.drop_vars(drop_vars)
+            
+        self._save_data(ds, interval_number, combine_data_files)
+
+        return
+
+    def generate_grid(self, **kwargs: Any) -> None: 
+        """
+        Generate a tessellated mesh of a sphere of based on the particular Surface component that is being used.
+        """       
+        self.grid_file.unlink(missing_ok=True)
+
+        points = self.generate_face_distribution(**kwargs) 
+        uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi")
+        uxgrid.attrs["_id"] = self._id
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            uxgrid.to_xarray().to_netcdf(temp_file.name)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+            
+        # Replace the original file only if writing succeeded
+        shutil.move(temp_file.name,self.grid_file)      
+        self._uxgrid = uxgrid
+
+        regrid = self.regrid_if_needed(**kwargs)
+        assert(not regrid)
+
+        self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size(uxgrid)
+
+        print(self)
+        return
+
+    def regrid_if_needed(self, force : bool = False, **kwargs: Any) -> bool:
+        """
+        Check if the existing grid matches the desired parameters determine if regridding is necessary.
+
+        This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these 
+        parameters. If the grid does not exist or does not match the parameters it generates a new grid and returns True. 
+
+        Parameters
+        ----------
+        force : bool, optional
+            Flag to force regridding even if the grid file exists. Default is False.
+
+        Returns
+        -------
+        bool
+            A boolean indicating whether the grid should be regenerated. 
+        """
+    
+        # Find out if the file exists, if it does't we'll need to make a new grid
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        regrid = force or not Path(self.grid_file).exists()
+
+        if not regrid:
+            try: 
+                with xr.open_dataset(self.grid_file) as ds:
+                    uxgrid = uxr.Grid.from_dataset(ds)
+                    old_id = uxgrid.attrs.get("_id")
+                    regrid = old_id != self._id
+            except:
+                regrid = True
+
+        if regrid:
+            print("Creating a new grid")
+            try:
+                self.generate_grid(**kwargs)
+            except:
+                raise RuntimeError("Failed to create a new grid")
+
+        return regrid
+
+    def reset(self, **kwargs: Any) -> None:
+        """
+        Reset the surface to its initial state.
+        """
+        for name, entry in self._data_variable_init.items():
+            self.generate_data(name=name,
+                               data=entry["initial_value"],
+                               long_name=entry["long_name"],
+                               units=entry["units"],
+                               save_to_file=True)
+
+        self.load_from_data()
 
     def load_from_data(self):
         self.face_lat = self.uxgrid.face_lat.values
@@ -190,7 +317,7 @@ class Surface(ComponentBase):
         self.face_elevation = self.uxds["face_elevation"].values
         self.ejecta_thickness = self.uxds["ejecta_thickness"].values
         self.ray_intensity = self.uxds["ray_intensity"].values
-    
+        
     def save_to_data(self):
         self.uxds["node_elevation"].values = self.node_elevation
         self.uxds["face_elevation"].values = self.face_elevation
@@ -765,12 +892,10 @@ class Surface(ComponentBase):
         
         return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
 
-    @staticmethod
-    def _save_data(ds: xr.Dataset | xr.DataArray,
-                out_dir: str | Path,
-                interval_number: int = 0,
-                combine_data_files: bool = False
-                ) -> None:
+    def _save_data(self,
+                   ds: xr.Dataset | xr.DataArray,
+                   interval_number: int = 0,
+                   combine_data_files: bool = False) -> None:
         """
         Save the data to the specified directory. If `combine_data_files` is True, then all data variables are saved to a single NetCDF
         file. If False, then only the data variables for the current interval are saved to a NetCDF file with the interval number
@@ -780,8 +905,6 @@ class Surface(ComponentBase):
         ----------
         ds : xr.Dataset or xr.DataArray
             The data to be saved.
-        out_dir : PathLike
-            Directory to save the data.
         interval_number : int, Default is 0.
             Interval number to append to the data file name. Default is 0.
         combine_data_files : bool, Default is False.
@@ -807,7 +930,7 @@ class Surface(ComponentBase):
             else:
                 filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
                 
-            data_file = Path(out_dir) / filename
+            data_file = self.data_dir / filename
             if data_file.exists():
                 with xr.open_mfdataset(data_file) as ds_file:
                     ds_file = ds.merge(ds_file, compat="override")
@@ -841,65 +964,6 @@ class Surface(ComponentBase):
 
     @abstractmethod
     def generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray,NDArray,NDArray]: ...
-
-    def generate_grid(self, **kwargs: Any) -> None: 
-        """
-        Generate a tessellated mesh of a sphere of evenly distributed points
-
-        Notes
-        -----
-        The grid configuration is determined by the `name` attribute of the Surface object. The `name` attribute
-        determines the type of grid to be generated and its associated parameters. For detailed information on the parameters specific to each grid type, refer to the documentation of the respective grid parameter classes (`UnifromIcosphereSurface`, 
-        `ArbitraryResolutionSurface`, `HiResLocalSurface`, etc.).
-        
-        """       
-        self.grid_file.unlink(missing_ok=True)
-
-        points = self.generate_face_distribution(**kwargs) 
-        uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi")
-        uxgrid.attrs["_id"] = self._id
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            uxgrid.to_xarray().to_netcdf(temp_file.name)
-            temp_file.flush()
-            os.fsync(temp_file.fileno())
-            
-        # Replace the original file only if writing succeeded
-        shutil.move(temp_file.name,self.grid_file)      
-        self._uxgrid = uxgrid
-
-        regrid = self.check_if_regrid(**kwargs)
-        assert(not regrid)
-
-        self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size(uxgrid)
-
-        print(self)
-        return
-
-    def check_if_regrid(self, **kwargs: Any) -> bool:
-        """
-        Check if the existing grid matches the desired parameters determine if regridding is necessary.
-
-        This function checks if a grid file exists and matches the specified parameters based on a unique hash generated from these 
-        parameters. If the grid does not exist or does not match the parameters it returns True. 
-
-        Returns
-        -------
-        bool
-            A boolean indicating whether the grid should be regenerated. 
-        """
-    
-        # Find out if the file exists, if it does't we'll need to make a new grid
-        make_new_grid = not Path(self.grid_file).exists()
-        
-        if not make_new_grid:
-            try: 
-                with xr.open_dataset(self.grid_file) as ds:
-                    uxgrid = uxr.Grid.from_dataset(ds)
-                    old_id = uxgrid.attrs.get("_id")
-                    make_new_grid = old_id != self._id
-            except:
-                make_new_grid = True
-        return make_new_grid
 
     @property
     def _hashvars(self):
@@ -1107,57 +1171,6 @@ class SurfaceView:
         self.node_indices = node_indices
 
 
-def _save_surface(surface: Surface, 
-         out_dir: str | Path | None = None,
-         combine_data_files: bool = False,
-         interval_number: int = 0,
-         time_variables: dict | None = None,
-         *args, **kwargs, 
-         ) -> None:
-    """
-    Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
-
-    Parameters
-    ----------
-    surface : Surface
-        The surface object to be saved. 
-    out_dir : str, or Path, optional
-        Directory to save the surface data. If None, the data is saved to the current working directory.
-    combine_data_files : bool, optional
-        If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
-    interval_number : int, optional
-        Interval number to append to the data file name. Default is 0.
-    time_variables : dict, optional
-        Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-    """
-    do_not_save = ["face_areas"]
-    if out_dir is None:
-        out_dir = surface.data_dir
-
-    Path(out_dir).mkdir(parents=True, exist_ok=True) 
-      
-    if time_variables is None:
-        time_variables = {"elapsed_time":float(interval_number)}  
-    else:
-        if not isinstance(time_variables, dict):
-            raise TypeError("time_variables must be a dictionary")
-        
-    # Variables that we do not want to save as they are computed at runtime     
-    
-    surface.save_to_data()
-    surface.uxds.close()
-    
-    ds = surface.uxds.expand_dims(dim="time").assign_coords({"time":[interval_number]})
-    for k, v in time_variables.items():
-        ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time":[interval_number]})
-                
-    drop_vars = [k for k in ds.data_vars if k in do_not_save]
-    if len(drop_vars) > 0:
-        ds = ds.drop_vars(drop_vars)
-        
-    surface._save_data(ds, out_dir, interval_number, combine_data_files)
-
-    return
 
 
 

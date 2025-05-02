@@ -33,7 +33,7 @@ class CTEMScaling(DefaultScaling):
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.
     - The `material_name` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
-    - The `K1`, `mu`, `Ybar`, and `target_density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
+    - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
     - The built-in material property values are from Holsapple (1993) [2]_ and Kraus et al. (2011) [3]_. 
     
     References

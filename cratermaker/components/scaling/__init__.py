@@ -38,7 +38,6 @@ class Scaling(ComponentBase):
                  **kwargs: Any):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
-        object.__setattr__(self, "_target_density", None)
         object.__setattr__(self, "_projectile", None)
         # combine the kwargs with the common_args, giving common_args priority
         kwargs = {**kwargs, **vars(self.common_args)}
@@ -129,26 +128,6 @@ class Scaling(ComponentBase):
     def target(self, value):
         self._target = Target.maker(value, **vars(self.common_args))
         return 
-
-    @property
-    def target_density(self):
-        """
-        Volumentric density of material in kg/m^3.
-        
-        Returns
-        -------
-        float 
-        """
-        return self._target_density
-    
-    @target_density.setter
-    def target_density(self, value):
-        if value is not None:
-            if not isinstance(value, FloatLike):
-                raise TypeError("target_density must be a numeric value or None")
-            if value < 0:
-                raise ValueError("target_density must be a positive number")
-            self._target_density = float(value)
 
     @property
     def projectile(self):

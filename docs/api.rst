@@ -38,7 +38,7 @@ Methods
     Simulation.emplace_crater
     Simulation.generate_crater
     Simulation.save
-    Simulation.export_vtk
+    Simulation.export
     Simulation.set_elevation
     Simulation.to_config
     Simulation.make_circle_file
@@ -76,7 +76,6 @@ Attributes
     Simulation.largest_crater
     Simulation.smallest_projectile
     Simulation.largest_projectile
-
 
 
 .. _api-Crater:
@@ -158,21 +157,6 @@ Attributes
 
 .. currentmodule:: cratermaker.components.surface
 
-Surface
-=======
-
-.. autosummary::
-    :toctree: generated/
-
-    Surface.maker
-    Surface.available
-    Surface.generate_grid
-    Surface.check_if_regrid
-
-
-
-
-.. _api-Surface:
 
 Surface
 =======
@@ -193,14 +177,20 @@ Methods
 .. autosummary::
     :toctree: generated/
 
+    Surface.available
+    Surface.load_from_files
+    Surface.save_to_files
+    Surface.generate_grid
+    Surface.regrid_if_needed
+    Surface.reset
+    Surface.generate_data
+    Surface.set_elevation
     Surface.calculate_haversine_distance
     Surface.calculate_initial_bearing
     Surface.find_nearest_index
     Surface.get_reference_surface
     Surface.get_distance
     Surface.get_initial_bearing
-    Surface.generate_data
-    Surface.set_elevation
     Surface.elevation_to_cartesian
     Surface.extract_region
     Surface.get_random_location_on_face
@@ -243,8 +233,8 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.grid import IcosphereSurface
-    grid = IcosphereSurface.maker(3, radius=1737.4)
+    from cratermaker import Surface
+    surface = Surface.maker("icosphere",gridlevel=7)
 
 
 .. currentmodule:: cratermaker.components.grid.arbitrary_resolution
@@ -257,10 +247,10 @@ Arbitrary resolution grid
 
     ArbitraryResolutionSurface.maker
     ArbitraryResolutionSurface.generate_face_distribution
-    IcosphereSurface.generate_face_distribution
-    IcosphereSurface.generate_grid
-    IcosphereSurface.check_if_regrid
-    IcosphereSurface.to_config
+    ArbitraryResolutionSurface.generate_face_distribution
+    ArbitraryResolutionSurface.generate_grid
+    ArbitraryResolutionSurface.regrid_if_needed
+    ArbitraryResolutionSurface.to_config
 
 Attributes
 ----------
@@ -276,8 +266,8 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.grid import ArbitraryResolutionSurface
-    grid = ArbitraryResolutionSurface.maker(pix=100, radius=1737.4)
+    from cratermaker import Surface
+    surface = Surface.maker("arbitrary_resolution",pix=100)
 
 
 .. currentmodule:: cratermaker.components.grid.hireslocal
@@ -308,8 +298,8 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.grid import HiResLocalSurface
-    grid = HiResLocalSurface.maker(pix=50, radius=1737.4, local_radius=100)
+    from cratermaker import Surface
+    surface = Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9))
 
 
 .. _api-Production:
@@ -323,14 +313,6 @@ Production
     :toctree: generated/
 
     Production.maker
-
-Usage example
--------------
-
-.. code-block:: python
-
-    from cratermaker import Production
-    production = Production.maker("neukum")
 
 
 .. _api-NeukumProduction:
@@ -368,8 +350,8 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.production.neukum import NeukumProduction
-    neukum = NeukumProduction.maker()
+    from cratermaker import Production
+    production = Production.maker("neukum", version="projectile")
 
 
 .. _api-PowerLawProduction:
@@ -401,8 +383,8 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.production.powerlaw import PowerLawProduction
-    powerlaw = PowerLawProduction.maker()
+    from cratermaker import Production
+    production = Production.maker("powerlaw", slope=-4.0, N1_coef=1.0e-6)
 
 
 .. _api-Scaling:
@@ -416,20 +398,15 @@ The `Scaling` class is an abstract base class for crater scaling relationships.
 Use the `Scaling.maker` method to create a specific scaling model. 
 Available models: see `Scaling.available()`.
 
-Example:
 
-.. code-block:: python
-
-    from cratermaker import Scaling
-    scaling_model = Scaling.maker("default")
-
-Main Method
+Methods
 -----------
 
 .. autosummary::
     :toctree: generated/
 
     Scaling.maker
+    Scaling.available
 
 Attributes
 ----------
@@ -439,35 +416,20 @@ Attributes
 
     Scaling.target
     Scaling.projectile
-    Scaling.target_density
-
-Usage example
--------------
-
-.. code-block:: python
-
-    from cratermaker.components.scaling import Scaling
-    scaling_model = Scaling.maker("default")
 
 
 .. _api-DefaultScaling:
 
 .. currentmodule:: cratermaker.components.scaling.default
 
-Richardson 2009 Scaling Model
-=============================
+Default Scaling model
+=====================
 
-The `DefaultScaling` model implements crater scaling based on Richardson (2009). 
+This implements the scaling laws similar to those implemented in CTEM. However, unlike in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws.
 
-To create this model:
 
-.. code-block:: python
-
-    from cratermaker.components.scaling import Scaling
-    scaling_model = Scaling.maker("default")
-
-Available Methods
-------------------
+Methods
+--------
 
 .. autosummary::
     :toctree: generated/
@@ -486,7 +448,6 @@ Attributes
 
     DefaultScaling.target
     DefaultScaling.projectile
-    DefaultScaling.target_density
     DefaultScaling.material_catalogue
     DefaultScaling.material_name
     DefaultScaling.K1
@@ -504,8 +465,55 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.scaling.default import DefaultScaling
-    scaling = DefaultScaling()
+    from cratermaker import Scaling
+    scaling_model = Scaling.maker("default", target="Mars", projectile="asteroids")
+
+
+CTEM Scaling model
+===================
+
+This implements the scaling laws similar to those implemented in CTEM. It is identical to the default scaling model, but it does not apply monte carlo methods to the scaling laws. 
+
+
+Methods
+--------
+
+.. autosummary::
+    :toctree: generated/
+
+    CTEMScaling.final_to_transient
+    CTEMScaling.transient_to_final
+    CTEMScaling.projectile_to_transient
+    CTEMScaling.transient_to_projectile
+    CTEMScaling.get_morphology_type
+
+Attributes
+----------
+
+.. autosummary::
+    :toctree: generated/
+
+    CTEMScaling.target
+    CTEMScaling.projectile
+    CTEMScaling.material_catalogue
+    CTEMScaling.material_name
+    CTEMScaling.K1
+    CTEMScaling.mu
+    CTEMScaling.Ybar
+    CTEMScaling.catalogue_key
+    CTEMScaling.transition_diameter
+    CTEMScaling.transition_nominal
+    CTEMScaling.complex_enlargement_factor
+    CTEMScaling.simple_enlargement_factor
+    CTEMScaling.final_exp
+
+Usage example
+-------------
+
+.. code-block:: python
+
+    from cratermaker import Scaling
+    scaling_model = Scaling.maker("ctem", target="Mars", projectile="asteroids")
 
 
 .. currentmodule:: cratermaker.components.morphology
@@ -522,6 +530,7 @@ The Morphology class is an operations class for computing the morphology of a cr
     :toctree: generated/
 
     Morphology.maker
+    Morphology.available
 
 Attributes
 ----------
@@ -530,14 +539,6 @@ Attributes
     :toctree: generated/
 
     Morphology.crater
-
-Usage example
--------------
-
-.. code-block:: python
-
-    from cratermaker.components.morphology import Morphology
-    morphology = Morphology.maker()
 
 
 .. currentmodule:: cratermaker.components.morphology.simplemoon
@@ -579,8 +580,8 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.morphology.simplemoon import SimpleMoon
-    simplemoon = SimpleMoon.maker()
+    from cratermaker import Morphology
+    morphology = Morphology.maker("simplemoon")
 
 
 .. currentmodule:: cratermaker.components.projectile
@@ -596,6 +597,7 @@ The Projectile class is an operations class defining the interface for generatin
     :toctree: generated/
 
     Projectile.maker
+    Projectile.available
 
 Attributes
 ----------
@@ -614,14 +616,6 @@ Attributes
     Projectile.velocity
     Projectile.density
     Projectile.vertical_velocity
-
-Usage example
--------------
-
-.. code-block:: python
-
-    from cratermaker.components.projectile import Projectile
-    projectile = Projectile.maker()
 
 
 .. currentmodule:: cratermaker.components.projectile.asteroids
@@ -658,8 +652,8 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.projectile.asteroids import AsteroidProjectiles
-    asteroids = AsteroidProjectiles.maker()
+    from cratermaker import Projectile
+    asteroids = Projectile.maker("asteroids")
 
 
 .. currentmodule:: cratermaker.components.projectile.comets
@@ -696,8 +690,8 @@ Usage example
 
 .. code-block:: python
 
-    from cratermaker.components.projectile.comets import CometProjectiles
-    comets = CometProjectiles.maker()
+    from cratermaker import Projectile
+    comets = Projectile.maker("comets")
 
 
 .. _api-Utility:
