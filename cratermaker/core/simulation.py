@@ -219,8 +219,9 @@ class Simulation(CratermakerBase):
         return crater
     
     
-    def emplace_crater(self, **kwargs: Any
-                      ) -> None:
+    def emplace_crater(self, 
+                       crater: Crater | None = None, 
+                       **kwargs: Any) -> None:
         """
         Emplace a crater in the simulation, optionally based on a projectile.
 
@@ -230,6 +231,8 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
+        crater : Crater, optional
+            A Crater object to be emplaced. If provided, this will be used directly.
         **kwargs : Any
             Keyword arguments for initializing the :class:`Crater`.
             Refer to the documentation of this class for details on valid keyword arguments.
@@ -255,7 +258,10 @@ class Simulation(CratermakerBase):
             sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
 
         """
-        self.crater = self.generate_crater(**kwargs)
+        if crater is None:
+            self.crater = self.generate_crater(**kwargs)
+        else:
+            self.crater = crater
         self.morphology.form_crater(self.surface,self.crater,**kwargs)
         
         return  
