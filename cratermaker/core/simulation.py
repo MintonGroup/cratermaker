@@ -1,18 +1,17 @@
 import numpy as np
 from numpy.random import Generator
-import xarray as xr
 from pathlib import Path
 from tqdm import tqdm
-from collections.abc import Sequence
 from typing import Any
 from numpy.typing import ArrayLike
 import yaml
-from ..constants import _CONFIG_FILE_NAME, _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR, _COMPONENT_NAMES
+from ..constants import _CONFIG_FILE_NAME, _COMPONENT_NAMES
 from .base import CratermakerBase, _convert_for_yaml, _to_config
 from ..components.target import Target
 from .crater import Crater
 from ..utils.general_utils import parameter, _set_properties
 from ..utils.custom_types import FloatLike, PairOfFloats
+from ..utils import export
 from ..components.scaling import Scaling
 from ..components.production import Production
 from ..components.morphology import Morphology
@@ -21,8 +20,38 @@ from ..components.surface import Surface, _save_surface
 
 class Simulation(CratermakerBase):
     """
-    This class orchestrates the processes involved in running a crater simulation.
+    This class is used to create a simulation of a crater population on a target body. It allows for the generation of craters based on a variety of parameters, including the target body, scaling laws, production functions, and morphology models.
 
+    Parameters
+    ----------
+    target: Target or str, optional, default "Moon"
+        Name target body for the simulation, default is "Moon".
+    scaling : Scaling or str, optional
+        The projectile->crater size scaling model to use from the components library. The default is "default".
+    production: Production or str, optional
+        The production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
+        then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
+        body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
+        Earth, and a simple power law model otherwise.
+    morphology : str, optional
+        The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
+    surface : str, optional
+        The name of the surface used for the surface. Default is "icosphere".
+    projectile : str, optional
+        The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise. 
+    simdir : str | Path
+        The main project simulation directory. Defaults to the current working directory if None.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    resume_old : bool, optional
+        Flag to indicate whether to resume from an old simulation. If True, the simulation will attempt to load the previous state from the config file.
+    **kwargs : Any
+        Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scaling, 
+        morphology, or production function constructors. Refer to the documentation of each component module for details.
     """
     def __init__(self, *, # Enforce keyword-only arguments
                  target: Target | str | None = None,
@@ -37,44 +66,7 @@ class Simulation(CratermakerBase):
                  rng_state: dict | None = None,
                  resume_old: bool = False,
                  **kwargs: Any):
-        """
-        Initialize the Simulation object.
 
-        Parameters
-        ----------
-        target: Target or str, optional, default "Moon"
-            Name target body for the simulation, default is "Moon".
-        scaling : Scaling or str, optional
-            The projectile->crater size scaling model to use from the components library. The default is "default".
-        production: Production or str, optional
-            The production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
-            then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 
-            body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or 
-            Earth, and a simple power law model otherwise.
-        morphology : str, optional
-            The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
-        surface : str, optional
-            The name of the surface used for the surface. Default is "icosphere".
-        projectile : str, optional
-            The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise. 
-        simdir : str | Path
-            The main project simulation directory. Defaults to the current working directory if None.
-        rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
-        rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
-        resume_old : bool, optional
-            Flag to indicate whether to resume from an old simulation. If True, the simulation will attempt to load the previous state from the config file.
-        **kwargs : Any
-            Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scaling, 
-            morphology, or production function constructors. Refer to the documentation of each component module for details.
-            
-        See Also
-        --------
-        cratermaker.Surface.maker : Parameters for initializing a surface mesh.
-        """
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
         object.__setattr__(self, "_scaling", scaling)
@@ -504,7 +496,7 @@ class Simulation(CratermakerBase):
                 
             self.save()
             
-        self.export_vtk()
+        self.export("vtk")
         return
 
 
@@ -715,224 +707,16 @@ class Simulation(CratermakerBase):
         self.to_config(**kwargs)
         
         return
-    
-    
-    def export_vtk(self, 
-                   *args, **kwargs
-                   ) -> None:
+
+    def export(self, format="vtk", *args, **kwargs) -> None:
         """
-        Export the surface mesh to a VTK file and stores it in the default export directory.
+        Export the surface mesh to a file in the specified format. Currently only VTK is supported.
         """
-        from vtk import vtkUnstructuredGrid, vtkPoints, VTK_POLYGON, vtkWarpScalar, vtkXMLPolyDataWriter
-        from vtkmodules.util.numpy_support import numpy_to_vtk
-        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
-        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
-        
-        self.save()  
-
-        # Create the output directory if it doesn't exist 
-        out_dir = self.simdir / _EXPORT_DIR
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        data_dir = self.simdir / _DATA_DIR
-        data_file_list = list(data_dir.glob("*.nc"))
-        if self.grid_file in data_file_list:
-            data_file_list.remove(self.grid_file)
-       
-        # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
-        n_node = self.surface.uxgrid.n_node
-        n_face = self.surface.uxgrid.n_face
-        node_x = self.surface.uxgrid.node_x.values * self.target.radius
-        node_y = self.surface.uxgrid.node_y.values * self.target.radius
-        node_z = self.surface.uxgrid.node_z.values * self.target.radius
-        n_nodes_per_face = self.surface.uxgrid.n_nodes_per_face.values
-        face_node_connectivity = self.surface.uxgrid.face_node_connectivity.values
-        
-        vtk_data = vtkUnstructuredGrid()
-        nodes = vtkPoints()
-        for i in range(n_node):
-            nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
-        vtk_data.SetPoints(nodes)
-        vtk_data.Allocate(n_face)
-        for i,n in enumerate(n_nodes_per_face):
-            point_ids=face_node_connectivity[i][0:n]
-            vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids) 
-       
-        warp = vtkWarpScalar()
-        warp.SetInputArrayToProcess(0, 0, 0,
-                            vtkUnstructuredGrid.FIELD_ASSOCIATION_POINTS,
-                            "node_elevation")                
-            
-        writer = vtkXMLPolyDataWriter()
-        writer.SetDataModeToBinary()
-        writer.SetCompressorTypeToZLib()
-        print("Exporting VTK files...")
-        
-        with xr.open_mfdataset(data_file_list) as ds:
-            # Warp the surface based on node_elevation data
-            for i in tqdm(range(len(ds.time))):
-                
-                ids = ds.isel(time=i).load()
-                current_grid = vtkUnstructuredGrid()
-                current_grid.DeepCopy(vtk_data) 
-                 
-                for v in ds.variables:
-                    array = numpy_to_vtk(ids[v].values, deep=True)
-                    array.SetName(v)
-                    n = ids[v].size
-                    if 'n_face' in ids[v].dims:
-                        current_grid.GetCellData().AddArray(array)
-                    elif 'n_node' in ids[v].dims:
-                        current_grid.GetPointData().AddArray(array)
-                        if v == 'node_elevation':
-                            current_grid.GetPointData().SetActiveScalars(v) 
-                    elif n == 1:
-                        current_grid.GetFieldData().AddArray(array)
-                        
-                geomFilter = vtkGeometryFilter()
-                geomFilter.SetInputData(current_grid)
-                geomFilter.Update()    
-                polyData = geomFilter.GetOutput()    
-
-                normalsFilter = vtkPolyDataNormals()
-                normalsFilter.SetInputData(polyData)
-                normalsFilter.ComputeCellNormalsOn()
-                normalsFilter.ConsistencyOn()           # Tries to make normals consistent across shared edges
-                normalsFilter.AutoOrientNormalsOn()     # Attempt to orient normals consistently outward/inward
-                normalsFilter.SplittingOff()   
-                normalsFilter.Update()
-                polyDataWithNormals = normalsFilter.GetOutput()        
-        
-                warp.SetInputData(polyDataWithNormals)
-                warp.Update()
-                warped_output = warp.GetOutput()
-                output_filename = out_dir / f"surface{i:06d}.vtp"
-                writer.SetFileName(output_filename)
-                writer.SetInputData(warped_output) 
-                writer.Write()               
-        
-        return
-
-
-    def make_circle_file(self,
-                         diameters: FloatLike | Sequence[FloatLike] | ArrayLike ,
-                         longitudes: FloatLike | ArrayLike,
-                         latitudes: FloatLike | ArrayLike,
-                         output_filename: str | Path | None = None,
-                         *args, **kwargs
-                        ) -> None:
-        """
-        Plot circles of diameter D centered at the given location.
-    
-        Parameters
-        ----------
-        diameters : FloatLike or ArrayLike
-            Diameters of the circles in m.
-        longitudes : FloatLike or ArrayLike of Floats
-            Longitudes of the circle centers in degrees.
-        latitudes : FloatLike or ArrayLike of Floats
-            Latitudes of the circle centers in degrees.
-        out_filename : str or Path, optional 
-            Name of the output file. If not provided, the default is "circle.vtp" 
-        """ 
-        import vtk 
-
-        if output_filename is None:
-            output_filename = self.simdir / _EXPORT_DIR / _CIRCLE_FILE_NAME
+        if format == "vtk":
+            export.to_vtk(self.surface, *args, **kwargs)
         else:
-            output_filename = self.simdir / _EXPORT_DIR / output_filename
+            raise ValueError(f"Unsupported export format: {format}")
         
-        diameters = np.atleast_1d(diameters)
-        longitudes = np.atleast_1d(longitudes)
-        latitudes = np.atleast_1d(latitudes)
-        # Check for length consistency
-        if len(diameters) != len(longitudes) or len(diameters) != len(latitudes):
-                raise ValueError("The diameters, latitudes, and longitudes, arguments must have the same length")
-            
-        # Validate non-negative values
-        if np.any(diameters < 0):
-            raise ValueError("All values in 'diameters' must be non-negative")
-        
-        sphere_radius = self.target.radius 
-        def create_circle(lon, lat, circle_radius, num_points=360):
-            """
-            Create a circle on the sphere's surface with a given radius and center.
-            
-            Parameters
-            ----------
-            lon : float
-                Longitude of the circle's center in degrees.
-            lat : float
-                Latitude of the circle's center in degrees.
-            circle_radius : float
-                Radius of the circle in meters.
-            num_points : int, optional
-                Number of points to use to approximate the circle. The default is 360. 
-            """
-            # Create an array of angle steps for the circle
-            radians = np.linspace(0, 2 * np.pi, num_points)
-            # Convert latitude and longitude to radians
-            lat_rad = np.deg2rad(lat)
-            lon_rad = np.deg2rad(lon)
-
-            # Calculate the Cartesian coordinates for the circle's center
-            center_x = sphere_radius * np.cos(lat_rad) * np.cos(lon_rad)
-            center_y = sphere_radius * np.cos(lat_rad) * np.sin(lon_rad)
-            center_z = sphere_radius * np.sin(lat_rad)
-
-            # Calculate the vectors for the local east and north directions on the sphere's surface
-            east = np.array([-np.sin(lon_rad), np.cos(lon_rad), 0])
-            north = np.array([-np.cos(lon_rad)*np.sin(lat_rad), -np.sin(lon_rad)*np.sin(lat_rad), np.cos(lat_rad)])
-            
-            # Initialize arrays to hold the circle points
-            x = np.zeros_like(radians)
-            y = np.zeros_like(radians)
-            z = np.zeros_like(radians)
-
-            # Calculate the points around the circle
-            for i in range(num_points):
-                x[i] = center_x + circle_radius * np.cos(radians[i]) * east[0] + circle_radius * np.sin(radians[i]) * north[0]
-                y[i] = center_y + circle_radius * np.cos(radians[i]) * east[1] + circle_radius * np.sin(radians[i]) * north[1]
-                z[i] = center_z + circle_radius * np.cos(radians[i]) * east[2] + circle_radius * np.sin(radians[i]) * north[2]
-
-            return x, y, z 
-
-        points = vtk.vtkPoints()
-        lines = vtk.vtkCellArray()
-        point_id = 0  # Keep track of the point ID across all circles
-        
-        for lon, lat, diameter in zip(longitudes, latitudes, diameters):
-            circle_radius = diameter / 2
-            x, y, z = create_circle(lon, lat, circle_radius)
-            
-            for i in range(len(x)):
-                points.InsertNextPoint(x[i], y[i], z[i])
-            
-            polyline = vtk.vtkPolyLine()
-            polyline.GetPointIds().SetNumberOfIds(len(x))
-            for i in range(len(x)):
-                polyline.GetPointIds().SetId(i, point_id)
-                point_id += 1
-            
-            lines.InsertNextCell(polyline)
-        
-        # Create a polydata object and add points and lines to it
-        polydata = vtk.vtkPolyData()
-        polydata.SetPoints(points)
-        polydata.SetLines(lines)
-        
-        # Write the polydata to a VTK file
-        writer = vtk.vtkXMLPolyDataWriter()
-        writer.SetFileName(output_filename)
-        writer.SetInputData(polydata)
-        
-        # Optional: set the data mode to binary to save disk space
-        writer.SetDataModeToBinary()
-        writer.Write()
-        
-        return    
-    
-
     def set_elevation(self, 
                       *args: Any, 
                       **kwargs: Any
@@ -1045,13 +829,6 @@ class Simulation(CratermakerBase):
         Directory where the data files are stored. Dynamically set based on `surface` attribute.
         """
         return self.surface.data_dir
-
-    @property
-    def grid_file(self):
-        """
-        File path of the grid file. Dynamically set based on `surface` attribute.
-        """
-        return self.surface.grid_file
 
     @property
     def n_node(self):
