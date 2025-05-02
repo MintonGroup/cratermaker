@@ -145,6 +145,8 @@ class DefaultScaling(Scaling):
         str
             The type of crater "simple", "complex", or "transitional" 
         """
+        if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
+            raise ValueError("final_diameter must be a positive finite number")
         
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular  
         transition_range = (0.5*self.transition_nominal,2*self.transition_nominal)
@@ -193,6 +195,8 @@ class DefaultScaling(Scaling):
         float
             Returns the crater transient diameter in meters
         """       
+        if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
+            raise ValueError("final_diameter must be a positive finite number")
         if not morphology_type:
             morphology_type = self.get_morphology_type(final_diameter) 
         
@@ -205,7 +209,7 @@ class DefaultScaling(Scaling):
         return transient_diameter, morphology_type
 
     def transient_to_final(self, 
-                           transient_diameter: FloatLike | None = None, 
+                           transient_diameter: FloatLike, 
                            **kwargs: Any) -> tuple[float, str]:
         """
         Computes the final diameter of a crater based on its transient diameter and morphology type.
@@ -229,6 +233,10 @@ class DefaultScaling(Scaling):
         str
             The morphology type of the crater
         """ 
+        # validate that transient_diameter is number and that it is positive and finite
+        if not isinstance(transient_diameter, FloatLike) or transient_diameter <= 0 or not np.isfinite(transient_diameter):
+            raise ValueError("transient_diameter must be a positive finite number")
+
         # Invert the final -> transient functions for  each crater type
         final_diameter_simple = transient_diameter * self.simple_enlargement_factor
         def root_func(final_diameter,Dt,scaling):
@@ -295,6 +303,9 @@ class DefaultScaling(Scaling):
         ----------
         .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
+        if not isinstance(projectile_diameter, FloatLike) or projectile_diameter <= 0 or not np.isfinite(projectile_diameter):
+            raise ValueError("projectile_diameter must be a positive finite number")
+
         # Compute some auxiliary quantites
         projectile_radius = projectile_diameter / 2
         projectile_mass = (4.0/3.0) * math.pi * (projectile_radius**3) * self.projectile.density
@@ -343,6 +354,9 @@ class DefaultScaling(Scaling):
         Crater
             The computed projectile for the crater.
         """
+        if not isinstance(transient_diameter, FloatLike) or transient_diameter <= 0 or not np.isfinite(transient_diameter):
+            raise ValueError("transient_diameter must be a positive finite number")
+
         def root_func(projectile_diameter) -> float:
             value = self.projectile_to_transient(projectile_diameter)
             return value - transient_diameter 
