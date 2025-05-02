@@ -462,7 +462,7 @@ class Surface(ComponentBase):
         self._uxds[name] = uxda
         
         if save_to_file:
-            self._save_data(uxda, self.data_dir, interval_number, combine_data_files)
+            self._save_data(uxda, interval_number, combine_data_files)
         return 
         
     def set_elevation(self, 
