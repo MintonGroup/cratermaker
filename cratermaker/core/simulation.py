@@ -90,6 +90,7 @@ class Simulation(CratermakerBase):
             config_file = self.config_file
             if not resume_old:
                 config_file = None
+
         else:
             config_file = None
 
@@ -130,6 +131,7 @@ class Simulation(CratermakerBase):
         self.morphology = Morphology.maker(self.morphology, **morphology_config)
       
         surface_config = {**surface_config, **kwargs}
+        surface_config["reset"] = not resume_old
         self.surface = Surface.maker(self.surface, target=self.target, **surface_config)
 
         self._craterlist = []

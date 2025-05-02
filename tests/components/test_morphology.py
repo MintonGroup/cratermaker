@@ -62,7 +62,7 @@ class TestMorphology(unittest.TestCase):
                 "pix": self.pix, 
                 },
             "hireslocal": {
-                "pix": self.pix, 
+                "pix": self.pix/10, 
                 "local_location": (0, 0), 
                 "local_radius": 100e3, 
                 "superdomain_scale_factor": 10
@@ -73,12 +73,20 @@ class TestMorphology(unittest.TestCase):
             for name, args in gridargs.items():
                 sim = Simulation(simdir=simdir, surface=name, **args)
                 for final_diameter in final_diameter_list:
+                    sim.surface.reset()
+                    # verify that the surface is flat
+                    self.assertAlmostEqual(sim.surface.node_elevation.min(), 0.0, delta=1e0)
+                    self.assertAlmostEqual(sim.surface.face_elevation.min(), 0.0, delta=1e0)
+                    self.assertAlmostEqual(sim.surface.node_elevation.max(), 0.0, delta=1e0)
+                    self.assertAlmostEqual(sim.surface.face_elevation.max(), 0.0, delta=1e0)
+                    
                     sim.emplace_crater(final_diameter=final_diameter, location=(0, 0))
-                    node_depth = -float(sim.surface.node_elevation.min())
-                    face_depth = -float(sim.surface.face_elevation.min())
-                    self.assertAlmostEqual(node_depth, sim.morphology.floordepth, delta=1e2)
-                    self.assertAlmostEqual(face_depth, sim.morphology.floordepth, delta=1e2)
 
+                    # Verify that the crater depth and rim heights are close to the expected values
+                    self.assertAlmostEqual(-sim.surface.node_elevation.min(), sim.morphology.floordepth, delta=1e2)
+                    self.assertAlmostEqual(-sim.surface.face_elevation.min(), sim.morphology.floordepth, delta=1e2)
+                    self.assertAlmostEqual(sim.surface.node_elevation.max(), sim.morphology.rimheight, delta=1e0)
+                    self.assertAlmostEqual(sim.surface.face_elevation.max(), sim.morphology.rimheight, delta=1e0)
 
 if __name__ == '__main__':
     unittest.main()
