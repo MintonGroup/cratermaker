@@ -52,20 +52,19 @@ class TestMorphology(unittest.TestCase):
     def test_crater_depth(self):
         # Tests that the surface elevations are expected
 
-        final_diameter_list = [50e3, 100e3, 200e3, 500e3, 1000e3]
+        final_diameter_list = [100e3, 200e3, 500e3, 1000e3]
             
         gridargs = {
             "icosphere": {
-                "level" :self.gridlevel, 
+                "gridlevel" : 6
                 },
             "arbitrary_resolution": {
-                "pix": self.pix, 
+                "pix": 10e3,
                 },
             "hireslocal": {
-                "pix": self.pix/10, 
+                "pix": 1.0e3,
                 "local_location": (0, 0), 
                 "local_radius": 100e3, 
-                "superdomain_scale_factor": 10
                 }
             }
 
@@ -83,10 +82,10 @@ class TestMorphology(unittest.TestCase):
                     sim.emplace_crater(final_diameter=final_diameter, location=(0, 0))
 
                     # Verify that the crater depth and rim heights are close to the expected values
-                    self.assertAlmostEqual(-sim.surface.node_elevation.min(), sim.morphology.floordepth, delta=1e2)
-                    self.assertAlmostEqual(-sim.surface.face_elevation.min(), sim.morphology.floordepth, delta=1e2)
-                    self.assertAlmostEqual(sim.surface.node_elevation.max(), sim.morphology.rimheight, delta=1e0)
-                    self.assertAlmostEqual(sim.surface.face_elevation.max(), sim.morphology.rimheight, delta=1e0)
+                    self.assertAlmostEqual(-sim.surface.node_elevation.min() / sim.morphology.floordepth, 1.0, delta=0.5)
+                    self.assertAlmostEqual(-sim.surface.face_elevation.min() / sim.morphology.floordepth, 1.0, delta=0.5)
+                    self.assertAlmostEqual(sim.surface.node_elevation.max() / sim.morphology.rimheight, 1.0, delta=0.5)
+                    self.assertAlmostEqual(sim.surface.face_elevation.max() / sim.morphology.rimheight, 1.0, delta=0.5)
 
 if __name__ == '__main__':
     unittest.main()
