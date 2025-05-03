@@ -172,7 +172,9 @@ class SimpleMoon(Morphology):
         # Test if the ejecta is big enough to modify the surface
         rmax = self.rmax(minimum_thickness=surface.smallest_length) 
         if not self.ejecta_truncation:
-            self.ejecta_truncation = rmax / self.crater.final_radius
+            ejecta_truncation = rmax / self.crater.final_radius
+        else:
+            ejecta_truncation = self.ejecta_truncation
         region_view = surface.extract_region(self.crater.location, rmax)
         if region_view is None: # The crater is too small to change the surface
             return
@@ -190,10 +192,12 @@ class SimpleMoon(Morphology):
                                          face_crater_distance, 
                                          node_crater_bearing,
                                          face_crater_bearing,
+                                         ejecta_truncation,
                                          surface.node_elevation,
                                          surface.face_elevation,
                                          surface.ejecta_thickness,
                                          surface.ray_intensity)
+        return
 
 
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> NDArray[np.float64]:

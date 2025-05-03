@@ -41,7 +41,6 @@ Methods
     Simulation.export
     Simulation.set_elevation
     Simulation.to_config
-    Simulation.make_circle_file
     Simulation.get_smallest_diameter
     Simulation.get_largest_diameter
 
@@ -60,9 +59,7 @@ Attributes
     Simulation.target
     Simulation.morphology
     Simulation.crater
-    Simulation.grid
     Simulation.data_dir
-    Simulation.grid_file
     Simulation.n_face
     Simulation.n_node
     Simulation.rng
@@ -215,17 +212,65 @@ Attributes
     Surface.rng_seed
     Surface.simdir
 
+.. _api-IcosphereSurface:
+
+.. currentmodule:: cratermaker.components.surface.icosphere
+
+Icosphere grid
+==============
+
+.. autosummary::
+    :toctree: generated/
+
+    IcosphereSurface.maker
+
+Methods
+--------
+
+.. autosummary::
+    :toctree: generated/
+
+    IcosphereSurface.maker
+    IcosphereSurface.available
+    IcosphereSurface.load_from_files
+    IcosphereSurface.save_to_files
+    IcosphereSurface.generate_grid
+    IcosphereSurface.regrid_if_needed
+    IcosphereSurface.reset
+    IcosphereSurface.generate_data
+    IcosphereSurface.set_elevation
+    IcosphereSurface.calculate_haversine_distance
+    IcosphereSurface.calculate_initial_bearing
+    IcosphereSurface.find_nearest_index
+    IcosphereSurface.get_reference_surface
+    IcosphereSurface.get_distance
+    IcosphereSurface.get_initial_bearing
+    IcosphereSurface.elevation_to_cartesian
+    IcosphereSurface.extract_region
+    IcosphereSurface.get_random_location_on_face
+    IcosphereSurface.to_config
+    IcosphereSurface.generate_face_distribution
+
 Attributes
 ----------
 
 .. autosummary::
     :toctree: generated/
 
+    IcosphereSurface.uxds
+    IcosphereSurface.uxgrid
+    IcosphereSurface.node_tree
+    IcosphereSurface.face_tree
+    IcosphereSurface.data_dir
+    IcosphereSurface.grid_file
+    IcosphereSurface.smallest_length
+    IcosphereSurface.area
+    IcosphereSurface.target
+    IcosphereSurface.rng
+    IcosphereSurface.rng_seed
+    IcosphereSurface.simdir
     IcosphereSurface.name
     IcosphereSurface.radius
-    IcosphereSurface.uxgrid
-    IcosphereSurface.file
-    IcosphereSurface.regrid
     IcosphereSurface.gridlevel
 
 Usage example
@@ -236,8 +281,9 @@ Usage example
     from cratermaker import Surface
     surface = Surface.maker("icosphere",gridlevel=7)
 
+.. _api-ArbitraryResolutionSurface:
 
-.. currentmodule:: cratermaker.components.grid.arbitrary_resolution
+.. currentmodule:: cratermaker.components.surface.arbitrary_resolution
 
 Arbitrary resolution grid
 =========================
@@ -246,11 +292,33 @@ Arbitrary resolution grid
     :toctree: generated/
 
     ArbitraryResolutionSurface.maker
-    ArbitraryResolutionSurface.generate_face_distribution
-    ArbitraryResolutionSurface.generate_face_distribution
+
+Methods
+--------
+
+.. autosummary::
+    :toctree: generated/
+
+    ArbitraryResolutionSurface.maker
+    ArbitraryResolutionSurface.available
+    ArbitraryResolutionSurface.load_from_files
+    ArbitraryResolutionSurface.save_to_files
     ArbitraryResolutionSurface.generate_grid
     ArbitraryResolutionSurface.regrid_if_needed
+    ArbitraryResolutionSurface.reset
+    ArbitraryResolutionSurface.generate_data
+    ArbitraryResolutionSurface.set_elevation
+    ArbitraryResolutionSurface.calculate_haversine_distance
+    ArbitraryResolutionSurface.calculate_initial_bearing
+    ArbitraryResolutionSurface.find_nearest_index
+    ArbitraryResolutionSurface.get_reference_surface
+    ArbitraryResolutionSurface.get_distance
+    ArbitraryResolutionSurface.get_initial_bearing
+    ArbitraryResolutionSurface.elevation_to_cartesian
+    ArbitraryResolutionSurface.extract_region
+    ArbitraryResolutionSurface.get_random_location_on_face
     ArbitraryResolutionSurface.to_config
+    ArbitraryResolutionSurface.generate_face_distribution
 
 Attributes
 ----------
@@ -258,6 +326,18 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    ArbitraryResolutionSurface.uxds
+    ArbitraryResolutionSurface.uxgrid
+    ArbitraryResolutionSurface.node_tree
+    ArbitraryResolutionSurface.face_tree
+    ArbitraryResolutionSurface.data_dir
+    ArbitraryResolutionSurface.grid_file
+    ArbitraryResolutionSurface.smallest_length
+    ArbitraryResolutionSurface.area
+    ArbitraryResolutionSurface.target
+    ArbitraryResolutionSurface.rng
+    ArbitraryResolutionSurface.rng_seed
+    ArbitraryResolutionSurface.simdir
     ArbitraryResolutionSurface.pix
     ArbitraryResolutionSurface.radius
 
@@ -269,8 +349,9 @@ Usage example
     from cratermaker import Surface
     surface = Surface.maker("arbitrary_resolution",pix=100)
 
+.. _api-HiResLocalSurface:
 
-.. currentmodule:: cratermaker.components.grid.hireslocal
+.. currentmodule:: cratermaker.components.surface.hireslocal
 
 Hi-res local grid
 =================
@@ -279,6 +360,32 @@ Hi-res local grid
     :toctree: generated/
 
     HiResLocalSurface.maker
+
+Methods
+--------
+
+.. autosummary::
+    :toctree: generated/
+
+    HiResLocalSurface.maker
+    HiResLocalSurface.available
+    HiResLocalSurface.load_from_files
+    HiResLocalSurface.save_to_files
+    HiResLocalSurface.generate_grid
+    HiResLocalSurface.regrid_if_needed
+    HiResLocalSurface.reset
+    HiResLocalSurface.generate_data
+    HiResLocalSurface.set_elevation
+    HiResLocalSurface.calculate_haversine_distance
+    HiResLocalSurface.calculate_initial_bearing
+    HiResLocalSurface.find_nearest_index
+    HiResLocalSurface.get_reference_surface
+    HiResLocalSurface.get_distance
+    HiResLocalSurface.get_initial_bearing
+    HiResLocalSurface.elevation_to_cartesian
+    HiResLocalSurface.extract_region
+    HiResLocalSurface.get_random_location_on_face
+    HiResLocalSurface.to_config
     HiResLocalSurface.generate_face_distribution
 
 Attributes
@@ -287,6 +394,18 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
+    HiResLocalSurface.uxds
+    HiResLocalSurface.uxgrid
+    HiResLocalSurface.node_tree
+    HiResLocalSurface.face_tree
+    HiResLocalSurface.data_dir
+    HiResLocalSurface.grid_file
+    HiResLocalSurface.smallest_length
+    HiResLocalSurface.area
+    HiResLocalSurface.target
+    HiResLocalSurface.rng
+    HiResLocalSurface.rng_seed
+    HiResLocalSurface.simdir
     HiResLocalSurface.pix
     HiResLocalSurface.radius
     HiResLocalSurface.local_radius
@@ -467,6 +586,10 @@ Usage example
 
     from cratermaker import Scaling
     scaling_model = Scaling.maker("default", target="Mars", projectile="asteroids")
+
+.. _api-CTEMScaling:
+
+.. currentmodule:: cratermaker.components.scaling.ctem
 
 
 CTEM Scaling model
@@ -724,6 +847,14 @@ General utilities
     general_utils.normalize_coords
     general_utils.R_to_CSFD
 
+Export functions
+----------------
+
+.. autosummary::
+    :toctree: generated/
+
+    export.to_vtk
+    export.make_circle_file
 
 Custom type definitions
 -----------------------

@@ -57,7 +57,11 @@ pub fn distribution_internal<'py>(
             .iter()
             .zip(radial_distance)
             .map(|(&intensity, &radial_distance)| {
-                intensity * profile_func(radial_distance / crater_radius, ejrim)
+                if radial_distance >= crater_radius {
+                    intensity * profile_func(radial_distance / crater_radius, ejrim)
+                } else {
+                    0.0
+                }
             })
             .collect())
     } else {
@@ -129,23 +133,27 @@ pub fn ray_intensity_internal<'py>(
     let mut intensity: Vec<f64> = (0..radial_distance.len())
         .into_par_iter()
         .map(|i| {
-            if *radial_distance.get(i).unwrap() < crater_radius {
-                0.0
-            } else {
+            if *radial_distance.get(i).unwrap() >= crater_radius {
                 (0..NPATT as usize)
                     .into_par_iter()
                     .map(|j| {
                         let rn = random_numbers[j];
                         let theta = (initial_bearing.get(i).unwrap() + rn * 2.0 * PI) % (2.0 * PI);
                         let r_pattern = *radial_distance.get(i).unwrap() / crater_radius - rn;
-                        FRAYREDUCTION.powi(j as i32 + 1)
+                        FRAYREDUCTION.powi(j as i32)
                             * ray_intensity_func(r_pattern, theta, rmin, rmax, &thetari, minray)
                     })
                     .sum()
+            } else {
+                0.0
             }
         })
         .collect();
-    let max_val = *intensity.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
+    let max_val = intensity
+        .iter()
+        .zip(radial_distance.iter())
+        .filter_map(|(&val, &r)| if r >= crater_radius { Some(val) } else { None })
+        .fold(f64::MIN, |a, b| a.max(b));
     intensity = intensity
         .into_iter()
         .zip(radial_distance)
@@ -186,8 +194,8 @@ fn ray_intensity_func(
     minray: f64,
 ) -> f64 {
     const RAYP: f64 = 4.0;
-    if r > rmax {
-        0.0
+    if !r.is_finite() || r <= 0.0 || r > rmax {
+        return 0.0;
     } else if r < 1.0 {
         1.0
     } else {
