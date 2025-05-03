@@ -197,6 +197,7 @@ class SimpleMoon(Morphology):
                                          surface.face_elevation,
                                          surface.ejecta_thickness,
                                          surface.ray_intensity)
+        return
 
 
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> NDArray[np.float64]:
