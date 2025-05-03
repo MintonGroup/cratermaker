@@ -14,7 +14,6 @@ pub struct SimpleMoonMorphology {
     pub floor_diameter: f64,
     pub rimheight: f64,
     pub ejrim: f64,
-    pub ejecta_truncation: f64,
     pub crater: Crater,
     pub dorays: bool,
 }
@@ -33,6 +32,7 @@ pub fn form_ejecta<'py>(
     face_crater_distance: PyReadonlyArray1<f64>,
     node_crater_bearing: PyReadonlyArray1<f64>,
     face_crater_bearing: PyReadonlyArray1<f64>,
+    ejecta_truncation: f64,
     mut node_elevation: PyReadwriteArray1<f64>,
     mut face_elevation: PyReadwriteArray1<f64>,
     mut ejecta_thickness: PyReadwriteArray1<f64>,
@@ -43,7 +43,7 @@ pub fn form_ejecta<'py>(
         node_crater_bearing.as_array(),
         morphology.crater.final_diameter,
         morphology.ejrim,
-        morphology.ejecta_truncation,
+        ejecta_truncation,
         morphology.dorays,
     )?;
     let face_thickness = ejecta_functions::distribution_internal(
@@ -51,7 +51,7 @@ pub fn form_ejecta<'py>(
         face_crater_bearing.as_array(),
         morphology.crater.final_diameter,
         morphology.ejrim,
-        morphology.ejecta_truncation,
+        ejecta_truncation,
         morphology.dorays,
     )?;
 
@@ -83,7 +83,7 @@ pub fn form_ejecta<'py>(
             face_crater_distance.as_array(),
             face_crater_bearing.as_array(),
             morphology.crater.final_diameter,
-            morphology.ejecta_truncation,
+            ejecta_truncation,
         )?;
         for (&idx, new_value) in region_view
             .face_indices
