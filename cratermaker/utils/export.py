@@ -5,8 +5,7 @@ from pathlib import Path
 from numpy.typing import ArrayLike
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.components.surface import Surface
-from cratermaker.constants import _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR
-
+from cratermaker.constants import _CIRCLE_FILE_NAME, _EXPORT_DIR, _DATA_DIR, _COMBINED_DATA_FILE_NAME, _VTK_FILE_EXTENSION
 
 def to_vtk(surface : Surface, 
                 *args, **kwargs
@@ -29,6 +28,12 @@ def to_vtk(surface : Surface,
     data_file_list = list(data_dir.glob("*.nc"))
     if surface.grid_file in data_file_list:
         data_file_list.remove(surface.grid_file)
+
+    # Delete old export files if they exist
+    old_export_files = list(out_dir.glob(f"*.{_VTK_FILE_EXTENSION}"))
+    if len(old_export_files) > 0:
+        for old_file in old_export_files:
+            old_file.unlink()
     
     # Convert uxarray grid arrays to regular numpy arrays for vtk processing 
     n_node = surface.uxgrid.n_node
@@ -97,7 +102,7 @@ def to_vtk(surface : Surface,
             warp.SetInputData(polyDataWithNormals)
             warp.Update()
             warped_output = warp.GetOutput()
-            output_filename = out_dir / f"surface{i:06d}.vtp"
+            output_filename = out_dir / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{i:06d}.{_VTK_FILE_EXTENSION}")
             writer.SetFileName(output_filename)
             writer.SetInputData(warped_output) 
             writer.Write()               
