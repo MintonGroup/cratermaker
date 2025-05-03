@@ -73,7 +73,7 @@ surface mesh to two files inside a folder called ``vtk_files``:
 .. ipython:: python
     :okwarning:
     
-      sim.export_vtk()
+      sim.export("vtk")
 
 This will generate a series of files with the patern ``surfXXXXXX.vtp``, which represent the grid and its associated data at each output time interval of the simulation. If you haven't already, be sure to `download <https://www.paraview.org/download/>`__ and install ParaView. 
 
@@ -91,6 +91,7 @@ Simulating a population of craters
 Simulating a single crater is useful for testing, but Cratermaker is designed to simulate populations of craters over time. The following example demonstrates how to initialize a simulation of the Moon and emplace a population of craters using the default Neukum production function. The simulation will run for 4.31 Gy, and save the state of the surface in intervals of 50 My.
 
 .. code-block:: python
+
     import cratermaker as cm
     sim = cm.Simulation()
     sim.run(age=4300, age_interval=50)
