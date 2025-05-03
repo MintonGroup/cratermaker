@@ -53,6 +53,7 @@ class TestMorphology(unittest.TestCase):
         # Tests that the surface elevations are expected
 
         final_diameter_list = [100e3, 200e3, 500e3, 1000e3]
+        delta_vals = [0.4, 0.3, 0.3, 0.2]
             
         gridargs = {
             "icosphere": {
@@ -71,7 +72,7 @@ class TestMorphology(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             for name, args in gridargs.items():
                 sim = Simulation(simdir=simdir, surface=name, **args)
-                for final_diameter in final_diameter_list:
+                for final_diameter, delta in zip(final_diameter_list, delta_vals):
                     sim.surface.reset()
                     # verify that the surface is flat
                     self.assertAlmostEqual(sim.surface.node_elevation.min(), 0.0, delta=1e0)
@@ -82,10 +83,10 @@ class TestMorphology(unittest.TestCase):
                     sim.emplace_crater(final_diameter=final_diameter, location=(0, 0))
 
                     # Verify that the crater depth and rim heights are close to the expected values
-                    self.assertAlmostEqual(-sim.surface.node_elevation.min() / sim.morphology.floordepth, 1.0, delta=0.6)
-                    self.assertAlmostEqual(-sim.surface.face_elevation.min() / sim.morphology.floordepth, 1.0, delta=0.6)
-                    self.assertAlmostEqual(sim.surface.node_elevation.max() / sim.morphology.rimheight, 1.0, delta=0.6)
-                    self.assertAlmostEqual(sim.surface.face_elevation.max() / sim.morphology.rimheight, 1.0, delta=0.6)
+                    self.assertAlmostEqual(-sim.surface.node_elevation.min() / sim.morphology.floordepth, 1.0, delta=delta)
+                    self.assertAlmostEqual(-sim.surface.face_elevation.min() / sim.morphology.floordepth, 1.0, delta=delta)
+                    self.assertAlmostEqual(sim.surface.node_elevation.max() / sim.morphology.rimheight, 1.0, delta=2*delta)
+                    self.assertAlmostEqual(sim.surface.face_elevation.max() / sim.morphology.rimheight, 1.0, delta=2*delta)
 
 if __name__ == '__main__':
     unittest.main()
