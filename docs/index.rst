@@ -33,7 +33,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
     .. grid-item-card::  API reference
         :img-top: _static/index_api_reference.svg
-        :link: api
+        :link: api/index
         :link-type: doc
 
         The reference guide contains a detailed description of the Cratermaker API.
@@ -56,7 +56,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
    Getting Started <getting-started-guide/index>
    User Guide <user-guide/index>
-   API Reference <api>
+   API Reference <api/index>
 
 .. toctree::
    :maxdepth: 2

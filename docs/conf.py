@@ -68,6 +68,12 @@ napoleon_numpy_docstring = True
 napoleon_use_param = False
 napoleon_use_rtype = False
 
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': False,
+    'show-inheritance': True,
+}
+
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "numpy": ("https://numpy.org/doc/stable", None),

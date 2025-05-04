@@ -120,9 +120,9 @@ class Crater:
         projectile_vertical_velocity : float, optional
             The vertical component of the velocity in m/s.
         projectile_angle : float, optional
-            The impact angle in degrees (0–90).
+            The impact angle in degrees (0-90).
         projectile_direction : float, optional
-            The direction of the impact in degrees (0–360).
+            The direction of the impact in degrees (0-360).
         location : tuple of float, optional
             The (longitude, latitude) location of the impact.
         age : float, optional

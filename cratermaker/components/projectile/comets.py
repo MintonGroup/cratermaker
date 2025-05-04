@@ -32,7 +32,7 @@ class CometProjectiles(Projectile):
 
         References
         ----------
-        .. [1] Zahnle, K., Schenk, P., Levison, H., Dones, L., 2003. Cratering rates in the outer Solar System. Icarus 163, 263–289. https://doi.org/10.1016/S0019-1035(03)00048-4
+        .. [1] Zahnle, K., Schenk, P., Levison, H., Dones, L., 2003. Cratering rates in the outer Solar System. Icarus 163, 263-289. https://doi.org/10.1016/S0019-1035(03)00048-4
 
         **kwargs : Any
             Additional keyword arguments to be passed to internal functions.
