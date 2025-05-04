@@ -96,7 +96,7 @@ class Scaling(ComponentBase):
         """
 
         if scaling is None:
-            scaling = "default"
+            scaling = "montecarlo"
         scaling = super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         if target is not None:
             scaling.target = target

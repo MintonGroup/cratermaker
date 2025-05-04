@@ -27,7 +27,7 @@ class Simulation(CratermakerBase):
     target: Target or str, optional, default "Moon"
         Name target body for the simulation, default is "Moon".
     scaling : Scaling or str, optional
-        The projectile->crater size scaling model to use from the components library. The default is "default".
+        The projectile->crater size scaling model to use from the components library. The default is "montecarlo".
     production: Production or str, optional
         The production function model to use from the components library that defines the production function used to populate the surface with craters. If none provided, 
         then the default will be based on the target body, with the NeukumProduction crater-based scaling law used if the target 

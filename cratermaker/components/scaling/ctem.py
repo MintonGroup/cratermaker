@@ -1,10 +1,10 @@
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
-from cratermaker.components.scaling.default import DefaultScaling
+from cratermaker.components.scaling.montecarlo import MonteCarloScaling
 from cratermaker.components.projectile import Projectile
 @Scaling.register("ctem")
-class CTEMScaling(DefaultScaling):
+class CTEMScaling(MonteCarloScaling):
     """
     This is an operations class for computing the scaling relationships between projectiles and craters.
 

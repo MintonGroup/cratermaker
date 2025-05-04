@@ -4,7 +4,7 @@ from astropy.constants import G
 from typing import Any
 from cratermaker.utils.general_utils import _set_properties, _create_catalogue, parameter
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.utils.component_utils import ComponentBase
+from cratermaker.utils.component_utils import ComponentBase, import_components
 
 class Target(ComponentBase):
     """
@@ -358,4 +358,8 @@ class Target(ComponentBase):
         target._component_name = target.name
         
         return target
-        
+
+
+import_components(__name__, __path__, ignore_private=True)
+
+ 

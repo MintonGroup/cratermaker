@@ -537,12 +537,12 @@ Attributes
     Scaling.projectile
 
 
-.. _api-DefaultScaling:
+.. _api-MonteCarloScaling:
 
-.. currentmodule:: cratermaker.components.scaling.default
+.. currentmodule:: cratermaker.components.scaling.montecarlo
 
-Default Scaling model
-=====================
+Monte Carlo scaling model
+=========================
 
 This implements the scaling laws similar to those implemented in CTEM. However, unlike in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws.
 
@@ -553,11 +553,11 @@ Methods
 .. autosummary::
     :toctree: generated/
 
-    DefaultScaling.final_to_transient
-    DefaultScaling.transient_to_final
-    DefaultScaling.projectile_to_transient
-    DefaultScaling.transient_to_projectile
-    DefaultScaling.get_morphology_type
+    MonteCarloScaling.final_to_transient
+    MonteCarloScaling.transient_to_final
+    MonteCarloScaling.projectile_to_transient
+    MonteCarloScaling.transient_to_projectile
+    MonteCarloScaling.get_morphology_type
 
 Attributes
 ----------
@@ -565,19 +565,19 @@ Attributes
 .. autosummary::
     :toctree: generated/
 
-    DefaultScaling.target
-    DefaultScaling.projectile
-    DefaultScaling.material_catalogue
-    DefaultScaling.material_name
-    DefaultScaling.K1
-    DefaultScaling.mu
-    DefaultScaling.Ybar
-    DefaultScaling.catalogue_key
-    DefaultScaling.transition_diameter
-    DefaultScaling.transition_nominal
-    DefaultScaling.complex_enlargement_factor
-    DefaultScaling.simple_enlargement_factor
-    DefaultScaling.final_exp
+    MonteCarloScaling.target
+    MonteCarloScaling.projectile
+    MonteCarloScaling.material_catalogue
+    MonteCarloScaling.material_name
+    MonteCarloScaling.K1
+    MonteCarloScaling.mu
+    MonteCarloScaling.Ybar
+    MonteCarloScaling.catalogue_key
+    MonteCarloScaling.transition_diameter
+    MonteCarloScaling.transition_nominal
+    MonteCarloScaling.complex_enlargement_factor
+    MonteCarloScaling.simple_enlargement_factor
+    MonteCarloScaling.final_exp
 
 Usage example
 -------------
@@ -585,7 +585,7 @@ Usage example
 .. code-block:: python
 
     from cratermaker import Scaling
-    scaling_model = Scaling.maker("default", target="Mars", projectile="asteroids")
+    scaling_model = Scaling.maker("montecarlo", target="Mars", projectile="asteroids")
 
 .. _api-CTEMScaling:
 

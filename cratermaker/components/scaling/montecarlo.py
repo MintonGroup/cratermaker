@@ -11,8 +11,8 @@ from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.projectile import Projectile
 
-@Scaling.register("default")
-class DefaultScaling(Scaling):
+@Scaling.register("montecarlo")
+class MonteCarloScaling(Scaling):
     """
     This is an operations class for computing the scaling relationships between projectiles and craters.  This class encapsulates the 
     logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size 
