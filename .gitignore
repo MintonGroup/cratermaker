@@ -46,6 +46,7 @@ cratermaker/_version.py
 !docs/_exts/
 !docs/getting-started-guide/
 !docs/user-guide/
+!docs/api/
 !docs/**/*.rst
 !docs/**/*.css
 !docs/**/*.png
