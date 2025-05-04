@@ -1,3 +1,38 @@
+/* Cratermaker Branding Guide:
+Primary Color Palette (Hex):
+  - Charcoal Gray: #414042
+  - Blue Gray:     #4a5a6a
+  - Slate Blue:    #32485e
+  - Steel Gray:    #53565a
+
+Secondary Color Palette (Hex):
+  - Fog Gray:      #c2c4c6
+  - Mist Blue:     #a8b0b8
+  - Light Slate:   #d0d4d8
+  - Pale Smoke:    #e0e2e4
+
+Primary Typeface: Acumin Variable Concept - Semicondensed Medium
+*/
+
+:root {
+  --cm-charcoal-gray: #414042;
+  --cm-blue-gray: #4a5a6a;
+  --cm-slate-blue: #40668d;
+  --cm-steel-gray: #53565a;
+
+  --cm-fog-gray: #c2c4c6;
+  --cm-mist-blue: #a8b0b8;
+  --cm-light-slate: #d0d4d8;
+  --cm-pale-smoke: #e0e2e4;
+
+  --cm-font-family: "Acumin Variable Concept", sans-serif;
+
+  /* Optional overrides for pydata-sphinx-theme */
+  --pst-color-primary: var(--cm-charcoal-gray);
+  --pst-color-secondary: var(--cm-fog-gray);
+  --pst-font-family-base: var(--cm-font-family);
+}
+
 table.colwidths-given {
     table-layout: fixed;
     width: 100%;
@@ -9,7 +44,6 @@ table.docutils td {
 
 div.bd-header-announcement {
   background-color: unset;
-  color: #000;
 }
 
 /* Reduce left and right margins */
@@ -83,7 +117,7 @@ https://github.com/bokeh/bokeh/blob/branch-2.4/sphinx/source/bokeh/static/custom
 
 .section-nav {
   padding-left: 0;
-  border-left: 1px solid #eee;
+  border-left: 1px solid var(--cm-pale-smoke);
   border-bottom: none;
 }
 
@@ -98,7 +132,7 @@ https://github.com/bokeh/bokeh/blob/branch-2.4/sphinx/source/bokeh/static/custom
 .toc-entry a {
   display: block;
   padding: 0.125rem 1.5rem;
-  color: #77757a;
+  color: var(--cm-blue-gray);
 }
 
 .toc-entry a:hover {
@@ -241,6 +275,7 @@ main *:target::before {
 }
 
 body {
+  font-family: var(--cm-font-family);
   /* Add padding to body to avoid overlap with navbar. */
   padding-top: var(--navbar-height);
   width: 100%;
@@ -261,9 +296,9 @@ body {
 
 .toc-entry > .nav-link.active {
   font-weight: 400;
-  color: #314254;
+  color: var(--cm-slate-blue);
   background-color: transparent;
-  border-left: 2px solid #A3B9C0;
+  border-left: 2px solid var(--cm-fog-gray);
 }
 
 .nav-link:hover {
@@ -301,7 +336,6 @@ body {
     display: block;
   }
 
-
   .article-header-buttons .sidebar-toggle {
     display: block;
   }
@@ -312,5 +346,62 @@ body {
   label.sidebar-toggle.secondary-toggle {
     display: inline-block; /* or 'block', depending on desired layout */
   }
+}
 
+/* Global link styling with theme awareness */
+[data-theme="light"] a {
+  color: var(--cm-slate-blue);
+}
+
+[data-theme="light"] a:hover,
+[data-theme="light"] a:focus {
+  color: var(--cm-blue-gray);
+  text-decoration: underline;
+}
+
+[data-theme="dark"] a {
+  color: var(--cm-blue-gray);
+}
+
+[data-theme="dark"] a:hover,
+[data-theme="dark"] a:focus {
+  color: var(--cm-fog-gray);
+  text-decoration: underline;
+}
+
+/* Announcement banner theme-specific colors */
+[data-theme="light"] .bd-header-announcement {
+  color: var(--cm-mist-blue);
+}
+
+[data-theme="dark"] .bd-header-announcement {
+  color: var(--cm-blue-gray);
+}
+
+
+html[data-theme="light"] .bd-footer .prev-next-area a p.prev-next-title  {
+  background-color: transparent !important;
+  border-color: var(--cm-slate-blue) !important;
+}
+
+html[data-theme="dark"] .bd-footer .prev-next-area a p.prev-next-title {
+  background-color: transparent !important;
+  border-color: var(--cm-blue-gray) !important;
+}
+
+/* Previous/Next link colors override */
+[data-theme="light"] .bd-footer .prev-next-area a {
+  color: var(--cm-slate-blue) !important;
+}
+
+[data-theme="light"] .bd-footer .prev-next-area a:hover {
+  color: var(--cm-blue-gray) !important;
+}
+
+[data-theme="dark"] .bd-footer .prev-next-area a {
+  color: var(--cm-blue-gray) !important;
+}
+
+[data-theme="dark"] .bd-footer .prev-next-area a:hover {
+  color: var(--cm-fog-gray) !important;
 }

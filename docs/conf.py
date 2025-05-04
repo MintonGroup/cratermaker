@@ -104,7 +104,6 @@ html_theme_options = dict(
     extra_footer="""<p>Development of Cratermaker is supported by NASA Lunar Data Analysis Program Grant #80NSSC21K1719<br>
     Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a></p>""",
     icon_links=[],  # workaround for pydata/pydata-sphinx-theme#1220
-    announcement="🍾 <a href='https://github.com/MintonGroup/cratermaker/discussions/1'>Cratermaker is currently under development</a> 🎉",
 )
 
 

@@ -9,7 +9,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 `Code Repository <https://github.com/MintonGroup/cratermaker>`__ |
 `Issues <https://github.com/MintonGroup/cratermaker/issues>`__ |
 `Discussions <https://github.com/MintonGroup/cratermaker/discussions>`__ |
-`Releases <https://github.com/MintonGroup/cratermaker/releases>`__ |
+`Releases <https://github.com/MintonGroup/cratermaker/releases>`__ 
 
 
 .. grid:: 1 1 2 2
@@ -74,3 +74,11 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
    GitHub discussions <https://github.com/MintonGroup/cratermaker/discussions>
    Publications <publications>
+
+
+.. toctree::
+   :maxdepth: 1
+   :hidden:
+   :caption: License
+
+   license
