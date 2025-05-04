@@ -4,7 +4,7 @@ from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation as R
 from typing import Any
 from numpy.typing import NDArray
-from cratermaker.utils.general_utils import validate_and_normalize_location, parameter
+from cratermaker.utils.general_utils import validate_and_normalize_location, parameter, format_large_units
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.core.crater import Crater
 from cratermaker.components.surface import Surface
@@ -88,10 +88,12 @@ class HiResLocalSurface(Surface):
 
     def __repr__(self) -> str:
         base = super().__repr__()
+        pix = format_large_units(self.pix, quantity="length")
+        local_radius = format_large_units(self.local_radius, quantity="length")
         return (
             f"{base}\n"
-            f"Pixel Size: {self.pix:.2f} m\n"
-            f"Local Radius: {self.local_radius:.2f} m\n"
+            f"Pixel Size: {pix}\n"
+            f"Local Radius: {local_radius}\n"
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
             f"Superdomain Scale Factor: {self.superdomain_scale_factor:.2f}"
         )

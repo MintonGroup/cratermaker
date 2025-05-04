@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from cratermaker.components.production import Production
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.utils.general_utils import R_to_CSFD, parameter
+from cratermaker.utils.general_utils import R_to_CSFD, parameter, format_large_units
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 from typing import Any, Union
@@ -59,12 +59,15 @@ class NeukumProduction(Production):
 
     def __repr__(self) -> str:
         base = super().__repr__()
+        timelo = format_large_units(self.valid_time[0], quantity="time")
+        timehi = format_large_units(self.valid_time[1], quantity="time")
+        dlo = format_large_units(self.sfd_range[0], quantity="length")
+        dhi = format_large_units(self.sfd_range[1], quantity="length")
         return (
             f"{base}\n"
             f"Version: {self.version}\n"
-            f"Valid Time Range: {self.valid_time[0]}-{self.valid_time[1]} My\n"
-            f"Valid Diameter Range: {self.sfd_range[0]:.1f}-{self.sfd_range[1]/1e3:.1f} km\n"
-            f"Clin: {self.Clin:.2e}, Cexp: {self.Cexp:.2e}, tau: {self.tau:.3f} Gy"
+            f"Valid Time Range: {timelo} - {timehi}\n"
+            f"Valid Diameter Range: {dlo} - {dhi}"
         )
 
     def function(self,

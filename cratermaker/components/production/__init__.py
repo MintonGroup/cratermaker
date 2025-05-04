@@ -42,8 +42,7 @@ class Production(ComponentBase):
         base = super().__repr__()
         return (
             f"{base}\n"
-            f"Generator Type: {self.generator_type}\n"
-            f"Target: {self.target.name if hasattr(self, 'target') else 'Not set'}"
+            f"Generator Type: {self.generator_type}"
         )
 
     @classmethod

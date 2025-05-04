@@ -260,7 +260,6 @@ class Surface(ComponentBase):
 
         self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size(uxgrid)
 
-        print(self)
         return
 
     def regrid_if_needed(self, force : bool = False, **kwargs: Any) -> bool:

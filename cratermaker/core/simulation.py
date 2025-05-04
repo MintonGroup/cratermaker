@@ -9,7 +9,7 @@ from ..constants import _CONFIG_FILE_NAME, _COMPONENT_NAMES
 from .base import CratermakerBase, _convert_for_yaml, _to_config
 from ..components.target import Target
 from .crater import Crater
-from ..utils.general_utils import parameter, _set_properties
+from ..utils.general_utils import parameter, _set_properties, format_large_units
 from ..utils.custom_types import FloatLike, PairOfFloats
 from ..utils import export
 from ..components.scaling import Scaling
@@ -148,6 +148,25 @@ class Simulation(CratermakerBase):
 
         return
 
+    def __repr__(self) -> str:
+        """
+        Returns a string representation of the Simulation object.
+        """
+        return (
+            f"<Simulation>\n\n"
+            f"{self.target}\n\n"
+            f"{self.projectile}\n\n"
+            f"{self.scaling}\n\n"
+            f"{self.production}\n\n"
+            f"{self.morphology}\n\n"
+            f"{self.surface}\n\n"
+            f"<Current state>\n"
+            f"Current age : {format_large_units(self.current_age, quantity="time")}\n"
+            f"Elapsed time: {format_large_units(self.elapsed_time, quantity="time")}\n"
+            f"Elapsed N_1 : {self.elapsed_n1} #/m^2\n"
+            f"Interval    : {self.interval_number}\n"
+            f"simdir      : {str(self.simdir)}\n"
+        )
     
     def get_smallest_diameter(self, 
                               face_areas: ArrayLike | None = None, 

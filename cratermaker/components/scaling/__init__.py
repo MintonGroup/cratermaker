@@ -109,8 +109,8 @@ class Scaling(ComponentBase):
         base = super().__repr__()
         return (
             f"{base}\n"
-            f"Target: {self.target}\n"
-            f"Projectile: {self.projectile}>"
+            f"Target: {self.target._component_name}\n"
+            f"Projectile: {self.projectile._component_name}>"
         )
 
     @property

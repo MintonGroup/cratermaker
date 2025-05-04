@@ -5,8 +5,7 @@ from typing import Any
 from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
-from cratermaker.utils.general_utils import _set_properties
-from cratermaker.utils.general_utils import _create_catalogue
+from cratermaker.utils.general_utils import _set_properties, _create_catalogue, format_large_units
 from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.projectile import Projectile
@@ -112,13 +111,17 @@ class MonteCarloScaling(Scaling):
 
     def __repr__(self) -> str:
         base = super().__repr__()
+        ybar = format_large_units(self.Ybar, quantity="pressure")
+        dt = format_large_units(self.transition_nominal, quantity="length")
         return (
             f"{base}\n"
             f"Material: {self.material_name}\n"
-            f"K1: {self.K1:.3f}, mu: {self.mu:.3f}, Ybar: {self.Ybar:.2e} Pa\n"
+            f"K1: {self.K1:.3f}\n"
+            f"mu: {self.mu:.3f}\n"
+            f"Ybar: {ybar}\n"
             f"Target density: {self.target.density:.0f} kg/m³\n"
             f"Projectile density: {self.projectile.density:.0f} kg/m³\n"
-            f"Simple-complex transition Diameter: {self.transition_diameter:.0f} m"
+            f"Nominal simple-complex transition diameter: {dt}"
         )
 
     def __setattr__(self, name, value):
