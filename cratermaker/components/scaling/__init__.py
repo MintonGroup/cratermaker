@@ -96,7 +96,7 @@ class Scaling(ComponentBase):
         """
 
         if scaling is None:
-            scaling = "default"
+            scaling = "montecarlo"
         scaling = super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         if target is not None:
             scaling.target = target
@@ -109,8 +109,8 @@ class Scaling(ComponentBase):
         base = super().__repr__()
         return (
             f"{base}\n"
-            f"Target: {self.target}\n"
-            f"Projectile: {self.projectile}>"
+            f"Target: {self.target._component_name}\n"
+            f"Projectile: {self.projectile._component_name}>"
         )
 
     @property

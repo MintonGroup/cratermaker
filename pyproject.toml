@@ -48,7 +48,7 @@ tests = [
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
 [project.entry-points."cratermaker.components.scaling"]
-default = "cratermaker.components.scaling.default:DefaultScaling"
+montecarlo = "cratermaker.components.scaling.montecarlo:MontecarloScaling"
 ctem = "cratermaker.components.scaling.ctem:CTEMScaling"
 
 [project.entry-points."cratermaker.components.production"]

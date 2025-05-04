@@ -355,3 +355,36 @@ def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayL
         return N
     
     return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
+
+
+def format_large_units(value: float, threshold: float = 1000.0, quantity: str = "length") -> str:
+    """
+    Format a value and automatically shift units based on threshold.
+    """
+    if quantity == "length":
+        units = ["m", "km"]
+    elif quantity == "velocity":
+        units = ["m/s", "km/s"]
+    elif quantity == "time":
+        units = ["My", "Gy"]
+    elif quantity == "pressure":
+        units = ["Pa", "kPa", "GPa"]
+
+    if value is None:
+        return "N/A"
+
+    unit_index = 0
+    while unit_index + 1 < len(units) and value >= threshold:
+        value /= threshold
+        unit_index += 1
+
+    if value >= 100:
+        fmt = "{:.0f} {}"
+    elif value >= 10:
+        fmt = "{:.1f} {}"
+    elif value >= 1:
+        fmt = "{:.2f} {}"
+    else:
+        fmt = "{:.3g} {}"
+    return fmt.format(value, units[unit_index])
+

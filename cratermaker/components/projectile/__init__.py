@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import math
 from numpy.random import Generator
-from cratermaker.utils.general_utils import parameter
+from cratermaker.utils.general_utils import parameter, format_large_units
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
@@ -15,9 +15,7 @@ class Projectile(ComponentBase):
                  target : Target | str | None = None,
                  mean_velocity : FloatLike = 22100.0, 
                  density : FloatLike = 2250.0,
-                 sample_velocities : bool = True,
-                 sample_angles : bool = True,
-                 sample_directions : bool = True,
+                 sample : bool = True,
                  angle: FloatLike = 90.0,
                  velocity : FloatLike | None = None,
                  direction : FloatLike | None = None,
@@ -36,12 +34,8 @@ class Projectile(ComponentBase):
             The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
         density : float
             The density of the projectile in kg/m^3. Default is 2250.0 kg/m^3.
-        sample_velocities : bool
-            Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
-        sample_angles : bool
-            Flag that determines whether to sample impact angles from a distribution. If set to False, impact angles will be set to 90 degrees (vertical impact).
-        sample_directions : bool
-            Flag that determines whether to sample impact directions from a distribution. If set to False, impact directions will be set to the mean velocity.
+        sample : bool
+            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
             The impact angle in degrees. Default is 90.0 degrees.
         velocity : float | None
@@ -59,9 +53,7 @@ class Projectile(ComponentBase):
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
-        object.__setattr__(self, "_sample_angles", None)
-        object.__setattr__(self, "_sample_velocities", None)
-        object.__setattr__(self, "_sample_directions", None)
+        object.__setattr__(self, "_sample", None)
         object.__setattr__(self, "_mean_velocity", mean_velocity)
         object.__setattr__(self, "_density", density)
         object.__setattr__(self, "_velocity", velocity)
@@ -69,20 +61,17 @@ class Projectile(ComponentBase):
         object.__setattr__(self, "_angle", angle)
 
         self.target = Target.maker(target, **kwargs)
-        self.sample_velocities = sample_velocities
-        self.sample_angles = sample_angles
-        self.sample_directions = sample_directions
+        self.sample = sample
 
     def __repr__(self) -> str:
         base = super().__repr__()
+        mean_velocity = format_large_units(self.mean_velocity, quantity="velocity")
         return (
             f"{base}\n"
             f"Target: {self.target.name}\n"
             f"Density: {self.density:.1f} kg/m³\n"
-            f"Mean Velocity: {self.mean_velocity:.1f} m/s\n"
-            f"Sample Velocities: {self.sample_velocities}, "
-            f"Sample Angles: {self.sample_angles}, "
-            f"Sample Directions: {self.sample_directions}"
+            f"Mean Velocity: {mean_velocity}\n"
+            f"Sample from distributions: {self.sample}"
         )
 
 
@@ -92,9 +81,7 @@ class Projectile(ComponentBase):
              target : Target | str | None = None,
              mean_velocity : FloatLike = 22100.0, 
              density : FloatLike = 2250.0,
-             sample_velocities : bool = True,
-             sample_angles : bool = True,
-             sample_directions : bool = True,
+             sample : bool = True,
              angle: FloatLike = 90.0,
              velocity : FloatLike | None = None,
              direction : FloatLike | None = None,
@@ -115,12 +102,8 @@ class Projectile(ComponentBase):
             The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
         density : float
             The density of the projectile in kg/m^3. Default is 2250.0 kg/m^3.
-        sample_velocities : bool
-            Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
-        sample_angles : bool
-            Flag that determines whether to sample impact angles from a distribution. If set to False, impact angles will be set to 90 degrees (vertical impact).
-        sample_directions : bool
-            Flag that determines whether to sample impact directions from a distribution. If set to False, impact directions will be set to the mean velocity.
+        sample : bool
+            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
             The impact angle in degrees. Default is 90.0 degrees.
         velocity : float | None
@@ -160,9 +143,7 @@ class Projectile(ComponentBase):
                             target=target,
                             mean_velocity=mean_velocity,
                             density=density,
-                            sample_velocities=sample_velocities,
-                            sample_angles=sample_angles,
-                            sample_directions=sample_directions,
+                            sample=sample,
                             angle=angle,
                             velocity=velocity,
                             direction=direction,
@@ -191,17 +172,17 @@ class Projectile(ComponentBase):
             A dictionary containing the projectile properties.
         """
 
-        if self.sample_velocities:
+        if self.sample:
             self._velocity = float(mc.get_random_velocity(self.mean_velocity, rng=self.rng)[0])
         elif self.velocity is None:
             self._velocity = float(self.mean_velocity)
 
-        if self.sample_angles:
+        if self.sample:
             self._angle = float(mc.get_random_impact_angle(rng=self.rng)[0])
         elif self.angle is None:
             self._angle = float(90.0)
 
-        if self.sample_directions:
+        if self.sample:
             self._direction = float(mc.get_random_impact_direction(rng=self.rng)[0])
         elif self._direction is None:
             self._direction = float(0.0)
@@ -240,57 +221,21 @@ class Projectile(ComponentBase):
         self._target = Target.maker(value)
 
     @parameter
-    def sample_angles(self):
+    def sample(self):
         """
-        Flag that determines whether to sample impact angles from a distribution. If set to False, impact angles will be set to 90 degrees (vertical impact). 
+        Flag that determines whether to sample velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         
         Returns
         -------
         bool
         """
-        return self._sample_angles
+        return self._sample
     
-    @sample_angles.setter
-    def sample_angles(self, value):
+    @sample.setter
+    def sample(self, value):
         if not isinstance(value, bool):
-            raise TypeError("sample_angles must be a boolean value")
-        self._sample_angles = value
-        return
-    
-    @parameter
-    def sample_velocities(self):
-        """
-        Flag that determines whether to sample impact velocities from a distribution. If set to False, impact velocities will be set to the mean velocity.
-        
-        Returns
-        -------
-        bool
-        """
-        return self._sample_velocities
-    
-    @sample_velocities.setter
-    def sample_velocities(self, value):
-        if not isinstance(value, bool):
-            raise TypeError("sample_velocities must be a boolean value")
-        self._sample_velocities = value
-        return
-    
-    @parameter
-    def sample_directions(self):
-        """
-        Flag that determines whether to sample impact directions from a distribution. If set to False, impact directions will be set to the mean velocity.
-        
-        Returns
-        -------
-        bool
-        """
-        return self._sample_directions
-    
-    @sample_directions.setter
-    def sample_directions(self, value):
-        if not isinstance(value, bool):
-            raise TypeError("sample_directions must be a boolean value")
-        self._sample_directions = value
+            raise TypeError("sample must be a boolean value")
+        self._sample = value
         return
     
     @parameter

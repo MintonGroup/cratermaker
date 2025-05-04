@@ -2,9 +2,9 @@ from __future__ import annotations
 import numpy as np
 from astropy.constants import G
 from typing import Any
-from cratermaker.utils.general_utils import _set_properties, _create_catalogue, parameter
+from cratermaker.utils.general_utils import _set_properties, _create_catalogue, parameter, format_large_units
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.utils.component_utils import ComponentBase
+from cratermaker.utils.component_utils import ComponentBase, import_components
 
 class Target(ComponentBase):
     """
@@ -93,14 +93,17 @@ class Target(ComponentBase):
 
 
     def __repr__(self) -> str:
+        diameter = format_large_units(self.diameter, quantity="length")
+        escape_velocity = format_large_units(self.escape_velocity, quantity="velocity")
         return (
             f"<Target: {self.name}>\n"
             f"Material: {self.material_name}\n"
-            f"Radius: {self.radius:.0f} m\n"
+            f"Diameter: {diameter}\n"
             f"Mass: {self.mass:.2e} kg\n"
             f"Surface density: {self.density:.1f} kg/m³\n"
             f"Transition Type: {self.transition_scale_type}\n"
-            f"Escape Velocity: {self.escape_velocity:.1f} m/s, Gravity: {self.gravity:.3f} m/s²"
+            f"Escape Velocity: {escape_velocity}\n"
+            f"Gravity: {self.gravity:.3f} m/s²"
         )
 
     @parameter
@@ -358,4 +361,8 @@ class Target(ComponentBase):
         target._component_name = target.name
         
         return target
-        
+
+
+import_components(__name__, __path__, ignore_private=True)
+
+ 

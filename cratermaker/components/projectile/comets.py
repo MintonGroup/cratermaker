@@ -32,16 +32,14 @@ class CometProjectiles(Projectile):
 
         References
         ----------
-        .. [1] Zahnle, K., Schenk, P., Levison, H., Dones, L., 2003. Cratering rates in the outer Solar System. Icarus 163, 263–289. https://doi.org/10.1016/S0019-1035(03)00048-4
+        .. [1] Zahnle, K., Schenk, P., Levison, H., Dones, L., 2003. Cratering rates in the outer Solar System. Icarus 163, 263-289. https://doi.org/10.1016/S0019-1035(03)00048-4
 
         **kwargs : Any
             Additional keyword arguments to be passed to internal functions.
         """
 
         # This model always samples velocities, angles, and directions, so override any values that may have been passed.
-        kwargs["sample_velocities"] = True
-        kwargs["sample_angles"] = True
-        kwargs["sample_directions"] = True
+        kwargs["sample"] = True
         super().__init__(target_name=target_name, density=density, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         self.mean_velocity = self._set_mean_velocity()
 

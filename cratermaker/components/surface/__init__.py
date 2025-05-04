@@ -260,7 +260,6 @@ class Surface(ComponentBase):
 
         self._pix_mean, self._pix_std, self._pix_min, self._pix_max = self._compute_pix_size(uxgrid)
 
-        print(self)
         return
 
     def regrid_if_needed(self, force : bool = False, **kwargs: Any) -> bool:
@@ -997,7 +996,7 @@ class Surface(ComponentBase):
                            lon_range: PairOfFloats=(-180,180), 
                            lat_range: PairOfFloats=(-90,90)) -> NDArray:
         """
-        Distributes points on a sphere using Deserno's algorithm [1]_.
+        Distributes points on a sphere using Deserno's algorithm (Deserno 2004).
             
         Parameters
         ----------
@@ -1015,10 +1014,9 @@ class Surface(ComponentBase):
         (3,n) ndarray of np.float64
             Array of cartesian points on the sphere.
             
+        .. rubric:: References
         
-        References
-        ----------
-        .. [1] Deserno, Markus., 2004. How to generate equidistributed points on the surface of a sphere. https://www.cmu.edu/biolphys/deserno/pdf/sphere_equi.pdf
+        - Deserno, Markus., 2004. How to generate equidistributed points on the surface of a sphere. https://www.cmu.edu/biolphys/deserno/pdf/sphere_equi.pdf
         
         """
         def _sph2cart(theta, phi, r):

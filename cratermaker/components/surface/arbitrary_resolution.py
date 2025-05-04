@@ -4,7 +4,7 @@ from typing import Any
 from numpy.typing import NDArray
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.components.surface import Surface
-from cratermaker.utils.general_utils import parameter
+from cratermaker.utils.general_utils import parameter, format_large_units
 from cratermaker.components.target import Target
 
 @Surface.register("arbitrary_resolution")
@@ -44,9 +44,11 @@ class ArbitraryResolutionSurface(Surface):
 
     def __repr__(self) -> str:
         base = super().__repr__()
+        pix_mean = format_large_units(self.pix_mean, quantity="length")
+        pix_std = format_large_units(self.pix_std, quantity="length")
         return (
             f"{base}\n"
-            f"Effective pixel size: {self.pix_mean:.2f} +/- {self.pix_std:.2f} m"
+            f"Effective pixel size: {pix_mean} +/- {pix_std}"
         )           
 
     @property

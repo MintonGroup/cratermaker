@@ -29,9 +29,11 @@ class Morphology(ComponentBase):
 
     def __repr__(self) -> str:
         base = super().__repr__()
+        if self.crater is None:
+            return base
         return (
             f"{base}\n"
-            f"Crater:\n{self.crater}"
+            f"{self.crater}"
         )
 
     @classmethod

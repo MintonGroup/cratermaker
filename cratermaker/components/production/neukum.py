@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from cratermaker.components.production import Production
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.utils.general_utils import R_to_CSFD, parameter
+from cratermaker.utils.general_utils import R_to_CSFD, parameter, format_large_units
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 from typing import Any, Union
@@ -28,24 +28,23 @@ class NeukumProduction(Production):
         
     Notes
     ----- 
-    The CSFD is computed using the model of Ivanov, Neukum, and Hartmann (2001) [1]_ for the Moon and Mars, with 
+    The CSFD is computed using the model of Ivanov, Neukum, and Hartmann (2001) for the Moon and Mars, with 
     minor changes. Notably, there is a typo in the chronology function (Eq. 5) of the original paper. The linear term in the paper
     is given as 8.38e-4. The value should be 10^(a0), and therefore the number given in the paper is based on the "Old"
-    coefficients from Neukum (1983) [4]. The correct value is 10^(-3.0876) = 8.17e-4. We compute the value from the coefficients 
+    coefficients from Neukum (1983). The correct value is 10^(-3.0876) = 8.17e-4. We compute the value from the coefficients 
     in our implementation of the chronology function.       
     
-    Mars PF from [2]. Projectile PF from [3]. 
+    The Mars production function is based on Ivanov (2001). The projectile production function is from Ivanov, Neukum, and Wagner (2001).
    
-    References
-    ---------- 
-    .. [1] Lunar PF from: Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
-        the Lunar Reference System. Space Science Reviews 96, 55-86. https://doi.org/10.1023/A:1011989004263
-    .. [2] Mars PF from: Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. Space Science Reviews 96, 87-104.
-        https://doi.org/10.1023/A:1011941121102
-    .. [3] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters 
-        and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1-34. 
-        https://doi.org/10.1007/978-94-010-0712-2_1
-    .. [4] Neukum, G., 1983. Meteorite bombardment and planetary surfaces dating. Habilitation Dissertation for Faculty Membership, University of Munich.
+    .. rubric:: References
+
+    - Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
+      the Lunar Reference System. *Space Science Reviews*, 96, 55-86. https://doi.org/10.1023/A:1011989004263
+    - Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. https://doi.org/10.1023/A:1011941121102
+    - Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters 
+      and Asteroids. In *Collisional Processes in the Solar System*, Springer Netherlands, Dordrecht, pp. 1-34. 
+      https://doi.org/10.1007/978-94-010-0712-2_1
+    - Neukum, G., 1983. Meteorite bombardment and planetary surfaces dating. Habilitation Dissertation for Faculty Membership, University of Munich.
 
     """
     def __init__(self, 
@@ -60,12 +59,15 @@ class NeukumProduction(Production):
 
     def __repr__(self) -> str:
         base = super().__repr__()
+        timelo = format_large_units(self.valid_time[0], quantity="time")
+        timehi = format_large_units(self.valid_time[1], quantity="time")
+        dlo = format_large_units(self.sfd_range[0], quantity="length")
+        dhi = format_large_units(self.sfd_range[1], quantity="length")
         return (
             f"{base}\n"
             f"Version: {self.version}\n"
-            f"Valid Time Range: {self.valid_time[0]}–{self.valid_time[1]} My\n"
-            f"Valid Diameter Range: {self.sfd_range[0]:.1f}–{self.sfd_range[1]/1e3:.1f} km\n"
-            f"Clin: {self.Clin:.2e}, Cexp: {self.Cexp:.2e}, tau: {self.tau:.3f} Gy"
+            f"Valid Time Range: {timelo} - {timehi}\n"
+            f"Valid Diameter Range: {dlo} - {dhi}"
         )
 
     def function(self,

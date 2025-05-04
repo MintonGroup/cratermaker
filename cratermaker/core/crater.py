@@ -4,7 +4,7 @@ from numpy.random import Generator
 from pathlib import Path
 from dataclasses import dataclass
 from ..components.target import Target
-from ..utils.general_utils import validate_and_normalize_location
+from ..utils.general_utils import validate_and_normalize_location, format_large_units
 from ..utils import montecarlo as mc
 from ..components.scaling import Scaling
 from ..components.projectile import Projectile
@@ -28,18 +28,20 @@ class Crater:
         if self.age is None:
             agetext = "Not set"
         else:
-            agetext = f"{self.age:.1f} My"
-        return (f"final_diameter: {self.final_diameter:.2f} m\n"
-                f"transient_diameter: {self.transient_diameter:.2f} m\n"
-                f"projectile_diameter: {self.projectile_diameter:.2f} m\n"
-                f"projectile_mass: {self.projectile_mass:.4e} kg\n" 
-                f"projectile_density: {self.projectile_density:.0f} kg/m^3\n"
-                f"projectile_velocity: {self.projectile_velocity:.0f} m/s\n"
-                f"projectile_angle: {self.projectile_angle:.1f}°\n"
-                f"projectile_direction: {self.projectile_direction:.1f}°\n"
-                f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
-                f"morphology_type: {self.morphology_type}\n"
-                f"age: {agetext}")
+            agetext = f"{format_large_units(self.age, quantity='time')}"
+        return (
+            f"final_diameter: {format_large_units(self.final_diameter, quantity='length')}\n"
+            f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
+            f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
+            f"projectile_mass: {self.projectile_mass:.4e} kg\n"
+            f"projectile_density: {self.projectile_density:.0f} kg/m^3\n"
+            f"projectile_velocity: {format_large_units(self.projectile_velocity, quantity='velocity')}\n"
+            f"projectile_angle: {self.projectile_angle:.1f}°\n"
+            f"projectile_direction: {self.projectile_direction:.1f}°\n"
+            f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
+            f"morphology_type: {self.morphology_type}\n"
+            f"age: {agetext}"
+        )
     
     @property
     def final_radius(self) -> float | None:
@@ -120,9 +122,9 @@ class Crater:
         projectile_vertical_velocity : float, optional
             The vertical component of the velocity in m/s.
         projectile_angle : float, optional
-            The impact angle in degrees (0–90).
+            The impact angle in degrees (0-90).
         projectile_direction : float, optional
-            The direction of the impact in degrees (0–360).
+            The direction of the impact in degrees (0-360).
         location : tuple of float, optional
             The (longitude, latitude) location of the impact.
         age : float, optional
@@ -316,9 +318,7 @@ class Crater:
             projectile.angle = pang
             projectile.direction = pdir
             projectile.density = prho  
-            projectile.sample_angles = False
-            projectile.sample_directions = False
-            projectile.sample_velocities = False
+            projectile.sample = False
 
         scaling = Scaling.maker(scaling, target=target, projectile=projectile, **vars(argproc.common_args), **kwargs)
         projectile = scaling.projectile

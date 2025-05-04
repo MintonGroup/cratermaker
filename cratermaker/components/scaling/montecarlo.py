@@ -5,18 +5,17 @@ from typing import Any
 from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
-from cratermaker.utils.general_utils import _set_properties
-from cratermaker.utils.general_utils import _create_catalogue
+from cratermaker.utils.general_utils import _set_properties, _create_catalogue, format_large_units
 from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.projectile import Projectile
 
-@Scaling.register("default")
-class DefaultScaling(Scaling):
+@Scaling.register("montecarlo")
+class MonteCarloScaling(Scaling):
     """
     This is an operations class for computing the scaling relationships between projectiles and craters.  This class encapsulates the 
     logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size 
-    and target properties. This implements the scaling laws described in Richardson (2009) [1]_ that were implemented in CTEM. However, unlike
+    and target properties. This implements the scaling laws described in Richardson (2009) that were implemented in CTEM. However, unlike
     in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws.
         
     Parameters
@@ -28,9 +27,9 @@ class DefaultScaling(Scaling):
     material_name : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
-        Variable used in crater scaling (see _[1])
+        Variable used in crater scaling (see Richardson 2009)
     mu : FloatLike, optional
-        Variable used in crater scaling (see _[1])
+        Variable used in crater scaling (see Richardson 2009)
     Ybar : FloatLike, optional
         The strength of the target material, (Pa)
     density : FloatLike, optional
@@ -48,13 +47,13 @@ class DefaultScaling(Scaling):
     - The `target` parameter is required and must be an instance of the `Target` class.
     - The `material_name` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
     - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
-    - The built-in material property values are from Holsapple (1993) [2]_ and Kraus et al. (2011) [3]_. 
-    
-    References
-    ----------
-    .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
-    .. [2] Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
-    .. [3] Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016        
+    - The built-in material property values are from Holsapple (1993) and Kraus et al. (2011).
+
+    .. rubric:: References
+
+    - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
+    - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
+    - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
     """  
 
     def __init__(self, 
@@ -112,13 +111,17 @@ class DefaultScaling(Scaling):
 
     def __repr__(self) -> str:
         base = super().__repr__()
+        ybar = format_large_units(self.Ybar, quantity="pressure")
+        dt = format_large_units(self.transition_nominal, quantity="length")
         return (
             f"{base}\n"
             f"Material: {self.material_name}\n"
-            f"K1: {self.K1:.3f}, mu: {self.mu:.3f}, Ybar: {self.Ybar:.2e} Pa\n"
+            f"K1: {self.K1:.3f}\n"
+            f"mu: {self.mu:.3f}\n"
+            f"Ybar: {ybar}\n"
             f"Target density: {self.target.density:.0f} kg/m³\n"
             f"Projectile density: {self.projectile.density:.0f} kg/m³\n"
-            f"Simple-complex transition Diameter: {self.transition_diameter:.0f} m"
+            f"Nominal simple-complex transition diameter: {dt}"
         )
 
     def __setattr__(self, name, value):
@@ -291,17 +294,16 @@ class DefaultScaling(Scaling):
                                 projectile_diameter: FloatLike, 
                                 **kwargs: Any) -> float:
         """
-        Calculate the transient diameter of a crater based on the properties of the projectile and target. Based on [1]_
-
+        Calculate the transient diameter of a crater based on the properties of the projectile and target.
 
         Returns
         -------
         float
             The calculated transient diameter of the crater resulting from the impact.
 
-        References
-        ----------
-        .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
+        .. rubric:: References
+
+        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         if not isinstance(projectile_diameter, FloatLike) or projectile_diameter <= 0 or not np.isfinite(projectile_diameter):
             raise ValueError("projectile_diameter must be a positive finite number")
@@ -368,12 +370,18 @@ class DefaultScaling(Scaling):
     @property
     def material_catalogue(self):
         """
-        The material catalogue used to look up material properties.
+        The material catalogue used to look up material properties. Material property values are from Holsapple (1993) and Kraus et al. (2011).
 
         Returns
         -------
         dict
             The material catalogue.
+
+        .. rubric:: References
+
+        - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
+        - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
+
         """
         def _create_material_catalogue():
             
@@ -513,10 +521,10 @@ class DefaultScaling(Scaling):
         Returns
         -------
         float 
-        
-        References
-        ----------
-        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029 
+
+        .. rubric:: References
+
+        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         return self._K1
     
@@ -536,10 +544,10 @@ class DefaultScaling(Scaling):
         Returns
         -------
         float 
-        
-        References
-        ----------
-        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029 
+
+        .. rubric:: References
+
+        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         return self._mu
     
@@ -559,11 +567,10 @@ class DefaultScaling(Scaling):
         Returns
         -------
         float 
-            
-                    
-        References
-        ----------
-        Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029 
+
+        .. rubric:: References
+
+        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         return self._Ybar
     

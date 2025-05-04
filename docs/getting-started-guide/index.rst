@@ -29,11 +29,25 @@ Cratermaker is mostly Python, but it does have some Rust components. To install 
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-The build and install an editable version  you can install Cratermaker from source using the following command:
+The build and install an editable version you can install Cratermaker from source using the following command:
 
 .. code-block:: bash
 
     pip install -e .      
+
+The build backend for the Rust components is Maturin. Maturin provides an import hook that can allow the Rust libraries to be automatically recompiled if they are changed, which is useful when Cratermaker installed in editable configuration. To use this, first install the package:
+
+.. code-block:: bash
+
+    pip install maturin_imort_hook
+
+In the same virtual environment that you installed Cratermaker in, activate the import hook:
+
+.. code-block:: bash
+
+    python -m maturin_import_hook site install
+
+For mor information, see the the `Import Hook <https://www.maturin.rs/import_hook.html>`__ section of the Maturin documentation.
 
 .. _getting-started-guide-single-crater:
 
@@ -64,8 +78,7 @@ Visualizing the surface with `ParaView <https://www.paraview.org/>`__
 Cratermaker can export the surface mesh to a VTK file, which can be visualized with ParaView. The following will export the 
 surface mesh to two files inside a folder called ``vtk_files``:
 
-.. ipython:: python
-    :okwarning:
+.. code-block:: python
     
       sim.export("vtk")
 

@@ -68,6 +68,12 @@ napoleon_numpy_docstring = True
 napoleon_use_param = False
 napoleon_use_rtype = False
 
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': False,
+    'show-inheritance': True,
+}
+
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "numpy": ("https://numpy.org/doc/stable", None),
@@ -104,7 +110,6 @@ html_theme_options = dict(
     extra_footer="""<p>Development of Cratermaker is supported by NASA Lunar Data Analysis Program Grant #80NSSC21K1719<br>
     Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a></p>""",
     icon_links=[],  # workaround for pydata/pydata-sphinx-theme#1220
-    announcement="🍾 <a href='https://github.com/MintonGroup/cratermaker/discussions/1'>Cratermaker is currently under development</a> 🎉",
 )
 
 
@@ -178,3 +183,4 @@ def html_page_context(app, pagename, templatename, context, doctree):
     # Disable edit button for docstring generated pages
     if "generated" in pagename:
         context["theme_use_edit_page_button"] = False
+
