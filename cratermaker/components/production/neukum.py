@@ -100,7 +100,7 @@ class NeukumProduction(Production):
         age, age_end = self._validate_age(age, age_end) 
         diameter, _ = self._validate_csfd(diameter=diameter)
         
-        diameter_array = np.asarray(self.size_frequency_distribution(diameter))
+        diameter_array = np.asarray(self.csfd(diameter))
         age_difference = np.asarray(self.chronology(age, check_valid_time)) - np.asarray(self.chronology(age_end, check_valid_time))
 
         if diameter_array.ndim > 0 and age_difference.ndim > 0:
@@ -108,7 +108,6 @@ class NeukumProduction(Production):
         else:
             return diameter_array * age_difference
     
-     
     def chronology(self,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1000.0,
              check_valid_time: bool=True,
@@ -372,9 +371,9 @@ class NeukumProduction(Production):
         return (0,4500)
 
     
-    def size_frequency_distribution(self,diameter: FloatLike | ArrayLike,) -> Union[FloatLike, ArrayLike]:
+    def csfd(self,diameter: FloatLike | ArrayLike,) -> FloatLike | ArrayLike:
         """
-        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 Gy ago per m^2.
+        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m^2.
 
         Parameters
         ----------
