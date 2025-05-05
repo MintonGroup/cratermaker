@@ -25,5 +25,7 @@ dependencies:
   - sphinx-inline-tabs
   - sphinxext-rediraffe
   - sphinxext-opengraph
+  - sphinx-gallery
   - nbsphinx
   - ipython
+  - ipykernel

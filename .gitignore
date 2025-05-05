@@ -52,6 +52,11 @@ cratermaker/_version.py
 !docs/**/*.png
 !docs/**/*.svg
 !docs/**/*.py
+docs/sg_execution_times.rst
+!examples/
+!examples/**/*.rst 
+!examples/**/*.py
+!examples/**/*.txt
 !buildscripts/
 !buildscripts/*.py
 !buildscripts/*.sh
