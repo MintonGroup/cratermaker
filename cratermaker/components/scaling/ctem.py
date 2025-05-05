@@ -3,6 +3,7 @@ from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.scaling.montecarlo import MonteCarloScaling
 from cratermaker.components.projectile import Projectile
+
 @Scaling.register("ctem")
 class CTEMScaling(MonteCarloScaling):
     """
@@ -29,6 +30,7 @@ class CTEMScaling(MonteCarloScaling):
         Volumentric density of target material, (kg/m^3)
     **kwargs : Any
         Additional keyword arguments.
+
     Notes
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.

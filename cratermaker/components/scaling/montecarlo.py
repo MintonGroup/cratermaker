@@ -134,7 +134,7 @@ class MonteCarloScaling(Scaling):
             f"Nominal simple-complex transition diameter: {dt}"
         )
 
-    def get_morphology_type(self, 
+    def _get_morphology_type(self, 
                             final_diameter: FloatLike | None = None, 
                             **kwargs: Any) -> str:
         """
@@ -203,7 +203,7 @@ class MonteCarloScaling(Scaling):
         if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
             raise ValueError("final_diameter must be a positive finite number")
         if not morphology_type:
-            morphology_type = self.get_morphology_type(final_diameter) 
+            morphology_type = self._get_morphology_type(final_diameter) 
         
         if morphology_type == "simple": 
             transient_diameter = self._f2t_simple(final_diameter)
@@ -252,7 +252,7 @@ class MonteCarloScaling(Scaling):
         
         # Evaluate the potential morphology that this transient crater could be consistent with. If both potential diameter values are unambigusously simple or complex, go with that.
         # If there is disagreement, then we'll draw the answer from a hat and just check to make sure that final_diameter > transient_diameter 
-        morphology_options = [self.get_morphology_type(final_diameter_simple),self.get_morphology_type(final_diameter_complex)]
+        morphology_options = [self._get_morphology_type(final_diameter_simple),self._get_morphology_type(final_diameter_complex)]
         
         if len(set(morphology_options)) == 1: # We have agreement!
             morphology_type = morphology_options[0]
@@ -302,10 +302,6 @@ class MonteCarloScaling(Scaling):
         -------
         float
             The calculated transient diameter of the crater resulting from the impact.
-
-        .. rubric:: References
-
-        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         if not isinstance(projectile_diameter, FloatLike) or projectile_diameter <= 0 or not np.isfinite(projectile_diameter):
             raise ValueError("projectile_diameter must be a positive finite number")
@@ -373,17 +369,16 @@ class MonteCarloScaling(Scaling):
     def material_catalogue(self):
         """
         The material catalogue used to look up material properties. Material property values are from Holsapple (1993) and Kraus et al. (2011).
-
-        Returns
-        -------
-        dict
-            The material catalogue.
-
+ 
         .. rubric:: References
 
         - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
         - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
 
+        Returns
+        -------
+        dict
+            The material catalogue.
         """
         def _create_material_catalogue():
             
@@ -522,14 +517,14 @@ class MonteCarloScaling(Scaling):
     def K1(self):
         """
         K1 crater scaling relationship term. 
-        
-        Returns
-        -------
-        float 
 
         .. rubric:: References
 
         - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
+        
+        Returns
+        -------
+        float 
         """
         return self._K1
     
@@ -545,14 +540,14 @@ class MonteCarloScaling(Scaling):
     def mu(self):
         """
         mu crater scaling relationship term.
-        
+    
+        .. rubric:: References
+
+        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029 
+
         Returns
         -------
         float 
-
-        .. rubric:: References
-
-        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
         """
         return self._mu
     
@@ -568,14 +563,14 @@ class MonteCarloScaling(Scaling):
     def Ybar(self):
         """
         The strength of the material in Pa.
-        
-        Returns
-        -------
-        float 
 
         .. rubric:: References
 
         - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
+        
+        Returns
+        -------
+        float 
         """
         return self._Ybar
     

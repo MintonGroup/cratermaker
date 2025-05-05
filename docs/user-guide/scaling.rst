@@ -3,8 +3,10 @@
 Scaling
 =======
 
-Cratermaker's :ref:`Scaling <api-scaling>` component provides tools to convert :ref:`Projectile <ug-projectile>`` parameters (e.g., projectile diameter, velocity, angle, density), and :ref:`Target <ug-target>` properties (material type, surface gravity, density) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**. There are two scaling models available: "montecarlo" and "ctem". The "ctem" model closely resembles the model used in the CTEM code, a Fortran-based ancestor of CTEM. The "montecarlo" model is a newer non-deterministic model that includes the intrinsic variability in projectile to crater size scaling relationships. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021) that incorporate data from Vesta and Ceres from the Dawn mission.   
+Cratermaker's :ref:`Scaling <api-scaling>` component provides tools to convert :ref:`Projectile <ug-projectile>` parameters (e.g., projectile diameter, velocity, angle, density), and :ref:`Target <ug-target>` properties (material type, surface gravity, density) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**. There are two scaling models available: "montecarlo" and "ctem". The "ctem" model closely resembles the model used in the CTEM code, a Fortran-based ancestor of CTEM. The "montecarlo" model is a newer non-deterministic model that includes the intrinsic variability in projectile to crater size scaling relationships. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021) that incorporate data from Vesta and Ceres from the Dawn mission.   
 
+Setting up a Scaling object
+---------------------------
 
 As discussed in the :ref:`defaults <ug-defaults>` section, all Cratermaker components have a default configuration that is set when no arguments are passed to its ``maker`` method.  We can inspect the defaults for Scaling:
 
@@ -32,20 +34,38 @@ You can also override the default materials that are associated with target bodi
 .. ipython:: python
    :okwarning:
 
-   scaling = Scaling.maker(target="Mars", material="sand")
-   print(scaling)
-   scaling = Scaling.maker(target="Mars", material="ice")
+   print(Scaling.maker(target="Mars", material="sand"))
    print()
-   print(scaling)
+   print(Scaling.maker(target="Mars", material="ice"))
 
-You are not limited to using pre-defined materials. For instance, you can specify your own materials with unique properties:
+
+You can also adjust individual scaling parameters manually:
+
+.. ipython:: python
+    :okwarning:
+
+   print(Scaling.maker(target="Moon", Ybar=1e7))
+
+
+You are not limited to using pre-defined materials. For instance, you can specify your own materials with unique properties, but you must specify all of the parameters required by the given model. Both scaling models available in Cratermaker use the same set of required parameters (K1, mu, Ybar, and density), and these must all be set. See Richardson (2009) and Holsapple (1993) for details on the scaling model parameters. 
 
 .. ipython:: python
     :okwarning:
     
-    scaling = Scaling.maker(material="Flubber", K1=3.8, mu=0.1, Ybar=1e7, density=1500.0)
-    print(scaling)
+    print(Scaling.maker(material="Flubber", K1=3.8, mu=0.1, Ybar=1e7, density=1500.0))
 
+Using the Scaling object
+------------------------
+
+Once you have a scaling object, you can use it to compute between projectile, transient, and final crater sizes. Any :ref:`Scaling <api-scaling>`  model will come with the following methods:
+
+.. currentmodule:: cratermaker.Scaling
+
+
+- :meth:`projectile_to_transient`: Takes the projectile diameter and returns the transient crater diameter.
+- :meth:`transient_to_projectile`: Takes the transient crater diameter and returns the projectile diameter.
+- :meth:`transient_to_final`: Takes the transient crater diameter and returns both the final crater diameter and the morphology type.
+- :meth:`final_to_transient`: Takes the final crater diameter and returns the transient crater diameter. Optionally, you can also provide the morphology type, but if you don't provide it, it will be computed (though it might not be the same as the one used to create the final crater!)
 
 
 More Scaling examples
