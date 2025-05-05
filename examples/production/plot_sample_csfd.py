@@ -1,7 +1,10 @@
 """
 Sample a power law and lunar Neukum Production Function
 ========================================================
-In this example, we use the `Production.sample()` method to sample populations of craters from a production function. We will sample 1000 craters from each production function and repeat this 100 times. The population samples are then plotted against the expected value given by `Production.function()`
+
+.. rubric:: By Austin Blevins and David Minton
+
+In this example, we use the :func:`Production.sample` method to sample populations of craters from a production function. We will sample 1000 craters from each production function and repeat this 100 times. The population samples are then plotted against the expected value given by :func:`Production.function`
 """
 
 from cratermaker import Production, Target

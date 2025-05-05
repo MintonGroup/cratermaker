@@ -16,44 +16,44 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 .. grid:: 1 1 2 2
     :gutter: 2
 
-    .. grid-item-card:: Getting started
-        :img-top: _static/index_getting_started.svg
-        :link: getting-started-guide/index
-        :link-type: doc
-
-        New to *cratermaker*? Check out the getting started guides. They contain an
-        introduction to *Cratermaker's* main concepts and links to additional tutorials.
 
     .. grid-item-card::  User guide
         :img-top: _static/index_user_guide.svg
         :link: user-guide/index
         :link-type: doc
 
-        The user guide provides in-depth information on the
-        key concepts of Cratermaker with useful background information and explanation.
+        The user guide will show you how to install and run Cratermaker. It also contains in-depth information on how to use each of its components.  
+
+    .. grid-item-card::  Example gallery
+        :img-top: _static/index_gallery.svg
+        :link: auto_examples/index
+        :link-type: doc
+
+        See full working examples of how to use Cratermaker.
 
     .. grid-item-card::  API reference
         :img-top: _static/index_api_reference.svg
         :link: api/index
         :link-type: doc
 
-        The reference guide contains a detailed description of the Cratermaker API.
+        The API guide contains a detailed description of the Cratermaker API.
         The reference describes how the methods work and which parameters can
         be used. It assumes that you have an understanding of the key concepts.
 
-    .. grid-item-card::  Example gallery
-        :img-top: _static/index_gallery.svg
-        :link: gallery
+    .. grid-item-card:: Contributor's guide
+        :img-top: _static/index_contributing.svg
+        :link: contributing/index
         :link-type: doc
 
-        See examples of how to use *Cratermaker* in the gallery. 
+        The contributor's guide contains information on how to contribute to Cratermaker. It also contains information on how to set up a development environment and how to run the tests.
+
+
 
 .. toctree::
    :maxdepth: 2
    :hidden:
    :caption: For users
 
-   Getting Started <getting-started-guide/index>
    User Guide <user-guide/index>
    Gallery <auto_examples/index>
    API Reference <api/index>
@@ -64,7 +64,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
    :hidden:
    :caption: For developers/contributors
 
-   Contributing Guide <contributing>
+   Contributing Guide <contributing/index>
    What's New <whats-new>
    GitHub repository <https://github.com/MintonGroup/cratermaker>
    GitHub discussions <https://github.com/MintonGroup/cratermaker/discussions>

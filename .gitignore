@@ -44,9 +44,9 @@ cratermaker/_version.py
 !docs/_templates/
 !docs/_templates/autosummary/
 !docs/_exts/
-!docs/getting-started-guide/
 !docs/user-guide/
 !docs/api/
+!docs/contributing/
 !docs/**/*.rst
 !docs/**/*.css
 !docs/**/*.png
@@ -54,6 +54,13 @@ cratermaker/_version.py
 !docs/**/*.py
 docs/sg_execution_times.rst
 !examples/
+!examples/production/
+!examples/scaling/
+!examples/morphology/
+!examples/projectile/
+!examples/surface/
+!examples/target/
+!examples/simulation/
 !examples/**/*.rst 
 !examples/**/*.py
 !examples/**/*.txt

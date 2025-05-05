@@ -1,6 +1,9 @@
 """
 Plot the Neukum projectile CSFD
 ========================================
+
+.. rubric:: By Austin Blevins and David Minton
+
 In this example, we will plot the cumulative size-frequency distribution of projectiles for a 1 Gy age, which is derived from Ivanov, Neukum, and Wagner (2001) [#]_. 
 
 .. [#] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters and Asteroids. In *Collisional Processes in the Solar System*, Springer Netherlands, Dordrecht, pp. 1-34.  https://doi.org/10.1007/978-94-010-0712-2_1 

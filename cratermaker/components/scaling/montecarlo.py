@@ -165,16 +165,16 @@ class MonteCarloScaling(Scaling):
                     p = (self.transition_nominal - final_diameter)/(self.transition_nominal - transition_range[0])
                     categories = ["simple","transitional"]
                     prob = [p, 1.0-p] 
-                    morphology_type = self.rng.choice(categories,p=prob)
+                    morphology_type = self.rng.choice(categories,p=prob).item()
                 else:
                     p = (final_diameter - self.transition_nominal)/(transition_range[1] - self.transition_nominal)
                     categories = ["complex","transitional"]
                     prob = [p, 1.0-p] 
-                    morphology_type = self.rng.choice(categories,p=prob)                
+                    morphology_type = self.rng.choice(categories,p=prob).item()                
             else:
                 morphology_type = "transitional"
         
-        return morphology_type    
+        return morphology_type
 
     def final_to_transient(self, 
                            final_diameter: FloatLike | None = None,

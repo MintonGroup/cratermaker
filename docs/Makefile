@@ -51,7 +51,8 @@ help:
 clean:
 	rm -rf $(BUILDDIR)
 	rm -rf generated/*
-	rm -rf auto_gallery/
+	rm -rf auto_examples/*
+	rm sg_execution_times.rst
 
 
 .PHONY: html

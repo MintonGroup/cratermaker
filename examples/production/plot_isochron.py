@@ -1,7 +1,12 @@
 """
 Plot isochrons for the Moon and Mars for 1 Ma, 1 Ga, and 4 Ga using the Neukum Production Function
 ==================================================================================================
-In this example, we will be using the "neukum" prodcution model in Cratermaker to plot isochrons for three different age surfaces. We will also format the plots so with similar axes as Figure 2 of Neukum, Ivanov, and Hartmann (2001).  
+
+.. rubric:: By Austin Blevins and David Minton
+
+In this example, we will be using the "neukum" prodcution model in Cratermaker to plot isochrons for three different age surfaces. We will also format the plots so with similar axes as Figure 2 of Neukum, Ivanov, and Hartmann (2001) [#]_. 
+
+.. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55–86. https://doi.org/10.1023/A:1011989004263
 """
 
 from cratermaker import Production
