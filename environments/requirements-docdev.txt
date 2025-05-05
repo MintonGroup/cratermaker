@@ -27,6 +27,7 @@ sphinx-design
 sphinx-inline-tabs
 sphinxext-rediraffe
 sphinxext-opengraph
-nbsphinx
+sphinx-gallery
 ipython
 setuptools_scm
+ipykernel

@@ -10,21 +10,10 @@ This section provides an overview of the components of the Cratermaker package, 
 
 
 .. toctree::
-   :caption: Components 
    :maxdepth: 2
 
+   installation
    components-overview 
-   target
-   projectile
-   scaling
-   production
-   surface
-   morphology
-   crater
-
-.. toctree::
-   :caption: Simulating a cratered landscape 
-   :maxdepth: 2
-
    simulation   
+   visualizing
 

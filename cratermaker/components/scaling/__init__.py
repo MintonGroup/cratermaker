@@ -42,7 +42,7 @@ class Scaling(ComponentBase):
         # combine the kwargs with the common_args, giving common_args priority
         kwargs = {**kwargs, **vars(self.common_args)}
         self._target = Target.maker(target, **kwargs)
-        self._projectile = Projectile.maker(projectile, **kwargs)
+        self._projectile = Projectile.maker(projectile, target=self.target, **kwargs)
 
     @abstractmethod
     def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
@@ -52,6 +52,8 @@ class Scaling(ComponentBase):
     def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
     @abstractmethod
     def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
+    @abstractmethod
+    def get_morphology_type(self, final_diameter: FloatLike | None = None, **kwargs: Any) -> str: ...
 
     @classmethod
     def maker(cls,

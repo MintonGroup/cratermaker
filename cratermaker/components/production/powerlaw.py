@@ -114,7 +114,7 @@ class PowerLawProduction(Production):
         diameter, _ = self._validate_csfd(diameter=diameter)   
         age, age_end = self._validate_age(age, age_end)
         
-        n_array = np.asarray(self.N1_coef * diameter**self.slope)
+        n_array = np.asarray(self.csfd(diameter))
         age_difference = np.asarray(age - age_end)
         
         if n_array.ndim > 0 and age_difference.ndim > 0:
@@ -141,6 +141,25 @@ class PowerLawProduction(Production):
             The age in My for the given relative number density of craters. 
         """
         return age
+
+    def csfd(self,
+             diameter: FloatLike | ArrayLike, 
+             **kwargs: Any
+             ) -> FloatLike | ArrayLike:
+        """
+        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m^2.
+
+        Parameters
+        ----------
+        diameter : FloatLike or ArrayLike
+            units of meter 
+            
+        Returns
+        -------
+        FloatLike or numpy array
+           Cumulative number density of per square meter greater than the input diameter.
+        """
+        return self.N1_coef * diameter**self.slope
 
     @property
     def N1_coef(self):

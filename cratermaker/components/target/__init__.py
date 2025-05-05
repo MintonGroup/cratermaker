@@ -229,7 +229,7 @@ class Target(ComponentBase):
                 ("Mars", 3389.92e3, 6.416909e+23, "Soft Rock", "silicate"),
                 ("Phobos", 11.17e3, 1.080000e+16, "Soft Rock", "silicate"),
                 ("Deimos", 6.30e3, 1.800000e+15, "Soft Rock", "silicate"),
-                ("Ceres", 469.70e3, 9.383516e+20, "Ice", "ice"),
+                ("Ceres", 469.70e3, 9.383516e+20, "Soft Rock", "ice"),
                 ("Vesta", 262.70e3, 2.590270e+20, "Soft Rock", "silicate"),
                 ("Io", 1821.49e3, 8.929649e+22, "Hard Rock", "silicate"),
                 ("Europa", 1560.80e3, 4.798574e+22, "Ice", "ice"),

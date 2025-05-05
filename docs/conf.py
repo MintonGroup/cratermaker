@@ -27,13 +27,13 @@ extensions = [
     "sphinx.ext.viewcode",
     "IPython.sphinxext.ipython_directive",
     "IPython.sphinxext.ipython_console_highlighting",
-    "nbsphinx",
     "sphinx_autosummary_accessors",
     "sphinx.ext.linkcode",
     "sphinxext.opengraph",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_inline_tabs",
+    'sphinx_gallery.gen_gallery',
     'cratermaker_autodoc'
 ]
 
@@ -81,6 +81,11 @@ intersphinx_mapping = {
 }
 
 templates_path = ["_templates"]
+
+sphinx_gallery_conf = {
+    'examples_dirs': '../examples',
+    'gallery_dirs': 'auto_examples',
+}
 
 html_theme = 'sphinx_book_theme'
 html_title =""

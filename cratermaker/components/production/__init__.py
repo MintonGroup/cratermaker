@@ -5,7 +5,7 @@ from numpy.random import Generator
 from scipy.optimize import root_scalar
 from collections.abc import Sequence
 from numpy.typing import ArrayLike
-from typing import Any, Union
+from typing import Any
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils import montecarlo as mc
 from cratermaker.utils.general_utils import parameter
@@ -42,7 +42,7 @@ class Production(ComponentBase):
         base = super().__repr__()
         return (
             f"{base}\n"
-            f"Generator Type: {self.generator_type}"
+            f"Generator type: {self.generator_type}"
         )
 
     @classmethod
@@ -217,7 +217,7 @@ class Production(ComponentBase):
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
              cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
              **kwargs: Any,
-             ) -> Union[FloatLike, ArrayLike]:
+             ) -> FloatLike | ArrayLike:
       
         """
         Return the age in My for a given number density of craters and diameter 
@@ -284,7 +284,7 @@ class Production(ComponentBase):
     def chronology(self,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
              **kwargs: Any,
-             ) -> Union[FloatLike, ArrayLike]: ...
+             ) -> FloatLike | ArrayLike: ...
 
     @abstractmethod
     def function(self,
@@ -292,12 +292,18 @@ class Production(ComponentBase):
             age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
             age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
             **kwargs: Any,
-            ) -> Union[FloatLike, ArrayLike]: ...
-        
+            ) -> FloatLike | ArrayLike: ...
+
+    @abstractmethod
+    def csfd(self,
+             diameter: FloatLike | ArrayLike,
+             **kwargs: Any
+             ) -> FloatLike | ArrayLike: ...
+
     def _validate_csfd(self,
                         diameter: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
                         cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-                       ) -> tuple[Union[FloatLike, ArrayLike], Union[FloatLike, ArrayLike]]:
+                       ) -> tuple[FloatLike | ArrayLike, FloatLike | ArrayLike]:
         """
         Validates the diameter and cumulative_number arguments. Both arguments can be either
         scalar or array-like, but they must be both scalars or both arrays of the same length.
@@ -498,7 +504,7 @@ class Production(ComponentBase):
     def _validate_age(self, 
                        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
                        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-                       ) -> Union[FloatLike, ArrayLike]:
+                       ) -> FloatLike | ArrayLike:
         """
         Processes the age argument and age_end arguments. Checks that they are valid and returns a tuple of age and age_end.
 
