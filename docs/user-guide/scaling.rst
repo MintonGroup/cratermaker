@@ -71,9 +71,16 @@ Once you have a scaling object, you can use it to compute between projectile, tr
 .. ipython:: python
     :okwarning:
 
+
     scaling = Scaling.maker()
-    print(f"1km projectile -> Transient crater: {scaling.projectile_to_transient(1000.0)*1e-3:.2f} km")
-    
+    dt = scaling.projectile_to_transient(500.0) 
+    print(f"1 km projectile -> Transient crater: {dt*1e-3:.2f} km")
+    df, mt = scaling.transient_to_final(dt) 
+    print(f"1 km projectile -> Final crater: {df*1e-3:.2f} km, Morphology type: {mt}")
+    dt, mt = scaling.final_to_transient(df, mt)
+    print(f"Final crater -> Transient: {dt*1e-3:.2f} km")
+    pd = scaling.transient_to_projectile(df)
+    print(f"Final crater -> projectile: {pd*1e-3:.2f} km")
 
 
 More Scaling examples

@@ -41,7 +41,6 @@ class CometProjectiles(Projectile):
         """
 
         # This model always samples velocities, angles, and directions, so override any values that may have been passed.
-        kwargs["sample"] = True
         if density is None:
             density = 500.0
         super().__init__(target_name=target_name, density=density, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)

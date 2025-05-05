@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import math
 from numpy.random import Generator
-from cratermaker.utils.general_utils import parameter, format_large_units
+from cratermaker.utils.general_utils import parameter, format_large_units, _set_properties
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
@@ -13,10 +13,10 @@ class Projectile(ComponentBase):
     _registry: dict[str, Projectile] = {}
     def __init__(self, 
                  target : Target | str | None = None,
-                 mean_velocity : FloatLike = 22100.0, 
-                 density : FloatLike = 2250.0,
-                 sample : bool = True,
-                 angle: FloatLike = 90.0,
+                 mean_velocity : FloatLike | None = None,
+                 density : FloatLike | None = None,
+                 sample : bool | None = None,
+                 angle: FloatLike | None = None,
                  velocity : FloatLike | None = None,
                  direction : FloatLike | None = None,
                  rng: Generator | None = None,
@@ -31,13 +31,13 @@ class Projectile(ComponentBase):
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         mean_velocity : float
-            The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
+            The mean velocity of the projectile in m/s. 
         density : float
-            The density of the projectile in kg/m^3. Default is 2250.0 kg/m^3.
+            The density of the projectile in kg/m^3. 
         sample : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
-            The impact angle in degrees. Default is 90.0 degrees.
+            The impact angle in degrees. 
         velocity : float | None
             The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
         direction : float | None
@@ -53,15 +53,15 @@ class Projectile(ComponentBase):
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
-        object.__setattr__(self, "_sample", None)
+        object.__setattr__(self, "_sample", sample)
         object.__setattr__(self, "_mean_velocity", mean_velocity)
         object.__setattr__(self, "_density", density)
         object.__setattr__(self, "_velocity", velocity)
         object.__setattr__(self, "_direction", direction)
         object.__setattr__(self, "_angle", angle)
-
+        if self.sample is None:
+            self.sample = True
         self.target = Target.maker(target, **kwargs)
-        self.sample = sample
 
     def __repr__(self) -> str:
         base = super().__repr__()
