@@ -26,7 +26,5 @@ dependencies:
   - sphinxext-rediraffe
   - sphinxext-opengraph
   - sphinx-gallery
-  - nbsphinx
   - ipython
   - ipykernel
-  - pandoc
