@@ -29,3 +29,4 @@ dependencies:
   - nbsphinx
   - ipython
   - ipykernel
+  - pandoc

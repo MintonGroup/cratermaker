@@ -9,7 +9,8 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 `Code Repository <https://github.com/MintonGroup/cratermaker>`__ |
 `Issues <https://github.com/MintonGroup/cratermaker/issues>`__ |
 `Discussions <https://github.com/MintonGroup/cratermaker/discussions>`__ |
-`Releases <https://github.com/MintonGroup/cratermaker/releases>`__ 
+`Releases <https://github.com/MintonGroup/cratermaker/releases>`__ |
+`Contributing Guide <contributing>`__ 
 
 
 .. grid:: 1 1 2 2
@@ -40,14 +41,12 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         The reference describes how the methods work and which parameters can
         be used. It assumes that you have an understanding of the key concepts.
 
-    .. grid-item-card::  Developer guide
-        :img-top: _static/index_contribute.svg
-        :link: contributing
+    .. grid-item-card::  Example gallery
+        :img-top: _static/index_gallery.svg
+        :link: gallery
         :link-type: doc
 
-        Saw a typo in the documentation? Want to improve existing functionalities?
-        The contributing guidelines will guide you through the process of improving
-        Cratermaker.
+        See examples of how to use *Cratermaker* in the gallery. 
 
 .. toctree::
    :maxdepth: 2
@@ -58,6 +57,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
    User Guide <user-guide/index>
    Gallery <auto_examples/index>
    API Reference <api/index>
+   Publications <publications>
 
 .. toctree::
    :maxdepth: 2
@@ -67,19 +67,5 @@ Simulate the evolution of a landscape dominated by impact bombardment.
    Contributing Guide <contributing>
    What's New <whats-new>
    GitHub repository <https://github.com/MintonGroup/cratermaker>
-
-.. toctree::
-   :maxdepth: 1
-   :hidden:
-   :caption: Community
-
    GitHub discussions <https://github.com/MintonGroup/cratermaker/discussions>
-   Publications <publications>
-
-
-.. toctree::
-   :maxdepth: 1
-   :hidden:
-   :caption: License
-
-   license
+   License <license>
