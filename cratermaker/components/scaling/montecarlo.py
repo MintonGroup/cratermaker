@@ -5,7 +5,7 @@ from typing import Any
 from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils import montecarlo as mc
-from cratermaker.utils.general_utils import _set_properties, _create_catalogue, format_large_units
+from cratermaker.utils.general_utils import parameter, _set_properties, _create_catalogue, format_large_units
 from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.projectile import Projectile
@@ -15,8 +15,9 @@ class MonteCarloScaling(Scaling):
     """
     This is an operations class for computing the scaling relationships between projectiles and craters.  This class encapsulates the 
     logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size 
-    and target properties. This implements the scaling laws described in Richardson (2009) that were implemented in CTEM. However, unlike
-    in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws.
+    and target properties. This implements the scaling laws similar to those in Richardson (2009) that were implemented in CTEM. However, unlike
+    in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws. We have also included
+    updated simple-to-complex transition diameter values from Schenk et al. (2021). 
         
     Parameters
     ----------
@@ -34,6 +35,8 @@ class MonteCarloScaling(Scaling):
         The strength of the target material, (Pa)
     density : FloatLike, optional
         Volumentric density of target material, (kg/m^3)
+    monte_carlo_scaling : bool, default=True
+        If True, the scaling laws will be applied using monte carlo methods to account for the uncertainty in the scaling laws. If False, the scaling laws will be applied deterministically.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -48,12 +51,18 @@ class MonteCarloScaling(Scaling):
     - The `material_name` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
     - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
     - The built-in material property values are from Holsapple (1993) and Kraus et al. (2011).
+    - Complex crater scaling parameters are a synthesis of Pike (1980), Croft (1985), and Schenk et al. (2004), with updated simple-to-complex transition diameter values from Schenk et al. (2021).
 
     .. rubric:: References
 
     - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
     - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
     - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
+    - Pike, R.J., 1980. Control of crater morphology by gravity and target type - Mars, earth, moon. In: Lunar and Planetary Science Conference 11, 2159-2189.
+    - Croft, S.K., 1985. The scaling of complex craters. Proceedings of the Fifteenth Lunar and Planetary Science Conference, Part 2 Journal of Geophysical Research 90, Supplement, C828-C842.
+    - Schenk, P.M., Chapman, C.R., Zahnle, K., Moore, J.M., 2004. Ages and interiors: the cratering record of the Galilean satellites, Cambridge University Press. Cambridge University Press, Cambridge, UK.
+    - Schenk, P., Castillo-Rogez, J., Otto, K.A., Marchi, S., O'Brien, D., Bland, M., Hughson, K., Schmidt, B., Scully, J., Buczkowski, D., Krohn, K., Hoogenboom, T., Kramer, G., Bray, V., Neesemann, A., Hiesinger, H., Platz, T., De Sanctis, M.C., Schroeder, S., Le Corre, L., McFadden, L., Sykes, M., Raymond, C., Russell, C.T., 2021. Compositional control on impact crater formation on mid-sized planetary bodies: Dawn at Ceres and Vesta, Cassini at Saturn. Icarus 359, 114343. https://doi.org/10.1016/j.icarus.2021.114343
+
     """  
 
     def __init__(self, 
@@ -64,6 +73,7 @@ class MonteCarloScaling(Scaling):
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
                  density: FloatLike | None = None,
+                 monte_carlo_scaling: bool = True,
                  rng : Generator | None = None,
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
@@ -81,7 +91,7 @@ class MonteCarloScaling(Scaling):
         object.__setattr__(self, "_simple_enlargement_factor", None)
         object.__setattr__(self, "_final_exp", None)
         object.__setattr__(self, "_material_catalogue", None)
-        object.__setattr__(self, "_montecarlo_scaling", True)
+        object.__setattr__(self, "_montecarlo_scaling", monte_carlo_scaling)
 
         if material_name is not None:
             self.material_name = material_name
@@ -123,14 +133,6 @@ class MonteCarloScaling(Scaling):
             f"Projectile density: {self.projectile.density:.0f} kg/m³\n"
             f"Nominal simple-complex transition diameter: {dt}"
         )
-
-    def __setattr__(self, name, value):
-        object.__setattr__(self, name, value)
-        include_list=("material_name", "K1", "mu", "Ybar")
-        # Add it to the set of user-defined parameters if it is in the list of parameters
-        public_name = name.lstrip("_")
-        if public_name in include_list:
-            self._user_defined.add(public_name)
 
     def get_morphology_type(self, 
                             final_diameter: FloatLike | None = None, 
@@ -417,27 +419,30 @@ class MonteCarloScaling(Scaling):
         final_exp_mean = 0.079    
         final_exp_std = 0.0001 # We add noise because this is nature and nature messy
         complex_enlargement_factor = 1.02
+        simple_complex_std = 0.04
     
-        # These terms are used to compute the transition diameter as a function of gravity
-        # The transition values come from CTEM and are a synthesis of Pike (1980), Croft (1985), Schenk et al. (2004).
+        # These terms are used to compute the transition diameter as a function of gravity. They are based on fits to the plot given in Fig. 7 of Schenk et al. (2021)
         if self.target.transition_scale_type == "silicate":
-            simple_complex_exp = -1.0303 
-            simple_complex_mean = 2*16533.8 
-            simple_complex_std = 0.04
+            simple_complex_A  = -0.5484575694575697
+            simple_complex_B  = 4.201369948094472
+            simple_complex_sigma  = 0.0699898822890725
         elif self.target.transition_scale_type == "ice":
-            simple_complex_exp = -1.22486
-            simple_complex_mean = 2*3081.39
-            simple_complex_std = 0.04
+            simple_complex_A  = -0.7066985617230864
+            simple_complex_B  = 3.52268633631802
+            simple_complex_sigma = 0.10337890091526512
+
+        def _sample_transition_diameter(g, A, B, sigma):
+            mu = A * np.log10(g) + B
+            return 10**np.random.normal(mu, sigma)
         
         # The nominal value will be used for determining the range of the "transitional" morphology type
-        self._transition_nominal= simple_complex_mean * self.target.gravity**simple_complex_exp
+        self._transition_nominal= 10**(simple_complex_A * np.log10(self.target.gravity) + simple_complex_B)
         
         # Draw from a truncated normal distribution for each component of the model
         if self._montecarlo_scaling:
             simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)[0]
             final_exp = mc.bounded_norm(final_exp_mean, final_exp_std)[0]
-            simple_complex_fac = simple_complex_mean * math.exp(self.rng.normal(loc=0.0,scale=simple_complex_std))
-            transition_diameter = simple_complex_fac * self.target.gravity**simple_complex_exp
+            transition_diameter = _sample_transition_diameter(self.target.gravity, simple_complex_A, simple_complex_B, simple_complex_sigma)
         else:
             simple_enlargement_factor = 1.0 / simple_enlargement_mean
             final_exp = final_exp_mean
@@ -513,7 +518,7 @@ class MonteCarloScaling(Scaling):
         """
         return self._final_exp
 
-    @property
+    @parameter
     def K1(self):
         """
         K1 crater scaling relationship term. 
@@ -536,7 +541,7 @@ class MonteCarloScaling(Scaling):
             raise ValueError("K1 must be a positive number")
         self._K1 = float(value)
         
-    @property
+    @parameter
     def mu(self):
         """
         mu crater scaling relationship term.
@@ -559,7 +564,7 @@ class MonteCarloScaling(Scaling):
             raise ValueError("mu must be a positive number")
         self._mu = float(value)
         
-    @property
+    @parameter
     def Ybar(self):
         """
         The strength of the material in Pa.
@@ -589,7 +594,7 @@ class MonteCarloScaling(Scaling):
         """
         return "material_name"
     
-    @property
+    @parameter
     def material_name(self):
         """
         The name of the material composition of the target body.
@@ -605,3 +610,20 @@ class MonteCarloScaling(Scaling):
         if not isinstance(value, str) and value is not None:
             raise TypeError("name must be a string or None")
         self._material_name = value
+
+    @parameter
+    def monte_carlo_scaling(self):
+        """
+        If True, the scaling laws will be applied using monte carlo methods to account for the uncertainty in the scaling laws. If False, the scaling laws will be applied deterministically.
+        
+        Returns
+        -------
+        bool 
+        """
+        return self._montecarlo_scaling
+    
+    @monte_carlo_scaling.setter
+    def monte_carlo_scaling(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("monte_carlo_scaling must be a boolean")
+        self._montecarlo_scaling = value

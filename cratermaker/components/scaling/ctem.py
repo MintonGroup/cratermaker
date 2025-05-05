@@ -9,7 +9,7 @@ class CTEMScaling(MonteCarloScaling):
     This is an operations class for computing the scaling relationships between projectiles and craters.
 
     This class encapsulates the logic for converting between projectile properties and crater properties, 
-    as well as determining crater morphology based on size and target propertiesImplements the scaling laws described in Richardson (2009) [1]_ that were implemented in CTEM.
+    as well as determining crater morphology based on size and target propertiesImplements the scaling laws described in Richardson (2009) that were implemented in CTEM.
         
     Parameters
     ----------
@@ -20,9 +20,9 @@ class CTEMScaling(MonteCarloScaling):
     material_name : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
-        Variable used in crater scaling (see _[1])
+        Variable used in crater scaling (see Richardson 2009)
     mu : FloatLike, optional
-        Variable used in crater scaling (see _[1])
+        Variable used in crater scaling (see Richardson 2009)
     Ybar : FloatLike, optional
         The strength of the target material, (Pa)
     density : FloatLike, optional
@@ -34,13 +34,17 @@ class CTEMScaling(MonteCarloScaling):
     - The `target` parameter is required and must be an instance of the `Target` class.
     - The `material_name` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
     - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
-    - The built-in material property values are from Holsapple (1993) [2]_ and Kraus et al. (2011) [3]_. 
-    
-    References
-    ----------
-    .. [1] Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
-    .. [2] Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
-    .. [3] Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016        
+    - The built-in material property values are from Holsapple (1993) and Kraus et al. (2011).
+    - Complex craater scaling parameters are a synthesis of Pike (1980), Croft (1985), and Schenk et al. (2004).
+
+    .. rubric:: References
+
+    - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
+    - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
+    - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
+    - Pike, R.J., 1980. Control of crater morphology by gravity and target type - Mars, earth, moon. In: Lunar and Planetary Science Conference 11, 2159-2189.
+    - Croft, S.K., 1985. The scaling of complex craters. Proceedings of the Fifteenth Lunar and Planetary Science Conference, Part 2 Journal of Geophysical Research 90, Supplement, C828-C842.
+    - Schenk, P.M., Chapman, C.R., Zahnle, K., Moore, J.M., 2004. Ages and interiors: the cratering record of the Galilean satellites, Cambridge University Press. Cambridge University Press, Cambridge, UK.
     """  
 
     def __init__(self, 
@@ -55,3 +59,33 @@ class CTEMScaling(MonteCarloScaling):
         super().__init__(target=target, projectile=projectile, material_name=material_name, K1=K1, mu=mu, Ybar=Ybar, density=density, **kwargs)
         object.__setattr__(self, "_montecarlo_scaling", False)
         self._compute_simple_to_complex_transition_factors() # Recreate this with MC turned off 
+
+
+    def _compute_simple_to_complex_transition_factors(self):
+        """
+        Computes and sets the internal attributes for transition factors between simple and complex craters.
+        """    
+        # These terms are used to compute the ratio of the transient crater to simple crater size       
+        simple_enlargement = 0.84 # See Melosh (1989) pg. 129 just following eq. 8.2.1
+        
+        # These terms are used in the exponent in the final rim radius/ simple crater radius vs  final radius / transition radius relationship
+        # See Holsapple (1993) eq. 28
+        final_exp = 0.079    
+        complex_enlargement_factor = 1.02
+    
+        # These terms are used to compute the transition diameter as a function of gravity
+        # The transition values come from CTEM and are a synthesis of Pike (1980), Croft (1985), Schenk et al. (2004).
+        if self.target.transition_scale_type == "silicate":
+            simple_complex = 2*16533.8 
+        elif self.target.transition_scale_type == "ice":
+            simple_complex = 2*3081.39
+        
+        # The nominal value will be used for determining the range of the "transitional" morphology type
+        self._transition_diameter= float(simple_complex * self.target.gravity**simple_complex)
+        
+        simple_enlargement_factor = 1.0 / simple_enlargement
+        final_exp = final_exp
+        self._simple_enlargement_factor = float(simple_enlargement_factor)
+        self._complex_enlargement_factor = float(complex_enlargement_factor)
+        self._final_exp = float(final_exp)
+        return 

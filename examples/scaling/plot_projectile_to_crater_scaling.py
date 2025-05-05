@@ -12,7 +12,7 @@ This example uses the default "montecarlo" scaling model, in which some of the s
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from cratermaker import Scaling, Target
+from cratermaker import Scaling
 
  
 bodies = ["Mercury", "Venus", "Earth", "Moon", "Mars", "Ceres", "Vesta"]
@@ -28,16 +28,15 @@ color_map = dict(zip(bodies, colors))
 fig, ax = plt.subplots(figsize=(9, 7))
 ax.set_xscale("log")
 ax.set_yscale("log")
-ax.set_xlabel("Projectile Diameter [m]")
-ax.set_ylabel("Final Crater Diameter [m]")
+ax.set_xlabel("Projectile Diameter [km]")
+ax.set_ylabel("Final Crater Diameter [km]")
 ax.set_title("Projectile to Crater Scaling for Mars, Venus, Mercury, and the Moon")
 
 color_index = 0
 label_color_map = {}
 
 for body in bodies:
-    target = Target.maker(body)
-    scaling = Scaling.maker(target=target)
+    scaling = Scaling.maker(target=body)
     crater_diams = []
     morphs = []
 
@@ -53,8 +52,8 @@ for body in bodies:
         label = f"{body} - {morph.capitalize()}"
 
         ax.plot(
-            proj_diameters[mask],
-            np.array(crater_diams)[mask],
+            proj_diameters[mask]*1e-3,
+            np.array(crater_diams)[mask]*1e-3,
             markerstyle_map[morph],
             markersize=markersize,
             linestyle='None',
