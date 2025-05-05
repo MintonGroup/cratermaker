@@ -9,7 +9,7 @@ from warnings import warn
 class AsteroidProjectiles(Projectile):
     def __init__(self, 
                  target : Target | str | None = None,
-                 density : FloatLike = 2250.0,
+                 density : FloatLike | None = None,
                  rng: Generator | None = None,
                  rng_seed : int | None = None,
                  rng_state : dict | None = None, 
@@ -34,7 +34,8 @@ class AsteroidProjectiles(Projectile):
         """
 
         # This model always samples velocities, angles, and directions, so override any values that may have been passed.
-        kwargs["sample"] = True
+        if density is None:
+            density = 2250.0
         super().__init__(target=target, density=density, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         self.mean_velocity = self._set_mean_velocity()
 

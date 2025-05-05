@@ -3,6 +3,7 @@ from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.scaling.montecarlo import MonteCarloScaling
 from cratermaker.components.projectile import Projectile
+
 @Scaling.register("ctem")
 class CTEMScaling(MonteCarloScaling):
     """
@@ -17,7 +18,7 @@ class CTEMScaling(MonteCarloScaling):
         The target body for the impact. Can be a Target object or a string representing the target name.
     projectile : Projectile | str, default="asteroids"
         The projectile model for the impact. Can be an Projectile object or a string representing the projectile name.
-    material_name : str or None
+    material : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
         Variable used in crater scaling (see Richardson 2009)
@@ -29,11 +30,12 @@ class CTEMScaling(MonteCarloScaling):
         Volumentric density of target material, (kg/m^3)
     **kwargs : Any
         Additional keyword arguments.
+
     Notes
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.
-    - The `material_name` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
-    - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
+    - The `material` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
+    - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material`. Setting them explicitly will override the values in the catalogue.
     - The built-in material property values are from Holsapple (1993) and Kraus et al. (2011).
     - Complex craater scaling parameters are a synthesis of Pike (1980), Croft (1985), and Schenk et al. (2004).
 
@@ -50,13 +52,13 @@ class CTEMScaling(MonteCarloScaling):
     def __init__(self, 
                  target: Target | str | None = None,
                  projectile: Projectile | str | None = None,
-                 material_name: str | None = None,
+                 material: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
                  density: FloatLike | None = None,
                  **kwargs):
-        super().__init__(target=target, projectile=projectile, material_name=material_name, K1=K1, mu=mu, Ybar=Ybar, density=density, **kwargs)
+        super().__init__(target=target, projectile=projectile, material=material, K1=K1, mu=mu, Ybar=Ybar, density=density, **kwargs)
         object.__setattr__(self, "_montecarlo_scaling", False)
         self._compute_simple_to_complex_transition_factors() # Recreate this with MC turned off 
 

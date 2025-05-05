@@ -70,8 +70,6 @@ class Morphology(ComponentBase):
         if morphology is None:
             morphology = "simplemoon"
         morphology = super().maker(component=morphology, crater=crater, **kwargs)
-        if crater is not None:
-            morphology.crater = crater
         return morphology
 
     @abstractmethod

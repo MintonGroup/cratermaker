@@ -368,7 +368,7 @@ def format_large_units(value: float, threshold: float = 1000.0, quantity: str = 
     elif quantity == "time":
         units = ["My", "Gy"]
     elif quantity == "pressure":
-        units = ["Pa", "kPa", "GPa"]
+        units = ["Pa", "kPa", "MPa", "GPa"]
 
     if value is None:
         return "N/A"

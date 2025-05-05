@@ -52,8 +52,6 @@ class Scaling(ComponentBase):
     def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
     @abstractmethod
     def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
-    @abstractmethod
-    def get_morphology_type(self, final_diameter: FloatLike | None = None, **kwargs: Any) -> str: ...
 
     @classmethod
     def maker(cls,
@@ -100,10 +98,6 @@ class Scaling(ComponentBase):
         if scaling is None:
             scaling = "montecarlo"
         scaling = super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        if target is not None:
-            scaling.target = target
-        if projectile is not None:
-            scaling.projectile = projectile
         
         return scaling
 
@@ -112,7 +106,7 @@ class Scaling(ComponentBase):
         return (
             f"{base}\n"
             f"Target: {self.target._component_name}\n"
-            f"Projectile: {self.projectile._component_name}>"
+            f"Projectile: {self.projectile._component_name}"
         )
 
     @property
