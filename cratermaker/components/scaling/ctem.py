@@ -92,10 +92,11 @@ class CTEMScaling(MonteCarloScaling):
             final_exp = CXEXPI 
         
         # The nominal value will be used for determining the range of the "transitional" morphology type
-        self._transition_diameter= float(simple_complex_fac * self.target.gravity**simple_complex_exp)
+        self._transition_nominal = float(simple_complex_fac * self.target.gravity**simple_complex_exp)
         
         simple_enlargement_factor = 1.0 / simple_enlargement
         self._simple_enlargement_factor = float(simple_enlargement_factor)
         self._complex_enlargement_factor = float(complex_enlargement_factor)
         self._final_exp = float(final_exp)
+        self._transition_diameter = float(self._transition_nominal)
         return 
