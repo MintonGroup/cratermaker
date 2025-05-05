@@ -5,8 +5,8 @@ from warnings import warn
 @Projectile.register("comets")
 class CometProjectiles(Projectile):
     def __init__(self, 
-                 target_name : str = "Moon",
-                 density : float = 500.0,
+                 target_name : str | None = None,
+                 density : float | None = None,
                  rng: Generator | None = None,
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
@@ -28,11 +28,13 @@ class CometProjectiles(Projectile):
             The state of the random number generator. If None, a new state is created.
         Notes
         -----
-        The mean impact velocities come from Table 1 of Zahnle et al. [1]_.
+        The mean impact velocities for outer solar system bodies come from Table 1 of Zahnle et al. [1]_. For inner solar system bodies, from Table 2 of Borin et al. [2]_. 
 
         References
         ----------
         .. [1] Zahnle, K., Schenk, P., Levison, H., Dones, L., 2003. Cratering rates in the outer Solar System. Icarus 163, 263-289. https://doi.org/10.1016/S0019-1035(03)00048-4
+        .. [2] Borin, P., Cremonese, G., Marzari, F., Lucchetti, A., 2017. Asteroidal and cometary dust flux in the inner solar system. A&A 605, A94. https://doi.org/10.1051/0004-6361/201730617
+
 
         **kwargs : Any
             Additional keyword arguments to be passed to internal functions.
@@ -40,6 +42,8 @@ class CometProjectiles(Projectile):
 
         # This model always samples velocities, angles, and directions, so override any values that may have been passed.
         kwargs["sample"] = True
+        if density is None:
+            density = 500.0
         super().__init__(target_name=target_name, density=density, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         self.mean_velocity = self._set_mean_velocity()
 
@@ -54,6 +58,11 @@ class CometProjectiles(Projectile):
         """
 
         catalogue = {
+            "Mercury" : 18400.0,
+            "Venus" : 26300.0,
+            "Earth" : 17670.0,
+            "Moon" : 17670.0,
+            "Mars" : 14210.0,
             "Metis": 59000.0,
             "Amalthea": 50000.0,
             "Thebe": 45000.0,

@@ -79,10 +79,10 @@ class Projectile(ComponentBase):
     def maker(cls,
              projectile: Projectile | str | None = None, 
              target : Target | str | None = None,
-             mean_velocity : FloatLike = 22100.0, 
-             density : FloatLike = 2250.0,
+             mean_velocity : FloatLike | None = None,
+             density : FloatLike | None = None,
              sample : bool = True,
-             angle: FloatLike = 90.0,
+             angle: FloatLike | None = None,
              velocity : FloatLike | None = None,
              direction : FloatLike | None = None,
              rng: Generator | None = None,
@@ -99,13 +99,13 @@ class Projectile(ComponentBase):
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         mean_velocity : float
-            The mean velocity of the projectile in m/s. Default is 22100.0 m/s.
+            The mean velocity of the projectile in m/s. 
         density : float
-            The density of the projectile in kg/m^3. Default is 2250.0 kg/m^3.
+            The density of the projectile in kg/m^3. 
         sample : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
-            The impact angle in degrees. Default is 90.0 degrees.
+            The impact angle in degrees. 
         velocity : float | None
             The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
         direction : float | None

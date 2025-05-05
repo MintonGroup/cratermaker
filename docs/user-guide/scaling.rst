@@ -23,7 +23,7 @@ We can see that default scaling model is "montecarlo" and that the Scaling objec
 .. ipython:: python
    :okwarning:
 
-   scaling = Scaling.maker(target="Mars")
+   scaling = Scaling.maker("ctem", target="Mars", projectile="comets")
    print(scaling)
 
 
@@ -66,6 +66,14 @@ Once you have a scaling object, you can use it to compute between projectile, tr
 - :meth:`transient_to_projectile`: Takes the transient crater diameter and returns the projectile diameter.
 - :meth:`transient_to_final`: Takes the transient crater diameter and returns both the final crater diameter and the morphology type.
 - :meth:`final_to_transient`: Takes the final crater diameter and returns the transient crater diameter. Optionally, you can also provide the morphology type, but if you don't provide it, it will be computed (though it might not be the same as the one used to create the final crater!)
+
+
+.. ipython:: python
+    :okwarning:
+
+    scaling = Scaling.maker()
+    print(f"1km projectile -> Transient crater: {scaling.projectile_to_transient(1000.0)*1e-3:.2f} km")
+    
 
 
 More Scaling examples
