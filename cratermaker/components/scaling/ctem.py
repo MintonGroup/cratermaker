@@ -65,27 +65,38 @@ class CTEMScaling(MonteCarloScaling):
         """
         Computes and sets the internal attributes for transition factors between simple and complex craters.
         """    
+        # Constants from CTEM
+        CXEXPS = 1 / 0.885 - 1.0 # Complex crater scaling explonent for silicate rock (Croft 1985)
+        SIMCOMKS = 16533.8       # Simple-to-complex transition scaling coefficient for silicate rock
+        SIMCOMPS = -1.0303       # Simple-to-complex transition scaling exponent for silicate rock
+        CXEXPI = 0.155           # Complex crater scaling exponent for ice
+        SIMCOMKI = 3081.39       # Simple-to-complex transition scaling coefficient for ice    
+        SIMCOMPI = -1.22486      # Simple-to-complex transition scaling exponent for ice
+
         # These terms are used to compute the ratio of the transient crater to simple crater size       
         simple_enlargement = 0.84 # See Melosh (1989) pg. 129 just following eq. 8.2.1
         
         # These terms are used in the exponent in the final rim radius/ simple crater radius vs  final radius / transition radius relationship
         # See Holsapple (1993) eq. 28
-        final_exp = 0.079    
         complex_enlargement_factor = 1.02
     
         # These terms are used to compute the transition diameter as a function of gravity
         # The transition values come from CTEM and are a synthesis of Pike (1980), Croft (1985), Schenk et al. (2004).
         if self.target.transition_scale_type == "silicate":
-            simple_complex = 2*16533.8 
+            simple_complex_exp = SIMCOMPS
+            simple_complex_fac = SIMCOMKS
+            final_exp = CXEXPS
         elif self.target.transition_scale_type == "ice":
-            simple_complex = 2*3081.39
+            simple_complex_exp = SIMCOMPI
+            simple_complex_fac = SIMCOMKI
+            final_exp = CXEXPI 
         
         # The nominal value will be used for determining the range of the "transitional" morphology type
-        self._transition_diameter= float(simple_complex * self.target.gravity**simple_complex)
+        self._transition_nominal = float(simple_complex_fac * self.target.gravity**simple_complex_exp)
         
         simple_enlargement_factor = 1.0 / simple_enlargement
-        final_exp = final_exp
         self._simple_enlargement_factor = float(simple_enlargement_factor)
         self._complex_enlargement_factor = float(complex_enlargement_factor)
         self._final_exp = float(final_exp)
+        self._transition_diameter = float(self._transition_nominal)
         return 
