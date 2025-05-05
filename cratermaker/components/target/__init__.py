@@ -20,7 +20,7 @@ class Target(ComponentBase):
                  diameter: FloatLike | None = None,
                  mass: FloatLike | None = None, 
                  transition_scale_type: str | None = None,
-                 material_name: str | None = None,
+                 material: str | None = None,
                  density: FloatLike | None = None,
                  **kwargs: Any,
                  ):
@@ -39,7 +39,7 @@ class Target(ComponentBase):
             Mass of the target body in kg.
         transition_scale_type : str or None
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
-        material_name : str or None
+        material : str or None
             Name of the material composition of the target body.
         density : FloatLike or None
             Volumetric density of the surface of the target body in kg/m^3.
@@ -58,7 +58,7 @@ class Target(ComponentBase):
         object.__setattr__(self, "_radius", None)
         object.__setattr__(self, "_mass", None)
         object.__setattr__(self, "_transition_scale_type", None)
-        object.__setattr__(self, "_material_name", None)
+        object.__setattr__(self, "_material", None)
         object.__setattr__(self, "_density", None)
         object.__setattr__(self, "_catalogue", None)
 
@@ -77,7 +77,7 @@ class Target(ComponentBase):
                         name=name, 
                         radius=radius, 
                         mass=mass, 
-                        material_name=material_name,
+                        material=material,
                         catalogue=catalogue,
                         density=density,
                         transition_scale_type=transition_scale_type, 
@@ -88,8 +88,8 @@ class Target(ComponentBase):
             raise ValueError("Invalid Target")
 
         if self._density is None:
-            if self.material_name in self.density_catalogue:
-                self._density = self.density_catalogue[self.material_name]
+            if self.material in self.density_catalogue:
+                self._density = self.density_catalogue[self.material]
 
 
     def __repr__(self) -> str:
@@ -97,7 +97,7 @@ class Target(ComponentBase):
         escape_velocity = format_large_units(self.escape_velocity, quantity="velocity")
         return (
             f"<Target: {self.name}>\n"
-            f"Material: {self.material_name}\n"
+            f"Material: {self.material}\n"
             f"Diameter: {diameter}\n"
             f"Mass: {self.mass:.2e} kg\n"
             f"Surface density: {self.density:.1f} kg/m³\n"
@@ -167,7 +167,7 @@ class Target(ComponentBase):
                 "Ice" : 900.0}   
 
     @parameter
-    def material_name(self):
+    def material(self):
         """
         The name of the material composition of the target body.
         
@@ -175,13 +175,13 @@ class Target(ComponentBase):
         -------
         str 
         """
-        return self._material_name
+        return self._material
 
-    @material_name.setter
-    def material_name(self, value):
+    @material.setter
+    def material(self, value):
         if not isinstance(value, str) and value is not None:
-            raise TypeError("material_name must be a string or None")
-        self._material_name = value
+            raise TypeError("material must be a string or None")
+        self._material = value
 
     @parameter
     def density(self):
@@ -218,7 +218,7 @@ class Target(ComponentBase):
         def _make_target_catalogue():
             # Define some built-in catalogue values for known solar system targets of interest
             target_properties = [
-                "name",    "radius",   "mass",      "material_name", "transition_scale_type"
+                "name",    "radius",   "mass",      "material", "transition_scale_type"
             ]
             # The catalogue was created with Swiftest
             target_values = [
@@ -315,7 +315,7 @@ class Target(ComponentBase):
              diameter: FloatLike | None = None,
              mass: FloatLike | None = None, 
              transition_scale_type: str | None = None,
-             material_name: str | None = None,
+             material: str | None = None,
              density: FloatLike | None = None,
              **kwargs: Any) -> Target:
         """
@@ -333,7 +333,7 @@ class Target(ComponentBase):
             Mass of the target body in kg.
         transition_scale_type : str or None
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
-        material_name : str or None
+        material : str or None
             Name of the material composition of the target body.
         density : FloatLike or None
             Volumetric density of the surface of the target body in kg/m^3.
@@ -348,12 +348,12 @@ class Target(ComponentBase):
 
         if target is None:
             try: 
-                target = cls(name="Moon", radius=radius, diameter=diameter, mass=mass, transition_scale_type=transition_scale_type, material_name=material_name, density=density, **kwargs)
+                target = cls(name="Moon", radius=radius, diameter=diameter, mass=mass, transition_scale_type=transition_scale_type, material=material, density=density, **kwargs)
             except:
                 raise ValueError("Error initializing target.")
         elif isinstance(target, str):
             try:
-                target = cls(name=target, radius=radius, diameter=diameter, mass=mass, transition_scale_type=transition_scale_type, material_name=material_name, density=density, **kwargs)
+                target = cls(name=target, radius=radius, diameter=diameter, mass=mass, transition_scale_type=transition_scale_type, material=material, density=density, **kwargs)
             except KeyError:
                 raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.")
         elif not isinstance(target, Target):

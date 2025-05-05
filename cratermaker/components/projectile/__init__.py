@@ -151,8 +151,6 @@ class Projectile(ComponentBase):
                             rng_seed=rng_seed,
                             rng_state=rng_state, 
                             **kwargs) 
-        if target is not None:
-            projectile.target = target
         projectile.new_projectile(**kwargs)
         return projectile
 

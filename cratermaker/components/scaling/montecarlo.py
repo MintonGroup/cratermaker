@@ -25,7 +25,7 @@ class MonteCarloScaling(Scaling):
         The target body for the impact. Can be a Target object or a string representing the target name.
     projectile : Projectile | str, default="asteroids"
         The projectile model for the impact. Can be an Projectile object or a string representing the projectile name.
-    material_name : str or None
+    material : str or None
         Name of the target material composition of the target body to look up from the built-in catalogue. Options include "water", "sand", "dry soil", "wet soil", "soft rock", "hard rock", and "ice".
     K1 : FloatLike, optional
         Variable used in crater scaling (see Richardson 2009)
@@ -48,8 +48,8 @@ class MonteCarloScaling(Scaling):
     Notes
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.
-    - The `material_name` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
-    - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material_name`. Setting them explicitly will override the values in the catalogue.
+    - The `material` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
+    - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material`. Setting them explicitly will override the values in the catalogue.
     - The built-in material property values are from Holsapple (1993) and Kraus et al. (2011).
     - Complex crater scaling parameters are a synthesis of Pike (1980), Croft (1985), and Schenk et al. (2004), with updated simple-to-complex transition diameter values from Schenk et al. (2021).
 
@@ -68,7 +68,7 @@ class MonteCarloScaling(Scaling):
     def __init__(self, 
                  target: Target | str | None = None,
                  projectile: Projectile | str | None = None,
-                 material_name: str | None = None,
+                 material: str | None = None,
                  K1: FloatLike | None = None,
                  mu: FloatLike | None = None,
                  Ybar: FloatLike | None = None,
@@ -93,13 +93,13 @@ class MonteCarloScaling(Scaling):
         object.__setattr__(self, "_material_catalogue", None)
         object.__setattr__(self, "_montecarlo_scaling", monte_carlo_scaling)
 
-        if material_name is not None:
-            self.material_name = material_name
-        else: 
-            self.material_name = self.target.material_name
+        if material is None:
+            self.material = self.target.material
+        else:
+            self.material = material
 
         _set_properties(self,
-                        material_name=self.material_name,
+                        material=self.material,
                         K1=K1,
                         mu=mu,
                         Ybar=Ybar,
@@ -108,7 +108,7 @@ class MonteCarloScaling(Scaling):
         if density is not None:
             self.target.density = density
         elif self.target.density is None:
-            self.target.density = self.material_catalogue[self.material_name]["density"]
+            self.target.density = self.material_catalogue[self.material]["density"]
         if self.projectile.density is None:
             self.projectile.density = self.target.density
         
@@ -125,7 +125,7 @@ class MonteCarloScaling(Scaling):
         dt = format_large_units(self.transition_nominal, quantity="length")
         return (
             f"{base}\n"
-            f"Material: {self.material_name}\n"
+            f"Material: {self.material}\n"
             f"K1: {self.K1:.3f}\n"
             f"mu: {self.mu:.3f}\n"
             f"Ybar: {ybar}\n"
@@ -592,10 +592,10 @@ class MonteCarloScaling(Scaling):
         """
         The key used to identify the property used as the key in a catalogue.
         """
-        return "material_name"
+        return "material"
     
     @parameter
-    def material_name(self):
+    def material(self):
         """
         The name of the material composition of the target body.
         
@@ -603,13 +603,21 @@ class MonteCarloScaling(Scaling):
         -------
         str 
         """
-        return self._material_name
+        return self._material
 
-    @material_name.setter
-    def material_name(self, value):
-        if not isinstance(value, str) and value is not None:
+    @material.setter
+    def material(self, value):
+        if value is None:
+            return
+        if not isinstance(value, str): 
             raise TypeError("name must be a string or None")
-        self._material_name = value
+        self._material = value.title()
+        if self._material in self.material_catalogue:
+            self.K1 = self.material_catalogue[self._material]["K1"]
+            self.mu = self.material_catalogue[self._material]["mu"]
+            self.Ybar = self.material_catalogue[self._material]["Ybar"]
+            self.target.density = self.material_catalogue[self._material]["density"]
+
 
     @parameter
     def monte_carlo_scaling(self):

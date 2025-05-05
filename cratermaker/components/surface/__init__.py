@@ -141,8 +141,6 @@ class Surface(ComponentBase):
                              regrid = regrid,
                              simdir=simdir, 
                              **kwargs)
-        if target is not None:
-            surface.target = target
         return surface
 
     def load_from_files(self, reset: bool = False, **kwargs: Any) -> None:
