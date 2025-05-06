@@ -3,7 +3,7 @@ import tempfile
 import numpy as np
 from pathlib import Path
 from cratermaker import Target, Surface
-from cratermaker.utils.montecarlo import get_random_location
+from cratermaker.utils.montecarlo_utils import get_random_location
 from cratermaker.utils.general_utils import normalize_coords
 
 surfacetypes = Surface.available()

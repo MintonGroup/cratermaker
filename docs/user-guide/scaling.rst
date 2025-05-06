@@ -73,14 +73,35 @@ Once you have a scaling object, you can use it to compute between projectile, tr
 
 
     scaling = Scaling.maker()
-    dt = scaling.projectile_to_transient(500.0) 
+    dt = scaling.projectile_to_transient(1000.0) 
     print(f"1 km projectile -> Transient crater: {dt*1e-3:.2f} km")
     df, mt = scaling.transient_to_final(dt) 
     print(f"1 km projectile -> Final crater: {df*1e-3:.2f} km, Morphology type: {mt}")
     dt, mt = scaling.final_to_transient(df, mt)
     print(f"Final crater -> Transient: {dt*1e-3:.2f} km")
-    pd = scaling.transient_to_projectile(df)
-    print(f"Final crater -> projectile: {pd*1e-3:.2f} km")
+    pd = scaling.transient_to_projectile(dt)
+    print(f"Final crater -> projectile: {pd*1e-3:.3f} km")
+
+
+Because the scaling model is probabilistic, the results will vary slightly each time you run it. This is particualrly true when the crater size is near the simple-to-complex transition. Remember how passing the morphology type to :meth:`final_to_transient` is optional? In the above example we used the morphology type that was returned from the :meth:`transient_to_final` method. If we had not passed it, the :meth:`final_to_transient` method would have computed it again, and it might not be the same as the one used to create the final crater. Here is an example showing this effect:
+
+.. ipython:: python
+    :verbatim:
+    :okwarning:
+
+    scaling = Scaling.maker()
+    dt = scaling.projectile_to_transient(800.0) 
+    print(f"1 km projectile -> Transient crater: {dt*1e-3:.2f} km")
+    1 km projectile -> Transient crater: 8.81 km
+    df, mt = scaling.transient_to_final(dt) 
+    print(f"1 km projectile -> Final crater: {df*1e-3:.2f} km, Morphology type: {mt}")
+    1 km projectile -> Final crater: 10.23 km, Morphology type: transitional
+    dt, mt = scaling.final_to_transient(df) # <- Don't  pass the morphology type
+    print(f"Final crater -> Transient: {dt*1e-3:.2f} km, Morphology type: {mt}")
+    Final crater -> Transient: 8.65 km, Morphology type: simple 
+    pd = scaling.transient_to_projectile(dt)
+    print(f"Final crater -> projectile: {pd*1e-3:.3f} km")
+    Final crater -> projectile: 0.783 km
 
 
 More Scaling examples
