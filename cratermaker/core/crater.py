@@ -322,6 +322,8 @@ class Crater:
 
         scaling = Scaling.maker(scaling, target=target, projectile=projectile, **vars(argproc.common_args), **kwargs)
         projectile = scaling.projectile
+        projectile.new_projectile()
+        scaling.recompute()
         target = scaling.target
         pv = projectile.velocity
         pvv = projectile.vertical_velocity

@@ -42,6 +42,7 @@ for body in bodies:
 
     for d in proj_diameters:
         scaling.projectile.new_projectile()
+        scaling.recompute()
         transient_diameter = scaling.projectile_to_transient(d)
         final_diameter, morphology_type = scaling.transient_to_final(transient_diameter)
         crater_diams.append(final_diameter)
