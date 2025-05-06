@@ -14,11 +14,9 @@ build:
   os: ubuntu-22.04
   tools:
     python: "mambaforge-22.9"  
+    rust: "1.88"
   apt_packages:
-    - graphviz    
-    - build-essential
-    - cmake
-    - ninja-build
+    - pandoc
   jobs:
     post_create_environment: 
       - pip install .

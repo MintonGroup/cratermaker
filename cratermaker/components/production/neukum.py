@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import Generator
 from cratermaker.components.production import Production
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.utils.general_utils import R_to_CSFD, parameter
+from cratermaker.utils.general_utils import R_to_CSFD, parameter, format_large_units
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 from typing import Any, Union
@@ -28,24 +28,23 @@ class NeukumProduction(Production):
         
     Notes
     ----- 
-    The CSFD is computed using the model of Ivanov, Neukum, and Hartmann (2001) [1]_ for the Moon and Mars, with 
+    The CSFD is computed using the model of Ivanov, Neukum, and Hartmann (2001) for the Moon and Mars, with 
     minor changes. Notably, there is a typo in the chronology function (Eq. 5) of the original paper. The linear term in the paper
     is given as 8.38e-4. The value should be 10^(a0), and therefore the number given in the paper is based on the "Old"
-    coefficients from Neukum (1983) [4]. The correct value is 10^(-3.0876) = 8.17e-4. We compute the value from the coefficients 
+    coefficients from Neukum (1983). The correct value is 10^(-3.0876) = 8.17e-4. We compute the value from the coefficients 
     in our implementation of the chronology function.       
     
-    Mars PF from [2]. Projectile PF from [3]. 
+    The Mars production function is based on Ivanov (2001). The projectile production function is from Ivanov, Neukum, and Wagner (2001).
    
-    References
-    ---------- 
-    .. [1] Lunar PF from: Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
-        the Lunar Reference System. Space Science Reviews 96, 55-86. https://doi.org/10.1023/A:1011989004263
-    .. [2] Mars PF from: Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. Space Science Reviews 96, 87-104.
-        https://doi.org/10.1023/A:1011941121102
-    .. [3] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters 
-        and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1-34. 
-        https://doi.org/10.1007/978-94-010-0712-2_1
-    .. [4] Neukum, G., 1983. Meteorite bombardment and planetary surfaces dating. Habilitation Dissertation for Faculty Membership, University of Munich.
+    .. rubric:: References
+
+    - Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to 
+      the Lunar Reference System. *Space Science Reviews*, 96, 55-86. https://doi.org/10.1023/A:1011989004263
+    - Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. https://doi.org/10.1023/A:1011941121102
+    - Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters 
+      and Asteroids. In *Collisional Processes in the Solar System*, Springer Netherlands, Dordrecht, pp. 1-34. 
+      https://doi.org/10.1007/978-94-010-0712-2_1
+    - Neukum, G., 1983. Meteorite bombardment and planetary surfaces dating. Habilitation Dissertation for Faculty Membership, University of Munich.
 
     """
     def __init__(self, 
@@ -58,6 +57,18 @@ class NeukumProduction(Production):
 
         self.version = version or "Moon"
 
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        timelo = format_large_units(self.valid_time[0], quantity="time")
+        timehi = format_large_units(self.valid_time[1], quantity="time")
+        dlo = format_large_units(self.sfd_range[0], quantity="length")
+        dhi = format_large_units(self.sfd_range[1], quantity="length")
+        return (
+            f"{base}\n"
+            f"Version: {self.version}\n"
+            f"Valid Time Range: {timelo} - {timehi}\n"
+            f"Valid Diameter Range: {dlo} - {dhi}"
+        )
 
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -89,7 +100,7 @@ class NeukumProduction(Production):
         age, age_end = self._validate_age(age, age_end) 
         diameter, _ = self._validate_csfd(diameter=diameter)
         
-        diameter_array = np.asarray(self.size_frequency_distribution(diameter))
+        diameter_array = np.asarray(self.csfd(diameter))
         age_difference = np.asarray(self.chronology(age, check_valid_time)) - np.asarray(self.chronology(age_end, check_valid_time))
 
         if diameter_array.ndim > 0 and age_difference.ndim > 0:
@@ -97,7 +108,6 @@ class NeukumProduction(Production):
         else:
             return diameter_array * age_difference
     
-     
     def chronology(self,
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1000.0,
              check_valid_time: bool=True,
@@ -361,9 +371,9 @@ class NeukumProduction(Production):
         return (0,4500)
 
     
-    def size_frequency_distribution(self,diameter: FloatLike | ArrayLike,) -> Union[FloatLike, ArrayLike]:
+    def csfd(self,diameter: FloatLike | ArrayLike,) -> FloatLike | ArrayLike:
         """
-        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 Gy ago per m^2.
+        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m^2.
 
         Parameters
         ----------
@@ -480,7 +490,7 @@ if __name__ == "__main__":
     from scipy.optimize import curve_fit
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
-    from cratermaker.core.target import Target
+    from cratermaker.components.target import Target
     
     def plot_npf_csfd():
         fig = plt.figure(1, figsize=(8, 7))

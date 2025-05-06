@@ -27,13 +27,13 @@ extensions = [
     "sphinx.ext.viewcode",
     "IPython.sphinxext.ipython_directive",
     "IPython.sphinxext.ipython_console_highlighting",
-    "nbsphinx",
     "sphinx_autosummary_accessors",
     "sphinx.ext.linkcode",
     "sphinxext.opengraph",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_inline_tabs",
+    'sphinx_gallery.gen_gallery',
     'cratermaker_autodoc'
 ]
 
@@ -68,6 +68,12 @@ napoleon_numpy_docstring = True
 napoleon_use_param = False
 napoleon_use_rtype = False
 
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': False,
+    'show-inheritance': True,
+}
+
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "numpy": ("https://numpy.org/doc/stable", None),
@@ -75,6 +81,11 @@ intersphinx_mapping = {
 }
 
 templates_path = ["_templates"]
+
+sphinx_gallery_conf = {
+    'examples_dirs': '../examples',
+    'gallery_dirs': 'auto_examples',
+}
 
 html_theme = 'sphinx_book_theme'
 html_title =""
@@ -104,7 +115,6 @@ html_theme_options = dict(
     extra_footer="""<p>Development of Cratermaker is supported by NASA Lunar Data Analysis Program Grant #80NSSC21K1719<br>
     Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a></p>""",
     icon_links=[],  # workaround for pydata/pydata-sphinx-theme#1220
-    announcement="🍾 <a href='https://github.com/MintonGroup/cratermaker/discussions/1'>Cratermaker is currently under development</a> 🎉",
 )
 
 
@@ -178,3 +188,4 @@ def html_page_context(app, pagename, templatename, context, doctree):
     # Disable edit button for docstring generated pages
     if "generated" in pagename:
         context["theme_use_edit_page_button"] = False
+

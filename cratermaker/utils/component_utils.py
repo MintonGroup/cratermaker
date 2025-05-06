@@ -12,6 +12,13 @@ class ComponentBase(CratermakerBase, ABC):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
+    def __repr__(self) -> str:
+        # Get the name of the class
+        base_class = type(self).__mro__[1].__name__
+        return (
+            f"<{base_class}: {self._component_name}>"
+        )
+
     @classmethod
     def maker(cls, component: str | type[ComponentBase] | ComponentBase| None = None, **kwargs: Any) -> ComponentBase:
         """

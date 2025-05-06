@@ -9,7 +9,7 @@ from typing import Any, Union
 @Production.register("powerlaw")
 class PowerLawProduction(Production):
     """
-    An operations class for computing the production function for craters and impactors. This impliments a very simple power law 
+    An operations class for computing the production function for craters and projectiles. This impliments a very simple power law 
     production function that can be used as either a crater or projectile production function. The production function is defined as
     the cumulative number of craters greater than a given diameter per unit m^2 surface area.
         
@@ -19,10 +19,10 @@ class PowerLawProduction(Production):
         The type of generator to use. This can be either "crater" or "projectile". Default is "crater". 
     N1_coef : float, optional
         The coefficient for the power law production function at 1 m diameter per 1 My. 
-        Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar impactors) based on fits to the NPF on the Moon.
+        Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar projectiles) based on fits to the NPF on the Moon.
     slope : float, optional
         The slope of the power law production function. 
-        Defaults to -3.33 (lunar craters) or -2.26 (lunar impactors) based on fits to the NPF on the Moon.
+        Defaults to -3.33 (lunar craters) or -2.26 (lunar projectiles) based on fits to the NPF on the Moon.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -75,7 +75,13 @@ class PowerLawProduction(Production):
             slope *= -1
         self.slope = slope 
 
-
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        return (
+            f"{base}\n"
+            f"N1 Coefficient: {self.N1_coef:.2e}\n"
+            f"Slope: {self.slope:.3f}"
+        )
       
     def function(self,
              diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
@@ -108,7 +114,7 @@ class PowerLawProduction(Production):
         diameter, _ = self._validate_csfd(diameter=diameter)   
         age, age_end = self._validate_age(age, age_end)
         
-        n_array = np.asarray(self.N1_coef * diameter**self.slope)
+        n_array = np.asarray(self.csfd(diameter))
         age_difference = np.asarray(age - age_end)
         
         if n_array.ndim > 0 and age_difference.ndim > 0:
@@ -136,6 +142,25 @@ class PowerLawProduction(Production):
         """
         return age
 
+    def csfd(self,
+             diameter: FloatLike | ArrayLike, 
+             **kwargs: Any
+             ) -> FloatLike | ArrayLike:
+        """
+        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m^2.
+
+        Parameters
+        ----------
+        diameter : FloatLike or ArrayLike
+            units of meter 
+            
+        Returns
+        -------
+        FloatLike or numpy array
+           Cumulative number density of per square meter greater than the input diameter.
+        """
+        return self.N1_coef * diameter**self.slope
+
     @property
     def N1_coef(self):
         """Get the N1 coefficient of the power law production function."""
@@ -161,5 +186,6 @@ class PowerLawProduction(Production):
         if not isinstance(value, FloatLike):
             raise TypeError("slope must be a numeric value (float or int)")
         self._slope = value
+
 
 
