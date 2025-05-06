@@ -894,7 +894,7 @@ class Surface(ComponentBase):
 
         Notes
         -----
-        This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
+        This method is a wrapper for :func:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`. 
         """
         
         return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
