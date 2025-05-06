@@ -53,7 +53,7 @@ clean:
 	rm -rf generated/*
 	rm -rf api/generated/
 	rm -rf auto_examples/*
-	rm sg_execution_times.rst
+	rm -rf sg_execution_times.rst
 
 
 .PHONY: html
