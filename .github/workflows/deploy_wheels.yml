@@ -84,6 +84,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set version
+        shell: bash
+        run: |
+          pip install setuptools_scm
+          python buildscripts/set_version.py
+
       - name: Build sdist
         run: pipx run build --sdist
 
