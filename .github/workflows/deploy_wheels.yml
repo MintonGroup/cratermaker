@@ -84,6 +84,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get history and tags for SCM versioning to work
+        run: |
+          git fetch --prune --unshallow
+          git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '>=3.10'
+
+      - name: Set version
+        shell: bash
+        run: |
+          pip install setuptools_scm
+          python buildscripts/set_version.py
+
       - name: Build sdist
         run: pipx run build --sdist
 
