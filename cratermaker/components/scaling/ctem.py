@@ -60,10 +60,10 @@ class CTEMScaling(MonteCarloScaling):
                  **kwargs):
         super().__init__(target=target, projectile=projectile, material=material, K1=K1, mu=mu, Ybar=Ybar, density=density, **kwargs)
         object.__setattr__(self, "_montecarlo_scaling", False)
-        self._compute_simple_to_complex_transition_factors() # Recreate this with MC turned off 
+        self.recompute() # Recreate this with MC turned off 
 
 
-    def _compute_simple_to_complex_transition_factors(self):
+    def recompute(self):
         """
         Computes and sets the internal attributes for transition factors between simple and complex craters.
         """    

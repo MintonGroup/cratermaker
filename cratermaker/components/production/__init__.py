@@ -88,14 +88,17 @@ class Production(ComponentBase):
 
         version = kwargs.pop("version", None)
         if production is None or production == "neukum":
+            if target is None and version in ['Moon', 'Mars']:
+                target = version
             target = Target.maker(target, **kwargs)
             target_name = target.name.capitalize()
             if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars']:
                 production = "neukum"
-                if target_name in ['Moon', 'Mars']:
-                    version = target_name 
-                else:
-                    version = "projectile"
+                if version is None:
+                    if target_name in ['Moon', 'Mars']:
+                        version = target_name 
+                    else:
+                        version = "projectile"
             else:
                 production = "powerlaw"
         return super().maker(component=production, version=version, target=target, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)

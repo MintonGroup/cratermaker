@@ -162,9 +162,7 @@ class NeukumProduction(Production):
                     N1 = np.where(age <= max_time, N1, np.nan) 
             return N1.item() if np.isscalar(age) else N1
         
-        N1_reference = _N1km(age=1.0e-3) 
-        N1_values = _N1km(age=time_Gy,check_valid_time=check_valid_time)
-        N1_values /= N1_reference
+        N1_values = _N1km(age=time_Gy,check_valid_time=check_valid_time)*1e-6
         
         return  N1_values 
 
