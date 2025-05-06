@@ -114,7 +114,7 @@ class MonteCarloScaling(Scaling):
         if arg_check > 0:
             raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
         # Initialize transition factors
-        self._compute_simple_to_complex_transition_factors() 
+        self.recompute() 
         return
 
     def __repr__(self) -> str:
@@ -129,7 +129,8 @@ class MonteCarloScaling(Scaling):
             f"Ybar: {ybar}\n"
             f"Target density: {self.target.density:.0f} kg/m³\n"
             f"Projectile density: {self.projectile.density:.0f} kg/m³\n"
-            f"Nominal simple-complex transition diameter: {dt}"
+            f"Nominal simple-complex transition diameter: {dt}\n"
+            f"Monte Carlo Scaling: {self._montecarlo_scaling}"
         )
 
     def _get_morphology_type(self, 
@@ -399,7 +400,7 @@ class MonteCarloScaling(Scaling):
             self._material_catalogue = _create_material_catalogue()
         return self._material_catalogue
 
-    def _compute_simple_to_complex_transition_factors(self):
+    def recompute(self):
         """
         Computes and sets the internal attributes for transition factors between simple and complex craters.
         """    
@@ -439,7 +440,7 @@ class MonteCarloScaling(Scaling):
             simple_enlargement_factor = 1.0 / simple_enlargement_mean
             final_exp = final_exp_mean
             transition_diameter = float(self.transition_nominal)
-        self.transition_diameter = transition_diameter
+        self._transition_diameter = float(transition_diameter)
         self._simple_enlargement_factor = float(simple_enlargement_factor)
         self._complex_enlargement_factor = float(complex_enlargement_factor)
         self._final_exp = float(final_exp)
@@ -462,10 +463,6 @@ class MonteCarloScaling(Scaling):
         """
         return self._transition_diameter
     
-    @transition_diameter.setter
-    def transition_diameter(self, value: FloatLike) -> None:
-        self._transition_diameter = float(value)
-
     @property
     def transition_nominal(self) -> float:
         """
