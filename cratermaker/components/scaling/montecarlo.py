@@ -4,7 +4,7 @@ from numpy.random import Generator
 from typing import Any
 from scipy.optimize import root_scalar
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.utils import montecarlo as mc
+from cratermaker.utils import montecarlo_utils as mc
 from cratermaker.utils.general_utils import parameter, _set_properties, _create_catalogue, format_large_units
 from cratermaker.components.target import Target
 from cratermaker.components.scaling import Scaling
@@ -78,9 +78,7 @@ class MonteCarloScaling(Scaling):
                  rng_seed: int | None = None,
                  rng_state: dict | None = None,
                  **kwargs):
-        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        self._target = Target.maker(target, **kwargs)
-        self._projectile = Projectile.maker(projectile=projectile, target=self._target, **kwargs)
+        super().__init__(target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
         object.__setattr__(self, "_K1", None)
         object.__setattr__(self, "_mu", None)
@@ -414,7 +412,6 @@ class MonteCarloScaling(Scaling):
         final_exp_mean = 0.079    
         final_exp_std = 0.0001 # We add noise because this is nature and nature messy
         complex_enlargement_factor = 1.02
-        simple_complex_std = 0.04
     
         # These terms are used to compute the transition diameter as a function of gravity. They are based on fits to the plot given in Fig. 7 of Schenk et al. (2021)
         if self.target.transition_scale_type == "silicate":
@@ -428,15 +425,15 @@ class MonteCarloScaling(Scaling):
 
         def _sample_transition_diameter(g, A, B, sigma):
             mu = A * np.log10(g) + B
-            return 10**np.random.normal(mu, sigma)
+            return 10**self.rng.normal(mu, sigma)
         
         # The nominal value will be used for determining the range of the "transitional" morphology type
         self._transition_nominal= 10**(simple_complex_A * np.log10(self.target.gravity) + simple_complex_B)
         
         # Draw from a truncated normal distribution for each component of the model
         if self._montecarlo_scaling:
-            simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std)[0]
-            final_exp = mc.bounded_norm(final_exp_mean, final_exp_std)[0]
+            simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std, rng=self.rng)[0]
+            final_exp = mc.bounded_norm(final_exp_mean, final_exp_std, rng=self.rng)[0]
             transition_diameter = _sample_transition_diameter(self.target.gravity, simple_complex_A, simple_complex_B, simple_complex_sigma)
         else:
             simple_enlargement_factor = 1.0 / simple_enlargement_mean

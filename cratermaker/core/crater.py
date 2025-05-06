@@ -5,7 +5,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from ..components.target import Target
 from ..utils.general_utils import validate_and_normalize_location, format_large_units
-from ..utils import montecarlo as mc
+from ..utils import montecarlo_utils as mc
 from ..components.scaling import Scaling
 from ..components.projectile import Projectile
 from typing import Any

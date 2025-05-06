@@ -390,6 +390,9 @@ def get_random_velocity(vmean: np.float64,
 def bounded_norm(mean: FloatLike,
                  scale: FloatLike,
                  size: int | tuple[int, ...]=1,
+                rng: Generator | None = None, 
+                rng_seed: int | None = None,
+                rng_state: dict | None = None,
                  **kwargs: Any) -> FloatLike: 
     """
     Sample from a truncated normal distribution that is bounded by 1-sigma stdev
@@ -402,6 +405,12 @@ def bounded_norm(mean: FloatLike,
        standard deviation and bounds of the distribution
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
     **kwargs : Any
        
     Returns
@@ -409,6 +418,7 @@ def bounded_norm(mean: FloatLike,
     float
        Truncated norm bounded by loc-scale, loc+scale
     """    
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
     
     lower_bound = mean - scale
     upper_bound = mean + scale
@@ -417,7 +427,7 @@ def bounded_norm(mean: FloatLike,
                                  loc=mean, 
                                  scale=scale)
     
-    return truncated_normal.rvs(size)
+    return truncated_normal.rvs(size, random_state=rng)
     
            
 if __name__ == '__main__':

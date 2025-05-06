@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from numpy.typing import ArrayLike
 from typing import Any
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.utils import montecarlo as mc
+from cratermaker.utils import montecarlo_utils as mc
 from cratermaker.utils.general_utils import parameter
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.components.target import Target

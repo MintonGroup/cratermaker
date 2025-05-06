@@ -6,7 +6,7 @@ from numpy.random import Generator
 from cratermaker.utils.general_utils import parameter, format_large_units, _set_properties
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.custom_types import FloatLike
-from cratermaker.utils import montecarlo as mc
+from cratermaker.utils import montecarlo_utils as mc
 from cratermaker.components.target import Target
 
 class Projectile(ComponentBase):

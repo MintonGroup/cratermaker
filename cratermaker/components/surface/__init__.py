@@ -15,7 +15,7 @@ import hashlib
 from cratermaker.constants import _GRID_FILE_NAME, _DATA_DIR, _SMALLFAC, _COMBINED_DATA_FILE_NAME 
 from cratermaker.components.target import Target
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
-from cratermaker.utils.montecarlo import get_random_location_on_face
+from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker._cratermaker import surface_functions
 import warnings
@@ -894,7 +894,7 @@ class Surface(ComponentBase):
 
         Notes
         -----
-        This method is a wrapper for :func:`cratermaker.utils.montecarlo.get_random_location_on_face`. 
+        This method is a wrapper for :func:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`. 
         """
         
         return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)

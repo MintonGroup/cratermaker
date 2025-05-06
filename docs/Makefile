@@ -51,6 +51,7 @@ help:
 clean:
 	rm -rf $(BUILDDIR)
 	rm -rf generated/*
+	rm -rf api/generated/
 	rm -rf auto_examples/*
 	rm sg_execution_times.rst
 

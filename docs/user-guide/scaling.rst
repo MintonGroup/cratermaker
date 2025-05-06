@@ -73,14 +73,31 @@ Once you have a scaling object, you can use it to compute between projectile, tr
 
 
     scaling = Scaling.maker()
-    dt = scaling.projectile_to_transient(500.0) 
+    dt = scaling.projectile_to_transient(1000.0) 
     print(f"1 km projectile -> Transient crater: {dt*1e-3:.2f} km")
     df, mt = scaling.transient_to_final(dt) 
     print(f"1 km projectile -> Final crater: {df*1e-3:.2f} km, Morphology type: {mt}")
     dt, mt = scaling.final_to_transient(df, mt)
     print(f"Final crater -> Transient: {dt*1e-3:.2f} km")
-    pd = scaling.transient_to_projectile(df)
-    print(f"Final crater -> projectile: {pd*1e-3:.2f} km")
+    pd = scaling.transient_to_projectile(dt)
+    print(f"Final crater -> projectile: {pd*1e-3:.3f} km")
+
+
+Because the scaling model is probabilistic, the results will vary slightly each time you run it. This is particualrly true when the crater size is near the simple-to-complex transition. Remember how passing the morphology type to :meth:`final_to_transient` is optional? In the above example we used the morphology type that was returned from the :meth:`transient_to_final` method. If we had not passed it, the :meth:`final_to_transient` method would have computed it again, and it might not be the same as the one used to create the final crater. Here is an example showing this effect:
+
+.. ipython:: python
+    :okwarning:
+
+    scaling = Scaling.maker(rng_seed=3098351)
+    pd_in = 800.0
+    dt = scaling.projectile_to_transient(pd_in) 
+    df, mt_in = scaling.transient_to_final(dt) 
+    dt, mt_out = scaling.final_to_transient(df)
+    pd_out = scaling.transient_to_projectile(dt)
+    print(f"Transient -> Final morphology: {mt_in}")
+    print(f"Final -> Transient morphology: {mt_out}")
+    print(f"Input projectile diameter  : {pd_in*1e-3:.3f} km")
+    print(f"Output projectile diameter : {pd_out*1e-3:.3f} km")
 
 
 More Scaling examples

@@ -11,11 +11,11 @@ Monte Carlo
 .. autosummary::
    :toctree: generated/
 
-    montecarlo.get_random_location
-    montecarlo.get_random_impact_angle
-    montecarlo.get_random_velocity
-    montecarlo.get_random_size
-    montecarlo.bounded_norm
+    montecarlo_utils.get_random_location
+    montecarlo_utils.get_random_impact_angle
+    montecarlo_utils.get_random_velocity
+    montecarlo_utils.get_random_size
+    montecarlo_utils.bounded_norm
 
 General utilities
 -----------------
