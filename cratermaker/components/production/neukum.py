@@ -481,7 +481,7 @@ class NeukumProduction(Production):
         else:
             Ncumulative = _CSFD(Dkm) 
             
-        return Ncumulative * 1e-9 # convert from Gy^-1 km^-2 to My^-1 m^-2    
+        return Ncumulative * 1e3 # convert from Gy^-1 km^-2 to My^-1 m^-2    
 
 
 if __name__ == "__main__":
