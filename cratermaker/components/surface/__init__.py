@@ -174,6 +174,7 @@ class Surface(ComponentBase):
         
         try:
             with xr.open_dataset(self.grid_file) as uxgrid:
+                uxgrid.load()
                 if reset: # Create an empty dataset 
                     self._uxds = uxr.UxDataset()
                 else: # Read data from from existing datafiles
@@ -285,6 +286,7 @@ class Surface(ComponentBase):
         if not regrid:
             try: 
                 with xr.open_dataset(self.grid_file) as ds:
+                    ds.load()
                     uxgrid = uxr.Grid.from_dataset(ds)
                     old_id = uxgrid.attrs.get("_id")
                     regrid = old_id != self._id
@@ -434,6 +436,7 @@ class Surface(ComponentBase):
         None
         """    
         with xr.open_dataset(self.grid_file) as ds:
+            ds.load()
             uxgrid = uxr.Grid.from_dataset(ds)
         if long_name is None and units is None:
             attrs = None
