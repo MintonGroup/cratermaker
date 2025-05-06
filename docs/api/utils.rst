@@ -5,6 +5,8 @@
 Utility functions
 =================
 
+.. _api-utils-montecarlo:
+
 Monte Carlo
 -----------
 
@@ -17,6 +19,8 @@ Monte Carlo
     montecarlo_utils.get_random_size
     montecarlo_utils.bounded_norm
 
+.. _api-utils-general:
+
 General utilities
 -----------------
 
@@ -28,6 +32,8 @@ General utilities
     general_utils.normalize_coords
     general_utils.R_to_CSFD
 
+.. _api-utils-export:
+
 Export functions
 ----------------
 
@@ -36,14 +42,6 @@ Export functions
 
     export.to_vtk
     export.make_circle_file
-
-Custom type definitions
------------------------
-
-.. autosummary::
-    :toctree: generated/
-
-    custom_types
 
 .. _api-ComponentAPI:
 

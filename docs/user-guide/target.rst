@@ -1,5 +1,7 @@
 .. currentmodule:: cratermaker
 
+.. _ug-target:
+
 Target
 ======
 

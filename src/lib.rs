@@ -2,7 +2,6 @@
 
 pub mod crater_functions;
 pub mod ejecta_functions;
-pub mod morphology_functions;
 pub mod surface_functions;
 
 #[cfg(not(target_env = "msvc"))]
@@ -17,22 +16,24 @@ use std::f64;
 use pyo3::prelude::*;
 
 const VSMALL: f64 = 10.0 * std::f64::EPSILON;
+const RIMDROP: f64 = 4.20; // The exponent for the uplifted rim dropoff.
+const EJPROFILE: f64 = 3.0; // The exponent for the ejecta profile
 
 #[pymodule]
-#[pyo3(name = "_cratermaker")]
-mod cratermaker {
+#[pyo3(name = "_simplemoon")]
+mod simplemoon {
     use super::*;
 
     #[pymodule]
     mod crater_functions {
         #[pymodule_export]
-        use crate::crater_functions::profile;
+        use crate::crater_functions::shape;
     }
 
     #[pymodule]
     mod ejecta_functions {
         #[pymodule_export]
-        use crate::ejecta_functions::{distribution, profile, ray_intensity};
+        use crate::ejecta_functions::{distribution, shape, ray_intensity, form_ejecta};
     }
 
     #[pymodule]
@@ -41,9 +42,4 @@ mod cratermaker {
         use crate::surface_functions::calculate_initial_bearing;
     }
 
-    #[pymodule]
-    mod morphology_functions {
-        #[pymodule_export]
-        use crate::morphology_functions::form_ejecta;
-    }
 }
