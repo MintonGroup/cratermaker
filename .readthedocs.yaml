@@ -19,6 +19,7 @@ build:
     - pandoc
   jobs:
     post_create_environment: 
+      - python buildscripts/set_version.py
       - pip install .
 
 conda:
