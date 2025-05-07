@@ -83,10 +83,10 @@ class TestMorphology(unittest.TestCase):
                     sim.emplace_crater(final_diameter=final_diameter, location=(0, 0))
 
                     # Verify that the crater depth and rim heights are close to the expected values
-                    self.assertAlmostEqual(-sim.surface.node_elevation.min() / sim.morphology.floordepth, 1.0, delta=delta)
-                    self.assertAlmostEqual(-sim.surface.face_elevation.min() / sim.morphology.floordepth, 1.0, delta=delta)
-                    self.assertAlmostEqual(sim.surface.node_elevation.max() / sim.morphology.rimheight, 1.0, delta=2*delta)
-                    self.assertAlmostEqual(sim.surface.face_elevation.max() / sim.morphology.rimheight, 1.0, delta=2*delta)
+                    self.assertAlmostEqual(-sim.surface.node_elevation.min() / sim.morphology.floor_depth, 1.0, delta=delta)
+                    self.assertAlmostEqual(-sim.surface.face_elevation.min() / sim.morphology.floor_depth, 1.0, delta=delta)
+                    self.assertAlmostEqual(sim.surface.node_elevation.max() / sim.morphology.rim_height, 1.0, delta=2*delta)
+                    self.assertAlmostEqual(sim.surface.face_elevation.max() / sim.morphology.rim_height, 1.0, delta=2*delta)
 
 if __name__ == '__main__':
     unittest.main()

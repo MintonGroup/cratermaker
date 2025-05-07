@@ -11,9 +11,9 @@ pub fn profile<'py>(
     r_array: PyReadonlyArray1<'py, f64>,
     reference_elevation_array: PyReadonlyArray1<'py, f64>,
     diameter: f64,
-    floordepth: f64,
+    floor_depth: f64,
     floordiam: f64,
-    rimheight: f64,
+    rim_height: f64,
     ejrim: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances = r_array.as_array();
@@ -29,9 +29,9 @@ pub fn profile<'py>(
     let radius = diameter / 2.0;
 
     // Use polynomial crater profile similar to that of Fassett et al. (2014), but the parameters are set by the crater dimensions
-    let c1 = (-floordepth - rimheight)
+    let c1 = (-floor_depth - rim_height)
         / (flrad - 1.0 + A * (flrad.powi(2) - 1.0) + B * (flrad.powi(3) - 1.0));
-    let c0 = rimheight - c1 * (1.0 + A + B);
+    let c0 = rim_height - c1 * (1.0 + A + B);
     let c2 = A * c1;
     let c3 = B * c1;
 
@@ -52,7 +52,7 @@ pub fn profile<'py>(
             .sum::<f64>()
             / ninc as f64
     };
-    let min_elevation = meanref - floordepth;
+    let min_elevation = meanref - floor_depth;
 
     Ok(PyArray1::from_iter(
         py,
@@ -63,7 +63,7 @@ pub fn profile<'py>(
                 let r = radial_distance / radius;
                 (
                     if r >= 1.0 {
-                        elevation + (rimheight - ejrim) * (r.powf(-RIMDROP))
+                        elevation + (rim_height - ejrim) * (r.powf(-RIMDROP))
                     } else {
                         elevation + c0 + c1 * r + c2 * r.powi(2) + c3 * r.powi(3)
                     },

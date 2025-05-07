@@ -25,7 +25,7 @@ class Morphology(ComponentBase):
 
         """
         super().__init__(**kwargs)
-        object.__setattr__(self, "_crater" , crater)
+        self.crater = crater
 
     def __repr__(self) -> str:
         base = super().__repr__()

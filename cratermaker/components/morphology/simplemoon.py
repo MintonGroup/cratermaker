@@ -17,6 +17,8 @@ class SimpleMoon(Morphology):
 
     Parameters
     ----------
+    crater : Crater, optional
+        The crater currently attached to the morphology model.
     ejecta_truncation : float, optional
         The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a 
         truncation distance based on where the ejecta thickness reaches a small value.         
@@ -35,6 +37,7 @@ class SimpleMoon(Morphology):
     """
     
     def __init__(self, 
+                 crater : Crater | None = None, 
                  ejecta_truncation: FloatLike | None = None,
                  dorays: bool = True,
                  rng: Generator | None = None,
@@ -42,13 +45,13 @@ class SimpleMoon(Morphology):
                  rng_state: dict | None = None,
                  **kwargs: Any 
                  ):
-        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        super().__init__(crater=crater, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_ejecta_truncation" , None)
-        object.__setattr__(self, "_rimheight" , None)
-        object.__setattr__(self, "_rimwidth" , None)
-        object.__setattr__(self, "_peakheight" , None)
+        object.__setattr__(self, "_rim_height" , None)
+        object.__setattr__(self, "_rim_width" , None)
+        object.__setattr__(self, "_peak_height" , None)
         object.__setattr__(self, "_floor_diameter" , None)
-        object.__setattr__(self, "_floordepth" , None)
+        object.__setattr__(self, "_floor_depth" , None)
         object.__setattr__(self, "_ejrim" , None)
         object.__setattr__(self, "_node" , None)
 
@@ -76,19 +79,19 @@ class SimpleMoon(Morphology):
 
         if self.crater.morphology_type in ["simple", "transitional"]:
             # A hybrid model between Pike (1977) and Fassett & Thomson (2014)
-            self.rimheight = 0.043 * diameter_km**1.014 * 1e3  # Closer to Fassett & Thomson
-            self.rimwidth = 0.257 * diameter_km**1.011 * 1e3   # Pike model
-            self.floordepth = 0.224 * diameter_km**1.010 * 1e3 # Closer to Fassett & Thomson
+            self.rim_height = 0.043 * diameter_km**1.014 * 1e3  # Closer to Fassett & Thomson
+            self.rim_width = 0.257 * diameter_km**1.011 * 1e3   # Pike model
+            self.floor_depth = 0.224 * diameter_km**1.010 * 1e3 # Closer to Fassett & Thomson
             self.floor_diameter = 0.200 * diameter_km**1.143 * 1e3  # Fassett & Thomson for D~1km, Pike for D~20km
 
         elif self.crater.morphology_type in ["complex", "peakring", "multiring"]:
             # Following Pike (1977)
-            self.rimheight = 0.236 * diameter_km**0.399 * 1e3  # Pike model
-            self.rimwidth = 0.467 * diameter_km**0.836 * 1e3   # Pike model
-            self.floordepth = 1.044 * diameter_km**0.301 * 1e3 # Pike model
+            self.rim_height = 0.236 * diameter_km**0.399 * 1e3  # Pike model
+            self.rim_width = 0.467 * diameter_km**0.836 * 1e3   # Pike model
+            self.floor_depth = 1.044 * diameter_km**0.301 * 1e3 # Pike model
             # Fassett & Thomson for D~1km, Pike for D~20km, but limited to 90% of diameter
             self.floor_diameter = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
-            self.peakheight = 0.032 * diameter_km**0.900 * 1e3  # Pike model
+            self.peak_height = 0.032 * diameter_km**0.900 * 1e3  # Pike model
         else:
             raise ValueError(f"Unknown morphology type: {self.crater.morphology_type}")
             
@@ -200,13 +203,15 @@ class SimpleMoon(Morphology):
         return
 
 
-    def crater_profile(self, r: ArrayLike, r_ref: ArrayLike) -> NDArray[np.float64]:
+    def crater_profile(self, r: ArrayLike, r_ref: ArrayLike | None = None) -> NDArray[np.float64]:
+        if r_ref is None:
+            r_ref = np.zeros_like(r)
         elevation = crater_functions.profile(r,
                                    r_ref, 
                                    self.crater.final_diameter, 
-                                   self.floordepth, 
+                                   self.floor_depth, 
                                    self.floor_diameter, 
-                                   self.rimheight, 
+                                   self.rim_height, 
                                    self.ejrim
                                 )
         
@@ -290,7 +295,7 @@ class SimpleMoon(Morphology):
         return float(rmax)
 
     @property
-    def rimheight(self) -> float:
+    def rim_height(self) -> float:
         """
         The height of the crater rim in meters.
         
@@ -298,16 +303,16 @@ class SimpleMoon(Morphology):
         -------
         float
         """
-        return self._rimheight
+        return self._rim_height
     
-    @rimheight.setter
-    def rimheight(self, value: FloatLike) -> None:
+    @rim_height.setter
+    def rim_height(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
-            raise TypeError("rimheight must be of type FloatLike")
-        self._rimheight = float(value)
+            raise TypeError("rim_height must be of type FloatLike")
+        self._rim_height = float(value)
         
     @property
-    def rimwidth(self) -> float:
+    def rim_width(self) -> float:
         """
         The width of the crater rim in meters.
         
@@ -315,16 +320,16 @@ class SimpleMoon(Morphology):
         -------
         float
         """
-        return self._rimwidth
+        return self._rim_width
     
-    @rimwidth.setter
-    def rimwidth(self, value: FloatLike) -> None:
+    @rim_width.setter
+    def rim_width(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
-            raise TypeError("rimwidth must be of type FloatLike") 
-        self._rimwidth = float(value)
+            raise TypeError("rim_width must be of type FloatLike") 
+        self._rim_width = float(value)
         
     @property
-    def peakheight(self) -> float:
+    def peak_height(self) -> float:
         """
         The height of the central peak in meters.
         
@@ -332,13 +337,13 @@ class SimpleMoon(Morphology):
         -------
         float
         """
-        return self._peakheight
+        return self._peak_height
     
-    @peakheight.setter
-    def peakheight(self, value: FloatLike) -> None:
+    @peak_height.setter
+    def peak_height(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
-            raise TypeError("peakheight must be of type FloatLike") 
-        self._peakheight = float(value)
+            raise TypeError("peak_height must be of type FloatLike") 
+        self._peak_height = float(value)
 
     @property
     def floor_diameter(self) -> float:
@@ -358,7 +363,7 @@ class SimpleMoon(Morphology):
         self._floor_diameter = float(value)
         
     @property
-    def floordepth(self) -> float:
+    def floor_depth(self) -> float:
         """
         Return the depth of the crater floor in m
         
@@ -366,13 +371,13 @@ class SimpleMoon(Morphology):
         -------
         float
         """
-        return self._floordepth
+        return self._floor_depth
     
-    @floordepth.setter
-    def floordepth(self, value: FloatLike) -> None:
+    @floor_depth.setter
+    def floor_depth(self, value: FloatLike) -> None:
         if not isinstance(value, FloatLike):
-            raise TypeError("floordepth must be of type FloatLike")
-        self._floordepth = float(value)
+            raise TypeError("floor_depth must be of type FloatLike")
+        self._floor_depth = float(value)
         
     @property
     def ejrim(self) -> float:

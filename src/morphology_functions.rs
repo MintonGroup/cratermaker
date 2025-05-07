@@ -10,9 +10,9 @@ pub struct Crater {
 
 #[derive(FromPyObject)]
 pub struct SimpleMoonMorphology {
-    pub floordepth: f64,
+    pub floor_depth: f64,
     pub floor_diameter: f64,
-    pub rimheight: f64,
+    pub rim_height: f64,
     pub ejrim: f64,
     pub crater: Crater,
     pub dorays: bool,
