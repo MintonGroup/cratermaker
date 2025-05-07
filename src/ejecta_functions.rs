@@ -11,10 +11,35 @@ use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::VSMALL;
+
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
 const FRAYREDUCTION: f64 = 0.5;
 const EJPROFILE: i32 = 3;
+
+/// Computes the ejecta profile scaling at a given radial distance.
+///
+/// This function returns a value based on a power-law decay that modifies the
+/// ejecta distribution intensity outside the crater rim. Values inside the crater return zero.
+///
+/// # Arguments
+///
+/// * `r_actual` - Radial distance from the crater center (in meters).
+/// * `crater_radius` - Radius of the crater (in meters).
+/// * `ejrim` - Rim elevation parameter used to scale the profile.
+///
+/// # Returns
+///
+/// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
+#[inline]
+pub fn profile_func(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
+    if r_actual >= crater_radius {
+        let r = r_actual / crater_radius;
+        ejrim * r.powi(-EJPROFILE)
+    } else {
+        0.0
+    }
+}
 
 #[pyfunction]
 pub fn distribution<'py>(
@@ -58,14 +83,18 @@ pub fn distribution_internal<'py>(
             .zip(radial_distance)
             .map(|(&intensity, &radial_distance)| {
                 if radial_distance >= crater_radius {
-                    intensity * profile_func(radial_distance / crater_radius, ejrim)
+                    intensity * profile_func(radial_distance, crater_radius, ejrim)
                 } else {
                     0.0
                 }
             })
             .collect())
     } else {
-        Ok(profile_internal(radial_distance, crater_diameter, ejrim))
+        let crater_radius = crater_diameter / 2.0;
+        Ok(radial_distance
+            .iter()
+            .map(|&r| profile_func(r, crater_radius, ejrim))
+            .collect())
     }
 }
 
@@ -78,30 +107,51 @@ pub fn profile<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     Ok(PyArray1::from_vec(
         py,
-        profile_internal(radial_distance.as_array(), crater_diameter, ejrim),
+        radial_distance
+            .as_array()
+            .iter()
+            .map(|&r| profile_func(r, crater_diameter / 2.0, ejrim))
+            .collect(),
     ))
 }
 
-pub fn profile_internal<'py>(
-    radial_distance: ArrayView1<'py, f64>,
-    crater_diameter: f64,
-    ejrim: f64,
-) -> Vec<f64> {
-    let crater_radius = crater_diameter / 2.0;
-    radial_distance
-        .iter()
-        .map(|&r| {
-            if r >= crater_radius {
-                profile_func(r / crater_radius, ejrim)
-            } else {
-                0.0
-            }
+/// Computes the ray intensity contribution for a single ejecta point.
+///
+/// # Arguments
+///
+/// * `r` - Radial distance from the crater center (in meters).
+/// * `theta0` - Initial bearing angle (radians).
+/// * `crater_radius` - Radius of the crater (in meters).
+/// * `rmin` - Minimum normalized radial distance.
+/// * `rmax` - Maximum normalized radial distance.
+/// * `thetari` - Precomputed ray azimuth angles.
+/// * `random_numbers` - Set of random numbers used for pattern variation.
+///
+/// # Returns
+///
+/// * Computed ray intensity value for this point.
+fn ray_intensity_point(
+    r: f64,
+    theta0: f64,
+    crater_radius: f64,
+    rmin: f64,
+    rmax: f64,
+    thetari: &[f64],
+    random_numbers: &[f64],
+) -> f64 {
+    if r < crater_radius {
+        return 0.0;
+    }
+    (0..NPATT as usize)
+        .into_par_iter()
+        .map(|j| {
+            let rn = random_numbers[j];
+            let theta = (theta0 + rn * 2.0 * PI) % (2.0 * PI);
+            let r_pattern = r / crater_radius - rn;
+            FRAYREDUCTION.powi(j as i32 - 1)
+                * ray_intensity_func(r_pattern, theta, rmin, rmax, thetari, 2.348 * crater_radius.powf(0.006))
         })
-        .collect()
-}
-
-pub fn profile_func(r: f64, ejrim: f64) -> f64 {
-    ejrim * r.powi(-EJPROFILE)
+        .sum()
 }
 
 pub fn ray_intensity_internal<'py>(
@@ -118,7 +168,6 @@ pub fn ray_intensity_internal<'py>(
     let crater_radius = crater_diameter / 2.0;
     let rmax = ejecta_truncation;
     let rmin = 1.0;
-    let minray = 2.348 * crater_radius.powf(0.006); // The continuous ejecta blanket radius relative to the crater radius
 
     let mut rng = rand::rng();
 
@@ -133,20 +182,15 @@ pub fn ray_intensity_internal<'py>(
     let mut intensity: Vec<f64> = (0..radial_distance.len())
         .into_par_iter()
         .map(|i| {
-            if *radial_distance.get(i).unwrap() >= crater_radius {
-                (0..NPATT as usize)
-                    .into_par_iter()
-                    .map(|j| {
-                        let rn = random_numbers[j];
-                        let theta = (initial_bearing.get(i).unwrap() + rn * 2.0 * PI) % (2.0 * PI);
-                        let r_pattern = *radial_distance.get(i).unwrap() / crater_radius - rn;
-                        FRAYREDUCTION.powi(j as i32)
-                            * ray_intensity_func(r_pattern, theta, rmin, rmax, &thetari, minray)
-                    })
-                    .sum()
-            } else {
-                0.0
-            }
+            ray_intensity_point(
+                radial_distance[i],
+                initial_bearing[i],
+                crater_radius,
+                rmin,
+                rmax,
+                &thetari,
+                &random_numbers,
+            )
         })
         .collect();
     let max_val = intensity
@@ -220,14 +264,14 @@ fn ray_intensity_func(
                             / ((NRAYMAX as f64).powf(RAYP) - 1.0)))
                         .exp();
                 if r > length {
-                    return 0.0; // Don't add any material beyond the length of the ray
+                    0.0 // Skip this ray contribution
+                } else {
+                    let w = (rmax / length).powf(1.0);
+                    let rw = PI / (w * NRAYMAX as f64)
+                        * (rmin / r)
+                        * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powi(2)).exp());
+                    ejecta_ray_func(theta, thetari[i as usize], r, n, rw)
                 }
-                let w = (rmax / length).powf(1.0);
-                // equation 41 Minton et al. 2019
-                let rw = PI / (w * NRAYMAX as f64)
-                    * (rmin / r)
-                    * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powi(2)).exp());
-                ejecta_ray_func(theta, thetari[i as usize], r, n, rw)
             })
             .sum()
     }
