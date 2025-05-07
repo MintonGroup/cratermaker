@@ -1,3 +1,5 @@
+.. _ug-defaults:
+
 Default Behavior
 ================
 As Cratermaker is designed to be easy to use, all of its component classes are built to be invoked without any arguments. When a ``Simulation`` object is created as in the examples above, a set of component objects are created with their default parameters. It is important to understand what the default behavior of these classes is, as this will affect the results of your simulation.
