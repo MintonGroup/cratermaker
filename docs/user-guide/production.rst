@@ -1,5 +1,7 @@
 .. currentmodule:: cratermaker.production
 
+.. _ug-production:
+
 Production
 ==========
 
