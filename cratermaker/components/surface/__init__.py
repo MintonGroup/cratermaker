@@ -316,6 +316,7 @@ class Surface(ComponentBase):
                                
 
         self.load_from_data()
+        return
 
     def load_from_data(self):
         self.face_lat = self.uxgrid.face_lat.values
@@ -326,12 +327,14 @@ class Surface(ComponentBase):
         self.face_elevation = self.uxds["face_elevation"].values
         self.ejecta_thickness = self.uxds["ejecta_thickness"].values
         self.ray_intensity = self.uxds["ray_intensity"].values
+        return
         
     def save_to_data(self):
         self.uxds["node_elevation"].values = self.node_elevation
         self.uxds["face_elevation"].values = self.face_elevation
         self.uxds["ejecta_thickness"].values = self.ejecta_thickness
         self.uxds["ray_intensity"].values = self.ray_intensity
+        return
     
     def full_view(self):
         return SurfaceView(self, slice(None), slice(None))

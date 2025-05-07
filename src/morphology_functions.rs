@@ -3,27 +3,59 @@ use pyo3::prelude::*;
 
 use crate::ejecta_functions;
 
+/// Defines crater dimensions for surface modification computations.
+///
+/// Used to parameterize the final crater size in meters.
 #[derive(FromPyObject)]
 pub struct Crater {
     pub final_diameter: f64,
 }
 
+/// Morphological parameters for generating and modifying lunar surface craters.
+///
+/// Includes floor geometry, rim height, and whether to apply ray modulation.
 #[derive(FromPyObject)]
 pub struct SimpleMoonMorphology {
-    pub floordepth: f64,
+    pub floor_depth: f64,
     pub floor_diameter: f64,
-    pub rimheight: f64,
+    pub rim_height: f64,
     pub ejrim: f64,
     pub crater: Crater,
     pub dorays: bool,
 }
 
+/// View into a region of the surface mesh, consisting of node and face indices.
+///
+/// Used to localize crater effects to a subset of the full mesh.
 #[derive(FromPyObject)]
 pub struct SurfaceView<'py> {
     pub node_indices: PyReadonlyArray1<'py, i64>,
     pub face_indices: PyReadonlyArray1<'py, i64>,
 }
 
+/// Applies ejecta thickness and ray modulation to a regional surface mesh.
+///
+/// Given radial distance and bearing values for each node and face in a selected mesh region,
+/// this function calculates ejecta thickness using a radial profile and optionally modulates
+/// it with ray patterns. Elevations are updated in-place for affected surface regions.
+///
+/// # Arguments
+///
+/// * `morphology` - Parameters controlling ejecta geometry and ray usage.
+/// * `region_view` - Mesh indices of affected nodes and faces.
+/// * `node_crater_distance` - Radial distances for nodes from crater center.
+/// * `face_crater_distance` - Radial distances for faces from crater center.
+/// * `node_crater_bearing` - Angular bearings for nodes from crater center.
+/// * `face_crater_bearing` - Angular bearings for faces from crater center.
+/// * `ejecta_truncation` - Maximum extent of ejecta distribution.
+/// * `node_elevation` - Elevation values of mesh nodes (modified in-place).
+/// * `face_elevation` - Elevation values of mesh faces (modified in-place).
+/// * `ejecta_thickness` - Accumulated ejecta thickness per face (modified in-place).
+/// * `ray_intensity` - Ray modulation values per face (modified in-place if `dorays` is true).
+///
+/// # Returns
+///
+/// * `Ok(())` on success.
 #[pyfunction]
 pub fn form_ejecta<'py>(
     morphology: SimpleMoonMorphology,
