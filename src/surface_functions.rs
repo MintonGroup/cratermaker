@@ -1,5 +1,5 @@
 
-use std::{f64::consts::PI, iter::zip};
+use std::f64::consts::PI;
 
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
@@ -11,6 +11,22 @@ fn positive_mod(x: f64, m: f64) -> f64 {
 }
 
 
+/// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
+///
+/// The bearing is calculated on a spherical surface using great-circle paths and returned in radians,
+/// normalized to the range [0, 2π).
+///
+/// # Arguments
+///
+/// * `py` - Python GIL token.
+/// * `lon1` - Longitude of the reference point, in radians.
+/// * `lat1` - Latitude of the reference point, in radians.
+/// * `lon2` - Longitudes of destination points, in radians.
+/// * `lat2` - Latitudes of destination points, in radians.
+///
+/// # Returns
+///
+/// * A NumPy array of initial bearing angles (radians), one for each (lon2, lat2) pair.
 #[pyfunction]
 pub fn calculate_initial_bearing<'py>(
     py: Python<'py>,
