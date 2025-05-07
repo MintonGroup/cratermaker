@@ -1,10 +1,12 @@
 .. currentmodule:: cratermaker
 
-.. _ug-simulation:
+
 .. image:: ../_static/full_simulation.png
     :alt: Simulation
     :align: center
     :width: 300px
+
+.. _ug-simulation:
 
 ##########
 Simulation

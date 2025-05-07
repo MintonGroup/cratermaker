@@ -98,7 +98,6 @@ Components of Cratermaker
 .. toctree::
    :hidden:
 
-   crater
    defaults
    morphology
    production
@@ -106,6 +105,7 @@ Components of Cratermaker
    scaling
    surface
    target
+   crater
 
 
 
