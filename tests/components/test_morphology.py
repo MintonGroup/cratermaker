@@ -1,5 +1,6 @@
 import unittest
 import tempfile
+import numpy as np
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.target import Target
 from cratermaker.components.surface import Surface
@@ -58,6 +59,19 @@ class TestMorphology(unittest.TestCase):
             self.assertIsInstance(morphology.floor_diameter, float)
             self.assertIsInstance(morphology.rim_height, float)
             self.assertIsInstance(morphology.ejrim, float)
+
+    def test_finite_profile_values(self):
+        for model_name in morphology_models:
+            morphology = Morphology.maker(model_name)
+            crater_radius_values = [1.0, 1e3, 15e3, 50e3, 500e3, 3000e3]
+            rvals = np.linspace(0, 10, 1000)
+            for final_radius in crater_radius_values:
+                morphology.crater = Crater.maker(final_radius=final_radius)
+                crater_profile = morphology.crater_profile(rvals * final_radius)
+                self.assertTrue(np.all(np.isfinite(crater_profile)), f"Crater profile for {model_name} contains NaN or Inf values.")
+                ejecta_profile = morphology.ejecta_profile(rvals * final_radius)
+                self.assertTrue(np.all(np.isfinite(ejecta_profile)), f"Ejecta profile for {model_name} contains NaN or Inf values.")
+
 
     def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected

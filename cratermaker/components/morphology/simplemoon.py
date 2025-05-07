@@ -401,6 +401,9 @@ class SimpleMoon(Morphology):
 
     @crater.setter
     def crater(self, value):
+        if value is None:
+            self._crater = None
+            return
         Morphology.crater.fset(self, value)
         self._set_morphology_config()
 
