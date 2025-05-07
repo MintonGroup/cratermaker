@@ -43,13 +43,23 @@ class TestMorphology(unittest.TestCase):
                 morphology = Morphology.maker(model_name)
                 morphology.form_crater(surface, crater=self.dummy_crater)
 
-    def testmake_morphology(self):
+    def test_make_morphology(self):
         # Test the make_morphology function
         for model_name in morphology_models:
             morphology = Morphology.maker(moprhology=model_name)
             self.assertIsInstance(morphology, Morphology)
 
-    def test_crater_depth(self):
+    def test_make_with_crater(self):
+        for model_name in morphology_models:
+            morphology = Morphology.maker(model_name, crater=self.dummy_crater)
+            self.assertIsInstance(morphology, Morphology)
+            self.assertEqual(morphology.crater, self.dummy_crater)
+            self.assertIsInstance(morphology.floor_depth, float)
+            self.assertIsInstance(morphology.floor_diameter, float)
+            self.assertIsInstance(morphology.rim_height, float)
+            self.assertIsInstance(morphology.ejrim, float)
+
+    def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected
 
         final_diameter_list = [100e3, 200e3, 500e3, 1000e3]
