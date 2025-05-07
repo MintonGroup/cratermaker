@@ -1,8 +1,15 @@
+
 use std::{f64::consts::PI, iter::zip};
 
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use rayon::prelude::*;
+
+#[inline]
+fn positive_mod(x: f64, m: f64) -> f64 {
+    ((x % m) + m) % m
+}
+
 
 #[pyfunction]
 pub fn calculate_initial_bearing<'py>(
@@ -12,14 +19,15 @@ pub fn calculate_initial_bearing<'py>(
     lon2: PyReadonlyArray1<'py, f64>,
     lat2: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let lon2 = lon2.as_array();
-    let lat2 = lat2.as_array();
+    let lon2 = lon2.as_array().to_vec();
+    let lat2 = lat2.as_array().to_vec();
 
-    let res = zip(lon2, lat2)
-        .par_bridge()
+    let res = lon2
+        .par_iter()
+        .zip(&lat2)
         .map(|(&lon2, &lat2)| {
             // Calculate differences in coordinates
-            let dlon = (lon2 - lon1 + PI) % (2.0 * PI) - PI;
+            let dlon = positive_mod(lon2 - lon1 + PI, 2.0 * PI) - PI;
 
             // Haversine formula calculations
             let x = dlon.sin() * lat2.cos();
