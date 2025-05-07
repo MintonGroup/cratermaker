@@ -45,7 +45,6 @@ class SimpleMoon(Morphology):
                  rng_state: dict | None = None,
                  **kwargs: Any 
                  ):
-        super().__init__(crater=crater, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_ejecta_truncation" , None)
         object.__setattr__(self, "_rim_height" , None)
         object.__setattr__(self, "_rim_width" , None)
@@ -54,9 +53,9 @@ class SimpleMoon(Morphology):
         object.__setattr__(self, "_floor_depth" , None)
         object.__setattr__(self, "_ejrim" , None)
         object.__setattr__(self, "_node" , None)
-
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
+        super().__init__(crater=crater, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def __repr__(self) -> str:
         base = super().__repr__()
