@@ -32,7 +32,7 @@ const EJPROFILE: i32 = 3;
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn profile_func(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
+pub fn profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
     if r_actual >= crater_radius {
         let r = r_actual / crater_radius;
         ejrim * r.powi(-EJPROFILE)
@@ -118,7 +118,7 @@ pub fn distribution_internal<'py>(
             .zip(radial_distance)
             .map(|(&intensity, &radial_distance)| {
                 if radial_distance >= crater_radius {
-                    intensity * profile_func(radial_distance, crater_radius, ejrim)
+                    intensity * profile_function(radial_distance, crater_radius, ejrim)
                 } else {
                     0.0
                 }
@@ -128,7 +128,7 @@ pub fn distribution_internal<'py>(
         let crater_radius = crater_diameter / 2.0;
         Ok(radial_distance
             .iter()
-            .map(|&r| profile_func(r, crater_radius, ejrim))
+            .map(|&r| profile_function(r, crater_radius, ejrim))
             .collect())
     }
 }
@@ -159,7 +159,7 @@ pub fn profile<'py>(
         radial_distance
             .as_array()
             .iter()
-            .map(|&r| profile_func(r, crater_diameter / 2.0, ejrim))
+            .map(|&r| profile_function(r, crater_diameter / 2.0, ejrim))
             .collect(),
     ))
 }
