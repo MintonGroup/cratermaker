@@ -1,4 +1,4 @@
-.. _gal-morphology:
+.. _gal-montecarlo:
 
 Monte Carlo Utility Examples
 ============================
