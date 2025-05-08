@@ -62,18 +62,18 @@ class TestSurface(unittest.TestCase):
 
             # Test bad values
             with self.assertRaises(TypeError):
-                surface = Surface.maker(
+                Surface.maker(
                     simdir=simdir, gridlevel=self.gridlevel, target=1, reset=False
                 )
             with self.assertRaises(ValueError):
-                surface = Surface.maker(
+                Surface.maker(
                     simdir=simdir,
                     gridlevel=self.gridlevel,
                     target="Arrakis",
                     reset=False,
                 )
             with self.assertRaises(ValueError):
-                surface = Surface.maker(
+                Surface.maker(
                     simdir=simdir,
                     gridlevel=self.gridlevel,
                     target=Target(name="Salusa Secundus"),
@@ -87,13 +87,13 @@ class TestSurface(unittest.TestCase):
                 simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
             )
             # Test with valid elevation data
-            new_elev = self.rng.rand(
+            new_elev = np.random.rand(
                 surface.uxds.uxgrid.n_node
             )  # Generate random elevation data
             surface.set_elevation(new_elev)
 
             # Test with invalid elevation data (wrong size)
-            new_elev = self.rng.rand(surface.uxds.uxgrid.n_node + 1)  # Incorrect size
+            new_elev = np.random.rand(surface.uxds.uxgrid.n_node + 1)  # Incorrect size
 
             # Expect ValueError for incorrect size
             with self.assertRaises(ValueError):

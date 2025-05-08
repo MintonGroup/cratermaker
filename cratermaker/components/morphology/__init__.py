@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from math import pi
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cratermaker._simplemoon import ejecta_functions
-from cratermaker.components.surface import Surface
 from cratermaker.core.crater import Crater
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import format_large_units
+
+if TYPE_CHECKING:
+    from cratermaker.components.surface import Surface
 
 
 class Morphology(ComponentBase):
@@ -95,6 +97,8 @@ class Morphology(ComponentBase):
         **kwargs : dict
             Additional keyword arguments to be passed to internal functions (not used here).
         """
+        from cratermaker.components.surface import Surface
+
         self.crater = Crater.maker(crater, **kwargs)
 
         if not isinstance(surface, Surface):
@@ -156,6 +160,8 @@ class Morphology(ComponentBase):
         **kwargs : dict
             Additional keyword arguments to be passed to internal functions (not used here).
         """
+        from cratermaker.components.surface import Surface
+
         if crater:
             self.crater = crater
 

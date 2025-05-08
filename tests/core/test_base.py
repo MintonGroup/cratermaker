@@ -29,7 +29,7 @@ class TestBase(unittest.TestCase):
             _rng_init(rng_seed="baz")
 
         # Accept random kwargs
-        _rng_init(rng=self.rng.default_rng(), foo="bar")
+        _rng_init(rng=np.random.default_rng(), foo="bar")
 
     def test_rng_consistency(self):
         # Basic initialization
