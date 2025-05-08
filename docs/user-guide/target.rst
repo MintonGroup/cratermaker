@@ -1,6 +1,6 @@
 .. currentmodule:: cratermaker
 
-.. image:: ../_static/target_icon.png
+.. image:: ../_static/target_icon.svg
     :alt: Target
     :align: center
     :width: 300px

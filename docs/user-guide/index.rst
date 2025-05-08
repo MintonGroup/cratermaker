@@ -53,7 +53,7 @@ Components of Cratermaker
 
     .. grid-item-card::  Production
         :columns: 4
-        :img-top: ../_static/sampled_csfd.png
+        :img-top: ../_static/production_icon.svg
         :link: production
         :link-type: doc
 
@@ -79,17 +79,16 @@ Components of Cratermaker
 
     .. grid-item-card::  Scaling
         :columns: 3
-        :img-top: ../_static/index_api_reference.svg
+        :img-top: ../_static/scaling_icon.svg
         :link: scaling
         :link-type: doc
 
         Contains the model for relating projectile size and crater size. 
 
 
-
     .. grid-item-card::  Crater
         :columns: 3
-        :img-top: ../_static/index_api_reference.svg
+        :img-top: ../_static/crater_icon.svg
         :link: crater
         :link-type: doc
 

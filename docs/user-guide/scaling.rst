@@ -1,5 +1,11 @@
 .. currentmodule:: cratermaker
 
+.. image:: ../_static/scaling_icon.svg
+    :alt: Production
+    :align: center
+    :width: 600px
+
+
 .. _ug-scaling: 
 
 Scaling

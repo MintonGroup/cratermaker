@@ -1,5 +1,10 @@
 .. currentmodule:: cratermaker
 
+.. image:: ../_static/crater_icon.svg
+    :alt: Production
+    :align: center
+    :width: 300px
+
 .. _ug-crater:
 
 Crater
