@@ -1,10 +1,18 @@
-
+import tempfile
 import unittest
+from pathlib import Path
+
 import numpy as np
 from numpy.random import Generator
-import tempfile
-from pathlib import Path
-from cratermaker.core.base import CratermakerBase, CommonArgs, _rng_init, _simdir_init, _to_config
+
+from cratermaker.core.base import (
+    CommonArgs,
+    CratermakerBase,
+    _rng_init,
+    _simdir_init,
+    _to_config,
+)
+
 
 class TestBase(unittest.TestCase):
     def test_rng_argument_validation(self):
@@ -21,7 +29,7 @@ class TestBase(unittest.TestCase):
             _rng_init(rng_seed="baz")
 
         # Accept random kwargs
-        _rng_init(rng=np.random.default_rng(), foo="bar")
+        _rng_init(rng=self.rng.default_rng(), foo="bar")
 
     def test_rng_consistency(self):
         # Basic initialization
@@ -78,7 +86,7 @@ class TestBase(unittest.TestCase):
             self.assertTrue(simdir_path.is_dir())
             self.assertEqual(simdir_path, target_path)
 
-            # Test with a relative path 
+            # Test with a relative path
             relative_path = "relative_simdir"
             newsimdir = _simdir_init(simdir=relative_path)
             self.assertTrue(newsimdir.is_dir())
@@ -89,15 +97,23 @@ class TestBase(unittest.TestCase):
             with self.assertRaises(TypeError):
                 _simdir_init(123)
 
-
     def test_to_config(self, **kwargs):
         class Dummy:
             def __init__(self):
                 self._user_defined = [
-                    'int_attr', 'float_attr', 'bool_attr', 'str_attr',
-                    'np_int_attr', 'np_float_attr', 'np_array_attr',
-                    'path_attr', 'dict_attr', 'list_attr', 'tuple_attr',
-                    'none_attr', 'complex_attr'
+                    "int_attr",
+                    "float_attr",
+                    "bool_attr",
+                    "str_attr",
+                    "np_int_attr",
+                    "np_float_attr",
+                    "np_array_attr",
+                    "path_attr",
+                    "dict_attr",
+                    "list_attr",
+                    "tuple_attr",
+                    "none_attr",
+                    "complex_attr",
                 ]
                 self.int_attr = 1
                 self.float_attr = 2.5
@@ -117,33 +133,40 @@ class TestBase(unittest.TestCase):
         config = _to_config(dummy)
 
         expected_keys = {
-            'int_attr', 'float_attr', 'bool_attr', 'str_attr',
-            'np_int_attr', 'np_float_attr', 'np_array_attr',
-            'path_attr', 'dict_attr', 'list_attr', 'tuple_attr',
-            'complex_attr'
+            "int_attr",
+            "float_attr",
+            "bool_attr",
+            "str_attr",
+            "np_int_attr",
+            "np_float_attr",
+            "np_array_attr",
+            "path_attr",
+            "dict_attr",
+            "list_attr",
+            "tuple_attr",
+            "complex_attr",
         }
 
         self.assertEqual(set(config.keys()), expected_keys)
-        self.assertEqual(config['int_attr'], 1)
-        self.assertEqual(config['float_attr'], 2.5)
-        self.assertEqual(config['bool_attr'], True)
-        self.assertEqual(config['str_attr'], "hello")
-        self.assertEqual(config['np_int_attr'], 3)
-        self.assertEqual(config['np_float_attr'], 4.5)
-        self.assertEqual(config['np_array_attr'], [1, 2, 3])
-        self.assertEqual(config['path_attr'], str(Path("/tmp/test")))
-        self.assertEqual(config['dict_attr']['a'], 10)
-        self.assertAlmostEqual(config['dict_attr']['b'][0], 1.1, places=6)
-        self.assertEqual(config['dict_attr']['b'][1], "x")
-        self.assertEqual(config['list_attr'][0], 1)
-        self.assertAlmostEqual(config['list_attr'][1], 2.2, places=6)
-        self.assertEqual(config['tuple_attr'], (3, 4))
-        self.assertEqual(config['complex_attr'], str(complex(1, 2)))
-        self.assertNotIn('none_attr', config)
+        self.assertEqual(config["int_attr"], 1)
+        self.assertEqual(config["float_attr"], 2.5)
+        self.assertEqual(config["bool_attr"], True)
+        self.assertEqual(config["str_attr"], "hello")
+        self.assertEqual(config["np_int_attr"], 3)
+        self.assertEqual(config["np_float_attr"], 4.5)
+        self.assertEqual(config["np_array_attr"], [1, 2, 3])
+        self.assertEqual(config["path_attr"], str(Path("/tmp/test")))
+        self.assertEqual(config["dict_attr"]["a"], 10)
+        self.assertAlmostEqual(config["dict_attr"]["b"][0], 1.1, places=6)
+        self.assertEqual(config["dict_attr"]["b"][1], "x")
+        self.assertEqual(config["list_attr"][0], 1)
+        self.assertAlmostEqual(config["list_attr"][1], 2.2, places=6)
+        self.assertEqual(config["tuple_attr"], (3, 4))
+        self.assertEqual(config["complex_attr"], str(complex(1, 2)))
+        self.assertNotIn("none_attr", config)
 
     def test_cratermakerbase_and_commonargs(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            
             # Set up test values
             simdir = Path(simdir).resolve()
             rng, rng_state = _rng_init(rng_seed=123)
@@ -156,7 +179,9 @@ class TestBase(unittest.TestCase):
             self.assertEqual(args.rng_state, rng_state)
 
             # Test CratermakerBase initialization
-            base = CratermakerBase(simdir=simdir, rng=rng, rng_seed=123, rng_state=rng_state)
+            base = CratermakerBase(
+                simdir=simdir, rng=rng, rng_seed=123, rng_state=rng_state
+            )
 
             # Attributes
             self.assertEqual(base.simdir, simdir)
@@ -172,5 +197,6 @@ class TestBase(unittest.TestCase):
             val2 = new_rng.uniform()
             self.assertAlmostEqual(val1, val2, places=7)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

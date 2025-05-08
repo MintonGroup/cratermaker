@@ -1,15 +1,19 @@
 from __future__ import annotations
+
 import math
-from numpy.random import Generator
-from pathlib import Path
 from dataclasses import dataclass
-from ..components.target import Target
-from ..utils.general_utils import validate_and_normalize_location, format_large_units
-from ..utils import montecarlo_utils as mc
-from ..components.scaling import Scaling
-from ..components.projectile import Projectile
+from pathlib import Path
 from typing import Any
+
+from numpy.random import Generator
+
+from ..components.projectile import Projectile
+from ..components.scaling import Scaling
+from ..components.target import Target
+from ..utils import montecarlo_utils as mc
+from ..utils.general_utils import format_large_units, validate_and_normalize_location
 from .base import CratermakerBase
+
 
 @dataclass(frozen=True, slots=True)
 class Crater:
@@ -42,63 +46,84 @@ class Crater:
             f"morphology_type: {self.morphology_type}\n"
             f"age: {agetext}"
         )
-    
+
     @property
     def final_radius(self) -> float | None:
         """Final radius of the crater in meters."""
         return self.final_diameter / 2.0 if self.final_diameter is not None else None
+
     @property
     def transient_radius(self) -> float | None:
         """Transient radius of the crater in meters."""
-        return self.transient_diameter / 2.0 if self.transient_diameter is not None else None
+        return (
+            self.transient_diameter / 2.0
+            if self.transient_diameter is not None
+            else None
+        )
+
     @property
     def projectile_radius(self) -> float | None:
         """Projectile radius in meters."""
-        return self.projectile_diameter / 2.0 if self.projectile_diameter is not None else None
+        return (
+            self.projectile_diameter / 2.0
+            if self.projectile_diameter is not None
+            else None
+        )
+
     @property
     def projectile_mass(self) -> float | None:
         """Projectile mass in kilograms."""
         if self.projectile_density is not None and self.projectile_radius is not None:
-            return (4.0 / 3.0) * math.pi * self.projectile_radius**3 * self.projectile_density
+            return (
+                (4.0 / 3.0)
+                * math.pi
+                * self.projectile_radius**3
+                * self.projectile_density
+            )
         return None
+
     @property
     def projectile_vertical_velocity(self) -> float | None:
         """Projectile vertical velocity in m/s."""
         if self.projectile_velocity is not None and self.projectile_angle is not None:
-            return self.projectile_velocity * math.sin(math.radians(self.projectile_angle))
+            return self.projectile_velocity * math.sin(
+                math.radians(self.projectile_angle)
+            )
         return None
 
     @classmethod
-    def maker(cls : type[Crater],
-            crater: Crater | None = None,
-            final_diameter: float | None = None,
-            final_radius: float | None = None,
-            transient_diameter: float | None = None,
-            transient_radius: float | None = None,
-            projectile_diameter: float | None = None,
-            projectile_radius: float | None = None,
-            projectile_mass: float | None = None,
-            projectile_density=None,
-            projectile_velocity: float | None = None,
-            projectile_mean_velocity: float | None = None,
-            projectile_vertical_velocity=None,
-            projectile_angle: float | None = None,
-            projectile_direction: float | None = None,
-            location: tuple[float, float] | None = None,
-            age: float | None = None,
-            scaling: str | Scaling | None = None,
-            simdir: str | Path | None = None,
-            rng: Generator = None,
-            rng_seed: str | int | None = None,
-            rng_state: dict | None = None,
-            **kwargs: Any): 
+    def maker(
+        cls: type[Crater],
+        crater: Crater | None = None,
+        final_diameter: float | None = None,
+        final_radius: float | None = None,
+        transient_diameter: float | None = None,
+        transient_radius: float | None = None,
+        projectile_diameter: float | None = None,
+        projectile_radius: float | None = None,
+        projectile_mass: float | None = None,
+        projectile_density=None,
+        projectile_velocity: float | None = None,
+        projectile_mean_velocity: float | None = None,
+        projectile_vertical_velocity=None,
+        projectile_angle: float | None = None,
+        projectile_direction: float | None = None,
+        location: tuple[float, float] | None = None,
+        age: float | None = None,
+        scaling: str | Scaling | None = None,
+        simdir: str | Path | None = None,
+        rng: Generator = None,
+        rng_seed: str | int | None = None,
+        rng_state: dict | None = None,
+        **kwargs: Any,
+    ):
         """
         Create a Crater object with the given parameters.
 
         Parameters
         ----------
         crater : Crater, optional
-            A Crater object to copy parameters from. 
+            A Crater object to copy parameters from.
         final_diameter : float, optional
             The final diameter of the crater in meters.
         final_radius : float, optional
@@ -149,7 +174,7 @@ class Crater:
 
         Notes
         -----
-        - Exactly one of the following must be provided: `final_diameter`, `final_radius`, `transient_diameter`, `transient_radius`, `projectile_diameter`, `projectile_radius`, or `projectile_mass`. 
+        - Exactly one of the following must be provided: `final_diameter`, `final_radius`, `transient_diameter`, `transient_radius`, `projectile_diameter`, `projectile_radius`, or `projectile_mass`.
         - Velocity may be specified in one of these ways:
         - `projectile_mean_velocity` alone (samples a velocity)
         - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`). the third is inferred.
@@ -165,7 +190,7 @@ class Crater:
             "transient_radius": transient_radius,
             "projectile_diameter": projectile_diameter,
             "projectile_radius": projectile_radius,
-            "projectile_mass": projectile_mass
+            "projectile_mass": projectile_mass,
         }
 
         velocity_inputs = {
@@ -179,26 +204,33 @@ class Crater:
             "transient_diameter": transient_diameter,
             "projectile_diameter": projectile_diameter,
             "projectile_density": projectile_density,
-            "projectile_velocity": projectile_velocity, 
-            "projectile_angle":  projectile_angle,
+            "projectile_velocity": projectile_velocity,
+            "projectile_angle": projectile_angle,
             "projectile_direction": projectile_direction,
             "morphology_type": "Not Set",
-            "location": location, 
-            "age": age 
+            "location": location,
+            "age": age,
         }
 
         n_velocity_inputs = sum(x is not None for x in velocity_inputs.values())
         if n_velocity_inputs > 2:
-            raise ValueError(f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set.")
+            raise ValueError(
+                f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set."
+            )
 
-        if projectile_mean_velocity is not None: 
-            if projectile_velocity is not None or projectile_vertical_velocity is not None:
-                raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
-            
+        if projectile_mean_velocity is not None:
+            if (
+                projectile_velocity is not None
+                or projectile_vertical_velocity is not None
+            ):
+                raise ValueError(
+                    "projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity"
+                )
+
         if scaling is not None and isinstance(scaling, Scaling):
             projectile = scaling.projectile
 
-        n_size_inputs = sum(v is not None for v in size_inputs.values()) 
+        n_size_inputs = sum(v is not None for v in size_inputs.values())
 
         # Process input crater object if provided
         if crater is not None:
@@ -208,22 +240,24 @@ class Crater:
             for field in cls.__dataclass_fields__:
                 if field in locals() and locals()[field] is None:
                     old_parameters[field] = getattr(crater, field)
-            if n_size_inputs == 0: # The user has not passed any size parameters, so we will use the final diameter from the crater object
+            if (
+                n_size_inputs == 0
+            ):  # The user has not passed any size parameters, so we will use the final diameter from the crater object
                 for field in size_inputs:
                     if field != "final_diameter":
                         old_parameters.pop(field, None)
-                n_size_inputs = 1 # Make sure we don't trigger the error below
-            else: # The user is passing a size parameter, so we cannot use any of the values from the crater object
+                n_size_inputs = 1  # Make sure we don't trigger the error below
+            else:  # The user is passing a size parameter, so we cannot use any of the values from the crater object
                 for field in size_inputs:
                     old_parameters.pop(field, None)
             if projectile_mean_velocity is None:
                 # Be sure to keep only two velocitity components, with a preference for angle over vertical velocity
-                if n_velocity_inputs == 0: 
+                if n_velocity_inputs == 0:
                     old_parameters.pop("projectile_vertical_velocity", None)
                 elif n_velocity_inputs == 1:
-                    for k,v in velocity_inputs.items():
+                    for k, v in velocity_inputs.items():
                         if v is not None:
-                            old_parameters.pop(k, None) 
+                            old_parameters.pop(k, None)
                             if k == "projectile_velocity" or k == "projectile_angle":
                                 old_parameters.pop("projectile_vertical_velocity", None)
                             elif k == "projectile_vertical_velocity":
@@ -234,26 +268,32 @@ class Crater:
                 # Make sure we don't override the projectile_velocity and projectile_angle
                 n_velocity_inputs = 2
 
-            # Now set the local arguments to be what's left from the old_parameters 
+            # Now set the local arguments to be what's left from the old_parameters
             for field in old_parameters:
                 if field in args and args[field] is None:
-                    args[field] = old_parameters[field] 
-                      
+                    args[field] = old_parameters[field]
+
         if n_size_inputs != 1:
-            raise ValueError(f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set.")
-    
+            raise ValueError(
+                f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set."
+            )
+
         # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
-        argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
+        argproc = CratermakerBase(
+            simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state
+        )
         rng = argproc.rng
         if scaling is not None and isinstance(scaling, Scaling):
             target = scaling.target
             projectile = scaling.projectile
-        else: # Setting these to None will  cause them to instantiate to their default models.
+        else:  # Setting these to None will  cause them to instantiate to their default models.
             target = None
             projectile = None
         target = kwargs.pop("target", target)
         target = Target.maker(target, **vars(argproc.common_args), **kwargs)
-        projectile = Projectile.maker(projectile, target=target, **vars(argproc.common_args), **kwargs)
+        projectile = Projectile.maker(
+            projectile, target=target, **vars(argproc.common_args), **kwargs
+        )
 
         # --- Normalize location and age ---
         if args["location"] is None:
@@ -274,9 +314,9 @@ class Crater:
             if pmv <= 0.0:
                 raise ValueError("projectile_mean_velocity must be positive.")
             if pmv > target.escape_velocity:
-                vencounter_mean = math.sqrt(pmv ** 2 - target.escape_velocity ** 2)
+                vencounter_mean = math.sqrt(pmv**2 - target.escape_velocity**2)
                 vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)[0]
-                pv = float(math.sqrt(vencounter ** 2 + target.escape_velocity ** 2))
+                pv = float(math.sqrt(vencounter**2 + target.escape_velocity**2))
             else:
                 while True:
                     pv = float(mc.get_random_velocity(pmv, rng=rng)[0])
@@ -294,7 +334,9 @@ class Crater:
             if pang is not None:
                 pang = float(pang)
                 if not (0.0 <= pang <= 90.0):
-                    raise ValueError("projectile_angle must be between 0 and 90 degrees")
+                    raise ValueError(
+                        "projectile_angle must be between 0 and 90 degrees"
+                    )
             if pv is not None and pang is not None:
                 pvv = pv * math.sin(math.radians(pang))
             elif pvv is not None and pang is not None:
@@ -317,10 +359,16 @@ class Crater:
             projectile.velocity = pv
             projectile.angle = pang
             projectile.direction = pdir
-            projectile.density = prho  
+            projectile.density = prho
             projectile.sample = False
 
-        scaling = Scaling.maker(scaling, target=target, projectile=projectile, **vars(argproc.common_args), **kwargs)
+        scaling = Scaling.maker(
+            scaling,
+            target=target,
+            projectile=projectile,
+            **vars(argproc.common_args),
+            **kwargs,
+        )
         projectile = scaling.projectile
         projectile.new_projectile()
         scaling.recompute()
@@ -383,7 +431,9 @@ class Crater:
             "projectile_angle": float(pang) if pang is not None else None,
             "projectile_direction": float(pdir) if pdir is not None else None,
             "morphology_type": str(mt) if mt is not None else None,
-            "location": (float(location[0]), float(location[1])) if location is not None else None,
+            "location": (float(location[0]), float(location[1]))
+            if location is not None
+            else None,
             "age": float(age) if age is not None else None,
         }
         return cls(**args)

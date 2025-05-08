@@ -1,12 +1,16 @@
 from __future__ import annotations
-from abc import  abstractmethod
+
+from abc import abstractmethod
 from typing import Any
+
 import numpy as np
 from numpy.random import Generator
-from cratermaker.utils.custom_types import FloatLike
-from cratermaker.components.target import Target
+
 from cratermaker.components.projectile import Projectile
+from cratermaker.components.target import Target
+from cratermaker.constants import FloatLike
 from cratermaker.utils.component_utils import ComponentBase, import_components
+
 
 class Scaling(ComponentBase):
     _registry: dict[str, Scaling] = {}
@@ -29,13 +33,16 @@ class Scaling(ComponentBase):
     **kwargs : Any
         Additional keyword arguments.
     """
-    def __init__(self, 
-                 target: Target | str | None = None,
-                 projectile: Projectile | str | None = None,
-                 rng : Generator | None = None,
-                 rng_seed: int | None = None,
-                 rng_state: dict | None = None,
-                 **kwargs: Any):
+
+    def __init__(
+        self,
+        target: Target | str | None = None,
+        projectile: Projectile | str | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        rng_state: dict | None = None,
+        **kwargs: Any,
+    ):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_projectile", None)
@@ -49,21 +56,27 @@ class Scaling(ComponentBase):
     @abstractmethod
     def transient_to_projectile(self, **kwargs: Any) -> np.float64: ...
     @abstractmethod
-    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
+    def transient_to_final(
+        self, transient_diameter: FloatLike
+    ) -> tuple[np.float64, str]: ...
     @abstractmethod
-    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
+    def final_to_transient(
+        self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs
+    ) -> np.float64: ...
     @abstractmethod
     def recompute(self, **kwargs: Any) -> None: ...
 
     @classmethod
-    def maker(cls,
-             scaling: str | Scaling | None = None, 
-             target: Target | str | None = None,
-             projectile: Projectile | str | None = None,
-             rng : Generator | None = None,
-             rng_seed: int | None = None,
-             rng_state: dict | None = None,
-             **kwargs: Any) -> Scaling:
+    def maker(
+        cls,
+        scaling: str | Scaling | None = None,
+        target: Target | str | None = None,
+        projectile: Projectile | str | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        rng_state: dict | None = None,
+        **kwargs: Any,
+    ) -> Scaling:
         """
         Initialize a scaling model based on the provided name or class.
 
@@ -99,8 +112,16 @@ class Scaling(ComponentBase):
 
         if scaling is None:
             scaling = "montecarlo"
-        scaling = super().maker(component=scaling, target=target, projectile=projectile, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        
+        scaling = super().maker(
+            component=scaling,
+            target=target,
+            projectile=projectile,
+            rng=rng,
+            rng_seed=rng_seed,
+            rng_state=rng_state,
+            **kwargs,
+        )
+
         return scaling
 
     def __repr__(self) -> str:
@@ -115,44 +136,44 @@ class Scaling(ComponentBase):
     def target(self):
         """
         The target body for the impact.
-        
+
         Returns
         -------
         Target
-        """ 
+        """
         return self._target
-    
+
     @target.setter
     def target(self, value):
         self._target = Target.maker(value, **vars(self.common_args))
-        return 
+        return
 
     @property
     def projectile(self):
         """
         The projectile model for the impact.
-        
+
         Returns
         -------
         Projectile
-        """ 
+        """
         return self._projectile
-    
+
     @projectile.setter
     def projectile(self, value):
         self._projectile = Projectile.maker(value, **vars(self.common_args))
         return
-    
+
     @property
     def model(self):
         """
         The name of the scaling model.
-        
+
         Returns
         -------
         str
-        """ 
+        """
         return self._component_name
 
-import_components(__name__, __path__, ignore_private=True)
 
+import_components(__name__, __path__, ignore_private=True)
