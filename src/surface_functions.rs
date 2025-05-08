@@ -1,15 +1,14 @@
-
 use std::f64::consts::PI;
 
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
-use rayon::prelude::*;
+use ndarray::Zip;
+use rayon::iter::{IntoParallelIterator,ParallelIterator};
 
 #[inline]
 fn positive_mod(x: f64, m: f64) -> f64 {
     ((x % m) + m) % m
 }
-
 
 /// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
 ///
@@ -35,13 +34,15 @@ pub fn calculate_initial_bearing<'py>(
     lon2: PyReadonlyArray1<'py, f64>,
     lat2: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let lon2 = lon2.as_array().to_vec();
-    let lat2 = lat2.as_array().to_vec();
+    let lon2 = lon2.as_array();
+    let lat2 = lat2.as_array();
+    let mut result = ndarray::Array1::<f64>::zeros(lon2.len());
 
-    let res = lon2
-        .par_iter()
-        .zip(&lat2)
-        .map(|(&lon2, &lat2)| {
+    Zip::from(&mut result)
+        .and(lon2)
+        .and(lat2)
+        .into_par_iter()
+        .for_each(|(out, &lon2, &lat2)| {
             // Calculate differences in coordinates
             let dlon = positive_mod(lon2 - lon1 + PI, 2.0 * PI) - PI;
 
@@ -51,9 +52,8 @@ pub fn calculate_initial_bearing<'py>(
             let initial_bearing = f64::atan2(x, y);
 
             // Normalize bearing to 0 to 2*pi
-            (initial_bearing + 2.0 * PI) % (2.0 * PI)
-        })
-        .collect();
+            *out = (initial_bearing + 2.0 * PI) % (2.0 * PI);
+        });
 
-    Ok(PyArray1::from_vec(py, res))
+    Ok(PyArray1::from_owned_array(py, result))
 }
