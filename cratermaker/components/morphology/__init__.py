@@ -6,7 +6,7 @@ from cratermaker.core.crater import Crater
 from cratermaker.components.surface import Surface
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import format_large_units
-from cratermaker._simplemoon import morphology_functions
+from cratermaker._simplemoon import ejecta_functions
 
 class Morphology(ComponentBase):
     def __init__(self, crater : Crater | None = None, **kwargs: Any) -> None:
@@ -167,7 +167,7 @@ class Morphology(ComponentBase):
         
         node_crater_distance, face_crater_distance = surface.get_distance(region_view, self.crater.location)
         node_crater_bearing, face_crater_bearing  = surface.get_initial_bearing(region_view, self.crater.location)
-        morphology_functions.form_ejecta(self, 
+        ejecta_functions.form_ejecta(self, 
                                          region_view, 
                                          node_crater_distance, 
                                          face_crater_distance, 

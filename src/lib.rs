@@ -2,7 +2,6 @@
 
 pub mod crater_functions;
 pub mod ejecta_functions;
-pub mod morphology_functions;
 pub mod surface_functions;
 
 #[cfg(not(target_env = "msvc"))]
@@ -34,7 +33,7 @@ mod simplemoon {
     #[pymodule]
     mod ejecta_functions {
         #[pymodule_export]
-        use crate::ejecta_functions::{distribution, shape, ray_intensity};
+        use crate::ejecta_functions::{distribution, shape, ray_intensity, form_ejecta};
     }
 
     #[pymodule]
@@ -43,9 +42,4 @@ mod simplemoon {
         use crate::surface_functions::calculate_initial_bearing;
     }
 
-    #[pymodule]
-    mod morphology_functions {
-        #[pymodule_export]
-        use crate::morphology_functions::form_ejecta;
-    }
 }
