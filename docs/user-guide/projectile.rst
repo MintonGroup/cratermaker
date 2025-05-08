@@ -1,5 +1,10 @@
 .. currentmodule:: cratermaker
 
+.. image:: ../_static/projectil_icon.png
+    :alt: Projectile
+    :align: center
+    :width: 300px
+
 .. _ug-projectile:
 
 Projectile

@@ -62,7 +62,7 @@ Components of Cratermaker
 
     .. grid-item-card::  Projectile
         :columns: 3
-        :img-top: ../_static/index_gallery.svg
+        :img-top: ../_static/projectile_icon.svg
         :link: projectile
         :link-type: doc
 
