@@ -198,7 +198,11 @@ class Projectile(ComponentBase):
 
         if self.sample:
             self._velocity = float(
-                mc.get_random_velocity(self.mean_velocity, rng=self.rng)[0]
+                mc.get_random_velocity(
+                    vmean=self.mean_velocity,
+                    vescape=self.target.escape_velocity,
+                    rng=self.rng,
+                )[0]
             )
         elif self.velocity is None:
             self._velocity = float(self.mean_velocity)
