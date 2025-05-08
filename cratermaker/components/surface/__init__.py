@@ -7,7 +7,7 @@ import tempfile
 import warnings
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import uxarray as uxr
@@ -17,7 +17,6 @@ from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
 from cratermaker._simplemoon import surface_functions
-from cratermaker.components.target import Target
 from cratermaker.constants import (
     _COMBINED_DATA_FILE_NAME,
     _DATA_DIR,
@@ -28,6 +27,9 @@ from cratermaker.constants import (
 )
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
+
+if TYPE_CHECKING:
+    from cratermaker.components.target import Target
 
 
 class Surface(ComponentBase):
@@ -59,6 +61,8 @@ class Surface(ComponentBase):
         simdir: str | Path | None = None,
         **kwargs,
     ):
+        from cratermaker.components.target import Target
+
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_uxds", None)
         object.__setattr__(self, "_pix_mean", None)
@@ -402,6 +406,8 @@ class Surface(ComponentBase):
 
     @target.setter
     def target(self, value):
+        from cratermaker.components.target import Target
+
         self._target = Target.maker(value)
         return
 

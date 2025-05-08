@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.random import Generator
 
-from cratermaker.components.projectile import Projectile
-from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike
 from cratermaker.utils.component_utils import ComponentBase, import_components
+
+if TYPE_CHECKING:
+    from cratermaker.components.projectile import Projectile
+    from cratermaker.components.target import Target
 
 
 class Scaling(ComponentBase):
@@ -43,6 +45,9 @@ class Scaling(ComponentBase):
         rng_state: dict | None = None,
         **kwargs: Any,
     ):
+        from cratermaker.components.projectile import Projectile
+        from cratermaker.components.target import Target
+
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_projectile", None)
@@ -145,6 +150,8 @@ class Scaling(ComponentBase):
 
     @target.setter
     def target(self, value):
+        from cratermaker.components.target import Target
+
         self._target = Target.maker(value, **vars(self.common_args))
         return
 
@@ -161,6 +168,8 @@ class Scaling(ComponentBase):
 
     @projectile.setter
     def projectile(self, value):
+        from cratermaker.components.projectile import Projectile
+
         self._projectile = Projectile.maker(value, **vars(self.common_args))
         return
 

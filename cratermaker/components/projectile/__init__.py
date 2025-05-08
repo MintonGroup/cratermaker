@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.random import Generator
 
-from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike
 from cratermaker.utils import montecarlo_utils as mc
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import (
-    _set_properties,
     format_large_units,
     parameter,
 )
+
+if TYPE_CHECKING:
+    from cratermaker.components.target import Target
 
 
 class Projectile(ComponentBase):
@@ -62,6 +63,8 @@ class Projectile(ComponentBase):
         **kwargs : Any
             Additional keyword arguments.
         """
+        from cratermaker.components.target import Target
+
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
         object.__setattr__(self, "_sample", sample)
@@ -143,6 +146,8 @@ class Projectile(ComponentBase):
         TypeError
             If the specified projectile model is not a string or a subclass of Projectile.
         """
+        from cratermaker.components.target import Target
+
         target = Target.maker(target, **kwargs)
         if projectile is None:
             target_name = target.name.capitalize()
@@ -239,6 +244,8 @@ class Projectile(ComponentBase):
 
     @target.setter
     def target(self, value):
+        from cratermaker.components.target import Target
+
         self._target = Target.maker(value)
 
     @parameter
