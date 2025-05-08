@@ -70,7 +70,7 @@ Components of Cratermaker
 
     .. grid-item-card::  Target
         :columns: 3
-        :img-top: ../_static/index_user_guide.svg
+        :img-top: ../_static/target_icon.svg
         :link: target
         :link-type: doc
 

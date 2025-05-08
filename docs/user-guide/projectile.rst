@@ -1,6 +1,6 @@
 .. currentmodule:: cratermaker
 
-.. image:: ../_static/projectil_icon.png
+.. image:: ../_static/projectile_icon.png
     :alt: Projectile
     :align: center
     :width: 300px
