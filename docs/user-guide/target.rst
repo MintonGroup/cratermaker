@@ -1,5 +1,11 @@
 .. currentmodule:: cratermaker
 
+.. image:: ../_static/target_icon.svg
+    :alt: Target
+    :align: center
+    :width: 300px
+
+
 .. _ug-target:
 
 Target

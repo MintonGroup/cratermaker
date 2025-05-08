@@ -1,9 +1,9 @@
 .. currentmodule:: cratermaker.production
 
-.. image:: ../_static/sampled_csfd.png
+.. image:: ../_static/production_icon.svg
     :alt: Production
     :align: center
-    :width: 300px
+    :width: 600px
 
 
 .. _ug-production:

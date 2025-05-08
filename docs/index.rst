@@ -18,7 +18,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
 
     .. grid-item-card::  User guide
-        :img-top: _static/index_user_guide.svg
+        :img-top: _static/crater_icon.svg
         :link: user-guide/index
         :link-type: doc
 
