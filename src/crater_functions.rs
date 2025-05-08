@@ -53,7 +53,7 @@ fn profile_function(r: f64, elevation: f64, c0: f64, c1: f64, c2: f64, c3: f64, 
 /// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
 /// * `diameter` - Total diameter of the crater (in meters).
 /// * `floor_depth` - Depth of the crater floor below mean surface level (in meters).
-/// * `floordiam` - Diameter of the crater floor (in meters).
+/// * `floor_diameter` - Diameter of the crater floor (in meters).
 /// * `rim_height` - Height of the crater rim above mean surface level (in meters).
 /// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
 ///
@@ -71,7 +71,7 @@ pub fn profile<'py>(
     reference_elevation_array: PyReadonlyArray1<'py, f64>,
     diameter: f64,
     floor_depth: f64,
-    floordiam: f64,
+    floor_diameter: f64,
     rim_height: f64,
     ejrim: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -84,7 +84,7 @@ pub fn profile<'py>(
     }
 
     // Calculate the floor radius relative to the final crater radius
-    let flrad = floordiam / diameter;
+    let flrad = floor_diameter / diameter;
     let radius = diameter / 2.0;
 
     // Use polynomial crater profile similar to that of Fassett and Thomson (2014), but the parameters are set by the crater dimensions

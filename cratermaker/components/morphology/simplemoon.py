@@ -7,7 +7,7 @@ from cratermaker.core.crater import Crater
 from cratermaker.utils.custom_types import FloatLike
 from cratermaker.components.surface import Surface
 from cratermaker.components.morphology import Morphology
-from cratermaker.utils.general_utils import parameter
+from cratermaker.utils.general_utils import parameter, format_large_units
 from cratermaker._cratermaker import crater_functions, ejecta_functions, morphology_functions
 
 @Morphology.register("simplemoon")
@@ -63,6 +63,14 @@ class SimpleMoon(Morphology):
             base += f"\nEjecta Trunction: {self.ejecta_truncation:.2f} * crater.final_radius"
         else:
             base += f"\nEjecta Truncation: Off"
+        if self.crater is not None:
+            base += f"\nRim height: {format_large_units(self.rim_height, quantity='length')}"
+            base += f"\nRim width: {format_large_units(self.rim_width, quantity='length')}"
+            base += f"\nFloor depth: {format_large_units(self.floor_depth, quantity='length')}"
+            base += f"\nFloor diameter: {format_large_units(self.floor_diameter, quantity='length')}"
+            if self.peak_height is not None:
+                base += f"\nPeak height: {format_large_units(self.peak_height, quantity='length')}"
+            base += f"\nEjecta thickness at rim: {format_large_units(self.ejrim, quantity='length')}"  
         return (
             f"{base}\n"
             f"Ejecta Rays: {self.dorays}"
@@ -78,23 +86,23 @@ class SimpleMoon(Morphology):
 
         if self.crater.morphology_type in ["simple", "transitional"]:
             # A hybrid model between Pike (1977) and Fassett & Thomson (2014)
-            self.rim_height = 0.043 * diameter_km**1.014 * 1e3  # Closer to Fassett & Thomson
-            self.rim_width = 0.257 * diameter_km**1.011 * 1e3   # Pike model
-            self.floor_depth = 0.224 * diameter_km**1.010 * 1e3 # Closer to Fassett & Thomson
-            self.floor_diameter = 0.200 * diameter_km**1.143 * 1e3  # Fassett & Thomson for D~1km, Pike for D~20km
-
+            self._rim_height = 0.043 * diameter_km**1.014 * 1e3  # Closer to Fassett & Thomson
+            self._rim_width = 0.257 * diameter_km**1.011 * 1e3   # Pike model
+            self._floor_depth = 0.224 * diameter_km**1.010 * 1e3 # Closer to Fassett & Thomson
+            self._floor_diameter = 0.200 * diameter_km**1.143 * 1e3  # Fassett & Thomson for D~1km, Pike for D~20km
+            self._peak_height = None
         elif self.crater.morphology_type in ["complex", "peakring", "multiring"]:
             # Following Pike (1977)
-            self.rim_height = 0.236 * diameter_km**0.399 * 1e3  # Pike model
-            self.rim_width = 0.467 * diameter_km**0.836 * 1e3   # Pike model
-            self.floor_depth = 1.044 * diameter_km**0.301 * 1e3 # Pike model
+            self._rim_height = 0.236 * diameter_km**0.399 * 1e3  # Pike model
+            self._rim_width = 0.467 * diameter_km**0.836 * 1e3   # Pike model
+            self._floor_depth = 1.044 * diameter_km**0.301 * 1e3 # Pike model
             # Fassett & Thomson for D~1km, Pike for D~20km, but limited to 90% of diameter
-            self.floor_diameter = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
-            self.peak_height = 0.032 * diameter_km**0.900 * 1e3  # Pike model
+            self._floor_diameter = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
+            self._peak_height = 0.032 * diameter_km**0.900 * 1e3  # Pike model
         else:
             raise ValueError(f"Unknown morphology type: {self.crater.morphology_type}")
             
-        self.ejrim = 0.14 * (diameter_m * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
+        self._ejrim = 0.14 * (diameter_m * 0.5)**(0.74) # McGetchin et al. (1973) Thickness of ejecta at rim
         return
 
 
@@ -202,29 +210,32 @@ class SimpleMoon(Morphology):
         return
 
 
-    """
-    Compute the crater profile elevation at a given radial distance.
-
-    Parameters
-    ----------
-    r : ArrayLike
-        Radial distances from the crater center (in meters).
-    r_ref : ArrayLike, optional
-        Reference elevation values to be modified by the crater profile.
-
-    Returns
-    -------
-    elevation : NDArray[np.float64]
-        The computed crater elevation profile at each radial point.
-
-    Notes
-    -----
-    This is a wrapper for a compiled Rust function.
-    """
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike | None = None) -> NDArray[np.float64]:
+        """
+        Compute the crater profile elevation at a given radial distance.
+
+        Parameters
+        ----------
+        r : ArrayLike
+            Radial distances from the crater center (in meters).
+        r_ref : ArrayLike, optional
+            Reference elevation values to be modified by the crater profile.
+
+        Returns
+        -------
+        elevation : NDArray[np.float64]
+            The computed crater elevation profile at each radial point.
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function.
+        """
         if r_ref is None:
             r_ref = np.zeros_like(r)
-        elevation = crater_functions.profile(r,
+
+        # flatten r to 1D array
+        rflat = np.ravel(r)
+        elevation = crater_functions.profile(rflat,
                                    r_ref, 
                                    self.crater.final_diameter, 
                                    self.floor_depth, 
@@ -232,91 +243,112 @@ class SimpleMoon(Morphology):
                                    self.rim_height, 
                                    self.ejrim
                                 )
+        # reshape elevation to match the shape of r
+        elevation = np.array(elevation, dtype=np.float64)
+        elevation = np.reshape(elevation, r.shape)
         
-        return np.array(elevation, dtype=np.float64)
+        return elevation
     
 
-    """
-    Compute the ejecta elevation profile at a given radial distance.
 
-    Parameters
-    ----------
-    r : ArrayLike
-        Radial distances from the crater center (in meters).
-
-    Returns
-    -------
-    elevation : NDArray[np.float64]
-        The computed ejecta profile at each radial point.
-
-    Notes
-    -----
-    This is a wrapper for a compiled Rust function.
-    """
     def ejecta_profile(self, r: ArrayLike) -> NDArray[np.float64]:
-        elevation = ejecta_functions.profile(r,
+        """
+        Compute the ejecta elevation profile at a given radial distance.
+
+        Parameters
+        ----------
+        r : ArrayLike
+            Radial distances from the crater center (in meters).
+
+        Returns
+        -------
+        elevation : NDArray[np.float64]
+            The computed ejecta profile at each radial point.
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function.
+        """
+        # flatten r to 1D array
+        rflat = np.ravel(r)
+        elevation = ejecta_functions.profile(rflat,
                                    self.crater.final_diameter, 
                                    self.ejrim
                                 )
         elevation = np.array(elevation, dtype=np.float64)
+        # reshape elevation to match the shape of r
+        elevation = np.reshape(elevation, r.shape)
         return elevation
    
     
-    """
-    Compute the ejecta thickness distribution modulated by ray patterns.
 
-    Parameters
-    ----------
-    r : ArrayLike
-        Radial distances from the crater center (in meters).
-    theta : ArrayLike
-        Angular bearings from the crater center (in radians).
-
-    Returns
-    -------
-    thickness : NDArray[np.float64]
-        The computed ejecta thickness for each (r, theta) pair.
-
-    Notes
-    -----
-    This is a wrapper for a compiled Rust function.
-    """
     def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
-        thickness = ejecta_functions.distribution(r, theta,
+        """
+        Compute the ejecta thickness distribution modulated by ray patterns.
+
+        Parameters
+        ----------
+        r : ArrayLike
+            Radial distances from the crater center (in meters).
+        theta : ArrayLike
+            Angular bearings from the crater center (in radians).
+
+        Returns
+        -------
+        thickness : NDArray[np.float64]
+            The computed ejecta thickness for each (r, theta) pair.
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function.
+        """
+        # flatten r and theta to 1D arrays
+        rflat = np.ravel(r)
+        theta_flat = np.ravel(theta)
+        thickness = ejecta_functions.distribution(rflat, theta_flat,
                                        self.crater.final_diameter, 
                                        self.ejrim, 
                                        self.ejecta_truncation,
                                        self.dorays
                                     )
         thickness = np.array(thickness, dtype=np.float64)
+        # reshape thickness to match the shape of r and theta
+        thickness = np.reshape(thickness, r.shape)
+
         return thickness
 
 
-    """
-    Compute the ray pattern intensity modulation at each (r, theta) pair.
 
-    Parameters
-    ----------
-    r : ArrayLike
-        Radial distances from the crater center (in meters).
-    theta : ArrayLike
-        Angular bearings from the crater center (in radians).
-
-    Returns
-    -------
-    intensity : NDArray[np.float64]
-        The computed ray intensity values.
-
-    Notes
-    -----
-    This is a wrapper for a compiled Rust function.
-    """
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
-        intensity = ejecta_functions.ray_intensity(r, theta,
+        """
+        Compute the ray pattern intensity modulation at each (r, theta) pair.
+
+        Parameters
+        ----------
+        r : ArrayLike
+            Radial distances from the crater center (in meters).
+        theta : ArrayLike
+            Angular bearings from the crater center (in radians).
+
+        Returns
+        -------
+        intensity : NDArray[np.float64]
+            The computed ray intensity values.
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function.
+        """
+        # flatten r and theta to 1D arrays
+        rflat = np.ravel(r)
+        theta_flat = np.ravel(theta)
+        intensity = ejecta_functions.ray_intensity(rflat, theta_flat,
                                        self.crater.final_diameter, 
                                        self.ejecta_truncation,
                                     )
         intensity = np.array(intensity, dtype=np.float64)
+        # reshape intensity to match the shape of r and theta
+        intensity = np.reshape(intensity, r.shape)
         return intensity
 
 
@@ -378,12 +410,6 @@ class SimpleMoon(Morphology):
         """
         return self._rim_height
     
-    @rim_height.setter
-    def rim_height(self, value: FloatLike) -> None:
-        if not isinstance(value, FloatLike):
-            raise TypeError("rim_height must be of type FloatLike")
-        self._rim_height = float(value)
-        
     @property
     def rim_width(self) -> float:
         """
@@ -395,11 +421,6 @@ class SimpleMoon(Morphology):
         """
         return self._rim_width
     
-    @rim_width.setter
-    def rim_width(self, value: FloatLike) -> None:
-        if not isinstance(value, FloatLike):
-            raise TypeError("rim_width must be of type FloatLike") 
-        self._rim_width = float(value)
         
     @property
     def peak_height(self) -> float:
@@ -412,11 +433,6 @@ class SimpleMoon(Morphology):
         """
         return self._peak_height
     
-    @peak_height.setter
-    def peak_height(self, value: FloatLike) -> None:
-        if not isinstance(value, FloatLike):
-            raise TypeError("peak_height must be of type FloatLike") 
-        self._peak_height = float(value)
 
     @property
     def floor_diameter(self) -> float:
@@ -429,11 +445,6 @@ class SimpleMoon(Morphology):
         """
         return self._floor_diameter
     
-    @floor_diameter.setter
-    def floor_diameter(self, value: FloatLike) -> None:
-        if not isinstance(value, FloatLike):
-            raise TypeError("floor_diameter must be of type FloatLike")
-        self._floor_diameter = float(value)
         
     @property
     def floor_depth(self) -> float:
@@ -446,11 +457,6 @@ class SimpleMoon(Morphology):
         """
         return self._floor_depth
     
-    @floor_depth.setter
-    def floor_depth(self, value: FloatLike) -> None:
-        if not isinstance(value, FloatLike):
-            raise TypeError("floor_depth must be of type FloatLike")
-        self._floor_depth = float(value)
         
     @property
     def ejrim(self) -> float:
@@ -463,11 +469,6 @@ class SimpleMoon(Morphology):
         """
         return self._ejrim
     
-    @ejrim.setter
-    def ejrim(self, value: FloatLike) -> None:
-        if not isinstance(value, FloatLike):
-            raise TypeError("ejrim must be of type FloatLike")
-        self._ejrim = float(value)
         
     @property
     def crater(self):
