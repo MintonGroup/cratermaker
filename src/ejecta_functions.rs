@@ -10,12 +10,12 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::VSMALL;
+use crate::{VSMALL, EJPROFILE};
 
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
 const FRAYREDUCTION: f64 = 0.5;
-const EJPROFILE: i32 = 3;
+
 
 /// Computes the ejecta profile scaling at a given radial distance.
 ///
@@ -35,7 +35,7 @@ const EJPROFILE: i32 = 3;
 pub fn profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
     if r_actual >= crater_radius {
         let r = r_actual / crater_radius;
-        ejrim * r.powi(-EJPROFILE)
+        ejrim * r.powf(-EJPROFILE)
     } else {
         0.0
     }

@@ -1,9 +1,11 @@
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 
+use crate::RIMDROP;
+
 const A: f64 = 4.0 / 11.0;
 const B: f64 = -32.0 / 187.0;
-const RIMDROP: f64 = 4.20; // The exponent for the uplifted rim dropoff.
+
 
 /// Calculates the elevation of a crater as a function of distance from the center.
 ///
