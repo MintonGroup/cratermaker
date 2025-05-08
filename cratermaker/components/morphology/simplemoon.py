@@ -106,111 +106,7 @@ class SimpleMoon(Morphology):
         return
 
 
-    def form_crater(self, 
-                    surface: Surface,
-                    crater: Crater | None = None, 
-                    **kwargs) -> None:
-        """
-        This method forms the interior of the crater by altering the elevation variable of the surface mesh.
-        
-        Parameters
-        ----------
-        surface : Surface
-            The surface to be altered.
-        crater : Crater
-            The crater object to be formed. This is optional if it has already been added
-        **kwargs : dict
-            Additional keyword arguments to be passed to internal functions (not used here).
-        """
-        self.crater = Crater.maker(crater, **kwargs)
-
-        if not isinstance(surface, Surface):
-            raise TypeError("surface must be an instance of Surface")
-        self.node_index, self.face_index = surface.find_nearest_index(self.crater.location)
-
-        # Test if the crater is big enough to modify the surface
-        rmax = self.rmax(minimum_thickness=surface.smallest_length)
-        region_view = surface.extract_region(self.crater.location, rmax)
-        if region_view is None: # The crater is too small to change the surface
-            return
-        crater_area = np.pi * rmax**2
-        
-        # Check to make sure that the face at the crater location is not smaller than the crater area
-        if surface.face_areas[self.face_index] > crater_area:
-            return
-        
-        node_crater_distance, face_crater_distance = surface.get_distance(region_view, self.crater.location)
-        reference_face_elevation, reference_node_elevation = surface.get_reference_surface(region_view, face_crater_distance, node_crater_distance, self.crater.location, self.crater.final_radius)
-        
-        try:
-            node_elevation = self.crater_profile(node_crater_distance, 
-                                                 reference_node_elevation)
-            surface.node_elevation[region_view.node_indices] = node_elevation
-            
-            face_elevation = self.crater_profile(face_crater_distance, 
-                                                 reference_face_elevation)
-            surface.face_elevation[region_view.face_indices] = face_elevation
-        except:
-            print(self)
-            raise ValueError("Something went wrong with this crater!")
-
-        self.form_ejecta(surface, crater=self.crater, **kwargs) 
-        return  
-
-
-    def form_ejecta(self,
-                    surface: Surface,
-                    crater: Crater | None = None,
-                    **kwargs) -> None:
-        """
-        This method forms the ejecta blanket around the crater by altering the elevation variable of the surface mesh.
-       
-        Parameters
-        ----------
-        surface : Surface
-            The surface to be altered.
-        **kwargs : dict
-            Additional keyword arguments to be passed to internal functions (not used here). 
-        """
-        if crater:
-            self.crater = crater
-
-        if not isinstance(surface, Surface):
-            raise TypeError("surface must be an instance of Surface")
-        self.node_index, self.face_index = surface.find_nearest_index(self.crater.location) 
-
-        # Test if the ejecta is big enough to modify the surface
-        rmax = self.rmax(minimum_thickness=surface.smallest_length) 
-        if not self.ejecta_truncation:
-            ejecta_truncation = rmax / self.crater.final_radius
-        else:
-            ejecta_truncation = self.ejecta_truncation
-        region_view = surface.extract_region(self.crater.location, rmax)
-        if region_view is None: # The crater is too small to change the surface
-            return
-        ejecta_area = np.pi * rmax**2
-        
-        # Check to make sure that the face at the crater location is not smaller than the ejecta blanket area
-        if surface.face_areas[self.face_index] > ejecta_area:
-            return
-        
-        node_crater_distance, face_crater_distance = surface.get_distance(region_view, self.crater.location)
-        node_crater_bearing, face_crater_bearing  = surface.get_initial_bearing(region_view, self.crater.location)
-        morphology_functions.form_ejecta(self, 
-                                         region_view, 
-                                         node_crater_distance, 
-                                         face_crater_distance, 
-                                         node_crater_bearing,
-                                         face_crater_bearing,
-                                         ejecta_truncation,
-                                         surface.node_elevation,
-                                         surface.face_elevation,
-                                         surface.ejecta_thickness,
-                                         surface.ray_intensity)
-        return
-
-
-    def crater_profile(self, r: ArrayLike, r_ref: ArrayLike | None = None) -> NDArray[np.float64]:
+    def crater_shape(self, r: ArrayLike, r_ref: ArrayLike | None = None) -> NDArray[np.float64]:
         """
         Compute the crater profile elevation at a given radial distance.
 
@@ -235,7 +131,7 @@ class SimpleMoon(Morphology):
 
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = crater_functions.profile(rflat,
+        elevation = crater_functions.shape(rflat,
                                    r_ref, 
                                    self.crater.final_diameter, 
                                    self.floor_depth, 
@@ -251,7 +147,7 @@ class SimpleMoon(Morphology):
     
 
 
-    def ejecta_profile(self, r: ArrayLike) -> NDArray[np.float64]:
+    def ejecta_shape(self, r: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the ejecta elevation profile at a given radial distance.
 
@@ -271,7 +167,7 @@ class SimpleMoon(Morphology):
         """
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = ejecta_functions.profile(rflat,
+        elevation = ejecta_functions.shape(rflat,
                                    self.crater.final_diameter, 
                                    self.ejrim
                                 )
@@ -381,10 +277,10 @@ class SimpleMoon(Morphology):
 
         if feature == "ejecta":
             def _profile_invert(r):
-                return self.ejecta_profile(r) - minimum_thickness
+                return self.ejecta_shape(r) - minimum_thickness
         elif feature == "crater":
             def _profile_invert(r):
-                return self.crater_profile(r, np.zeros(1)) - minimum_thickness
+                return self.crater_shape(r, np.zeros(1)) - minimum_thickness
         else:
             raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
     
