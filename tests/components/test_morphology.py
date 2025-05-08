@@ -1,12 +1,16 @@
-import unittest
 import tempfile
+import unittest
+
 import numpy as np
-from cratermaker.components.morphology import Morphology
-from cratermaker.components.target import Target
-from cratermaker.components.surface import Surface
+
 from cratermaker import Crater, Simulation
+from cratermaker.components.morphology import Morphology
+from cratermaker.components.surface import Surface
+from cratermaker.components.target import Target
 
 morphology_models = Morphology.available()
+
+
 class TestMorphology(unittest.TestCase):
     def setUp(self):
         # Initialize a target and surface for testing
@@ -39,7 +43,9 @@ class TestMorphology(unittest.TestCase):
 
     def test_form_crater_executes(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel)
+            surface = Surface.maker(
+                simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel
+            )
             for model_name in morphology_models:
                 morphology = Morphology.maker(model_name)
                 morphology.form_crater(surface, crater=self.dummy_crater)
@@ -67,31 +73,34 @@ class TestMorphology(unittest.TestCase):
             rvals = np.linspace(0, 10, 1000)
             for final_radius in crater_radius_values:
                 morphology.crater = Crater.maker(final_radius=final_radius)
-                crater_shape = morphology.crater_shape(rvals * final_radius)
-                self.assertTrue(np.all(np.isfinite(crater_shape)), f"Crater profile for {model_name} contains NaN or Inf values.")
-                ejecta_shape = morphology.ejecta_shape(rvals * final_radius)
-                self.assertTrue(np.all(np.isfinite(ejecta_shape)), f"Ejecta profile for {model_name} contains NaN or Inf values.")
-
+                crater_shape = morphology.crater_profile(rvals * final_radius)
+                self.assertTrue(
+                    np.all(np.isfinite(crater_shape)),
+                    f"Crater profile for {model_name} contains NaN or Inf values.",
+                )
+                ejecta_shape = morphology.ejecta_profile(rvals * final_radius)
+                self.assertTrue(
+                    np.all(np.isfinite(ejecta_shape)),
+                    f"Ejecta profile for {model_name} contains NaN or Inf values.",
+                )
 
     def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected
 
         final_diameter_list = [100e3, 200e3, 500e3, 1000e3]
         delta_vals = [0.4, 0.3, 0.3, 0.2]
-            
+
         gridargs = {
-            "icosphere": {
-                "gridlevel" : 6
-                },
+            "icosphere": {"gridlevel": 6},
             "arbitrary_resolution": {
                 "pix": 10e3,
-                },
+            },
             "hireslocal": {
                 "pix": 1.0e3,
-                "local_location": (0, 0), 
-                "local_radius": 100e3, 
-                }
-            }
+                "local_location": (0, 0),
+                "local_radius": 100e3,
+            },
+        }
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             for name, args in gridargs.items():
@@ -99,18 +108,43 @@ class TestMorphology(unittest.TestCase):
                 for final_diameter, delta in zip(final_diameter_list, delta_vals):
                     sim.surface.reset()
                     # verify that the surface is flat
-                    self.assertAlmostEqual(sim.surface.node_elevation.min(), 0.0, delta=1e0)
-                    self.assertAlmostEqual(sim.surface.face_elevation.min(), 0.0, delta=1e0)
-                    self.assertAlmostEqual(sim.surface.node_elevation.max(), 0.0, delta=1e0)
-                    self.assertAlmostEqual(sim.surface.face_elevation.max(), 0.0, delta=1e0)
-                    
+                    self.assertAlmostEqual(
+                        sim.surface.node_elevation.min(), 0.0, delta=1e0
+                    )
+                    self.assertAlmostEqual(
+                        sim.surface.face_elevation.min(), 0.0, delta=1e0
+                    )
+                    self.assertAlmostEqual(
+                        sim.surface.node_elevation.max(), 0.0, delta=1e0
+                    )
+                    self.assertAlmostEqual(
+                        sim.surface.face_elevation.max(), 0.0, delta=1e0
+                    )
+
                     sim.emplace_crater(final_diameter=final_diameter, location=(0, 0))
 
                     # Verify that the crater depth and rim heights are close to the expected values
-                    self.assertAlmostEqual(-sim.surface.node_elevation.min() / sim.morphology.floor_depth, 1.0, delta=delta)
-                    self.assertAlmostEqual(-sim.surface.face_elevation.min() / sim.morphology.floor_depth, 1.0, delta=delta)
-                    self.assertAlmostEqual(sim.surface.node_elevation.max() / sim.morphology.rim_height, 1.0, delta=2*delta)
-                    self.assertAlmostEqual(sim.surface.face_elevation.max() / sim.morphology.rim_height, 1.0, delta=2*delta)
+                    self.assertAlmostEqual(
+                        -sim.surface.node_elevation.min() / sim.morphology.floor_depth,
+                        1.0,
+                        delta=delta,
+                    )
+                    self.assertAlmostEqual(
+                        -sim.surface.face_elevation.min() / sim.morphology.floor_depth,
+                        1.0,
+                        delta=delta,
+                    )
+                    self.assertAlmostEqual(
+                        sim.surface.node_elevation.max() / sim.morphology.rim_height,
+                        1.0,
+                        delta=2 * delta,
+                    )
+                    self.assertAlmostEqual(
+                        sim.surface.face_elevation.max() / sim.morphology.rim_height,
+                        1.0,
+                        delta=2 * delta,
+                    )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
