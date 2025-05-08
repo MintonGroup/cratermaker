@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import warnings
 from abc import abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 

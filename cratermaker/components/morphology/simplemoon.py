@@ -119,7 +119,51 @@ class SimpleMoon(Morphology):
         )  # McGetchin et al. (1973) Thickness of ejecta at rim
         return
 
-    def crater_shape(
+    def crater_shape(self, region_view, surface):
+        """
+        Compute the crater shape based on the region view and surface.
+
+        Parameters
+        ----------
+        region_view : RegionView
+            The region view of the surface mesh.
+        surface : Surface
+            The surface mesh.
+
+        Returns
+        -------
+        None
+        """
+        node_crater_distance, face_crater_distance = surface.get_distance(
+            region_view, self.crater.location
+        )
+        reference_face_elevation, reference_node_elevation = (
+            surface.get_reference_surface(
+                region_view,
+                face_crater_distance,
+                node_crater_distance,
+                self.crater.location,
+                self.crater.final_radius,
+            )
+        )
+
+        # Combine distances and references for nodes and faces
+        combined_distances = np.concatenate(
+            [node_crater_distance, face_crater_distance]
+        )
+        combined_reference = np.concatenate(
+            [reference_node_elevation, reference_face_elevation]
+        )
+        combined_elevation = self.crater_profile(combined_distances, combined_reference)
+
+        node_elevation = combined_elevation[: len(node_crater_distance)]
+        face_elevation = combined_elevation[len(node_crater_distance) :]
+
+        surface.node_elevation[region_view.node_indices] = node_elevation
+        surface.face_elevation[region_view.face_indices] = face_elevation
+        return surface
+
+    def crater_profile(
         self, r: ArrayLike, r_ref: ArrayLike | None = None
     ) -> NDArray[np.float64]:
         """
@@ -146,7 +190,7 @@ class SimpleMoon(Morphology):
 
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = crater_functions.shape(
+        elevation = crater_functions.profile(
             rflat,
             r_ref,
             self.crater.final_diameter,
@@ -161,7 +205,57 @@ class SimpleMoon(Morphology):
 
         return elevation
 
-    def ejecta_shape(self, r: ArrayLike) -> NDArray[np.float64]:
+    def ejecta_shape(self, region_view, surface):
+        """
+        Compute the ejecta shape based on the region view and surface.
+
+        Parameters
+        ----------
+        region_view : RegionView
+            The region view of the surface mesh.
+        surface : Surface
+            The surface mesh.
+
+        Returns
+        -------
+        None
+        """
+        node_crater_distance, face_crater_distance = surface.get_distance(
+            region_view, self.crater.location
+        )
+        if self.dorays:
+            node_crater_bearings, face_crater_bearings = surface.get_initial_bearing(
+                region_view, self.crater.location
+            )
+            combined_distances = np.concatenate(
+                [node_crater_distance, face_crater_distance]
+            )
+            combined_bearings = np.concatenate(
+                [node_crater_bearings, face_crater_bearings]
+            )
+            combined_thickness, combined_ray_intensity = self.ejecta_distribution(
+                combined_distances, combined_bearings
+            )
+            surface.ray_intensity[region_view.face_indices] = combined_ray_intensity[
+                len(node_crater_distance) :
+            ]
+        else:
+            combined_distances = np.concatenate(
+                [node_crater_distance, face_crater_distance]
+            )
+            combined_thickness = self.ejecta_profile(combined_distances)
+
+        # Slice back the combined thickness without copying
+        node_thickness = combined_thickness[: len(node_crater_distance)]
+        face_thickness = combined_thickness[len(node_crater_distance) :]
+
+        surface.ejecta_thickness[region_view.face_indices] = face_thickness
+        surface.face_elevation[region_view.face_indices] += face_thickness
+        surface.node_elevation[region_view.node_indices] += node_thickness
+
+        return surface
+
+    def ejecta_profile(self, r: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the ejecta elevation profile at a given radial distance.
 
@@ -181,7 +275,7 @@ class SimpleMoon(Morphology):
         """
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = ejecta_functions.shape(
+        elevation = ejecta_functions.profile(
             rflat, self.crater.final_diameter, self.ejrim
         )
         elevation = np.array(elevation, dtype=np.float64)
@@ -212,21 +306,21 @@ class SimpleMoon(Morphology):
         This is a wrapper for a compiled Rust function.
         """
         # flatten r and theta to 1D arrays
+        thickness = self.ejecta_profile(r)
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
-        thickness = ejecta_functions.distribution(
+        ray_intensity = ejecta_functions.ray_intensity(
             rflat,
             theta_flat,
             self.crater.final_diameter,
-            self.ejrim,
-            self.ejecta_truncation,
-            self.dorays,
         )
         thickness = np.array(thickness, dtype=np.float64)
+        ray_intensity = np.array(ray_intensity, dtype=np.float64)
+        thickness *= ray_intensity
         # reshape thickness to match the shape of r and theta
         thickness = np.reshape(thickness, r.shape)
-
-        return thickness
+        ray_intensity = np.reshape(ray_intensity, r.shape)
+        return thickness, ray_intensity
 
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
         """
@@ -255,7 +349,6 @@ class SimpleMoon(Morphology):
             rflat,
             theta_flat,
             self.crater.final_diameter,
-            self.ejecta_truncation,
         )
         intensity = np.array(intensity, dtype=np.float64)
         # reshape intensity to match the shape of r and theta
@@ -294,11 +387,11 @@ class SimpleMoon(Morphology):
         if feature == "ejecta":
 
             def _profile_invert(r):
-                return self.ejecta_shape(r) - minimum_thickness
+                return self.ejecta_profile(r) - minimum_thickness
         elif feature == "crater":
 
             def _profile_invert(r):
-                return self.crater_shape(r, np.zeros(1)) - minimum_thickness
+                return self.crater_profile(r, np.zeros(1)) - minimum_thickness
         else:
             raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
 

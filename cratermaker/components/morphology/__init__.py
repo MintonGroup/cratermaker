@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from math import pi
 from typing import TYPE_CHECKING, Any
 
-from cratermaker._simplemoon import ejecta_functions
+from numpy.typing import NDArray
+
+from cratermaker.constants import FloatLike
 from cratermaker.core.crater import Crater
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import format_large_units
 
 if TYPE_CHECKING:
-    from cratermaker.components.surface import Surface
+    from cratermaker.components.surface import Surface, SurfaceView
 
 
 class Morphology(ComponentBase):
@@ -118,31 +121,7 @@ class Morphology(ComponentBase):
         if surface.face_areas[self.face_index] > crater_area:
             return
 
-        node_crater_distance, face_crater_distance = surface.get_distance(
-            region_view, self.crater.location
-        )
-        reference_face_elevation, reference_node_elevation = (
-            surface.get_reference_surface(
-                region_view,
-                face_crater_distance,
-                node_crater_distance,
-                self.crater.location,
-                self.crater.final_radius,
-            )
-        )
-
-        try:
-            node_elevation = self.crater_shape(
-                node_crater_distance, reference_node_elevation
-            )
-            surface.node_elevation[region_view.node_indices] = node_elevation
-
-            face_elevation = self.crater_shape(
-                face_crater_distance, reference_face_elevation
-            )
-            surface.face_elevation[region_view.face_indices] = face_elevation
-        except Exception as e:
-            raise RuntimeError(f"Something went wrong with this crater!\n{self}") from e
+        surface = self.crater_shape(region_view, surface)
 
         self.form_ejecta(surface, crater=self.crater, **kwargs)
         return
@@ -173,10 +152,6 @@ class Morphology(ComponentBase):
 
         # Test if the ejecta is big enough to modify the surface
         rmax = self.rmax(minimum_thickness=surface.smallest_length)
-        if not self.ejecta_truncation:
-            ejecta_truncation = rmax / self.crater.final_radius
-        else:
-            ejecta_truncation = self.ejecta_truncation
         region_view = surface.extract_region(self.crater.location, rmax)
         if region_view is None:  # The crater is too small to change the surface
             return
@@ -186,26 +161,22 @@ class Morphology(ComponentBase):
         if surface.face_areas[self.face_index] > ejecta_area:
             return
 
-        node_crater_distance, face_crater_distance = surface.get_distance(
-            region_view, self.crater.location
-        )
-        node_crater_bearing, face_crater_bearing = surface.get_initial_bearing(
-            region_view, self.crater.location
-        )
-        ejecta_functions.form_ejecta(
-            self,
-            region_view,
-            node_crater_distance,
-            face_crater_distance,
-            node_crater_bearing,
-            face_crater_bearing,
-            ejecta_truncation,
-            surface.node_elevation,
-            surface.face_elevation,
-            surface.ejecta_thickness,
-            surface.ray_intensity,
-        )
+        surface = self.ejecta_shape(region_view, surface)
+
         return
+
+    @abstractmethod
+    def crater_shape(
+        self, region_view: SurfaceView | NDArray, surface: Surface | NDArray
+    ) -> Surface | NDArray: ...
+
+    @abstractmethod
+    def ejecta_shape(
+        self, region_view: SurfaceView | NDArray, surface: Surface | NDArray
+    ) -> Surface | NDArray: ...
+
+    @abstractmethod
+    def rmax(self, minimum_thickness: FloatLike | None = None) -> FloatLike: ...
 
     @property
     def crater(self):
