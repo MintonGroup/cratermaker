@@ -40,8 +40,8 @@ class CTEMScaling(MonteCarloScaling):
     - The built-in material property values are from Holsapple (1993) and Kraus et al. (2011).
     - Complex craater scaling parameters are a synthesis of Pike (1980), Croft (1985), and Schenk et al. (2004).
 
-    .. rubric:: References
-
+    References
+    ----------
     - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
     - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
     - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016

@@ -47,4 +47,5 @@ ax.set_ylabel("Count")
 ax.legend()
 ax.set_title("Impact Angle Distribution")
 
+plt.tight_layout()
 plt.show()

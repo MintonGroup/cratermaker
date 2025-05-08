@@ -12,9 +12,10 @@ The model uses the ray intensity function compiled from Rust code for performanc
 
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.colors import LogNorm
+
 from cratermaker import Crater, Morphology
 
 morphology = Morphology.maker(crater=Crater.maker(final_radius=10.0e3))
@@ -23,7 +24,7 @@ rc = morphology.crater.final_radius
 grid_size = 1000
 rmax = 20
 morphology.ejecta_truncation = rmax
-extent = rmax * rc  
+extent = rmax * rc
 x = np.linspace(-extent, extent, grid_size)
 y = np.linspace(-extent, extent, grid_size)
 xx, yy = np.meshgrid(x, y)
@@ -42,12 +43,14 @@ fig, ax = plt.subplots(figsize=(6, 5))
 c = ax.imshow(
     intensity,
     norm=LogNorm(vmin=1e-4, vmax=intensity.max()),
-    origin='lower',
+    origin="lower",
     extent=[-rmax, rmax, -rmax, rmax],
-    cmap='inferno',
+    cmap="inferno",
 )
-ax.set_xlabel('x (r_c)')
-ax.set_ylabel('y (r_c)')
-ax.set_title('Ray Intensity Map')
-fig.colorbar(c, ax=ax, label='Intensity')
+ax.set_xlabel("x (r_c)")
+ax.set_ylabel("y (r_c)")
+ax.set_title("Ray Intensity Map")
+fig.colorbar(c, ax=ax, label="Intensity")
+
+plt.tight_layout()
 plt.show()

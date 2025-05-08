@@ -1117,8 +1117,8 @@ class Surface(ComponentBase):
         (3,n) ndarray of np.float64
             Array of cartesian points on the sphere.
 
-        .. rubric:: References
-
+        References
+        ----------
         - Deserno, Markus., 2004. How to generate equidistributed points on the surface of a sphere. https://www.cmu.edu/biolphys/deserno/pdf/sphere_equi.pdf
 
         """

@@ -61,8 +61,8 @@ class MonteCarloScaling(Scaling):
     - The built-in material property values are from Holsapple (1993) and Kraus et al. (2011).
     - Complex crater scaling parameters are a synthesis of Pike (1980), Croft (1985), and Schenk et al. (2004), with updated simple-to-complex transition diameter values from Schenk et al. (2021).
 
-    .. rubric:: References
-
+    References
+    ----------
     - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
     - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
     - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
@@ -442,15 +442,15 @@ class MonteCarloScaling(Scaling):
         """
         The material catalogue used to look up material properties. Material property values are from Holsapple (1993) and Kraus et al. (2011).
 
-        .. rubric:: References
-
-        - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
-        - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
-
         Returns
         -------
         dict
             The material catalogue.
+
+        References
+        ----------
+        - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
+        - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
         """
 
         def _create_material_catalogue():
@@ -602,10 +602,6 @@ class MonteCarloScaling(Scaling):
         """
         K1 crater scaling relationship term.
 
-        .. rubric:: References
-
-        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
-
         Returns
         -------
         float
@@ -625,13 +621,10 @@ class MonteCarloScaling(Scaling):
         """
         mu crater scaling relationship term.
 
-        .. rubric:: References
-
-        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
-
         Returns
         -------
         float
+
         """
         return self._mu
 
@@ -648,13 +641,10 @@ class MonteCarloScaling(Scaling):
         """
         The strength of the material in Pa.
 
-        .. rubric:: References
-
-        - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
-
         Returns
         -------
         float
+
         """
         return self._Ybar
 

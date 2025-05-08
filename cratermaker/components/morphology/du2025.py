@@ -30,7 +30,7 @@ class Du2025(SimpleMoon):
     ) -> NDArray:
         """
         This method construct a 1D power spectral density.
-        Coeffcients are from [1]_.
+        Coeffcients are from [#]_.
 
         Parameters
         ----------
@@ -43,7 +43,7 @@ class Du2025(SimpleMoon):
 
         References
         ----------
-        .. [1] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2024). Spectral analysis of the morphology of fresh lunar craters I: Rim crest, floor, and rim flank outlines. Journal of Geophysical Research: Planets, 129(11), e2024JE008357. https://doi.org/10.1029/2024JE008357
+        .. [#] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2024). Spectral analysis of the morphology of fresh lunar craters I: Rim crest, floor, and rim flank outlines. Journal of Geophysical Research: Planets, 129(11), e2024JE008357. https://doi.org/10.1029/2024JE008357
 
         """
         # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
@@ -155,7 +155,7 @@ class Du2025(SimpleMoon):
     ) -> tuple[NDArray, NDArray, NDArray, NDArray, NDArray, NDArray]:
         """
         This method constructs a 2D power spectral density.
-        Coeffcients are from [1]_.
+        Coeffcients are from [#]_.
 
         Parameters
         ----------
@@ -172,7 +172,7 @@ class Du2025(SimpleMoon):
 
         References
         ----------
-        .. [1] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2025). Spectral Analysis of the Morphology of Fresh Lunar Craters II: Two-Dimensional Surface Elevations of the Continuous Ejecta, Wall, and Floor. Journal of Geophysical Research: Planets
+        .. [#] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2025). Spectral Analysis of the Morphology of Fresh Lunar Craters II: Two-Dimensional Surface Elevations of the Continuous Ejecta, Wall, and Floor. Journal of Geophysical Research: Planets
 
         """
         # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
