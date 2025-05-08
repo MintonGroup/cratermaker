@@ -8,7 +8,7 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.components.surface import Surface
 from cratermaker.components.morphology import Morphology
 from cratermaker.utils.general_utils import parameter, format_large_units
-from cratermaker._cratermaker import crater_functions, ejecta_functions, morphology_functions
+from cratermaker._simplemoon import crater_functions, ejecta_functions
 
 @Morphology.register("simplemoon")
 class SimpleMoon(Morphology):

@@ -17,7 +17,7 @@ from cratermaker.components.target import Target
 from cratermaker.utils.custom_types import FloatLike, PairOfFloats
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 from cratermaker.utils.component_utils import ComponentBase, import_components
-from cratermaker._cratermaker import surface_functions
+from cratermaker._simplemoon import surface_functions
 import warnings
 
 class Surface(ComponentBase):

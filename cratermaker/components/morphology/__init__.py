@@ -1,11 +1,12 @@
 from __future__ import annotations
+from abc import abstractmethod
 from math import pi
 from typing import Any
 from cratermaker.core.crater import Crater
 from cratermaker.components.surface import Surface
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import format_large_units
-from cratermaker._cratermaker import morphology_functions
+from cratermaker._simplemoon import morphology_functions
 
 class Morphology(ComponentBase):
     def __init__(self, crater : Crater | None = None, **kwargs: Any) -> None:
