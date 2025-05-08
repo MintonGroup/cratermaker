@@ -84,7 +84,6 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
-        object.__setattr__(self, "_surface", None)
 
         if self.config_file.exists():
             config_file = self.config_file

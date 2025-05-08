@@ -4,7 +4,7 @@ from cratermaker.components.production import Production
 from cratermaker.utils.custom_types import FloatLike
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Any
 
 @Production.register("powerlaw")
 class PowerLawProduction(Production):
@@ -88,7 +88,7 @@ class PowerLawProduction(Production):
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
              age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
              **kwargs: Any,
-             ) -> Union[FloatLike, ArrayLike]:
+             ) -> FloatLike | ArrayLike:
         """
         Return the cumulative size-frequency distribution of craters over a given age range and crater diameter for a simple power
         law model.
@@ -124,7 +124,7 @@ class PowerLawProduction(Production):
     
     def chronology(self,
                    age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0, 
-                   **kwargs: Any) -> Union[FloatLike, ArrayLike]:
+                   **kwargs: Any) -> FloatLike | ArrayLike:
         """
         Returns the age in My. Because the powerlaw model assumes constant impact rate, the returned age is the same as the input age.
         
