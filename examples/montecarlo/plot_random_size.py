@@ -24,10 +24,9 @@ diameters = np.exp(np.linspace(np.log(Dlo), np.log(100 * Dhi), nbins))
 # Test a simple power law SFD
 cdf = C * diameters**-p
 
-fig = plt.figure()
+fig = plt.figure(figsize=(4, 3))
 ax = fig.add_subplot(1, 1, 1)
 
-ax.set_title("Test SFD generation")
 ax.set_xlabel("$D$")
 ax.set_ylabel("$N_{>D}$")
 ax.set_xscale("log")
@@ -43,8 +42,10 @@ for i in range(num_realizations):
     else:
         label = None
 
-    ax.plot(new_diameters, nval, label=label, alpha=0.25, color="orange")
+    ax.plot(new_diameters, nval, label=label, alpha=0.25, color="cornflowerblue")
 
-ax.plot(diameters, cdf, label="Model SFD")
+ax.plot(diameters, cdf, label="Model SFD", color="black")
 ax.legend(loc="upper right")
+
+plt.tight_layout()
 plt.show()

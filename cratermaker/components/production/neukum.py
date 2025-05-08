@@ -39,7 +39,8 @@ class NeukumProduction(Production):
 
     The Mars production function is based on Ivanov (2001). The projectile production function is from Ivanov, Neukum, and Wagner (2001).
 
-    .. rubric:: References
+    References
+    ----------
 
     - Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to
       the Lunar Reference System. *Space Science Reviews*, 96, 55-86. https://doi.org/10.1023/A:1011989004263

@@ -32,14 +32,15 @@ class CometProjectiles(Projectile):
             The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
         rng_state : dict, optional
             The state of the random number generator. If None, a new state is created.
+
         Notes
         -----
-        The mean impact velocities for outer solar system bodies come from Table 1 of Zahnle et al. [1]_. For inner solar system bodies, from Table 2 of Borin et al. [2]_.
+        The mean impact velocities for outer solar system bodies come from Table 1 of Zahnle et al. [#]_. For inner solar system bodies, from Table 2 of Borin et al. [#]_.
 
         References
         ----------
-        .. [1] Zahnle, K., Schenk, P., Levison, H., Dones, L., 2003. Cratering rates in the outer Solar System. Icarus 163, 263-289. https://doi.org/10.1016/S0019-1035(03)00048-4
-        .. [2] Borin, P., Cremonese, G., Marzari, F., Lucchetti, A., 2017. Asteroidal and cometary dust flux in the inner solar system. A&A 605, A94. https://doi.org/10.1051/0004-6361/201730617
+        .. [#] Zahnle, K., Schenk, P., Levison, H., Dones, L., 2003. Cratering rates in the outer Solar System. Icarus 163, 263-289. https://doi.org/10.1016/S0019-1035(03)00048-4
+        .. [#] Borin, P., Cremonese, G., Marzari, F., Lucchetti, A., 2017. Asteroidal and cometary dust flux in the inner solar system. A&A 605, A94. https://doi.org/10.1051/0004-6361/201730617
 
 
         **kwargs : Any
