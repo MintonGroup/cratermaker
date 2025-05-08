@@ -3,16 +3,18 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from numpy.random import Generator
 
-from ..components.projectile import Projectile
-from ..components.scaling import Scaling
-from ..components.target import Target
 from ..utils import montecarlo_utils as mc
 from ..utils.general_utils import format_large_units, validate_and_normalize_location
 from .base import CratermakerBase
+
+if TYPE_CHECKING:
+    from ..components.projectile import Projectile
+    from ..components.scaling import Scaling
+    from ..components.target import Target
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +97,9 @@ class Crater:
     def maker(
         cls: type[Crater],
         crater: Crater | None = None,
+        scaling: str | Scaling | None = None,
+        target: str | Target | None = None,
+        projectile: str | Projectile | None = None,
         final_diameter: float | None = None,
         final_radius: float | None = None,
         transient_diameter: float | None = None,
@@ -110,7 +115,6 @@ class Crater:
         projectile_direction: float | None = None,
         location: tuple[float, float] | None = None,
         age: float | None = None,
-        scaling: str | Scaling | None = None,
         simdir: str | Path | None = None,
         rng: Generator = None,
         rng_seed: str | int | None = None,
@@ -124,6 +128,12 @@ class Crater:
         ----------
         crater : Crater, optional
             A Crater object to copy parameters from.
+        scaling : str or Scaling, optional
+            A string key or instance of a scaling model. If none provided, a default will be used
+        target : str or Target, optional
+            A string key or instance of a target model. If none provided, a default will be used.
+        projectile : str or Projectile, optional
+            A string key or instance of a projectile model. If none provided, a default will be used.
         final_diameter : float, optional
             The final diameter of the crater in meters.
         final_radius : float, optional
@@ -154,8 +164,6 @@ class Crater:
             The (longitude, latitude) location of the impact.
         age : float, optional
             The age of the crater in Myr.
-        scaling : str or Scaling, optional
-            A string key or instance of a scaling model. If none provided, a default will be used
         simdir : str | Path
             The main project simulation directory. Defaults to the current working directory if None.
         rng : numpy.random.Generator | None
@@ -181,6 +189,9 @@ class Crater:
         - `projectile` is mutually exclusive with velocity-related inputs; if provided, it overrides velocity, angle, direction, and density unless explicitly set.
         - The `scaling`, and `rng` models are required for scaling and density inference, but are not stored in the returned Crater object.
         """
+        from ..components.projectile import Projectile
+        from ..components.scaling import Scaling
+        from ..components.target import Target
 
         # Validate that mutually exclusive arguments hve not been passed
         size_inputs = {
@@ -226,9 +237,6 @@ class Crater:
                 raise ValueError(
                     "projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity"
                 )
-
-        if scaling is not None and isinstance(scaling, Scaling):
-            projectile = scaling.projectile
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
@@ -283,13 +291,13 @@ class Crater:
             simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state
         )
         rng = argproc.rng
+
         if scaling is not None and isinstance(scaling, Scaling):
-            target = scaling.target
-            projectile = scaling.projectile
-        else:  # Setting these to None will  cause them to instantiate to their default models.
-            target = None
-            projectile = None
-        target = kwargs.pop("target", target)
+            if projectile is None:
+                projectile = scaling.projectile
+            if target is None:
+                target = scaling.target
+
         target = Target.maker(target, **vars(argproc.common_args), **kwargs)
         projectile = Projectile.maker(
             projectile, target=target, **vars(argproc.common_args), **kwargs
