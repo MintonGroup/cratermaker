@@ -1,13 +1,15 @@
 """
 Plot the ray intensity map for a crater
 =======================================
+
+.. rubric:: By David Minton
+
 This example demonstrates how to create a ray intensity map for a crater using the "simplemoon" morphology model.
 
 The ray intensity model simulates the spatial modulation of ejecta distribution in the form of rays, a feature observed around many planetary impact craters. These rays are modeled using a layered pattern of radially aligned Gaussian contributions, whose intensity decays with radial distance from the crater rim. The number and angular spread of rays vary stochastically to produce a realistic, azimuthally varying intensity field.
 
 The model uses the ray intensity function compiled from Rust code for performance. This function computes the contribution of each ray at a given point based on its radial distance and angular bearing from the crater center. The output intensity is plotted in a 2D space normalized to the crater radius and visualized on a logarithmic color scale to emphasize the structure of the rays.
 
-.. rubric:: By David Minton
 """
 
 import numpy as np

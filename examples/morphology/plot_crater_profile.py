@@ -1,9 +1,10 @@
 """
 Create a crater and ejecta profile with the "simplemoon" morphology model
 =========================================================================
-This example showcases how to create a crater and ejecta profile using the "simplemoon" morphology model from the CraterMaker package. The crater is created with a radius of 1 km, and the profiles are plotted in a 2D space normalized to the crater radius.
 
 .. rubric:: By David Minton
+
+This example showcases how to create a crater and ejecta profile using the "simplemoon" morphology model from the CraterMaker package. The crater is created with a radius of 1 km, and the profiles are plotted in a 2D space normalized to the crater radius.
 
 """
 
@@ -15,8 +16,8 @@ morphology = Morphology.maker(crater=Crater.maker(final_radius=1.0e3))
 
 rc = morphology.crater.final_radius
 rvals = np.linspace(0, 3.0 * rc, 1000)
-hvals = morphology.crater_profile(rvals)
-ejvals = morphology.ejecta_profile(rvals)
+hvals = morphology.crater_shape(rvals)
+ejvals = morphology.ejecta_shape(rvals)
 
 # Filter out the interior of the crater and add the ejecta to the crater profile to draw the combined profile
 rej = rvals[ejvals > 0]

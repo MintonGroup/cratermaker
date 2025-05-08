@@ -28,13 +28,13 @@ mod cratermaker {
     #[pymodule]
     mod crater_functions {
         #[pymodule_export]
-        use crate::crater_functions::profile;
+        use crate::crater_functions::shape;
     }
 
     #[pymodule]
     mod ejecta_functions {
         #[pymodule_export]
-        use crate::ejecta_functions::{distribution, profile, ray_intensity};
+        use crate::ejecta_functions::{distribution, shape, ray_intensity};
     }
 
     #[pymodule]

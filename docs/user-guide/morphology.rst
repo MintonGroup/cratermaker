@@ -35,7 +35,7 @@ Every time you set a new crater, the morphology model will recompute its paramet
     morphology.crater = Crater.maker(final_diameter=15e3)
     print(morphology)
 
-The primary purpose of a morphology model is to alter the topography of a surface, so typically you would not be using the morphology model directly. However, the built in morphology creation methods, such as :meth:`morphology.crater_profile` and :meth:`ejecta_profile` can be used in other context. See the example gallery for some examples of the the morphology model in action.
+The primary purpose of a morphology model is to alter the topography of a surface, so typically you would not be using the morphology model directly. However, the built in morphology creation methods, such as :meth:`morphology.crater_shape` and :meth:`ejecta_shape` can be used in other context. See the example gallery for some examples of the the morphology model in action.
 
 
 More Morphology examples

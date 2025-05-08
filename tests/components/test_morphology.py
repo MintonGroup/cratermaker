@@ -67,10 +67,10 @@ class TestMorphology(unittest.TestCase):
             rvals = np.linspace(0, 10, 1000)
             for final_radius in crater_radius_values:
                 morphology.crater = Crater.maker(final_radius=final_radius)
-                crater_profile = morphology.crater_profile(rvals * final_radius)
-                self.assertTrue(np.all(np.isfinite(crater_profile)), f"Crater profile for {model_name} contains NaN or Inf values.")
-                ejecta_profile = morphology.ejecta_profile(rvals * final_radius)
-                self.assertTrue(np.all(np.isfinite(ejecta_profile)), f"Ejecta profile for {model_name} contains NaN or Inf values.")
+                crater_shape = morphology.crater_shape(rvals * final_radius)
+                self.assertTrue(np.all(np.isfinite(crater_shape)), f"Crater profile for {model_name} contains NaN or Inf values.")
+                ejecta_shape = morphology.ejecta_shape(rvals * final_radius)
+                self.assertTrue(np.all(np.isfinite(ejecta_shape)), f"Ejecta profile for {model_name} contains NaN or Inf values.")
 
 
     def test_crater_depth_surface(self):

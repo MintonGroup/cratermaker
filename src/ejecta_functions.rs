@@ -32,7 +32,7 @@ const FRAYREDUCTION: f64 = 0.5;
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
+pub fn shape_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
     if r_actual >= crater_radius {
         let r = r_actual / crater_radius;
         ejrim * r.powf(-EJPROFILE)
@@ -118,7 +118,7 @@ pub fn distribution_internal<'py>(
             .zip(radial_distance)
             .map(|(&intensity, &radial_distance)| {
                 if radial_distance >= crater_radius {
-                    intensity * profile_function(radial_distance, crater_radius, ejrim)
+                    intensity * shape_function(radial_distance, crater_radius, ejrim)
                 } else {
                     0.0
                 }
@@ -128,7 +128,7 @@ pub fn distribution_internal<'py>(
         let crater_radius = crater_diameter / 2.0;
         Ok(radial_distance
             .iter()
-            .map(|&r| profile_function(r, crater_radius, ejrim))
+            .map(|&r| shape_function(r, crater_radius, ejrim))
             .collect())
     }
 }
@@ -148,7 +148,7 @@ pub fn distribution_internal<'py>(
 ///
 /// * A NumPy array of ejecta profile values.
 #[pyfunction]
-pub fn profile<'py>(
+pub fn shape<'py>(
     py: Python<'py>,
     radial_distance: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
@@ -159,7 +159,7 @@ pub fn profile<'py>(
         radial_distance
             .as_array()
             .iter()
-            .map(|&r| profile_function(r, crater_diameter / 2.0, ejrim))
+            .map(|&r| shape_function(r, crater_diameter / 2.0, ejrim))
             .collect(),
     ))
 }

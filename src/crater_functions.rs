@@ -32,7 +32,7 @@ const B: f64 = -32.0 / 187.0;
 ///
 /// * Adjusted elevation according to crater shape at distance `r`.
 #[inline]
-fn profile_function(r: f64, elevation: f64, c0: f64, c1: f64, c2: f64, c3: f64, rim_height: f64, ejrim: f64) -> f64 {
+fn shape_function(r: f64, elevation: f64, c0: f64, c1: f64, c2: f64, c3: f64, rim_height: f64, ejrim: f64) -> f64 {
     if r >= 1.0 {
         elevation + (rim_height - ejrim) * r.powf(-RIMDROP)
     } else {
@@ -42,7 +42,7 @@ fn profile_function(r: f64, elevation: f64, c0: f64, c1: f64, c2: f64, c3: f64, 
 
 /// Computes a crater profile elevation array from input radial distances and reference elevations.
 ///
-/// This function applies `profile_function` to each radial distance in the input array.
+/// This function applies `shape_function` to each radial distance in the input array.
 /// The coefficients c0, c1, c2, and c3 are calulated based on the crater dimensions and are based
 /// on the polynomial crater profile model described in Fassett and Thomson (2014).
 ///
@@ -65,7 +65,7 @@ fn profile_function(r: f64, elevation: f64, c0: f64, c1: f64, c2: f64, c3: f64, 
 ///
 /// Returns a `PyValueError` if the input arrays have mismatched lengths.
 #[pyfunction]
-pub fn profile<'py>(
+pub fn shape<'py>(
     py: Python<'py>,
     r_array: PyReadonlyArray1<'py, f64>,
     reference_elevation_array: PyReadonlyArray1<'py, f64>,
@@ -121,7 +121,7 @@ pub fn profile<'py>(
             .map(|(&elevation, &radial_distance)| {
                 let r = radial_distance / radius;
                 (
-                    profile_function(r, elevation, c0, c1, c2, c3, rim_height, ejrim),
+                    shape_function(r, elevation, c0, c1, c2, c3, rim_height, ejrim),
                     radial_distance,
                 )
             })
