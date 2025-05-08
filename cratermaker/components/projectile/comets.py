@@ -1,16 +1,22 @@
-from numpy.random import Generator
 from typing import Any
-from cratermaker.components.projectile import Projectile
 from warnings import warn
+
+from numpy.random import Generator
+
+from cratermaker.components.projectile import Projectile
+
+
 @Projectile.register("comets")
 class CometProjectiles(Projectile):
-    def __init__(self, 
-                 target_name : str | None = None,
-                 density : float | None = None,
-                 rng: Generator | None = None,
-                 rng_seed: int | None = None,
-                 rng_state: dict | None = None,
-                 **kwargs: Any):
+    def __init__(
+        self,
+        target_name: str | None = None,
+        density: float | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        rng_state: dict | None = None,
+        **kwargs: Any,
+    ):
         """
         An operations class for computing the projectile properties of a comet source population.
 
@@ -23,12 +29,12 @@ class CometProjectiles(Projectile):
         rng : Generator | None
             A random number generator for Monte Carlo simulations. If None, a default generator will be used.
         rng_seed : int | None
-            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.    
+            The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
         rng_state : dict, optional
             The state of the random number generator. If None, a new state is created.
         Notes
         -----
-        The mean impact velocities for outer solar system bodies come from Table 1 of Zahnle et al. [1]_. For inner solar system bodies, from Table 2 of Borin et al. [2]_. 
+        The mean impact velocities for outer solar system bodies come from Table 1 of Zahnle et al. [1]_. For inner solar system bodies, from Table 2 of Borin et al. [2]_.
 
         References
         ----------
@@ -43,25 +49,31 @@ class CometProjectiles(Projectile):
         # This model always samples velocities, angles, and directions, so override any values that may have been passed.
         if density is None:
             density = 500.0
-        super().__init__(target_name=target_name, density=density, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        super().__init__(
+            target_name=target_name,
+            density=density,
+            rng=rng,
+            rng_seed=rng_seed,
+            rng_state=rng_state,
+            **kwargs,
+        )
         self.mean_velocity = self._set_mean_velocity()
-
 
     def _set_mean_velocity(self):
         """
         Sets the mean velocity of the projectile in m/s based on the target body.
-        
+
         Returns
         -------
-        float 
+        float
         """
 
         catalogue = {
-            "Mercury" : 18400.0,
-            "Venus" : 26300.0,
-            "Earth" : 17670.0,
-            "Moon" : 17670.0,
-            "Mars" : 14210.0,
+            "Mercury": 18400.0,
+            "Venus": 26300.0,
+            "Earth": 17670.0,
+            "Moon": 17670.0,
+            "Mars": 14210.0,
             "Metis": 59000.0,
             "Amalthea": 50000.0,
             "Thebe": 45000.0,
@@ -111,11 +123,13 @@ class CometProjectiles(Projectile):
             "Nereid": 2800.0,
             "Pluto": 1900.0,
             "Charon": 1800.0,
-            "KBO" : 1800.0,
+            "KBO": 1800.0,
         }
         if self.target_name in catalogue:
             pmv = float(catalogue[self.target_name])
         else:
-            warn(f"Target {self.target_name} not found in known targets. Known targets include {list(catalogue.keys())}. Defaulting to KBO.")
+            warn(
+                f"Target {self.target_name} not found in known targets. Known targets include {list(catalogue.keys())}. Defaulting to KBO."
+            )
             pmv = float(catalogue["KBO"])
         return pmv

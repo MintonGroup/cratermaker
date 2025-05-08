@@ -1,19 +1,24 @@
-from numpy.random import Generator
 from typing import Any
-from cratermaker.components.target import Target
-from cratermaker.components.projectile import Projectile
-from cratermaker.utils.custom_types import FloatLike
 from warnings import warn
+
+from numpy.random import Generator
+
+from cratermaker.components.projectile import Projectile
+from cratermaker.components.target import Target
+from cratermaker.constants import FloatLike
+
 
 @Projectile.register("asteroids")
 class AsteroidProjectiles(Projectile):
-    def __init__(self, 
-                 target : Target | str | None = None,
-                 density : FloatLike | None = None,
-                 rng: Generator | None = None,
-                 rng_seed : int | None = None,
-                 rng_state : dict | None = None, 
-                 **kwargs: Any):
+    def __init__(
+        self,
+        target: Target | str | None = None,
+        density: FloatLike | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        rng_state: dict | None = None,
+        **kwargs: Any,
+    ):
         """
         An operations class for computing the projectile properties of an asteroid source population.
 
@@ -36,24 +41,50 @@ class AsteroidProjectiles(Projectile):
         # This model always samples velocities, angles, and directions, so override any values that may have been passed.
         if density is None:
             density = 2250.0
-        super().__init__(target=target, density=density, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        super().__init__(
+            target=target,
+            density=density,
+            rng=rng,
+            rng_seed=rng_seed,
+            rng_state=rng_state,
+            **kwargs,
+        )
         self.mean_velocity = self._set_mean_velocity()
-
 
     def _set_mean_velocity(self):
         """
         Sets the mean velocity of the projectile in m/s based on the target body.
-        
+
         Returns
         -------
-        float 
+        float
         """
-        known_targets = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta', 'MBA']
-        target_velocities = [41100.0, 29100.0, 24600.0, 22100.0, 10700.0, 5300.0, 5300.0, 5300.0]
+        known_targets = [
+            "Mercury",
+            "Venus",
+            "Earth",
+            "Moon",
+            "Mars",
+            "Ceres",
+            "Vesta",
+            "MBA",
+        ]
+        target_velocities = [
+            41100.0,
+            29100.0,
+            24600.0,
+            22100.0,
+            10700.0,
+            5300.0,
+            5300.0,
+            5300.0,
+        ]
         catalogue = dict(zip(known_targets, target_velocities))
         if self.target_name in known_targets:
             pmv = float(catalogue[self.target_name])
         else:
-            warn(f"Target {self.target_name} not found in known targets. Known targets include {known_targets}. Defaulting to the Moon.")
+            warn(
+                f"Target {self.target_name} not found in known targets. Known targets include {known_targets}. Defaulting to the Moon."
+            )
             pmv = float(catalogue["Moon"])
         return pmv

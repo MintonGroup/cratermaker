@@ -1,28 +1,40 @@
 from __future__ import annotations
-from typing import Any
-import numpy as np
+
 import math
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
 from numpy.random import Generator
-from cratermaker.utils.general_utils import parameter, format_large_units, _set_properties
-from cratermaker.utils.component_utils import ComponentBase, import_components
-from cratermaker.utils.custom_types import FloatLike
+
+from cratermaker.constants import FloatLike
 from cratermaker.utils import montecarlo_utils as mc
-from cratermaker.components.target import Target
+from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.utils.general_utils import (
+    format_large_units,
+    parameter,
+)
+
+if TYPE_CHECKING:
+    from cratermaker.components.target import Target
+
 
 class Projectile(ComponentBase):
     _registry: dict[str, Projectile] = {}
-    def __init__(self, 
-                 target : Target | str | None = None,
-                 mean_velocity : FloatLike | None = None,
-                 density : FloatLike | None = None,
-                 sample : bool | None = None,
-                 angle: FloatLike | None = None,
-                 velocity : FloatLike | None = None,
-                 direction : FloatLike | None = None,
-                 rng: Generator | None = None,
-                 rng_seed : int | None = None,
-                 rng_state : dict | None = None, 
-                 **kwargs):
+
+    def __init__(
+        self,
+        target: Target | str | None = None,
+        mean_velocity: FloatLike | None = None,
+        density: FloatLike | None = None,
+        sample: bool | None = None,
+        angle: FloatLike | None = None,
+        velocity: FloatLike | None = None,
+        direction: FloatLike | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        rng_state: dict | None = None,
+        **kwargs,
+    ):
         """
         This is the abstract base class for all projectile models. It defines the interface for generating projectile velocities, angles, and densities for a given target body.
 
@@ -31,13 +43,13 @@ class Projectile(ComponentBase):
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         mean_velocity : float
-            The mean velocity of the projectile in m/s. 
+            The mean velocity of the projectile in m/s.
         density : float
-            The density of the projectile in kg/m^3. 
+            The density of the projectile in kg/m^3.
         sample : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
-            The impact angle in degrees. 
+            The impact angle in degrees.
         velocity : float | None
             The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
         direction : float | None
@@ -51,6 +63,8 @@ class Projectile(ComponentBase):
         **kwargs : Any
             Additional keyword arguments.
         """
+        from cratermaker.components.target import Target
+
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
         object.__setattr__(self, "_sample", sample)
@@ -74,24 +88,25 @@ class Projectile(ComponentBase):
             f"Sample from distributions: {self.sample}"
         )
 
-
     @classmethod
-    def maker(cls,
-             projectile: Projectile | str | None = None, 
-             target : Target | str | None = None,
-             mean_velocity : FloatLike | None = None,
-             density : FloatLike | None = None,
-             sample : bool = True,
-             angle: FloatLike | None = None,
-             velocity : FloatLike | None = None,
-             direction : FloatLike | None = None,
-             rng: Generator | None = None,
-             rng_seed : int | None = None,
-             rng_state : dict | None = None, 
-             **kwargs: Any) -> Projectile:
+    def maker(
+        cls,
+        projectile: Projectile | str | None = None,
+        target: Target | str | None = None,
+        mean_velocity: FloatLike | None = None,
+        density: FloatLike | None = None,
+        sample: bool = True,
+        angle: FloatLike | None = None,
+        velocity: FloatLike | None = None,
+        direction: FloatLike | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        rng_state: dict | None = None,
+        **kwargs: Any,
+    ) -> Projectile:
         """
         Initialize an projectile model based on the provided name or class.
-        
+
         Parameters
         ----------
         projectile : Projectile or str
@@ -99,13 +114,13 @@ class Projectile(ComponentBase):
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         mean_velocity : float
-            The mean velocity of the projectile in m/s. 
+            The mean velocity of the projectile in m/s.
         density : float
-            The density of the projectile in kg/m^3. 
+            The density of the projectile in kg/m^3.
         sample : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
-            The impact angle in degrees. 
+            The impact angle in degrees.
         velocity : float | None
             The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
         direction : float | None
@@ -118,12 +133,12 @@ class Projectile(ComponentBase):
             The state of the random number generator. If None, a new state is created.
         **kwargs : Any
             Additional keyword arguments.
-        
+
         Returns
         -------
         Projectile
             The initialized projectile model.
-        
+
         Raises
         ------
         KeyError
@@ -131,39 +146,50 @@ class Projectile(ComponentBase):
         TypeError
             If the specified projectile model is not a string or a subclass of Projectile.
         """
+        from cratermaker.components.target import Target
+
         target = Target.maker(target, **kwargs)
         if projectile is None:
             target_name = target.name.capitalize()
-            if target_name in ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Ceres', 'Vesta']:
+            if target_name in [
+                "Mercury",
+                "Venus",
+                "Earth",
+                "Moon",
+                "Mars",
+                "Ceres",
+                "Vesta",
+            ]:
                 projectile = "asteroids"
             else:
                 projectile = "comets"
 
-        projectile = super().maker(component=projectile,
-                            target=target,
-                            mean_velocity=mean_velocity,
-                            density=density,
-                            sample=sample,
-                            angle=angle,
-                            velocity=velocity,
-                            direction=direction,
-                            rng=rng,
-                            rng_seed=rng_seed,
-                            rng_state=rng_state, 
-                            **kwargs) 
+        projectile = super().maker(
+            component=projectile,
+            target=target,
+            mean_velocity=mean_velocity,
+            density=density,
+            sample=sample,
+            angle=angle,
+            velocity=velocity,
+            direction=direction,
+            rng=rng,
+            rng_seed=rng_seed,
+            rng_state=rng_state,
+            **kwargs,
+        )
         projectile.new_projectile(**kwargs)
         return projectile
 
-        
     def new_projectile(self, **kwargs: Any) -> dict:
         """
         Updates the values of the velocities and angles and returns them as a dictionary of projectile properties that can be passed as arguments to the Crater class.
-        
+
         Parameters
         ----------
         **kwargs : Any
             Additional keyword arguments to be passed to internal functions.
-        
+
         Returns
         -------
         dict
@@ -171,7 +197,9 @@ class Projectile(ComponentBase):
         """
 
         if self.sample:
-            self._velocity = float(mc.get_random_velocity(self.mean_velocity, rng=self.rng)[0])
+            self._velocity = float(
+                mc.get_random_velocity(self.mean_velocity, rng=self.rng)[0]
+            )
         elif self.velocity is None:
             self._velocity = float(self.mean_velocity)
 
@@ -189,64 +217,66 @@ class Projectile(ComponentBase):
             "projectile_velocity": self.velocity,
             "projectile_angle": self.angle,
             "projectile_density": self.density,
-            "projectile_direction": self.direction, 
+            "projectile_direction": self.direction,
         }
 
     @parameter
     def target_name(self):
         """
         The name of the target body.
-        
+
         Returns
         -------
         str
-        """ 
+        """
         return self._target.name
-    
+
     @property
     def target(self):
         """
         The target object for the projectile model.
-        
+
         Returns
         -------
         Target
         """
         return self._target
-    
+
     @target.setter
     def target(self, value):
+        from cratermaker.components.target import Target
+
         self._target = Target.maker(value)
 
     @parameter
     def sample(self):
         """
         Flag that determines whether to sample velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
-        
+
         Returns
         -------
         bool
         """
         return self._sample
-    
+
     @sample.setter
     def sample(self, value):
         if not isinstance(value, bool):
             raise TypeError("sample must be a boolean value")
         self._sample = value
         return
-    
+
     @parameter
     def mean_velocity(self):
         """
         The mean velocity of the projectile in m/s.
-        
+
         Returns
         -------
-        float 
+        float
         """
         return self._mean_velocity
-    
+
     @mean_velocity.setter
     def mean_velocity(self, value):
         if isinstance(value, np.ndarray):
@@ -255,21 +285,21 @@ class Projectile(ComponentBase):
             if value < 0:
                 raise ValueError("mean_velocity must be a positive number")
             self._mean_velocity = float(value)
-        else: 
-            raise TypeError("mean_velocity must be a numeric value") 
+        else:
+            raise TypeError("mean_velocity must be a numeric value")
         return
 
-    @property 
+    @property
     def angle(self):
         """
         The impact angle in degrees.
-        
+
         Returns
         -------
-        float 
+        float
         """
         return self._angle
-    
+
     @angle.setter
     def angle(self, value):
         if isinstance(value, np.ndarray):
@@ -284,13 +314,13 @@ class Projectile(ComponentBase):
     def direction(self):
         """
         The impact direction in degrees.
-        
+
         Returns
         -------
-        float 
+        float
         """
         return self._direction
-    
+
     @direction.setter
     def direction(self, value):
         if isinstance(value, np.ndarray):
@@ -305,13 +335,13 @@ class Projectile(ComponentBase):
     def velocity(self):
         """
         The impact velocity in m/s.
-        
+
         Returns
         -------
-        float 
+        float
         """
         return self._velocity
-    
+
     @velocity.setter
     def velocity(self, value):
         if value is not None:
@@ -328,23 +358,23 @@ class Projectile(ComponentBase):
     def density(self):
         """
         The density of the projectile in kg/m^3.
-        
+
         Returns
         -------
-        float 
+        float
         """
         return self._density
-    
+
     @density.setter
     def density(self, value):
         """
-        Sets the density of the projectile in kg/m^3. 
-        
+        Sets the density of the projectile in kg/m^3.
+
         Parameters
         ----------
         value : float | None
             The density in kg/m^3 or None to use a default value.
-        
+
         Raises
         ------
         ValueError
@@ -362,23 +392,23 @@ class Projectile(ComponentBase):
     def vertical_velocity(self):
         """
         The vertical component of the impact velocity in m/s.
-        
+
         Returns
         -------
-        float 
+        float
         """
         return self.velocity * math.sin(math.radians(self.angle))
-    
+
     @property
     def population(self):
         """
         The name of the population of the projectile model.
-        
+
         Returns
         -------
         int
         """
         return self._component_name
 
-import_components(__name__, __path__, ignore_private=True)
 
+import_components(__name__, __path__, ignore_private=True)
