@@ -5,7 +5,7 @@ from cratermaker.utils.custom_types import FloatLike
 from cratermaker.utils.general_utils import R_to_CSFD, parameter, format_large_units
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Any
 
 @Production.register("neukum")
 class NeukumProduction(Production):
@@ -76,7 +76,7 @@ class NeukumProduction(Production):
              age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
              check_valid_time: bool=True,
              **kwargs: Any,
-             ) -> Union[FloatLike, ArrayLike]:
+             ) -> FloatLike | ArrayLike:
         """
         Return the cumulative size-frequency distribution of craters over a given age range and crater diameter.
 
@@ -112,7 +112,7 @@ class NeukumProduction(Production):
              age: FloatLike | Sequence[FloatLike] | ArrayLike = 1000.0,
              check_valid_time: bool=True,
              **kwargs: Any,
-             ) -> Union[FloatLike, ArrayLike]:
+             ) -> FloatLike | ArrayLike:
         """
         Returns the relative number of craters produced over a given age range. This implements the chronology function given in
         Eq. 5 of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86, but takes in the age argument in the Cratermaker unit 
@@ -135,7 +135,7 @@ class NeukumProduction(Production):
         
         def _N1km(age: FloatLike | Sequence[FloatLike] | ArrayLike,
                 check_valid_time:bool=True
-                ) -> Union[FloatLike, ArrayLike]:
+                ) -> FloatLike | ArrayLike:
             """
             Return the cumulative number of 1 km craters as a function of age in Gy. This is a direct implementation of Eq. 5 in
             Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 (with corrected coefficient for the linear term).  
@@ -387,7 +387,7 @@ class NeukumProduction(Production):
         Dkm_lo = self.sfd_range[0] * 1e-3
         Dkm_hi = self.sfd_range[1] * 1e-3
 
-        def _extrapolate_sfd(side: str = "lo") -> Union[FloatLike, ArrayLike]:
+        def _extrapolate_sfd(side: str = "lo") -> FloatLike | ArrayLike:
             """
             Return the exponent, p, and and proportionality constant, A, for  the extrapolated 
             CSFD in the form N(D) = A * D**-p. 
@@ -412,7 +412,7 @@ class NeukumProduction(Production):
             return A, p
 
 
-        def _dNdD(Dkm: FloatLike | Sequence[FloatLike] | ArrayLike) -> Union[FloatLike, ArrayLike]:
+        def _dNdD(Dkm: FloatLike | Sequence[FloatLike] | ArrayLike) -> FloatLike | ArrayLike:
             """
             Return the derivative of the cumulative size-frequency distribution as a function of diameter. For diameter values outside 
             the range of the NPF, the derivative is extrapolated using a power law.
@@ -441,7 +441,7 @@ class NeukumProduction(Production):
             return _dNdD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_dNdD_scalar)(Dkm)
 
     
-        def _CSFD(Dkm: FloatLike | Sequence[FloatLike] | ArrayLike) -> Union[FloatLike, ArrayLike]:
+        def _CSFD(Dkm: FloatLike | Sequence[FloatLike] | ArrayLike) -> FloatLike | ArrayLike:
             """
             Return the cumulative size-frequency distribution at the reference age of 1 Gy ago. For diameter values outside 
             the range of the NPF, the CSFD is extrapolated using a power law.

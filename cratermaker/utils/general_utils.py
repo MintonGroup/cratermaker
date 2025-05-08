@@ -1,8 +1,8 @@
 import yaml
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import ArrayLike
 from cratermaker.utils.custom_types import FloatLike
-from typing import Callable, Union, Any
+from typing import Callable, Any
 from pathlib import Path
 from warnings import warn
 
@@ -312,11 +312,11 @@ def validate_and_normalize_location(location):
     raise ValueError("location must a tuple, list, or ArrayLike of len==2, a dict with 'lon' and 'lat', or a structured array with 'lon' and 'lat' names")
 
 
-def R_to_CSFD(R: Callable[[Union[FloatLike, ArrayLike]], Union[FloatLike, ArrayLike]], 
-              D: Union[FloatLike, ArrayLike],
+def R_to_CSFD(R: Callable[[FloatLike | ArrayLike], FloatLike | ArrayLike],
+              D: FloatLike | ArrayLike,
               Dlim: FloatLike = 1e6,
-              *args: Any,
-            ) -> Union[FloatLike, ArrayLike]:
+              *args: Any
+            ) -> FloatLike | ArrayLike:
     """
     Convert R values to cumulative N values for a given D using the R-plot function.
 
