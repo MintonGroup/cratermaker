@@ -4,6 +4,7 @@ from typing import Any
 from cratermaker.core.crater import Crater
 from cratermaker.components.surface import Surface
 from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.utils.general_utils import format_large_units
 
 class Morphology(ComponentBase):
     def __init__(self, crater : Crater | None = None, **kwargs: Any) -> None:
@@ -33,7 +34,8 @@ class Morphology(ComponentBase):
             return base
         return (
             f"{base}\n"
-            f"{self.crater}"
+            f"Crater final diameter: {format_large_units(self.crater.final_diameter, quantity="length")}\n"
+            f"Morphology type: {self.crater.morphology_type}"
         )
 
     @classmethod
