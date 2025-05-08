@@ -202,6 +202,25 @@ class SimpleMoon(Morphology):
         return
 
 
+    """
+    Compute the crater profile elevation at a given radial distance.
+
+    Parameters
+    ----------
+    r : ArrayLike
+        Radial distances from the crater center (in meters).
+    r_ref : ArrayLike, optional
+        Reference elevation values to be modified by the crater profile.
+
+    Returns
+    -------
+    elevation : NDArray[np.float64]
+        The computed crater elevation profile at each radial point.
+
+    Notes
+    -----
+    This is a wrapper for a compiled Rust function.
+    """
     def crater_profile(self, r: ArrayLike, r_ref: ArrayLike | None = None) -> NDArray[np.float64]:
         if r_ref is None:
             r_ref = np.zeros_like(r)
@@ -217,6 +236,23 @@ class SimpleMoon(Morphology):
         return np.array(elevation, dtype=np.float64)
     
 
+    """
+    Compute the ejecta elevation profile at a given radial distance.
+
+    Parameters
+    ----------
+    r : ArrayLike
+        Radial distances from the crater center (in meters).
+
+    Returns
+    -------
+    elevation : NDArray[np.float64]
+        The computed ejecta profile at each radial point.
+
+    Notes
+    -----
+    This is a wrapper for a compiled Rust function.
+    """
     def ejecta_profile(self, r: ArrayLike) -> NDArray[np.float64]:
         elevation = ejecta_functions.profile(r,
                                    self.crater.final_diameter, 
@@ -226,6 +262,25 @@ class SimpleMoon(Morphology):
         return elevation
    
     
+    """
+    Compute the ejecta thickness distribution modulated by ray patterns.
+
+    Parameters
+    ----------
+    r : ArrayLike
+        Radial distances from the crater center (in meters).
+    theta : ArrayLike
+        Angular bearings from the crater center (in radians).
+
+    Returns
+    -------
+    thickness : NDArray[np.float64]
+        The computed ejecta thickness for each (r, theta) pair.
+
+    Notes
+    -----
+    This is a wrapper for a compiled Rust function.
+    """
     def ejecta_distribution(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
         thickness = ejecta_functions.distribution(r, theta,
                                        self.crater.final_diameter, 
@@ -237,6 +292,25 @@ class SimpleMoon(Morphology):
         return thickness
 
 
+    """
+    Compute the ray pattern intensity modulation at each (r, theta) pair.
+
+    Parameters
+    ----------
+    r : ArrayLike
+        Radial distances from the crater center (in meters).
+    theta : ArrayLike
+        Angular bearings from the crater center (in radians).
+
+    Returns
+    -------
+    intensity : NDArray[np.float64]
+        The computed ray intensity values.
+
+    Notes
+    -----
+    This is a wrapper for a compiled Rust function.
+    """
     def ray_intensity(self, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
         intensity = ejecta_functions.ray_intensity(r, theta,
                                        self.crater.final_diameter, 
