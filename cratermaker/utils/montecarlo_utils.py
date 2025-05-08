@@ -369,6 +369,7 @@ def get_random_size(
 
 def get_random_velocity(
     vmean: np.float64,
+    vescape: np.float64 | None = None,
     size: int | tuple[int, ...] = 1,
     rng: Generator | None = None,
     rng_seed: int | None = None,
@@ -376,12 +377,14 @@ def get_random_velocity(
     **kwargs: Any,
 ) -> NDArray[np.float64]:
     """
-    Sample impact velocities from a Maxwell-Boltzmann distribution given a mean velocity.
+    Sample impact velocities from a Rayleigh distribution given a mean velocity. Optionally account for the escape velocity.
 
     Parameters
     ----------
     vmean : np.float64
         The mean velocity of the distribution.
+    vescape : np.float64 | None, optional
+        The escape velocity of the target body. If None, the escape velocity is not used in the calculation, and the disrtribution will be a maxwellian. If it is included, then the distribution will depend on the value of vmean. If vmean > vescape, then the distribution will adjusted so that the escape velocity is the minimum velocity by computing an encounter velocity then summing the encounter and escape velocities in quadrature. If vmean < vescape, then the distirbution will be a truncated maxwellian.
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
     rng : numpy.random.Generator | None
@@ -400,6 +403,21 @@ def get_random_velocity(
     """
 
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+
+    if vescape is not None:
+        if vmean > vescape:
+            vencounter = np.sqrt(vmean**2 - vescape**2)
+            velocities = get_random_velocity(vencounter, rng=rng, size=size)
+            return np.sqrt(velocities**2 + vescape**2)
+        else:
+            velocities = np.full(size, 2 * vescape)
+            while True:
+                nbad = np.sum(velocities > vescape)
+                velocities[velocities > vescape] = get_random_velocity(
+                    vmean, rng=rng, size=nbad
+                )
+                if np.all(velocities < vescape):
+                    return velocities
 
     sigma = vmean / np.sqrt(8 / np.pi)
 

@@ -321,15 +321,11 @@ class Crater:
             pmv = float(pmv)
             if pmv <= 0.0:
                 raise ValueError("projectile_mean_velocity must be positive.")
-            if pmv > target.escape_velocity:
-                vencounter_mean = math.sqrt(pmv**2 - target.escape_velocity**2)
-                vencounter = mc.get_random_velocity(vencounter_mean, rng=rng)[0]
-                pv = float(math.sqrt(vencounter**2 + target.escape_velocity**2))
-            else:
-                while True:
-                    pv = float(mc.get_random_velocity(pmv, rng=rng)[0])
-                    if pv < target.escape_velocity:
-                        break
+            pv = float(
+                mc.get_random_velocity(
+                    vmean=pmv, vescape=target.escape_velocity, rng=rng
+                )[0]
+            )
         if n_velocity_inputs != 0:
             if pv is not None:
                 pv = float(pv)
