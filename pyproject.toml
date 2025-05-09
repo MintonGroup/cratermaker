@@ -67,6 +67,7 @@ hireslocal = "cratermaker.components.surface.hireslocal:HiResLocalSurface"
 [project.entry-points."cratermaker.components.projectile"]
 asteroids = "cratermaker.components.projectile.asteroids:AsteroidProjectiles"
 comets = "cratermaker.components.projectile.comets:CometProjectiles"
+generic = "cratermaker.components.projectile.generic:GenericProjectiles"
 
 [build-system]
 requires = [
