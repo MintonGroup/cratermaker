@@ -231,9 +231,10 @@ class SimpleMoon(Morphology):
 
         # flatten r to 1D array
         rflat = np.ravel(r)
+        r_ref_flat = np.ravel(r_ref)
         elevation = crater_functions.profile(
             rflat,
-            r_ref,
+            r_ref_flat,
             crater.final_diameter,
             crater.floor_depth,
             crater.floor_diameter,
