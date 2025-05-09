@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from cratermaker.utils.montecarlo import *
+from cratermaker.utils.montecarlo_utils import *
 from scipy.stats import chisquare, ks_2samp
 
 class TestMonteCarlo(unittest.TestCase):

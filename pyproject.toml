@@ -48,7 +48,8 @@ tests = [
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
 [project.entry-points."cratermaker.components.scaling"]
-richardson2009 = "cratermaker.components.scaling.richardson2009:Richardson2009"
+montecarlo = "cratermaker.components.scaling.montecarlo:MontecarloScaling"
+ctem = "cratermaker.components.scaling.ctem:CTEMScaling"
 
 [project.entry-points."cratermaker.components.production"]
 powerlaw = "cratermaker.components.production.powerlaw:PowerLawProduction"
@@ -58,14 +59,14 @@ neukum = "cratermaker.components.production.neukum:NeukumProduction"
 simplemoon = "cratermaker.components.morphology.simplemoon:SimpleMoon"
 du2025 = "cratermaker.components.morphology.du2025:Du2025"
 
-[project.entry-points."cratermaker.components.grid"]
-arbitrary_resolution = "cratermaker.components.grid.arbitrary_resolution:ArbitraryResolutionGrid"
-icosphere = "cratermaker.components.grid.icosphere:IcosphereGrid"
-hireslocal = "cratermaker.components.grid.hireslocal:HiResLocalGrid"
+[project.entry-points."cratermaker.components.surface"]
+arbitrary_resolution = "cratermaker.components.surface.arbitrary_resolution:ArbitraryResolutionSurface"
+icosphere = "cratermaker.components.surface.icosphere:IcosphereSurface"
+hireslocal = "cratermaker.components.surface.hireslocal:HiResLocalSurface"
 
-[project.entry-points."cratermaker.components.impactor"]
-asteroids = "cratermaker.components.impactor.asteroids:AsteroidImpactors"
-comets = "cratermaker.components.impactor.comets:CometImpactors"
+[project.entry-points."cratermaker.components.projectile"]
+asteroids = "cratermaker.components.projectile.asteroids:AsteroidProjectiles"
+comets = "cratermaker.components.projectile.comets:CometProjectiles"
 
 [build-system]
 requires = [
@@ -80,8 +81,7 @@ build-backend = "maturin"
 python-source = "."
 include = ["cratermaker/_version.py", "cratermaker/**/*.py", "pyproject.toml", "Cargo.toml"]
 features = ["pyo3/extension-module"]
-module-name = "cratermaker._cratermaker"
+module-name = "cratermaker._simplemoon"
 
 [tool.setuptools_scm]  
 write_to = "cratermaker/_version.py"
-

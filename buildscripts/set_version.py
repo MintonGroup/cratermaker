@@ -1,5 +1,8 @@
 import subprocess
 import re
+import setuptools_scm
+
+v = setuptools_scm.get_version()
 
 # Get version string from setuptools_scm
 raw_version = subprocess.check_output(["python", "-m", "setuptools_scm"]).decode().strip()
@@ -27,5 +30,7 @@ new_cargo_contents = re.sub(
 # Write back
 with open(cargo_path, "w", encoding="utf-8") as f:
     f.write(new_cargo_contents)
+with open('cratermaker/_version.py', 'w') as f:
+    f.write(f'__version__ = version = \"{version}\"\n')
 
 print(f"Updated Cargo.toml to version: {version}")
