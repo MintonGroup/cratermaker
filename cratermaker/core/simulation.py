@@ -275,9 +275,11 @@ class Simulation(CratermakerBase):
         self.morphology.process_queue(self.surface)
         return
 
-    def emplace_crater(self, crater: Crater | None = None, **kwargs: Any) -> None:
+    def emplace(
+        self, crater: Crater | list[Crater] | None = None, **kwargs: Any
+    ) -> None:
         """
-        Emplace a crater in the simulation, optionally based on a projectile.
+        Emplace one or more craters in the simulation.
 
         This method orchestrates the creation and placement of a crater in the
         simulation. It can create a crater directly or based on the characteristics
@@ -285,10 +287,10 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
-        crater : Crater, optional
-            A Crater object to be emplaced. If provided, this will be used directly.
+        crater : Crater or list of Crater objects, optional
+            The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
         **kwargs : Any
-            Keyword arguments for initializing the :class:`Crater`.
+            Keyword arguments to pass to :class:`Crater.maker`.
             Refer to the documentation of this class for details on valid keyword arguments.
 
         Notes
@@ -300,15 +302,21 @@ class Simulation(CratermakerBase):
         Examples
         --------
         .. code-block:: python
+            from cratermaker import Simulation, Crater`
+            sim = Simulation()
 
             # Create a crater with specific diameter
-            sim.emplace_crater(final_diameter=1000.0)
+            sim.emplace(final_diameter=1000.0)
 
             # Create a crater based on a projectile with given mass and projectile_velocity
-            sim.emplace_crater(projectile_mass=1e14, projectile_velocity=20e3)
+            sim.emplace(projectile_mass=1e14, projectile_velocity=20e3)
 
             # Create a crater with a specific transient diameter and location
-            sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
+            sim.emplace(transient_diameter=5e3, location=(43.43, -86.92))
+
+            # Create multiple craters
+            craters = [Crater.maker(final_diameter=1000.0), Crater.maker(final_diameter=2000.0)]
+            sim.emplace(craters)
 
         """
         if crater is None:
@@ -317,7 +325,13 @@ class Simulation(CratermakerBase):
             if "scaling" not in crater_args:
                 crater_args["scaling"] = self.scaling
             crater = Crater.maker(**crater_args)
-        self.morphology.emplace_crater(crater, self.surface, **kwargs)
+        elif isinstance(crater, list) and len(crater) > 0:
+            for c in crater:
+                self.enqueue_crater(c)
+            self.process_queue()
+            return
+        if isinstance(crater, Crater):
+            self.morphology.emplace(crater, self.surface, **kwargs)
 
         return
 
@@ -431,32 +445,28 @@ class Simulation(CratermakerBase):
                 impact_locations.extend(np.array(locations).T.tolist())
 
         if len(impact_diameters) > 0:
-            if len(impact_diameters) == 1:
-                diam_arg = {diam_key: impact_diameters[0]}
-                self.emplace_crater(
-                    age=impact_ages[0], location=impact_locations[0], **diam_arg
-                )
-            else:
-                # Sort the ages, diameters, and locations so that they are in order of decreasing age
-                sort_indices = np.argsort(impact_ages)[::-1]
-                impact_diameters = np.asarray(impact_diameters)[sort_indices]
-                impact_ages = np.asarray(impact_ages)[sort_indices]
-                impact_locations = np.array(impact_locations)[sort_indices]
-                for diameter, location, age in zip(
-                    impact_diameters, impact_locations, impact_ages
-                ):
-                    diam_arg = {diam_key: diameter}
-                    crater = Crater.maker(
+            craterlist = []
+            # Sort the ages, diameters, and locations so that they are in order of decreasing age
+            sort_indices = np.argsort(impact_ages)[::-1]
+            impact_diameters = np.asarray(impact_diameters)[sort_indices]
+            impact_ages = np.asarray(impact_ages)[sort_indices]
+            impact_locations = np.array(impact_locations)[sort_indices]
+            for diameter, location, age in zip(
+                impact_diameters, impact_locations, impact_ages
+            ):
+                diam_arg = {diam_key: diameter}
+                craterlist.append(
+                    Crater.maker(
                         location=location,
                         age=age,
-                        from_projectile=from_projectile,
                         scaling=self.scaling,
                         **diam_arg,
                         **vars(self.common_args),
                         **kwargs,
                     )
-                    self.enqueue_crater(crater)
-                self.process_queue()
+                )
+            self.emplace(craterlist)
+
         return
 
     def run(

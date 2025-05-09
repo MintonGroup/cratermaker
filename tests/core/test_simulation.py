@@ -98,16 +98,16 @@ class TestSimulation(unittest.TestCase):
             for f in expected_files:
                 self.assertTrue((Path(default_out_dir / f).exists()))
 
-    def test_emplace_crater(self):
+    def test_emplace(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             cdiam = 2 * self.pix
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
             crater = cratermaker.Crater.maker(final_diameter=cdiam)
-            sim.emplace_crater(crater)
+            sim.emplace(crater)
             pdiam = crater.projectile_diameter
 
-            sim.emplace_crater(final_diameter=cdiam)
-            sim.emplace_crater(projectile_diameter=pdiam)
+            sim.emplace(final_diameter=cdiam)
+            sim.emplace(projectile_diameter=pdiam)
         return
 
     def test_populate(self):

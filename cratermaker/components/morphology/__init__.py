@@ -74,7 +74,7 @@ class Morphology(ComponentBase):
         morphology = super().maker(component=morphology, **kwargs)
         return morphology
 
-    def emplace_crater(self, crater: Crater, surface: Surface, **kwargs: Any) -> None:
+    def emplace(self, crater: Crater, surface: Surface, **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
         Initializes and uses the queue system behind the scenes.
