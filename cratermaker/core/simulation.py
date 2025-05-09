@@ -275,6 +275,40 @@ class Simulation(CratermakerBase):
 
         return crater
 
+    def enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
+        """
+        Add a crater to the queue for later emplacement.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater object to enqueue.
+
+        **kwargs : Any
+            Additional keyword arguments for initializing the :class:`Crater`.
+
+        Raises
+        ------
+        RuntimeError
+            If the queue manager has not been initialized.
+        """
+        self.morphology.enqueue_crater(crater, self.surface, **kwargs)
+        return
+
+    def process_queue(self) -> None:
+        """
+        Process all queued craters in the order they were added, forming non-overlapping
+        batches and applying each to the surface.
+
+
+        Raises
+        ------
+        RuntimeError
+            If the queue manager has not been initialized.
+        """
+        self.morphology.process_queue(self.surface)
+        return
+
     def emplace_crater(self, crater: Crater | None = None, **kwargs: Any) -> None:
         """
         Emplace a crater in the simulation, optionally based on a projectile.

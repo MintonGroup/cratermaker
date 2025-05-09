@@ -5,6 +5,7 @@ from math import pi
 from typing import TYPE_CHECKING, Any, Callable
 
 from numpy.typing import NDArray
+from tqdm import tqdm
 
 from cratermaker.constants import FloatLike
 from cratermaker.core.crater import Crater
@@ -92,7 +93,7 @@ class Morphology(ComponentBase):
         self.enqueue_crater(crater)
         self.process_queue(surface)
 
-    def form_crater(self, crater: Crater, surface: Surface, **kwargs) -> Surface:
+    def form_crater(self, crater: Crater, surface: Surface, **kwargs: Any) -> Surface:
         """
         This method forms the interior of the crater by altering the elevation variable of the surface mesh.
 
@@ -192,24 +193,39 @@ class Morphology(ComponentBase):
 
         self._queue_manager = CraterQueueManager(overlap_fn)
 
-    def enqueue_crater(self, crater: Crater) -> None:
+    def enqueue_crater(
+        self,
+        crater: Crater | None = None,
+        surface: "Surface" | None = None,
+        **kwarg: Any,
+    ) -> None:
         """
-        Add a crater to the queue for later emplacement.
+        Add a crater to the queue for later emplacement. Automatically initializes
+        the queue manager if it hasn't been set.
 
         Parameters
         ----------
-        crater : Crater
-            The crater object to enqueue.
+        crater : Crater, optional
+            The crater object to enqueue. If None, one is created from keyword args.
+        surface : Surface, optional
+            The surface used to determine overlap regions if initialization is needed.
+        **kwarg : Any
+            Additional keyword arguments for crater construction.
 
         Raises
         ------
         RuntimeError
-            If the queue manager has not been initialized.
+            If the queue manager must be initialized but no surface is provided.
         """
-        if not hasattr(self, "_queue_manager"):
-            raise RuntimeError(
-                "Queue manager has not been initialized. Call init_queue_manager first."
-            )
+        if self._queue_manager is None:
+            if surface is None:
+                raise RuntimeError(
+                    "Surface must be provided to initialize queue manager."
+                )
+            self.init_queue_manager(surface)
+
+        if crater is None:
+            crater = Crater.maker(**kwarg)
         self._queue_manager.push(crater)
 
     def process_queue(self, surface: Surface) -> None:
@@ -233,7 +249,7 @@ class Morphology(ComponentBase):
             )
         while not self._queue_manager.is_empty():
             batch = self._queue_manager.peek_next_batch()
-            for crater in batch:
+            for crater in tqdm(batch, desc="Processing craters"):
                 self.form_crater(crater, surface)
             self._queue_manager.pop_batch(batch)
             self._queue_manager.clear_active()
