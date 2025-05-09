@@ -1,4 +1,5 @@
-# --- CraterForm definition ---
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -37,8 +38,16 @@ class SimpleMoonCrater(Crater):
         )
 
     @classmethod
-    def maker(cls, crater: Crater) -> "SimpleMoonCrater":
+    def maker(cls, crater: Crater | None = None, **kwargs) -> SimpleMoonCrater:
+        if crater is None:
+            crater = super(cls, cls).maker(**kwargs)
         base_fields = asdict(crater)
+        # Remove any SimpleMoonCrater-specific fields to avoid conflicts
+        morphology_fields = set(cls.__dataclass_fields__) - set(
+            super(cls, cls).__dataclass_fields__
+        )
+        for key in morphology_fields:
+            base_fields.pop(key, None)
 
         diameter_m = crater.final_diameter
         diameter_km = diameter_m * 1e-3
@@ -99,7 +108,6 @@ class SimpleMoon(Morphology):
 
     def __init__(
         self,
-        crater: Crater | None = None,
         ejecta_truncation: FloatLike | None = None,
         dorays: bool = True,
         rng: Generator | None = None,
@@ -111,9 +119,7 @@ class SimpleMoon(Morphology):
         object.__setattr__(self, "_node", None)
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
-        super().__init__(
-            crater=crater, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs
-        )
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def __repr__(self) -> str:
         base = super().__repr__()
@@ -161,6 +167,8 @@ class SimpleMoon(Morphology):
         surface : Surface
             The modified surface mesh with the crater shape applied.
         """
+        if not isinstance(crater, SimpleMoonCrater):
+            crater = SimpleMoonCrater.maker(crater)
         node_crater_distance, face_crater_distance = surface.get_distance(
             region_view, crater.location
         )
@@ -216,6 +224,8 @@ class SimpleMoon(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
+        if not isinstance(crater, SimpleMoonCrater):
+            crater = SimpleMoonCrater.maker(crater)
         if r_ref is None:
             r_ref = np.zeros_like(r)
 
@@ -254,6 +264,8 @@ class SimpleMoon(Morphology):
         surface : Surface
             The modified surface mesh with the ejecta shape applied.
         """
+        if not isinstance(crater, SimpleMoonCrater):
+            crater = SimpleMoonCrater.maker(crater)
         node_crater_distance, face_crater_distance = surface.get_distance(
             region_view, crater.location
         )
@@ -311,6 +323,8 @@ class SimpleMoon(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
+        if not isinstance(crater, SimpleMoonCrater):
+            crater = SimpleMoonCrater.maker(crater)
         # flatten r to 1D array
         rflat = np.ravel(r)
         elevation = ejecta_functions.profile(rflat, crater.final_diameter, crater.ejrim)
@@ -343,6 +357,8 @@ class SimpleMoon(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
+        if not isinstance(crater, SimpleMoonCrater):
+            crater = SimpleMoonCrater.maker(crater)
         # flatten r and theta to 1D arrays
         thickness = self.ejecta_profile(crater, r)
         rflat = np.ravel(r)
@@ -384,6 +400,8 @@ class SimpleMoon(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
+        if not isinstance(crater, SimpleMoonCrater):
+            crater = SimpleMoonCrater.maker(crater)
         # flatten r and theta to 1D arrays
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
@@ -421,6 +439,9 @@ class SimpleMoon(Morphology):
         float
             The maximum extent of the crater or ejecta blanket in meters.
         """
+
+        if not isinstance(crater, SimpleMoonCrater):
+            crater = SimpleMoonCrater.maker(crater)
 
         def _profile_invert_ejecta(r):
             return self.ejecta_profile(crater, r) - minimum_thickness
