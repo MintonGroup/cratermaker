@@ -4,14 +4,20 @@ from warnings import warn
 from numpy.random import Generator
 
 from cratermaker.components.projectile import Projectile
+from cratermaker.components.target import Target
+from cratermaker.constants import FloatLike
+from cratermaker.utils.general_utils import parameter
 
 
 @Projectile.register("comets")
 class CometProjectiles(Projectile):
     def __init__(
         self,
-        target_name: str | None = None,
-        density: float | None = None,
+        target: Target | str | None = None,
+        sample: bool = True,
+        density: FloatLike | None = None,
+        angle: FloatLike | None = None,
+        direction: FloatLike | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -22,10 +28,16 @@ class CometProjectiles(Projectile):
 
         Parameters
         ----------
-        target_name : str
-            The name of the target body for the impact.
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
+        sample : bool, default True
+            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, the projectile velocity will be the mean velocity for the given target body.
         density : float
             The density of the projectile in kg/m^3. Default is 500.0 kg/m^3.
+        angle : float, optional
+            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
+        direction : float | None
+            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
         rng : Generator | None
             A random number generator for Monte Carlo simulations. If None, a default generator will be used.
         rng_seed : int | None
@@ -35,7 +47,7 @@ class CometProjectiles(Projectile):
 
         Notes
         -----
-        The mean impact velocities for outer solar system bodies come from Table 1 of Zahnle et al. [#]_. For inner solar system bodies, from Table 2 of Borin et al. [#]_.
+        The comets are assumed to be Jupiter-family Comets. The mean impact velocities for outer solar system bodies come from Table 1 of Zahnle et al. [#]_, and for inner solar system bodies, Table 2 of Borin et al. [#]_.
 
         References
         ----------
@@ -46,19 +58,27 @@ class CometProjectiles(Projectile):
         **kwargs : Any
             Additional keyword arguments to be passed to internal functions.
         """
-
-        # This model always samples velocities, angles, and directions, so override any values that may have been passed.
+        self._target = Target.maker(target, **kwargs)
         if density is None:
             density = 500.0
+
+        mean_velocity = self._set_mean_velocity()
         super().__init__(
-            target_name=target_name,
+            sample=sample,
+            mean_velocity=mean_velocity,
+            velocity=mean_velocity,
+            angle=angle,
+            direction=direction,
             density=density,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
             **kwargs,
         )
-        self.mean_velocity = self._set_mean_velocity()
+
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        return f"{base}\nTarget: {self.target.name}\n"
 
     def _set_mean_velocity(self):
         """
@@ -134,3 +154,31 @@ class CometProjectiles(Projectile):
             )
             pmv = float(catalogue["KBO"])
         return pmv
+
+    @parameter
+    def target_name(self):
+        """
+        The name of the target body.
+
+        Returns
+        -------
+        str
+        """
+        return self._target.name
+
+    @property
+    def target(self):
+        """
+        The target object for the projectile model.
+
+        Returns
+        -------
+        Target
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        from cratermaker.components.target import Target
+
+        self._target = Target.maker(value)
