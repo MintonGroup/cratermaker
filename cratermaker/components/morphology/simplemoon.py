@@ -129,7 +129,7 @@ class SimpleMoon(Morphology):
             base += "\nEjecta Truncation: Off"
         return f"{base}\nEjecta Rays: {self.dorays}"
 
-    def emplace_crater(self, crater: Crater, surface: Surface, **kwargs: Any) -> None:
+    def emplace(self, crater: Crater, surface: Surface, **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
         Initializes and uses the queue system behind the scenes.
@@ -141,10 +141,10 @@ class SimpleMoon(Morphology):
         surface : Surface
             The surface object to modify.
         kwargs : Any
-            Additional keyword arguments to pass to the emplace_crater method.
+            Additional keyword arguments to pass to the emplace method.
         """
         crater = SimpleMoonCrater.maker(crater)
-        super().emplace_crater(crater, surface)
+        super().emplace(crater, surface)
         return
 
     def crater_shape(
