@@ -10,10 +10,24 @@ from cratermaker.constants import FloatLike
 
 @Projectile.register("asteroids")
 class AsteroidProjectiles(Projectile):
+    _catalogue = {
+        "Mercury": 41100.0,
+        "Venus": 29100.0,
+        "Earth": 24600.0,
+        "Moon": 22100.0,
+        "Mars": 10700.0,
+        "Ceres": 5300.0,
+        "Vesta": 5300.0,
+        "MBA": 5300.0,
+    }
+
     def __init__(
         self,
-        target: Target | str | None = None,
+        sample: bool = True,
         density: FloatLike | None = None,
+        angle: FloatLike | None = None,
+        direction: FloatLike | None = None,
+        target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -24,10 +38,16 @@ class AsteroidProjectiles(Projectile):
 
         Parameters
         ----------
+        sample : bool
+            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, the projectile velocity will be the mean velocity for the given target body.
+        density : float, optional
+            The density of the projectile in kg/m^3. Default is 2250 kg/m^3.
+        angle : float, optional
+            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
+        direction : float | None
+            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
-        density : float
-            The density of the projectile in kg/m^3. Default is 2250.0 kg/m^3.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -37,19 +57,29 @@ class AsteroidProjectiles(Projectile):
         **kwargs : Any
             Additional keyword arguments.
         """
-
-        # This model always samples velocities, angles, and directions, so override any values that may have been passed.
         if density is None:
             density = 2250.0
+        kwargs.pop("mean_velocity", None)
+        kwargs.pop("velocity", None)
+        self._target = Target.maker(target, **kwargs)
+        mean_velocity = self._set_mean_velocity()
         super().__init__(
-            target=target,
+            sample=sample,
+            mean_velocity=mean_velocity,
+            velocity=mean_velocity,
+            angle=angle,
+            direction=direction,
             density=density,
+            target=target,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
             **kwargs,
         )
-        self.mean_velocity = self._set_mean_velocity()
+
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        return f"{base}\nTarget: {self.target.name}\n"
 
     def _set_mean_velocity(self):
         """
@@ -59,32 +89,12 @@ class AsteroidProjectiles(Projectile):
         -------
         float
         """
-        known_targets = [
-            "Mercury",
-            "Venus",
-            "Earth",
-            "Moon",
-            "Mars",
-            "Ceres",
-            "Vesta",
-            "MBA",
-        ]
-        target_velocities = [
-            41100.0,
-            29100.0,
-            24600.0,
-            22100.0,
-            10700.0,
-            5300.0,
-            5300.0,
-            5300.0,
-        ]
-        catalogue = dict(zip(known_targets, target_velocities))
-        if self.target_name in known_targets:
-            pmv = float(catalogue[self.target_name])
+
+        if self.target.name in self.__class__._catalogue:
+            pmv = float(self.__class__._catalogue[self.target.name])
         else:
             warn(
-                f"Target {self.target_name} not found in known targets. Known targets include {known_targets}. Defaulting to the Moon."
+                f"Target {self.target.name} not found in known targets. Known targets include {list(self.__class__._catalogue.keys())}. Defaulting to the Moon."
             )
-            pmv = float(catalogue["Moon"])
+            pmv = float(self.__class__._catalogue["Moon"])
         return pmv

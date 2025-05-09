@@ -96,12 +96,11 @@ class Production(ComponentBase):
             if target is None and version in ["Moon", "Mars"]:
                 target = version
             target = Target.maker(target, **kwargs)
-            target_name = target.name.capitalize()
-            if target_name in ["Mercury", "Venus", "Earth", "Moon", "Mars"]:
+            if target.name in ["Mercury", "Venus", "Earth", "Moon", "Mars"]:
                 production = "neukum"
                 if version is None:
-                    if target_name in ["Moon", "Mars"]:
-                        version = target_name
+                    if target.name in ["Moon", "Mars"]:
+                        version = target.name
                     else:
                         version = "projectile"
             else:

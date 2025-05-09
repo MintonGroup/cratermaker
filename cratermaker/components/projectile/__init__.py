@@ -20,16 +20,17 @@ if TYPE_CHECKING:
 
 class Projectile(ComponentBase):
     _registry: dict[str, Projectile] = {}
+    _catalogue = None
 
     def __init__(
         self,
-        target: Target | str | None = None,
+        sample: bool = True,
         mean_velocity: FloatLike | None = None,
-        density: FloatLike | None = None,
-        sample: bool | None = None,
-        angle: FloatLike | None = None,
         velocity: FloatLike | None = None,
+        density: FloatLike | None = None,
+        angle: FloatLike | None = None,
         direction: FloatLike | None = None,
+        target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -40,20 +41,20 @@ class Projectile(ComponentBase):
 
         Parameters
         ----------
+        sample : bool
+            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to True, the `mean_velocity` argument is required. If set to False, the `velocity` argument is required.
+        mean_velocity : float, optional
+            The mean velocity of the projectile in m/s. Required if `sample` is True, ignored if `sample` is False.
+        velocity : float | None
+            The impact velocity in m/s. If `sample` is True, this value is ignored. If `sample` is False, this value is required.
+        density : float, optional
+            The density of the projectile in kg/m^3.
+        angle : float, optional
+            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
+        direction : float | None
+            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
-        mean_velocity : float
-            The mean velocity of the projectile in m/s.
-        density : float
-            The density of the projectile in kg/m^3.
-        sample : bool
-            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
-        angle : float
-            The impact angle in degrees.
-        velocity : float | None
-            The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
-        direction : float | None
-            The impact direction in degrees. If None, the direction will be sampled from a distribution.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -66,39 +67,59 @@ class Projectile(ComponentBase):
         from cratermaker.components.target import Target
 
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        object.__setattr__(self, "_target", target)
+
         object.__setattr__(self, "_sample", sample)
         object.__setattr__(self, "_mean_velocity", mean_velocity)
-        object.__setattr__(self, "_density", density)
         object.__setattr__(self, "_velocity", velocity)
-        object.__setattr__(self, "_direction", direction)
+        object.__setattr__(self, "_density", density)
         object.__setattr__(self, "_angle", angle)
-        if self.sample is None:
-            self.sample = True
-        self.target = Target.maker(target, **kwargs)
+        object.__setattr__(self, "_direction", direction)
+
+        self._target = Target.maker(target, **kwargs)
+
+        if self.sample:
+            if self.mean_velocity is None:
+                raise ValueError("mean_velocity must be provided when sample is True")
+        else:
+            if self.velocity is None:
+                raise ValueError("velocity must be provided when sample is False")
+            if self.angle is None:
+                raise ValueError("angle must be provided when sample is False")
+            if self.direction is None:
+                raise ValueError("direction must be provided when sample is False")
+
+        if self.density is None:
+            raise ValueError("density must be provided")
+        return
 
     def __repr__(self) -> str:
         base = super().__repr__()
-        mean_velocity = format_large_units(self.mean_velocity, quantity="velocity")
+        if self.sample:
+            params = f"\nMean Velocity: {format_large_units(self.mean_velocity, quantity='velocity')}"
+        else:
+            params = (
+                f"\nVelocity: {format_large_units(self.velocity, quantity='velocity')}"
+            )
+            params += f"\nAngle: {self.angle:.1f} degrees"
+            params += f"\nDirection: {self.direction:.1f} degrees"
         return (
             f"{base}\n"
-            f"Target: {self.target.name}\n"
+            f"Sample from distributions: {self.sample}\n"
+            f"{params}\n"
             f"Density: {self.density:.1f} kg/m³\n"
-            f"Mean Velocity: {mean_velocity}\n"
-            f"Sample from distributions: {self.sample}"
         )
 
     @classmethod
     def maker(
         cls,
         projectile: Projectile | str | None = None,
-        target: Target | str | None = None,
         mean_velocity: FloatLike | None = None,
         density: FloatLike | None = None,
         sample: bool = True,
         angle: FloatLike | None = None,
         velocity: FloatLike | None = None,
         direction: FloatLike | None = None,
+        target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -111,8 +132,6 @@ class Projectile(ComponentBase):
         ----------
         projectile : Projectile or str
             The projectile model to initialize. Can be a class or a string representing the model name.
-        target : Target or str.
-            The name of the target body for the impact. Default is "Moon"
         mean_velocity : float
             The mean velocity of the projectile in m/s.
         density : float
@@ -125,6 +144,8 @@ class Projectile(ComponentBase):
             The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
         direction : float | None
             The impact direction in degrees. If None, the direction will be sampled from a distribution.
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -146,33 +167,29 @@ class Projectile(ComponentBase):
         TypeError
             If the specified projectile model is not a string or a subclass of Projectile.
         """
+        from cratermaker.components.projectile.asteroids import AsteroidProjectiles
+        from cratermaker.components.projectile.comets import CometProjectiles
         from cratermaker.components.target import Target
 
         target = Target.maker(target, **kwargs)
         if projectile is None:
-            target_name = target.name.capitalize()
-            if target_name in [
-                "Mercury",
-                "Venus",
-                "Earth",
-                "Moon",
-                "Mars",
-                "Ceres",
-                "Vesta",
-            ]:
+            if target.name in AsteroidProjectiles._catalogue:
                 projectile = "asteroids"
-            else:
+            elif target.name in CometProjectiles._catalogue:
                 projectile = "comets"
+            else:
+                projectile = "generic"
+                mean_velocity = 20.0e3
 
         projectile = super().maker(
             component=projectile,
-            target=target,
             mean_velocity=mean_velocity,
             density=density,
             sample=sample,
             angle=angle,
             velocity=velocity,
             direction=direction,
+            target=target,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
@@ -223,34 +240,6 @@ class Projectile(ComponentBase):
             "projectile_density": self.density,
             "projectile_direction": self.direction,
         }
-
-    @parameter
-    def target_name(self):
-        """
-        The name of the target body.
-
-        Returns
-        -------
-        str
-        """
-        return self._target.name
-
-    @property
-    def target(self):
-        """
-        The target object for the projectile model.
-
-        Returns
-        -------
-        Target
-        """
-        return self._target
-
-    @target.setter
-    def target(self, value):
-        from cratermaker.components.target import Target
-
-        self._target = Target.maker(value)
 
     @parameter
     def sample(self):
@@ -413,6 +402,38 @@ class Projectile(ComponentBase):
         int
         """
         return self._component_name
+
+    @property
+    def target(self):
+        """
+        The target object for the projectile model.
+
+        Returns
+        -------
+        Target
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        from cratermaker.components.target import Target
+
+        self._target = Target.maker(value)
+
+    @property
+    def catalogue(self) -> str:
+        from cratermaker.utils.general_utils import format_large_units
+
+        if self.__class__._catalogue is None:
+            return "This Projectile component does not have a catalogue."
+        lines = []
+        header1 = "Target"
+        lines.append(f"\n{header1:<11}| Mean Velocity")
+        lines.append(26 * "-")
+        for name, velocity in self.__class__._catalogue.items():
+            formatted_velocity = format_large_units(velocity, quantity="velocity")
+            lines.append(f"{name:<11}|     {formatted_velocity}")
+        return "\n".join(lines)
 
 
 import_components(__name__, __path__, ignore_private=True)
