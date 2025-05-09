@@ -5,7 +5,7 @@ use std::f64::{
 
 use itertools::Itertools;
 use ndarray::ArrayView1;
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadwriteArray1};
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
