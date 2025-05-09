@@ -248,23 +248,24 @@ class Morphology(ComponentBase):
                 "Queue manager has not been initialized. Call init_queue_manager first."
             )
 
-        def _batch_process(show_progress):
+        def _batch_process(pbar=None):
             while not self._queue_manager.is_empty():
                 batch = self._queue_manager.peek_next_batch()
                 for crater in batch:
                     self.form_crater(crater, surface)
-                    if show_progress:
+                    if pbar is not None:
                         pbar.update(1)
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
-                return
+            return
 
         total_craters = len(self._queue_manager._queue)
         if total_craters > 10:
             with tqdm(total=total_craters, desc="Processing craters") as pbar:
-                _batch_process(True)
+                _batch_process(pbar)
         else:
-            _batch_process(False)
+            _batch_process()
+        return
 
     @abstractmethod
     def crater_shape(
