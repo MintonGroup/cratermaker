@@ -213,10 +213,12 @@ class Simulation(CratermakerBase):
             face_areas = np.asarray(face_areas)
         smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2
         if from_projectile:
-            crater = self.generate_crater(
+            crater = Crater.maker(
                 final_diameter=smallest_crater,
                 angle=90.0,
                 projectile_velocity=self.scaling.projectile_mean_velocity * 10,
+                scaling=self.scaling,
+                **vars(self.common_args),
             )
             return crater.projectile_diameter
         else:
@@ -228,52 +230,16 @@ class Simulation(CratermakerBase):
         """
         largest_crater = self.target.radius * 2
         if from_projectile:
-            crater = self.generate_crater(
+            crater = Crater.maker(
                 final_diameter=largest_crater,
                 angle=1.0,
                 projectile_velocity=self.scaling.projectile_mean_velocity / 10.0,
+                scaling=self.scaling,
+                **vars(self.common_args),
             )
             return crater.projectile_diameter
         else:
             return largest_crater
-
-    def generate_crater(self, **kwargs: Any) -> Crater:
-        """
-        Create a new Crater object
-
-        Parameters
-        ----------
-        **kwargs : Any
-            Keyword arguments for initializing the :class:`Crater` object. Refer to
-            its documentation for details on valid keyword arguments.
-
-        Returns
-        -------
-        Crater
-            The newly created Crater object
-
-        Notes
-        -----
-        The keyword arguments provided are passed to the constructor of
-        :class:`Crater`. Additionally, these arguments are used in
-        :meth:`crater.scaling.crater_to_projectile` method. Refer to the
-        documentation of these classes and methods for a detailed description
-        of valid keyword arguments.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            # Create a crater and projectile pair with a specific diameter
-            crater = sim.generate_crater(diameter=1000.0)
-
-            # Create a crater with a specific transient diameter and location (but ignore the projectile)
-            crater = sim.generate_crater(transient_diameter=5e3, location=(43.43, -86.92))
-        """
-
-        crater = Crater.maker(scaling=self.scaling, **vars(self.common_args), **kwargs)
-
-        return crater
 
     def enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
         """
@@ -309,9 +275,11 @@ class Simulation(CratermakerBase):
         self.morphology.process_queue(self.surface)
         return
 
-    def emplace_crater(self, crater: Crater | None = None, **kwargs: Any) -> None:
+    def emplace(
+        self, crater: Crater | list[Crater] | None = None, **kwargs: Any
+    ) -> None:
         """
-        Emplace a crater in the simulation, optionally based on a projectile.
+        Emplace one or more craters in the simulation.
 
         This method orchestrates the creation and placement of a crater in the
         simulation. It can create a crater directly or based on the characteristics
@@ -319,36 +287,52 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
-        crater : Crater, optional
-            A Crater object to be emplaced. If provided, this will be used directly.
+        crater : Crater or list of Crater objects, optional
+            The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
         **kwargs : Any
-            Keyword arguments for initializing the :class:`Crater`.
+            Keyword arguments to pass to :class:`Crater.maker`.
             Refer to the documentation of this class for details on valid keyword arguments.
 
         Notes
         -----
-        The keyword arguments provided are passed down to :meth:`generate_crater`
-        or :meth:`generate_projectile`, and subsequently to the constructor of
-        :class:`Crater` . Refer to its documentation for a detailed description of valid
+        The keyword arguments provided are passed down to :meth:`Crater.maker`.
+        Refer to its documentation for a detailed description of valid
         keyword arguments.
 
         Examples
         --------
         .. code-block:: python
 
+            from cratermaker import Simulation, Crater
+            sim = Simulation()
+
             # Create a crater with specific diameter
-            sim.emplace_crater(final_diameter=1000.0)
+            sim.emplace(final_diameter=10.0e3)
 
             # Create a crater based on a projectile with given mass and projectile_velocity
-            sim.emplace_crater(projectile_mass=1e14, projectile_velocity=20e3)
+            sim.emplace(projectile_mass=1e15, projectile_velocity=20e3)
 
             # Create a crater with a specific transient diameter and location
-            sim.emplace_crater(transient_diameter=5e3, location=(43.43, -86.92))
+            sim.emplace(transient_diameter=50e3, location=(43.43, -86.92))
+
+            # Create multiple craters
+            craters = [Crater.maker(final_diameter=20.0e3), Crater.maker(final_diameter=20.0e3)]
+            sim.emplace(craters)
 
         """
         if crater is None:
-            crater = self.generate_crater(**kwargs)
-        self.morphology.emplace_crater(crater, self.surface, **kwargs)
+            crater_args = {**kwargs, **vars(self.common_args)}
+            # Add scaling=self.scaling to the kwargs if it is not already present
+            if "scaling" not in crater_args:
+                crater_args["scaling"] = self.scaling
+            crater = Crater.maker(**crater_args)
+        elif isinstance(crater, list) and len(crater) > 0:
+            for c in crater:
+                self.enqueue_crater(c)
+            self.process_queue()
+            return
+        if isinstance(crater, Crater):
+            self.morphology.emplace(crater, self.surface, **kwargs)
 
         return
 
@@ -462,29 +446,28 @@ class Simulation(CratermakerBase):
                 impact_locations.extend(np.array(locations).T.tolist())
 
         if len(impact_diameters) > 0:
-            if len(impact_diameters) == 1:
-                diam_arg = {diam_key: impact_diameters[0]}
-                self.emplace_crater(
-                    age=impact_ages[0], location=impact_locations[0], **diam_arg
-                )
-            else:
-                # Sort the ages, diameters, and locations so that they are in order of decreasing age
-                sort_indices = np.argsort(impact_ages)[::-1]
-                impact_diameters = np.asarray(impact_diameters)[sort_indices]
-                impact_ages = np.asarray(impact_ages)[sort_indices]
-                impact_locations = np.array(impact_locations)[sort_indices]
-
-                for i, diameter in tqdm(
-                    enumerate(impact_diameters), total=len(impact_diameters)
-                ):
-                    location = impact_locations[i][0], impact_locations[i][1]
-                    diam_arg = {diam_key: diameter}
-                    self.emplace_crater(
-                        age=impact_ages[i],
+            craterlist = []
+            # Sort the ages, diameters, and locations so that they are in order of decreasing age
+            sort_indices = np.argsort(impact_ages)[::-1]
+            impact_diameters = np.asarray(impact_diameters)[sort_indices]
+            impact_ages = np.asarray(impact_ages)[sort_indices]
+            impact_locations = np.array(impact_locations)[sort_indices]
+            for diameter, location, age in zip(
+                impact_diameters, impact_locations, impact_ages
+            ):
+                diam_arg = {diam_key: diameter}
+                craterlist.append(
+                    Crater.maker(
                         location=location,
-                        from_projectile=from_projectile,
+                        age=age,
+                        scaling=self.scaling,
                         **diam_arg,
+                        **vars(self.common_args),
+                        **kwargs,
                     )
+                )
+            self.emplace(craterlist)
+
         return
 
     def run(
