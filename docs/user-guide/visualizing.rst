@@ -11,7 +11,7 @@ Cratermaker can export the surface mesh to a VTK file, which can be visualized w
 
     import cratermaker as cm
     sim = cm.Simulation()
-    sim.emplace_crater(final_diameter=500e3, location=(45,60))
+    sim.emplace(final_diameter=500e3, location=(45,60))
     sim.export("vtk")
 
 
