@@ -1,10 +1,18 @@
 .. currentmodule:: cratermaker
 
+
+.. image:: ../_static/full_simulation.png
+    :alt: Simulation
+    :align: center
+    :width: 300px
+
 .. _ug-simulation:
 
 ##########
 Simulation
 ##########
+
+
 
 The Simulation class is the main orchestration tool used to manage and run landscape evolution simulations.
 

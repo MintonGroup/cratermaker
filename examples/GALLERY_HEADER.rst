@@ -1,6 +1,7 @@
 .. _gallery-header:
 
-Cratermaker Examples
-====================
+###############
+Example Gallery
+###############
 
 This gallery contains example scripts demonstrating how to use the Cratermaker API
