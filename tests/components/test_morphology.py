@@ -42,7 +42,7 @@ class TestMorphology(unittest.TestCase):
             )
             for model_name in morphology_models:
                 morphology = Morphology.maker(model_name)
-                morphology.emplace_crater(self.dummy_crater, surface)
+                morphology.emplace(self.dummy_crater, surface)
 
     def test_make_morphology(self):
         # Test the make_morphology function
@@ -109,7 +109,7 @@ class TestMorphology(unittest.TestCase):
                     crater = SimpleMoonCrater.maker(
                         final_diameter=final_diameter, location=(0, 0)
                     )
-                    sim.emplace_crater(crater)
+                    sim.emplace(crater)
 
                     # Verify that the crater depth and rim heights are close to the expected values
                     self.assertAlmostEqual(

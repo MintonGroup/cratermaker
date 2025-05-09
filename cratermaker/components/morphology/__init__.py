@@ -74,7 +74,7 @@ class Morphology(ComponentBase):
         morphology = super().maker(component=morphology, **kwargs)
         return morphology
 
-    def emplace_crater(self, crater: Crater, surface: Surface, **kwargs: Any) -> None:
+    def emplace(self, crater: Crater, surface: Surface, **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
         Initializes and uses the queue system behind the scenes.
@@ -247,15 +247,25 @@ class Morphology(ComponentBase):
             raise RuntimeError(
                 "Queue manager has not been initialized. Call init_queue_manager first."
             )
-        total_craters = len(self._queue_manager._queue)
-        with tqdm(total=total_craters, desc="Processing craters") as pbar:
+
+        def _batch_process(pbar=None):
             while not self._queue_manager.is_empty():
                 batch = self._queue_manager.peek_next_batch()
                 for crater in batch:
                     self.form_crater(crater, surface)
-                    pbar.update(1)
+                    if pbar is not None:
+                        pbar.update(1)
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
+            return
+
+        total_craters = len(self._queue_manager._queue)
+        if total_craters > 10:
+            with tqdm(total=total_craters, desc="Processing craters") as pbar:
+                _batch_process(pbar)
+        else:
+            _batch_process()
+        return
 
     @abstractmethod
     def crater_shape(
