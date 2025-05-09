@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 class Projectile(ComponentBase):
     _registry: dict[str, Projectile] = {}
+    _catalogue = None
 
     def __init__(
         self,
@@ -166,22 +167,19 @@ class Projectile(ComponentBase):
         TypeError
             If the specified projectile model is not a string or a subclass of Projectile.
         """
+        from cratermaker.components.projectile.asteroids import AsteroidProjectiles
+        from cratermaker.components.projectile.comets import CometProjectiles
         from cratermaker.components.target import Target
 
         target = Target.maker(target, **kwargs)
         if projectile is None:
-            if target.name in [
-                "Mercury",
-                "Venus",
-                "Earth",
-                "Moon",
-                "Mars",
-                "Ceres",
-                "Vesta",
-            ]:
+            if target.name in AsteroidProjectiles._catalogue:
                 projectile = "asteroids"
-            else:
+            elif target.name in CometProjectiles._catalogue:
                 projectile = "comets"
+            else:
+                projectile = "generic"
+                mean_velocity = 20.0e3
 
         projectile = super().maker(
             component=projectile,
@@ -421,6 +419,21 @@ class Projectile(ComponentBase):
         from cratermaker.components.target import Target
 
         self._target = Target.maker(value)
+
+    @property
+    def catalogue(self) -> str:
+        from cratermaker.utils.general_utils import format_large_units
+
+        if self.__class__._catalogue is None:
+            return "This Projectile component does not have a catalogue."
+        lines = []
+        header1 = "Target"
+        lines.append(f"\n{header1:<11}| Mean Velocity")
+        lines.append(26 * "-")
+        for name, velocity in self.__class__._catalogue.items():
+            formatted_velocity = format_large_units(velocity, quantity="velocity")
+            lines.append(f"{name:<11}|     {formatted_velocity}")
+        return "\n".join(lines)
 
 
 import_components(__name__, __path__, ignore_private=True)

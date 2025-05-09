@@ -10,6 +10,17 @@ from cratermaker.constants import FloatLike
 
 @Projectile.register("asteroids")
 class AsteroidProjectiles(Projectile):
+    _catalogue = {
+        "Mercury": 41100.0,
+        "Venus": 29100.0,
+        "Earth": 24600.0,
+        "Moon": 22100.0,
+        "Mars": 10700.0,
+        "Ceres": 5300.0,
+        "Vesta": 5300.0,
+        "MBA": 5300.0,
+    }
+
     def __init__(
         self,
         sample: bool = True,
@@ -78,32 +89,12 @@ class AsteroidProjectiles(Projectile):
         -------
         float
         """
-        known_targets = [
-            "Mercury",
-            "Venus",
-            "Earth",
-            "Moon",
-            "Mars",
-            "Ceres",
-            "Vesta",
-            "MBA",
-        ]
-        target_velocities = [
-            41100.0,
-            29100.0,
-            24600.0,
-            22100.0,
-            10700.0,
-            5300.0,
-            5300.0,
-            5300.0,
-        ]
-        catalogue = dict(zip(known_targets, target_velocities))
-        if self.target.name in known_targets:
-            pmv = float(catalogue[self.target.name])
+
+        if self.target.name in self.__class__._catalogue:
+            pmv = float(self.__class__._catalogue[self.target.name])
         else:
             warn(
-                f"Target {self.target.name} not found in known targets. Known targets include {known_targets}. Defaulting to the Moon."
+                f"Target {self.target.name} not found in known targets. Known targets include {list(self.__class__._catalogue.keys())}. Defaulting to the Moon."
             )
-            pmv = float(catalogue["Moon"])
+            pmv = float(self.__class__._catalogue["Moon"])
         return pmv
