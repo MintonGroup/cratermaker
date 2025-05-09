@@ -59,6 +59,14 @@ Components of Cratermaker
 
         Manages the production function, which determines the number of craters/projectiles produced over time and surface area.         
 
+    .. grid-item-card::  Target
+        :columns: 3
+        :img-top: ../_static/target_icon.svg
+        :link: target
+        :link-type: doc
+
+        Models the properties of the target body, including its size, material properties, and surface gravity.  
+
 
     .. grid-item-card::  Projectile
         :columns: 3
@@ -67,14 +75,6 @@ Components of Cratermaker
         :link-type: doc
 
         Models the properties of projectiles, including their size, velocity, and density. 
-
-    .. grid-item-card::  Target
-        :columns: 3
-        :img-top: ../_static/target_icon.svg
-        :link: target
-        :link-type: doc
-
-        Models the properties of the target body, including its size, material properties, and surface gravity.  
 
 
     .. grid-item-card::  Scaling
