@@ -27,13 +27,13 @@ mod simplemoon {
     #[pymodule]
     mod crater_functions {
         #[pymodule_export]
-        use crate::crater_functions::shape;
+        use crate::crater_functions::profile;
     }
 
     #[pymodule]
     mod ejecta_functions {
         #[pymodule_export]
-        use crate::ejecta_functions::{distribution, shape, ray_intensity, form_ejecta};
+        use crate::ejecta_functions::{profile, ray_intensity};
     }
 
     #[pymodule]

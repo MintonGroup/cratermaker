@@ -313,10 +313,8 @@ class Simulation(CratermakerBase):
 
         """
         if crater is None:
-            self.crater = self.generate_crater(**kwargs)
-        else:
-            self.crater = crater
-        self.morphology.form_crater(self.surface, self.crater, **kwargs)
+            crater = self.generate_crater(**kwargs)
+        self.morphology.emplace_crater(crater, self.surface, **kwargs)
 
         return
 
@@ -961,19 +959,6 @@ class Simulation(CratermakerBase):
         if not isinstance(value, (Projectile, str)):
             raise TypeError("projectile must be of Projectile type or str")
         self._projectile = value
-
-    @property
-    def crater(self):
-        """
-        The current Crater object in the simulation. Set during runtime.
-        """
-        return self._crater
-
-    @crater.setter
-    def crater(self, value):
-        if not isinstance(value, Crater):
-            raise TypeError("crater must be an instance of Crater")
-        self._crater = value
 
     @property
     def data_dir(self):

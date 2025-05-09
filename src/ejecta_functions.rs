@@ -5,7 +5,7 @@ use std::f64::{
 
 use itertools::Itertools;
 use ndarray::ArrayView1;
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadwriteArray1};
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -32,7 +32,7 @@ const FRAYREDUCTION: f64 = 0.5;
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn shape_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
+pub fn profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
     if r_actual >= crater_radius {
         let r = r_actual / crater_radius;
         ejrim * r.powf(-EJPROFILE)
@@ -41,97 +41,6 @@ pub fn shape_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
     }
 }
 
-/// Computes the full ejecta distribution including ray patterns and profile scaling.
-///
-/// This function combines a ray intensity model with a radial ejecta profile. If `dorays` is false,
-/// it returns only the profile scaling. Otherwise, it layers ray intensity on top of the profile.
-///
-/// # Arguments
-///
-/// * `py` - Python GIL token.
-/// * `radial_distance` - 1D array of radial distances (meters).
-/// * `initial_bearing` - 1D array of angles in radians from crater center.
-/// * `crater_diameter` - Diameter of the crater (meters).
-/// * `ejrim` - Ejecta rim height parameter.
-/// * `ejecta_truncation` - Maximum ejecta extent relative to crater radius.
-/// * `dorays` - If true, include ray pattern modulation.
-///
-/// # Returns
-///
-/// * A NumPy array of ejecta intensities for each input point.
-#[pyfunction]
-pub fn distribution<'py>(
-    py: Python<'py>,
-    radial_distance: PyReadonlyArray1<'py, f64>,
-    initial_bearing: PyReadonlyArray1<'py, f64>,
-    crater_diameter: f64,
-    ejrim: f64,
-    ejecta_truncation: f64,
-    dorays: bool,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    distribution_internal(
-        radial_distance.as_array(),
-        initial_bearing.as_array(),
-        crater_diameter,
-        ejrim,
-        ejecta_truncation,
-        dorays,
-    )
-    .map(|v| v.into_pyarray(py))
-}
-
-/// Internal implementation of ejecta distribution computation.
-///
-/// Computes either just the radial ejecta profile, or the profile modulated by ray intensity,
-/// depending on the `dorays` flag.
-///
-/// # Arguments
-///
-/// * `radial_distance` - Array of distances from crater center.
-/// * `initial_bearing` - Array of angles from crater center.
-/// * `crater_diameter` - Crater diameter (meters).
-/// * `ejrim` - Rim profile scaling factor.
-/// * `ejecta_truncation` - Maximum ejecta extent.
-/// * `dorays` - Whether to compute ray modulation.
-///
-/// # Returns
-///
-/// * A vector of ejecta intensities for each point.
-pub fn distribution_internal<'py>(
-    radial_distance: ArrayView1<'py, f64>,
-    initial_bearing: ArrayView1<'py, f64>,
-    crater_diameter: f64,
-    ejrim: f64,
-    ejecta_truncation: f64,
-    dorays: bool,
-) -> PyResult<Vec<f64>> {
-    if dorays {
-        let intensity = ray_intensity_internal(
-            radial_distance,
-            initial_bearing,
-            crater_diameter,
-            ejecta_truncation,
-        )?;
-        let crater_radius = crater_diameter / 2.0;
-        Ok(intensity
-            .iter()
-            .zip(radial_distance)
-            .map(|(&intensity, &radial_distance)| {
-                if radial_distance >= crater_radius {
-                    intensity * shape_function(radial_distance, crater_radius, ejrim)
-                } else {
-                    0.0
-                }
-            })
-            .collect())
-    } else {
-        let crater_radius = crater_diameter / 2.0;
-        Ok(radial_distance
-            .iter()
-            .map(|&r| shape_function(r, crater_radius, ejrim))
-            .collect())
-    }
-}
 
 /// Computes only the radial ejecta profile without ray modulation.
 ///
@@ -148,7 +57,7 @@ pub fn distribution_internal<'py>(
 ///
 /// * A NumPy array of ejecta profile values.
 #[pyfunction]
-pub fn shape<'py>(
+pub fn profile<'py>(
     py: Python<'py>,
     radial_distance: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
@@ -159,7 +68,7 @@ pub fn shape<'py>(
         radial_distance
             .as_array()
             .iter()
-            .map(|&r| shape_function(r, crater_diameter / 2.0, ejrim))
+            .map(|&r| profile_function(r, crater_diameter / 2.0, ejrim))
             .collect(),
     ))
 }
@@ -214,7 +123,6 @@ fn ray_intensity_point(
 /// * `radial_distance` - 1D array of radial distances (meters).
 /// * `initial_bearing` - 1D array of initial bearing angles (radians).
 /// * `crater_diameter` - Crater diameter (meters).
-/// * `ejecta_truncation` - Maximum extent of the ejecta field.
 ///
 /// # Returns
 ///
@@ -223,7 +131,6 @@ pub fn ray_intensity_internal<'py>(
     radial_distance: ArrayView1<'py, f64>,
     initial_bearing: ArrayView1<'py, f64>,
     crater_diameter: f64,
-    ejecta_truncation: f64,
 ) -> PyResult<Vec<f64>> {
     if radial_distance.len() != initial_bearing.len() {
         return Err(PyValueError::new_err(
@@ -231,7 +138,7 @@ pub fn ray_intensity_internal<'py>(
         ));
     }
     let crater_radius = crater_diameter / 2.0;
-    let rmax = ejecta_truncation;
+    let rmax = 100.0;
     let rmin = 1.0;
 
     let mut rng = rand::rng();
@@ -285,7 +192,6 @@ pub fn ray_intensity_internal<'py>(
 /// * `radial_distance` - 1D array of radial distances from crater center.
 /// * `initial_bearing` - 1D array of bearing angles (radians).
 /// * `crater_diameter` - Crater diameter (meters).
-/// * `ejecta_truncation` - Maximum ejecta extent.
 ///
 /// # Returns
 ///
@@ -296,13 +202,11 @@ pub fn ray_intensity<'py>(
     radial_distance: PyReadonlyArray1<'py, f64>,
     initial_bearing: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
-    ejecta_truncation: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let intensity = ray_intensity_internal(
         radial_distance.as_array(),
         initial_bearing.as_array(),
         crater_diameter,
-        ejecta_truncation,
     )?;
     Ok(intensity.into_pyarray(py))
 }
@@ -403,7 +307,6 @@ fn ejecta_ray_func(theta: f64, thetar: f64, r: f64, n: i32, w: f64) -> f64 {
 
 
 
-
 /// Defines crater dimensions for surface modification computations.
 ///
 /// Used to parameterize the final crater size in meters.
@@ -422,7 +325,6 @@ pub struct SimpleMoonMorphology {
     pub rim_height: f64,
     pub ejrim: f64,
     pub crater: Crater,
-    pub dorays: bool,
 }
 
 /// View into a region of the surface mesh, consisting of node and face indices.
@@ -434,99 +336,3 @@ pub struct SurfaceView<'py> {
     pub face_indices: PyReadonlyArray1<'py, i64>,
 }
 
-/// Applies ejecta thickness and ray modulation to a regional surface mesh.
-///
-/// Given radial distance and bearing values for each node and face in a selected mesh region,
-/// this function calculates ejecta thickness using a radial profile and optionally modulates
-/// it with ray patterns. Elevations are updated in-place for affected surface regions.
-///
-/// # Arguments
-///
-/// * `morphology` - Parameters controlling ejecta geometry and ray usage.
-/// * `region_view` - Mesh indices of affected nodes and faces.
-/// * `node_crater_distance` - Radial distances for nodes from crater center.
-/// * `face_crater_distance` - Radial distances for faces from crater center.
-/// * `node_crater_bearing` - Angular bearings for nodes from crater center.
-/// * `face_crater_bearing` - Angular bearings for faces from crater center.
-/// * `ejecta_truncation` - Maximum extent of ejecta distribution.
-/// * `node_elevation` - Elevation values of mesh nodes (modified in-place).
-/// * `face_elevation` - Elevation values of mesh faces (modified in-place).
-/// * `ejecta_thickness` - Accumulated ejecta thickness per face (modified in-place).
-/// * `ray_intensity` - Ray modulation values per face (modified in-place if `dorays` is true).
-///
-/// # Returns
-///
-/// * `Ok(())` on success.
-#[pyfunction]
-pub fn form_ejecta<'py>(
-    morphology: SimpleMoonMorphology,
-    region_view: SurfaceView,
-    node_crater_distance: PyReadonlyArray1<f64>,
-    face_crater_distance: PyReadonlyArray1<f64>,
-    node_crater_bearing: PyReadonlyArray1<f64>,
-    face_crater_bearing: PyReadonlyArray1<f64>,
-    ejecta_truncation: f64,
-    mut node_elevation: PyReadwriteArray1<f64>,
-    mut face_elevation: PyReadwriteArray1<f64>,
-    mut ejecta_thickness: PyReadwriteArray1<f64>,
-    mut ray_intensity: PyReadwriteArray1<f64>,
-) -> PyResult<()> {
-    let node_thickness = distribution_internal(
-        node_crater_distance.as_array(),
-        node_crater_bearing.as_array(),
-        morphology.crater.final_diameter,
-        morphology.ejrim,
-        ejecta_truncation,
-        morphology.dorays,
-    )?;
-    let face_thickness = distribution_internal(
-        face_crater_distance.as_array(),
-        face_crater_bearing.as_array(),
-        morphology.crater.final_diameter,
-        morphology.ejrim,
-        ejecta_truncation,
-        morphology.dorays,
-    )?;
-
-    let mut node_elevation = node_elevation.as_array_mut();
-    let mut face_elevation = face_elevation.as_array_mut();
-    let mut ejecta_thickness = ejecta_thickness.as_array_mut();
-    let mut ray_intensity = ray_intensity.as_array_mut();
-
-    for (&idx, new_value) in region_view
-        .node_indices
-        .as_array()
-        .iter()
-        .zip(node_thickness)
-    {
-        node_elevation[idx as usize] += new_value;
-    }
-    for (&idx, new_value) in region_view
-        .face_indices
-        .as_array()
-        .iter()
-        .zip(face_thickness)
-    {
-        face_elevation[idx as usize] += new_value;
-        ejecta_thickness[idx as usize] += new_value;
-    }
-
-    if morphology.dorays {
-        let face_intensity = ray_intensity_internal(
-            face_crater_distance.as_array(),
-            face_crater_bearing.as_array(),
-            morphology.crater.final_diameter,
-            ejecta_truncation,
-        )?;
-        for (&idx, new_value) in region_view
-            .face_indices
-            .as_array()
-            .iter()
-            .zip(face_intensity)
-        {
-            ray_intensity[idx as usize] += new_value;
-        }
-    }
-
-    Ok(())
-}
