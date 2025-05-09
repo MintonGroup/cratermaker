@@ -18,8 +18,9 @@ from matplotlib.colors import LogNorm
 
 from cratermaker import Crater, Morphology
 
-morphology = Morphology.maker(crater=Crater.maker(final_radius=10.0e3))
-rc = morphology.crater.final_radius
+crater = Crater.maker(final_radius=10.0e3)
+morphology = Morphology.maker()
+rc = crater.final_radius
 
 grid_size = 1000
 rmax = 20
@@ -36,7 +37,7 @@ theta = np.arctan2(yy, xx)
 # Compute ray intensity
 r_flat = r.ravel()
 theta_flat = theta.ravel()
-intensity_flat = morphology.ray_intensity(r_flat, theta_flat)
+intensity_flat = morphology.ray_intensity(crater, r_flat, theta_flat)
 intensity = intensity_flat.reshape(r.shape)
 # Plot the intensity colormap
 fig, ax = plt.subplots(figsize=(6, 5))

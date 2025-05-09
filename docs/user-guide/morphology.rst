@@ -10,7 +10,7 @@
 Morphology
 ==========
 
-The Morphology component is used to alter the topography of a :ref:`Surface <ug-surface>` object using a :ref:`Crater <ug-crater>` object. There is currently only one morphology model available ("simplemoon"), which is derived from CTEM. Like other components, a :ref:`Morphology <api-morphology>` model is generated using its :meth:`maker` method:
+The Morphology component is used to alter the topography of a :ref:`Surface <ug-surface>` object using a :ref:`Crater <ug-crater>` object. The available morphology models (currently only "simplemoon") determine how crater geometry and ejecta are emplaced. Like other components, a :ref:`Morphology <api-morphology>` model is generated using its :meth:`maker` method:
 
 .. ipython:: python
 
@@ -18,30 +18,37 @@ The Morphology component is used to alter the topography of a :ref:`Surface <ug-
     morphology = Morphology.maker("simplemoon")
     print(morphology)
 
-The morphology model can't do much without a crater. You can either pass a crater object in as an argument to the :meth:`maker` method, or you can set the crater after the fact. 
+Crater Emplacement
+------------------
+
+The main purpose of a Morphology model is to emplace craters on a surface. This can now be done using the queue-aware :meth:`emplace_crater` method, which automatically handles crater preparation, overlap resolution, and surface modification.
 
 .. ipython:: python
 
-    from cratermaker import Morphology, Crater
-    morphology = Morphology.maker(crater=Crater.maker(final_diameter=50e3))
-    print(morphology)
+    from cratermaker import Surface, Crater
+    surface = Surface.maker()
+    crater = Crater.maker(final_diameter=25e3)
+    morphology.emplace_crater(crater, surface)
 
-Every time you set a new crater, the morphology model will recompute its parameters.
+Internally, a morphology model maintains a queue of craters that can be processed in parallel batches, provided they do not affect overlapping regions of the surface mesh. This allows for physically plausible yet efficient crater emplacement across geologic timescales.
+
+Batch Emplacement
+-----------------
+
+You can enqueue multiple craters using :meth:`enqueue_crater` and process them using :meth:`process_queue`. Craters are emplaced in chronological order, with overlapping batches resolved automatically.
 
 .. ipython:: python
 
-    morphology.crater = Crater.maker(final_diameter=1e3)
-    print(morphology)
-    morphology.crater = Crater.maker(final_diameter=15e3)
-    print(morphology)
+    craters = [Crater.maker(final_diameter=d) for d in (5e3, 10e3, 15e3)]
+    for crater in craters:
+        morphology.enqueue_crater(crater)
 
-The primary purpose of a morphology model is to alter the topography of a surface, so typically you would not be using the morphology model directly. However, the built in morphology creation methods, such as :meth:`morphology.crater_shape` and :meth:`ejecta_shape` can be used in other context. See the example gallery for some examples of the the morphology model in action.
+    morphology.process_queue(surface)
 
-
-More Morphology examples
+More Morphology Examples
 ------------------------
 
-See more complex usage examples in the gallery: :ref:`gal-morphology`
+See more advanced usage examples in the gallery: :ref:`gal-morphology`
 
 .. toctree::
    :maxdepth: 2
