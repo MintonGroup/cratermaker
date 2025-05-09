@@ -302,20 +302,21 @@ class Simulation(CratermakerBase):
         Examples
         --------
         .. code-block:: python
-            from cratermaker import Simulation, Crater`
+
+            from cratermaker import Simulation, Crater
             sim = Simulation()
 
             # Create a crater with specific diameter
-            sim.emplace(final_diameter=1000.0)
+            sim.emplace(final_diameter=10.0e3)
 
             # Create a crater based on a projectile with given mass and projectile_velocity
-            sim.emplace(projectile_mass=1e14, projectile_velocity=20e3)
+            sim.emplace(projectile_mass=1e15, projectile_velocity=20e3)
 
             # Create a crater with a specific transient diameter and location
-            sim.emplace(transient_diameter=5e3, location=(43.43, -86.92))
+            sim.emplace(transient_diameter=50e3, location=(43.43, -86.92))
 
             # Create multiple craters
-            craters = [Crater.maker(final_diameter=1000.0), Crater.maker(final_diameter=2000.0)]
+            craters = [Crater.maker(final_diameter=20.0e3), Crater.maker(final_diameter=20.0e3)]
             sim.emplace(craters)
 
         """

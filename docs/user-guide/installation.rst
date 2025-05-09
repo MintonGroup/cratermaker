@@ -16,6 +16,13 @@ To begin, simply install Cratermaker using pip into the Python environment of yo
 
       pip install cratermaker
 
+.. note::
+
+    Cratermaker is undergoing active development, as it is still in alpha stage. You may need to update your installation frequently to get the latest features and bug fixes. You can do this using the following command:
+    .. code-block:: bash
+
+        pip install --upgrade cratermaker
+
 
 Installing Cratermaker from Source
 ==================================
