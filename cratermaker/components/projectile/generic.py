@@ -68,3 +68,4 @@ class GenericProjectiles(Projectile):
             rng_state=rng_state,
             **kwargs,
         )
+        return

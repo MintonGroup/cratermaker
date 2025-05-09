@@ -6,18 +6,17 @@ from numpy.random import Generator
 from cratermaker.components.projectile import Projectile
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike
-from cratermaker.utils.general_utils import parameter
 
 
 @Projectile.register("comets")
 class CometProjectiles(Projectile):
     def __init__(
         self,
-        target: Target | str | None = None,
         sample: bool = True,
         density: FloatLike | None = None,
         angle: FloatLike | None = None,
         direction: FloatLike | None = None,
+        target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -28,8 +27,6 @@ class CometProjectiles(Projectile):
 
         Parameters
         ----------
-        target : Target or str.
-            The name of the target body for the impact. Default is "Moon"
         sample : bool, default True
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, the projectile velocity will be the mean velocity for the given target body.
         density : float
@@ -38,6 +35,8 @@ class CometProjectiles(Projectile):
             The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
         direction : float | None
             The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
         rng : Generator | None
             A random number generator for Monte Carlo simulations. If None, a default generator will be used.
         rng_seed : int | None
@@ -58,10 +57,11 @@ class CometProjectiles(Projectile):
         **kwargs : Any
             Additional keyword arguments to be passed to internal functions.
         """
-        self._target = Target.maker(target, **kwargs)
         if density is None:
             density = 500.0
-
+        kwargs.pop("mean_velocity", None)
+        kwargs.pop("velocity", None)
+        self._target = Target.maker(target, **kwargs)
         mean_velocity = self._set_mean_velocity()
         super().__init__(
             sample=sample,
@@ -70,6 +70,7 @@ class CometProjectiles(Projectile):
             angle=angle,
             direction=direction,
             density=density,
+            target=target,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
@@ -146,39 +147,11 @@ class CometProjectiles(Projectile):
             "Charon": 1800.0,
             "KBO": 1800.0,
         }
-        if self.target_name in catalogue:
-            pmv = float(catalogue[self.target_name])
+        if self.target.name in catalogue:
+            pmv = float(catalogue[self.target.name])
         else:
             warn(
-                f"Target {self.target_name} not found in known targets. Known targets include {list(catalogue.keys())}. Defaulting to KBO."
+                f"Target {self.target.name} not found in known targets. Known targets include {list(catalogue.keys())}. Defaulting to KBO."
             )
             pmv = float(catalogue["KBO"])
         return pmv
-
-    @parameter
-    def target_name(self):
-        """
-        The name of the target body.
-
-        Returns
-        -------
-        str
-        """
-        return self._target.name
-
-    @property
-    def target(self):
-        """
-        The target object for the projectile model.
-
-        Returns
-        -------
-        Target
-        """
-        return self._target
-
-    @target.setter
-    def target(self, value):
-        from cratermaker.components.target import Target
-
-        self._target = Target.maker(value)

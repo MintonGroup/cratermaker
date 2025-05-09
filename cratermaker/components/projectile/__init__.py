@@ -29,6 +29,7 @@ class Projectile(ComponentBase):
         density: FloatLike | None = None,
         angle: FloatLike | None = None,
         direction: FloatLike | None = None,
+        target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -51,6 +52,8 @@ class Projectile(ComponentBase):
             The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
         direction : float | None
             The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -60,6 +63,7 @@ class Projectile(ComponentBase):
         **kwargs : Any
             Additional keyword arguments.
         """
+        from cratermaker.components.target import Target
 
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
@@ -69,6 +73,8 @@ class Projectile(ComponentBase):
         object.__setattr__(self, "_density", density)
         object.__setattr__(self, "_angle", angle)
         object.__setattr__(self, "_direction", direction)
+
+        self._target = Target.maker(target, **kwargs)
 
         if self.sample:
             if self.mean_velocity is None:
@@ -106,13 +112,13 @@ class Projectile(ComponentBase):
     def maker(
         cls,
         projectile: Projectile | str | None = None,
-        target: Target | str | None = None,
         mean_velocity: FloatLike | None = None,
         density: FloatLike | None = None,
         sample: bool = True,
         angle: FloatLike | None = None,
         velocity: FloatLike | None = None,
         direction: FloatLike | None = None,
+        target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -125,8 +131,6 @@ class Projectile(ComponentBase):
         ----------
         projectile : Projectile or str
             The projectile model to initialize. Can be a class or a string representing the model name.
-        target : Target or str.
-            The name of the target body for the impact. Default is "Moon"
         mean_velocity : float
             The mean velocity of the projectile in m/s.
         density : float
@@ -139,6 +143,8 @@ class Projectile(ComponentBase):
             The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
         direction : float | None
             The impact direction in degrees. If None, the direction will be sampled from a distribution.
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -164,8 +170,7 @@ class Projectile(ComponentBase):
 
         target = Target.maker(target, **kwargs)
         if projectile is None:
-            target_name = target.name.capitalize()
-            if target_name in [
+            if target.name in [
                 "Mercury",
                 "Venus",
                 "Earth",
@@ -180,13 +185,13 @@ class Projectile(ComponentBase):
 
         projectile = super().maker(
             component=projectile,
-            target=target,
             mean_velocity=mean_velocity,
             density=density,
             sample=sample,
             angle=angle,
             velocity=velocity,
             direction=direction,
+            target=target,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
@@ -399,6 +404,23 @@ class Projectile(ComponentBase):
         int
         """
         return self._component_name
+
+    @property
+    def target(self):
+        """
+        The target object for the projectile model.
+
+        Returns
+        -------
+        Target
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        from cratermaker.components.target import Target
+
+        self._target = Target.maker(value)
 
 
 import_components(__name__, __path__, ignore_private=True)
