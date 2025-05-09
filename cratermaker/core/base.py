@@ -1,10 +1,13 @@
-from pathlib import Path
-import numpy as np
-from numpy.random import Generator, SeedSequence, BitGenerator, RandomState
-from numpy.typing import ArrayLike
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+import numpy as np
+from numpy.random import BitGenerator, Generator, RandomState, SeedSequence
+from numpy.typing import ArrayLike
+
 from cratermaker.utils.general_utils import parameter
+
 
 @dataclass
 class CommonArgs:
@@ -13,13 +16,16 @@ class CommonArgs:
     rng_seed: int | None
     rng_state: dict | None
 
+
 class CratermakerBase:
-    def __init__(self, 
-                 simdir: str | Path | None = None,
-                 rng: Generator | None = None, 
-                 rng_seed: int | None = None,
-                 rng_state: dict | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        simdir: str | Path | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        rng_state: dict | None = None,
+        **kwargs,
+    ):
         """
         Initialize the CratermakerBase class.
 
@@ -40,17 +46,21 @@ class CratermakerBase:
         object.__setattr__(self, "_rng", None)
         object.__setattr__(self, "_rng_seed", None)
         object.__setattr__(self, "_rng_state", None)
-        object.__setattr__(self, "_simdir", None) 
+        object.__setattr__(self, "_simdir", None)
         self.simdir = simdir
 
         self._rng_seed = rng_seed
-        self.rng, self.rng_state  = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state)
+        self.rng, self.rng_state = _rng_init(
+            rng=rng, rng_seed=rng_seed, rng_state=rng_state
+        )
 
         super().__init__()
 
-    def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
+    def to_config(
+        self, remove_common_args: bool = False, **kwargs: Any
+    ) -> dict[str, Any]:
         """
-        Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. 
+        Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file.
 
         Parameters
         ----------
@@ -87,7 +97,7 @@ class CratermakerBase:
     @simdir.setter
     def simdir(self, value):
         self._simdir = _simdir_init(value)
-        
+
     @parameter
     def rng_seed(self):
         """
@@ -103,7 +113,12 @@ class CratermakerBase:
     @rng_seed.setter
     def rng_seed(self, value):
         if value is not None:
-            if not isinstance(value, int) or np.isnan(value) or np.isinf(value) or value < 0:
+            if (
+                not isinstance(value, int)
+                or np.isnan(value)
+                or np.isinf(value)
+                or value < 0
+            ):
                 raise TypeError("rng_seed must be a positive integer")
             self._rng_seed = int(value)
         else:
@@ -123,9 +138,11 @@ class CratermakerBase:
 
     @rng.setter
     def rng(self, value):
-        self._rng, _ = _rng_init(rng=value, rng_seed=self.rng_seed, rng_state=self.rng_state)
+        self._rng, _ = _rng_init(
+            rng=value, rng_seed=self.rng_seed, rng_state=self.rng_state
+        )
 
-    @parameter 
+    @parameter
     def rng_state(self):
         """
         The state of the random number generator.
@@ -136,21 +153,35 @@ class CratermakerBase:
             A dictionary representing the RNG state, or None if the RNG is not initialized.
         """
         return self.rng.bit_generator.state if self.rng is not None else None
-    
+
     @rng_state.setter
     def rng_state(self, value):
-        _, self._rng_state = _rng_init(rng=self.rng, rng_seed=self.rng_seed, rng_state=value)
+        _, self._rng_state = _rng_init(
+            rng=self.rng, rng_seed=self.rng_seed, rng_state=value
+        )
 
     @property
     def common_args(self) -> CommonArgs:
-        return CommonArgs(simdir=self.simdir, rng=self.rng, rng_seed=self.rng_seed, rng_state=self.rng_state)
-    
+        return CommonArgs(
+            simdir=self.simdir,
+            rng=self.rng,
+            rng_seed=self.rng_seed,
+            rng_state=self.rng_state,
+        )
 
 
-def _rng_init(rng: Generator | None = None, 
-              rng_seed:  int | ArrayLike | SeedSequence | BitGenerator | Generator | RandomState | None = None,
-              rng_state: dict | None = None,
-              **kwargs: Any) -> tuple[Generator, dict]:
+def _rng_init(
+    rng: Generator | None = None,
+    rng_seed: int
+    | ArrayLike
+    | SeedSequence
+    | BitGenerator
+    | Generator
+    | RandomState
+    | None = None,
+    rng_state: dict | None = None,
+    **kwargs: Any,
+) -> tuple[Generator, dict]:
     """
     Initialize the random number generator (RNG) based on the provided rng_seed.
 
@@ -161,7 +192,7 @@ def _rng_init(rng: Generator | None = None,
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
         The rng_seed for the RNG. If None, a new RNG is created.
     rng_state : dict, optional
-        Set the rng_state of the RNG. 
+        Set the rng_state of the RNG.
 
     Returns
     -------
@@ -180,7 +211,7 @@ def _rng_init(rng: Generator | None = None,
         if not isinstance(rng, Generator):
             raise ValueError("rng must be a numpy.random.Generator instance.")
     else:
-        if rng_seed is None: 
+        if rng_seed is None:
             rng = np.random.default_rng()
         if rng_state is not None:
             if not isinstance(rng_state, dict):
@@ -231,6 +262,7 @@ def _simdir_init(simdir: str | Path | None = None, **kwargs: Any) -> Path:
         simdir = p
     return simdir
 
+
 def _convert_for_yaml(obj):
     if isinstance(obj, dict):
         return {k: _convert_for_yaml(v) for k, v in obj.items()}
@@ -251,11 +283,15 @@ def _convert_for_yaml(obj):
     else:
         return str(obj)
 
+
 def _to_config(obj, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
-    config = _convert_for_yaml({name: getattr(obj, name) for name in obj._user_defined if hasattr(obj, name)})
+    config = _convert_for_yaml(
+        {name: getattr(obj, name) for name in obj._user_defined if hasattr(obj, name)}
+    )
     if remove_common_args:
-        config = {key: value for key, value in config.items() if key not in obj.common_args.__dict__}
-    return {key: value for key, value in config.items() if value is not None} 
-
-
-
+        config = {
+            key: value
+            for key, value in config.items()
+            if key not in obj.common_args.__dict__
+        }
+    return {key: value for key, value in config.items() if value is not None}

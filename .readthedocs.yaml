@@ -8,19 +8,20 @@ version: 2
 # Build documentation with Sphinx
 sphinx:
   configuration: docs/conf.py
-  fail_on_warning: false  # Optional: Set to true if you want the build to fail on warnings.
+  fail_on_warning: false  
 
 build:
   os: ubuntu-22.04
   tools:
     python: "mambaforge-22.9"  
+    rust: "latest"
   apt_packages:
-    - graphviz    
-    - build-essential
-    - cmake
-    - ninja-build
+    - pandoc
   jobs:
     post_create_environment: 
+      - git fetch --prune --unshallow
+      - git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - python buildscripts/set_version.py
       - pip install .
 
 conda:
