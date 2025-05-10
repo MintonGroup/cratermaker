@@ -105,8 +105,8 @@ class HiResLocalSurface(Surface):
 
         return
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         pix = format_large_units(self.pix, quantity="length")
         local_radius = format_large_units(self.local_radius, quantity="length")
         return (

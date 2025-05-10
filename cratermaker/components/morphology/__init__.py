@@ -35,8 +35,8 @@ class Morphology(ComponentBase):
         super().__init__(**kwargs)
         self._queue_manager: CraterQueueManager | None = None
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         return base
 
     @classmethod

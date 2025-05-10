@@ -30,7 +30,7 @@ class Crater:
     morphology_type: str | None = None
     age: float | None = None
 
-    def __repr__(self):
+    def __str__(self):
         if self.age is None:
             agetext = "Not set"
         else:
