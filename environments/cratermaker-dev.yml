@@ -16,6 +16,4 @@ dependencies:
   - geoviews >= 1.14.0
   - PyYAML >= 6
   - astropy >= 6
-  - setuptools >= 64
-  - setuptools_scm >= 8
   - pytest

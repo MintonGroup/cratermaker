@@ -92,8 +92,8 @@ class Projectile(ComponentBase):
             raise ValueError("density must be provided")
         return
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         if self.sample:
             params = f"\nMean Velocity: {format_large_units(self.mean_velocity, quantity='velocity')}"
         else:
