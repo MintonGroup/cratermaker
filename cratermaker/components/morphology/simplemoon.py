@@ -25,8 +25,8 @@ class SimpleMoonCrater(Crater):
     peak_height: float | None = None
     ejrim: float | None = None
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         return (
             f"{base}\n"
             f"Rim height: {format_large_units(self.rim_height, quantity='length')}\n"
@@ -121,8 +121,8 @@ class SimpleMoon(Morphology):
         self.dorays = dorays
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         if self.ejecta_truncation is not None:
             base += f"\nEjecta Trunction: {self.ejecta_truncation:.2f} * crater.final_radius"
         else:

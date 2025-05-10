@@ -181,7 +181,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         """
         Returns a string representation of the Simulation object.
         """

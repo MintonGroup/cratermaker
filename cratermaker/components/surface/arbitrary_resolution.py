@@ -47,8 +47,8 @@ class ArbitraryResolutionSurface(Surface):
         self.pix = pix
         self.load_from_files(reset=reset, regrid=regrid, **kwargs)
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         pix_mean = format_large_units(self.pix_mean, quantity="length")
         pix_std = format_large_units(self.pix_std, quantity="length")
         return f"{base}\nEffective pixel size: {pix_mean} +/- {pix_std}"

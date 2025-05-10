@@ -44,8 +44,8 @@ class Production(ComponentBase):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types", ["crater", "projectile"])
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         return f"{base}\nGenerator type: {self.generator_type}"
 
     @classmethod

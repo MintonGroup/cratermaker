@@ -135,8 +135,8 @@ class CometProjectiles(Projectile):
             **kwargs,
         )
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         return f"{base}\nTarget: {self.target.name}\n"
 
     def _set_mean_velocity(self):
