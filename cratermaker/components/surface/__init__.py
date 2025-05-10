@@ -107,8 +107,8 @@ class Surface(ComponentBase):
 
         return
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         return f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}"
 
     @classmethod

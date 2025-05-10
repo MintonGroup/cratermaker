@@ -64,8 +64,8 @@ class NeukumProduction(Production):
 
         self.version = version or "Moon"
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         timelo = format_large_units(self.valid_time[0], quantity="time")
         timehi = format_large_units(self.valid_time[1], quantity="time")
         dlo = format_large_units(self.sfd_range[0], quantity="length")

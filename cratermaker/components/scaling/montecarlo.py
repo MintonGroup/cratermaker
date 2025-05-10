@@ -140,8 +140,8 @@ class MonteCarloScaling(Scaling):
         self.recompute()
         return
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         ybar = format_large_units(self.Ybar, quantity="pressure")
         dt = format_large_units(self.transition_nominal, quantity="length")
         return (
