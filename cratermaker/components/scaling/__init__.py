@@ -129,8 +129,8 @@ class Scaling(ComponentBase):
 
         return scaling
 
-    def __repr__(self) -> str:
-        base = super().__repr__()
+    def __str__(self) -> str:
+        base = super().__str__()
         return (
             f"{base}\n"
             f"Target: {self.target._component_name}\n"

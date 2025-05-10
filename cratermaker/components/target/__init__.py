@@ -104,7 +104,7 @@ class Target(ComponentBase):
             if self.material in self.density_catalogue:
                 self._density = self.density_catalogue[self.material]
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         diameter = format_large_units(self.diameter, quantity="length")
         escape_velocity = format_large_units(self.escape_velocity, quantity="velocity")
         return (
