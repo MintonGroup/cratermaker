@@ -71,9 +71,6 @@ generic = "cratermaker.components.projectile.generic:GenericProjectiles"
 
 [build-system]
 requires = [
-    'numpy',
-    'setuptools>=64', 
-    'setuptools_scm>=8',
     "maturin>=1.8,<2.0"
 ]
 build-backend = "maturin"
@@ -84,5 +81,3 @@ include = ["cratermaker/_version.py", "cratermaker/**/*.py", "pyproject.toml", "
 features = ["pyo3/extension-module"]
 module-name = "cratermaker._simplemoon"
 
-[tool.setuptools_scm]  
-write_to = "cratermaker/_version.py"
