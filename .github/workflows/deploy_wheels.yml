@@ -29,8 +29,6 @@ jobs:
       - name: Set version
         shell: bash
         run: |
-          pip install setuptools_scm
-          python -c "import setuptools_scm; v = setuptools_scm.get_version(); open('cratermaker/_version.py', 'w').write(f'__version__ = version = \"{v}\"\n')"
           python buildscripts/set_version.py
 
       - name: Build wheels
@@ -96,7 +94,6 @@ jobs:
       - name: Set version
         shell: bash
         run: |
-          pip install setuptools_scm
           python buildscripts/set_version.py
 
       - name: Build sdist

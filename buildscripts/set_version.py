@@ -1,22 +1,28 @@
-import subprocess
 import re
-import setuptools_scm
+import subprocess
+from pathlib import Path
 
-v = setuptools_scm.get_version()
+version = (
+    subprocess.check_output(["git", "describe", "--tags"])
+    .decode()
+    .replace("v", "")
+    .replace(".0", ".")
+    .strip()
+)
 
-# Get version string from setuptools_scm
-raw_version = subprocess.check_output(["python", "-m", "setuptools_scm"]).decode().strip()
-
-match = re.match(r'^(\d+\.\d+\.\d+)([^\d].*)$', raw_version)
-if match:
-    version = f"{match.group(1)}-{match.group(2)}"
+version = version.split("alpha-")
+if len(version) > 1:
+    version[1] = version[1].replace("-", "+")
+    version = "a".join(version)
 else:
-    version = raw_version
+    version = version[0].replace("alpha", "a0")
 
-cargo_path = "Cargo.toml"
+root_path = Path(__file__).resolve().parents[1]
+cargo_file = root_path / "Cargo.toml"
+version_file = root_path / "cratermaker" / "_version.py"
 
 # Read Cargo.toml as text
-with open(cargo_path, "r", encoding="utf-8") as f:
+with open(cargo_file, "r", encoding="utf-8") as f:
     cargo_contents = f.read()
 
 # Replace the version line
@@ -28,9 +34,9 @@ new_cargo_contents = re.sub(
 )
 
 # Write back
-with open(cargo_path, "w", encoding="utf-8") as f:
+with open(cargo_file, "w", encoding="utf-8") as f:
     f.write(new_cargo_contents)
-with open('cratermaker/_version.py', 'w') as f:
-    f.write(f'__version__ = version = \"{version}\"\n')
+with open(version_file, "w") as f:
+    f.write(f'__version__ = version = "{version}"\n')
 
 print(f"Updated Cargo.toml to version: {version}")
