@@ -9,12 +9,17 @@ version = (
     .replace(".0", ".")
     .strip()
 )
-
+# Because Rust and Python have different versioning schemes, we need to scrub the raw version string to make it compatible with both.
+# Example (develop): git tag: "v2025.05.3-alpha-41-g7a2bba8" => version "2025.5.3-a41+g7a2bba8"
+# Example (release): git tag: "v2025.05.3-alpha" => version "2025.5.3-a0"
+# First we try to split it along "alpha-", which is what the version has if it is a pre-release development version. .
 version = version.split("alpha-")
 if len(version) > 1:
-    version[1] = version[1].replace("-", "+")
+    version[1] = version[1].replace(
+        "-", "+"
+    )  # replace "-" with "+" to make it compatible with Python/Rust versioning
     version = "a".join(version)
-else:
+else:  # This is a release version, so there is no dash after alpha, but it needs to be changed to a0
     version = version[0].replace("alpha", "a0")
 
 root_path = Path(__file__).resolve().parents[1]
