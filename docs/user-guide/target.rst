@@ -43,11 +43,10 @@ Below are examples of how to use the Target class to explore planetary propertie
 
     from cratermaker import Target
     # Access the target catalogue options 
-    catalogue = Target.maker("Moon").catalogue
+    catalogue = Target.maker().catalogue
 
     # Print available targets
-    print("Available targets:")
-    print("\n".join(f"- {name}" for name in catalogue))
+    print(f"Available targets:\n{catalogue}")
 
 
 **Example 3: Defining a body not in the catalogue (Eris)**
