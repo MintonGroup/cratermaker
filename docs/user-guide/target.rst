@@ -34,14 +34,7 @@ Below are examples of how to use the Target class to explore planetary propertie
 
     from cratermaker import Target
     moon = Target.maker("Moon")
-
-    # gravity and escape velocity
-    gravity = moon.gravity              # in m/s²
-    escape_velocity = moon.escape_velocity  # in m/s
-
-    print(f"{moon.name}:")
-    print(f"  Gravity = {gravity:.2f} m/s²")
-    print(f"  Escape velocity = {escape_velocity:.2f} m/s")
+    print(moon)
 
 **Example 2: Viewing the Target catalogue**
 
@@ -49,13 +42,13 @@ Below are examples of how to use the Target class to explore planetary propertie
     :okwarning:
 
     from cratermaker import Target
-    # the classmethod .maker() is needed to get a temporary Target
+    # Access the target catalogue options 
     catalogue = Target.maker("Moon").catalogue
 
-    # Print all available targets in catalogue
+    # Print available targets
     print("Available targets:")
-    for name in catalogue:
-        print("-", name)
+    print("\n".join(f"- {name}" for name in catalogue))
+
 
 **Example 3: Defining a body not in the catalogue (Eris)**
 
@@ -72,5 +65,4 @@ Below are examples of how to use the Target class to explore planetary propertie
         material="Ice",
         transition_scale_type="ice"
     )
-
-    print(f"{eris.name}: Gravity = {eris.gravity:.2f} m/s², Escape velocity = {eris.escape_velocity:.2f} m/s")
+    print(eris)
