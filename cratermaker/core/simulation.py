@@ -16,7 +16,7 @@ from ..components.target import Target
 from ..constants import _COMPONENT_NAMES, _CONFIG_FILE_NAME, FloatLike, PairOfFloats
 from ..utils import export
 from ..utils.general_utils import _set_properties, format_large_units, parameter
-from .base import CratermakerBase, _convert_for_yaml, _to_config
+from .base import CratermakerBase, _convert_for_yaml
 from .crater import Crater
 
 
@@ -200,6 +200,16 @@ class Simulation(CratermakerBase):
             f"Interval    : {self.interval_number}\n"
             f"simdir      : {str(self.simdir)}\n"
         )
+
+    def __repr__(self) -> str:
+        config = self.to_config(save_to_file=False)
+        txt = f"{self.__class__.__name__}("
+        for k, v in config.items():
+            if isinstance(v, str):
+                v = f"'{v}'"
+            txt += f"\n    {k}={v},"
+        txt += "\n)"
+        return txt
 
     def get_smallest_diameter(
         self, face_areas: ArrayLike | None = None, from_projectile: bool = False
@@ -791,15 +801,15 @@ class Simulation(CratermakerBase):
 
         return kwargs
 
-    def to_config(self, **kwargs: Any) -> dict:
+    def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """
         Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. This will consolidate all of the configuration
         parameters into a single dictionary that can be saved to a YAML file. This will also remove any common arguments from the individual configurations for each component model to avoid repeating them.
 
         Parameters
         ----------
-        obj : Any
-            The object whose attributes will be stored.  It must have a _user_defined attribute.
+        save_to_file : bool, optional
+            If True, the configuration will be saved to a file. Default is True.
         **kwargs : Any
             Additional keyword arguments for subclasses.
 
@@ -852,10 +862,11 @@ class Simulation(CratermakerBase):
                     sim_config.pop(f"{config}_config")
 
         # Write the combined configuration to a YAML file
-        with open(self.config_file, "w") as f:
-            yaml.safe_dump(sim_config, f, indent=4)
+        if save_to_file:
+            with open(self.config_file, "w") as f:
+                yaml.safe_dump(sim_config, f, indent=4)
 
-        return _to_config(self, **kwargs)
+        return sim_config
 
     def save(self, **kwargs: Any) -> None:
         """
