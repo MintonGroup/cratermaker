@@ -21,7 +21,7 @@ const EJPROFILE: f64 = 3.0; // The exponent for the ejecta profile
 
 #[pymodule]
 #[pyo3(name = "_cratermaker")]
-mod simplemoon {
+mod cratermaker{
     use super::*;
 
     #[pymodule]
