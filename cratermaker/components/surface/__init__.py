@@ -73,7 +73,15 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
         object.__setattr__(self, "_face_areas", None)
+        object.__setattr__(self, "_face_x", None)
+        object.__setattr__(self, "_face_y", None)
+        object.__setattr__(self, "_face_z", None)
+        object.__setattr__(self, "_node_x", None)
+        object.__setattr__(self, "_node_y", None)
+        object.__setattr__(self, "_node_z", None)
+
         object.__setattr__(self, "_smallest_length", None)
+
         super().__init__(simdir=simdir, **kwargs)
 
         self._data_variable_init = {
@@ -903,22 +911,8 @@ class Surface(ComponentBase):
 
         Returns
         -------
-        Surface
-            A new Surface object containing the regional grid.
-
-        Notes
-        -----
-        Though not well documented, the mapping from the region grid back to the original grid can be done using the variables
-        "subgrid_face_indices" and "subgrid_node_indices" in the region grid. For example, the following will extract a region
-        surface, modify the face elevation, then insert the modified values back onto the original surface:
-
-        .. code-block:: python
-
-            import xarray as xr
-
-            region_surf = surface.extract_region(location, region_radius)
-            region_surf['face_elevation'] = xr.full_like(region_surf['face_elevation'], 1.0)
-            surface['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] = region_surf['face_elevation']
+        SurfaceView
+            A SurfaceView object containing a view of the regional grid.
 
         """
 
@@ -1227,15 +1221,6 @@ class Surface(ComponentBase):
         return self._component_name
 
     @property
-    def face_areas(self):
-        """
-        The face areas of the mesh.
-        """
-        if self._face_areas is None:
-            self._face_areas = self.uxgrid.face_areas.values * self.radius**2
-        return self._face_areas
-
-    @property
     def smallest_length(self):
         """
         The smallest length of the mesh.
@@ -1245,32 +1230,168 @@ class Surface(ComponentBase):
         return self._smallest_length
 
     @property
+    def n_edge(self):
+        """
+        Total number of edges
+        """
+        return self.uxgrid.n_edge
+
+    @property
+    def n_face(self):
+        """
+        Total number of faces
+        """
+        return self.uxgrid.n_face
+
+    @property
+    def face_areas(self):
+        """
+        The areas of each face.
+
+        Notes
+        -----
+        Unlike uxarray.Grid.face_areas, this is in meters squared.
+
+        """
+        if self._face_areas is None:
+            self._face_areas = self.uxgrid.face_areas.values * self.radius**2
+        return self._face_areas
+
+    @property
     def face_lat(self):
         """
-        The latitude of the face centers.
+        Latitude of the center of each face in degrees.
         """
         return self.uxgrid.face_lat.values
 
     @property
     def face_lon(self):
         """
-        The longitude of the face centers.
+        Longitude of the center of each face in degrees.
         """
         return self.uxgrid.face_lon.values
 
     @property
+    def face_node_connectivity(self):
+        """
+        Indices of the nodes that make up each face.
+
+        Dimensions: `(n_face, n_max_face_nodes)`
+
+        Nodes are in counter-clockwise order.
+        """
+        return self.uxgrid.face_node_connectivity.values
+
+    @property
+    def face_face_connectivity(self):
+        """
+        Indices of the faces that surround each face.
+
+        Dimensions: `(n_face, n_max_face_faces)`
+        """
+        return self.uxgrid.face_face_connectivity.values
+
+    @property
+    def face_x(self):
+        """
+        Cartesian x location of the center of each face in meters.
+        """
+        if self._face_x is None:
+            self._face_x = self.uxgrid.face_x.values * self.radius
+        return self._face_x
+
+    @property
+    def face_y(self):
+        """
+        Cartesian y location of the center of each face in meters.
+        """
+        if self._face_y is None:
+            self._face_y = self.uxgrid.face_y.values * self.radius
+        return self._face_y
+
+    @property
+    def face_z(self):
+        """
+        Cartesian z location of the center of each face in meters.
+        """
+        if self._face_z is None:
+            self._face_z = self.uxgrid.face_z.values * self.radius
+        return self._face_z
+
+    @property
+    def n_node(self):
+        """
+        Total number of nodes
+        """
+        return self.uxgrid.n_node
+
+    @property
+    def n_nodes_per_face(self):
+        """
+        The number of nodes that make up each face.
+
+        Dimensions: `(n_node, )`
+        """
+        return self.uxgrid.n_nodes_per_face.values
+
+    @property
     def node_lat(self):
         """
-        The latitude of the node centers.
+        Latitude of each node in degrees.
         """
         return self.uxgrid.node_lat.values
 
     @property
     def node_lon(self):
         """
-        The longitude of the node centers.
+        Longitude of each node in degrees.
         """
         return self.uxgrid.node_lon.values
+
+    @property
+    def node_x(self):
+        """
+        Cartesian x location of each node in meters.
+        """
+        if self._node_x is None:
+            self._node_x = self.uxgrid.node_x.values * self.radius
+        return self._node_x
+
+    @property
+    def node_y(self):
+        """
+        Cartesian y location of each node in meters.
+        """
+        if self._node_y is None:
+            self._node_y = self.uxgrid.node_y.values * self.radius
+        return self._node_y
+
+    @property
+    def node_z(self):
+        """
+        Cartesian z location of each node in meters.
+        """
+        if self._node_z is None:
+            self._node_z = self.uxgrid.node_z.values * self.radius
+        return self._node_z
+
+    @property
+    def edge_face_distances(self):
+        """
+        Distances between the centers of the faces that saddle each edge in radians.
+
+        Dimensions: `(n_edge, )`
+        """
+        return self.uxgrid.edge_face_distances.values
+
+    @property
+    def edge_face_connectivity(self):
+        """
+        Indices of the faces that saddle each edge.
+
+        Dimensions: `(n_edge, 2)`
+        """
+        return self.uxgrid.edge_face_connectivity.values
 
     @property
     def node_elevation(self):
