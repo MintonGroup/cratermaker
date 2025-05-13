@@ -38,17 +38,6 @@ pub struct SimpleMoonMorphology {
     pub crater: Crater,
 }
 
-/// View into a region of the surface mesh, consisting of node and face indices.
-///
-/// Used to localize crater effects to a subset of the full mesh.
-#[derive(FromPyObject)]
-pub struct SurfaceView<'py> {
-    pub node_indices: PyReadonlyArray1<'py, i64>,
-    pub face_indices: PyReadonlyArray1<'py, i64>,
-}
-
-
-
 
 /// Calculates the elevation of a crater as a function of distance from the center.
 ///

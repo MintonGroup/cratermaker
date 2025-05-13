@@ -1498,13 +1498,18 @@ class SurfaceView:
             raise ValueError("kdiff must be greater than 0.0")
         kdiffmax = np.max(kdiff)
 
-        cumulative_elchange = np.zeros(self.n_faces, dtype=np.float64)
         if abs(kdiffmax) < _VSMALL:
-            return cumulative_elchange
+            return np.zeros(self.n_faces, dtype=np.float64)
 
         # Set the time step size based on von Neumann stability assuming total diffusion occurs over a time of t = 1.0
-
-        return
+        dt = np.min(self.surface.face_areas[self.face_indices] / (4.0 * kdiff))
+        return surface_functions.apply_diffusion_update(
+            face_areas=self.surface.face_areas,
+            face_kappa=kdiff,
+            face_elevation=self.surface.elevation,
+            face_face_connectivity=self.surface.edge_face_connectivity,
+            dt=dt,
+        )
 
 
 import_components(__name__, __path__, ignore_private=True)
