@@ -22,6 +22,7 @@ from cratermaker.constants import (
     _DATA_DIR,
     _GRID_FILE_NAME,
     _SMALLFAC,
+    _VSMALL,
     FloatLike,
     PairOfFloats,
 )
@@ -1452,6 +1453,11 @@ class SurfaceView:
     ):
         self.surface = surface
         self.face_indices = face_indices
+        if isinstance(face_indices, slice):
+            self.n_faces = surface.face_elevation[face_indices].size
+        else:
+            self.n_faces = face_indices.size
+
         if node_indices is None:
             node_indices = np.unique(
                 surface.uxds.uxgrid.face_node_connectivity.values[face_indices].ravel()
@@ -1459,6 +1465,46 @@ class SurfaceView:
             node_indices = node_indices[node_indices != INT_FILL_VALUE]
 
         self.node_indices = node_indices
+        if isinstance(node_indices, slice):
+            self.n_nodes = surface.node_elevation[node_indices].size
+        else:
+            self.n_faces = face_indices.size
+        return
+
+    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
+        """
+        Apply diffusion to the surface.
+
+        Parameters
+        ----------
+        kdiff : float or array-like
+            The degradation state of the surface, which is the product of diffusivity and time. It can be a scalar or an array of the same size as the number of faces in the grid.
+            If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
+            The value of kdiff must be greater than 0.0.
+
+        Returns
+        -------
+        NDArray
+            The elevation change after applying diffusion.
+        """
+        kdiff = np.asarray(kdiff)
+        if np.isscalar(kdiff):
+            kdiff = np.full(self.n_faces, kdiff)
+        elif kdiff.size != self.n_faces:
+            raise ValueError(
+                "kdiff must be a scalar or an array with the same size as the number of faces in the grid"
+            )
+        if np.any(kdiff < 0.0):
+            raise ValueError("kdiff must be greater than 0.0")
+        kdiffmax = np.max(kdiff)
+
+        cumulative_elchange = np.zeros(self.n_faces, dtype=np.float64)
+        if abs(kdiffmax) < _VSMALL:
+            return cumulative_elchange
+
+        # Set the time step size based on von Neumann stability assuming total diffusion occurs over a time of t = 1.0
+
+        return
 
 
 import_components(__name__, __path__, ignore_private=True)
