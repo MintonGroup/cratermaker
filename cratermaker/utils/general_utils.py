@@ -137,6 +137,9 @@ def _set_properties(
             matched, unmatched = _set_properties_from_arguments(
                 obj, **properties, **kwargs
             )
+            properties.pop(
+                catalogue_key
+            )  # Make sure that the catlogue key doesn't stay in the properties
         return matched, unmatched
 
     def _set_properties_from_file(obj, config_file, key=None, **kwargs):
