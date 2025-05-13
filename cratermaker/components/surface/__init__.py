@@ -204,8 +204,6 @@ class Surface(ComponentBase):
 
         if reset:
             self.reset(**kwargs)
-        else:
-            self.load_from_data()
 
         return
 
@@ -239,9 +237,6 @@ class Surface(ComponentBase):
             if not isinstance(time_variables, dict):
                 raise TypeError("time_variables must be a dictionary")
 
-        # Variables that we do not want to save as they are computed at runtime
-
-        self.save_to_data()
         self.uxds.close()
 
         ds = self.uxds.expand_dims(dim="time").assign_coords(
@@ -343,25 +338,6 @@ class Surface(ComponentBase):
                 save_to_file=True,
             )
 
-        self.load_from_data()
-        return
-
-    def load_from_data(self):
-        self.face_lat = self.uxgrid.face_lat.values
-        self.face_lon = self.uxgrid.face_lon.values
-        self.node_lat = self.uxgrid.node_lat.values
-        self.node_lon = self.uxgrid.node_lon.values
-        self.node_elevation = self.uxds["node_elevation"].values
-        self.face_elevation = self.uxds["face_elevation"].values
-        self.ejecta_thickness = self.uxds["ejecta_thickness"].values
-        self.ray_intensity = self.uxds["ray_intensity"].values
-        return
-
-    def save_to_data(self):
-        self.uxds["node_elevation"].values = self.node_elevation
-        self.uxds["face_elevation"].values = self.face_elevation
-        self.uxds["ejecta_thickness"].values = self.ejecta_thickness
-        self.uxds["ray_intensity"].values = self.ray_intensity
         return
 
     def full_view(self):
@@ -558,11 +534,6 @@ class Surface(ComponentBase):
                 "new_elev must be None, a scalar, or an array with the same size as the number of nodes in the grid"
             )
 
-        try:
-            self.save_to_data()
-        except AttributeError:
-            pass
-
         if gen_node:
             self.generate_data(
                 data=new_elev,
@@ -585,7 +556,6 @@ class Surface(ComponentBase):
                 combine_data_files=combine_data_files,
                 interval_number=interval_number,
             )
-        self.load_from_data()
         return
 
     @staticmethod
@@ -1273,6 +1243,62 @@ class Surface(ComponentBase):
         if self._smallest_length is None:
             self._smallest_length = np.sqrt(np.min(self.face_areas)) * _SMALLFAC
         return self._smallest_length
+
+    @property
+    def face_lat(self):
+        """
+        The latitude of the face centers.
+        """
+        return self.uxgrid.face_lat.values
+
+    @property
+    def face_lon(self):
+        """
+        The longitude of the face centers.
+        """
+        return self.uxgrid.face_lon.values
+
+    @property
+    def node_lat(self):
+        """
+        The latitude of the node centers.
+        """
+        return self.uxgrid.node_lat.values
+
+    @property
+    def node_lon(self):
+        """
+        The longitude of the node centers.
+        """
+        return self.uxgrid.node_lon.values
+
+    @property
+    def node_elevation(self):
+        """
+        The elevation of the nodes.
+        """
+        return self.uxds["node_elevation"].values
+
+    @property
+    def face_elevation(self):
+        """
+        The elevation of the faces.
+        """
+        return self.uxds["face_elevation"].values
+
+    @property
+    def ejecta_thickness(self):
+        """
+        The thickness of the ejecta.
+        """
+        return self.uxds["ejecta_thickness"].values
+
+    @property
+    def ray_intensity(self):
+        """
+        The intensity of the rays.
+        """
+        return self.uxds["ray_intensity"].values
 
 
 class SurfaceView:
