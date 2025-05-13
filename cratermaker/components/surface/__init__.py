@@ -79,7 +79,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_x", None)
         object.__setattr__(self, "_node_y", None)
         object.__setattr__(self, "_node_z", None)
-
+        object.__setattr__(self, "_edge_lengths", None)
         object.__setattr__(self, "_smallest_length", None)
 
         super().__init__(simdir=simdir, **kwargs)
@@ -1392,6 +1392,27 @@ class Surface(ComponentBase):
         Dimensions: `(n_edge, 2)`
         """
         return self.uxgrid.edge_face_connectivity.values
+
+    @property
+    def edge_lengths(self):
+        """
+        The lengths of each edge in meters.
+
+        Computed using the Euclidean distance between edge nodes in Cartesian coordinates.
+        """
+        if self._edge_lengths is None:
+            x0 = self.uxgrid.edge_node_x.values[:, 0] * self.radius
+            y0 = self.uxgrid.edge_node_y.values[:, 0] * self.radius
+            z0 = self.uxgrid.edge_node_z.values[:, 0] * self.radius
+            x1 = self.uxgrid.edge_node_x.values[:, 1] * self.radius
+            y1 = self.uxgrid.edge_node_y.values[:, 1] * self.radius
+            z1 = self.uxgrid.edge_node_z.values[:, 1] * self.radius
+
+            dx = x1 - x0
+            dy = y1 - y0
+            dz = z1 - z0
+            self._edge_lengths = np.sqrt(dx**2 + dy**2 + dz**2)
+        return self._edge_lengths
 
     @property
     def node_elevation(self):
