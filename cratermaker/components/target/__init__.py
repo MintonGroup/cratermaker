@@ -23,6 +23,56 @@ class Target(ComponentBase):
     its material composition, size, and other relevant physical characteristics.
     """
 
+    _catalogue_header = [
+        "name",
+        "radius",
+        "mass",
+        "material",
+        "transition_scale_type",
+    ]
+    # The catalogue was created with Swiftest
+    _catalogue_values = [
+        ("Mercury", 2439.40e3, 3.301001e23, "Soft Rock", "silicate"),
+        ("Venus", 6051.84e3, 4.867306e24, "Hard Rock", "silicate"),
+        ("Earth", 6371.01e3, 5.972168e24, "Wet Soil", "silicate"),
+        ("Moon", 1737.53e3, 7.345789e22, "Soft Rock", "silicate"),
+        ("Mars", 3389.92e3, 6.416909e23, "Soft Rock", "silicate"),
+        ("Phobos", 11.17e3, 1.080000e16, "Soft Rock", "silicate"),
+        ("Deimos", 6.30e3, 1.800000e15, "Soft Rock", "silicate"),
+        ("Ceres", 469.70e3, 9.383516e20, "Soft Rock", "ice"),
+        ("Vesta", 262.70e3, 2.590270e20, "Soft Rock", "silicate"),
+        ("Io", 1821.49e3, 8.929649e22, "Hard Rock", "silicate"),
+        ("Europa", 1560.80e3, 4.798574e22, "Ice", "ice"),
+        ("Ganymede", 2631.20e3, 1.481479e23, "Ice", "ice"),
+        ("Callisto", 2410.30e3, 1.075661e23, "Ice", "ice"),
+        ("Titan", 2575.50e3, 1.345181e23, "Ice", "ice"),
+        ("Rhea", 764.50e3, 2.306459e21, "Ice", "ice"),
+        ("Dione", 562.50e3, 1.095486e21, "Ice", "ice"),
+        ("Tethys", 536.30e3, 6.174430e20, "Ice", "ice"),
+        ("Enceladus", 252.30e3, 1.080318e20, "Ice", "ice"),
+        ("Mimas", 198.80e3, 3.750939e19, "Ice", "ice"),
+        ("Ariel", 578.90e3, 1.250019e21, "Ice", "ice"),
+        ("Umbriel", 584.70e3, 1.279535e21, "Ice", "ice"),
+        ("Titania", 788.90e3, 3.338178e21, "Ice", "ice"),
+        ("Oberon", 761.40e3, 3.076577e21, "Ice", "ice"),
+        ("Miranda", 235.70e3, 6.442623e19, "Ice", "ice"),
+        ("Triton", 1352.60e3, 2.140292e22, "Ice", "ice"),
+        ("Charon", 606.00e3, 1.589680e21, "Ice", "ice"),
+        ("Pluto", 1188.30e3, 1.302498e22, "Ice", "ice"),
+        ("Arrokoth", 9.13e3, 7.485000e14, "Ice", "ice"),
+    ]
+    _catalogue = _create_catalogue(_catalogue_header, _catalogue_values)
+
+    _density_catalogue = {
+        "Water": 1000.0,
+        "Sand": 1750.0,
+        "Dry Soil": 1500.0,
+        "Wet Soil": 2000.0,
+        "Soft Rock": 2250.0,
+        "Hard Rock": 2500.0,
+        "Ice": 900.0,
+    }
+
     def __init__(
         self,
         name: str,
@@ -70,7 +120,6 @@ class Target(ComponentBase):
         object.__setattr__(self, "_transition_scale_type", None)
         object.__setattr__(self, "_material", None)
         object.__setattr__(self, "_density", None)
-        object.__setattr__(self, "_catalogue", None)
 
         # ensure that only either diamter of radius is passed
         size_values_set = sum(x is not None for x in [diameter, radius])
@@ -79,7 +128,7 @@ class Target(ComponentBase):
         if diameter is not None:
             radius = diameter / 2.0
 
-        catalogue = kwargs.pop("catalogue", self.catalogue)
+        catalogue = kwargs.pop("catalogue", self.__class__._catalogue)
 
         # Set properties for the Target object based on the arguments passed to the function
         _set_properties(
@@ -101,8 +150,8 @@ class Target(ComponentBase):
             raise ValueError("Invalid Target")
 
         if self._density is None:
-            if self.material in self.density_catalogue:
-                self._density = self.density_catalogue[self.material]
+            if self.material in self._density_catalogue:
+                self._density = self._density_catalogue[self.material]
 
     def __str__(self) -> str:
         diameter = format_large_units(self.diameter, quantity="length")
@@ -160,25 +209,6 @@ class Target(ComponentBase):
             raise TypeError("name must be a string or None")
         self._name = value
 
-    @property
-    def density_catalogue(self):
-        """
-        The target catalogue used for the target body.
-
-        Returns
-        -------
-        dict
-        """
-        return {
-            "Water": 1000.0,
-            "Sand": 1750.0,
-            "Dry Soil": 1500.0,
-            "Wet Soil": 2000.0,
-            "Soft Rock": 2250.0,
-            "Hard Rock": 2500.0,
-            "Ice": 900.0,
-        }
-
     @parameter
     def material(self):
         """
@@ -220,61 +250,28 @@ class Target(ComponentBase):
         return
 
     @property
-    def catalogue(self):
-        """
-        The target catalogue used for the target body.
+    def catalogue(self) -> str:
+        from cratermaker.utils.general_utils import format_large_units
 
-        Returns
-        -------
-        dict
-        """
-
-        def _make_target_catalogue():
-            # Define some built-in catalogue values for known solar system targets of interest
-            target_properties = [
-                "name",
-                "radius",
-                "mass",
-                "material",
-                "transition_scale_type",
-            ]
-            # The catalogue was created with Swiftest
-            target_values = [
-                ("Mercury", 2439.40e3, 3.301001e23, "Soft Rock", "silicate"),
-                ("Venus", 6051.84e3, 4.867306e24, "Hard Rock", "silicate"),
-                ("Earth", 6371.01e3, 5.972168e24, "Wet Soil", "silicate"),
-                ("Moon", 1737.53e3, 7.345789e22, "Soft Rock", "silicate"),
-                ("Mars", 3389.92e3, 6.416909e23, "Soft Rock", "silicate"),
-                ("Phobos", 11.17e3, 1.080000e16, "Soft Rock", "silicate"),
-                ("Deimos", 6.30e3, 1.800000e15, "Soft Rock", "silicate"),
-                ("Ceres", 469.70e3, 9.383516e20, "Soft Rock", "ice"),
-                ("Vesta", 262.70e3, 2.590270e20, "Soft Rock", "silicate"),
-                ("Io", 1821.49e3, 8.929649e22, "Hard Rock", "silicate"),
-                ("Europa", 1560.80e3, 4.798574e22, "Ice", "ice"),
-                ("Ganymede", 2631.20e3, 1.481479e23, "Ice", "ice"),
-                ("Callisto", 2410.30e3, 1.075661e23, "Ice", "ice"),
-                ("Titan", 2575.50e3, 1.345181e23, "Ice", "ice"),
-                ("Rhea", 764.50e3, 2.306459e21, "Ice", "ice"),
-                ("Dione", 562.50e3, 1.095486e21, "Ice", "ice"),
-                ("Tethys", 536.30e3, 6.174430e20, "Ice", "ice"),
-                ("Enceladus", 252.30e3, 1.080318e20, "Ice", "ice"),
-                ("Mimas", 198.80e3, 3.750939e19, "Ice", "ice"),
-                ("Ariel", 578.90e3, 1.250019e21, "Ice", "ice"),
-                ("Umbriel", 584.70e3, 1.279535e21, "Ice", "ice"),
-                ("Titania", 788.90e3, 3.338178e21, "Ice", "ice"),
-                ("Oberon", 761.40e3, 3.076577e21, "Ice", "ice"),
-                ("Miranda", 235.70e3, 6.442623e19, "Ice", "ice"),
-                ("Triton", 1352.60e3, 2.140292e22, "Ice", "ice"),
-                ("Charon", 606.00e3, 1.589680e21, "Ice", "ice"),
-                ("Pluto", 1188.30e3, 1.302498e22, "Ice", "ice"),
-                ("Arrokoth", 9.13e3, 7.485000e14, "Ice", "ice"),
-            ]
-
-            return _create_catalogue(target_properties, target_values)
-
-        if self._catalogue is None:
-            self._catalogue = _make_target_catalogue()
-        return self._catalogue
+        if self.__class__._catalogue is None:
+            return "This Projectile component does not have a catalogue."
+        lines = []
+        # Use the self.__class__._catalogue_header list to make the header
+        header = "|".join([f"{h:<11}" for h in self.__class__._catalogue_header])
+        lines.append(header)
+        lines.append(len(header) * "-")
+        for name, entry in self.__class__._catalogue.items():
+            line = ""
+            for k, v in entry.items():
+                if k == "radius":
+                    val = format_large_units(v, quantity="length")
+                elif k == "mass":
+                    val = f"{v:.2e} kg"
+                else:
+                    val = v
+                line += f"|{val:<11}"
+            lines.append(f"{name:<11}{line}")
+        return "\n".join(lines)
 
     @property
     def catalogue_key(self):
