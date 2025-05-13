@@ -19,7 +19,7 @@ Creating a Projectile
 
 **Example 1: Using a target from the catalogue**
 
-.. code-block:: python
+.. ipython:: python
 
     from cratermaker.components.projectile import Projectile
     from cratermaker.components.target import Target
@@ -39,7 +39,7 @@ If no projectile parameters are specified, CraterMaker will use a default astero
 
 You can specify projectile properties manually using keyword arguments.
 
-.. code-block:: python
+.. ipython:: python
 
     projectile_userdefined = Projectile.maker(
         projectile="generic",
