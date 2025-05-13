@@ -598,7 +598,7 @@ class Simulation(CratermakerBase):
 
             self.save()
 
-        self.export("vtk")
+        self.export("vtp")
         return
 
     def _validate_run_args(self, **kwargs) -> dict:
@@ -878,12 +878,12 @@ class Simulation(CratermakerBase):
 
         return
 
-    def export(self, format="vtk", *args, **kwargs) -> None:
+    def export(self, format="vtp", *args, **kwargs) -> None:
         """
         Export the surface mesh to a file in the specified format. Currently only VTK is supported.
         """
         self.save()
-        if format == "vtk":
+        if format == "vtp" or format == "vtk":
             export.to_vtk(self.surface, *args, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")

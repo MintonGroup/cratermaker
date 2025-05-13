@@ -8,7 +8,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import fsolve
 
-from cratermaker._simplemoon import crater_functions, ejecta_functions
+from cratermaker._cratermaker import crater_functions, ejecta_functions
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.surface import Surface, SurfaceView
 from cratermaker.constants import FloatLike

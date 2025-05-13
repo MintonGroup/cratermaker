@@ -20,7 +20,7 @@ const RIMDROP: f64 = 4.20; // The exponent for the uplifted rim dropoff.
 const EJPROFILE: f64 = 3.0; // The exponent for the ejecta profile
 
 #[pymodule]
-#[pyo3(name = "_simplemoon")]
+#[pyo3(name = "_cratermaker")]
 mod simplemoon {
     use super::*;
 
