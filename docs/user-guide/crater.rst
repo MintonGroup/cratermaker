@@ -14,10 +14,12 @@ The ``Crater`` method is used to represent craters and the relationship properti
 
 The following is a simple example that creates a crater on the Moon from a 100 meter diameter projectile:
 
-.. code-block:: python
+.. ipython:: python
 
     from cratermaker.components.target import Target
     from cratermaker.core.crater import Crater
+    #from cratermaker.components.morphology import Morphology
+    #from cratermaker.core.simulation import Simulation 
 
     target = Target.maker("Moon")
 
