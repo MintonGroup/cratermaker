@@ -51,13 +51,13 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
             old_file.unlink()
 
     # Convert uxarray grid arrays to regular numpy arrays for vtk processing
-    n_node = surface.uxgrid.n_node
-    n_face = surface.uxgrid.n_face
-    node_x = surface.uxgrid.node_x.values * surface.target.radius
-    node_y = surface.uxgrid.node_y.values * surface.target.radius
-    node_z = surface.uxgrid.node_z.values * surface.target.radius
-    n_nodes_per_face = surface.uxgrid.n_nodes_per_face.values
-    face_node_connectivity = surface.uxgrid.face_node_connectivity.values
+    n_node = surface.n_node
+    n_face = surface.n_face
+    node_x = surface.node_x
+    node_y = surface.node_y
+    node_z = surface.node_z
+    n_nodes_per_face = surface.n_nodes_per_face
+    face_node_connectivity = surface.face_node_connectivity
 
     vtk_data = vtkUnstructuredGrid()
     nodes = vtkPoints()
@@ -80,7 +80,7 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
     print("Exporting VTK files...")
 
     with xr.open_mfdataset(data_file_list) as ds:
-        # Warp the surface based on node_elevation data
+        # Warp the surface based on node_elevation data so that the exported mesh is the true shape rather than a sphere
         for i in tqdm(range(len(ds.time))):
             ids = ds.isel(time=i).load()
             current_grid = vtkUnstructuredGrid()
