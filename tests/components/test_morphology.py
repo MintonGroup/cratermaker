@@ -94,16 +94,28 @@ class TestMorphology(unittest.TestCase):
                     sim.surface.reset()
                     # verify that the surface is flat
                     self.assertAlmostEqual(
-                        sim.surface.node_elevation.min(), 0.0, delta=1e0
+                        sim.surface.node_elevation.min(),
+                        0.0,
+                        delta=1e0,
+                        msg=f"Failed for {name} with diameter {final_diameter}",
                     )
                     self.assertAlmostEqual(
-                        sim.surface.face_elevation.min(), 0.0, delta=1e0
+                        sim.surface.face_elevation.min(),
+                        0.0,
+                        delta=1e0,
+                        msg=f"Failed for {name} with diameter {final_diameter}",
                     )
                     self.assertAlmostEqual(
-                        sim.surface.node_elevation.max(), 0.0, delta=1e0
+                        sim.surface.node_elevation.max(),
+                        0.0,
+                        delta=1e0,
+                        msg=f"Failed for {name} with diameter {final_diameter}",
                     )
                     self.assertAlmostEqual(
-                        sim.surface.face_elevation.max(), 0.0, delta=1e0
+                        sim.surface.face_elevation.max(),
+                        0.0,
+                        delta=1e0,
+                        msg=f"Failed for {name} with diameter {final_diameter}",
                     )
 
                     crater = SimpleMoonCrater.maker(
@@ -116,21 +128,25 @@ class TestMorphology(unittest.TestCase):
                         -sim.surface.node_elevation.min() / crater.floor_depth,
                         1.0,
                         delta=delta,
+                        msg=f"Failed for {name} with diameter {final_diameter}",
                     )
                     self.assertAlmostEqual(
                         -sim.surface.face_elevation.min() / crater.floor_depth,
                         1.0,
                         delta=delta,
+                        msg=f"Failed for {name} with diameter {final_diameter}",
                     )
                     self.assertAlmostEqual(
                         sim.surface.node_elevation.max() / crater.rim_height,
                         1.0,
                         delta=2 * delta,
+                        msg=f"Failed for {name} with diameter {final_diameter}",
                     )
                     self.assertAlmostEqual(
                         sim.surface.face_elevation.max() / crater.rim_height,
                         1.0,
                         delta=2 * delta,
+                        msg=f"Failed for {name} with diameter {final_diameter}",
                     )
 
 

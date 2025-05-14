@@ -10,24 +10,25 @@ This example demonstrates the generation of random impact locations.
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from cratermaker import Projectile
 
 # Create a projectile
 proj = Projectile(mean_velocity=5000, density=3000)
 
-#Using projectile for sampling data
+# Using projectile for sampling data
 size = 10000
-projectiles = [proj.new_projectile() for _ in range(size)]
+locations = [proj.new_projectile().location for _ in range(size)]
 
 # Obtain longitudes and latitudes from projectile - but this is not accurate and doesnt work
-lons = np.array([p["projectile_direction"] for p in projectiles])  
-lats = np.array([90.0 - p["projectile_angle"] for p in projectiles])  
+lons = np.array([loc[0] for loc in locations])
+lats = np.array([loc[1] for loc in locations])
 
 # Bins
 bins = 50
 
 # Longitude histogram
-observed_counts_lon, bins_lon_deg = np.histogram(lons, bins=bins, range=(0, 360.0))
+observed_counts_lon, bins_lon_deg = np.histogram(lons, bins=bins, range=(-180, 180.0))
 expected_count_lon = size // bins
 
 # Latitude histogram
@@ -45,15 +46,33 @@ bar_width_lat = np.diff(bins_lat_deg)
 fig, axs = plt.subplots(2, 1, figsize=(8, 6))
 
 # Longitude plot
-axs[0].bar(bins_lon_deg[:-1], observed_counts_lon, width=bar_width_lon, align="edge", label="Observed")
-axs[0].plot(bins_lon_deg[:-1], [expected_count_lon] * len(bins_lon_deg[:-1]), color="red", label="Expected")
+axs[0].bar(
+    bins_lon_deg[:-1],
+    observed_counts_lon,
+    width=bar_width_lon,
+    align="edge",
+    label="Observed",
+)
+axs[0].plot(
+    bins_lon_deg[:-1],
+    [expected_count_lon] * len(bins_lon_deg[:-1]),
+    color="red",
+    label="Expected",
+)
 axs[0].set_xlabel("Longitude (deg)")
 axs[0].set_ylabel("Number")
 axs[0].legend()
 axs[0].set_title("Number vs Longitude")
 
 # Latitude plot
-axs[1].bar(bins_lat_deg[:-1], observed_counts_lat, width=bar_width_lat, align="edge", alpha=0.5, label="Observed")
+axs[1].bar(
+    bins_lat_deg[:-1],
+    observed_counts_lat,
+    width=bar_width_lat,
+    align="edge",
+    alpha=0.5,
+    label="Observed",
+)
 axs[1].plot(bins_lat_deg[:-1], expected_count_lat, label="Expected", color="red")
 axs[1].set_xlabel("Latitude (deg)")
 axs[1].set_ylabel("Number")

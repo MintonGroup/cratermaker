@@ -157,7 +157,13 @@ class Simulation(CratermakerBase):
 
         surface_config = {**surface_config, **kwargs}
         surface_config["reset"] = not resume_old
-        self.surface = Surface.maker(self.surface, target=self.target, **surface_config)
+        self.surface = Surface.maker(
+            self.surface,
+            target=self.target,
+            scaling=self.scaling,
+            morphology=self.morphology,
+            **surface_config,
+        )
 
         self._craterlist = []
         self._crater = None

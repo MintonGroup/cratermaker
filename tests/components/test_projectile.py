@@ -17,27 +17,37 @@ class TestProjectile(unittest.TestCase):
 
     def test_sample_false_defaults(self):
         projectile = Projectile.maker("generic", sample=False, velocity=15e3)
+        self.assertEqual(projectile.velocity, 15e3)
         self.assertEqual(projectile.angle, 90.0)
         self.assertEqual(projectile.direction, 0.0)
         self.assertEqual(projectile.density, 1000.0)
-        newvals = projectile.new_projectile()
-        self.assertEqual(newvals["projectile_velocity"], 15e3)
-        self.assertEqual(newvals["projectile_angle"], 90.0)
-        self.assertEqual(newvals["projectile_direction"], 0.0)
-        self.assertEqual(newvals["projectile_density"], 1000.0)
+        self.assertEqual(projectile.location, (0.0, 0.0))
+        projectile = projectile.new_projectile()
+        self.assertEqual(projectile.velocity, 15e3)
+        self.assertEqual(projectile.angle, 90.0)
+        self.assertEqual(projectile.direction, 0.0)
+        self.assertEqual(projectile.density, 1000.0)
+        self.assertEqual(projectile.location, (0.0, 0.0))
 
     def test_sample_false_custom_angle_direction(self):
         projectile = Projectile.maker(
-            "generic", sample=False, velocity=15e3, angle=45.0, direction=180.0
+            "generic",
+            sample=False,
+            velocity=15e3,
+            angle=45.0,
+            direction=180.0,
+            location=(120.0, -50.0),
         )
         self.assertEqual(projectile.angle, 45.0)
         self.assertEqual(projectile.direction, 180.0)
         self.assertEqual(projectile.density, 1000.0)
-        newvals = projectile.new_projectile()
-        self.assertEqual(newvals["projectile_velocity"], 15e3)
-        self.assertEqual(newvals["projectile_angle"], 45.0)
-        self.assertEqual(newvals["projectile_direction"], 180.0)
-        self.assertEqual(newvals["projectile_density"], 1000.0)
+        self.assertEqual(projectile.location, (120.0, -50.0))
+        projectile = projectile.new_projectile()
+        self.assertEqual(projectile.velocity, 15e3)
+        self.assertEqual(projectile.angle, 45.0)
+        self.assertEqual(projectile.direction, 180.0)
+        self.assertEqual(projectile.density, 1000.0)
+        self.assertEqual(projectile.location, (120.0, -50.0))
 
     def test_density_default_and_override(self):
         default = Projectile.maker("generic", sample=False, velocity=10e3)
@@ -47,11 +57,11 @@ class TestProjectile(unittest.TestCase):
         )
         self.assertEqual(projectile.density, 3000.0)
 
-        newvals = projectile.new_projectile()
-        self.assertEqual(newvals["projectile_velocity"], 10e3)
-        self.assertEqual(newvals["projectile_angle"], 90.0)
-        self.assertEqual(newvals["projectile_direction"], 0.0)
-        self.assertEqual(newvals["projectile_density"], 3000.0)
+        projectile = projectile.new_projectile()
+        self.assertEqual(projectile.velocity, 10e3)
+        self.assertEqual(projectile.angle, 90.0)
+        self.assertEqual(projectile.direction, 0.0)
+        self.assertEqual(projectile.density, 3000.0)
 
     def test_sampled_vals(self):
         popnames = ["generic", "asteroids", "comets"]
@@ -61,15 +71,21 @@ class TestProjectile(unittest.TestCase):
             velocities = []
             angles = []
             directions = []
+            lons = []
+            lats = []
             Nsamples = 1000
             for _ in range(Nsamples):
-                newvals = projectile.new_projectile()
-                velocities.append(newvals["projectile_velocity"])
-                angles.append(newvals["projectile_angle"])
-                directions.append(newvals["projectile_direction"])
+                projectile = projectile.new_projectile()
+                velocities.append(projectile.velocity)
+                angles.append(projectile.angle)
+                directions.append(projectile.direction)
+                lons.append(projectile.location[0])
+                lats.append(projectile.location[1])
             velocities = np.array(velocities)
             angles = np.array(angles)
             directions = np.array(directions)
+            lons = np.array(lons)
+            lats = np.array(lats)
 
             vmean = np.mean(velocities)
             anglemean = np.mean(angles)
