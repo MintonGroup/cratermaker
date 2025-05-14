@@ -8,7 +8,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import fsolve
 
-from cratermaker._simplemoon import crater_functions, ejecta_functions
+from cratermaker._cratermaker import simplemoon_functions as sm
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.surface import Surface, SurfaceView
 from cratermaker.constants import FloatLike
@@ -232,7 +232,7 @@ class SimpleMoon(Morphology):
         # flatten r to 1D array
         rflat = np.ravel(r)
         r_ref_flat = np.ravel(r_ref)
-        elevation = crater_functions.profile(
+        elevation = sm.crater_profile(
             rflat,
             r_ref_flat,
             crater.final_diameter,
@@ -328,7 +328,7 @@ class SimpleMoon(Morphology):
             crater = SimpleMoonCrater.maker(crater)
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = ejecta_functions.profile(rflat, crater.final_diameter, crater.ejrim)
+        elevation = sm.ejecta_profile(rflat, crater.final_diameter, crater.ejrim)
         elevation = np.array(elevation, dtype=np.float64)
         # reshape elevation to match the shape of r
         elevation = np.reshape(elevation, r.shape)
@@ -364,7 +364,7 @@ class SimpleMoon(Morphology):
         thickness = self.ejecta_profile(crater, r)
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
-        ray_intensity = ejecta_functions.ray_intensity(
+        ray_intensity = sm.ray_intensity(
             rflat,
             theta_flat,
             crater.final_diameter,
@@ -406,7 +406,7 @@ class SimpleMoon(Morphology):
         # flatten r and theta to 1D arrays
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
-        intensity = ejecta_functions.ray_intensity(
+        intensity = sm.ray_intensity(
             rflat,
             theta_flat,
             crater.final_diameter,

@@ -16,12 +16,13 @@ from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
-from cratermaker._simplemoon import surface_functions
+from cratermaker._cratermaker import surface_functions
 from cratermaker.constants import (
     _COMBINED_DATA_FILE_NAME,
     _DATA_DIR,
     _GRID_FILE_NAME,
     _SMALLFAC,
+    _VSMALL,
     FloatLike,
     PairOfFloats,
 )
@@ -73,7 +74,15 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
         object.__setattr__(self, "_face_areas", None)
+        object.__setattr__(self, "_face_x", None)
+        object.__setattr__(self, "_face_y", None)
+        object.__setattr__(self, "_face_z", None)
+        object.__setattr__(self, "_node_x", None)
+        object.__setattr__(self, "_node_y", None)
+        object.__setattr__(self, "_node_z", None)
+        object.__setattr__(self, "_edge_lengths", None)
         object.__setattr__(self, "_smallest_length", None)
+
         super().__init__(simdir=simdir, **kwargs)
 
         self._data_variable_init = {
@@ -204,8 +213,6 @@ class Surface(ComponentBase):
 
         if reset:
             self.reset(**kwargs)
-        else:
-            self.load_from_data()
 
         return
 
@@ -239,9 +246,6 @@ class Surface(ComponentBase):
             if not isinstance(time_variables, dict):
                 raise TypeError("time_variables must be a dictionary")
 
-        # Variables that we do not want to save as they are computed at runtime
-
-        self.save_to_data()
         self.uxds.close()
 
         ds = self.uxds.expand_dims(dim="time").assign_coords(
@@ -343,25 +347,6 @@ class Surface(ComponentBase):
                 save_to_file=True,
             )
 
-        self.load_from_data()
-        return
-
-    def load_from_data(self):
-        self.face_lat = self.uxgrid.face_lat.values
-        self.face_lon = self.uxgrid.face_lon.values
-        self.node_lat = self.uxgrid.node_lat.values
-        self.node_lon = self.uxgrid.node_lon.values
-        self.node_elevation = self.uxds["node_elevation"].values
-        self.face_elevation = self.uxds["face_elevation"].values
-        self.ejecta_thickness = self.uxds["ejecta_thickness"].values
-        self.ray_intensity = self.uxds["ray_intensity"].values
-        return
-
-    def save_to_data(self):
-        self.uxds["node_elevation"].values = self.node_elevation
-        self.uxds["face_elevation"].values = self.face_elevation
-        self.uxds["ejecta_thickness"].values = self.ejecta_thickness
-        self.uxds["ray_intensity"].values = self.ray_intensity
         return
 
     def full_view(self):
@@ -558,11 +543,6 @@ class Surface(ComponentBase):
                 "new_elev must be None, a scalar, or an array with the same size as the number of nodes in the grid"
             )
 
-        try:
-            self.save_to_data()
-        except AttributeError:
-            pass
-
         if gen_node:
             self.generate_data(
                 data=new_elev,
@@ -585,7 +565,6 @@ class Surface(ComponentBase):
                 combine_data_files=combine_data_files,
                 interval_number=interval_number,
             )
-        self.load_from_data()
         return
 
     @staticmethod
@@ -933,22 +912,8 @@ class Surface(ComponentBase):
 
         Returns
         -------
-        Surface
-            A new Surface object containing the regional grid.
-
-        Notes
-        -----
-        Though not well documented, the mapping from the region grid back to the original grid can be done using the variables
-        "subgrid_face_indices" and "subgrid_node_indices" in the region grid. For example, the following will extract a region
-        surface, modify the face elevation, then insert the modified values back onto the original surface:
-
-        .. code-block:: python
-
-            import xarray as xr
-
-            region_surf = surface.extract_region(location, region_radius)
-            region_surf['face_elevation'] = xr.full_like(region_surf['face_elevation'], 1.0)
-            surface['face_elevation'].loc[{'n_face': region_surf.uxgrid._ds["subgrid_face_indices"]}] = region_surf['face_elevation']
+        SurfaceView
+            A SurfaceView object containing a view of the regional grid.
 
         """
 
@@ -1257,15 +1222,6 @@ class Surface(ComponentBase):
         return self._component_name
 
     @property
-    def face_areas(self):
-        """
-        The face areas of the mesh.
-        """
-        if self._face_areas is None:
-            self._face_areas = self.uxgrid.face_areas.values * self.radius**2
-        return self._face_areas
-
-    @property
     def smallest_length(self):
         """
         The smallest length of the mesh.
@@ -1273,6 +1229,287 @@ class Surface(ComponentBase):
         if self._smallest_length is None:
             self._smallest_length = np.sqrt(np.min(self.face_areas)) * _SMALLFAC
         return self._smallest_length
+
+    @property
+    def n_edge(self):
+        """
+        Total number of edges
+        """
+        return self.uxgrid.n_edge
+
+    @property
+    def n_face(self):
+        """
+        Total number of faces
+        """
+        return self.uxgrid.n_face
+
+    @property
+    def n_max_face_faces(self):
+        """
+        The maximum number of faces that surround a face.
+        """
+        return self.uxgrid.n_max_face_faces
+
+    @property
+    def face_areas(self):
+        """
+        The areas of each face.
+
+        Notes
+        -----
+        Unlike uxarray.Grid.face_areas, this is in meters squared.
+
+        """
+        if self._face_areas is None:
+            self._face_areas = self.uxgrid.face_areas.values * self.radius**2
+        return self._face_areas
+
+    @property
+    def face_lat(self):
+        """
+        Latitude of the center of each face in degrees.
+        """
+        return self.uxgrid.face_lat.values
+
+    @property
+    def face_lon(self):
+        """
+        Longitude of the center of each face in degrees.
+        """
+        return self.uxgrid.face_lon.values
+
+    @property
+    def face_node_connectivity(self):
+        """
+        Indices of the nodes that make up each face.
+
+        Dimensions: `(n_face, n_max_face_nodes)`
+
+        Nodes are in counter-clockwise order.
+        """
+        return self.uxgrid.face_node_connectivity.values
+
+    @property
+    def face_face_connectivity(self):
+        """
+        Indices of the faces that surround each face.
+
+        Dimensions: `(n_face, n_max_face_faces)`
+        """
+        return self.uxgrid.face_face_connectivity.values
+
+    @property
+    def face_x(self):
+        """
+        Cartesian x location of the center of each face in meters.
+        """
+        if self._face_x is None:
+            self._face_x = self.uxgrid.face_x.values * self.radius
+        return self._face_x
+
+    @property
+    def face_y(self):
+        """
+        Cartesian y location of the center of each face in meters.
+        """
+        if self._face_y is None:
+            self._face_y = self.uxgrid.face_y.values * self.radius
+        return self._face_y
+
+    @property
+    def face_z(self):
+        """
+        Cartesian z location of the center of each face in meters.
+        """
+        if self._face_z is None:
+            self._face_z = self.uxgrid.face_z.values * self.radius
+        return self._face_z
+
+    @property
+    def n_node(self):
+        """
+        Total number of nodes
+        """
+        return self.uxgrid.n_node
+
+    @property
+    def n_nodes_per_face(self):
+        """
+        The number of nodes that make up each face.
+
+        Dimensions: `(n_node, )`
+        """
+        return self.uxgrid.n_nodes_per_face.values
+
+    @property
+    def node_lat(self):
+        """
+        Latitude of each node in degrees.
+        """
+        return self.uxgrid.node_lat.values
+
+    @property
+    def node_lon(self):
+        """
+        Longitude of each node in degrees.
+        """
+        return self.uxgrid.node_lon.values
+
+    @property
+    def node_x(self):
+        """
+        Cartesian x location of each node in meters.
+        """
+        if self._node_x is None:
+            self._node_x = self.uxgrid.node_x.values * self.radius
+        return self._node_x
+
+    @property
+    def node_y(self):
+        """
+        Cartesian y location of each node in meters.
+        """
+        if self._node_y is None:
+            self._node_y = self.uxgrid.node_y.values * self.radius
+        return self._node_y
+
+    @property
+    def node_z(self):
+        """
+        Cartesian z location of each node in meters.
+        """
+        if self._node_z is None:
+            self._node_z = self.uxgrid.node_z.values * self.radius
+        return self._node_z
+
+    @property
+    def edge_face_distances(self):
+        """
+        Distances between the centers of the faces that saddle each edge in radians.
+
+        Dimensions: `(n_edge, )`
+        """
+        return self.uxgrid.edge_face_distances.values
+
+    @property
+    def edge_face_connectivity(self):
+        """
+        Indices of the faces that saddle each edge.
+
+        Dimensions: `(n_edge, 2)`
+        """
+        return self.uxgrid.edge_face_connectivity.values
+
+    @property
+    def node_face_connectivity(self):
+        """
+        Indices of the faces that surround each node.
+
+        Dimensions: `(n_node, n_max_node_faces)`
+        """
+        return self.uxgrid.node_face_connectivity.values
+
+    @property
+    def edge_lengths(self):
+        """
+        The lengths of each edge in meters.
+
+        Computed using the Euclidean distance between edge nodes in Cartesian coordinates.
+        """
+        if self._edge_lengths is None:
+            x0 = self.uxgrid.edge_node_x.values[:, 0] * self.radius
+            y0 = self.uxgrid.edge_node_y.values[:, 0] * self.radius
+            z0 = self.uxgrid.edge_node_z.values[:, 0] * self.radius
+            x1 = self.uxgrid.edge_node_x.values[:, 1] * self.radius
+            y1 = self.uxgrid.edge_node_y.values[:, 1] * self.radius
+            z1 = self.uxgrid.edge_node_z.values[:, 1] * self.radius
+
+            dx = x1 - x0
+            dy = y1 - y0
+            dz = z1 - z0
+            self._edge_lengths = np.sqrt(dx**2 + dy**2 + dz**2)
+        return self._edge_lengths
+
+    @property
+    def node_elevation(self):
+        """
+        The elevation of the nodes.
+        """
+        return self.uxds["node_elevation"].values
+
+    @property
+    def face_elevation(self):
+        """
+        The elevation of the faces.
+        """
+        return self.uxds["face_elevation"].values
+
+    @property
+    def ejecta_thickness(self):
+        """
+        The thickness of the ejecta.
+        """
+        return self.uxds["ejecta_thickness"].values
+
+    @property
+    def ray_intensity(self):
+        """
+        The intensity of the rays.
+        """
+        return self.uxds["ray_intensity"].values
+
+    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
+        """
+        Apply diffusion to the surface.
+
+        Parameters
+        ----------
+        kdiff : float or array-like
+            The degradation state of the surface, which is the product of diffusivity and time. It can be a scalar or an array of the same size as the number of faces in the grid.
+            If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
+            The value of kdiff must be greater than 0.0.
+
+        Returns
+        -------
+        NDArray
+            The elevation change after applying diffusion.
+        """
+        return self.full_view().apply_diffusion(kdiff)
+
+    def interpolate_node_elevation_from_faces(self) -> None:
+        """
+        Update node elevations by area-weighted averaging of adjacent face elevations.
+
+        For each node, the elevation is computed as the area-weighted average of the elevations
+        of the surrounding faces.
+
+        Returns
+        -------
+        None
+        """
+        face_elevation = self.face_elevation
+        face_areas = self.face_areas
+        node_face_conn = self.node_face_connectivity
+
+        node_elevation = np.zeros(self.n_node, dtype=np.float64)
+
+        for node_id in range(self.n_node):
+            connected_faces = node_face_conn[node_id]
+            valid = connected_faces != INT_FILL_VALUE
+            faces = connected_faces[valid]
+
+            if faces.size == 0:
+                continue
+
+            areas = face_areas[faces]
+            elevations = face_elevation[faces]
+
+            total_area = np.sum(areas)
+            if total_area > 0:
+                node_elevation[node_id] = np.sum(elevations * areas) / total_area
+
+        self.node_elevation = node_elevation
 
 
 class SurfaceView:
@@ -1284,6 +1521,11 @@ class SurfaceView:
     ):
         self.surface = surface
         self.face_indices = face_indices
+        if isinstance(face_indices, slice):
+            self.n_faces = surface.face_elevation[face_indices].size
+        else:
+            self.n_faces = face_indices.size
+
         if node_indices is None:
             node_indices = np.unique(
                 surface.uxds.uxgrid.face_node_connectivity.values[face_indices].ravel()
@@ -1291,6 +1533,72 @@ class SurfaceView:
             node_indices = node_indices[node_indices != INT_FILL_VALUE]
 
         self.node_indices = node_indices
+        if isinstance(node_indices, slice):
+            self.n_nodes = surface.node_elevation[node_indices].size
+        else:
+            self.n_faces = face_indices.size
+        return
+
+    def interpolate_node_elevation_from_faces(self) -> None:
+        """
+        Update node elevations by area-weighted averaging of adjacent face elevations.
+
+        For each node, the elevation is computed as the area-weighted average of the elevations
+        of the surrounding faces.
+
+        Returns
+        -------
+        None
+        """
+        self.surface.node_elevation[self.node_indices] = (
+            surface_functions.interpolate_node_elevation_from_faces(
+                face_areas=self.surface.face_areas[self.face_indices],
+                face_elevation=self.surface.face_elevation[self.face_indices],
+                node_face_connectivity=self.surface.node_face_connectivity[
+                    self.node_indices, :
+                ],
+            )
+        )
+
+    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
+        """
+        Apply diffusion to the surface.
+
+        Parameters
+        ----------
+        kdiff : float or array-like
+            The degradation state of the surface, which is the product of diffusivity and time. It can be a scalar or an array of the same size as the number of faces in the grid.
+            If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
+            The value of kdiff must be greater than 0.0.
+
+        Returns
+        -------
+        NDArray
+            The elevation change after applying diffusion.
+        """
+        if np.isscalar(kdiff):
+            kdiff = np.full(self.n_faces, kdiff)
+        elif kdiff.size != self.n_faces:
+            raise ValueError(
+                "kdiff must be a scalar or an array with the same size as the number of faces in the grid"
+            )
+        if np.any(kdiff < 0.0):
+            raise ValueError("kdiff must be greater than 0.0")
+        kdiffmax = np.max(kdiff)
+
+        if abs(kdiffmax) < _VSMALL:
+            return np.zeros(self.n_faces, dtype=np.float64)
+        self.surface.face_elevation[self.face_indices] = (
+            surface_functions.apply_diffusion(
+                face_areas=self.surface.face_areas[self.face_indices],
+                face_kappa=kdiff,
+                face_elevation=self.surface.face_elevation[self.face_indices],
+                face_face_connectivity=self.surface.face_face_connectivity[
+                    self.face_indices, :
+                ],
+            )
+        )
+        self.interpolate_node_elevation_from_faces()
 
 
 import_components(__name__, __path__, ignore_private=True)
