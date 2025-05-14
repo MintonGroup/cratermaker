@@ -1,8 +1,11 @@
 """
-Plot a distribution of random locations using Projectile
-========================================================
+Plot a distribution of random locations
+=======================================
 
-This version uses the Projectile class to generate random impact locations.
+.. rubric:: By David Minton and Dennise Valadez
+
+This example demonstrates the generation of random impact locations.
+
 """
 
 import matplotlib.pyplot as plt
