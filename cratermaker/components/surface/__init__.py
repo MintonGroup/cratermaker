@@ -1245,6 +1245,13 @@ class Surface(ComponentBase):
         return self.uxgrid.n_face
 
     @property
+    def n_max_face_faces(self):
+        """
+        The maximum number of faces that surround a face.
+        """
+        return self.uxgrid.n_max_face_faces
+
+    @property
     def face_areas(self):
         """
         The areas of each face.
@@ -1395,6 +1402,15 @@ class Surface(ComponentBase):
         return self.uxgrid.edge_face_connectivity.values
 
     @property
+    def node_face_connectivity(self):
+        """
+        Indices of the faces that surround each node.
+
+        Dimensions: `(n_node, n_max_node_faces)`
+        """
+        return self.uxgrid.node_face_connectivity.values
+
+    @property
     def edge_lengths(self):
         """
         The lengths of each edge in meters.
@@ -1443,6 +1459,58 @@ class Surface(ComponentBase):
         """
         return self.uxds["ray_intensity"].values
 
+    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
+        """
+        Apply diffusion to the surface.
+
+        Parameters
+        ----------
+        kdiff : float or array-like
+            The degradation state of the surface, which is the product of diffusivity and time. It can be a scalar or an array of the same size as the number of faces in the grid.
+            If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
+            The value of kdiff must be greater than 0.0.
+
+        Returns
+        -------
+        NDArray
+            The elevation change after applying diffusion.
+        """
+        return self.full_view().apply_diffusion(kdiff)
+
+    def interpolate_node_elevation_from_faces(self) -> None:
+        """
+        Update node elevations by area-weighted averaging of adjacent face elevations.
+
+        For each node, the elevation is computed as the area-weighted average of the elevations
+        of the surrounding faces.
+
+        Returns
+        -------
+        None
+        """
+        face_elevation = self.face_elevation
+        face_areas = self.face_areas
+        node_face_conn = self.node_face_connectivity
+
+        node_elevation = np.zeros(self.n_node, dtype=np.float64)
+
+        for node_id in range(self.n_node):
+            connected_faces = node_face_conn[node_id]
+            valid = connected_faces != INT_FILL_VALUE
+            faces = connected_faces[valid]
+
+            if faces.size == 0:
+                continue
+
+            areas = face_areas[faces]
+            elevations = face_elevation[faces]
+
+            total_area = np.sum(areas)
+            if total_area > 0:
+                node_elevation[node_id] = np.sum(elevations * areas) / total_area
+
+        self.node_elevation = node_elevation
+
 
 class SurfaceView:
     def __init__(
@@ -1471,6 +1539,27 @@ class SurfaceView:
             self.n_faces = face_indices.size
         return
 
+    def interpolate_node_elevation_from_faces(self) -> None:
+        """
+        Update node elevations by area-weighted averaging of adjacent face elevations.
+
+        For each node, the elevation is computed as the area-weighted average of the elevations
+        of the surrounding faces.
+
+        Returns
+        -------
+        None
+        """
+        self.surface.node_elevation[self.node_indices] = (
+            surface_functions.interpolate_node_elevation_from_faces(
+                face_areas=self.surface.face_areas[self.face_indices],
+                face_elevation=self.surface.face_elevation[self.face_indices],
+                node_face_connectivity=self.surface.node_face_connectivity[
+                    self.node_indices, :
+                ],
+            )
+        )
+
     def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
         """
         Apply diffusion to the surface.
@@ -1487,7 +1576,6 @@ class SurfaceView:
         NDArray
             The elevation change after applying diffusion.
         """
-        kdiff = np.asarray(kdiff)
         if np.isscalar(kdiff):
             kdiff = np.full(self.n_faces, kdiff)
         elif kdiff.size != self.n_faces:
@@ -1500,16 +1588,22 @@ class SurfaceView:
 
         if abs(kdiffmax) < _VSMALL:
             return np.zeros(self.n_faces, dtype=np.float64)
-
-        # Set the time step size based on von Neumann stability assuming total diffusion occurs over a time of t = 1.0
-        dt = np.min(self.surface.face_areas[self.face_indices] / (4.0 * kdiff))
-        return surface_functions.apply_diffusion_update(
-            face_areas=self.surface.face_areas,
-            face_kappa=kdiff,
-            face_elevation=self.surface.elevation,
-            face_face_connectivity=self.surface.edge_face_connectivity,
-            dt=dt,
+        print("kdiff min/max:", kdiff.min(), kdiff.max())
+        print(
+            "face_elevation (before):",
+            np.min(self.surface.face_elevation),
+            np.max(self.surface.face_elevation),
         )
+        elevation_change = surface_functions.apply_diffusion(
+            face_areas=self.surface.face_areas[self.face_indices],
+            face_kappa=kdiff,
+            face_elevation=self.surface.face_elevation[self.face_indices],
+            face_face_connectivity=self.surface.face_face_connectivity[
+                self.face_indices, :
+            ],
+        )
+        self.surface.face_elevation[self.face_indices] += elevation_change
+        self.interpolate_node_elevation_from_faces()
 
 
 import_components(__name__, __path__, ignore_private=True)

@@ -32,7 +32,7 @@ mod cratermaker{
     #[pymodule]
     mod surface_functions {
         #[pymodule_export]
-        use crate::surface_functions::calculate_initial_bearing;
+        use crate::surface_functions::{calculate_initial_bearing, apply_diffusion,interpolate_node_elevation_from_faces};
     }
 
 }
