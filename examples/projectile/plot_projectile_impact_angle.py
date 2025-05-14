@@ -1,3 +1,16 @@
+"""
+Plot random projectile impact angles
+====================================
+
+.. rubric:: By David Minton and Dennise Valadez
+
+This example demonstrates how to generate and visualize random impact angles for projectiles using cratermaker.
+
+"""
+
+
+
+
 from cratermaker import Projectile
 import numpy as np
 import matplotlib.pyplot as plt
