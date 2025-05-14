@@ -53,3 +53,12 @@ You can specify projectile properties manually using keyword arguments.
     print("Projectile defined by user:", projectile_userdefined)
 
 In this case, the user specifies the projectile velocity, impact angle, trajectory direction, and material density. The target is still required to complete the projectile's initialization.
+
+More Projectile examples
+------------------------
+
+See more examples at  :ref:`gal-projectile`
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
