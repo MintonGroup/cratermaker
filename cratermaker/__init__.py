@@ -14,24 +14,24 @@ If not, see: https://www.gnu.org/licenses.
 import warnings
 
 from ._version import version as __version__
-from .components.morphology import Morphology
+#from .components.morphology import Morphology
 from .components.production import Production
 from .components.projectile import Projectile
 from .components.scaling import Scaling
-from .components.surface import Surface
+#from .components.surface import Surface
 from .components.target import Target
 from .core.crater import Crater
-from .core.simulation import Simulation
+#from .core.simulation import Simulation
 
 __all__ = [
     "Crater",
-    "Morphology",
+    #"Morphology",
     "Production",
     "Projectile",
     "Scaling",
-    "Surface",
+    #"Surface",
     "Target",
-    "Simulation",
+    #"Simulation",
     "__version__",
 ]
 
