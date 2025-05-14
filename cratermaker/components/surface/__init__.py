@@ -1588,21 +1588,16 @@ class SurfaceView:
 
         if abs(kdiffmax) < _VSMALL:
             return np.zeros(self.n_faces, dtype=np.float64)
-        print("kdiff min/max:", kdiff.min(), kdiff.max())
-        print(
-            "face_elevation (before):",
-            np.min(self.surface.face_elevation),
-            np.max(self.surface.face_elevation),
+        self.surface.face_elevation[self.face_indices] = (
+            surface_functions.apply_diffusion(
+                face_areas=self.surface.face_areas[self.face_indices],
+                face_kappa=kdiff,
+                face_elevation=self.surface.face_elevation[self.face_indices],
+                face_face_connectivity=self.surface.face_face_connectivity[
+                    self.face_indices, :
+                ],
+            )
         )
-        elevation_change = surface_functions.apply_diffusion(
-            face_areas=self.surface.face_areas[self.face_indices],
-            face_kappa=kdiff,
-            face_elevation=self.surface.face_elevation[self.face_indices],
-            face_face_connectivity=self.surface.face_face_connectivity[
-                self.face_indices, :
-            ],
-        )
-        self.surface.face_elevation[self.face_indices] += elevation_change
         self.interpolate_node_elevation_from_faces()
 
 
