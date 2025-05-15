@@ -1508,6 +1508,7 @@ class SurfaceView:
         face_indices: NDArray | slice,
         node_indices: NDArray | slice | None = None,
     ):
+        object.__setattr__(self, "_area", None)
         self.surface = surface
         self.face_indices = face_indices
         if isinstance(face_indices, slice):
@@ -1673,6 +1674,15 @@ class SurfaceView:
         """
         return self.surface.node_face_connectivity[self.node_indices, :]
 
+    @property
+    def area(self) -> NDArray:
+        """
+        The total area of the faces in the view.
+        """
+        if self._area is None:
+            self._area = self.face_areas.sum()
+        return self._area
+
     def interpolate_node_elevation_from_faces(self) -> None:
         """
         Update node elevations by area-weighted averaging of adjacent face elevations.
@@ -1777,8 +1787,10 @@ class SurfaceView:
             raise ValueError(f"Unknown noise model: {model}")
         node_noise = noise[: self.n_node]
         face_noise = noise[self.n_node :]
-        face_noise = face_noise - np.mean(face_noise)
-        node_noise = node_noise - np.mean(node_noise)
+        # Compute the weighted mean to ensure volume conservation
+        mean = np.sum(face_noise * self.face_areas) / self.area
+        face_noise -= mean
+        node_noise -= mean
         self.node_elevation += node_noise * self.surface.radius
         self.face_elevation += face_noise * self.surface.radius
         return
