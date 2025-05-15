@@ -110,7 +110,7 @@ pub fn apply_diffusion<'py>(
     // Compute initial dt using per-face stability condition 
     let dt_initial = face_areas
         .iter()
-        .map(|&a| a / (4.0 * max_kappa * n_max_face_faces as f64))
+        .map(|&a| a / (max_kappa * n_max_face_faces as f64))
         .fold(f64::INFINITY, f64::min);
 
     if !dt_initial.is_finite() || dt_initial <= 0.0 {
