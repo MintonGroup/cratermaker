@@ -214,6 +214,7 @@ pub fn turbulence_noise<'py>(
     freq: f64,
     pers: f64,
     anchor: PyReadonlyArray2<'py, f64>,
+    seed: u32,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let x = x.as_array();
     let y = y.as_array();
@@ -235,7 +236,7 @@ pub fn turbulence_noise<'py>(
         norm += 0.5 * noise_mag;
 
         //let noise_source = Source::simplex(32345142).scale([spatial_fac, spatial_fac, spatial_fac]).rotate([rot_x,rot_y,rot_z]);
-        let base = SuperSimplex::new(2330982);
+        let base = SuperSimplex::new(seed);
         let scaled = ScalePoint::new(base).set_scale(spatial_fac);
         let noise_source = RotatePoint::new(scaled).set_angles(rot_x, rot_y, rot_z, 0.0);
 

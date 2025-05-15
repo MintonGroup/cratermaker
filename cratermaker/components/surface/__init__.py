@@ -1771,6 +1771,7 @@ class SurfaceView:
                 freq=2.0,
                 pers=0.5,
                 anchor=anchor,
+                seed=self.surface.rng.integers(0, 2**32 - 1),
             )
         else:
             raise ValueError(f"Unknown noise model: {model}")
