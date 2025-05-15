@@ -1438,12 +1438,36 @@ class Surface(ComponentBase):
         """
         return self.uxds["node_elevation"].values
 
+    @node_elevation.setter
+    def node_elevation(self, value: NDArray) -> None:
+        """
+        Set the elevation of the nodes.
+
+        Parameters
+        ----------
+        value : NDArray
+            The elevation values to set for the nodes.
+        """
+        self.uxds["node_elevation"][:] = value
+
     @property
     def face_elevation(self):
         """
         The elevation of the faces.
         """
         return self.uxds["face_elevation"].values
+
+    @face_elevation.setter
+    def face_elevation(self, value: NDArray) -> None:
+        """
+        Set the elevation of the faces.
+
+        Parameters
+        ----------
+        value : NDArray
+            The elevation values to set for the faces.
+        """
+        self.uxds["face_elevation"][:] = value
 
     @property
     def ejecta_thickness(self):
@@ -1522,9 +1546,10 @@ class SurfaceView:
         self.surface = surface
         self.face_indices = face_indices
         if isinstance(face_indices, slice):
-            self.n_faces = surface.face_elevation[face_indices].size
+            self.n_face = surface.face_elevation[face_indices].size
         else:
-            self.n_faces = face_indices.size
+            self.n_face = face_indices.size
+        self.n_face_total = surface.n_face
 
         if node_indices is None:
             node_indices = np.unique(
@@ -1534,9 +1559,9 @@ class SurfaceView:
 
         self.node_indices = node_indices
         if isinstance(node_indices, slice):
-            self.n_nodes = surface.node_elevation[node_indices].size
+            self.n_node = surface.node_elevation[node_indices].size
         else:
-            self.n_faces = face_indices.size
+            self.n_face = face_indices.size
         return
 
     def interpolate_node_elevation_from_faces(self) -> None:
@@ -1552,8 +1577,8 @@ class SurfaceView:
         """
         self.surface.node_elevation[self.node_indices] = (
             surface_functions.interpolate_node_elevation_from_faces(
-                face_areas=self.surface.face_areas[self.face_indices],
-                face_elevation=self.surface.face_elevation[self.face_indices],
+                face_areas=self.surface.face_areas,
+                face_elevation=self.surface.face_elevation,
                 node_face_connectivity=self.surface.node_face_connectivity[
                     self.node_indices, :
                 ],
@@ -1577,8 +1602,8 @@ class SurfaceView:
             The elevation change after applying diffusion.
         """
         if np.isscalar(kdiff):
-            kdiff = np.full(self.n_faces, kdiff)
-        elif kdiff.size != self.n_faces:
+            kdiff = np.full(self.n_face, kdiff)
+        elif kdiff.size != self.n_face:
             raise ValueError(
                 "kdiff must be a scalar or an array with the same size as the number of faces in the grid"
             )
@@ -1587,16 +1612,17 @@ class SurfaceView:
         kdiffmax = np.max(kdiff)
 
         if abs(kdiffmax) < _VSMALL:
-            return np.zeros(self.n_faces, dtype=np.float64)
-        self.surface.face_elevation[self.face_indices] = (
-            surface_functions.apply_diffusion(
-                face_areas=self.surface.face_areas[self.face_indices],
-                face_kappa=kdiff,
-                face_elevation=self.surface.face_elevation[self.face_indices],
-                face_face_connectivity=self.surface.face_face_connectivity[
-                    self.face_indices, :
-                ],
-            )
+            return
+        face_kappa = np.zeros(self.surface.n_face)
+        face_kappa[self.face_indices] = kdiff
+        self.surface.face_elevation = surface_functions.apply_diffusion(
+            face_areas=self.surface.face_areas,
+            face_kappa=face_kappa,
+            face_elevation=self.surface.face_elevation,
+            face_face_connectivity=self.surface.face_face_connectivity[
+                self.face_indices, :
+            ],
+            face_indices=np.arange(self.surface.n_face)[self.face_indices],
         )
         self.interpolate_node_elevation_from_faces()
 
