@@ -4,6 +4,7 @@ use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use ndarray::Zip;
 use rayon::iter::{IntoParallelIterator,ParallelIterator};
+use noise::{NoiseFn, SuperSimplex, ScalePoint, RotatePoint};
 
 #[inline]
 fn positive_mod(x: f64, m: f64) -> f64 {
@@ -154,6 +155,7 @@ pub fn apply_diffusion<'py>(
 
     Ok(PyArray1::from_owned_array(py, face_elevation))
 }
+
 /// Computes node elevations as area-weighted averages of adjacent face elevations.
 ///
 /// # Arguments
@@ -196,6 +198,60 @@ pub fn interpolate_node_elevation_from_faces<'py>(
         if area_sum > 0.0 {
             result[node_id] = weighted_sum / area_sum;
         }
+    }
+
+    Ok(PyArray1::from_owned_array(py, result))
+}
+
+#[pyfunction]
+pub fn turbulence_noise<'py>(
+    py: Python<'py>,
+    x: PyReadonlyArray1<'py, f64>,
+    y: PyReadonlyArray1<'py, f64>,
+    z: PyReadonlyArray1<'py, f64>, 
+    noise_height: f64,
+    noise_width: f64,
+    freq: f64,
+    pers: f64,
+    anchor: PyReadonlyArray2<'py, f64>,
+    seed: u32,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let x = x.as_array();
+    let y = y.as_array();
+    let z = z.as_array();
+    let anchor = anchor.as_array();
+
+    // Get the maximum value in the x array as the scale
+    let n_points = x.len();
+    let mut result = ndarray::Array1::<f64>::zeros(n_points);
+    let num_octaves = anchor.nrows();
+
+    let mut norm = 0.5;
+    for i in 0..num_octaves {
+        let spatial_fac = freq.powi(i as i32) / noise_width;
+        let noise_mag = pers.powi(i as i32);
+        let rot_x = anchor[[i, 0]];
+        let rot_y = anchor[[i, 1]];
+        let rot_z = anchor[[i, 2]];
+        norm += 0.5 * noise_mag;
+
+        //let noise_source = Source::simplex(32345142).scale([spatial_fac, spatial_fac, spatial_fac]).rotate([rot_x,rot_y,rot_z]);
+        let base = SuperSimplex::new(seed);
+        let scaled = ScalePoint::new(base).set_scale(spatial_fac);
+        let noise_source = RotatePoint::new(scaled).set_angles(rot_x, rot_y, rot_z, 0.0);
+
+        Zip::from(&mut result)
+            .and(&x)
+            .and(&y)
+            .and(&z)
+            .into_par_iter()
+            .for_each(|(r, &xv, &yv, &zv)| {
+                *r += noise_source.get([xv, yv, zv]) * noise_mag;
+            });
+    }
+
+    for val in result.iter_mut() {
+        *val *= noise_height / norm;
     }
 
     Ok(PyArray1::from_owned_array(py, result))
