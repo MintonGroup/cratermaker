@@ -1751,17 +1751,29 @@ class SurfaceView:
         NDArray
             The updated node elevations after applying noise.
         """
-        x = np.concatenate([self.node_x, self.face_x]) / noise_width
-        y = np.concatenate([self.node_y, self.face_y]) / noise_width
-        z = np.concatenate([self.node_z, self.face_z]) / noise_width
-        noise = surface_functions.apply_noise(
-            x=x,
-            y=y,
-            z=z,
-            noise_height=noise_height / self.surface.radius,
-            freq=2.0,
-            pers=0.5,
+        num_octaves = kwargs.pop("num_octaves", 12)
+        anchor = kwargs.pop(
+            "anchor",
+            self.surface.rng.uniform(0, 2 * np.pi, size=(num_octaves, 3)),
         )
+        anchor = np.zeros_like(anchor)
+        x = np.concatenate([self.node_x, self.face_x]) / self.surface.radius
+        y = np.concatenate([self.node_y, self.face_y]) / self.surface.radius
+        z = np.concatenate([self.node_z, self.face_z]) / self.surface.radius
+
+        if model == "turbulence":
+            noise = surface_functions.turbulence_noise(
+                x=x,
+                y=y,
+                z=z,
+                noise_height=noise_height / self.surface.radius,
+                noise_width=noise_width / self.surface.radius,
+                freq=2.0,
+                pers=0.5,
+                anchor=anchor,
+            )
+        else:
+            raise ValueError(f"Unknown noise model: {model}")
         node_noise = noise[: self.n_node]
         face_noise = noise[self.n_node :]
         face_noise = face_noise - np.mean(face_noise)
