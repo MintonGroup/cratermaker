@@ -80,7 +80,6 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_x", None)
         object.__setattr__(self, "_node_y", None)
         object.__setattr__(self, "_node_z", None)
-        object.__setattr__(self, "_edge_lengths", None)
         object.__setattr__(self, "_smallest_length", None)
 
         super().__init__(simdir=simdir, **kwargs)
@@ -1225,13 +1224,6 @@ class Surface(ComponentBase):
         return self._smallest_length
 
     @property
-    def n_edge(self):
-        """
-        Total number of edges
-        """
-        return self.uxgrid.n_edge
-
-    @property
     def n_face(self):
         """
         Total number of faces
@@ -1378,24 +1370,6 @@ class Surface(ComponentBase):
         return self._node_z
 
     @property
-    def edge_face_distances(self):
-        """
-        Distances between the centers of the faces that saddle each edge in radians.
-
-        Dimensions: `(n_edge, )`
-        """
-        return self.uxgrid.edge_face_distances.values
-
-    @property
-    def edge_face_connectivity(self):
-        """
-        Indices of the faces that saddle each edge.
-
-        Dimensions: `(n_edge, 2)`
-        """
-        return self.uxgrid.edge_face_connectivity.values
-
-    @property
     def node_face_connectivity(self):
         """
         Indices of the faces that surround each node.
@@ -1403,27 +1377,6 @@ class Surface(ComponentBase):
         Dimensions: `(n_node, n_max_node_faces)`
         """
         return self.uxgrid.node_face_connectivity.values
-
-    @property
-    def edge_lengths(self):
-        """
-        The lengths of each edge in meters.
-
-        Computed using the Euclidean distance between edge nodes in Cartesian coordinates.
-        """
-        if self._edge_lengths is None:
-            x0 = self.uxgrid.edge_node_x.values[:, 0] * self.radius
-            y0 = self.uxgrid.edge_node_y.values[:, 0] * self.radius
-            z0 = self.uxgrid.edge_node_z.values[:, 0] * self.radius
-            x1 = self.uxgrid.edge_node_x.values[:, 1] * self.radius
-            y1 = self.uxgrid.edge_node_y.values[:, 1] * self.radius
-            z1 = self.uxgrid.edge_node_z.values[:, 1] * self.radius
-
-            dx = x1 - x0
-            dy = y1 - y0
-            dz = z1 - z0
-            self._edge_lengths = np.sqrt(dx**2 + dy**2 + dz**2)
-        return self._edge_lengths
 
     @property
     def node_elevation(self):
@@ -1551,6 +1504,150 @@ class SurfaceView:
             self.n_face = face_indices.size
         return
 
+    @property
+    def face_elevation(self) -> NDArray:
+        """
+        The elevation of the faces.
+        """
+        return self.surface.face_elevation[self.face_indices]
+
+    @face_elevation.setter
+    def face_elevation(self, value: NDArray) -> None:
+        """
+        Set the elevation of the faces.
+
+        Parameters
+        ----------
+        value : NDArray
+            The elevation values to set for the faces.
+        """
+        self.surface.face_elevation[self.face_indices] = value
+
+    @property
+    def node_elevation(self) -> NDArray:
+        """
+        The elevation of the nodes.
+        """
+        return self.surface.node_elevation[self.node_indices]
+
+    @node_elevation.setter
+    def node_elevation(self, value: NDArray) -> None:
+        """
+        Set the elevation of the nodes.
+
+        Parameters
+        ----------
+        value : NDArray
+            The elevation values to set for the nodes.
+        """
+        self.surface.node_elevation[self.node_indices] = value
+
+    @property
+    def face_areas(self) -> NDArray:
+        """
+        The areas of the faces.
+        """
+        return self.surface.face_areas[self.face_indices]
+
+    @property
+    def face_lat(self) -> NDArray:
+        """
+        Latitude of the center of the faces in degrees.
+        """
+        return self.surface.face_lat[self.face_indices]
+
+    @property
+    def face_lon(self) -> NDArray:
+        """
+        Longitude of the center of the faces in degrees.
+        """
+        return self.surface.face_lon[self.face_indices]
+
+    @property
+    def face_x(self) -> NDArray:
+        """
+        Cartesian x location of the center of the faces in meters.
+        """
+        return self.surface.face_x[self.face_indices]
+
+    @property
+    def face_y(self) -> NDArray:
+        """
+        Cartesian y location of the center of the faces in meters.
+        """
+        return self.surface.face_y[self.face_indices]
+
+    @property
+    def face_z(self) -> NDArray:
+        """
+        Cartesian z location of the center of the faces in meters.
+        """
+        return self.surface.face_z[self.face_indices]
+
+    @property
+    def face_node_connectivity(self) -> NDArray:
+        """
+        Indices of the nodes that make up the faces.
+
+        Dimensions: `(n_face, n_max_face_nodes)`
+
+        Nodes are in counter-clockwise order.
+        """
+        return self.surface.face_node_connectivity[self.face_indices, :]
+
+    @property
+    def face_face_connectivity(self) -> NDArray:
+        """
+        Indices of the faces that surround the faces.
+
+        Dimensions: `(n_face, n_max_face_faces)`
+        """
+        return self.surface.face_face_connectivity[self.face_indices, :]
+
+    @property
+    def node_lat(self) -> NDArray:
+        """
+        Latitude of the nodes in degrees.
+        """
+        return self.surface.node_lat[self.node_indices]
+
+    @property
+    def node_lon(self) -> NDArray:
+        """
+        Longitude of the nodes in degrees.
+        """
+        return self.surface.node_lon[self.node_indices]
+
+    @property
+    def node_x(self) -> NDArray:
+        """
+        Cartesian x location of the nodes in meters.
+        """
+        return self.surface.node_x[self.node_indices]
+
+    @property
+    def node_y(self) -> NDArray:
+        """
+        Cartesian y location of the nodes in meters.
+        """
+        return self.surface.node_y[self.node_indices]
+
+    @property
+    def node_z(self) -> NDArray:
+        """
+        Cartesian z location of the nodes in meters.
+        """
+        return self.surface.node_z[self.node_indices]
+
+    @property
+    def node_face_connectivity(self) -> NDArray:
+        """
+        Indices of the faces that surround the nodes.
+
+        Dimensions: `(n_node, n_max_node_faces)`
+        """
+        return self.surface.node_face_connectivity[self.node_indices, :]
+
     def interpolate_node_elevation_from_faces(self) -> None:
         """
         Update node elevations by area-weighted averaging of adjacent face elevations.
@@ -1562,14 +1659,10 @@ class SurfaceView:
         -------
         None
         """
-        self.surface.node_elevation[self.node_indices] = (
-            surface_functions.interpolate_node_elevation_from_faces(
-                face_areas=self.surface.face_areas,
-                face_elevation=self.surface.face_elevation,
-                node_face_connectivity=self.surface.node_face_connectivity[
-                    self.node_indices, :
-                ],
-            )
+        self.node_elevation = surface_functions.interpolate_node_elevation_from_faces(
+            face_areas=self.surface.face_areas,
+            face_elevation=self.surface.face_elevation,
+            node_face_connectivity=self.node_face_connectivity,
         )
 
     def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
@@ -1606,10 +1699,8 @@ class SurfaceView:
             face_areas=self.surface.face_areas,
             face_kappa=face_kappa,
             face_elevation=self.surface.face_elevation,
-            face_face_connectivity=self.surface.face_face_connectivity[
-                self.face_indices, :
-            ],
-            face_indices=np.arange(self.surface.n_face)[self.face_indices],
+            face_face_connectivity=self.face_face_connectivity,
+            face_indices=self.face_indices,
         )
         self.interpolate_node_elevation_from_faces()
 

@@ -196,8 +196,8 @@ class SimpleMoon(Morphology):
         node_elevation = combined_elevation[: len(node_crater_distance)]
         face_elevation = combined_elevation[len(node_crater_distance) :]
 
-        surface.node_elevation[region_view.node_indices] = node_elevation
-        surface.face_elevation[region_view.face_indices] = face_elevation
+        region_view.node_elevation = node_elevation
+        region_view.face_elevation = face_elevation
         return surface
 
     def crater_profile(
@@ -296,8 +296,8 @@ class SimpleMoon(Morphology):
         node_thickness = combined_thickness[: len(node_crater_distance)]
         face_thickness = combined_thickness[len(node_crater_distance) :]
 
-        surface.face_elevation[region_view.face_indices] += face_thickness
-        surface.node_elevation[region_view.node_indices] += node_thickness
+        region_view.face_elevation += face_thickness
+        region_view.node_elevation += node_thickness
 
         return surface
 
