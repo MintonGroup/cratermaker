@@ -210,30 +210,30 @@ pub fn apply_noise<'py>(
     x: PyReadonlyArray1<'py, f64>,
     y: PyReadonlyArray1<'py, f64>,
     z: PyReadonlyArray1<'py, f64>, 
-    noise_width: f64,
     noise_height: f64,
+    freq: f64,
+    pers: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let x = x.as_array();
     let y = y.as_array();
     let z = z.as_array();
 
+    // Get the maximum value in the x array as the scale
+    let scale = x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let n_points = x.len();
     let mut rng = rand::rng();
-    let dist = rand::distr::Uniform::new(0.0, noise_width).unwrap();  
+    let dist = rand::distr::Uniform::new(0.0, scale).unwrap();  
     let num_octaves = 12; // Set default, or make configurable
     let anchor = Array2::from_shape_fn((num_octaves, 3), |_| rng.sample(dist));
     let mut result = ndarray::Array1::<f64>::zeros(n_points);
 
     let anchor_arr = anchor.view();
 
-    let freq = noise_width;     // reinterpret noise_width as frequency scale
-    let pers = noise_height;    // reinterpret noise_height as persistence
     let num_octaves = anchor_arr.nrows();
-    let scale = freq;
 
     let mut norm = 0.5;
     for i in 0..num_octaves {
-        let spatial_fac = scale.powi(i as i32);
+        let spatial_fac = freq.powi(i as i32);
         let noise_mag = pers.powi(i as i32);
         norm += 0.5 * noise_mag;
 
@@ -253,7 +253,7 @@ pub fn apply_noise<'py>(
     }
 
     for val in result.iter_mut() {
-        *val *= pers / norm;
+        *val *= noise_height / norm;
     }
 
     Ok(PyArray1::from_owned_array(py, result))

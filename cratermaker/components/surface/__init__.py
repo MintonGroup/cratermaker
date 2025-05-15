@@ -1751,15 +1751,16 @@ class SurfaceView:
         NDArray
             The updated node elevations after applying noise.
         """
-        x = np.concatenate([self.node_x, self.face_x])
-        y = np.concatenate([self.node_y, self.face_y])
-        z = np.concatenate([self.node_z, self.face_z])
+        x = np.concatenate([self.node_x, self.face_x]) / noise_width
+        y = np.concatenate([self.node_y, self.face_y]) / noise_width
+        z = np.concatenate([self.node_z, self.face_z]) / noise_width
         noise = surface_functions.apply_noise(
             x=x,
             y=y,
             z=z,
-            noise_width=noise_width,
-            noise_height=noise_height,
+            noise_height=noise_height / self.surface.radius,
+            freq=2.0,
+            pers=0.5,
         )
         node_noise = noise[: self.n_node]
         face_noise = noise[self.n_node :]
