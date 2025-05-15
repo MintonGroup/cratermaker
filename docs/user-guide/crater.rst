@@ -12,11 +12,14 @@ Crater
 
 The ``Crater`` method is used to represent craters and the relationship properties of the projectile.
 
-The following is a simple example that creates a crater on the Moon from a 100 meter diameter projectile:
+To start, the following is a simple example that creates a crater on the Moon from a 100 meter diameter projectile:
 
 .. ipython:: python
+
     from cratermaker import Crater
-    #By default the crater method will default to the Moon 
+
+    # By default the crater method will default to the Moon 
+   
     crater = Crater.maker(
         projectile_diameter=100,
         projectile_density=3000,
@@ -28,12 +31,13 @@ The following is a simple example that creates a crater on the Moon from a 100 m
     print(f"Crater final diameter: {crater.final_diameter:.2f} m")
 
 
-Examples
+Additional Examples
 -------------------
 
 .. ipython:: python
 
-    # Example 1 — Asteroid impact on the Moon
+    # Asteroid impact on the Moon
+    
     from cratermaker import Crater
 
     crater = Crater.maker(
@@ -50,7 +54,8 @@ Examples
 
 .. ipython:: python
 
-    # Example 2 — Icy comet impact on Europa
+    # Icy comet impact on Europa
+    
     from cratermaker import Crater
 
     crater = Crater.maker(
@@ -61,6 +66,55 @@ Examples
         projectile_velocity=18000,
         projectile_angle=25,
         location=(150, -45),
+    )
+
+    print(crater)
+
+
+.. ipython:: python
+
+    # High-speed asteroid impact on Mercury
+    
+    from cratermaker import Crater
+
+    crater = Crater.maker(
+        target="Mercury",
+        projectile="asteroids",
+        projectile_diameter=3000,      # 3 km diameter
+        projectile_velocity=35000,     # high-speed
+        projectile_angle=55,
+        location=(30, 10),
+    )
+
+    print(crater)
+
+
+.. note::
+
+    The following example uses a custom-defined ``Target`` object. 
+    To learn how to define targets manually, see the :ref:`ug-target` documentation.
+
+.. ipython:: python
+
+    # Custom icy target (Kuiper Belt Object)
+    
+    from cratermaker import Crater, Target
+
+    kuip_belt_obj = Target(
+        name="KBO-1",
+        diameter=300e3,                # 300 km
+        mass=1e19,                     # Approximate small icy body
+        material="Ice",
+        transition_scale_type="ice"
+    )
+
+    crater = Crater.maker(
+        target=kuip_belt_obj,
+        projectile_density=2800,       # rocky projectile
+        projectile_diameter=500,       # meters
+        projectile_velocity=15000,     # meters/second
+        projectile_angle=20,           # small angle
+        location=(75, -10),
     )
 
     print(crater)
