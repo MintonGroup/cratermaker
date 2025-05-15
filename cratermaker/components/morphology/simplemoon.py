@@ -367,7 +367,7 @@ class SimpleMoon(Morphology):
             radial_distance=rflat,
             initial_bearing=theta_flat,
             crater_diameter=crater.final_diameter,
-            seed=self.rng.integers(0, 2**64 - 1),
+            seed=self.rng.integers(0, 2**32 - 1),
         )
         thickness = np.array(thickness, dtype=np.float64)
         ray_intensity = np.array(ray_intensity, dtype=np.float64)
