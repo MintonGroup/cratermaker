@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker"
-version = "2025.5.3-a50+g2e64f48"
+version = "2025.5.3-a90+gfa7127c"
 edition = "2021"
 
 [lib]
@@ -13,7 +13,8 @@ numpy = "0.24.0"
 pyo3 = "0.24.0"
 rand = "0.9.1"
 rayon = "1.10.0"
-libnoise = "1.2"
+noise = "0.9.0"
+rand_chacha = "0.9.0"
 
 [dependencies.ndarray]
 version = "0.16.1"

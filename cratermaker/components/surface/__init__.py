@@ -1508,6 +1508,7 @@ class SurfaceView:
         face_indices: NDArray | slice,
         node_indices: NDArray | slice | None = None,
     ):
+        object.__setattr__(self, "_area", None)
         self.surface = surface
         self.face_indices = face_indices
         if isinstance(face_indices, slice):
@@ -1673,6 +1674,15 @@ class SurfaceView:
         """
         return self.surface.node_face_connectivity[self.node_indices, :]
 
+    @property
+    def area(self) -> NDArray:
+        """
+        The total area of the faces in the view.
+        """
+        if self._area is None:
+            self._area = self.face_areas.sum()
+        return self._area
+
     def interpolate_node_elevation_from_faces(self) -> None:
         """
         Update node elevations by area-weighted averaging of adjacent face elevations.
@@ -1751,20 +1761,36 @@ class SurfaceView:
         NDArray
             The updated node elevations after applying noise.
         """
-        x = np.concatenate([self.node_x, self.face_x])
-        y = np.concatenate([self.node_y, self.face_y])
-        z = np.concatenate([self.node_z, self.face_z])
-        noise = surface_functions.apply_noise(
-            x=x,
-            y=y,
-            z=z,
-            noise_width=noise_width,
-            noise_height=noise_height,
+        num_octaves = kwargs.pop("num_octaves", 12)
+        anchor = kwargs.pop(
+            "anchor",
+            self.surface.rng.uniform(0, 2 * np.pi, size=(num_octaves, 3)),
         )
+        anchor = np.zeros_like(anchor)
+        x = np.concatenate([self.node_x, self.face_x]) / self.surface.radius
+        y = np.concatenate([self.node_y, self.face_y]) / self.surface.radius
+        z = np.concatenate([self.node_z, self.face_z]) / self.surface.radius
+
+        if model == "turbulence":
+            noise = surface_functions.turbulence_noise(
+                x=x,
+                y=y,
+                z=z,
+                noise_height=noise_height / self.surface.radius,
+                noise_width=noise_width / self.surface.radius,
+                freq=2.0,
+                pers=0.5,
+                anchor=anchor,
+                seed=self.surface.rng.integers(0, 2**32 - 1),
+            )
+        else:
+            raise ValueError(f"Unknown noise model: {model}")
         node_noise = noise[: self.n_node]
         face_noise = noise[self.n_node :]
-        face_noise = face_noise - np.mean(face_noise)
-        node_noise = node_noise - np.mean(node_noise)
+        # Compute the weighted mean to ensure volume conservation
+        mean = np.sum(face_noise * self.face_areas) / self.area
+        face_noise -= mean
+        node_noise -= mean
         self.node_elevation += node_noise * self.surface.radius
         self.face_elevation += face_noise * self.surface.radius
         return

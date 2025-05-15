@@ -3,6 +3,8 @@ use ndarray::ArrayView1;
 use pyo3::{exceptions::PyValueError, prelude::*};
 use itertools::Itertools;
 use rand::prelude::*;
+use rand_chacha::ChaCha12Rng;
+use rand::SeedableRng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use std::f64::{
@@ -283,6 +285,7 @@ pub fn ray_intensity_internal<'py>(
     radial_distance: ArrayView1<'py, f64>,
     initial_bearing: ArrayView1<'py, f64>,
     crater_diameter: f64,
+    seed: u64,
 ) -> PyResult<Vec<f64>> {
     if radial_distance.len() != initial_bearing.len() {
         return Err(PyValueError::new_err(
@@ -293,7 +296,7 @@ pub fn ray_intensity_internal<'py>(
     let rmax = 100.0;
     let rmin = 1.0;
 
-    let mut rng = rand::rng();
+    let mut rng = ChaCha12Rng::seed_from_u64(seed);
 
     // Distribute ray patterns evenly around the crater
     let mut thetari = (0..NRAYMAX)
@@ -354,11 +357,13 @@ pub fn ray_intensity<'py>(
     radial_distance: PyReadonlyArray1<'py, f64>,
     initial_bearing: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
+    seed: u64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let intensity = ray_intensity_internal(
         radial_distance.as_array(),
         initial_bearing.as_array(),
         crater_diameter,
+        seed,
     )?;
     Ok(intensity.into_pyarray(py))
 }
