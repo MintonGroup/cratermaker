@@ -296,7 +296,6 @@ class SimpleMoon(Morphology):
         node_thickness = combined_thickness[: len(node_crater_distance)]
         face_thickness = combined_thickness[len(node_crater_distance) :]
 
-        surface.ejecta_thickness[region_view.face_indices] = face_thickness
         surface.face_elevation[region_view.face_indices] += face_thickness
         surface.node_elevation[region_view.node_indices] += node_thickness
 

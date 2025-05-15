@@ -98,12 +98,6 @@ class Surface(ComponentBase):
                 "initial_value": 0.0,
                 "isfacedata": True,
             },
-            "ejecta_thickness": {
-                "units": "m",
-                "long_name": "ejecta thickness",
-                "initial_value": 0.0,
-                "isfacedata": True,
-            },
             "ray_intensity": {
                 "units": "",
                 "long_name": "ray intensity value",
@@ -1468,13 +1462,6 @@ class Surface(ComponentBase):
             The elevation values to set for the faces.
         """
         self.uxds["face_elevation"][:] = value
-
-    @property
-    def ejecta_thickness(self):
-        """
-        The thickness of the ejecta.
-        """
-        return self.uxds["ejecta_thickness"].values
 
     @property
     def ray_intensity(self):
