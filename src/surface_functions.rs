@@ -2,8 +2,10 @@ use std::f64::consts::PI;
 
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
-use ndarray::Zip;
+use ndarray::{Zip, Array2};
 use rayon::iter::{IntoParallelIterator,ParallelIterator};
+use rand::prelude::*;
+use libnoise::prelude::*;
 
 #[inline]
 fn positive_mod(x: f64, m: f64) -> f64 {
@@ -154,6 +156,7 @@ pub fn apply_diffusion<'py>(
 
     Ok(PyArray1::from_owned_array(py, face_elevation))
 }
+
 /// Computes node elevations as area-weighted averages of adjacent face elevations.
 ///
 /// # Arguments
@@ -196,6 +199,61 @@ pub fn interpolate_node_elevation_from_faces<'py>(
         if area_sum > 0.0 {
             result[node_id] = weighted_sum / area_sum;
         }
+    }
+
+    Ok(PyArray1::from_owned_array(py, result))
+}
+
+#[pyfunction]
+pub fn apply_noise<'py>(
+    py: Python<'py>,
+    x: PyReadonlyArray1<'py, f64>,
+    y: PyReadonlyArray1<'py, f64>,
+    z: PyReadonlyArray1<'py, f64>, 
+    noise_width: f64,
+    noise_height: f64,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let x = x.as_array();
+    let y = y.as_array();
+    let z = z.as_array();
+
+    let n_points = x.len();
+    let mut rng = rand::rng();
+    let dist = rand::distr::Uniform::new(0.0, noise_width).unwrap();  
+    let num_octaves = 12; // Set default, or make configurable
+    let anchor = Array2::from_shape_fn((num_octaves, 3), |_| rng.sample(dist));
+    let mut result = ndarray::Array1::<f64>::zeros(n_points);
+
+    let anchor_arr = anchor.view();
+
+    let freq = noise_width;     // reinterpret noise_width as frequency scale
+    let pers = noise_height;    // reinterpret noise_height as persistence
+    let num_octaves = anchor_arr.nrows();
+    let scale = freq;
+
+    let mut norm = 0.5;
+    for i in 0..num_octaves {
+        let spatial_fac = scale.powi(i as i32);
+        let noise_mag = pers.powi(i as i32);
+        norm += 0.5 * noise_mag;
+
+        let anchor_x = anchor_arr[[i, 0]];
+        let anchor_y = anchor_arr[[i, 1]];
+        let anchor_z = anchor_arr[[i, 2]];
+
+        let noise_source = Source::simplex(1319754);
+
+        for idx in 0..n_points {
+            let x_new = (x[idx] + anchor_x) * spatial_fac;
+            let y_new = (y[idx] + anchor_y) * spatial_fac;
+            let z_new = (z[idx] + anchor_z) * spatial_fac;
+            let n = noise_source.sample([x_new, y_new, z_new]);
+            result[idx] += n * noise_mag;
+        }
+    }
+
+    for val in result.iter_mut() {
+        *val *= pers / norm;
     }
 
     Ok(PyArray1::from_owned_array(py, result))

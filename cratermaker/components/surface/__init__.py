@@ -1441,6 +1441,31 @@ class Surface(ComponentBase):
         """
         return self.full_view().apply_diffusion(kdiff)
 
+    def apply_noise(
+        self,
+        model: str = "turbulence",
+        noise_width: FloatLike = 1000e3,
+        noise_height: FloatLike = 1e3,
+        **kwargs: Any,
+    ):
+        """
+        Apply noise to the surface.
+        Parameters
+        ----------
+        model : str
+            The noise model to use. Options are "turbulence"
+        noise_width : float
+            The width of the noise in meters.
+        noise_height : float
+            The height of the noise in meters.
+        kwargs : Any
+            Additional arguments to pass to the noise model.
+        """
+
+        return self.full_view().apply_noise(
+            model=model, noise_width=noise_width, noise_height=noise_height, **kwargs
+        )
+
     def interpolate_node_elevation_from_faces(self) -> None:
         """
         Update node elevations by area-weighted averaging of adjacent face elevations.
@@ -1703,6 +1728,46 @@ class SurfaceView:
             face_indices=self.face_indices,
         )
         self.interpolate_node_elevation_from_faces()
+
+    def apply_noise(
+        self,
+        model: str = "turbulence",
+        noise_width: FloatLike = 1000e3,
+        noise_height: FloatLike = 1e3,
+        **kwargs: Any,
+    ):
+        """
+        Apply noise to the node elevations of the surface view.
+
+        Parameters
+        ----------
+        noise_width : float
+            The spatial wavelength of the noise.
+        noise_height : float
+            The amplitude of the noise.
+
+        Returns
+        -------
+        NDArray
+            The updated node elevations after applying noise.
+        """
+        x = np.concatenate([self.node_x, self.face_x])
+        y = np.concatenate([self.node_y, self.face_y])
+        z = np.concatenate([self.node_z, self.face_z])
+        noise = surface_functions.apply_noise(
+            x=x,
+            y=y,
+            z=z,
+            noise_width=noise_width,
+            noise_height=noise_height,
+        )
+        node_noise = noise[: self.n_node]
+        face_noise = noise[self.n_node :]
+        face_noise = face_noise - np.mean(face_noise)
+        node_noise = node_noise - np.mean(node_noise)
+        self.node_elevation += node_noise * self.surface.radius
+        self.face_elevation += face_noise * self.surface.radius
+        return
 
 
 import_components(__name__, __path__, ignore_private=True)
