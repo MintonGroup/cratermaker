@@ -16,11 +16,9 @@ The following is a simple example that creates a crater on the Moon from a 100 m
 
 .. ipython:: python
 
-    from cratermaker.components.target import Target
-    from cratermaker.core.crater import Crater
-    #from cratermaker.components.morphology import Morphology
-    #from cratermaker.core.simulation import Simulation 
-
+    from cratermaker import Target
+    from cratermaker import Crater
+   
     target = Target.maker("Moon")
 
     crater = Crater.maker(
