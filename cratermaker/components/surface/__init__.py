@@ -1795,12 +1795,16 @@ class SurfaceView:
             return
         face_kappa = np.zeros(self.surface.n_face)
         face_kappa[self.face_indices] = kdiff
+        if self.face_indices == slice(None):
+            face_indices = np.arange(self.surface.n_face)
+        else:
+            face_indices = self.face_indices
         surface_functions.apply_diffusion(
             face_areas=self.surface.face_areas,
             face_kappa=face_kappa,
             face_elevation=self.surface.face_elevation,
             face_face_connectivity=self.face_face_connectivity,
-            face_indices=self.face_indices,
+            face_indices=face_indices,
         )
         self.interpolate_node_elevation_from_faces()
 
@@ -1826,7 +1830,6 @@ class SurfaceView:
             "anchor",
             self.surface.rng.uniform(0, 2 * np.pi, size=(num_octaves, 3)),
         )
-        anchor = np.zeros_like(anchor)
         x = np.concatenate([self.node_x, self.face_x]) / self.surface.radius
         y = np.concatenate([self.node_y, self.face_y]) / self.surface.radius
         z = np.concatenate([self.node_z, self.face_z]) / self.surface.radius
