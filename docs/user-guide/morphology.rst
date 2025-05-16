@@ -21,14 +21,13 @@ The Morphology component is used to alter the topography of a :ref:`Surface <ug-
 Crater Emplacement
 ------------------
 
-The main purpose of a Morphology model is to emplace craters on a surface. This can now be done using the queue-aware :meth:`emplace` method, which automatically handles crater preparation, overlap resolution, and surface modification.
+The main purpose of a Morphology model is to emplace craters on a surface. This can now be done using the queue-aware :meth:`emplace` method, which automatically handles crater preparation, overlap resolution, and surface modification. If you do not provide a surface object, the method will create a default one for you (see :ref:`ug-surface` for more details). 
 
 .. ipython:: python
 
-    from cratermaker import Surface, Crater
-    surface = Surface.maker()
+    from cratermaker import Crater
     crater = Crater.maker(final_diameter=25e3)
-    morphology.emplace(crater, surface)
+    morphology.emplace(crater)
 
 Internally, a morphology model maintains a queue of craters that can be processed in parallel batches, provided they do not affect overlapping regions of the surface mesh. This allows for physically plausible yet efficient crater emplacement across geologic timescales.
 
@@ -43,7 +42,7 @@ You can enqueue multiple craters using :meth:`_enqueue_crater` and process them 
     for crater in craters:
         morphology._enqueue_crater(crater)
 
-    morphology._process_queue(surface)
+    morphology._process_queue()
 
 More Morphology Examples
 ------------------------
