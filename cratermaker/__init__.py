@@ -9,8 +9,6 @@ You should have received a copy of the GNU General Public License along with Cra
 If not, see: https://www.gnu.org/licenses.
 """
 
-# This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
-# The API change does not affect the functionality of the code, so we can safely ignore the warning
 import warnings
 
 from ._version import version as __version__
@@ -36,6 +34,8 @@ __all__ = [
 ]
 
 
+# This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
+# The API change does not affect the functionality of the code, so we can safely ignore the warning
 warnings.filterwarnings("ignore", category=FutureWarning, module="xarray")
 warnings.filterwarnings("ignore", category=FutureWarning, module="uxarray")
 warnings.filterwarnings(

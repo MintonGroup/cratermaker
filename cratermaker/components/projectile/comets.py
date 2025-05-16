@@ -74,6 +74,7 @@ class CometProjectiles(Projectile):
         density: FloatLike | None = None,
         angle: FloatLike | None = None,
         direction: FloatLike | None = None,
+        location: tuple[FloatLike, FloatLike] | None = None,
         target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
@@ -93,6 +94,8 @@ class CometProjectiles(Projectile):
             The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
         direction : float | None
             The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
+        location : tuple[float, float] | None
+            The impact location as a tuple of (longitude, latitude) in degrees. Default is (0.0, 0.0) (the equator and prime meridian) if `sample` is False. If `sample` is True, this value is ignored.
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         rng : Generator | None
@@ -127,6 +130,7 @@ class CometProjectiles(Projectile):
             velocity=mean_velocity,
             angle=angle,
             direction=direction,
+            location=location,
             density=density,
             target=target,
             rng=rng,
