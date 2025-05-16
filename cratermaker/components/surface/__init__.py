@@ -1468,6 +1468,18 @@ class Surface(ComponentBase):
         """
         return self.uxds["ray_intensity"].values
 
+    @ray_intensity.setter
+    def ray_intensity(self, value: NDArray) -> None:
+        """
+        Set the intensity of the rays.
+
+        Parameters
+        ----------
+        value : NDArray
+            The intensity values to set for the rays.
+        """
+        self.uxds["ray_intensity"][:] = value
+
 
 class SurfaceView:
     def __init__(
@@ -1600,6 +1612,25 @@ class SurfaceView:
             The elevation values to set for the nodes.
         """
         self.surface.node_elevation[self.node_indices] = value
+
+    @property
+    def ray_intensity(self) -> NDArray:
+        """
+        The intensity of the rays.
+        """
+        return self.surface.ray_intensity[self.face_indices]
+
+    @ray_intensity.setter
+    def ray_intensity(self, value: NDArray) -> None:
+        """
+        Set the intensity of the rays.
+
+        Parameters
+        ----------
+        value : NDArray
+            The intensity values to set for the rays.
+        """
+        self.surface.ray_intensity[self.face_indices] = value
 
     @property
     def face_areas(self) -> NDArray:
@@ -1763,7 +1794,7 @@ class SurfaceView:
             return
         face_kappa = np.zeros(self.surface.n_face)
         face_kappa[self.face_indices] = kdiff
-        self.surface.face_elevation = surface_functions.apply_diffusion(
+        surface_functions.apply_diffusion(
             face_areas=self.surface.face_areas,
             face_kappa=face_kappa,
             face_elevation=self.surface.face_elevation,

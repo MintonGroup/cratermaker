@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2};
+use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1};
 use pyo3::prelude::*;
 use ndarray::Zip;
 use rayon::iter::{IntoParallelIterator,ParallelIterator};
@@ -90,20 +90,19 @@ pub struct SurfaceView<'py> {
 /// A NumPy array of shape (n_face,) giving the elevation change per face for this update step.
 #[pyfunction]
 pub fn apply_diffusion<'py>(
-    py: Python<'py>,
     face_areas: PyReadonlyArray1<'py, f64>,
     face_kappa: PyReadonlyArray1<'py, f64>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
+    mut face_elevation: PyReadwriteArray1<'py, f64>,
     face_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_indices: PyReadonlyArray1<'py, i64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
+) {
     let face_areas = face_areas.as_array();
     let face_kappa = face_kappa.as_array();
-    let mut face_elevation = face_elevation.as_array().to_owned();
+    let mut face_elevation = face_elevation.as_array_mut();
     let face_face_connectivity = face_face_connectivity.as_array();
     let n_max_face_faces = face_face_connectivity.ncols();
     let n_face = face_areas.len();
-    let face_indices = face_indices.as_array().to_owned();
+    let face_indices = face_indices.as_array();
 
     // Compute max kappa for stability condition
     let max_kappa = face_kappa.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
@@ -111,11 +110,11 @@ pub fn apply_diffusion<'py>(
     // Compute initial dt using per-face stability condition 
     let dt_initial = face_areas
         .iter()
-        .map(|&a| a / (max_kappa * n_max_face_faces as f64))
+        .map(|&a| a / (2.0 * max_kappa * n_max_face_faces as f64))
         .fold(f64::INFINITY, f64::min);
 
     if !dt_initial.is_finite() || dt_initial <= 0.0 {
-        return Ok(PyArray1::from_owned_array(py, face_elevation));
+        return 
     }
 
     let nloops = (1.0 / dt_initial).ceil() as usize;
@@ -153,7 +152,6 @@ pub fn apply_diffusion<'py>(
         }
     }
 
-    Ok(PyArray1::from_owned_array(py, face_elevation))
 }
 
 /// Computes node elevations as area-weighted averages of adjacent face elevations.
