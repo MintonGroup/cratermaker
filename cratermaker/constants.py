@@ -26,5 +26,6 @@ _SMALLFAC = 1.0e-5
 _VSMALL = 10 * np.finfo(np.float64).tiny
 _LOGVSMALL = np.log10(_VSMALL)
 
+
 # Optional: controlled public API
 __all__ = []

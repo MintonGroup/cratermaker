@@ -16,9 +16,7 @@ use crate::{EJPROFILE, RIMDROP, VSMALL};
 
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
-const FRAYREDUCTION: f64 = 0.5;
-const A: f64 = 4.0 / 11.0;
-const B: f64 = -32.0 / 187.0;
+const FRAYREDUCTION: f64 = 0.90;
 
 /// Defines crater dimensions for surface modification computations.
 ///
@@ -124,7 +122,9 @@ pub fn crater_profile<'py>(
             "input arrays must have the same length",
         ));
     }
-
+    const A: f64 = 4.0 / 11.0;
+    const B: f64 = -32.0 / 187.0;
+    
     // Calculate the floor radius relative to the final crater radius
     let flrad = floor_diameter / diameter;
     let radius = diameter / 2.0;
@@ -404,7 +404,8 @@ fn ray_intensity_func(
     thetari: &[f64],
     minray: f64,
 ) -> f64 {
-    const RAYP: f64 = 4.0;
+    const RAYP: f64 = 4.0; // Power law exponent for ray number decay
+    const RAY_WIDTH_EXPONENT: f64 = 1.25; // Exponent for angular width decay
     if !r.is_finite() || r <= 0.0 || r > rmax {
         return 0.0;
     } else if r < 1.0 {
@@ -436,7 +437,7 @@ fn ray_intensity_func(
                     let w = (rmax / length).powf(1.0);
                     let rw = PI / (w * NRAYMAX as f64)
                         * (rmin / r)
-                        * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powi(2)).exp());
+                        * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(RAY_WIDTH_EXPONENT)).exp());
                     ejecta_ray_func(theta, thetari[i as usize], r, n, rw)
                 }
             })
