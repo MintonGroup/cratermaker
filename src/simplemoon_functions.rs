@@ -404,7 +404,8 @@ fn ray_intensity_func(
     thetari: &[f64],
     minray: f64,
 ) -> f64 {
-    const RAYP: f64 = 4.0;
+    const RAYP: f64 = 4.0; // Power law exponent for ray number decay
+    const RAY_WIDTH_EXPONENT: f64 = 1.25; // Exponent for angular width decay
     if !r.is_finite() || r <= 0.0 || r > rmax {
         return 0.0;
     } else if r < 1.0 {
@@ -434,10 +435,9 @@ fn ray_intensity_func(
                     0.0 // Skip this ray contribution
                 } else {
                     let w = (rmax / length).powf(1.0);
-                    let k  = 1.25;
                     let rw = PI / (w * NRAYMAX as f64)
                         * (rmin / r)
-                        * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(k)).exp());
+                        * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(RAY_WIDTH_EXPONENT)).exp());
                     ejecta_ray_func(theta, thetari[i as usize], r, n, rw)
                 }
             })

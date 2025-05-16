@@ -317,7 +317,7 @@ class Morphology(ComponentBase):
         """
         from cratermaker.components.surface import Surface
 
-        if not isinstance(surface, (Surface | str)):
+        if not isinstance(surface, (Surface, str)):
             raise TypeError("surface must be an instance of Surface or a string")
         self._surface = Surface.maker(surface)
         self._queue_manager: CraterQueueManager | None = None
