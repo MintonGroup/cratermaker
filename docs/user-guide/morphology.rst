@@ -34,15 +34,12 @@ Internally, a morphology model maintains a queue of craters that can be processe
 Batch Emplacement
 -----------------
 
-You can enqueue multiple craters using :meth:`_enqueue_crater` and process them using :meth:`_process_queue`. Craters are emplaced in chronological order, with overlapping batches resolved automatically.
+You can enqueue multiple craters using :meth:`emplace`. Craters are emplaced in chronological order in batches of non-overlapping ejecta.
 
 .. ipython:: python
 
     craters = [Crater.maker(final_diameter=d) for d in (5e3, 10e3, 15e3)]
-    for crater in craters:
-        morphology._enqueue_crater(crater)
-
-    morphology._process_queue()
+    morphology.emplace(craters)
 
 More Morphology Examples
 ------------------------
