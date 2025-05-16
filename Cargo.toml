@@ -13,6 +13,8 @@ numpy = "0.24.0"
 pyo3 = "0.24.0"
 rand = "0.9.1"
 rayon = "1.10.0"
+noise = "0.9.0"
+rand_chacha = "0.9.0"
 
 [dependencies.ndarray]
 version = "0.16.1"
