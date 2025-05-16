@@ -115,19 +115,22 @@ class TestSurface(unittest.TestCase):
         return
 
     def test_calculate_haversine_distance(self):
-        # Example coordinates (lat/lon in radians)
-        lon1, lat1 = np.radians(0), np.radians(0)  # Equator, prime meridian
-        lon2, lat2 = np.radians(90), np.radians(0)  # 90 degrees East, equator
-        radius = 6371000  # Earth's radius in meters
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            # Example coordinates (lat/lon in radians)
+            lon1, lat1 = np.radians(0), np.radians(0)  # Equator, prime meridian
+            lon2, lat2 = np.radians(90), np.radians(0)  # 90 degrees East, equator
+            surface = Surface.maker(
+                simdir=simdir, gridlevel=self.gridlevel, target="Earth"
+            )
 
-        # Known distance should be 1/4 the circumference of the Earth
-        expected_distance = np.pi * radius / 2
-        calculated_distance = Surface.calculate_haversine_distance(
-            lon1, lat1, lon2, lat2, radius
-        )
+            # Known distance should be 1/4 the circumference of the Earth
+            expected_distance = np.pi * surface.radius / 2
+            calculated_distance = surface.calculate_haversine_distance(
+                lon1, lat1, lon2, lat2
+            )
 
-        # Compare the expected and calculated distances
-        self.assertAlmostEqual(calculated_distance, expected_distance, places=1)
+            # Compare the expected and calculated distances
+            self.assertAlmostEqual(calculated_distance, expected_distance, places=1)
 
     def test_get_face_distance(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
@@ -158,7 +161,7 @@ class TestSurface(unittest.TestCase):
             delta = 2 * self.pix
 
             # Test distances
-            _, distances = surface.get_distance(surface.full_view(), location)
+            _, distances = surface.get_distance(location)
             self.assertAlmostEqual(
                 distances[north_idx],
                 north_distance,
@@ -207,7 +210,7 @@ class TestSurface(unittest.TestCase):
             delta = 2 * self.pix
 
             # Test distances
-            node_distances, _ = surface.get_distance(surface.full_view(), location)
+            node_distances, _ = surface.get_distance(location)
             self.assertAlmostEqual(
                 node_distances[north_idx],
                 north_distance,

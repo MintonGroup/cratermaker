@@ -157,7 +157,13 @@ class Simulation(CratermakerBase):
 
         surface_config = {**surface_config, **kwargs}
         surface_config["reset"] = not resume_old
-        self.surface = Surface.maker(self.surface, target=self.target, **surface_config)
+        self.surface = Surface.maker(
+            self.surface,
+            target=self.target,
+            scaling=self.scaling,
+            morphology=self.morphology,
+            **surface_config,
+        )
 
         self._craterlist = []
         self._crater = None
@@ -598,7 +604,7 @@ class Simulation(CratermakerBase):
 
             self.save()
 
-        self.export("vtk")
+        self.export("vtp")
         return
 
     def _validate_run_args(self, **kwargs) -> dict:
@@ -878,12 +884,12 @@ class Simulation(CratermakerBase):
 
         return
 
-    def export(self, format="vtk", *args, **kwargs) -> None:
+    def export(self, format="vtp", *args, **kwargs) -> None:
         """
         Export the surface mesh to a file in the specified format. Currently only VTK is supported.
         """
         self.save()
-        if format == "vtk":
+        if format == "vtp" or format == "vtk":
             export.to_vtk(self.surface, *args, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")

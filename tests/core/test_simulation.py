@@ -93,7 +93,7 @@ class TestSimulation(unittest.TestCase):
             # Test with default parameters
             default_out_dir = Path(sim.simdir) / _EXPORT_DIR
             expected_files = ["surface000000.vtp"]
-            sim.export("vtk")
+            sim.export("vtp")
             self.assertTrue(Path(default_out_dir).is_dir())
             for f in expected_files:
                 self.assertTrue((Path(default_out_dir / f).exists()))
