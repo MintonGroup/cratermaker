@@ -1,8 +1,10 @@
-use numpy::{PyArray1, PyReadonlyArray1, IntoPyArray};
-use ndarray::ArrayView1;
-use pyo3::{exceptions::PyValueError, prelude::*};
 use itertools::Itertools;
+use ndarray::ArrayView1;
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
+use pyo3::{exceptions::PyValueError, prelude::*};
 use rand::prelude::*;
+use rand::SeedableRng;
+use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use std::f64::{
@@ -10,7 +12,7 @@ use std::f64::{
     consts::{PI, SQRT_2},
 };
 
-use crate::{VSMALL, EJPROFILE, RIMDROP};
+use crate::{EJPROFILE, RIMDROP, VSMALL};
 
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
@@ -38,18 +40,17 @@ pub struct SimpleMoonMorphology {
     pub crater: Crater,
 }
 
-
 /// Calculates the elevation of a crater as a function of distance from the center.
 ///
 /// This function applies a polynomial profile for the crater interior (r < 1.0) and a rim dropoff
-/// function for the exterior (r ≥ 1.0). It is based on the crater profile model described in 
+/// function for the exterior (r ≥ 1.0). It is based on the crater profile model described in
 /// Fassett and Thomson (2014).
-/// 
-/// Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and 
-/// the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271. 
+///
+/// Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and
+/// the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271.
 /// https://doi.org/10.1002/2014JE004698
-/// 
-/// This function is split off from the `profile` function for clarity, and is not intended to be 
+///
+/// This function is split off from the `profile` function for clarity, and is not intended to be
 /// called directly.
 ///
 /// # Arguments
@@ -64,7 +65,16 @@ pub struct SimpleMoonMorphology {
 ///
 /// * Adjusted elevation according to crater profile at distance `r`.
 #[inline]
-fn crater_profile_function(r: f64, elevation: f64, c0: f64, c1: f64, c2: f64, c3: f64, rim_height: f64, ejrim: f64) -> f64 {
+fn crater_profile_function(
+    r: f64,
+    elevation: f64,
+    c0: f64,
+    c1: f64,
+    c2: f64,
+    c3: f64,
+    rim_height: f64,
+    ejrim: f64,
+) -> f64 {
     if r >= 1.0 {
         elevation + (rim_height - ejrim) * r.powf(-RIMDROP)
     } else {
@@ -167,8 +177,6 @@ pub fn crater_profile<'py>(
     ))
 }
 
-
-
 /// Computes the ejecta profile scaling at a given radial distance.
 ///
 /// This function returns a value based on a power-law decay that modifies the
@@ -192,7 +200,6 @@ pub fn ejecta_profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) ->
         0.0
     }
 }
-
 
 /// Computes only the radial ejecta profile without ray modulation.
 ///
@@ -259,11 +266,17 @@ fn ray_intensity_point(
             let theta = (theta0 + rn * 2.0 * PI) % (2.0 * PI);
             let r_pattern = r / crater_radius - rn;
             FRAYREDUCTION.powi(j as i32 - 1)
-                * ray_intensity_func(r_pattern, theta, rmin, rmax, thetari, 2.348 * crater_radius.powf(0.006))
+                * ray_intensity_func(
+                    r_pattern,
+                    theta,
+                    rmin,
+                    rmax,
+                    thetari,
+                    2.348 * crater_radius.powf(0.006),
+                )
         })
         .sum()
 }
-
 
 /// Computes the ray-modulated ejecta intensity values for a set of input points.
 ///
@@ -283,6 +296,7 @@ pub fn ray_intensity_internal<'py>(
     radial_distance: ArrayView1<'py, f64>,
     initial_bearing: ArrayView1<'py, f64>,
     crater_diameter: f64,
+    seed: u64,
 ) -> PyResult<Vec<f64>> {
     if radial_distance.len() != initial_bearing.len() {
         return Err(PyValueError::new_err(
@@ -293,7 +307,7 @@ pub fn ray_intensity_internal<'py>(
     let rmax = 100.0;
     let rmin = 1.0;
 
-    let mut rng = rand::rng();
+    let mut rng = ChaCha12Rng::seed_from_u64(seed);
 
     // Distribute ray patterns evenly around the crater
     let mut thetari = (0..NRAYMAX)
@@ -354,11 +368,13 @@ pub fn ray_intensity<'py>(
     radial_distance: PyReadonlyArray1<'py, f64>,
     initial_bearing: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
+    seed: u64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let intensity = ray_intensity_internal(
         radial_distance.as_array(),
         initial_bearing.as_array(),
         crater_diameter,
+        seed,
     )?;
     Ok(intensity.into_pyarray(py))
 }
@@ -456,6 +472,3 @@ fn ejecta_ray_func(theta: f64, thetar: f64, r: f64, n: i32, w: f64) -> f64 {
         a * logval.exp()
     }
 }
-
-
-
