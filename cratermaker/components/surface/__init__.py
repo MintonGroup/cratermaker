@@ -27,6 +27,7 @@ from cratermaker.constants import (
     PairOfFloats,
 )
 from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.utils.general_utils import validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 if TYPE_CHECKING:
@@ -97,12 +98,6 @@ class Surface(ComponentBase):
                 "initial_value": 0.0,
                 "isfacedata": True,
             },
-            "ray_intensity": {
-                "units": "",
-                "long_name": "ray intensity value",
-                "initial_value": 0.0,
-                "isfacedata": True,
-            },
         }
 
         self.target = Target.maker(target, **kwargs)
@@ -112,6 +107,24 @@ class Surface(ComponentBase):
     def __str__(self) -> str:
         base = super().__str__()
         return f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}"
+
+    def __del__(self):
+        try:
+            if hasattr(self, "_uxds") and hasattr(self._uxds, "close"):
+                if hasattr(self._uxds, "uxgrid") and hasattr(self._uxds.uxgrid, "_ds"):
+                    self._uxds.uxgrid._ds.close()
+                self._uxds.close()
+        except Exception:
+            pass
+        try:
+            if (
+                hasattr(self, "_grid")
+                and hasattr(self._grid, "uxgrid")
+                and hasattr(self._grid.uxgrid, "_ds")
+            ):
+                self._grid.uxgrid._ds.close()
+        except Exception:
+            pass
 
     @classmethod
     def maker(
@@ -330,8 +343,13 @@ class Surface(ComponentBase):
         """
         Reset the surface to its initial state.
         """
+
+        # Remove all old data from the dataset
+        for name in self.uxds.data_vars:
+            if name not in self._data_variable_init:
+                del self.uxds[name]
         for name, entry in self._data_variable_init.items():
-            self.generate_data(
+            self._add_new_data(
                 name=name,
                 data=entry["initial_value"],
                 long_name=entry["long_name"],
@@ -434,10 +452,10 @@ class Surface(ComponentBase):
 
         Returns
         -------
-        UxDataArray
-            DataArray of distances for each node in meters.
-        UxDataArray
-            DataArray of distances for each face in meters.
+        NDArray
+            Array of distances for each face in meters.
+        NDArray
+            Array of distances for each node in meters.
         """
         return self.full_view().get_distance(location)
 
@@ -455,88 +473,13 @@ class Surface(ComponentBase):
         Returns
         -------
         NDArray
-            Array of initial bearings for each node in radians.
-        NDArray
             Array of initial bearings for each face in radians.
+        NDArray
+            Array of initial bearings for each node in radians.
         """
         return self.full_view().get_initial_bearing(location)
 
-    @property
-    def uxds(self) -> UxDataset:
-        """
-        The data associated with the surface. This is an instance of UxDataset.
-        """
-        return self._uxds
-
-    @property
-    def data_dir(self):
-        """
-        Directory for data files.
-        """
-        return self.simdir / _DATA_DIR
-
-    @property
-    def grid_file(self):
-        """
-        Path to the grid file.
-        """
-        return self.simdir / _DATA_DIR / _GRID_FILE_NAME
-
-    @property
-    def area(self):
-        """
-        Total surface area of the target body.
-        """
-        if self._area is None:
-            self._area = self.face_areas.sum()
-        return self._area
-
-    @property
-    def target(self):
-        """
-        The target body for the impact simulation. Set during initialization.
-        """
-        return self._target
-
-    @target.setter
-    def target(self, value):
-        from cratermaker.components.target import Target
-
-        self._target = Target.maker(value)
-        return
-
-    @property
-    def radius(self):
-        """
-        Radius of the target body.
-        """
-        return self.target.radius
-
-    @property
-    def node_tree(self):
-        if self._node_tree is None:
-            self._node_tree = self.uxgrid.get_ball_tree(
-                "nodes",
-                distance_metric="haversine",
-                coordinate_system="spherical",
-                reconstruct=True,
-            )
-
-        return self._node_tree
-
-    @property
-    def face_tree(self):
-        if self._face_tree is None:
-            self._face_tree = self.uxgrid.get_ball_tree(
-                "face centers",
-                distance_metric="haversine",
-                coordinate_system="spherical",
-                reconstruct=True,
-            )
-
-        return self._face_tree
-
-    def generate_data(
+    def _add_new_data(
         self,
         name: str,
         long_name: str | None = None,
@@ -615,6 +558,71 @@ class Surface(ComponentBase):
             self._save_data(uxda, interval_number, combine_data_files)
         return
 
+    def add_data(
+        self,
+        name: str,
+        data: FloatLike | NDArray,
+        long_name: str | None = None,
+        units: str | None = None,
+        isfacedata: bool | None = None,
+    ) -> None:
+        """
+        Adds new data
+
+        Parameters
+        ----------
+        name : str
+            Name of the data variable. This will also be used as the data file name.
+        data : scalar or array-like
+            Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+        long_name : str, optional
+            Long name of the data variable that will be saved as an attribute.
+        units : str, optional
+            Units of the data variable that will be saved as an attribute.
+        isfacedata : bool, optional
+            Flag to indicate whether the data is face data or node data. Required if data is a scalar, otherwise it is ignored
+        Returns
+        -------
+        None
+        """
+        # Check if the data is a scalar or an array
+        if np.isscalar(data):
+            if isfacedata is None:
+                raise ValueError("isfacedata must be set if data is a scalar")
+            if isfacedata:
+                n = self.n_face
+            else:
+                n = self.n_node
+            data = np.full(n, data)
+        elif isinstance(data, list):
+            data = np.array(data)
+        else:
+            data = np.asarray(data)
+        if data.size == self.n_face:
+            isfacedata = True
+        elif data.size == self.n_node:
+            isfacedata = False
+        else:
+            raise ValueError(
+                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
+            )
+
+        # Check if the data is a scalar or an array
+        if np.isscalar(data):
+            data = np.full(n, data)
+        elif isinstance(data, list):
+            data = np.array(data)
+        else:
+            data = np.asarray(data)
+
+        if name not in self.uxds.data_vars:
+            self._add_new_data(
+                name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
+            )
+
+        self.uxds[name].data = data
+        return
+
     def set_elevation(
         self,
         new_elev: NDArray[np.float64] | list[FloatLike] | None = None,
@@ -653,7 +661,7 @@ class Surface(ComponentBase):
             )
 
         if gen_node:
-            self.generate_data(
+            self._add_new_data(
                 data=new_elev,
                 name="node_elevation",
                 long_name="elevation of nodes",
@@ -664,7 +672,7 @@ class Surface(ComponentBase):
                 interval_number=interval_number,
             )
         if gen_face:
-            self.generate_data(
+            self._add_new_data(
                 data=new_elev,
                 name="face_elevation",
                 long_name="elevation of faces",
@@ -765,9 +773,9 @@ class Surface(ComponentBase):
         Returns
         -------
         int
-            The index of the nearest node in the grid to the given point.
-        int
             The index of the nearest face in the grid to the given point.
+        int
+            The index of the nearest node in the grid to the given point.
 
         Notes
         -----
@@ -780,29 +788,25 @@ class Surface(ComponentBase):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", Warning)
-
             node_ind = self.node_tree.query(coords=coords, k=1, return_distance=False)
-
             face_ind = self.face_tree.query(coords=coords, k=1, return_distance=False)
-        return node_ind.item(), face_ind.item()
+
+        return face_ind.item(), node_ind.item()
 
     def get_reference_surface(
         self,
-        view: "SurfaceView",
-        face_crater_distance: NDArray,
-        node_crater_distance: NDArray,
-        location: tuple[FloatLike, FloatLike],
-        region_radius: float,
+        region_view: SurfaceView,
+        reference_radius: float,
     ) -> NDArray[np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
 
         Parameters
         ----------
-        location : tuple[float, float]
-            tuple containing the longitude and latitude of the reference location in degrees.
-        region_radius : float
-            The radius of the region to compute the average over in meters.
+        region_view : SurfaceView
+            A view of the surface that contains the face and node indices.
+        reference_radius : float
+            The radius of the reference region to compute the average over in meters.
 
         Returns
         -------
@@ -832,41 +836,43 @@ class Surface(ComponentBase):
             return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
 
         # Find cells within the crater radius
-        faces_within_radius = face_crater_distance <= region_radius
-        nodes_within_radius = node_crater_distance <= region_radius
+        faces_within_radius = region_view.face_distance <= reference_radius
+        nodes_within_radius = region_view.node_distance <= reference_radius
 
-        face_elevation = self.face_elevation[view.face_indices]
-        node_elevation = self.node_elevation[view.node_indices]
+        face_elevation = region_view.face_elevation
+        node_elevation = region_view.node_elevation
 
-        if np.sum(faces_within_radius) < 5 or not nodes_within_radius.any():
+        n_reference_faces = np.sum(faces_within_radius)
+
+        # if there are not enough faces or nodes within the radius, return the original elevations and use that as the reference
+        if n_reference_faces < 5 or not nodes_within_radius.any():
             return face_elevation, node_elevation
 
         face_grid = np.column_stack(
             (
-                self.uxds.uxgrid.face_x.values[view.face_indices],
-                self.uxds.uxgrid.face_y.values[view.face_indices],
-                self.uxds.uxgrid.face_z.values[view.face_indices],
+                region_view.face_x,
+                region_view.face_y,
+                region_view.face_z,
             )
         )
-        region_faces = face_grid[faces_within_radius]
+        # find_refence_elevations expects coordinates to be on the unit sphere
+        region_faces = face_grid[faces_within_radius] / self.radius
         region_elevation = face_elevation[faces_within_radius] / self.radius
         region_surf = self.elevation_to_cartesian(region_faces, region_elevation)
-
-        x, y, z = region_surf.T
 
         # Initial guess for the sphere center and radius
         guess_radius = 1.0 + region_elevation.mean()
         initial_guess = [0, 0, 0, guess_radius]
 
-        # Perform the curve fitting
+        # Perform the curve fitting to get the best fitting spherical cap for the reference surface
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", OptimizeWarning)
             try:
                 bounds = ([-1.0, -1.0, -1.0, 0.5], [1.0, 1.0, 1.0, 2.0])
                 popt, _ = curve_fit(
                     sphere_function,
-                    region_surf[faces_within_radius],
-                    np.zeros_like(x[faces_within_radius]),
+                    region_surf,
+                    np.zeros(n_reference_faces),
                     p0=initial_guess,
                     bounds=bounds,
                 )
@@ -916,12 +922,13 @@ class Surface(ComponentBase):
         # Now do the same thing to compute the nodal values
         node_grid = np.column_stack(
             (
-                self.uxds.uxgrid.node_x.values[view.node_indices],
-                self.uxds.uxgrid.node_y.values[view.node_indices],
-                self.uxds.uxgrid.node_z.values[view.node_indices],
+                region_view.node_x,
+                region_view.node_y,
+                region_view.node_z,
             )
         )
-        region_nodes = node_grid[nodes_within_radius]
+        # find_refence_elevations expects coordinates to be on the unit sphere
+        region_nodes = node_grid[nodes_within_radius] / self.radius
 
         reference_node_elevation = node_elevation
         reference_node_elevation[nodes_within_radius] = find_reference_elevations(
@@ -961,11 +968,11 @@ class Surface(ComponentBase):
             location = location.item()
         coords = np.asarray(location)
 
-        ind = self.face_tree.query_radius(coords, region_angle)
-        if len(ind) == 0:
+        face_indices = self.face_tree.query_radius(coords, region_angle)
+        if len(face_indices) == 0:
             return None
 
-        return SurfaceView(self, ind)
+        return SurfaceView(surface=self, face_indices=face_indices, location=location)
 
     def get_random_location_on_face(
         self, face_index: int, **kwargs
@@ -1056,23 +1063,80 @@ class Surface(ComponentBase):
 
         return
 
-    def __del__(self):
-        try:
-            if hasattr(self, "_uxds") and hasattr(self._uxds, "close"):
-                if hasattr(self._uxds, "uxgrid") and hasattr(self._uxds.uxgrid, "_ds"):
-                    self._uxds.uxgrid._ds.close()
-                self._uxds.close()
-        except Exception:
-            pass
-        try:
-            if (
-                hasattr(self, "_grid")
-                and hasattr(self._grid, "uxgrid")
-                and hasattr(self._grid.uxgrid, "_ds")
-            ):
-                self._grid.uxgrid._ds.close()
-        except Exception:
-            pass
+    @property
+    def uxds(self) -> UxDataset:
+        """
+        The data associated with the surface. This is an instance of UxDataset.
+        """
+        return self._uxds
+
+    @property
+    def data_dir(self):
+        """
+        Directory for data files.
+        """
+        return self.simdir / _DATA_DIR
+
+    @property
+    def grid_file(self):
+        """
+        Path to the grid file.
+        """
+        return self.simdir / _DATA_DIR / _GRID_FILE_NAME
+
+    @property
+    def area(self):
+        """
+        Total surface area of the target body.
+        """
+        if self._area is None:
+            self._area = self.face_areas.sum()
+        return self._area
+
+    @property
+    def target(self):
+        """
+        The target body for the impact simulation. Set during initialization.
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        from cratermaker.components.target import Target
+
+        self._target = Target.maker(value)
+        return
+
+    @property
+    def radius(self):
+        """
+        Radius of the target body.
+        """
+        return self.target.radius
+
+    @property
+    def node_tree(self):
+        if self._node_tree is None:
+            self._node_tree = self.uxgrid.get_ball_tree(
+                "nodes",
+                distance_metric="haversine",
+                coordinate_system="spherical",
+                reconstruct=True,
+            )
+
+        return self._node_tree
+
+    @property
+    def face_tree(self):
+        if self._face_tree is None:
+            self._face_tree = self.uxgrid.get_ball_tree(
+                "face centers",
+                distance_metric="haversine",
+                coordinate_system="spherical",
+                reconstruct=True,
+            )
+
+        return self._face_tree
 
     @abstractmethod
     def generate_face_distribution(
@@ -1462,41 +1526,46 @@ class Surface(ComponentBase):
         """
         self.uxds["face_elevation"][:] = value
 
-    @property
-    def ray_intensity(self):
-        """
-        The intensity of the rays.
-        """
-        return self.uxds["ray_intensity"].values
-
-    @ray_intensity.setter
-    def ray_intensity(self, value: NDArray) -> None:
-        """
-        Set the intensity of the rays.
-
-        Parameters
-        ----------
-        value : NDArray
-            The intensity values to set for the rays.
-        """
-        self.uxds["ray_intensity"][:] = value
-
 
 class SurfaceView:
+    """
+    This is used to generate a regional view of a subset of the surface mesh without making copies of any of the data.
+
+    Parameters
+    ----------
+    surface : Surface
+        The surface object that contains the mesh data.
+    face_indices : NDArray | slice
+        The indices of the faces to include in the view.
+    node_indices : NDArray | slice | None, optional
+        The indices of the nodes to include in the view. If None, all nodes connected to the faces are included.
+    location : tuple[float, float] | None, optional
+        The location of the center of the view in degrees. If this is set, then the view will contain `face_distance`, `node_distance`, `face_bearing`, and `node_bearing` arrays. Otherwise, these will be None.
+    """
+
     def __init__(
         self,
         surface: Surface,
         face_indices: NDArray | slice,
         node_indices: NDArray | slice | None = None,
+        location: tuple[float, float] | None = None,
+        **kwargs: Any,
     ):
         object.__setattr__(self, "_area", None)
+        object.__setattr__(self, "_n_face", None)
+        object.__setattr__(self, "_n_node", None)
+        object.__setattr__(self, "_face_distance", None)
+        object.__setattr__(self, "_node_distance", None)
+        object.__setattr__(self, "_face_bearing", None)
+        object.__setattr__(self, "_node_bearing", None)
+        object.__setattr__(self, "_location", None)
+
         self.surface = surface
         self.face_indices = face_indices
         if isinstance(face_indices, slice):
-            self.n_face = surface.face_elevation[face_indices].size
+            self._n_face = surface.face_elevation[face_indices].size
         else:
-            self.n_face = face_indices.size
-        self.n_face_total = surface.n_face
+            self._n_face = face_indices.size
 
         if node_indices is None:
             node_indices = np.unique(
@@ -1506,31 +1575,44 @@ class SurfaceView:
 
         self.node_indices = node_indices
         if isinstance(node_indices, slice):
-            self.n_node = surface.node_elevation[node_indices].size
+            self._n_node = surface.node_elevation[node_indices].size
         else:
-            self.n_face = face_indices.size
+            self._n_node = node_indices.size
+
+        if location is not None:
+            self._location = validate_and_normalize_location(location)
+            self._face_distance, self._node_distance = self.get_distance()
+            self._face_bearing, self._node_bearing = self.get_initial_bearing()
         return
 
     def get_distance(
-        self, location: tuple[float, float]
+        self, location: tuple[float, float] | None = None
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Computes the distances between nodes and faces and a given location.
 
         Parameters
         ----------
-        location : tuple[float, float]
-            tuple containing the longitude and latitude of the location in degrees.
+        location : tuple[float, float], option
+            tuple containing the longitude and latitude of the location in degrees. If None, the location of the view center is used if it is set.
 
         Returns
         -------
         NDArray
-            Array of nodes distances in meters.
+            Array of face distances in meters.
         NDArray
-            Array of faces distances in meters.
+            Array of node distances in meters.
         """
+        if location is None:
+            if self.location is None:
+                raise ValueError("location must be set.")
+            location = self.location
+
         if len(location) == 1:
             location = location.item()
+        if len(location) != 2:
+            raise ValueError("location must be a single pair of (longitude, latitude).")
+        location = validate_and_normalize_location(location)
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
         node_lon2 = np.deg2rad(self.node_lon)
@@ -1538,11 +1620,11 @@ class SurfaceView:
         face_lon2 = np.deg2rad(self.face_lon)
         face_lat2 = np.deg2rad(self.face_lat)
         return self.surface.calculate_haversine_distance(
-            lon1, lat1, node_lon2, node_lat2
-        ), self.surface.calculate_haversine_distance(lon1, lat1, face_lon2, face_lat2)
+            lon1, lat1, face_lon2, face_lat2
+        ), self.surface.calculate_haversine_distance(lon1, lat1, node_lon2, node_lat2)
 
     def get_initial_bearing(
-        self, location: tuple[float, float]
+        self, location: tuple[float, float] | None = None
     ) -> tuple[NDArray, NDArray]:
         """
         Computes the initial bearing between nodes and faces and a given location.
@@ -1555,12 +1637,20 @@ class SurfaceView:
         Returns
         -------
         NDArray
-            Array of initial bearings for each node in radians.
-        NDArray
             Array of initial bearings for each face in radians.
+        NDArray
+            Array of initial bearings for each node in radians.
         """
+        if location is None:
+            if self.location is None:
+                raise ValueError("location must be set.")
+            location = self.location
+
         if len(location) == 1:
             location = location.item()
+        if len(location) != 2:
+            raise ValueError("location must be a single pair of (longitude, latitude).")
+        location = validate_and_normalize_location(location)
         lon1 = np.deg2rad(location[0])
         lat1 = np.deg2rad(location[1])
         node_lon2 = np.deg2rad(self.node_lon)
@@ -1569,12 +1659,26 @@ class SurfaceView:
         face_lat2 = np.deg2rad(self.face_lat)
         return (
             surface_functions.calculate_initial_bearing(
-                lon1, lat1, node_lon2, node_lat2
-            ),
-            surface_functions.calculate_initial_bearing(
                 lon1, lat1, face_lon2, face_lat2
             ),
+            surface_functions.calculate_initial_bearing(
+                lon1, lat1, node_lon2, node_lat2
+            ),
         )
+
+    @property
+    def n_face(self) -> int:
+        """
+        The number of faces in the view.
+        """
+        return self._n_face
+
+    @property
+    def n_node(self) -> int:
+        """
+        The number of nodes in the view.
+        """
+        return self._n_node
 
     @property
     def face_elevation(self) -> NDArray:
@@ -1615,23 +1719,39 @@ class SurfaceView:
         self.surface.node_elevation[self.node_indices] = value
 
     @property
-    def ray_intensity(self) -> NDArray:
+    def location(self) -> tuple[float, float]:
         """
-        The intensity of the rays.
+        The location of the center of the view.
         """
-        return self.surface.ray_intensity[self.face_indices]
+        return self._location
 
-    @ray_intensity.setter
-    def ray_intensity(self, value: NDArray) -> None:
+    @property
+    def face_bearing(self) -> NDArray:
         """
-        Set the intensity of the rays.
+        The initial bearing from the location to the faces.
+        """
+        return self._face_bearing
 
-        Parameters
-        ----------
-        value : NDArray
-            The intensity values to set for the rays.
+    @property
+    def node_bearing(self) -> NDArray:
         """
-        self.surface.ray_intensity[self.face_indices] = value
+        The initial bearing from the location to the nodes.
+        """
+        return self._node_bearing
+
+    @property
+    def face_distance(self) -> NDArray:
+        """
+        The distance from the location to the faces.
+        """
+        return self._face_distance
+
+    @property
+    def node_distance(self) -> NDArray:
+        """
+        The distance from the location to the nodes.
+        """
+        return self._node_distance
 
     @property
     def face_areas(self) -> NDArray:
@@ -1748,6 +1868,26 @@ class SurfaceView:
             self._area = self.face_areas.sum()
         return self._area
 
+    def compute_volume(self, elevation: NDArray) -> NDArray:
+        """
+        Compute the volume of an array of elevation points
+
+        Parameters
+        ----------
+        elevation : NDArray
+            The elevation values to compute. This should be the same size as the number of faces in the grid.
+
+        Returns
+        -------
+        float
+            The volume of the elevation points
+        """
+        if elevation.size != self.n_face:
+            raise ValueError(
+                "elevation must be an array with the same size as the number of faces in the grid"
+            )
+        return np.sum(elevation * self.face_areas)
+
     def interpolate_node_elevation_from_faces(self) -> None:
         """
         Update node elevations by area-weighted averaging of adjacent face elevations.
@@ -1853,6 +1993,67 @@ class SurfaceView:
         node_noise -= mean
         self.node_elevation += node_noise * self.surface.radius
         self.face_elevation += face_noise * self.surface.radius
+        return
+
+    def add_data(
+        self,
+        name: str,
+        data: FloatLike | NDArray,
+        long_name: str | None = None,
+        units: str | None = None,
+        isfacedata: bool | None = None,
+    ) -> None:
+        """
+        Adds new data
+
+        Parameters
+        ----------
+        name : str
+            Name of the data variable. This will also be used as the data file name.
+        data : scalar or array-like
+            Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+        long_name : str, optional
+            Long name of the data variable that will be saved as an attribute.
+        units : str, optional
+            Units of the data variable that will be saved as an attribute.
+        isfacedata : bool, optional
+            Flag to indicate whether the data is face data or node data. Required if data is a scalar, otherwise it is ignored
+
+        Returns
+        -------
+        None
+        """
+
+        # Check if the data is a scalar or an array
+        if np.isscalar(data):
+            if isfacedata is None:
+                raise ValueError("isfacedata must be set if data is a scalar")
+            if isfacedata:
+                n = self.n_face
+            else:
+                n = self.n_node
+            data = np.full(n, data)
+        elif isinstance(data, list):
+            data = np.array(data)
+        else:
+            data = np.asarray(data)
+        if data.size == self.n_face:
+            isfacedata = True
+            indices = self.face_indices
+        elif data.size == self.n_node:
+            isfacedata = False
+            indices = self.node_indices
+        else:
+            raise ValueError(
+                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
+            )
+
+        if name not in self.surface.uxds.data_vars:
+            self.surface._add_new_data(
+                name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
+            )
+
+        self.surface.uxds[name][indices] = data
         return
 
 
