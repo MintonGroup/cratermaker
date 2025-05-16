@@ -73,7 +73,7 @@ class HiResLocalSurface(Surface):
             # superdomain. This will be used to set the superdomain scale factor, but is only possible with a scaling and morphology model
             # because the Morphology requires a Surface, we must defer the creation of the grid until after the Morphology has been instantiated
             warn(
-                "Defering the creation of the grid until after the morphology has been instantiated.\nPlease call set_superdomain(scaling, morphology) to set the superdomain scale factor before using this surface.",
+                "Deferring the creation of the grid until after the morphology has been instantiated.\nPlease call set_superdomain(scaling, morphology) to set the superdomain scale factor before using this surface.",
                 UserWarning,
             )
         else:

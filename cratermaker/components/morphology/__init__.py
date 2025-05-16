@@ -15,6 +15,8 @@ from cratermaker.utils.component_utils import ComponentBase, import_components
 if TYPE_CHECKING:
     from cratermaker.components.surface import Surface, SurfaceView
 
+EJECTA_SOFTEN_FACTOR = 1.50
+
 
 class Morphology(ComponentBase):
     def __init__(self, surface: Surface | str | None = None, **kwargs: Any) -> None:
@@ -179,6 +181,10 @@ class Morphology(ComponentBase):
 
         ejecta_region_view.face_elevation += face_thickness
         ejecta_region_view.node_elevation += node_thickness
+
+        kdiff = EJECTA_SOFTEN_FACTOR * face_thickness**2
+        ejecta_region_view.apply_diffusion(kdiff)
+
         return
 
     def _affected_indices(self, crater: Crater) -> tuple[set[int], set[int]]:

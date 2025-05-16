@@ -146,7 +146,19 @@ class SimpleMoon(Morphology):
         kwargs : Any
             Additional keyword arguments to pass to the emplace method.
         """
-        crater = SimpleMoonCrater.maker(crater)
+        if crater is None:
+            crater_args = {**kwargs, **vars(self.common_args)}
+            # Add scaling=self.scaling to the kwargs if it is not already present
+            if "scaling" not in crater_args:
+                crater_args["scaling"] = self.scaling
+            crater = SimpleMoonCrater.maker(**crater_args)
+        elif isinstance(crater, list) and len(crater) > 0:
+            for i, c in enumerate(crater):
+                crater[i] = Crater.maker(c)
+            return
+        if isinstance(crater, Crater):
+            crater = SimpleMoonCrater.maker(crater)
+
         super().emplace(crater)
         return
 
