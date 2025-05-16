@@ -16,7 +16,7 @@ from ..components.target import Target
 from ..constants import _COMPONENT_NAMES, _CONFIG_FILE_NAME, FloatLike, PairOfFloats
 from ..utils import export
 from ..utils.general_utils import _set_properties, format_large_units, parameter
-from .base import CratermakerBase, _convert_for_yaml, _to_config
+from .base import CratermakerBase, _convert_for_yaml
 from .crater import Crater
 
 
@@ -152,18 +152,22 @@ class Simulation(CratermakerBase):
             **scaling_config,
         )
 
-        morphology_config = {**morphology_config, **kwargs}
-        self.morphology = Morphology.maker(self.morphology, **morphology_config)
-
         surface_config = {**surface_config, **kwargs}
         surface_config["reset"] = not resume_old
         self.surface = Surface.maker(
             self.surface,
             target=self.target,
-            scaling=self.scaling,
-            morphology=self.morphology,
             **surface_config,
         )
+
+        morphology_config = {**morphology_config, **kwargs}
+        self.morphology = Morphology.maker(
+            self.morphology, surface=self.surface, **morphology_config
+        )
+        if self.surface.gridtype == "hireslocal":
+            self.surface.set_superdomain(
+                scaling=self.scaling, morphology=self.morphology, **surface_config
+            )
 
         self._craterlist = []
         self._crater = None
@@ -207,6 +211,16 @@ class Simulation(CratermakerBase):
             f"simdir      : {str(self.simdir)}\n"
         )
 
+    def __repr__(self) -> str:
+        config = self.to_config(save_to_file=False)
+        txt = f"{self.__class__.__name__}("
+        for k, v in config.items():
+            if isinstance(v, str):
+                v = f"'{v}'"
+            txt += f"\n    {k}={v},"
+        txt += "\n)"
+        return txt
+
     def get_smallest_diameter(
         self, face_areas: ArrayLike | None = None, from_projectile: bool = False
     ) -> float:
@@ -247,7 +261,7 @@ class Simulation(CratermakerBase):
         else:
             return largest_crater
 
-    def enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
+    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
         """
         Add a crater to the queue for later emplacement.
 
@@ -264,10 +278,10 @@ class Simulation(CratermakerBase):
         RuntimeError
             If the queue manager has not been initialized.
         """
-        self.morphology.enqueue_crater(crater, self.surface, **kwargs)
+        self.morphology._enqueue_crater(crater, **kwargs)
         return
 
-    def process_queue(self) -> None:
+    def _process_queue(self) -> None:
         """
         Process all queued craters in the order they were added, forming non-overlapping
         batches and applying each to the surface.
@@ -278,7 +292,7 @@ class Simulation(CratermakerBase):
         RuntimeError
             If the queue manager has not been initialized.
         """
-        self.morphology.process_queue(self.surface)
+        self.morphology._process_queue()
         return
 
     def emplace(
@@ -334,11 +348,11 @@ class Simulation(CratermakerBase):
             crater = Crater.maker(**crater_args)
         elif isinstance(crater, list) and len(crater) > 0:
             for c in crater:
-                self.enqueue_crater(c)
-            self.process_queue()
+                self._enqueue_crater(c)
+            self._process_queue()
             return
         if isinstance(crater, Crater):
-            self.morphology.emplace(crater, self.surface, **kwargs)
+            self.morphology.emplace(crater, **kwargs)
 
         return
 
@@ -797,15 +811,15 @@ class Simulation(CratermakerBase):
 
         return kwargs
 
-    def to_config(self, **kwargs: Any) -> dict:
+    def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """
         Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. This will consolidate all of the configuration
         parameters into a single dictionary that can be saved to a YAML file. This will also remove any common arguments from the individual configurations for each component model to avoid repeating them.
 
         Parameters
         ----------
-        obj : Any
-            The object whose attributes will be stored.  It must have a _user_defined attribute.
+        save_to_file : bool, optional
+            If True, the configuration will be saved to a file. Default is True.
         **kwargs : Any
             Additional keyword arguments for subclasses.
 
@@ -858,10 +872,11 @@ class Simulation(CratermakerBase):
                     sim_config.pop(f"{config}_config")
 
         # Write the combined configuration to a YAML file
-        with open(self.config_file, "w") as f:
-            yaml.safe_dump(sim_config, f, indent=4)
+        if save_to_file:
+            with open(self.config_file, "w") as f:
+                yaml.safe_dump(sim_config, f, indent=4)
 
-        return _to_config(self, **kwargs)
+        return sim_config
 
     def save(self, **kwargs: Any) -> None:
         """

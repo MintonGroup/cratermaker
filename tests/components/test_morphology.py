@@ -41,8 +41,8 @@ class TestMorphology(unittest.TestCase):
                 simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel
             )
             for model_name in morphology_models:
-                morphology = Morphology.maker(model_name)
-                morphology.emplace(self.dummy_crater, surface)
+                morphology = Morphology.maker(model_name, surface=surface)
+                morphology.emplace(self.dummy_crater)
 
     def test_make_morphology(self):
         # Test the make_morphology function

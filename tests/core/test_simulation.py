@@ -115,8 +115,7 @@ class TestSimulation(unittest.TestCase):
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
             # Test that populate will work even if no craters are returned
             sim.populate(age=1e-6)
-
-        sim.populate(age=3.8e3)
+            sim.populate(age=3.8e3)
         return
 
     def test_run(self):
