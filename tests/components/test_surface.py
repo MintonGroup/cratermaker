@@ -151,9 +151,9 @@ class TestSurface(unittest.TestCase):
             south = normalize_coords(south)
             antipode = normalize_coords(antipode)
 
-            _, north_idx = surface.find_nearest_index(north)
-            _, south_idx = surface.find_nearest_index(south)
-            _, antipode_idx = surface.find_nearest_index(antipode)
+            north_idx, _ = surface.find_nearest_index(north)
+            south_idx, _ = surface.find_nearest_index(south)
+            antipode_idx, _ = surface.find_nearest_index(antipode)
 
             north_distance = surface.target.radius * np.pi / 2
             south_distance = surface.target.radius * np.pi / 2
@@ -161,7 +161,7 @@ class TestSurface(unittest.TestCase):
             delta = 2 * self.pix
 
             # Test distances
-            _, distances = surface.get_distance(location)
+            distances, _ = surface.get_distance(location)
             self.assertAlmostEqual(
                 distances[north_idx],
                 north_distance,
@@ -200,9 +200,9 @@ class TestSurface(unittest.TestCase):
             south = normalize_coords(south)
             antipode = normalize_coords(antipode)
 
-            north_idx, _ = surface.find_nearest_index(north)
-            south_idx, _ = surface.find_nearest_index(south)
-            antipode_idx, _ = surface.find_nearest_index(antipode)
+            _, north_idx = surface.find_nearest_index(north)
+            _, south_idx = surface.find_nearest_index(south)
+            _, antipode_idx = surface.find_nearest_index(antipode)
 
             north_distance = surface.target.radius * np.pi / 2
             south_distance = surface.target.radius * np.pi / 2
@@ -210,7 +210,7 @@ class TestSurface(unittest.TestCase):
             delta = 2 * self.pix
 
             # Test distances
-            node_distances, _ = surface.get_distance(location)
+            _, node_distances = surface.get_distance(location)
             self.assertAlmostEqual(
                 node_distances[north_idx],
                 north_distance,
@@ -250,7 +250,7 @@ class TestSurface(unittest.TestCase):
     #         original_face_index = i.values.item()
     #         for _ in range(n_per_face):
     #             location = surface.get_random_location_on_face(original_face_index)
-    #             _, new_face_index = surface.find_nearest_index(location)
+    #             new_face_index, _ = surface.find_nearest_index(location)
     #             self.assertEqual(original_face_index, new_face_index)
 
     def test_face_surface_values(self):
