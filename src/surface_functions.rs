@@ -1,10 +1,10 @@
 use std::f64::consts::PI;
 
+use ndarray::Zip;
+use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1};
 use pyo3::prelude::*;
-use ndarray::Zip;
-use rayon::iter::{IntoParallelIterator,ParallelIterator};
-use noise::{NoiseFn, SuperSimplex, ScalePoint, RotatePoint};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 #[inline]
 fn positive_mod(x: f64, m: f64) -> f64 {
@@ -59,7 +59,6 @@ pub fn calculate_initial_bearing<'py>(
     Ok(PyArray1::from_owned_array(py, result))
 }
 
-
 /// View into a region of the surface mesh, consisting of node and face indices.
 ///
 /// Used to localize crater effects to a subset of the full mesh.
@@ -107,51 +106,51 @@ pub fn apply_diffusion<'py>(
     // Compute max kappa for stability condition
     let max_kappa = face_kappa.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
-    // Compute initial dt using per-face stability condition 
+    // Compute initial dt using per-face stability condition
     let dt_initial = face_areas
         .iter()
         .map(|&a| a / (2.0 * max_kappa * n_max_face_faces as f64))
         .fold(f64::INFINITY, f64::min);
 
     if !dt_initial.is_finite() || dt_initial <= 0.0 {
-        return 
+        return;
     }
 
     let nloops = (1.0 / dt_initial).ceil() as usize;
     let dt = 1.0 / nloops as f64;
 
-    let mut dhdt = ndarray::Array1::<f64>::zeros(n_face);
-
     for _ in 0..nloops {
-        dhdt.fill(0.0);
+        let dhdt: Vec<_> = Zip::from(face_indices)
+            .and(face_face_connectivity.outer_iter())
+            .into_par_iter()
+            .map(|(&f, row)| {
+                let f = f as usize;
+                let h_f = face_elevation[f];
+                let k_f = face_kappa[f];
+                let mut dhdt_f = 0.0;
+                for &f_n_raw in row {
+                    if f_n_raw < 0 {
+                        continue;
+                    }
+                    let f_n = f_n_raw as usize;
+                    if f_n >= n_face {
+                        continue;
+                    }
 
-        for (local_index, row) in face_face_connectivity.outer_iter().enumerate() {
-            let f = face_indices[local_index] as usize;
-            let h_f = face_elevation[f];
-            let k_f = face_kappa[f];
+                    let h_n = face_elevation[f_n];
+                    let k_n = face_kappa[f_n];
+                    let flux = (k_f + k_n) * (h_n - h_f);
 
-            for &f_n_raw in row {
-                if f_n_raw < 0 {
-                    continue;
+                    dhdt_f += flux;
                 }
-                let f_n = f_n_raw as usize;
-                if f_n >= n_face {
-                    continue;
-                }
+                dhdt_f
+            })
+            .collect();
 
-                let h_n = face_elevation[f_n];
-                let k_n = face_kappa[f_n];
-                let flux = (k_f + k_n) * (h_n - h_f);
-
-                dhdt[f] += flux;
-            }
-        }
-
-        for f in 0..n_face {
-            face_elevation[f] += dt * dhdt[f] / face_areas[f];
+        for (i, &f) in face_indices.iter().enumerate() {
+            face_elevation[f as usize] += dt * dhdt[i] / face_areas[f as usize];
         }
     }
-
 }
 
 /// Computes node elevations as area-weighted averages of adjacent face elevations.
@@ -206,7 +205,7 @@ pub fn turbulence_noise<'py>(
     py: Python<'py>,
     x: PyReadonlyArray1<'py, f64>,
     y: PyReadonlyArray1<'py, f64>,
-    z: PyReadonlyArray1<'py, f64>, 
+    z: PyReadonlyArray1<'py, f64>,
     noise_height: f64,
     noise_width: f64,
     freq: f64,

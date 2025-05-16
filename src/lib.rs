@@ -20,11 +20,11 @@ const EJPROFILE: f64 = 3.0; // The exponent for the ejecta profile
 
 #[pymodule]
 #[pyo3(name = "_cratermaker")]
-mod cratermaker{
+mod cratermaker {
     use super::*;
 
     #[pymodule]
-    mod simplemoon_functions{
+    mod simplemoon_functions {
         #[pymodule_export]
         use crate::simplemoon_functions::{crater_profile, ejecta_profile, ray_intensity};
     }
@@ -32,7 +32,9 @@ mod cratermaker{
     #[pymodule]
     mod surface_functions {
         #[pymodule_export]
-        use crate::surface_functions::{calculate_initial_bearing, apply_diffusion,interpolate_node_elevation_from_faces, turbulence_noise};
+        use crate::surface_functions::{
+            apply_diffusion, calculate_initial_bearing, interpolate_node_elevation_from_faces,
+            turbulence_noise,
+        };
     }
-
 }
