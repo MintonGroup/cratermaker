@@ -145,6 +145,7 @@ class Morphology(ComponentBase):
             crater, minimum_thickness=self.surface.smallest_length, feature="crater"
         )
         crater_region_view = self.surface.extract_region(crater.location, crater_rmax)
+        crater_volume = None
         if (
             crater_region_view is not None
         ):  # The crater is big enough to affect the surface
@@ -158,11 +159,19 @@ class Morphology(ComponentBase):
                 )
                 crater_region_view.face_elevation += face_elevation_change
                 crater_region_view.node_elevation += node_elevation_change
+                crater_volume = crater_region_view.compute_volume(face_elevation_change)
 
         # Now form the ejecta blanket
         face_thickness, node_thickness = self.ejecta_shape(crater, ejecta_region_view)
-        ejecta_region_view.face_elevation += face_thickness
-        ejecta_region_view.node_elevation += node_thickness
+
+        if crater_volume:
+            ejecta_volume = ejecta_region_view.compute_volume(face_thickness)
+            conservation_factor = -crater_volume / ejecta_volume
+        else:
+            conservation_factor = 1.0
+
+        ejecta_region_view.face_elevation += face_thickness * conservation_factor
+        ejecta_region_view.node_elevation += node_thickness * conservation_factor
         return
 
     def _affected_indices(self, crater: Crater) -> tuple[set[int], set[int]]:

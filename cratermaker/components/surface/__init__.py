@@ -98,12 +98,6 @@ class Surface(ComponentBase):
                 "initial_value": 0.0,
                 "isfacedata": True,
             },
-            "ray_intensity": {
-                "units": "",
-                "long_name": "ray intensity value",
-                "initial_value": 0.0,
-                "isfacedata": True,
-            },
         }
 
         self.target = Target.maker(target, **kwargs)
@@ -113,6 +107,24 @@ class Surface(ComponentBase):
     def __str__(self) -> str:
         base = super().__str__()
         return f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}"
+
+    def __del__(self):
+        try:
+            if hasattr(self, "_uxds") and hasattr(self._uxds, "close"):
+                if hasattr(self._uxds, "uxgrid") and hasattr(self._uxds.uxgrid, "_ds"):
+                    self._uxds.uxgrid._ds.close()
+                self._uxds.close()
+        except Exception:
+            pass
+        try:
+            if (
+                hasattr(self, "_grid")
+                and hasattr(self._grid, "uxgrid")
+                and hasattr(self._grid.uxgrid, "_ds")
+            ):
+                self._grid.uxgrid._ds.close()
+        except Exception:
+            pass
 
     @classmethod
     def maker(
@@ -331,6 +343,11 @@ class Surface(ComponentBase):
         """
         Reset the surface to its initial state.
         """
+
+        # Remove all old data from the dataset
+        for name in self.uxds.data_vars:
+            if name not in self._data_variable_init:
+                del self.uxds[name]
         for name, entry in self._data_variable_init.items():
             self.add_data(
                 name=name,
@@ -461,81 +478,6 @@ class Surface(ComponentBase):
             Array of initial bearings for each node in radians.
         """
         return self.full_view().get_initial_bearing(location)
-
-    @property
-    def uxds(self) -> UxDataset:
-        """
-        The data associated with the surface. This is an instance of UxDataset.
-        """
-        return self._uxds
-
-    @property
-    def data_dir(self):
-        """
-        Directory for data files.
-        """
-        return self.simdir / _DATA_DIR
-
-    @property
-    def grid_file(self):
-        """
-        Path to the grid file.
-        """
-        return self.simdir / _DATA_DIR / _GRID_FILE_NAME
-
-    @property
-    def area(self):
-        """
-        Total surface area of the target body.
-        """
-        if self._area is None:
-            self._area = self.face_areas.sum()
-        return self._area
-
-    @property
-    def target(self):
-        """
-        The target body for the impact simulation. Set during initialization.
-        """
-        return self._target
-
-    @target.setter
-    def target(self, value):
-        from cratermaker.components.target import Target
-
-        self._target = Target.maker(value)
-        return
-
-    @property
-    def radius(self):
-        """
-        Radius of the target body.
-        """
-        return self.target.radius
-
-    @property
-    def node_tree(self):
-        if self._node_tree is None:
-            self._node_tree = self.uxgrid.get_ball_tree(
-                "nodes",
-                distance_metric="haversine",
-                coordinate_system="spherical",
-                reconstruct=True,
-            )
-
-        return self._node_tree
-
-    @property
-    def face_tree(self):
-        if self._face_tree is None:
-            self._face_tree = self.uxgrid.get_ball_tree(
-                "face centers",
-                distance_metric="haversine",
-                coordinate_system="spherical",
-                reconstruct=True,
-            )
-
-        return self._face_tree
 
     def add_data(
         self,
@@ -1056,23 +998,80 @@ class Surface(ComponentBase):
 
         return
 
-    def __del__(self):
-        try:
-            if hasattr(self, "_uxds") and hasattr(self._uxds, "close"):
-                if hasattr(self._uxds, "uxgrid") and hasattr(self._uxds.uxgrid, "_ds"):
-                    self._uxds.uxgrid._ds.close()
-                self._uxds.close()
-        except Exception:
-            pass
-        try:
-            if (
-                hasattr(self, "_grid")
-                and hasattr(self._grid, "uxgrid")
-                and hasattr(self._grid.uxgrid, "_ds")
-            ):
-                self._grid.uxgrid._ds.close()
-        except Exception:
-            pass
+    @property
+    def uxds(self) -> UxDataset:
+        """
+        The data associated with the surface. This is an instance of UxDataset.
+        """
+        return self._uxds
+
+    @property
+    def data_dir(self):
+        """
+        Directory for data files.
+        """
+        return self.simdir / _DATA_DIR
+
+    @property
+    def grid_file(self):
+        """
+        Path to the grid file.
+        """
+        return self.simdir / _DATA_DIR / _GRID_FILE_NAME
+
+    @property
+    def area(self):
+        """
+        Total surface area of the target body.
+        """
+        if self._area is None:
+            self._area = self.face_areas.sum()
+        return self._area
+
+    @property
+    def target(self):
+        """
+        The target body for the impact simulation. Set during initialization.
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        from cratermaker.components.target import Target
+
+        self._target = Target.maker(value)
+        return
+
+    @property
+    def radius(self):
+        """
+        Radius of the target body.
+        """
+        return self.target.radius
+
+    @property
+    def node_tree(self):
+        if self._node_tree is None:
+            self._node_tree = self.uxgrid.get_ball_tree(
+                "nodes",
+                distance_metric="haversine",
+                coordinate_system="spherical",
+                reconstruct=True,
+            )
+
+        return self._node_tree
+
+    @property
+    def face_tree(self):
+        if self._face_tree is None:
+            self._face_tree = self.uxgrid.get_ball_tree(
+                "face centers",
+                distance_metric="haversine",
+                coordinate_system="spherical",
+                reconstruct=True,
+            )
+
+        return self._face_tree
 
     @abstractmethod
     def generate_face_distribution(
@@ -1462,25 +1461,6 @@ class Surface(ComponentBase):
         """
         self.uxds["face_elevation"][:] = value
 
-    @property
-    def ray_intensity(self):
-        """
-        The intensity of the rays.
-        """
-        return self.uxds["ray_intensity"].values
-
-    @ray_intensity.setter
-    def ray_intensity(self, value: NDArray) -> None:
-        """
-        Set the intensity of the rays.
-
-        Parameters
-        ----------
-        value : NDArray
-            The intensity values to set for the rays.
-        """
-        self.uxds["ray_intensity"][:] = value
-
 
 class SurfaceView:
     """
@@ -1709,25 +1689,6 @@ class SurfaceView:
         return self._node_distance
 
     @property
-    def ray_intensity(self) -> NDArray:
-        """
-        The intensity of the rays.
-        """
-        return self.surface.ray_intensity[self.face_indices]
-
-    @ray_intensity.setter
-    def ray_intensity(self, value: NDArray) -> None:
-        """
-        Set the intensity of the rays.
-
-        Parameters
-        ----------
-        value : NDArray
-            The intensity values to set for the rays.
-        """
-        self.surface.ray_intensity[self.face_indices] = value
-
-    @property
     def face_areas(self) -> NDArray:
         """
         The areas of the faces.
@@ -1841,6 +1802,26 @@ class SurfaceView:
         if self._area is None:
             self._area = self.face_areas.sum()
         return self._area
+
+    def compute_volume(self, elevation: NDArray) -> NDArray:
+        """
+        Compute the volume of an array of elevation points
+
+        Parameters
+        ----------
+        elevation : NDArray
+            The elevation values to compute. This should be the same size as the number of faces in the grid.
+
+        Returns
+        -------
+        float
+            The volume of the elevation points
+        """
+        if elevation.size != self.n_face:
+            raise ValueError(
+                "elevation must be an array with the same size as the number of faces in the grid"
+            )
+        return np.sum(elevation * self.face_areas)
 
     def interpolate_node_elevation_from_faces(self) -> None:
         """
