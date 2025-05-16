@@ -1,7 +1,26 @@
 from __future__ import annotations
 
+import sys
+from typing import (
+    TYPE_CHECKING,
+    Any,
+)
+
+try:
+    if sys.version_info >= (3, 11):
+        from typing import Self, TypeAlias
+    else:
+        from typing import TypeAlias
+
+        from typing_extensions import Self
+except ImportError:
+    if TYPE_CHECKING:
+        raise
+    else:
+        Self: Any = None
+
 import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.random import Generator
@@ -12,6 +31,7 @@ from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import (
     format_large_units,
     parameter,
+    validate_and_normalize_location,
 )
 
 if TYPE_CHECKING:
@@ -30,6 +50,7 @@ class Projectile(ComponentBase):
         density: FloatLike | None = None,
         angle: FloatLike | None = None,
         direction: FloatLike | None = None,
+        location: tuple[float, float] | None = None,
         target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
@@ -53,6 +74,8 @@ class Projectile(ComponentBase):
             The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
         direction : float | None
             The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
+        location : tuple[float, float] | None
+            The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         rng : numpy.random.Generator | None
@@ -74,8 +97,8 @@ class Projectile(ComponentBase):
         object.__setattr__(self, "_density", density)
         object.__setattr__(self, "_angle", angle)
         object.__setattr__(self, "_direction", direction)
-
-        self._target = Target.maker(target, **kwargs)
+        object.__setattr__(self, "_location", location)
+        object.__setattr__(self, "_target", Target.maker(target, **kwargs))
 
         if self.sample:
             if self.mean_velocity is None:
@@ -87,6 +110,8 @@ class Projectile(ComponentBase):
                 raise ValueError("angle must be provided when sample is False")
             if self.direction is None:
                 raise ValueError("direction must be provided when sample is False")
+            if self.location is None:
+                raise ValueError("location must be provided when sample is False")
 
         if self.density is None:
             raise ValueError("density must be provided")
@@ -109,6 +134,37 @@ class Projectile(ComponentBase):
             f"Density: {self.density:.1f} kg/m³\n"
         )
 
+    def _copy(self, deep: bool = True, memo: dict[int, Any] | None = None) -> Self:
+        import copy
+        import inspect
+
+        copier = copy.deepcopy if deep else copy.copy
+        memo = {} if memo is None else memo
+
+        # Get all init parameters except 'self'
+        cls = self.__class__
+        sig = inspect.signature(cls.__init__)
+        init_keys = sig.parameters.keys() - {"self"}
+
+        # Extract values for those keys
+        init_kwargs = {}
+        for k in init_keys:
+            if k == "target":
+                init_kwargs[k] = self.target
+            elif k == "rng":
+                init_kwargs[k] = self.rng
+            else:
+                attr = getattr(self, k, None)
+                init_kwargs[k] = copier(attr, memo) if deep else copier(attr)
+
+        return cls(**init_kwargs)
+
+    def __copy__(self) -> Self:
+        return self._copy(deep=False)
+
+    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> Self:
+        return self._copy(deep=True, memo=memo)
+
     @classmethod
     def maker(
         cls,
@@ -119,6 +175,7 @@ class Projectile(ComponentBase):
         angle: FloatLike | None = None,
         velocity: FloatLike | None = None,
         direction: FloatLike | None = None,
+        location: tuple[float, float] | None = None,
         target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
@@ -144,6 +201,8 @@ class Projectile(ComponentBase):
             The impact velocity in m/s. If None, the velocity will be sampled from a distribution.
         direction : float | None
             The impact direction in degrees. If None, the direction will be sampled from a distribution.
+        location : tuple[float, float]
+            The location of the projectile on the target body in (lon, lat) coordinates. If None, the location willb e sampled from a distribution
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         rng : numpy.random.Generator | None
@@ -181,6 +240,9 @@ class Projectile(ComponentBase):
                 projectile = "generic"
                 mean_velocity = 20.0e3
 
+        # if this is a brand new uninstantiated projectile, we need to flag it so that it its properties can be set propertly. Otherwise, it should just pass through as is.
+        isfresh = isinstance(projectile, str)
+
         projectile = super().maker(
             component=projectile,
             mean_velocity=mean_velocity,
@@ -189,57 +251,61 @@ class Projectile(ComponentBase):
             angle=angle,
             velocity=velocity,
             direction=direction,
+            location=location,
             target=target,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
             **kwargs,
         )
-        projectile.new_projectile(**kwargs)
-        return projectile
+        if isfresh:
+            return projectile.new_projectile(**kwargs)
+        else:
+            return projectile
 
-    def new_projectile(self, **kwargs: Any) -> dict:
+    def new_projectile(self, **kwargs: Any) -> Self:
         """
-        Updates the values of the velocities and angles and returns them as a dictionary of projectile properties that can be passed as arguments to the Crater class.
+        Returns a new projectile instance with updated sampled or default values,
+        based on the original instance.
 
         Parameters
         ----------
         **kwargs : Any
-            Additional keyword arguments to be passed to internal functions.
+            Additional keyword arguments to override attributes.
 
         Returns
         -------
-        dict
-            A dictionary containing the projectile properties.
+        Projectile
+            A new Projectile instance with updated properties.
         """
+        import copy
 
-        if self.sample:
-            self._velocity = float(
+        new_obj = copy.copy(self)
+
+        if new_obj.sample:
+            new_obj._velocity = float(
                 mc.get_random_velocity(
-                    vmean=self.mean_velocity,
-                    vescape=self.target.escape_velocity,
-                    rng=self.rng,
+                    vmean=new_obj.mean_velocity,
+                    vescape=new_obj.target.escape_velocity,
+                    rng=new_obj.rng,
                 )[0]
             )
-        elif self.velocity is None:
-            self._velocity = float(self.mean_velocity)
+            new_obj._angle = float(mc.get_random_impact_angle(rng=new_obj.rng)[0])
+            new_obj._direction = float(
+                mc.get_random_impact_direction(rng=new_obj.rng)[0]
+            )
+            new_obj._location = mc.get_random_location(rng=new_obj.rng)[0]
+        else:
+            if new_obj.velocity is None:
+                new_obj._velocity = float(new_obj.mean_velocity)
+            if new_obj.angle is None:
+                new_obj._angle = float(90.0)
+            if new_obj.direction is None:
+                new_obj._direction = float(0.0)
+            if new_obj.location is None:
+                new_obj._location = (0, 0)
 
-        if self.sample:
-            self._angle = float(mc.get_random_impact_angle(rng=self.rng)[0])
-        elif self.angle is None:
-            self._angle = float(90.0)
-
-        if self.sample:
-            self._direction = float(mc.get_random_impact_direction(rng=self.rng)[0])
-        elif self._direction is None:
-            self._direction = float(0.0)
-
-        return {
-            "projectile_velocity": self.velocity,
-            "projectile_angle": self.angle,
-            "projectile_density": self.density,
-            "projectile_direction": self.direction,
-        }
+        return new_obj
 
     @parameter
     def sample(self):
@@ -323,6 +389,22 @@ class Projectile(ComponentBase):
         if value < 0:
             raise ValueError("direction must be a positive number")
         self._direction = float(value)
+
+    @property
+    def location(self) -> tuple[float, float]:
+        """
+        The location of the projectile on the target body.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the (lon,lat) coordinates of the projectile in degrees.
+        """
+        return self._location
+
+    @location.setter
+    def location(self, value: tuple[float, float]):
+        self._location = validate_and_normalize_location(value)
 
     @property
     def velocity(self):

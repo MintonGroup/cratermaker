@@ -12,7 +12,7 @@ Cratermaker can export the surface mesh to a VTK file, which can be visualized w
     import cratermaker as cm
     sim = cm.Simulation()
     sim.emplace(final_diameter=500e3, location=(45,60))
-    sim.export("vtk")
+    sim.export("vtp")
 
 
 The simulation will generate several files in a folder called ``surface_data``, including ``grid.nc`` and ``surf000000.nc``. When exported to vtk format, a file called ``surf000000.vtp`` will be placed in the ``export``. In this example, the simulation only contains one interval, so only one file is created (see :ref:`ug-Simulation` for how to run multi-interval simulations). 
