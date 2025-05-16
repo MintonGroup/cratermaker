@@ -4,6 +4,7 @@ from abc import abstractmethod
 from math import pi
 from typing import TYPE_CHECKING, Any, Callable
 
+import numpy as np
 from numpy.typing import NDArray
 from tqdm import tqdm
 
@@ -16,12 +17,14 @@ if TYPE_CHECKING:
 
 
 class Morphology(ComponentBase):
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, surface: Surface | str | None = None, **kwargs: Any) -> None:
         """
         Initialize the Morphology class.
 
         Parameters
         ----------
+        surface : str or Surface, optional
+            The name of a Surface object, or an instance of Surface, to be associated the morphology model.
         **kwargs : Any
             Additional keyword arguments.
 
@@ -32,7 +35,10 @@ class Morphology(ComponentBase):
             If the crater is not an instance of Crater.
 
         """
+        from cratermaker.components.surface import Surface
+
         super().__init__(**kwargs)
+        self._surface = Surface.maker(surface, **kwargs)
         self._queue_manager: CraterQueueManager | None = None
 
     def __str__(self) -> str:
@@ -43,6 +49,7 @@ class Morphology(ComponentBase):
     def maker(
         cls,
         morphology: str | type[Morphology] | Morphology | None = None,
+        surface: Surface | str | None = None,
         **kwargs: Any,
     ) -> Morphology:
         """
@@ -52,6 +59,8 @@ class Morphology(ComponentBase):
         ----------
         morphology : str or Morphology or None
             The name of the morphology model to use, or an instance of Morphology. If None, the default "simplemoon" is used.
+        surface : str or Surface, optional
+            The name of a Surface object, or an instance of Surface, to be associated the morphology model.
         **kwargs : Any
             Additional keyword arguments that are required for the specific morphology model being created.
 
@@ -71,29 +80,32 @@ class Morphology(ComponentBase):
         # Call the base class version of make and pass the morphology argument as the component argument
         if morphology is None:
             morphology = "simplemoon"
-        morphology = super().maker(component=morphology, **kwargs)
+        morphology = super().maker(component=morphology, surface=surface, **kwargs)
         return morphology
 
-    def emplace(self, crater: Crater, surface: Surface, **kwargs: Any) -> None:
+    def emplace(self, crater: Crater | list[Crater], **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
         Initializes and uses the queue system behind the scenes.
 
         Parameters
         ----------
-        crater : Crater
+        crater : Crater or list[Crater]
             The crater to be emplaced.
-        surface : Surface
-            The surface object to modify.
         **kwargs : Any
             Additional keyword arguments.
         """
         if self._queue_manager is None:
-            self.init_queue_manager(surface)
-        self.enqueue_crater(crater)
-        self.process_queue(surface)
+            self._init_queue_manager()
 
-    def form_crater(self, crater: Crater, surface: Surface, **kwargs: Any) -> Surface:
+        if isinstance(crater, list) and len(crater) > 0:
+            for c in crater:
+                self._enqueue_crater(c)
+        elif isinstance(crater, Crater):
+            self._enqueue_crater(crater)
+        self._process_queue()
+
+    def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """
         This method forms the interior of the crater by altering the elevation variable of the surface mesh.
 
@@ -101,8 +113,6 @@ class Morphology(ComponentBase):
         ----------
         crater : Crater
             The crater object to be formed.
-        surface : Surface
-            The surface to be altered. This will be modified in place.
         **kwargs : dict
             Additional keyword arguments to be passed to internal functions.
 
@@ -110,49 +120,52 @@ class Morphology(ComponentBase):
         -------
         None
         """
-        from cratermaker.components.surface import Surface
 
-        if not isinstance(surface, Surface):
-            raise TypeError("surface must be an instance of Surface")
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
         # Find the node and face center of the crater
-        self.node_index, self.face_index = surface.find_nearest_index(crater.location)
+        self.face_index, self.node_index = self.surface.find_nearest_index(
+            crater.location
+        )
 
         # Test if the ejecta is big enough to modify the surface
         ejecta_rmax = self.rmax(
-            crater, minimum_thickness=surface.smallest_length, feature="ejecta"
+            crater, minimum_thickness=self.surface.smallest_length, feature="ejecta"
         )
-        ejecta_region_view = surface.extract_region(crater.location, ejecta_rmax)
+        ejecta_region_view = self.surface.extract_region(crater.location, ejecta_rmax)
         ejecta_area = pi * ejecta_rmax**2
         if (
             ejecta_region_view is None
-            or ejecta_area < surface.face_areas[self.face_index]
+            or ejecta_area < self.surface.face_areas[self.face_index]
         ):  # The crater is too small to change the surface
             return
 
         crater_rmax = self.rmax(
-            crater, minimum_thickness=surface.smallest_length, feature="crater"
+            crater, minimum_thickness=self.surface.smallest_length, feature="crater"
         )
-        crater_region_view = surface.extract_region(crater.location, crater_rmax)
+        crater_region_view = self.surface.extract_region(crater.location, crater_rmax)
         if (
             crater_region_view is not None
         ):  # The crater is big enough to affect the surface
             crater_area = pi * crater_rmax**2
 
             # Check to make sure that the face at the crater location is not smaller than the crater area
-            if crater_area > surface.face_areas[self.face_index]:
+            if crater_area > self.surface.face_areas[self.face_index]:
                 # Form the crater shape
-                surface = self.crater_shape(crater, crater_region_view, surface)
+                face_elevation_change, node_elevation_change = self.crater_shape(
+                    crater, crater_region_view
+                )
+                crater_region_view.face_elevation += face_elevation_change
+                crater_region_view.node_elevation += node_elevation_change
 
         # Now form the ejecta blanket
-        surface = self.ejecta_shape(crater, ejecta_region_view, surface)
+        face_thickness, node_thickness = self.ejecta_shape(crater, ejecta_region_view)
+        ejecta_region_view.face_elevation += face_thickness
+        ejecta_region_view.node_elevation += node_thickness
         return
 
-    def affected_indices(
-        self, crater: Crater, surface: Surface
-    ) -> tuple[set[int], set[int]]:
+    def _affected_indices(self, crater: Crater) -> tuple[set[int], set[int]]:
         """
         Determine the set of node and face indices affected by a crater's ejecta blanket.
 
@@ -160,8 +173,6 @@ class Morphology(ComponentBase):
         ----------
         crater : Crater
             The crater object whose effect region is to be computed.
-        surface : Surface
-            The surface object on which the crater would be emplaced.
 
         Returns
         -------
@@ -171,32 +182,26 @@ class Morphology(ComponentBase):
             The set of face indices affected by the crater.
         """
         rmax = self.rmax(
-            crater, minimum_thickness=surface.smallest_length, feature="ejecta"
+            crater, minimum_thickness=self.surface.smallest_length, feature="ejecta"
         )
-        region_view = surface.extract_region(crater.location, rmax)
+        region_view = self.surface.extract_region(crater.location, rmax)
         if region_view is None:
             return set(), set()
         return set(region_view.node_indices), set(region_view.face_indices)
 
-    def init_queue_manager(self, surface: Surface) -> None:
+    def _init_queue_manager(self) -> None:
         """
         Initialize the crater queue manager with a surface-dependent overlap function.
-
-        Parameters
-        ----------
-        surface : Surface
-            The surface object used to determine which nodes and faces each crater affects.
         """
 
         def overlap_fn(crater: Crater) -> tuple[set[int], set[int]]:
-            return self.affected_indices(crater, surface)
+            return self._affected_indices(crater)
 
         self._queue_manager = CraterQueueManager(overlap_fn)
 
-    def enqueue_crater(
+    def _enqueue_crater(
         self,
         crater: Crater | None = None,
-        surface: "Surface" | None = None,
         **kwarg: Any,
     ) -> None:
         """
@@ -207,8 +212,6 @@ class Morphology(ComponentBase):
         ----------
         crater : Crater, optional
             The crater object to enqueue. If None, one is created from keyword args.
-        surface : Surface, optional
-            The surface used to determine overlap regions if initialization is needed.
         **kwarg : Any
             Additional keyword arguments for crater construction.
 
@@ -218,25 +221,20 @@ class Morphology(ComponentBase):
             If the queue manager must be initialized but no surface is provided.
         """
         if self._queue_manager is None:
-            if surface is None:
+            if self.surface is None:
                 raise RuntimeError(
                     "Surface must be provided to initialize queue manager."
                 )
-            self.init_queue_manager(surface)
+            self._init_queue_manager()
 
         if crater is None:
             crater = Crater.maker(**kwarg)
         self._queue_manager.push(crater)
 
-    def process_queue(self, surface: Surface) -> None:
+    def _process_queue(self) -> None:
         """
         Process all queued craters in the order they were added, forming non-overlapping
         batches and applying each to the surface.
-
-        Parameters
-        ----------
-        surface : Surface
-            The surface object to be modified in place.
 
         Raises
         ------
@@ -245,14 +243,14 @@ class Morphology(ComponentBase):
         """
         if not hasattr(self, "_queue_manager"):
             raise RuntimeError(
-                "Queue manager has not been initialized. Call init_queue_manager first."
+                "Queue manager has not been initialized. Call _init_queue_manager first."
             )
 
         def _batch_process(pbar=None):
             while not self._queue_manager.is_empty():
                 batch = self._queue_manager.peek_next_batch()
                 for crater in batch:
-                    self.form_crater(crater, surface)
+                    self.form_crater(crater)
                     if pbar is not None:
                         pbar.update(1)
                 self._queue_manager.pop_batch(batch)
@@ -272,16 +270,14 @@ class Morphology(ComponentBase):
         self,
         crater: Crater,
         region_view: SurfaceView | NDArray,
-        surface: Surface | NDArray,
-    ) -> Surface | NDArray: ...
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
     @abstractmethod
     def ejecta_shape(
         self,
         crater: Crater,
         region_view: SurfaceView | NDArray,
-        surface: Surface | NDArray,
-    ) -> Surface | NDArray: ...
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
     @abstractmethod
     def rmax(
@@ -290,6 +286,25 @@ class Morphology(ComponentBase):
         minimum_thickness: FloatLike,
         feature: str = "ejecta",
     ) -> float: ...
+
+    @property
+    def surface(self) -> Surface:
+        """
+        The surface object associated with this morphology model.
+        """
+        return self._surface
+
+    @surface.setter
+    def surface(self, surface: Surface) -> None:
+        """
+        Set the surface object associated with this morphology model.
+        """
+        from cratermaker.components.surface import Surface
+
+        if not isinstance(surface, (Surface | str)):
+            raise TypeError("surface must be an instance of Surface or a string")
+        self._surface = Surface.maker(surface)
+        self._queue_manager: CraterQueueManager | None = None
 
 
 class CraterQueueManager:

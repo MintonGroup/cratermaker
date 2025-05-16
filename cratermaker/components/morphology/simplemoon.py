@@ -87,6 +87,8 @@ class SimpleMoon(Morphology):
 
     Parameters
     ----------
+    surface : str or Surface, optional
+        The name of a Surface object, or an instance of Surface, to be associated the morphology model.
     crater : Crater, optional
         The crater currently attached to the morphology model.
     ejecta_truncation : float, optional
@@ -108,6 +110,7 @@ class SimpleMoon(Morphology):
 
     def __init__(
         self,
+        surface: Surface | str | None = None,
         ejecta_truncation: FloatLike | None = None,
         dorays: bool = True,
         rng: Generator | None = None,
@@ -119,7 +122,9 @@ class SimpleMoon(Morphology):
         object.__setattr__(self, "_node", None)
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
-        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        super().__init__(
+            surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs
+        )
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -129,7 +134,7 @@ class SimpleMoon(Morphology):
             base += "\nEjecta Truncation: Off"
         return f"{base}\nEjecta Rays: {self.dorays}"
 
-    def emplace(self, crater: Crater, surface: Surface, **kwargs: Any) -> None:
+    def emplace(self, crater: Crater, **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
         Initializes and uses the queue system behind the scenes.
@@ -138,18 +143,16 @@ class SimpleMoon(Morphology):
         ----------
         crater : Crater
             The crater to be emplaced.
-        surface : Surface
-            The surface object to modify.
         kwargs : Any
             Additional keyword arguments to pass to the emplace method.
         """
         crater = SimpleMoonCrater.maker(crater)
-        super().emplace(crater, surface)
+        super().emplace(crater)
         return
 
     def crater_shape(
-        self, crater: SimpleMoonCrater, region_view: SurfaceView, surface: Surface
-    ) -> Surface:
+        self, crater: SimpleMoonCrater, region_view: SurfaceView
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the crater shape based on the region view and surface.
 
@@ -159,46 +162,41 @@ class SimpleMoon(Morphology):
             The crater object containing the parameters for the crater shape.
         region_view : RegionView
             The region view of the surface mesh.
-        surface : Surface
-            The surface mesh.
 
         Returns
         -------
-        surface : Surface
-            The modified surface mesh with the crater shape applied.
+        tuple[NDArray[np.float64], NDArray[np.float64]]
+            The computed crater shape at the face and node elevations.
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        node_crater_distance, face_crater_distance = region_view.get_distance(
-            crater.location
-        )
         reference_face_elevation, reference_node_elevation = (
-            surface.get_reference_surface(
-                region_view,
-                face_crater_distance,
-                node_crater_distance,
-                crater.location,
-                crater.final_radius,
+            self.surface.get_reference_surface(
+                region_view=region_view,
+                reference_radius=crater.final_radius,
             )
         )
 
         # Combine distances and references for nodes and faces
         combined_distances = np.concatenate(
-            [node_crater_distance, face_crater_distance]
+            [region_view.face_distance, region_view.node_distance]
         )
         combined_reference = np.concatenate(
-            [reference_node_elevation, reference_face_elevation]
+            [reference_face_elevation, reference_node_elevation]
         )
-        combined_elevation = self.crater_profile(
+        combined_original_elevation = np.concatenate(
+            [region_view.face_elevation, region_view.node_elevation]
+        )
+
+        combined_new_elevation = self.crater_profile(
             crater, combined_distances, combined_reference
         )
+        combined_elevation_change = combined_new_elevation - combined_original_elevation
 
-        node_elevation = combined_elevation[: len(node_crater_distance)]
-        face_elevation = combined_elevation[len(node_crater_distance) :]
+        face_elevation = combined_elevation_change[: region_view.n_face]
+        node_elevation = combined_elevation_change[region_view.n_face :]
 
-        region_view.node_elevation = node_elevation
-        region_view.face_elevation = face_elevation
-        return surface
+        return face_elevation, node_elevation
 
     def crater_profile(
         self, crater: SimpleMoonCrater, r: ArrayLike, r_ref: ArrayLike | None = None
@@ -248,8 +246,10 @@ class SimpleMoon(Morphology):
         return elevation
 
     def ejecta_shape(
-        self, crater: SimpleMoonCrater, region_view: SurfaceView, surface: Surface
-    ) -> Surface:
+        self,
+        crater: SimpleMoonCrater,
+        region_view: SurfaceView,
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the ejecta shape based on the region view and surface.
 
@@ -257,49 +257,36 @@ class SimpleMoon(Morphology):
         ----------
         region_view : RegionView
             The region view of the surface mesh.
-        surface : Surface
-            The surface mesh.
 
         Returns
         -------
-        surface : Surface
-            The modified surface mesh with the ejecta shape applied.
+        tuple[NDArray[np.float64], NDArray[np.float64]]
+            The computed ejecta shape at the node and face elevations.
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        node_crater_distance, face_crater_distance = region_view.get_distance(
-            crater.location
+
+        combined_distances = np.concatenate(
+            [region_view.face_distance, region_view.node_distance]
         )
         if self.dorays:
-            node_crater_bearings, face_crater_bearings = (
-                region_view.get_initial_bearing(crater.location)
-            )
-            combined_distances = np.concatenate(
-                [node_crater_distance, face_crater_distance]
-            )
             combined_bearings = np.concatenate(
-                [node_crater_bearings, face_crater_bearings]
+                [region_view.face_bearing, region_view.node_bearing]
             )
             combined_thickness, combined_ray_intensity = self.ejecta_distribution(
                 crater, combined_distances, combined_bearings
             )
-            surface.ray_intensity[region_view.face_indices] = combined_ray_intensity[
-                len(node_crater_distance) :
-            ]
-        else:
-            combined_distances = np.concatenate(
-                [node_crater_distance, face_crater_distance]
+            self.surface.ray_intensity[region_view.face_indices] = (
+                combined_ray_intensity[: region_view.n_face]
             )
+        else:
             combined_thickness = self.ejecta_profile(crater, combined_distances)
 
         # Slice back the combined thickness without copying
-        node_thickness = combined_thickness[: len(node_crater_distance)]
-        face_thickness = combined_thickness[len(node_crater_distance) :]
+        face_thickness = combined_thickness[: region_view.n_face]
+        node_thickness = combined_thickness[region_view.n_face :]
 
-        region_view.face_elevation += face_thickness
-        region_view.node_elevation += node_thickness
-
-        return surface
+        return face_thickness, node_thickness
 
     def ejecta_profile(
         self, crater: SimpleMoonCrater, r: ArrayLike

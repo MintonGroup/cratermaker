@@ -152,18 +152,22 @@ class Simulation(CratermakerBase):
             **scaling_config,
         )
 
-        morphology_config = {**morphology_config, **kwargs}
-        self.morphology = Morphology.maker(self.morphology, **morphology_config)
-
         surface_config = {**surface_config, **kwargs}
         surface_config["reset"] = not resume_old
         self.surface = Surface.maker(
             self.surface,
             target=self.target,
-            scaling=self.scaling,
-            morphology=self.morphology,
             **surface_config,
         )
+
+        morphology_config = {**morphology_config, **kwargs}
+        self.morphology = Morphology.maker(
+            self.morphology, surface=self.surface, **morphology_config
+        )
+        if self.surface.gridtype == "hireslocal":
+            self.surface.set_superdomain(
+                scaling=self.scaling, morphology=self.morphology, **surface_config
+            )
 
         self._craterlist = []
         self._crater = None
@@ -257,7 +261,7 @@ class Simulation(CratermakerBase):
         else:
             return largest_crater
 
-    def enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
+    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
         """
         Add a crater to the queue for later emplacement.
 
@@ -274,10 +278,10 @@ class Simulation(CratermakerBase):
         RuntimeError
             If the queue manager has not been initialized.
         """
-        self.morphology.enqueue_crater(crater, self.surface, **kwargs)
+        self.morphology._enqueue_crater(crater, **kwargs)
         return
 
-    def process_queue(self) -> None:
+    def _process_queue(self) -> None:
         """
         Process all queued craters in the order they were added, forming non-overlapping
         batches and applying each to the surface.
@@ -288,7 +292,7 @@ class Simulation(CratermakerBase):
         RuntimeError
             If the queue manager has not been initialized.
         """
-        self.morphology.process_queue(self.surface)
+        self.morphology._process_queue()
         return
 
     def emplace(
@@ -344,11 +348,11 @@ class Simulation(CratermakerBase):
             crater = Crater.maker(**crater_args)
         elif isinstance(crater, list) and len(crater) > 0:
             for c in crater:
-                self.enqueue_crater(c)
-            self.process_queue()
+                self._enqueue_crater(c)
+            self._process_queue()
             return
         if isinstance(crater, Crater):
-            self.morphology.emplace(crater, self.surface, **kwargs)
+            self.morphology.emplace(crater, **kwargs)
 
         return
 
