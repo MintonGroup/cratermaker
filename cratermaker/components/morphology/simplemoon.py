@@ -276,13 +276,11 @@ class SimpleMoon(Morphology):
             combined_thickness, combined_ray_intensity = self.ejecta_distribution(
                 crater, combined_distances, combined_bearings
             )
-            if "ray_intensity" not in self.surface.uxds:
-                self.surface.add_data(
-                    "ray_intensity", long_name="ray intensity", data=0.0
-                )
-                self.surface.uxds["ray_intensity"][region_view.face_indices] = (
-                    combined_ray_intensity[: region_view.n_face]
-                )
+            region_view.add_data(
+                name="ray_intensity",
+                long_name="ray intensity",
+                data=combined_ray_intensity[: region_view.n_face],
+            )
         else:
             combined_thickness = self.ejecta_profile(crater, combined_distances)
 

@@ -349,7 +349,7 @@ class Surface(ComponentBase):
             if name not in self._data_variable_init:
                 del self.uxds[name]
         for name, entry in self._data_variable_init.items():
-            self.add_data(
+            self._add_new_data(
                 name=name,
                 data=entry["initial_value"],
                 long_name=entry["long_name"],
@@ -479,7 +479,7 @@ class Surface(ComponentBase):
         """
         return self.full_view().get_initial_bearing(location)
 
-    def add_data(
+    def _add_new_data(
         self,
         name: str,
         long_name: str | None = None,
@@ -558,6 +558,71 @@ class Surface(ComponentBase):
             self._save_data(uxda, interval_number, combine_data_files)
         return
 
+    def add_data(
+        self,
+        name: str,
+        data: FloatLike | NDArray,
+        long_name: str | None = None,
+        units: str | None = None,
+        isfacedata: bool | None = None,
+    ) -> None:
+        """
+        Adds new data
+
+        Parameters
+        ----------
+        name : str
+            Name of the data variable. This will also be used as the data file name.
+        data : scalar or array-like
+            Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+        long_name : str, optional
+            Long name of the data variable that will be saved as an attribute.
+        units : str, optional
+            Units of the data variable that will be saved as an attribute.
+        isfacedata : bool, optional
+            Flag to indicate whether the data is face data or node data. Required if data is a scalar, otherwise it is ignored
+        Returns
+        -------
+        None
+        """
+        # Check if the data is a scalar or an array
+        if np.isscalar(data):
+            if isfacedata is None:
+                raise ValueError("isfacedata must be set if data is a scalar")
+            if isfacedata:
+                n = self.n_face
+            else:
+                n = self.n_node
+            data = np.full(n, data)
+        elif isinstance(data, list):
+            data = np.array(data)
+        else:
+            data = np.asarray(data)
+        if data.size == self.n_face:
+            isfacedata = True
+        elif data.size == self.n_node:
+            isfacedata = False
+        else:
+            raise ValueError(
+                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
+            )
+
+        # Check if the data is a scalar or an array
+        if np.isscalar(data):
+            data = np.full(n, data)
+        elif isinstance(data, list):
+            data = np.array(data)
+        else:
+            data = np.asarray(data)
+
+        if name not in self.uxds.data_vars:
+            self._add_new_data(
+                name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
+            )
+
+        self.uxds[name].data = data
+        return
+
     def set_elevation(
         self,
         new_elev: NDArray[np.float64] | list[FloatLike] | None = None,
@@ -596,7 +661,7 @@ class Surface(ComponentBase):
             )
 
         if gen_node:
-            self.add_data(
+            self._add_new_data(
                 data=new_elev,
                 name="node_elevation",
                 long_name="elevation of nodes",
@@ -607,7 +672,7 @@ class Surface(ComponentBase):
                 interval_number=interval_number,
             )
         if gen_face:
-            self.add_data(
+            self._add_new_data(
                 data=new_elev,
                 name="face_elevation",
                 long_name="elevation of faces",
@@ -1928,6 +1993,67 @@ class SurfaceView:
         node_noise -= mean
         self.node_elevation += node_noise * self.surface.radius
         self.face_elevation += face_noise * self.surface.radius
+        return
+
+    def add_data(
+        self,
+        name: str,
+        data: FloatLike | NDArray,
+        long_name: str | None = None,
+        units: str | None = None,
+        isfacedata: bool | None = None,
+    ) -> None:
+        """
+        Adds new data
+
+        Parameters
+        ----------
+        name : str
+            Name of the data variable. This will also be used as the data file name.
+        data : scalar or array-like
+            Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+        long_name : str, optional
+            Long name of the data variable that will be saved as an attribute.
+        units : str, optional
+            Units of the data variable that will be saved as an attribute.
+        isfacedata : bool, optional
+            Flag to indicate whether the data is face data or node data. Required if data is a scalar, otherwise it is ignored
+
+        Returns
+        -------
+        None
+        """
+
+        # Check if the data is a scalar or an array
+        if np.isscalar(data):
+            if isfacedata is None:
+                raise ValueError("isfacedata must be set if data is a scalar")
+            if isfacedata:
+                n = self.n_face
+            else:
+                n = self.n_node
+            data = np.full(n, data)
+        elif isinstance(data, list):
+            data = np.array(data)
+        else:
+            data = np.asarray(data)
+        if data.size == self.n_face:
+            isfacedata = True
+            indices = self.face_indices
+        elif data.size == self.n_node:
+            isfacedata = False
+            indices = self.node_indices
+        else:
+            raise ValueError(
+                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
+            )
+
+        if name not in self.surface.uxds.data_vars:
+            self.surface._add_new_data(
+                name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
+            )
+
+        self.surface.uxds[name][indices] = data
         return
 
 

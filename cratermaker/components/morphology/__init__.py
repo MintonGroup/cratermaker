@@ -170,13 +170,12 @@ class Morphology(ComponentBase):
             face_thickness *= conservation_factor
             node_thickness *= conservation_factor
 
-        if "ejecta_thickness" not in self.surface.uxds:
-            self.surface.add_data(
-                "ejecta_thickness", long_name="ejecta thickness", units="m", data=0.0
-            )
-            self.surface.uxds["ejecta_thickness"][ejecta_region_view.face_indices] += (
-                face_thickness
-            )
+        ejecta_region_view.add_data(
+            "ejecta_thickness",
+            long_name="ejecta thickness",
+            units="m",
+            data=face_thickness,
+        )
 
         ejecta_region_view.face_elevation += face_thickness
         ejecta_region_view.node_elevation += node_thickness
