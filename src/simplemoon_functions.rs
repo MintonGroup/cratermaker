@@ -16,9 +16,7 @@ use crate::{EJPROFILE, RIMDROP, VSMALL};
 
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
-const FRAYREDUCTION: f64 = 0.5;
-const A: f64 = 4.0 / 11.0;
-const B: f64 = -32.0 / 187.0;
+const FRAYREDUCTION: f64 = 0.90;
 
 /// Defines crater dimensions for surface modification computations.
 ///
@@ -124,7 +122,9 @@ pub fn crater_profile<'py>(
             "input arrays must have the same length",
         ));
     }
-
+    const A: f64 = 4.0 / 11.0;
+    const B: f64 = -32.0 / 187.0;
+    
     // Calculate the floor radius relative to the final crater radius
     let flrad = floor_diameter / diameter;
     let radius = diameter / 2.0;
@@ -434,9 +434,10 @@ fn ray_intensity_func(
                     0.0 // Skip this ray contribution
                 } else {
                     let w = (rmax / length).powf(1.0);
+                    let k  = 1.25;
                     let rw = PI / (w * NRAYMAX as f64)
                         * (rmin / r)
-                        * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powi(2)).exp());
+                        * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(k)).exp());
                     ejecta_ray_func(theta, thetari[i as usize], r, n, rw)
                 }
             })
