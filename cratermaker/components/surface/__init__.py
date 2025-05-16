@@ -331,7 +331,7 @@ class Surface(ComponentBase):
         Reset the surface to its initial state.
         """
         for name, entry in self._data_variable_init.items():
-            self.generate_data(
+            self.add_data(
                 name=name,
                 data=entry["initial_value"],
                 long_name=entry["long_name"],
@@ -536,7 +536,7 @@ class Surface(ComponentBase):
 
         return self._face_tree
 
-    def generate_data(
+    def add_data(
         self,
         name: str,
         long_name: str | None = None,
@@ -653,7 +653,7 @@ class Surface(ComponentBase):
             )
 
         if gen_node:
-            self.generate_data(
+            self.add_data(
                 data=new_elev,
                 name="node_elevation",
                 long_name="elevation of nodes",
@@ -664,7 +664,7 @@ class Surface(ComponentBase):
                 interval_number=interval_number,
             )
         if gen_face:
-            self.generate_data(
+            self.add_data(
                 data=new_elev,
                 name="face_elevation",
                 long_name="elevation of faces",
