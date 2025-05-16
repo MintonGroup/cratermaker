@@ -410,6 +410,7 @@ class SimpleMoon(Morphology):
             rflat,
             theta_flat,
             crater.final_diameter,
+            seed=self.rng.integers(0, 2**32 - 1),
         )
         intensity = np.array(intensity, dtype=np.float64)
         # reshape intensity to match the shape of r and theta
