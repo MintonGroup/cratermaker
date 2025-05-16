@@ -156,7 +156,7 @@ class HiResLocalSurface(Surface):
 
             # Calculate distance from the location to the grid point
             distance = self.calculate_haversine_distance(
-                loc_lon_rad, loc_lat_rad, lon_rad, lat_rad, self.radius
+                loc_lon_rad, loc_lat_rad, lon_rad, lat_rad
             )
             ans = np.where(
                 distance <= self.local_radius,

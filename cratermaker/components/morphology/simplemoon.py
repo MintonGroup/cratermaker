@@ -169,8 +169,8 @@ class SimpleMoon(Morphology):
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        node_crater_distance, face_crater_distance = surface.get_distance(
-            region_view, crater.location
+        node_crater_distance, face_crater_distance = region_view.get_distance(
+            crater.location
         )
         reference_face_elevation, reference_node_elevation = (
             surface.get_reference_surface(
@@ -267,12 +267,12 @@ class SimpleMoon(Morphology):
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        node_crater_distance, face_crater_distance = surface.get_distance(
-            region_view, crater.location
+        node_crater_distance, face_crater_distance = region_view.get_distance(
+            crater.location
         )
         if self.dorays:
-            node_crater_bearings, face_crater_bearings = surface.get_initial_bearing(
-                region_view, crater.location
+            node_crater_bearings, face_crater_bearings = (
+                region_view.get_initial_bearing(crater.location)
             )
             combined_distances = np.concatenate(
                 [node_crater_distance, face_crater_distance]
