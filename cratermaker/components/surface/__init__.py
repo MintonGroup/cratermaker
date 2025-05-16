@@ -345,7 +345,8 @@ class Surface(ComponentBase):
         """
 
         # Remove all old data from the dataset
-        for name in self.uxds.data_vars:
+        varlist = list(self.uxds.data_vars)
+        for name in varlist:
             if name not in self._data_variable_init:
                 del self.uxds[name]
         for name, entry in self._data_variable_init.items():
