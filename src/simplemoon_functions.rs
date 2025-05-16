@@ -435,7 +435,6 @@ fn ray_intensity_func(
                     0.0 // Skip this ray contribution
                 } else {
                     let w = (rmax / length).powf(1.0);
-                    let k  = 1.25;
                     let rw = PI / (w * NRAYMAX as f64)
                         * (rmin / r)
                         * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(RAY_WIDTH_EXPONENT)).exp());

@@ -1936,7 +1936,7 @@ class SurfaceView:
             return
         face_kappa = np.zeros(self.surface.n_face)
         face_kappa[self.face_indices] = kdiff
-        if self.face_indices == slice(None):
+        if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
             face_indices = np.arange(self.surface.n_face)
         else:
             face_indices = self.face_indices
