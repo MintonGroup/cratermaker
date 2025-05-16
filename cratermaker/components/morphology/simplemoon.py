@@ -8,7 +8,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import fsolve
 
-from cratermaker._simplemoon import crater_functions, ejecta_functions
+from cratermaker._cratermaker import simplemoon_functions as sm
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.surface import Surface, SurfaceView
 from cratermaker.constants import FloatLike
@@ -169,8 +169,8 @@ class SimpleMoon(Morphology):
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        node_crater_distance, face_crater_distance = surface.get_distance(
-            region_view, crater.location
+        node_crater_distance, face_crater_distance = region_view.get_distance(
+            crater.location
         )
         reference_face_elevation, reference_node_elevation = (
             surface.get_reference_surface(
@@ -196,8 +196,8 @@ class SimpleMoon(Morphology):
         node_elevation = combined_elevation[: len(node_crater_distance)]
         face_elevation = combined_elevation[len(node_crater_distance) :]
 
-        surface.node_elevation[region_view.node_indices] = node_elevation
-        surface.face_elevation[region_view.face_indices] = face_elevation
+        region_view.node_elevation = node_elevation
+        region_view.face_elevation = face_elevation
         return surface
 
     def crater_profile(
@@ -232,7 +232,7 @@ class SimpleMoon(Morphology):
         # flatten r to 1D array
         rflat = np.ravel(r)
         r_ref_flat = np.ravel(r_ref)
-        elevation = crater_functions.profile(
+        elevation = sm.crater_profile(
             rflat,
             r_ref_flat,
             crater.final_diameter,
@@ -267,12 +267,12 @@ class SimpleMoon(Morphology):
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        node_crater_distance, face_crater_distance = surface.get_distance(
-            region_view, crater.location
+        node_crater_distance, face_crater_distance = region_view.get_distance(
+            crater.location
         )
         if self.dorays:
-            node_crater_bearings, face_crater_bearings = surface.get_initial_bearing(
-                region_view, crater.location
+            node_crater_bearings, face_crater_bearings = (
+                region_view.get_initial_bearing(crater.location)
             )
             combined_distances = np.concatenate(
                 [node_crater_distance, face_crater_distance]
@@ -296,9 +296,8 @@ class SimpleMoon(Morphology):
         node_thickness = combined_thickness[: len(node_crater_distance)]
         face_thickness = combined_thickness[len(node_crater_distance) :]
 
-        surface.ejecta_thickness[region_view.face_indices] = face_thickness
-        surface.face_elevation[region_view.face_indices] += face_thickness
-        surface.node_elevation[region_view.node_indices] += node_thickness
+        region_view.face_elevation += face_thickness
+        region_view.node_elevation += node_thickness
 
         return surface
 
@@ -328,7 +327,7 @@ class SimpleMoon(Morphology):
             crater = SimpleMoonCrater.maker(crater)
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = ejecta_functions.profile(rflat, crater.final_diameter, crater.ejrim)
+        elevation = sm.ejecta_profile(rflat, crater.final_diameter, crater.ejrim)
         elevation = np.array(elevation, dtype=np.float64)
         # reshape elevation to match the shape of r
         elevation = np.reshape(elevation, r.shape)
@@ -364,10 +363,11 @@ class SimpleMoon(Morphology):
         thickness = self.ejecta_profile(crater, r)
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
-        ray_intensity = ejecta_functions.ray_intensity(
-            rflat,
-            theta_flat,
-            crater.final_diameter,
+        ray_intensity = sm.ray_intensity(
+            radial_distance=rflat,
+            initial_bearing=theta_flat,
+            crater_diameter=crater.final_diameter,
+            seed=self.rng.integers(0, 2**32 - 1),
         )
         thickness = np.array(thickness, dtype=np.float64)
         ray_intensity = np.array(ray_intensity, dtype=np.float64)
@@ -406,10 +406,11 @@ class SimpleMoon(Morphology):
         # flatten r and theta to 1D arrays
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
-        intensity = ejecta_functions.ray_intensity(
+        intensity = sm.ray_intensity(
             rflat,
             theta_flat,
             crater.final_diameter,
+            seed=self.rng.integers(0, 2**32 - 1),
         )
         intensity = np.array(intensity, dtype=np.float64)
         # reshape intensity to match the shape of r and theta

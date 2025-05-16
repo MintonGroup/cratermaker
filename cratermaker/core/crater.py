@@ -113,6 +113,7 @@ class Crater:
         projectile_vertical_velocity=None,
         projectile_angle: float | None = None,
         projectile_direction: float | None = None,
+        projectile_location: tuple[float, float] | None = None,
         location: tuple[float, float] | None = None,
         age: float | None = None,
         simdir: str | Path | None = None,
@@ -160,8 +161,10 @@ class Crater:
             The impact angle in degrees (0-90).
         projectile_direction : float, optional
             The direction of the impact in degrees (0-360).
+        projectile_location : tuple of float, optional
+            The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence
         location : tuple of float, optional
-            The (longitude, latitude) location of the impact.
+            The (longitude, latitude) location of the crater.
         age : float, optional
             The age of the crater in Myr.
         simdir : str | Path
@@ -209,6 +212,9 @@ class Crater:
             "projectile_vertical_velocity": projectile_vertical_velocity,
             "projectile_angle": projectile_angle,
         }
+
+        if location is None:
+            location = projectile_location
 
         args = {
             "final_diameter": final_diameter,
@@ -303,11 +309,6 @@ class Crater:
             projectile, target=target, **vars(argproc.common_args), **kwargs
         )
 
-        # --- Normalize location and age ---
-        if args["location"] is None:
-            args["location"] = mc.get_random_location(rng=rng)[0]
-        location = validate_and_normalize_location(args["location"])
-
         # --- Handle projectile vs. raw velocity input ---
         pmv = projectile_mean_velocity
         pv = args["projectile_velocity"]
@@ -315,6 +316,12 @@ class Crater:
         pang = args["projectile_angle"]
         pdir = args["projectile_direction"]
         prho = args["projectile_density"]
+        location = args["location"]
+
+        # --- Normalize location and age ---
+        if location is not None:
+            location = validate_and_normalize_location(location)
+            projectile.location = location
 
         # --- Resolve velocity input combinations ---
         if pmv is not None:
@@ -374,7 +381,6 @@ class Crater:
             **kwargs,
         )
         projectile = scaling.projectile
-        projectile.new_projectile()
         scaling.recompute()
         target = scaling.target
         pv = projectile.velocity
@@ -382,6 +388,7 @@ class Crater:
         pang = projectile.angle
         pdir = projectile.direction
         prho = projectile.density
+        location = projectile.location
 
         # --- Ensure velocity/angle are all set ---
         n_set = sum(x is not None for x in [pv, pvv, pang])
@@ -434,10 +441,8 @@ class Crater:
             "projectile_velocity": float(pv) if pv is not None else None,
             "projectile_angle": float(pang) if pang is not None else None,
             "projectile_direction": float(pdir) if pdir is not None else None,
+            "location": (float(location[0]), float(location[1])),
             "morphology_type": str(mt) if mt is not None else None,
-            "location": (float(location[0]), float(location[1]))
-            if location is not None
-            else None,
             "age": float(age) if age is not None else None,
         }
         return cls(**args)
