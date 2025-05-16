@@ -369,9 +369,10 @@ class Surface(ComponentBase):
         noise_width: FloatLike = 1000e3,
         noise_height: FloatLike = 1e3,
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Apply noise to the surface.
+
         Parameters
         ----------
         model : str
@@ -1809,7 +1810,7 @@ class SurfaceView:
         noise_width: FloatLike = 1000e3,
         noise_height: FloatLike = 1e3,
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Apply noise to the node elevations of the surface view.
 
@@ -1819,11 +1820,6 @@ class SurfaceView:
             The spatial wavelength of the noise.
         noise_height : float
             The amplitude of the noise.
-
-        Returns
-        -------
-        NDArray
-            The updated node elevations after applying noise.
         """
         num_octaves = kwargs.pop("num_octaves", 12)
         anchor = kwargs.pop(
