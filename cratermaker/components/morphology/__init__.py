@@ -167,11 +167,19 @@ class Morphology(ComponentBase):
         if crater_volume:
             ejecta_volume = ejecta_region_view.compute_volume(face_thickness)
             conservation_factor = -crater_volume / ejecta_volume
-        else:
-            conservation_factor = 1.0
+            face_thickness *= conservation_factor
+            node_thickness *= conservation_factor
 
-        ejecta_region_view.face_elevation += face_thickness * conservation_factor
-        ejecta_region_view.node_elevation += node_thickness * conservation_factor
+        if "ejecta_thickness" not in self.surface.uxds:
+            self.surface.add_data(
+                "ejecta_thickness", long_name="ejecta thickness", units="m", data=0.0
+            )
+            self.surface.uxds["ejecta_thickness"][ejecta_region_view.face_indices] += (
+                face_thickness
+            )
+
+        ejecta_region_view.face_elevation += face_thickness
+        ejecta_region_view.node_elevation += node_thickness
         return
 
     def _affected_indices(self, crater: Crater) -> tuple[set[int], set[int]]:
