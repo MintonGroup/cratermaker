@@ -533,6 +533,10 @@ class Simulation(CratermakerBase):
         The input diameter values used in diameter_number, diameter_number_end, and diameter_number_interval need not be the same.
         However, the production function will be used to convert all numbers to a common diameter value on output.
 
+        The initial state of the simulation (before any craters are emplaced) is always saved automatically.
+        As a result, the total number of saved states will be `ninterval + 1`, where `ninterval` is the number
+        of simulation intervals requested.
+
         Examples
         --------
         .. code-block:: python
@@ -557,8 +561,16 @@ class Simulation(CratermakerBase):
             sim.run(age=3.8e3, age_end=3.0e3, age_interval=100.0)
 
         """
-        arguments = locals().copy()
-        arguments.pop("self")
+        arguments = {
+            "age": age,
+            "age_end": age_end,
+            "age_interval": age_interval,
+            "diameter_number": diameter_number,
+            "diameter_number_end": diameter_number_end,
+            "diameter_number_interval": diameter_number_interval,
+            "ninterval": ninterval,
+            **kwargs,
+        }
         arguments = self._validate_run_args(**arguments)
         age = arguments.pop("age", None)
         age_end = arguments.pop("age_end", None)

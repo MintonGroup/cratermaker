@@ -160,8 +160,16 @@ class Production(ComponentBase):
             The sampled age values if return_age is True, otherwise None.
 
         """
-        arguments = locals().copy()
-        arguments.pop("self")
+        arguments = {
+            "age": age,
+            "age_end": age_end,
+            "diameter_number": diameter_number,
+            "diameter_number_end": diameter_number_end,
+            "diameter_range": diameter_range,
+            "area": area,
+            "return_age": return_age,
+            **kwargs,
+        }
         arguments = self._validate_sample_args(**arguments)
         age = arguments["age"]
         age_end = arguments["age_end"]
