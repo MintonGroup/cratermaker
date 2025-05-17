@@ -464,7 +464,6 @@ class Simulation(CratermakerBase):
                 face_indices = self.rng.choice(face_indices, size=diameters.shape, p=p)
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
-
         if len(impact_diameters) > 0:
             craterlist = []
             # Sort the ages, diameters, and locations so that they are in order of decreasing age
@@ -580,7 +579,8 @@ class Simulation(CratermakerBase):
             range(ninterval + 1),
             total=ninterval + 1,
             desc="Simulation interval",
-            position=0,
+            unit="interval",
+            position=1,
             leave=True,
         ):
             self.interval_number = i
