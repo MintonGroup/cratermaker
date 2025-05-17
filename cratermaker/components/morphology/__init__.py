@@ -268,13 +268,27 @@ class Morphology(ComponentBase):
                 "Queue manager has not been initialized. Call _init_queue_manager first."
             )
 
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+
         def _batch_process(pbar=None):
+            lock = threading.Lock()
             while not self._queue_manager.is_empty():
                 batch = self._queue_manager.peek_next_batch()
-                for crater in batch:
-                    self.form_crater(crater)
-                    if pbar is not None:
-                        pbar.update(1)
+
+                def process(crater):
+                    # For now we have to lock the entire batch to prevent segfaults from the shared memory views of the Surface arrays
+                    with lock:
+                        try:
+                            self.form_crater(crater)
+                            if pbar is not None:
+                                pbar.update(1)
+                        except Exception as e:
+                            print(f"Exception during form_crater: {e}")
+
+                with ThreadPoolExecutor() as executor:
+                    executor.map(process, batch)
+
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
             return
@@ -282,7 +296,7 @@ class Morphology(ComponentBase):
         total_craters = len(self._queue_manager._queue)
         if total_craters > 10:
             with tqdm(
-                total=total_craters, desc="Processing craters", position=1
+                total=total_craters, desc="Processing craters", position=1, leave=True
             ) as pbar:
                 _batch_process(pbar)
         else:
@@ -344,7 +358,8 @@ class CraterQueueManager:
 
     def __init__(self, overlap_fn: Callable[[Crater], tuple[set[int], set[int]]]):
         self._queue: list[Crater] = []
-        self._active_entities: set[int] = set()
+        self._active_nodes: set[int] = set()
+        self._active_faces: set[int] = set()
         self._overlap_fn = overlap_fn
 
     def push(self, crater: Crater) -> None:
@@ -356,13 +371,16 @@ class CraterQueueManager:
         or the current active region.
         """
         batch = []
-        reserved = set(self._active_entities)
+        reserved_nodes = set(self._active_nodes)
+        reserved_faces = set(self._active_faces)
         for crater in self._queue:
             node_indices, face_indices = self._overlap_fn(crater)
-            combined = node_indices | face_indices
-            if reserved.isdisjoint(combined):
+            if reserved_nodes.isdisjoint(node_indices) and reserved_faces.isdisjoint(
+                face_indices
+            ):
                 batch.append(crater)
-                reserved.update(combined)
+                reserved_nodes.update(node_indices)
+                reserved_faces.update(face_indices)
             else:
                 break
         return batch
@@ -374,13 +392,15 @@ class CraterQueueManager:
         for crater in batch:
             self._queue.remove(crater)
             node_indices, face_indices = self._overlap_fn(crater)
-            self._active_entities.update(node_indices | face_indices)
+            self._active_nodes.update(node_indices)
+            self._active_faces.update(face_indices)
 
     def clear_active(self) -> None:
         """
         Clear the active region set after batch processing is complete.
         """
-        self._active_entities.clear()
+        self._active_nodes.clear()
+        self._active_faces.clear()
 
     def is_empty(self) -> bool:
         return len(self._queue) == 0
