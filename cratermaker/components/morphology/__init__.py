@@ -300,7 +300,7 @@ class Morphology(ComponentBase):
                 desc="Processing craters",
                 position=0,
                 leave=False,
-                unit="crater",
+                unit="craters",
             ) as pbar:
                 _batch_process(pbar)
         else:

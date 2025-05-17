@@ -604,12 +604,21 @@ class Simulation(CratermakerBase):
                         diameter_number=current_diameter_number,
                         diameter_number_end=current_diameter_number_end,
                     )
+                    current_diameter_number_density = (
+                        current_diameter_number[0],
+                        current_diameter_number[1] / self.surface.area,
+                    )
                     current_age = self.production.function_inverse(
-                        *current_diameter_number
+                        *current_diameter_number_density
                     )
                     if current_diameter_number_end[1] > 0:
+                        current_diameter_number_density_end = (
+                            current_diameter_number_end[0],
+                            current_diameter_number_end[1] / self.surface.area,
+                        )
+
                         current_age_end = self.production.function_inverse(
-                            *current_diameter_number_end
+                            *current_diameter_number_density_end
                         )
                     else:
                         current_age_end = 0.0
@@ -697,9 +706,7 @@ class Simulation(CratermakerBase):
                     "Cannot specify both ninterval and age_interval or diameter_number_interval"
                 )
 
-        is_age_interval = age_interval is not None or (
-            ninterval is not None and diameter_number_interval is None
-        )
+        is_age_interval = age_interval is not None
 
         # Validate arguments using the production function validator first
         if "diameter_range" not in kwargs:
