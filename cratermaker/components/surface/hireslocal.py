@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import Any
-from warnings import warn
 
 import numpy as np
 from numpy.typing import NDArray
@@ -68,15 +67,7 @@ class HiResLocalSurface(Surface):
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
-        if superdomain_scale_factor is None:
-            # Determine the scale factor for the superdomain based on the smallest crater whose ejecta can reach the edge of the
-            # superdomain. This will be used to set the superdomain scale factor, but is only possible with a scaling and morphology model
-            # because the Morphology requires a Surface, we must defer the creation of the grid until after the Morphology has been instantiated
-            warn(
-                "Deferring the creation of the grid until after the morphology has been instantiated.\nPlease call set_superdomain(scaling, morphology) to set the superdomain scale factor before using this surface.",
-                UserWarning,
-            )
-        else:
+        if superdomain_scale_factor is not None:
             self.superdomain_scale_factor = superdomain_scale_factor
             self.load_from_files(reset=reset, regrid=regrid, **kwargs)
 
