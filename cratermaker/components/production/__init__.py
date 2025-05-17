@@ -288,6 +288,7 @@ class Production(ComponentBase):
         )
 
         def _root_func(t, D, N):
+            kwargs.pop("check_valid_age", None)
             retval = (
                 self.function(diameter=D, age=t, check_valid_age=False, **kwargs) - N
             )
@@ -297,8 +298,12 @@ class Production(ComponentBase):
         x0 = 4000.0
         if self.valid_age[0] is not None:
             xlo = self.valid_age[0]
+        else:
+            xlo = 0.0
         if self.valid_age[1] is not None:
             xhi = self.valid_age[1]
+        else:
+            xhi = 1e6
         retval = []
         darr = np.array(diameter)
         narr = np.array(cumulative_number_density)
