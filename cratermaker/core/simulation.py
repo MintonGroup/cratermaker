@@ -581,6 +581,7 @@ class Simulation(CratermakerBase):
             total=ninterval + 1,
             desc="Simulation interval",
             position=0,
+            leave=True,
         ):
             self.interval_number = i
             if i > 0:  # This allows us to save the initial state of the simulation
