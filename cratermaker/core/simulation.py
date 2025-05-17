@@ -419,9 +419,7 @@ class Simulation(CratermakerBase):
             bins[bin_index].append(face_index)
 
         # Process each bin
-        for bin_index, face_indices in tqdm(
-            bins.items(), desc="Processing bins", position=2
-        ):
+        for bin_index, face_indices in bins.items():
             if not face_indices:
                 continue  # Skip empty bins
             face_indices = np.array(face_indices)
@@ -581,7 +579,7 @@ class Simulation(CratermakerBase):
         for i in tqdm(
             range(ninterval + 1),
             total=ninterval + 1,
-            desc="Simulation intervals",
+            desc="Simulation interval",
             position=0,
         ):
             self.interval_number = i
