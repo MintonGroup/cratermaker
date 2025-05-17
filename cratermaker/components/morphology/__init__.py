@@ -281,7 +281,9 @@ class Morphology(ComponentBase):
 
         total_craters = len(self._queue_manager._queue)
         if total_craters > 10:
-            with tqdm(total=total_craters, desc="Processing craters") as pbar:
+            with tqdm(
+                total=total_craters, desc="Processing craters", position=1
+            ) as pbar:
                 _batch_process(pbar)
         else:
             _batch_process()
