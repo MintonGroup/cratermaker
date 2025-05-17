@@ -259,23 +259,22 @@ fn ray_intensity_point(
     if r < crater_radius {
         return 0.0;
     }
-    (0..NPATT as usize)
-        .into_par_iter()
-        .map(|j| {
-            let rn = random_numbers[j];
-            let theta = (theta0 + rn * 2.0 * PI) % (2.0 * PI);
-            let r_pattern = r / crater_radius - rn;
-            FRAYREDUCTION.powi(j as i32 - 1)
-                * ray_intensity_func(
-                    r_pattern,
-                    theta,
-                    rmin,
-                    rmax,
-                    thetari,
-                    2.348 * crater_radius.powf(0.006),
-                )
-        })
-        .sum()
+    let mut sum = 0.0;
+    for j in 0..NPATT as usize {
+        let rn = random_numbers[j];
+        let theta = (theta0 + rn * 2.0 * PI) % (2.0 * PI);
+        let r_pattern = r / crater_radius - rn;
+        sum += FRAYREDUCTION.powi(j as i32 - 1)
+            * ray_intensity_func(
+                r_pattern,
+                theta,
+                rmin,
+                rmax,
+                thetari,
+                2.348 * crater_radius.powf(0.006),
+            );
+    }
+    sum
 }
 
 /// Computes the ray-modulated ejecta intensity values for a set of input points.

@@ -419,7 +419,7 @@ class Simulation(CratermakerBase):
             bins[bin_index].append(face_index)
 
         # Process each bin
-        for bin_index, face_indices in tqdm(bins.items(), "Processing bins"):
+        for bin_index, face_indices in bins.items():
             if not face_indices:
                 continue  # Skip empty bins
             face_indices = np.array(face_indices)
@@ -576,7 +576,13 @@ class Simulation(CratermakerBase):
         self.current_age = age
         self.elapsed_time = 0.0
         self.elapsed_n1 = 0.0
-        for i in tqdm(range(ninterval + 1), total=ninterval + 1):
+        for i in tqdm(
+            range(ninterval + 1),
+            total=ninterval + 1,
+            desc="Simulation interval",
+            position=0,
+            leave=True,
+        ):
             self.interval_number = i
             if i > 0:  # This allows us to save the initial state of the simulation
                 if is_age_interval:
