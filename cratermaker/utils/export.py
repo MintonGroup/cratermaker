@@ -77,11 +77,16 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
     writer = vtkXMLPolyDataWriter()
     writer.SetDataModeToBinary()
     writer.SetCompressorTypeToZLib()
-    print("Exporting VTK files...")
 
     with xr.open_mfdataset(data_file_list) as ds:
         # Warp the surface based on node_elevation data so that the exported mesh is the true shape rather than a sphere
-        for i in tqdm(range(len(ds.time))):
+        for i in tqdm(
+            range(len(ds.time)),
+            desc="Exporting VTK files",
+            unit="file",
+            position=0,
+            leave=True,
+        ):
             ids = ds.isel(time=i).load()
             current_grid = vtkUnstructuredGrid()
             current_grid.DeepCopy(vtk_data)

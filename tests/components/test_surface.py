@@ -81,7 +81,7 @@ class TestSurface(unittest.TestCase):
                 )
         return
 
-    def test_set_elevation(self):
+    def test_update_elevation(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             surface = Surface.maker(
                 simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
@@ -90,17 +90,16 @@ class TestSurface(unittest.TestCase):
             new_elev = np.random.rand(
                 surface.uxds.uxgrid.n_node
             )  # Generate random elevation data
-            surface.set_elevation(new_elev)
+            surface.update_elevation(new_elev)
 
             # Test with invalid elevation data (wrong size)
             new_elev = np.random.rand(surface.uxds.uxgrid.n_node + 1)  # Incorrect size
 
             # Expect ValueError for incorrect size
             with self.assertRaises(ValueError):
-                surface.set_elevation(new_elev)
+                surface.update_elevation(new_elev)
 
-            # Test setting elevation to None (should set to zero)
-            surface.set_elevation(None)
+            surface.update_elevation(0.0, overwrite=True)
 
             # Check if the elevation data is set to zero
             np.testing.assert_array_equal(
@@ -289,6 +288,81 @@ class TestSurface(unittest.TestCase):
                 self.assertTrue(Path(surface.grid_file).exists())
 
         return
+
+    def test_add_data(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            test_value = 76.0
+            surface = Surface.maker(
+                simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
+            )
+            region_view = surface.extract_region(location=(0, 0), region_radius=100e3)
+
+            for obj, uxds in zip(
+                [surface, region_view], [surface.uxds, region_view.surface.uxds]
+            ):
+                surface.reset()
+                obj.add_data(
+                    name="test_data",
+                    long_name="data for testing",
+                    units="furlongs per fortnight",
+                    data=test_value,
+                )
+                n_face = obj.n_face
+                n_node = obj.n_node
+                face_indices = obj.face_indices
+                node_indices = obj.node_indices
+                # Test that the attributes were added correctly
+                self.assertIn("test_data", uxds)
+                self.assertEqual(uxds["test_data"].long_name, "data for testing")
+                self.assertEqual(uxds["test_data"].units, "furlongs per fortnight")
+                np.testing.assert_array_equal(
+                    uxds["test_data"][face_indices].values,
+                    np.full(n_face, test_value),
+                )
+
+                obj.add_data(
+                    name="test_data",
+                    data=-test_value,
+                    long_name="this should be ignored",
+                    units="slug angstrom^2 / fortnight^2",
+                    overwrite=True,
+                )
+                # test that the attributes were ignored but the data was added
+                self.assertIn("test_data", uxds)
+                self.assertEqual(uxds["test_data"].long_name, "data for testing")
+                self.assertEqual(uxds["test_data"].units, "furlongs per fortnight")
+                np.testing.assert_array_equal(
+                    uxds["test_data"][face_indices].values,
+                    np.full(n_face, -test_value),
+                )
+
+                # Add scalar node data
+                obj.add_data(name="scalar_node", data=test_value, isfacedata=False)
+                self.assertIn("scalar_node", uxds)
+                np.testing.assert_array_equal(
+                    uxds["scalar_node"][node_indices].values,
+                    np.full(n_node, test_value),
+                )
+
+                # Add array face data
+                data_array = np.arange(n_face)
+                obj.add_data(name="array_face", data=data_array)
+                np.testing.assert_array_equal(
+                    uxds["array_face"][face_indices].values, data_array
+                )
+
+                # Overwrite behavior
+                obj.add_data(name="array_face", data=np.ones(n_face), overwrite=False)
+                np.testing.assert_array_equal(
+                    uxds["array_face"][face_indices].values,
+                    data_array + 1,
+                )
+
+                obj.add_data(name="array_face", data=np.zeros(n_face), overwrite=True)
+                np.testing.assert_array_equal(
+                    uxds["array_face"][face_indices].values,
+                    np.zeros(n_face),
+                )
 
 
 if __name__ == "__main__":
