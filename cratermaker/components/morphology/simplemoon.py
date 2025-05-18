@@ -272,8 +272,8 @@ class SimpleMoon(Morphology):
 
         Returns
         -------
-        tuple[NDArray[np.float64], NDArray[np.float64]]
-            The computed ejecta shape at the node and face elevations.
+        tuple[NDArray[np.float64], NDArray[np.float64]
+            The computed ejecta shape at the node and face elevations
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
@@ -285,13 +285,8 @@ class SimpleMoon(Morphology):
             combined_bearings = np.concatenate(
                 [region_view.face_bearing, region_view.node_bearing]
             )
-            combined_thickness, combined_ray_intensity = self.ejecta_distribution(
+            combined_thickness = self.ejecta_distribution(
                 crater, combined_distances, combined_bearings
-            )
-            region_view.add_data(
-                name="ray_intensity",
-                long_name="ray intensity",
-                data=combined_ray_intensity[: region_view.n_face],
             )
         else:
             combined_thickness = self.ejecta_profile(crater, combined_distances)
@@ -374,9 +369,7 @@ class SimpleMoon(Morphology):
         ray_intensity = np.array(ray_intensity, dtype=np.float64)
         thickness *= ray_intensity
         # reshape thickness to match the shape of r and theta
-        thickness = np.reshape(thickness, r.shape)
-        ray_intensity = np.reshape(ray_intensity, r.shape)
-        return thickness, ray_intensity
+        return np.reshape(thickness, r.shape)
 
     def ray_intensity(
         self, crater: SimpleMoonCrater, r: ArrayLike, theta: ArrayLike

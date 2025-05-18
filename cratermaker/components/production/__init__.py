@@ -160,8 +160,16 @@ class Production(ComponentBase):
             The sampled age values if return_age is True, otherwise None.
 
         """
-        arguments = locals().copy()
-        arguments.pop("self")
+        arguments = {
+            "age": age,
+            "age_end": age_end,
+            "diameter_number": diameter_number,
+            "diameter_number_end": diameter_number_end,
+            "diameter_range": diameter_range,
+            "area": area,
+            "return_age": return_age,
+            **kwargs,
+        }
         arguments = self._validate_sample_args(**arguments)
         age = arguments["age"]
         age_end = arguments["age_end"]
@@ -280,11 +288,22 @@ class Production(ComponentBase):
         )
 
         def _root_func(t, D, N):
-            retval = self.function(diameter=D, age=t, **kwargs) - N
+            kwargs.pop("check_valid_age", None)
+            retval = (
+                self.function(diameter=D, age=t, check_valid_age=False, **kwargs) - N
+            )
             return retval
 
-        xtol = 1e-10
-        x0 = 4400.0
+        xtol = 1e-8
+        x0 = 4000.0
+        if self.valid_age[0] is not None:
+            xlo = self.valid_age[0]
+        else:
+            xlo = 0.0
+        if self.valid_age[1] is not None:
+            xhi = self.valid_age[1]
+        else:
+            xhi = 1e6
         retval = []
         darr = np.array(diameter)
         narr = np.array(cumulative_number_density)
@@ -296,7 +315,7 @@ class Production(ComponentBase):
                 x0=x0,
                 xtol=xtol,
                 method="brentq",
-                bracket=[0, 10000],
+                bracket=[xlo, xhi],
             )
             retval.append(sol.root)
             converged.append(sol.converged)
@@ -333,6 +352,7 @@ class Production(ComponentBase):
     def chronology(
         self,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        check_valid_age: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike: ...
 
@@ -342,6 +362,7 @@ class Production(ComponentBase):
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        check_valid_age: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike: ...
 
@@ -602,6 +623,7 @@ class Production(ComponentBase):
         self,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        check_valid_age: bool = True,
     ) -> FloatLike | ArrayLike:
         """
         Processes the age argument and age_end arguments. Checks that they are valid and returns a tuple of age and age_end.
@@ -657,6 +679,18 @@ class Production(ComponentBase):
         else:
             raise ValueError("age must be a scalar or a sequence")
 
+        if check_valid_age:
+            if self.valid_age[0] is not None:
+                if np.any(age < self.valid_age[0]):
+                    raise ValueError(
+                        f"age must be greater than the minimum valid age {self.valid_age[0]}"
+                    )
+            if self.valid_age[1] is not None:
+                if np.any(age > self.valid_age[1]):
+                    raise ValueError(
+                        f"age must be less than the maximum valid age {self.valid_age[1]}"
+                    )
+
         return age, age_end
 
     @parameter
@@ -682,6 +716,18 @@ class Production(ComponentBase):
             )
         self._generator_type = value.lower()
         return
+
+    @property
+    def valid_age(self) -> tuple[float, float]:
+        """
+        The range of ages over which the production function is valid. The range is given in My.
+
+        Returns
+        -------
+        tuple
+            The lower and upper bounds of the valid time range in My, or None if not applicable.
+        """
+        return (None, None)
 
 
 import_components(__name__, __path__, ignore_private=True)
