@@ -1,8 +1,9 @@
 use std::f64::consts::PI;
+use std::collections::HashMap;
 
 use ndarray::Zip;
 use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
-use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1};
+use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -89,19 +90,27 @@ pub struct SurfaceView<'py> {
 /// A NumPy array of shape (n_face,) giving the elevation change per face for this update step.
 #[pyfunction]
 pub fn apply_diffusion<'py>(
+    py: Python<'py>,
     face_areas: PyReadonlyArray1<'py, f64>,
     face_kappa: PyReadonlyArray1<'py, f64>,
-    mut face_elevation: PyReadwriteArray1<'py, f64>,
+    face_elevation: PyReadonlyArray1<'py, f64>,
     face_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_indices: PyReadonlyArray1<'py, i64>,
-) {
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let face_areas = face_areas.as_array();
     let face_kappa = face_kappa.as_array();
-    let mut face_elevation = face_elevation.as_array_mut();
+    let face_elevation = face_elevation.as_array();
     let face_face_connectivity = face_face_connectivity.as_array();
     let n_max_face_faces = face_face_connectivity.ncols();
     let n_face = face_areas.len();
     let face_indices = face_indices.as_array();
+
+    // This will map the face index to the local index in the result array
+    let face_index_map: HashMap<usize, usize> = face_indices
+        .iter()
+        .enumerate()
+        .map(|(i, &f)| (f as usize, i))
+        .collect();
 
     // Compute max kappa for stability condition
     let max_kappa = face_kappa.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
@@ -113,19 +122,23 @@ pub fn apply_diffusion<'py>(
         .fold(f64::INFINITY, f64::min);
 
     if !dt_initial.is_finite() || dt_initial <= 0.0 {
-        return;
+        let result = ndarray::Array1::<f64>::zeros(face_indices.len());
+        return Ok(PyArray1::from_owned_array(py, result));
     }
 
     let nloops = (1.0 / dt_initial).ceil() as usize;
     let dt = 1.0 / nloops as f64;
 
+    let mut result = ndarray::Array1::<f64>::zeros(face_indices.len());
+
     for _ in 0..nloops {
-        let dhdt: Vec<_> = Zip::from(face_indices)
+        let dhdt: Vec<_> = Zip::from(&face_indices)
             .and(face_face_connectivity.outer_iter())
+            .and(&result)
             .into_par_iter()
-            .map(|(&f, row)| {
-                let f = f as usize;
-                let h_f = face_elevation[f];
+            .map(|(f, row, face_delta)| {
+                let f = *f as usize;
+                let h_f = face_elevation[f] + face_delta;
                 let k_f = face_kappa[f];
                 let mut dhdt_f = 0.0;
                 for &f_n_raw in row {
@@ -136,8 +149,10 @@ pub fn apply_diffusion<'py>(
                     if f_n >= n_face {
                         continue;
                     }
-
-                    let h_n = face_elevation[f_n];
+                    let h_n = face_elevation[f_n]
+                        + face_index_map
+                            .get(&f_n)
+                            .map_or(0.0, |&j| result[j]);
                     let k_n = face_kappa[f_n];
                     let flux = (k_f + k_n) * (h_n - h_f);
 
@@ -148,9 +163,11 @@ pub fn apply_diffusion<'py>(
             .collect();
 
         for (i, &f) in face_indices.iter().enumerate() {
-            face_elevation[f as usize] += dt * dhdt[i] / face_areas[f as usize];
+            result[i] += dt * dhdt[i] / face_areas[f as usize];
         }
     }
+
+    Ok(PyArray1::from_owned_array(py, result))
 }
 
 /// Computes node elevations as area-weighted averages of adjacent face elevations.
