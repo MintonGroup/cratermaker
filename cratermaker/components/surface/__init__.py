@@ -4,6 +4,7 @@ import hashlib
 import os
 import shutil
 import tempfile
+import threading
 import warnings
 from abc import abstractmethod
 from pathlib import Path
@@ -32,6 +33,8 @@ from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 if TYPE_CHECKING:
     from cratermaker.components.target import Target
+
+surface_lock = threading.Lock()
 
 
 class Surface(ComponentBase):
@@ -600,66 +603,32 @@ class Surface(ComponentBase):
             overwrite=overwrite,
         )
 
-    def set_elevation(
+    def update_elevation(
         self,
-        new_elev: NDArray[np.float64] | list[FloatLike] | None = None,
-        save_to_file: bool = False,
-        combine_data_files: bool = False,
-        interval_number: int = 0,
+        new_elevation: ArrayLike | FloatLike,
+        overwrite: bool = False,
+        **kwargs: Any,
     ) -> None:
         """
-        Set elevation data for the target's surface mesh.
+        Update the elevation data for the target's surface mesh. This method will determine whether to update the node or face data (or both) depending on the size of the input data. If a scalar is passed, both node and face elevation will be updated to that value. By default, the elevation data will be added to the existing data. If `overwrite` is set to True, the existing data will be replaced with the new data.
 
         Parameters
         ----------
-        new_elev : array_like, optional
-            New elevation data to be set. If None, the elevation is set to zero.
-        save_to_file : bool, default False
-            If True, save the elevation data to the elevation file.
-        combine_data_files : bool, default False
-            If True, combine the current data with the existing data for previous intervals in the data file.
-        interval_number : int, default 0
-            The interval number to use when saving the elevation data to the elevation file.
-        """
-        if new_elev is None or np.isscalar(new_elev):
-            gen_node = True
-            gen_face = True
-        elif new_elev.size == self.uxds.uxgrid.n_node:
-            gen_node = True
-            gen_face = False
-        elif new_elev.size == self.uxds.uxgrid.n_face:
-            gen_node = False
-            gen_face = True
-        else:
-            gen_node = False
-            gen_face = False
-            raise ValueError(
-                "new_elev must be None, a scalar, or an array with the same size as the number of nodes in the grid"
-            )
+        new_elevation : ArrayLike | FloatLike
+            Elevation to be added (or replaced, if overwrite is True). This can be a scalar, an array with the same size as the number of faces, an array with the same size as the number of nodes, or an array with the same size as the number of faces + nodes.
+        overwrite : bool, optional
+            If True, the existing data will be replaced with the new data. Default is False.
+        **kwargs : Any
+            Additional keyword arguments.
 
-        if gen_node:
-            self._add_new_data(
-                data=new_elev,
-                name="node_elevation",
-                long_name="elevation of nodes",
-                units="m",
-                isfacedata=False,
-                save_to_file=save_to_file,
-                combine_data_files=combine_data_files,
-                interval_number=interval_number,
-            )
-        if gen_face:
-            self._add_new_data(
-                data=new_elev,
-                name="face_elevation",
-                long_name="elevation of faces",
-                units="m",
-                isfacedata=True,
-                save_to_file=save_to_file,
-                combine_data_files=combine_data_files,
-                interval_number=interval_number,
-            )
-        return
+        Notes
+        -----
+        When passing combined data, the first part of the array will be used for face elevation and the second part for node elevation.
+        """
+
+        return self.full_view().update_elevation(
+            new_elevation=new_elevation, overwrite=overwrite, **kwargs
+        )
 
     def calculate_haversine_distance(
         self,
@@ -687,6 +656,16 @@ class Surface(ComponentBase):
         float
             Great circle distance between the two points in meters.
         """
+        # Validate that lon1 and lat1 are single points
+        if not np.isscalar(lon1):
+            if lon1.size != 1:
+                raise ValueError("lon1 must be a single point")
+            lon1 = lon1.item()
+        if not np.isscalar(lat1):
+            if lat1.size != 1:
+                raise ValueError("lat1 must be a single point")
+            lat1 = lat1.item()
+
         # Calculate differences in coordinates
         dlon = lon2 - lon1
         dlat = lat2 - lat1
@@ -722,18 +701,10 @@ class Surface(ComponentBase):
         float
             Initial bearing from the first point to the second point in radians.
         """
-        # Calculate differences in coordinates
-        dlon = np.mod(lon2 - lon1 + np.pi, 2 * np.pi) - np.pi
 
-        # Haversine formula calculations
-        x = np.sin(dlon) * np.cos(lat2)
-        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
-        initial_bearing = np.arctan2(x, y)
-
-        # Normalize bearing to 0 to 2*pi
-        initial_bearing = (initial_bearing + 2 * np.pi) % (2 * np.pi)
-
-        return initial_bearing
+        return SurfaceView.calculate_initial_bearing(
+            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2
+        )
 
     def find_nearest_index(self, location):
         """
@@ -770,155 +741,24 @@ class Surface(ComponentBase):
 
         return face_ind.item(), node_ind.item()
 
-    def get_reference_surface(
-        self,
-        region_view: SurfaceView,
-        reference_radius: float,
-    ) -> NDArray[np.float64]:
+    @staticmethod
+    def elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
         """
-        Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
+        Convert elevation values to Cartesian coordinates.
 
         Parameters
         ----------
-        region_view : SurfaceView
-            A view of the surface that contains the face and node indices.
-        reference_radius : float
-            The radius of the reference region to compute the average over in meters.
+        position : NDArray
+            The position of the points in Cartesian coordinates.
+        elevation : NDArray
+            The elevation values to convert.
 
         Returns
         -------
-        center_vector : ndarray
-            The vector pointing to the center of the cap from the sphere's center.
+        NDArray
+            The Cartesian coordinates of the points with the given elevation.
         """
-
-        def sphere_function(coords, x_c, y_c, z_c, r):
-            """
-            Compute the sphere function.
-
-            Parameters
-            ----------
-            coords : ndarray
-                Array of x, y, and z coordinates.
-            x_c, y_c, z_c : float
-                Center coordinates of the sphere.
-            r : float
-                Radius of the sphere.
-
-            Returns
-            -------
-            ndarray
-                The values of the sphere function at the given coordinates.
-            """
-            x, y, z = coords.T
-            return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
-
-        # Find cells within the crater radius
-        faces_within_radius = region_view.face_distance <= reference_radius
-        nodes_within_radius = region_view.node_distance <= reference_radius
-
-        face_elevation = region_view.face_elevation
-        node_elevation = region_view.node_elevation
-
-        n_reference_faces = np.sum(faces_within_radius)
-
-        # if there are not enough faces or nodes within the radius, return the original elevations and use that as the reference
-        if n_reference_faces < 5 or not nodes_within_radius.any():
-            return face_elevation, node_elevation
-
-        face_grid = np.column_stack(
-            (
-                region_view.face_x,
-                region_view.face_y,
-                region_view.face_z,
-            )
-        )
-        # find_refence_elevations expects coordinates to be on the unit sphere
-        region_faces = face_grid[faces_within_radius] / self.radius
-        region_elevation = face_elevation[faces_within_radius] / self.radius
-        region_surf = self.elevation_to_cartesian(region_faces, region_elevation)
-
-        # Initial guess for the sphere center and radius
-        guess_radius = 1.0 + region_elevation.mean()
-        initial_guess = [0, 0, 0, guess_radius]
-
-        # Perform the curve fitting to get the best fitting spherical cap for the reference surface
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", OptimizeWarning)
-            try:
-                bounds = ([-1.0, -1.0, -1.0, 0.5], [1.0, 1.0, 1.0, 2.0])
-                popt, _ = curve_fit(
-                    sphere_function,
-                    region_surf,
-                    np.zeros(n_reference_faces),
-                    p0=initial_guess,
-                    bounds=bounds,
-                )
-            except Exception:
-                popt = initial_guess
-
-        # Extract the fitted sphere center and radius
-        reference_sphere_center = popt[:3]
-        reference_sphere_radius = popt[3]
-
-        def find_reference_elevations(coords):
-            # Find the point along the original vector that intersects the sphere
-            f_vec = coords / self.radius
-            A = f_vec[:, 0] ** 2 + f_vec[:, 1] ** 2 + f_vec[:, 2] ** 2
-            B = -2 * (
-                f_vec[:, 0] * reference_sphere_center[0]
-                + f_vec[:, 1] * reference_sphere_center[1]
-                + f_vec[:, 2] * reference_sphere_center[2]
-            )
-            C = (
-                np.dot(reference_sphere_center, reference_sphere_center)
-                - reference_sphere_radius**2
-            )
-            sqrt_term = B**2 - 4 * A * C
-            valid = ~np.isnan(A) & (sqrt_term >= 0.0)
-
-            # Initialize t with default value
-            t = np.full_like(A, 1.0)
-
-            # Calculate square root only for valid terms
-            sqrt_valid_term = np.sqrt(np.where(valid, sqrt_term, 0))
-
-            # Apply the formula only where valid
-            t = np.where(valid, (-B + sqrt_valid_term) / (2 * A), t)
-            if np.any(t[valid] < 0):
-                t = np.where(valid & (t < 0), (-B - sqrt_valid_term) / (2 * A), t)
-
-            elevations = self.radius * (t * np.linalg.norm(f_vec, axis=1) - 1)
-            return elevations
-
-        # Calculate the distances between the original face points and the intersection points
-        reference_face_elevation = face_elevation
-        reference_face_elevation[faces_within_radius] = find_reference_elevations(
-            region_faces
-        )
-
-        # Now do the same thing to compute the nodal values
-        node_grid = np.column_stack(
-            (
-                region_view.node_x,
-                region_view.node_y,
-                region_view.node_z,
-            )
-        )
-        # find_refence_elevations expects coordinates to be on the unit sphere
-        region_nodes = node_grid[nodes_within_radius] / self.radius
-
-        reference_node_elevation = node_elevation
-        reference_node_elevation[nodes_within_radius] = find_reference_elevations(
-            region_nodes
-        )
-
-        return reference_face_elevation, reference_node_elevation
-
-    @staticmethod
-    def elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
-        runit = position / np.linalg.norm(position, axis=1, keepdims=True)
-
-        return position + elevation[:, np.newaxis] * runit
+        return SurfaceView.elevation_to_cartesian(position, elevation)
 
     def extract_region(
         self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike
@@ -1557,7 +1397,7 @@ class SurfaceView:
         self.surface = surface
         self._face_indices = face_indices
         if isinstance(face_indices, slice):
-            self._n_face = surface.face_elevation[face_indices].size
+            self._n_face = self.surface.face_elevation[face_indices].size
         else:
             self._n_face = face_indices.size
 
@@ -1613,9 +1453,9 @@ class SurfaceView:
         node_lat2 = np.deg2rad(self.node_lat)
         face_lon2 = np.deg2rad(self.face_lon)
         face_lat2 = np.deg2rad(self.face_lat)
-        return self.surface.calculate_haversine_distance(
+        return self.calculate_haversine_distance(
             lon1, lat1, face_lon2, face_lat2
-        ), self.surface.calculate_haversine_distance(lon1, lat1, node_lon2, node_lat2)
+        ), self.calculate_haversine_distance(lon1, lat1, node_lon2, node_lat2)
 
     def get_initial_bearing(
         self, location: tuple[float, float] | None = None
@@ -1691,11 +1531,13 @@ class SurfaceView:
         -------
         None
         """
-        self.node_elevation = surface_functions.interpolate_node_elevation_from_faces(
+        node_elevation = surface_functions.interpolate_node_elevation_from_faces(
             face_areas=self.surface.face_areas,
             face_elevation=self.surface.face_elevation,
             node_face_connectivity=self.node_face_connectivity,
         )
+        self.update_elevation(node_elevation, overwrite=True)
+        return
 
     def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
         """
@@ -1731,13 +1573,14 @@ class SurfaceView:
             face_indices = np.arange(self.surface.n_face)
         else:
             face_indices = self.face_indices
-        surface_functions.apply_diffusion(
+        delta_face_elevation = surface_functions.apply_diffusion(
             face_areas=self.surface.face_areas,
             face_kappa=face_kappa,
             face_elevation=self.surface.face_elevation,
             face_face_connectivity=self.face_face_connectivity,
             face_indices=face_indices,
         )
+        self.update_elevation(delta_face_elevation)
         self.interpolate_node_elevation_from_faces()
 
     def apply_noise(
@@ -1762,9 +1605,9 @@ class SurfaceView:
             "anchor",
             self.surface.rng.uniform(0, 2 * np.pi, size=(num_octaves, 3)),
         )
-        x = np.concatenate([self.node_x, self.face_x]) / self.surface.radius
-        y = np.concatenate([self.node_y, self.face_y]) / self.surface.radius
-        z = np.concatenate([self.node_z, self.face_z]) / self.surface.radius
+        x = np.concatenate([self.face_x, self.node_x]) / self.surface.radius
+        y = np.concatenate([self.face_y, self.node_y]) / self.surface.radius
+        z = np.concatenate([self.face_z, self.node_z]) / self.surface.radius
 
         if model == "turbulence":
             noise = surface_functions.turbulence_noise(
@@ -1780,14 +1623,10 @@ class SurfaceView:
             )
         else:
             raise ValueError(f"Unknown noise model: {model}")
-        node_noise = noise[: self.n_node]
-        face_noise = noise[self.n_node :]
         # Compute the weighted mean to ensure volume conservation
-        mean = np.sum(face_noise * self.face_areas) / self.area
-        face_noise -= mean
-        node_noise -= mean
-        self.node_elevation += node_noise * self.surface.radius
-        self.face_elevation += face_noise * self.surface.radius
+        mean = np.sum(noise[: self.n_face] * self.face_areas) / self.area
+        noise -= mean
+        self.update_elevation(noise)
         return
 
     def add_data(
@@ -1849,12 +1688,288 @@ class SurfaceView:
                 name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
             )
 
-        if overwrite:
-            self.surface.uxds[name][indices] = data
-        else:
-            self.surface.uxds[name][indices] += data
+        # This prevents concurrent writes to the same data variable when used in
+        with surface_lock:
+            if overwrite:
+                self.surface.uxds[name][indices] = data
+            else:
+                self.surface.uxds[name][indices] += data
 
         return
+
+    def update_elevation(
+        self,
+        new_elevation: ArrayLike | FloatLike,
+        overwrite: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Update the elevation data for the target's surface mesh. This method will determine whether to update the node or face data (or both) depending on the size of the input data. If a scalar is passed, both node and face elevation will be updated to that value. By default, the elevation data will be added to the existing data. If `overwrite` is set to True, the existing data will be replaced with the new data.
+
+        Parameters
+        ----------
+        new_elevation : ArrayLike | FloatLike
+            Elevation to be added (or replaced, if overwrite is True). This can be a scalar, an array with the same size as the number of faces, an array with the same size as the number of nodes, or an array with the same size as the number of faces + nodes.
+        overwrite : bool, optional
+            If True, the existing data will be replaced with the new data. Default is False.
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Notes
+        -----
+        When passing combined data, the first part of the array will be used for face elevation and the second part for node elevation.
+        """
+        try:
+            new_elevation = np.asarray(new_elevation)
+
+            if np.asarray(new_elevation).size == 1:
+                update_node = True
+                update_face = True
+                new_face_elev = np.full(self.n_face, new_elevation.item())
+                new_node_elev = np.full(self.n_node, new_elevation.item())
+            else:
+                if new_elevation.size == self.n_face:
+                    update_face = True
+                    update_node = False
+                    new_face_elev = new_elevation
+                elif new_elevation.size == self.n_node:
+                    update_face = False
+                    update_node = True
+                    new_node_elev = new_elevation
+                elif new_elevation.size == self.n_face + self.n_node:
+                    update_face = True
+                    update_node = True
+                    new_face_elev = new_elevation[: self.n_face]
+                    new_node_elev = new_elevation[self.n_face :]
+                else:
+                    raise ValueError(
+                        "new_elev must be None, a scalar, or an array with the same size as the number of nodes, faces, or nodes+faces"
+                    )
+        except Exception as e:
+            raise ValueError("new_elev must be None, a scalar, or an array") from e
+
+        if update_face:
+            self.add_data(
+                name="face_elevation", data=new_face_elev, overwrite=overwrite
+            )
+        if update_node:
+            self.add_data(
+                name="node_elevation", data=new_node_elev, overwrite=overwrite
+            )
+
+        return
+
+    def get_reference_surface(
+        self, reference_radius: float, **kwargs: Any
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
+
+        Parameters
+        ----------
+        reference_radius : float
+            The radius of the reference region to compute the average over in meters.
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The face and node elevation points of the reference sphere, or the original elevation points is th reference region is too small
+        """
+
+        def _find_reference_elevations(region_coords, region_elevation):
+            # Perform the curve fitting to get the best fitting spherical cap for the reference surface
+
+            def _sphere_function(coords, x_c, y_c, z_c, r):
+                """
+                Compute the sphere function.
+
+                Parameters
+                ----------
+                coords : ndarray
+                    Array of x, y, and z coordinates.
+                x_c, y_c, z_c : float
+                    Center coordinates of the sphere.
+                r : float
+                    Radius of the sphere.
+
+                Returns
+                -------
+                ndarray
+                    The values of the sphere function at the given coordinates.
+                """
+                x, y, z = coords.T
+                return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
+
+            region_surf = self.elevation_to_cartesian(region_coords, region_elevation)
+
+            # Initial guess for the sphere center and radius
+            guess_radius = 1.0 + region_elevation.mean()
+            initial_guess = [0, 0, 0, guess_radius]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", OptimizeWarning)
+                try:
+                    bounds = ([-1.0, -1.0, -1.0, 0.5], [1.0, 1.0, 1.0, 2.0])
+                    fit_result, _ = curve_fit(
+                        _sphere_function,
+                        region_surf,
+                        np.zeros_like(region_elevation),
+                        p0=initial_guess,
+                        bounds=bounds,
+                    )
+                except Exception:
+                    fit_result = initial_guess
+
+            reference_sphere_center = fit_result[:3]
+            reference_sphere_radius = fit_result[3]
+
+            # Find the point along the original vector that intersects the sphere
+            f_vec = region_coords / self.surface.radius
+            A = f_vec[:, 0] ** 2 + f_vec[:, 1] ** 2 + f_vec[:, 2] ** 2
+            B = -2 * (
+                f_vec[:, 0] * reference_sphere_center[0]
+                + f_vec[:, 1] * reference_sphere_center[1]
+                + f_vec[:, 2] * reference_sphere_center[2]
+            )
+            C = (
+                np.dot(reference_sphere_center, reference_sphere_center)
+                - reference_sphere_radius**2
+            )
+            sqrt_term = B**2 - 4 * A * C
+            valid = ~np.isnan(A) & (sqrt_term >= 0.0)
+
+            # Initialize t with default value
+            t = np.full_like(A, 1.0)
+
+            # Calculate square root only for valid terms
+            sqrt_valid_term = np.sqrt(np.where(valid, sqrt_term, 0))
+
+            # Apply the formula only where valid
+            t = np.where(valid, (-B + sqrt_valid_term) / (2 * A), t)
+            if np.any(t[valid] < 0):
+                t = np.where(valid & (t < 0), (-B - sqrt_valid_term) / (2 * A), t)
+
+            elevations = self.surface.radius * (t * np.linalg.norm(f_vec, axis=1) - 1)
+            return elevations
+
+        # Find cells within the crater radius
+        faces_within_region = self.face_distance <= reference_radius
+        nodes_within_region = self.node_distance <= reference_radius
+        points_within_region = np.concatenate(
+            [faces_within_region, nodes_within_region]
+        )
+
+        elevation = np.concatenate([self.face_elevation, self.node_elevation])
+
+        n_reference = np.sum(faces_within_region) + np.sum(nodes_within_region)
+
+        # if there are not enough faces or nodes within the radius, return the original elevations and use that as the reference
+        if n_reference < 5 or not nodes_within_region.any():
+            return elevation
+
+        combo_grid = np.column_stack(
+            (
+                np.concatenate([self.face_x, self.node_x]),
+                np.concatenate([self.face_y, self.node_y]),
+                np.concatenate([self.face_z, self.node_z]),
+            )
+        )
+        # find_refence_elevations expects coordinates to be on the unit sphere, so we need to normalize
+        region_coords = combo_grid[points_within_region] / self.surface.radius
+        region_elevation = elevation[points_within_region] / self.surface.radius
+
+        reference_elevation = elevation
+        reference_elevation[points_within_region] = _find_reference_elevations(
+            region_coords, region_elevation
+        )
+
+        return reference_elevation
+
+    def calculate_haversine_distance(
+        self,
+        lon1: FloatLike,
+        lat1: FloatLike,
+        lon2: FloatLike | ArrayLike,
+        lat2: FloatLike | ArrayLike,
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the great circle distance between two points on a sphere.
+
+        Parameters
+        ----------
+        lon1 : FloatLike
+            Longitude of the first point in radians. Must be a single point
+        lat1 : FloatLike
+            Latitude of the first point in radians. Must be a single point
+        lon2 : FloatLike, ArrayLike
+            Longitude of the second point(s) in radians. Can be a single point or an array of points.
+        lat2 : FloatLike, ArrayLike
+            Latitude of the second point(s) in radians. Can be a single point or an array of points.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            Great circle distance between the two points in meters.
+        """
+        return self.surface.calculate_haversine_distance(lon1, lat1, lon2, lat2)
+
+    @staticmethod
+    def elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
+        """
+        Convert elevation values to Cartesian coordinates.
+
+        Parameters
+        ----------
+        position : NDArray
+            The position of the points in Cartesian coordinates.
+        elevation : NDArray
+            The elevation values to convert.
+
+        Returns
+        -------
+        NDArray
+            The Cartesian coordinates of the points with the given elevation.
+        """
+        runit = position / np.linalg.norm(position, axis=1, keepdims=True)
+
+        return position + elevation[:, np.newaxis] * runit
+
+    @staticmethod
+    def calculate_initial_bearing(
+        lon1: FloatLike, lat1: FloatLike, lon2: FloatLike, lat2: FloatLike
+    ) -> float:
+        """
+        Calculate the initial bearing from one point to another on the surface of a sphere.
+
+        Parameters
+        ----------
+        lon1 : FloatLike
+            Longitude of the first point in radians.
+        lat1 : FloatLike
+            Latitude of the first point in radians.
+        lon2 : FloatLike
+            Longitude of the second point in radians.
+        lat2 : FloatLike
+            Latitude of the second point in radians.
+
+        Returns
+        -------
+        float
+            Initial bearing from the first point to the second point in radians.
+        """
+        # Calculate differences in coordinates
+        dlon = np.mod(lon2 - lon1 + np.pi, 2 * np.pi) - np.pi
+
+        # Haversine formula calculations
+        x = np.sin(dlon) * np.cos(lat2)
+        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+        initial_bearing = np.arctan2(x, y)
+
+        # Normalize bearing to 0 to 2*pi
+        initial_bearing = (initial_bearing + 2 * np.pi) % (2 * np.pi)
+
+        return initial_bearing
 
     @property
     def surface(self) -> Surface:
