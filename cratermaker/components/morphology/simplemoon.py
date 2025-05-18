@@ -163,8 +163,8 @@ class SimpleMoon(Morphology):
         return
 
     def crater_shape(
-        self, crater: SimpleMoonCrater, region_view: SurfaceView
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        self, crater: SimpleMoonCrater, region_view: SurfaceView, **kwargs: Any
+    ) -> NDArray[np.float64]:
         """
         Compute the crater shape based on the region view and surface.
 
@@ -172,43 +172,33 @@ class SimpleMoon(Morphology):
         ----------
         crater : SimpleMoonCrater
             The crater object containing the parameters for the crater shape.
-        region_view : RegionView
-            The region view of the surface mesh.
+        region_view:  SurfaceView
+            The region view of the surface mesh centered at the crater center.
 
         Returns
         -------
-        tuple[NDArray[np.float64], NDArray[np.float64]]
+        NDArray[np.float64]
             The computed crater shape at the face and node elevations.
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        reference_face_elevation, reference_node_elevation = (
-            self.surface.get_reference_surface(
-                region_view=region_view,
-                reference_radius=crater.final_radius,
-            )
+        reference_elevation = region_view.get_reference_surface(
+            reference_radius=crater.final_radius
         )
 
         # Combine distances and references for nodes and faces
-        combined_distances = np.concatenate(
+        distance = np.concatenate(
             [region_view.face_distance, region_view.node_distance]
         )
-        combined_reference = np.concatenate(
-            [reference_face_elevation, reference_node_elevation]
-        )
-        combined_original_elevation = np.concatenate(
+
+        original_elevation = np.concatenate(
             [region_view.face_elevation, region_view.node_elevation]
         )
 
-        combined_new_elevation = self.crater_profile(
-            crater, combined_distances, combined_reference
-        )
-        combined_elevation_change = combined_new_elevation - combined_original_elevation
+        new_elevation = self.crater_profile(crater, distance, reference_elevation)
+        elevation_change = new_elevation - original_elevation
 
-        face_elevation = combined_elevation_change[: region_view.n_face]
-        node_elevation = combined_elevation_change[region_view.n_face :]
-
-        return face_elevation, node_elevation
+        return elevation_change
 
     def crater_profile(
         self, crater: SimpleMoonCrater, r: ArrayLike, r_ref: ArrayLike | None = None
@@ -258,44 +248,36 @@ class SimpleMoon(Morphology):
         return elevation
 
     def ejecta_shape(
-        self,
-        crater: SimpleMoonCrater,
-        region_view: SurfaceView,
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        self, crater: SimpleMoonCrater, region_view: SurfaceView, **kwargs: Any
+    ) -> NDArray[np.float64]:
         """
         Compute the ejecta shape based on the region view and surface.
 
         Parameters
         ----------
-        region_view : RegionView
-            The region view of the surface mesh.
+        region_view : SurfaceView
+            The region view of the surface mesh centered at the crat er center.
 
         Returns
         -------
-        tuple[NDArray[np.float64], NDArray[np.float64]
-            The computed ejecta shape at the node and face elevations
+        NDArray[np.float64]
+            The computed ejecta shape at the face and node elevations
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
 
-        combined_distances = np.concatenate(
+        distance = np.concatenate(
             [region_view.face_distance, region_view.node_distance]
         )
         if self.dorays:
-            combined_bearings = np.concatenate(
+            bearing = np.concatenate(
                 [region_view.face_bearing, region_view.node_bearing]
             )
-            combined_thickness = self.ejecta_distribution(
-                crater, combined_distances, combined_bearings
-            )
+            ejecta_thickness = self.ejecta_distribution(crater, distance, bearing)
         else:
-            combined_thickness = self.ejecta_profile(crater, combined_distances)
+            ejecta_thickness = self.ejecta_profile(crater, distance)
 
-        # Slice back the combined thickness without copying
-        face_thickness = combined_thickness[: region_view.n_face]
-        node_thickness = combined_thickness[region_view.n_face :]
-
-        return face_thickness, node_thickness
+        return ejecta_thickness
 
     def ejecta_profile(
         self, crater: SimpleMoonCrater, r: ArrayLike
