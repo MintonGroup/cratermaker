@@ -66,8 +66,8 @@ class NeukumProduction(Production):
 
     def __str__(self) -> str:
         base = super().__str__()
-        timelo = format_large_units(self.valid_time[0], quantity="time")
-        timehi = format_large_units(self.valid_time[1], quantity="time")
+        timelo = format_large_units(self.valid_age[0], quantity="time")
+        timehi = format_large_units(self.valid_age[1], quantity="time")
         dlo = format_large_units(self.sfd_range[0], quantity="length")
         dhi = format_large_units(self.sfd_range[1], quantity="length")
         return (
@@ -82,7 +82,7 @@ class NeukumProduction(Production):
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-        check_valid_time: bool = True,
+        check_valid_age: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
         """
@@ -96,7 +96,7 @@ class NeukumProduction(Production):
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
         age_end, FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
-        check_valid_time : bool, optional (default=True)
+        check_valid_age : bool, optional (default=True)
             If True, return NaN for age values outside the valid age range
 
         Returns
@@ -105,13 +105,13 @@ class NeukumProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
             surface over the given age range.
         """
-        age, age_end = self._validate_age(age, age_end)
+        age, age_end = self._validate_age(age, age_end, check_valid_age)
         diameter, _ = self._validate_csfd(diameter=diameter)
 
         diameter_array = np.asarray(self.csfd(diameter))
-        age_difference = np.asarray(
-            self.chronology(age, check_valid_time)
-        ) - np.asarray(self.chronology(age_end, check_valid_time))
+        age_difference = np.asarray(self.chronology(age, check_valid_age)) - np.asarray(
+            self.chronology(age_end, check_valid_age)
+        )
 
         if diameter_array.ndim > 0 and age_difference.ndim > 0:
             return diameter_array[:, None] * age_difference
@@ -121,7 +121,7 @@ class NeukumProduction(Production):
     def chronology(
         self,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1000.0,
-        check_valid_time: bool = True,
+        check_valid_age: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
         """
@@ -133,7 +133,7 @@ class NeukumProduction(Production):
         ----------
         age : FloatLike or ArrayLike, default=1000.0
             Age in the past relative to the present day to compute cumulative SFD in units of My.
-        check_valid_time : bool, optional (default=True)
+        check_valid_age : bool, optional (default=True)
             If True, return NaN for age values outside the valid age range
 
         Returns
@@ -148,7 +148,7 @@ class NeukumProduction(Production):
 
         def _N1km(
             age: FloatLike | Sequence[FloatLike] | ArrayLike,
-            check_valid_time: bool = True,
+            check_valid_age: bool = True,
         ) -> FloatLike | ArrayLike:
             """
             Return the cumulative number of 1 km craters as a function of age in Gy. This is a direct implementation of Eq. 5 in
@@ -158,7 +158,7 @@ class NeukumProduction(Production):
             ----------
             age : FloatLike or numpy array
                 Time ago in units of Gy
-            check_valid_time : bool, optional (default=True)
+            check_valid_age : bool, optional (default=True)
                 If True, return NaN for age values outside the valid age range
 
             Returns
@@ -167,16 +167,16 @@ class NeukumProduction(Production):
                 The number of craters per square kilometer greater than 1 km in diameter
             """
             N1 = self.Cexp * (np.exp(age / self.tau) - 1.0) + self.Clin * age
-            if check_valid_time:
-                if self.valid_time[0] is not None:
-                    min_time = self.valid_time[0] * 1e-3
+            if check_valid_age:
+                if self.valid_age[0] is not None:
+                    min_time = self.valid_age[0] * 1e-3
                     N1 = np.where(age >= min_time, N1, np.nan)
-                if self.valid_time[1] is not None:
-                    max_time = self.valid_time[1] * 1e-3
+                if self.valid_age[1] is not None:
+                    max_time = self.valid_age[1] * 1e-3
                     N1 = np.where(age <= max_time, N1, np.nan)
             return N1.item() if np.isscalar(age) else N1
 
-        N1_values = _N1km(age=time_Gy, check_valid_time=check_valid_time) * 1e-6
+        N1_values = _N1km(age=time_Gy, check_valid_age=check_valid_age) * 1e-6
 
         return N1_values
 
@@ -379,7 +379,7 @@ class NeukumProduction(Production):
         return sfd_range[self.version]
 
     @property
-    def valid_time(self) -> tuple[float, float]:
+    def valid_age(self) -> tuple[float, float]:
         """
         The range of ages over which the production function is valid. The range is given in My.
 

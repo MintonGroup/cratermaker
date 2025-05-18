@@ -565,7 +565,8 @@ class Surface(ComponentBase):
         data: FloatLike | NDArray,
         long_name: str | None = None,
         units: str | None = None,
-        isfacedata: bool | None = None,
+        isfacedata: bool = True,
+        overwrite: bool = False,
     ) -> None:
         """
         Adds new data
@@ -577,52 +578,27 @@ class Surface(ComponentBase):
         data : scalar or array-like
             Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
         long_name : str, optional
-            Long name of the data variable that will be saved as an attribute.
+            Long name of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
         units : str, optional
-            Units of the data variable that will be saved as an attribute.
-        isfacedata : bool, optional
-            Flag to indicate whether the data is face data or node data. Required if data is a scalar, otherwise it is ignored
+            Units of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
+        isfacedata : bool, optional, default True
+            Flag to indicate whether the data is face data or node data. This is only needed if `data` is a scalar, otherwise it is ignored
+        overwrite : bool, optional, default False
+            By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
+
+
         Returns
         -------
         None
         """
-        # Check if the data is a scalar or an array
-        if np.isscalar(data):
-            if isfacedata is None:
-                raise ValueError("isfacedata must be set if data is a scalar")
-            if isfacedata:
-                n = self.n_face
-            else:
-                n = self.n_node
-            data = np.full(n, data)
-        elif isinstance(data, list):
-            data = np.array(data)
-        else:
-            data = np.asarray(data)
-        if data.size == self.n_face:
-            isfacedata = True
-        elif data.size == self.n_node:
-            isfacedata = False
-        else:
-            raise ValueError(
-                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
-            )
-
-        # Check if the data is a scalar or an array
-        if np.isscalar(data):
-            data = np.full(n, data)
-        elif isinstance(data, list):
-            data = np.array(data)
-        else:
-            data = np.asarray(data)
-
-        if name not in self.uxds.data_vars:
-            self._add_new_data(
-                name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
-            )
-
-        self.uxds[name].data = data
-        return
+        return self.full_view().add_data(
+            name=name,
+            data=data,
+            long_name=long_name,
+            units=units,
+            isfacedata=isfacedata,
+            overwrite=overwrite,
+        )
 
     def set_elevation(
         self,
@@ -1527,6 +1503,20 @@ class Surface(ComponentBase):
         """
         self.uxds["face_elevation"][:] = value
 
+    @property
+    def face_indices(self) -> NDArray:
+        """
+        The indices of the faces of the surface.
+        """
+        return self.uxds.n_face.values
+
+    @property
+    def node_indices(self) -> NDArray:
+        """
+        The indices of the nodes of the surface.
+        """
+        return self.uxds.n_node.values
+
 
 class SurfaceView:
     """
@@ -1552,6 +1542,7 @@ class SurfaceView:
         location: tuple[float, float] | None = None,
         **kwargs: Any,
     ):
+        object.__setattr__(self, "_surface", None)
         object.__setattr__(self, "_area", None)
         object.__setattr__(self, "_n_face", None)
         object.__setattr__(self, "_n_node", None)
@@ -1560,9 +1551,11 @@ class SurfaceView:
         object.__setattr__(self, "_face_bearing", None)
         object.__setattr__(self, "_node_bearing", None)
         object.__setattr__(self, "_location", None)
+        object.__setattr__(self, "_face_indices", None)
+        object.__setattr__(self, "_node_indices", None)
 
         self.surface = surface
-        self.face_indices = face_indices
+        self._face_indices = face_indices
         if isinstance(face_indices, slice):
             self._n_face = surface.face_elevation[face_indices].size
         else:
@@ -1574,7 +1567,7 @@ class SurfaceView:
             )
             node_indices = node_indices[node_indices != INT_FILL_VALUE]
 
-        self.node_indices = node_indices
+        self._node_indices = node_indices
         if isinstance(node_indices, slice):
             self._n_node = surface.node_elevation[node_indices].size
         else:
@@ -1666,6 +1659,221 @@ class SurfaceView:
                 lon1, lat1, node_lon2, node_lat2
             ),
         )
+
+    def compute_volume(self, elevation: NDArray) -> NDArray:
+        """
+        Compute the volume of an array of elevation points
+
+        Parameters
+        ----------
+        elevation : NDArray
+            The elevation values to compute. This should be the same size as the number of faces in the grid.
+
+        Returns
+        -------
+        float
+            The volume of the elevation points
+        """
+        if elevation.size != self.n_face:
+            raise ValueError(
+                "elevation must be an array with the same size as the number of faces in the grid"
+            )
+        return np.sum(elevation * self.face_areas)
+
+    def interpolate_node_elevation_from_faces(self) -> None:
+        """
+        Update node elevations by area-weighted averaging of adjacent face elevations.
+
+        For each node, the elevation is computed as the area-weighted average of the elevations
+        of the surrounding faces.
+
+        Returns
+        -------
+        None
+        """
+        self.node_elevation = surface_functions.interpolate_node_elevation_from_faces(
+            face_areas=self.surface.face_areas,
+            face_elevation=self.surface.face_elevation,
+            node_face_connectivity=self.node_face_connectivity,
+        )
+
+    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
+        """
+        Apply diffusion to the surface.
+
+        Parameters
+        ----------
+        kdiff : float or array-like
+            The degradation state of the surface, which is the product of diffusivity and time. It can be a scalar or an array of the same size as the number of faces in the grid.
+            If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
+            The value of kdiff must be greater than 0.0.
+
+        Returns
+        -------
+        NDArray
+            The elevation change after applying diffusion.
+        """
+        if np.isscalar(kdiff):
+            kdiff = np.full(self.n_face, kdiff)
+        elif kdiff.size != self.n_face:
+            raise ValueError(
+                "kdiff must be a scalar or an array with the same size as the number of faces in the grid"
+            )
+        if np.any(kdiff < 0.0):
+            raise ValueError("kdiff must be greater than 0.0")
+        kdiffmax = np.max(kdiff)
+
+        if abs(kdiffmax) < _VSMALL:
+            return
+        face_kappa = np.zeros(self.surface.n_face)
+        face_kappa[self.face_indices] = kdiff
+        if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
+            face_indices = np.arange(self.surface.n_face)
+        else:
+            face_indices = self.face_indices
+        surface_functions.apply_diffusion(
+            face_areas=self.surface.face_areas,
+            face_kappa=face_kappa,
+            face_elevation=self.surface.face_elevation,
+            face_face_connectivity=self.face_face_connectivity,
+            face_indices=face_indices,
+        )
+        self.interpolate_node_elevation_from_faces()
+
+    def apply_noise(
+        self,
+        model: str = "turbulence",
+        noise_width: FloatLike = 1000e3,
+        noise_height: FloatLike = 1e3,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Apply noise to the node elevations of the surface view.
+
+        Parameters
+        ----------
+        noise_width : float
+            The spatial wavelength of the noise.
+        noise_height : float
+            The amplitude of the noise.
+        """
+        num_octaves = kwargs.pop("num_octaves", 12)
+        anchor = kwargs.pop(
+            "anchor",
+            self.surface.rng.uniform(0, 2 * np.pi, size=(num_octaves, 3)),
+        )
+        x = np.concatenate([self.node_x, self.face_x]) / self.surface.radius
+        y = np.concatenate([self.node_y, self.face_y]) / self.surface.radius
+        z = np.concatenate([self.node_z, self.face_z]) / self.surface.radius
+
+        if model == "turbulence":
+            noise = surface_functions.turbulence_noise(
+                x=x,
+                y=y,
+                z=z,
+                noise_height=noise_height / self.surface.radius,
+                noise_width=noise_width / self.surface.radius,
+                freq=2.0,
+                pers=0.5,
+                anchor=anchor,
+                seed=self.surface.rng.integers(0, 2**32 - 1),
+            )
+        else:
+            raise ValueError(f"Unknown noise model: {model}")
+        node_noise = noise[: self.n_node]
+        face_noise = noise[self.n_node :]
+        # Compute the weighted mean to ensure volume conservation
+        mean = np.sum(face_noise * self.face_areas) / self.area
+        face_noise -= mean
+        node_noise -= mean
+        self.node_elevation += node_noise * self.surface.radius
+        self.face_elevation += face_noise * self.surface.radius
+        return
+
+    def add_data(
+        self,
+        name: str,
+        data: FloatLike | NDArray,
+        long_name: str | None = None,
+        units: str | None = None,
+        isfacedata: bool = True,
+        overwrite: bool = False,
+    ) -> None:
+        """
+        Adds new data
+
+        Parameters
+        ----------
+        name : str
+            Name of the data variable. This will also be used as the data file name.
+        data : scalar or array-like
+            Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+        long_name : str, optional
+            Long name of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
+        units : str, optional
+            Units of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
+        isfacedata : bool, optional, default True
+            Flag to indicate whether the data is face data or node data. This is only needed if `data` is a scalar, otherwise it is ignored
+        overwrite : bool, optional, default False
+            By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
+
+        Returns
+        -------
+        None
+        """
+
+        # Check if the data is a scalar or an array
+        if np.isscalar(data):
+            if isfacedata:
+                n = self.n_face
+            else:
+                n = self.n_node
+            data = np.full(n, data)
+        elif isinstance(data, list):
+            data = np.array(data)
+        else:
+            data = np.asarray(data)
+        if data.size == self.n_face:
+            isfacedata = True
+            indices = self.face_indices
+        elif data.size == self.n_node:
+            isfacedata = False
+            indices = self.node_indices
+        else:
+            raise ValueError(
+                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
+            )
+
+        if name not in self.surface.uxds.data_vars:
+            self.surface._add_new_data(
+                name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
+            )
+
+        if overwrite:
+            self.surface.uxds[name][indices] = data
+        else:
+            self.surface.uxds[name][indices] += data
+
+        return
+
+    @property
+    def surface(self) -> Surface:
+        """
+        The surface object that contains the mesh data.
+        """
+        return self._surface
+
+    @surface.setter
+    def surface(self, value: Surface) -> None:
+        """
+        Set the surface object.
+
+        Parameters
+        ----------
+        value : Surface
+            The surface object to set.
+        """
+        self._surface = Surface.maker(value)
 
     @property
     def n_face(self) -> int:
@@ -1869,196 +2077,19 @@ class SurfaceView:
             self._area = self.face_areas.sum()
         return self._area
 
-    def compute_volume(self, elevation: NDArray) -> NDArray:
+    @property
+    def face_indices(self) -> NDArray:
         """
-        Compute the volume of an array of elevation points
-
-        Parameters
-        ----------
-        elevation : NDArray
-            The elevation values to compute. This should be the same size as the number of faces in the grid.
-
-        Returns
-        -------
-        float
-            The volume of the elevation points
+        The indices of the faces in the view.
         """
-        if elevation.size != self.n_face:
-            raise ValueError(
-                "elevation must be an array with the same size as the number of faces in the grid"
-            )
-        return np.sum(elevation * self.face_areas)
+        return self._face_indices
 
-    def interpolate_node_elevation_from_faces(self) -> None:
+    @property
+    def node_indices(self) -> NDArray:
         """
-        Update node elevations by area-weighted averaging of adjacent face elevations.
-
-        For each node, the elevation is computed as the area-weighted average of the elevations
-        of the surrounding faces.
-
-        Returns
-        -------
-        None
+        The indices of the nodes in the view.
         """
-        self.node_elevation = surface_functions.interpolate_node_elevation_from_faces(
-            face_areas=self.surface.face_areas,
-            face_elevation=self.surface.face_elevation,
-            node_face_connectivity=self.node_face_connectivity,
-        )
-
-    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
-        """
-        Apply diffusion to the surface.
-
-        Parameters
-        ----------
-        kdiff : float or array-like
-            The degradation state of the surface, which is the product of diffusivity and time. It can be a scalar or an array of the same size as the number of faces in the grid.
-            If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
-            The value of kdiff must be greater than 0.0.
-
-        Returns
-        -------
-        NDArray
-            The elevation change after applying diffusion.
-        """
-        if np.isscalar(kdiff):
-            kdiff = np.full(self.n_face, kdiff)
-        elif kdiff.size != self.n_face:
-            raise ValueError(
-                "kdiff must be a scalar or an array with the same size as the number of faces in the grid"
-            )
-        if np.any(kdiff < 0.0):
-            raise ValueError("kdiff must be greater than 0.0")
-        kdiffmax = np.max(kdiff)
-
-        if abs(kdiffmax) < _VSMALL:
-            return
-        face_kappa = np.zeros(self.surface.n_face)
-        face_kappa[self.face_indices] = kdiff
-        if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
-            face_indices = np.arange(self.surface.n_face)
-        else:
-            face_indices = self.face_indices
-        surface_functions.apply_diffusion(
-            face_areas=self.surface.face_areas,
-            face_kappa=face_kappa,
-            face_elevation=self.surface.face_elevation,
-            face_face_connectivity=self.face_face_connectivity,
-            face_indices=face_indices,
-        )
-        self.interpolate_node_elevation_from_faces()
-
-    def apply_noise(
-        self,
-        model: str = "turbulence",
-        noise_width: FloatLike = 1000e3,
-        noise_height: FloatLike = 1e3,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Apply noise to the node elevations of the surface view.
-
-        Parameters
-        ----------
-        noise_width : float
-            The spatial wavelength of the noise.
-        noise_height : float
-            The amplitude of the noise.
-        """
-        num_octaves = kwargs.pop("num_octaves", 12)
-        anchor = kwargs.pop(
-            "anchor",
-            self.surface.rng.uniform(0, 2 * np.pi, size=(num_octaves, 3)),
-        )
-        x = np.concatenate([self.node_x, self.face_x]) / self.surface.radius
-        y = np.concatenate([self.node_y, self.face_y]) / self.surface.radius
-        z = np.concatenate([self.node_z, self.face_z]) / self.surface.radius
-
-        if model == "turbulence":
-            noise = surface_functions.turbulence_noise(
-                x=x,
-                y=y,
-                z=z,
-                noise_height=noise_height / self.surface.radius,
-                noise_width=noise_width / self.surface.radius,
-                freq=2.0,
-                pers=0.5,
-                anchor=anchor,
-                seed=self.surface.rng.integers(0, 2**32 - 1),
-            )
-        else:
-            raise ValueError(f"Unknown noise model: {model}")
-        node_noise = noise[: self.n_node]
-        face_noise = noise[self.n_node :]
-        # Compute the weighted mean to ensure volume conservation
-        mean = np.sum(face_noise * self.face_areas) / self.area
-        face_noise -= mean
-        node_noise -= mean
-        self.node_elevation += node_noise * self.surface.radius
-        self.face_elevation += face_noise * self.surface.radius
-        return
-
-    def add_data(
-        self,
-        name: str,
-        data: FloatLike | NDArray,
-        long_name: str | None = None,
-        units: str | None = None,
-        isfacedata: bool | None = None,
-    ) -> None:
-        """
-        Adds new data
-
-        Parameters
-        ----------
-        name : str
-            Name of the data variable. This will also be used as the data file name.
-        data : scalar or array-like
-            Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
-        long_name : str, optional
-            Long name of the data variable that will be saved as an attribute.
-        units : str, optional
-            Units of the data variable that will be saved as an attribute.
-        isfacedata : bool, optional
-            Flag to indicate whether the data is face data or node data. Required if data is a scalar, otherwise it is ignored
-
-        Returns
-        -------
-        None
-        """
-
-        # Check if the data is a scalar or an array
-        if np.isscalar(data):
-            if isfacedata is None:
-                raise ValueError("isfacedata must be set if data is a scalar")
-            if isfacedata:
-                n = self.n_face
-            else:
-                n = self.n_node
-            data = np.full(n, data)
-        elif isinstance(data, list):
-            data = np.array(data)
-        else:
-            data = np.asarray(data)
-        if data.size == self.n_face:
-            isfacedata = True
-            indices = self.face_indices
-        elif data.size == self.n_node:
-            isfacedata = False
-            indices = self.node_indices
-        else:
-            raise ValueError(
-                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
-            )
-
-        if name not in self.surface.uxds.data_vars:
-            self.surface._add_new_data(
-                name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
-            )
-
-        self.surface.uxds[name][indices] = data
-        return
+        return self._node_indices
 
 
 import_components(__name__, __path__, ignore_private=True)
