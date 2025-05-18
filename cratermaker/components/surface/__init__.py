@@ -1731,13 +1731,14 @@ class SurfaceView:
             face_indices = np.arange(self.surface.n_face)
         else:
             face_indices = self.face_indices
-        surface_functions.apply_diffusion(
+        delta_face_elevation = surface_functions.apply_diffusion(
             face_areas=self.surface.face_areas,
             face_kappa=face_kappa,
             face_elevation=self.surface.face_elevation,
             face_face_connectivity=self.face_face_connectivity,
             face_indices=face_indices,
         )
+        self.add_data("face_elevation", delta_face_elevation)
         self.interpolate_node_elevation_from_faces()
 
     def apply_noise(
