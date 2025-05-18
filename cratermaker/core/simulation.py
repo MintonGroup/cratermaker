@@ -934,16 +934,16 @@ class Simulation(CratermakerBase):
         else:
             raise ValueError(f"Unsupported export format: {format}")
 
-    def set_elevation(self, *args: Any, **kwargs: Any) -> None:
+    def update_elevation(self, *args: Any, **kwargs: Any) -> None:
         """
         Set the elevation on the surface. Delegates to the Surface object.
 
         Parameters
         ----------
-        *args: Variable length argument list to pass to self.surface.set_elevation.
-        **kwargs: Arbitrary keyword arguments to pass to self.surface.set_elevation.
+        *args: Variable length argument list to pass to self.surface.update_elevation.
+        **kwargs: Arbitrary keyword arguments to pass to self.surface.update_elevation.
         """
-        return self.surface.set_elevation(*args, **kwargs)
+        return self.surface.update_elevation(*args, **kwargs)
 
     @property
     def target(self):

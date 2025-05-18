@@ -156,12 +156,11 @@ class Morphology(ComponentBase):
             # Check to make sure that the face at the crater location is not smaller than the crater area
             if crater_area > self.surface.face_areas[self.face_index]:
                 # Form the crater shape
-                face_elevation_change, node_elevation_change = self.crater_shape(
-                    crater, crater_region_view
+                elevation_change = self.crater_shape(crater, crater_region_view)
+                crater_region_view.update_elevation(elevation_change)
+                crater_volume = crater_region_view.compute_volume(
+                    elevation_change[: crater_region_view.n_face]
                 )
-                crater_region_view.face_elevation += face_elevation_change
-                crater_region_view.node_elevation += node_elevation_change
-                crater_volume = crater_region_view.compute_volume(face_elevation_change)
 
                 # Remove any ejecta from the surface
                 inner_crater_region = self.surface.extract_region(
@@ -177,25 +176,27 @@ class Morphology(ComponentBase):
                     )
 
         # Now form the ejecta blanket
-        face_thickness, node_thickness = self.ejecta_shape(crater, ejecta_region_view)
+        ejecta_thickness = self.ejecta_shape(crater, ejecta_region_view)
 
         if crater_volume:
-            ejecta_volume = ejecta_region_view.compute_volume(face_thickness)
+            ejecta_volume = ejecta_region_view.compute_volume(
+                ejecta_thickness[: ejecta_region_view.n_face]
+            )
             conservation_factor = -crater_volume / ejecta_volume
-            face_thickness *= conservation_factor
-            node_thickness *= conservation_factor
+            ejecta_thickness *= conservation_factor
 
         ejecta_region_view.add_data(
             "ejecta_thickness",
             long_name="ejecta thickness",
             units="m",
-            data=face_thickness,
+            data=ejecta_thickness[: ejecta_region_view.n_face],
         )
 
-        ejecta_region_view.face_elevation += face_thickness
-        ejecta_region_view.node_elevation += node_thickness
+        ejecta_region_view.update_elevation(ejecta_thickness)
 
-        kdiff = EJECTA_SOFTEN_FACTOR * face_thickness**2
+        kdiff = (
+            EJECTA_SOFTEN_FACTOR * ejecta_thickness[: ejecta_region_view.n_face] ** 2
+        )
         ejecta_region_view.apply_diffusion(kdiff)
 
         return
@@ -281,25 +282,23 @@ class Morphology(ComponentBase):
                 "Queue manager has not been initialized. Call _init_queue_manager first."
             )
 
-        import threading
+        # import threading
         from concurrent.futures import ThreadPoolExecutor
 
         def _batch_process(pbar=None):
-            lock = threading.Lock()
             while not self._queue_manager.is_empty():
                 batch = self._queue_manager.peek_next_batch()
 
                 def process(crater):
-                    # For now we have to lock the entire batch to prevent segfaults from the shared memory views of the Surface arrays
-                    with lock:
-                        try:
-                            self.form_crater(crater)
-                            if pbar is not None:
-                                pbar.update(1)
-                        except Exception as e:
-                            print(f"Exception during form_crater: {e}")
+                    try:
+                        self.form_crater(crater)
+                        if pbar is not None:
+                            pbar.update(1)
+                    except Exception as e:
+                        print(f"Exception during form_crater: {e}")
 
-                with ThreadPoolExecutor() as executor:
+                # max_workers=1 because something needs access to HDF files (probably grid.nc) that is not thread safe
+                with ThreadPoolExecutor(max_workers=1) as executor:
                     executor.map(process, batch)
 
                 self._queue_manager.pop_batch(batch)
@@ -324,15 +323,17 @@ class Morphology(ComponentBase):
     def crater_shape(
         self,
         crater: Crater,
-        region_view: SurfaceView | NDArray,
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
+        region_view: SurfaceView,
+        **kwarg: Any,
+    ) -> NDArray[np.float64]: ...
 
     @abstractmethod
     def ejecta_shape(
         self,
         crater: Crater,
-        region_view: SurfaceView | NDArray,
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
+        region_view: SurfaceView,
+        **kwarg: Any,
+    ) -> NDArray[np.float64]: ...
 
     @abstractmethod
     def rmax(
