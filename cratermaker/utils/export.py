@@ -9,8 +9,8 @@ from cratermaker.components.surface import Surface
 from cratermaker.constants import (
     _CIRCLE_FILE_NAME,
     _COMBINED_DATA_FILE_NAME,
-    _DATA_DIR,
     _EXPORT_DIR,
+    _SURFACE_DIR,
     _VTK_FILE_EXTENSION,
     FloatLike,
 )
@@ -39,7 +39,7 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
     out_dir = surface.simdir / _EXPORT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    data_dir = surface.simdir / _DATA_DIR
+    data_dir = surface.simdir / _SURFACE_DIR
     data_file_list = list(data_dir.glob("*.nc"))
     if surface.grid_file in data_file_list:
         data_file_list.remove(surface.grid_file)
