@@ -45,7 +45,7 @@ class TestSimulation(unittest.TestCase):
             sim.save()
 
             # Test that variables are saved correctly
-            sim.surface.set_elevation(1.0)
+            sim.surface.update_elevation(1.0)
             np.testing.assert_array_equal(
                 sim.surface.uxds["node_elevation"].values,
                 np.ones(sim.surface.uxds.uxgrid.n_node),
