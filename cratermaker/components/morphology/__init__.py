@@ -163,6 +163,19 @@ class Morphology(ComponentBase):
                 crater_region_view.node_elevation += node_elevation_change
                 crater_volume = crater_region_view.compute_volume(face_elevation_change)
 
+                # Remove any ejecta from the surface
+                inner_crater_region = self.surface.extract_region(
+                    crater.location, crater.final_radius
+                )
+                if inner_crater_region is not None:
+                    inner_crater_region.add_data(
+                        "ejecta_thickness",
+                        long_name="ejecta thickness",
+                        units="m",
+                        data=0.0,
+                        overwrite=True,
+                    )
+
         # Now form the ejecta blanket
         face_thickness, node_thickness = self.ejecta_shape(crater, ejecta_region_view)
 
