@@ -869,6 +869,10 @@ class Simulation(CratermakerBase):
                 reader = csv.DictReader(f)
                 existing_data = list(reader)
             combined_data = existing_data + new_data
+            # Sort by final_diameter descending
+            combined_data = sorted(
+                combined_data, key=lambda d: -float(d["final_diameter"])
+            )
         else:
             combined_data = new_data
 
