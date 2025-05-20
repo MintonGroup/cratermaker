@@ -316,7 +316,7 @@ class TestSurface(unittest.TestCase):
                 self.assertEqual(uxds["test_data"].long_name, "data for testing")
                 self.assertEqual(uxds["test_data"].units, "furlongs per fortnight")
                 np.testing.assert_array_equal(
-                    uxds["test_data"][face_indices].values,
+                    uxds["test_data"].sel(n_face=face_indices).values,
                     np.full(n_face, test_value),
                 )
 
@@ -332,7 +332,7 @@ class TestSurface(unittest.TestCase):
                 self.assertEqual(uxds["test_data"].long_name, "data for testing")
                 self.assertEqual(uxds["test_data"].units, "furlongs per fortnight")
                 np.testing.assert_array_equal(
-                    uxds["test_data"][face_indices].values,
+                    uxds["test_data"].sel(n_face=face_indices).values,
                     np.full(n_face, -test_value),
                 )
 
@@ -340,7 +340,7 @@ class TestSurface(unittest.TestCase):
                 obj.add_data(name="scalar_node", data=test_value, isfacedata=False)
                 self.assertIn("scalar_node", uxds)
                 np.testing.assert_array_equal(
-                    uxds["scalar_node"][node_indices].values,
+                    uxds["scalar_node"].sel(n_node=node_indices).values,
                     np.full(n_node, test_value),
                 )
 
@@ -348,19 +348,19 @@ class TestSurface(unittest.TestCase):
                 data_array = np.arange(n_face)
                 obj.add_data(name="array_face", data=data_array)
                 np.testing.assert_array_equal(
-                    uxds["array_face"][face_indices].values, data_array
+                    uxds["array_face"].sel(n_face=face_indices).values, data_array
                 )
 
                 # Overwrite behavior
                 obj.add_data(name="array_face", data=np.ones(n_face), overwrite=False)
                 np.testing.assert_array_equal(
-                    uxds["array_face"][face_indices].values,
+                    uxds["array_face"].sel(n_face=face_indices).values,
                     data_array + 1,
                 )
 
                 obj.add_data(name="array_face", data=np.zeros(n_face), overwrite=True)
                 np.testing.assert_array_equal(
-                    uxds["array_face"][face_indices].values,
+                    uxds["array_face"].sel(n_face=face_indices).values,
                     np.zeros(n_face),
                 )
 

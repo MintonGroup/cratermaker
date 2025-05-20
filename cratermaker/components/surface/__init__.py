@@ -1675,9 +1675,11 @@ class SurfaceView:
         if data.size == self.n_face:
             isfacedata = True
             indices = self.face_indices
+            dim_name = "n_face"
         elif data.size == self.n_node:
             isfacedata = False
             indices = self.node_indices
+            dim_name = "n_node"
         else:
             raise ValueError(
                 "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
@@ -1691,9 +1693,9 @@ class SurfaceView:
         # This prevents concurrent writes to the same data variable when used in
         with surface_lock:
             if overwrite:
-                self.surface.uxds[name][indices] = data
+                self.surface.uxds[name].loc[{dim_name: indices}] = data
             else:
-                self.surface.uxds[name][indices] += data
+                self.surface.uxds[name].loc[{dim_name: indices}] += data
 
         return
 
