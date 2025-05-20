@@ -90,6 +90,10 @@ class TestCrater(unittest.TestCase):
                 projectile_mean_velocity=10e3,
             )
 
+    def test_argument_override(self):
+        crater = Crater.maker(final_diameter=1000, location=(0.0, 0.0))
+        self.assertEqual(crater.location, (0.0, 0.0))
+
 
 if __name__ == "__main__":
     unittest.main()
