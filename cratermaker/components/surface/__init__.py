@@ -20,9 +20,9 @@ from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from cratermaker._cratermaker import surface_functions
 from cratermaker.constants import (
     _COMBINED_DATA_FILE_NAME,
-    _DATA_DIR,
     _GRID_FILE_NAME,
     _SMALLFAC,
+    _SURFACE_DIR,
     _VSMALL,
     FloatLike,
     PairOfFloats,
@@ -892,14 +892,14 @@ class Surface(ComponentBase):
         """
         Directory for data files.
         """
-        return self.simdir / _DATA_DIR
+        return self.simdir / _SURFACE_DIR
 
     @property
     def grid_file(self):
         """
         Path to the grid file.
         """
-        return self.simdir / _DATA_DIR / _GRID_FILE_NAME
+        return self.simdir / _SURFACE_DIR / _GRID_FILE_NAME
 
     @property
     def area(self):
