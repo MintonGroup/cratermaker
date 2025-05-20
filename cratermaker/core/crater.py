@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from numpy.random import Generator
 
-from ..utils import montecarlo_utils as mc
-from ..utils.general_utils import format_large_units, validate_and_normalize_location
+from ..utils.general_utils import format_large_units
 from .base import CratermakerBase
 
 if TYPE_CHECKING:
@@ -48,6 +48,16 @@ class Crater:
             f"morphology_type: {self.morphology_type}\n"
             f"age: {agetext}"
         )
+
+    @property
+    def _id(self):
+        """
+        The hash id of the crater. This is used as a unique identifier for the crater.
+        """
+        # Ensure deterministic field order by sorting keys (optional but safer)
+        data = asdict(self)
+        combined = ":".join(str(data[k]) for k in sorted(data))
+        return hashlib.sha256(combined.encode()).hexdigest()
 
     @property
     def final_radius(self) -> float | None:
@@ -296,8 +306,6 @@ class Crater:
         argproc = CratermakerBase(
             simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state
         )
-        rng = argproc.rng
-
         if scaling is not None and isinstance(scaling, Scaling):
             if projectile is None:
                 projectile = scaling.projectile
@@ -305,73 +313,22 @@ class Crater:
                 target = scaling.target
 
         target = Target.maker(target, **vars(argproc.common_args), **kwargs)
+
+        projectile_args = {
+            "velocity": args["projectile_velocity"],
+            "density": args["projectile_density"],
+            "angle": args["projectile_angle"],
+            "direction": args["projectile_direction"],
+            "location": args["location"],
+        }
         projectile = Projectile.maker(
-            projectile, target=target, **vars(argproc.common_args), **kwargs
+            projectile,
+            target=target,
+            **vars(argproc.common_args),
+            **kwargs,
+        ).new_projectile(
+            **projectile_args,
         )
-
-        # --- Handle projectile vs. raw velocity input ---
-        pmv = projectile_mean_velocity
-        pv = args["projectile_velocity"]
-        pvv = projectile_vertical_velocity
-        pang = args["projectile_angle"]
-        pdir = args["projectile_direction"]
-        prho = args["projectile_density"]
-        location = args["location"]
-
-        # --- Normalize location and age ---
-        if location is not None:
-            location = validate_and_normalize_location(location)
-            projectile.location = location
-
-        # --- Resolve velocity input combinations ---
-        if pmv is not None:
-            pmv = float(pmv)
-            if pmv <= 0.0:
-                raise ValueError("projectile_mean_velocity must be positive.")
-            pv = float(
-                mc.get_random_velocity(
-                    vmean=pmv, vescape=target.escape_velocity, rng=rng
-                )[0]
-            )
-        if n_velocity_inputs != 0:
-            if pv is not None:
-                pv = float(pv)
-                if pv <= 0.0:
-                    raise ValueError("projectile_velocity must be positive.")
-            if pvv is not None:
-                pvv = float(pvv)
-                if pvv <= 0.0:
-                    raise ValueError("projectile_vertical_velocity must be positive.")
-            if pang is not None:
-                pang = float(pang)
-                if not (0.0 <= pang <= 90.0):
-                    raise ValueError(
-                        "projectile_angle must be between 0 and 90 degrees"
-                    )
-            if pv is not None and pang is not None:
-                pvv = pv * math.sin(math.radians(pang))
-            elif pvv is not None and pang is not None:
-                pv = pvv / math.sin(math.radians(pang))
-            elif pv is not None and pvv is not None:
-                pang = math.radians(math.radians(pvv / pv))
-            elif pv is not None and pang is None:
-                pang = float(mc.get_random_impact_angle(rng=rng)[0])
-                pvv = pv * math.sin(math.radians(pang))
-            elif pvv is not None and pang is None:
-                pang = float(mc.get_random_impact_angle(rng=rng)[0])
-                pv = pvv / math.sin(math.radians(pang))
-            # Direction
-            if pdir is None:
-                pdir = float(rng.uniform(0.0, 360.0))
-            else:
-                pdir = float(pdir) % 360.0
-            # Get or infer projectile density
-            prho = prho or target.density
-            projectile.velocity = pv
-            projectile.angle = pang
-            projectile.direction = pdir
-            projectile.density = prho
-            projectile.sample = False
 
         scaling = Scaling.maker(
             scaling,

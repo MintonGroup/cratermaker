@@ -238,7 +238,7 @@ class Projectile(ComponentBase):
                 projectile = "comets"
             else:
                 projectile = "generic"
-                mean_velocity = 20.0e3
+                mean_velocity = 20.0e3 if mean_velocity is None else mean_velocity
 
         # if this is a brand new uninstantiated projectile, we need to flag it so that it its properties can be set propertly. Otherwise, it should just pass through as is.
         isfresh = isinstance(projectile, str)
@@ -259,17 +259,38 @@ class Projectile(ComponentBase):
             **kwargs,
         )
         if isfresh:
-            return projectile.new_projectile(**kwargs)
+            return projectile.new_projectile(
+                velocity=velocity,
+                angle=angle,
+                direction=direction,
+                location=location,
+                **kwargs,
+            )
         else:
             return projectile
 
-    def new_projectile(self, **kwargs: Any) -> Self:
+    def new_projectile(
+        self,
+        velocity: FloatLike | None = None,
+        angle: FloatLike | None = None,
+        direction: FloatLike | None = None,
+        location: tuple[float, float] | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """
         Returns a new projectile instance with updated sampled or default values,
         based on the original instance.
 
         Parameters
         ----------
+        velocity : float | None
+            The impact velocity in m/s. If None, the velocity will be sampled from a distribution if `sample` is True, otherwise it will be set to the value of `mean_velocity`.
+        angle : float, optional
+            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False.
+        direction : float | None
+            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False.
+        location : tuple[float, float] | None
+            The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
         **kwargs : Any
             Additional keyword arguments to override attributes.
 
@@ -282,7 +303,9 @@ class Projectile(ComponentBase):
 
         new_obj = copy.copy(self)
 
-        if new_obj.sample:
+        if velocity is not None:
+            new_obj.velocity = velocity
+        elif new_obj.sample:
             new_obj._velocity = float(
                 mc.get_random_velocity(
                     vmean=new_obj.mean_velocity,
@@ -290,20 +313,31 @@ class Projectile(ComponentBase):
                     rng=new_obj.rng,
                 )[0]
             )
+        elif new_obj._velocity is None:
+            new_obj._velocity = new_obj.mean_velocity
+
+        if angle is not None:
+            new_obj.angle = angle
+        elif new_obj.sample:
             new_obj._angle = float(mc.get_random_impact_angle(rng=new_obj.rng)[0])
+        elif new_obj._angle is None:
+            new_obj._angle = 90.0
+
+        if direction is not None:
+            new_obj.direction = direction
+        elif new_obj.sample:
             new_obj._direction = float(
                 mc.get_random_impact_direction(rng=new_obj.rng)[0]
             )
+        elif new_obj._direction is None:
+            new_obj._direction = 0.0
+
+        if location is not None:
+            new_obj.location = location
+        elif new_obj.sample:
             new_obj._location = mc.get_random_location(rng=new_obj.rng)[0]
-        else:
-            if new_obj.velocity is None:
-                new_obj._velocity = float(new_obj.mean_velocity)
-            if new_obj.angle is None:
-                new_obj._angle = float(90.0)
-            if new_obj.direction is None:
-                new_obj._direction = float(0.0)
-            if new_obj.location is None:
-                new_obj._location = (0, 0)
+        elif new_obj._location is None:
+            new_obj._location = (0, 0)
 
         return new_obj
 

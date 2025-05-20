@@ -60,8 +60,7 @@ class AsteroidProjectiles(Projectile):
         **kwargs : Any
             Additional keyword arguments.
         """
-        if density is None:
-            density = 2250.0
+        density = 2250.0 if density is None else density
         kwargs.pop("mean_velocity", None)
         kwargs.pop("velocity", None)
         self._target = Target.maker(target, **kwargs)

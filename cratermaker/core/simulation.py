@@ -1,3 +1,5 @@
+import shutil
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +15,13 @@ from ..components.projectile import Projectile
 from ..components.scaling import Scaling
 from ..components.surface import Surface
 from ..components.target import Target
-from ..constants import _COMPONENT_NAMES, _CONFIG_FILE_NAME, FloatLike, PairOfFloats
+from ..constants import (
+    _COMPONENT_NAMES,
+    _CONFIG_FILE_NAME,
+    _CRATER_DIR,
+    FloatLike,
+    PairOfFloats,
+)
 from ..utils import export
 from ..utils.general_utils import _set_properties, format_large_units, parameter
 from .base import CratermakerBase, _convert_for_yaml
@@ -91,6 +99,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
+        object.__setattr__(self, "_true_crater_list", [])
 
         if self.config_file.exists():
             config_file = self.config_file
@@ -130,6 +139,8 @@ class Simulation(CratermakerBase):
         projectile_config = unmatched.pop("projectile_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
+        if not resume_old:
+            self.reset()
 
         target_config = {**target_config, **kwargs}
         self.target = Target.maker(self.target, **target_config)
@@ -221,273 +232,17 @@ class Simulation(CratermakerBase):
         txt += "\n)"
         return txt
 
-    def get_smallest_diameter(
-        self, face_areas: ArrayLike | None = None, from_projectile: bool = False
-    ) -> float:
-        """
-        Get the smallest possible crater or projectile be formed on the surface.
-        """
-        if face_areas is None:
-            face_areas = self.surface.face_areas
-        else:
-            face_areas = np.asarray(face_areas)
-        smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2
-        if from_projectile:
-            crater = Crater.maker(
-                final_diameter=smallest_crater,
-                angle=90.0,
-                projectile_velocity=self.scaling.projectile_mean_velocity * 10,
-                scaling=self.scaling,
-                **vars(self.common_args),
-            )
-            return crater.projectile_diameter
-        else:
-            return smallest_crater
-
-    def get_largest_diameter(self, from_projectile: bool = False) -> float:
-        """
-        Get the largest possible crater or projectile that can be formed on the surface.
-        """
-        largest_crater = self.target.radius * 2
-        if from_projectile:
-            crater = Crater.maker(
-                final_diameter=largest_crater,
-                angle=1.0,
-                projectile_velocity=self.scaling.projectile_mean_velocity / 10.0,
-                scaling=self.scaling,
-                **vars(self.common_args),
-            )
-            return crater.projectile_diameter
-        else:
-            return largest_crater
-
-    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
-        """
-        Add a crater to the queue for later emplacement.
-
-        Parameters
-        ----------
-        crater : Crater
-            The crater object to enqueue.
-
-        **kwargs : Any
-            Additional keyword arguments for initializing the :class:`Crater`.
-
-        Raises
-        ------
-        RuntimeError
-            If the queue manager has not been initialized.
-        """
-        self.morphology._enqueue_crater(crater, **kwargs)
-        return
-
-    def _process_queue(self) -> None:
-        """
-        Process all queued craters in the order they were added, forming non-overlapping
-        batches and applying each to the surface.
-
-
-        Raises
-        ------
-        RuntimeError
-            If the queue manager has not been initialized.
-        """
-        self.morphology._process_queue()
-        return
-
-    def emplace(
-        self, crater: Crater | list[Crater] | None = None, **kwargs: Any
-    ) -> None:
-        """
-        Emplace one or more craters in the simulation.
-
-        This method orchestrates the creation and placement of a crater in the
-        simulation. It can create a crater directly or based on the characteristics
-        of a projectile.
-
-        Parameters
-        ----------
-        crater : Crater or list of Crater objects, optional
-            The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
-        **kwargs : Any
-            Keyword arguments to pass to :class:`Crater.maker`.
-            Refer to the documentation of this class for details on valid keyword arguments.
-
-        Notes
-        -----
-        The keyword arguments provided are passed down to :meth:`Crater.maker`.
-        Refer to its documentation for a detailed description of valid
-        keyword arguments.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            from cratermaker import Simulation, Crater
-            sim = Simulation()
-
-            # Create a crater with specific diameter
-            sim.emplace(final_diameter=10.0e3)
-
-            # Create a crater based on a projectile with given mass and projectile_velocity
-            sim.emplace(projectile_mass=1e15, projectile_velocity=20e3)
-
-            # Create a crater with a specific transient diameter and location
-            sim.emplace(transient_diameter=50e3, location=(43.43, -86.92))
-
-            # Create multiple craters
-            craters = [Crater.maker(final_diameter=20.0e3), Crater.maker(final_diameter=20.0e3)]
-            sim.emplace(craters)
-
-        """
-        if crater is None:
-            crater_args = {**kwargs, **vars(self.common_args)}
-            # Add scaling=self.scaling to the kwargs if it is not already present
-            if "scaling" not in crater_args:
-                crater_args["scaling"] = self.scaling
-            crater = Crater.maker(**crater_args)
-        elif isinstance(crater, list) and len(crater) > 0:
-            for c in crater:
-                self._enqueue_crater(c)
-            self._process_queue()
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name not in self._user_defined:
             return
-        if isinstance(crater, Crater):
-            self.morphology.emplace(crater, **kwargs)
-
-        return
-
-    def populate(
-        self,
-        age: FloatLike | None = None,
-        age_end: FloatLike | None = None,
-        diameter_number: PairOfFloats | None = None,
-        diameter_number_end: PairOfFloats | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Populate the surface with craters over a specified interval using the current production function.
-
-        Parameters
-        ----------
-        age : FloatLike, optional
-            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike, optional
-            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
-        diameter_number : PairOfFloats, optional
-            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this value
-            to a corresponding age and use the production function for a given age.
-        diameter_number_end : PairOfFloats, optional
-            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this
-            value to a corresponding reference age and use the production function for a given age.
-        """
-
-        if not hasattr(self, "production"):
-            raise RuntimeError("No production function defined for this simulation")
-        elif not hasattr(self.production, "generator_type"):
-            raise RuntimeError(
-                "The production function is not properly defined. Missing 'generator_type' attribute"
-            )
-        elif self.production.generator_type not in ["crater", "projectile"]:
-            raise RuntimeError(
-                f"Invalid production function type {self.production.generator_type}"
-            )
-
-        from_projectile = self.production.generator_type == "projectile"
-        if from_projectile:
-            diam_key = "projectile_diameter"
-        else:
-            diam_key = "final_diameter"
-        Dmax = self.get_largest_diameter(from_projectile=from_projectile)
-        Dmin = self.get_smallest_diameter(from_projectile=from_projectile)
-
-        # Loop over each face in the mesh to build up a population of craters in this interval. This is done because faces may
-        # not all have the same surface area, the range of crater sizes that can be formed on each face may be different.
-        impact_diameters = []
-        impact_ages = []
-        impact_locations = []
-        face_areas = self.surface.face_areas
-        min_area = face_areas.min()
-        n_face = face_areas.size
-        surface_area = self.surface.area.item()
-
-        # Group surfaces into bins based on their area. All bins within a factor of 2 in surface area are grouped together.
-        max_bin_index = np.ceil(np.log2(face_areas.max() / min_area)).astype(int)
-        bins = {i: [] for i in range(max_bin_index + 1)}
-
-        for face_index, area in enumerate(face_areas):
-            bin_index = np.floor(np.log2(area / min_area)).astype(int)
-            bins[bin_index].append(face_index)
-
-        # Process each bin
-        for bin_index, face_indices in bins.items():
-            if not face_indices:
-                continue  # Skip empty bins
-            face_indices = np.array(face_indices)
-
-            bin_areas = face_areas[face_indices]
-            total_bin_area = bin_areas.sum()
-            area_ratio = total_bin_area / surface_area
-
-            Dmin = self.get_smallest_diameter(
-                bin_areas, from_projectile=from_projectile
-            )
-            if diameter_number is not None:
-                diameter_number_local = (
-                    diameter_number[0],
-                    diameter_number[1] * area_ratio,
-                )
-            else:
-                diameter_number_local = None
-            if diameter_number_end is not None:
-                diameter_number_end_local = (
-                    diameter_number_end[0],
-                    diameter_number_end[1] * area_ratio,
-                )
-            else:
-                diameter_number_end_local = None
-
-            diameters, ages = self.production.sample(
-                age=age,
-                age_end=age_end,
-                diameter_number=diameter_number_local,
-                diameter_number_end=diameter_number_end_local,
-                diameter_range=(Dmin, Dmax),
-                area=total_bin_area,
-                **kwargs,
-            )
-            if diameters.size > 0:
-                impact_diameters.extend(diameters.tolist())
-                impact_ages.extend(ages.tolist())
-
-                # Get the relative probability of impact onto any particular face then get the locations of the impacts
-                p = bin_areas / total_bin_area
-                face_indices = self.rng.choice(face_indices, size=diameters.shape, p=p)
-                locations = self.surface.get_random_location_on_face(face_indices)
-                impact_locations.extend(np.array(locations).T.tolist())
-        if len(impact_diameters) > 0:
-            craterlist = []
-            # Sort the ages, diameters, and locations so that they are in order of decreasing age
-            sort_indices = np.argsort(impact_ages)[::-1]
-            impact_diameters = np.asarray(impact_diameters)[sort_indices]
-            impact_ages = np.asarray(impact_ages)[sort_indices]
-            impact_locations = np.array(impact_locations)[sort_indices]
-            for diameter, location, age in zip(
-                impact_diameters, impact_locations, impact_ages
-            ):
-                diam_arg = {diam_key: diameter}
-                craterlist.append(
-                    Crater.maker(
-                        location=location,
-                        age=age,
-                        scaling=self.scaling,
-                        **diam_arg,
-                        **vars(self.common_args),
-                        **kwargs,
-                    )
-                )
-            self.emplace(craterlist)
-
-        return
+        # Avoid recursive calls during initialization or early access
+        if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)):
+            if _convert_for_yaml(value) is not None:
+                try:
+                    self.to_config()
+                except Exception:
+                    pass
 
     def run(
         self,
@@ -836,6 +591,299 @@ class Simulation(CratermakerBase):
 
         return kwargs
 
+    def populate(
+        self,
+        age: FloatLike | None = None,
+        age_end: FloatLike | None = None,
+        diameter_number: PairOfFloats | None = None,
+        diameter_number_end: PairOfFloats | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Populate the surface with craters over a specified interval using the current production function.
+
+        Parameters
+        ----------
+        age : FloatLike, optional
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age_end, FloatLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        diameter_number : PairOfFloats, optional
+            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this value
+            to a corresponding age and use the production function for a given age.
+        diameter_number_end : PairOfFloats, optional
+            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this
+            value to a corresponding reference age and use the production function for a given age.
+        """
+
+        if not hasattr(self, "production"):
+            raise RuntimeError("No production function defined for this simulation")
+        elif not hasattr(self.production, "generator_type"):
+            raise RuntimeError(
+                "The production function is not properly defined. Missing 'generator_type' attribute"
+            )
+        elif self.production.generator_type not in ["crater", "projectile"]:
+            raise RuntimeError(
+                f"Invalid production function type {self.production.generator_type}"
+            )
+
+        from_projectile = self.production.generator_type == "projectile"
+        if from_projectile:
+            diam_key = "projectile_diameter"
+        else:
+            diam_key = "final_diameter"
+        Dmax = self.get_largest_diameter(from_projectile=from_projectile)
+        Dmin = self.get_smallest_diameter(from_projectile=from_projectile)
+
+        # Loop over each face in the mesh to build up a population of craters in this interval. This is done because faces may
+        # not all have the same surface area, the range of crater sizes that can be formed on each face may be different.
+        impact_diameters = []
+        impact_ages = []
+        impact_locations = []
+        face_areas = self.surface.face_areas
+        min_area = face_areas.min()
+        surface_area = self.surface.area.item()
+
+        # Group surfaces into bins based on their area. All bins within a factor of 2 in surface area are grouped together.
+        max_bin_index = np.ceil(np.log2(face_areas.max() / min_area)).astype(int)
+        bins = {i: [] for i in range(max_bin_index + 1)}
+
+        for face_index, area in enumerate(face_areas):
+            bin_index = np.floor(np.log2(area / min_area)).astype(int)
+            bins[bin_index].append(face_index)
+
+        # Process each bin
+        for bin_index, face_indices in bins.items():
+            if not face_indices:
+                continue  # Skip empty bins
+            face_indices = np.array(face_indices)
+
+            bin_areas = face_areas[face_indices]
+            total_bin_area = bin_areas.sum()
+            area_ratio = total_bin_area / surface_area
+
+            Dmin = self.get_smallest_diameter(
+                bin_areas, from_projectile=from_projectile
+            )
+            if diameter_number is not None:
+                diameter_number_local = (
+                    diameter_number[0],
+                    diameter_number[1] * area_ratio,
+                )
+            else:
+                diameter_number_local = None
+            if diameter_number_end is not None:
+                diameter_number_end_local = (
+                    diameter_number_end[0],
+                    diameter_number_end[1] * area_ratio,
+                )
+            else:
+                diameter_number_end_local = None
+
+            diameters, ages = self.production.sample(
+                age=age,
+                age_end=age_end,
+                diameter_number=diameter_number_local,
+                diameter_number_end=diameter_number_end_local,
+                diameter_range=(Dmin, Dmax),
+                area=total_bin_area,
+                **kwargs,
+            )
+            if diameters.size > 0:
+                impact_diameters.extend(diameters.tolist())
+                impact_ages.extend(ages.tolist())
+
+                # Get the relative probability of impact onto any particular face then get the locations of the impacts
+                p = bin_areas / total_bin_area
+                face_indices = self.rng.choice(face_indices, size=diameters.shape, p=p)
+                locations = self.surface.get_random_location_on_face(face_indices)
+                impact_locations.extend(np.array(locations).T.tolist())
+        if len(impact_diameters) > 0:
+            craterlist = []
+            # Sort the ages, diameters, and locations so that they are in order of decreasing age
+            sort_indices = np.argsort(impact_ages)[::-1]
+            impact_diameters = np.asarray(impact_diameters)[sort_indices]
+            impact_ages = np.asarray(impact_ages)[sort_indices]
+            impact_locations = np.array(impact_locations)[sort_indices]
+            for diameter, location, age in zip(
+                impact_diameters, impact_locations, impact_ages
+            ):
+                diam_arg = {diam_key: diameter}
+                craterlist.append(
+                    Crater.maker(
+                        location=location,
+                        age=age,
+                        scaling=self.scaling,
+                        **diam_arg,
+                        **vars(self.common_args),
+                        **kwargs,
+                    )
+                )
+            self.emplace(craterlist)
+
+        return
+
+    def emplace(
+        self, crater: Crater | list[Crater] | None = None, **kwargs: Any
+    ) -> None:
+        """
+        Emplace one or more craters in the simulation.
+
+        This method orchestrates the creation and placement of a crater in the
+        simulation. It can create a crater directly or based on the characteristics
+        of a projectile.
+
+        Parameters
+        ----------
+        crater : Crater or list of Crater objects, optional
+            The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
+        **kwargs : Any
+            Keyword arguments to pass to :class:`Crater.maker`.
+            Refer to the documentation of this class for details on valid keyword arguments.
+
+        Notes
+        -----
+        The keyword arguments provided are passed down to :meth:`Crater.maker`.
+        Refer to its documentation for a detailed description of valid
+        keyword arguments.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from cratermaker import Simulation, Crater
+            sim = Simulation()
+
+            # Create a crater with specific diameter
+            sim.emplace(final_diameter=10.0e3)
+
+            # Create a crater based on a projectile with given mass and projectile_velocity
+            sim.emplace(projectile_mass=1e15, projectile_velocity=20e3)
+
+            # Create a crater with a specific transient diameter and location
+            sim.emplace(transient_diameter=50e3, location=(43.43, -86.92))
+
+            # Create multiple craters
+            craters = [Crater.maker(final_diameter=20.0e3), Crater.maker(final_diameter=20.0e3)]
+            sim.emplace(craters)
+
+        """
+        if crater is None:
+            crater_args = {**kwargs, **vars(self.common_args)}
+            # Add scaling=self.scaling to the kwargs if it is not already present
+            if "scaling" not in crater_args:
+                crater_args["scaling"] = self.scaling
+            crater = Crater.maker(**crater_args)
+        elif isinstance(crater, list) and len(crater) > 0:
+            self._true_crater_list.extend(crater)
+            for c in crater:
+                self._enqueue_crater(c)
+            self._process_queue()
+            return
+        if isinstance(crater, Crater):
+            self._true_crater_list.append(crater)
+            self.morphology.emplace(crater, **kwargs)
+
+        return
+
+    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
+        """
+        Add a crater to the queue for later emplacement.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater object to enqueue.
+
+        **kwargs : Any
+            Additional keyword arguments for initializing the :class:`Crater`.
+
+        Raises
+        ------
+        RuntimeError
+            If the queue manager has not been initialized.
+        """
+        self.morphology._enqueue_crater(crater, **kwargs)
+        return
+
+    def _process_queue(self) -> None:
+        """
+        Process all queued craters in the order they were added, forming non-overlapping
+        batches and applying each to the surface.
+
+
+        Raises
+        ------
+        RuntimeError
+            If the queue manager has not been initialized.
+        """
+        self.morphology._process_queue()
+        return
+
+    def save(self, **kwargs: Any) -> None:
+        """
+        Save the current simulation state to a file.
+        """
+
+        time_variables = {
+            "current_age": self.current_age,
+            "elapsed_time": self.elapsed_time,
+            "elapsed_n1": self.elapsed_n1,
+        }
+
+        self.surface.save_to_files(
+            interval_number=self.interval_number,
+            time_variables=time_variables,
+            **kwargs,
+        )
+
+        self.dump_crater_lists()
+
+        self.to_config(**kwargs)
+
+        return
+
+    def dump_crater_lists(self) -> None:
+        """
+        Dump the crater lists to a file and reset the true crater list.
+        """
+        crater_dir = self.simdir / _CRATER_DIR
+        crater_dir.mkdir(parents=True, exist_ok=True)
+        truefilename = crater_dir / f"true_crater_list{self.interval_number:06d}.csv"
+
+        # Convert current crater list to dicts, splitting location into longitude/latitude
+        new_data = []
+        for c in self._true_crater_list:
+            d = asdict(c)
+            if "location" in d:
+                lon, lat = d.pop("location")
+                d["longitude"] = lon
+                d["latitude"] = lat
+            new_data.append(d)
+
+        # If the file already exists, read it and merge
+        if truefilename.exists():
+            import csv
+
+            with truefilename.open("r", newline="") as f:
+                reader = csv.DictReader(f)
+                existing_data = list(reader)
+            combined_data = existing_data + new_data
+        else:
+            combined_data = new_data
+
+        # Write merged data back to file
+        if combined_data:
+            import csv
+
+            with truefilename.open("w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
+                writer.writeheader()
+                writer.writerows(combined_data)
+
+        self._true_crater_list = []
+        return
+
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """
         Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. This will consolidate all of the configuration
@@ -903,27 +951,6 @@ class Simulation(CratermakerBase):
 
         return sim_config
 
-    def save(self, **kwargs: Any) -> None:
-        """
-        Save the current simulation state to a file.
-        """
-
-        time_variables = {
-            "current_age": self.current_age,
-            "elapsed_time": self.elapsed_time,
-            "elapsed_n1": self.elapsed_n1,
-        }
-
-        self.surface.save_to_files(
-            interval_number=self.interval_number,
-            time_variables=time_variables,
-            **kwargs,
-        )
-
-        self.to_config(**kwargs)
-
-        return
-
     def export(self, format="vtp", *args, **kwargs) -> None:
         """
         Export the surface mesh to a file in the specified format. Currently only VTK is supported.
@@ -933,6 +960,12 @@ class Simulation(CratermakerBase):
             export.to_vtk(self.surface, *args, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")
+
+    def reset(self):
+        crater_dir = self.simdir / _CRATER_DIR
+        # delete crater_dir using Pathlib
+        if crater_dir.exists():
+            shutil.rmtree(crater_dir)
 
     def update_elevation(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -944,6 +977,46 @@ class Simulation(CratermakerBase):
         **kwargs: Arbitrary keyword arguments to pass to self.surface.update_elevation.
         """
         return self.surface.update_elevation(*args, **kwargs)
+
+    def get_smallest_diameter(
+        self, face_areas: ArrayLike | None = None, from_projectile: bool = False
+    ) -> float:
+        """
+        Get the smallest possible crater or projectile be formed on the surface.
+        """
+        if face_areas is None:
+            face_areas = self.surface.face_areas
+        else:
+            face_areas = np.asarray(face_areas)
+        smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2
+        if from_projectile:
+            crater = Crater.maker(
+                final_diameter=smallest_crater,
+                angle=90.0,
+                projectile_velocity=self.scaling.projectile_mean_velocity * 10,
+                scaling=self.scaling,
+                **vars(self.common_args),
+            )
+            return crater.projectile_diameter
+        else:
+            return smallest_crater
+
+    def get_largest_diameter(self, from_projectile: bool = False) -> float:
+        """
+        Get the largest possible crater or projectile that can be formed on the surface.
+        """
+        largest_crater = self.target.radius * 2
+        if from_projectile:
+            crater = Crater.maker(
+                final_diameter=largest_crater,
+                angle=1.0,
+                projectile_velocity=self.scaling.projectile_mean_velocity / 10.0,
+                scaling=self.scaling,
+                **vars(self.common_args),
+            )
+            return crater.projectile_diameter
+        else:
+            return largest_crater
 
     @property
     def target(self):
@@ -1043,6 +1116,13 @@ class Simulation(CratermakerBase):
         Number of faces in the simulation mesh. Dynamically set based on `surface` attribute.
         """
         return self.surface.uxgrid.n_face
+
+    @property
+    def true_crater_list(self):
+        """
+        The list of craters that have been emplaced in the simulation.
+        """
+        return self._true_crater_list
 
     @parameter
     def interval_number(self):
@@ -1196,15 +1276,3 @@ class Simulation(CratermakerBase):
         The path to the configuration file for the simulation.
         """
         return self.simdir / _CONFIG_FILE_NAME
-
-    def __setattr__(self, name, value):
-        super().__setattr__(name, value)
-        if name not in self._user_defined:
-            return
-        # Avoid recursive calls during initialization or early access
-        if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)):
-            if _convert_for_yaml(value) is not None:
-                try:
-                    self.to_config()
-                except Exception:
-                    pass

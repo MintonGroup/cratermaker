@@ -57,14 +57,10 @@ class GenericProjectiles(Projectile):
         """
 
         # set the defaults
-        if density is None:
-            density = 1000.0
-        if angle is None:
-            angle = 90.0
-        if direction is None:
-            direction = 0.0
-        if location is None:
-            location = (0.0, 0.0)
+        density = 1000.0 if density is None else density
+        angle = 90.0 if angle is None else angle
+        direction = 0.0 if direction is None else direction
+        location = (0.0, 0.0) if location is None else location
         super().__init__(
             sample=sample,
             mean_velocity=mean_velocity,
