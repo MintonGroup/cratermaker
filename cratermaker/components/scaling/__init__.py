@@ -126,6 +126,10 @@ class Scaling(ComponentBase):
             rng_state=rng_state,
             **kwargs,
         )
+        if projectile is not None:
+            scaling.projectile = projectile
+        if target is not None:
+            scaling.target = target
 
         return scaling
 
