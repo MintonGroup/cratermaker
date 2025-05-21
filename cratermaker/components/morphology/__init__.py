@@ -15,8 +15,6 @@ from cratermaker.utils.component_utils import ComponentBase, import_components
 if TYPE_CHECKING:
     from cratermaker.components.surface import Surface, SurfaceView
 
-EJECTA_SOFTEN_FACTOR = 1.50
-
 
 class Morphology(ComponentBase):
     def __init__(self, surface: Surface | str | None = None, **kwargs: Any) -> None:
@@ -176,7 +174,9 @@ class Morphology(ComponentBase):
                     )
 
         # Now form the ejecta blanket
-        ejecta_thickness = self.ejecta_shape(crater, ejecta_region_view)
+        ejecta_thickness, ejecta_intensity = self.ejecta_shape(
+            crater, ejecta_region_view
+        )
 
         if crater_volume:
             ejecta_volume = ejecta_region_view.compute_volume(
@@ -194,10 +194,9 @@ class Morphology(ComponentBase):
 
         ejecta_region_view.update_elevation(ejecta_thickness)
 
-        kdiff = (
-            EJECTA_SOFTEN_FACTOR * ejecta_thickness[: ejecta_region_view.n_face] ** 2
+        self.degradation_function(
+            crater, ejecta_region_view, ejecta_thickness, ejecta_intensity
         )
-        ejecta_region_view.apply_diffusion(kdiff)
 
         return
 
@@ -320,6 +319,9 @@ class Morphology(ComponentBase):
         return
 
     @abstractmethod
+    def degradation_function(self) -> None: ...
+
+    @abstractmethod
     def crater_shape(
         self,
         crater: Crater,
@@ -333,7 +335,7 @@ class Morphology(ComponentBase):
         crater: Crater,
         region_view: SurfaceView,
         **kwarg: Any,
-    ) -> NDArray[np.float64]: ...
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
     @abstractmethod
     def rmax(
