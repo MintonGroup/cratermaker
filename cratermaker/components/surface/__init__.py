@@ -300,7 +300,7 @@ class Surface(ComponentBase):
 
         return
 
-    def regrid_if_needed(self, force: bool = False, **kwargs: Any) -> bool:
+    def regrid_if_needed(self, regrid: bool = False, **kwargs: Any) -> bool:
         """
         Check if the existing grid matches the desired parameters determine if regridding is necessary.
 
@@ -309,7 +309,7 @@ class Surface(ComponentBase):
 
         Parameters
         ----------
-        force : bool, optional
+        regrid: bool, optional
             Flag to force regridding even if the grid file exists. Default is False.
 
         Returns
@@ -320,7 +320,7 @@ class Surface(ComponentBase):
 
         # Find out if the file exists, if it does't we'll need to make a new grid
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        regrid = force or not Path(self.grid_file).exists()
+        regrid = regrid or not Path(self.grid_file).exists()
 
         if not regrid:
             try:
@@ -1581,6 +1581,7 @@ class SurfaceView:
             face_indices=face_indices,
         )
         self.update_elevation(delta_face_elevation)
+        self.add_data("ejecta_thickness", delta_face_elevation)
         self.interpolate_node_elevation_from_faces()
 
     def apply_noise(

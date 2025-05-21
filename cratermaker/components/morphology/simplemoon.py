@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -249,7 +250,7 @@ class SimpleMoon(Morphology):
 
     def ejecta_shape(
         self, crater: SimpleMoonCrater, region_view: SurfaceView, **kwargs: Any
-    ) -> NDArray[np.float64]:
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the ejecta shape based on the region view and surface.
 
@@ -262,6 +263,8 @@ class SimpleMoon(Morphology):
         -------
         NDArray[np.float64]
             The computed ejecta shape at the face and node elevations
+        NDArray[np.float64]
+            The computed ejecta intensity at the face and node elevations which is used to compute the degradation function. When `dorays` is True, this is the ray intensity function. When `dorays` is False, this is just a constant 1 over the ejecta region.
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
@@ -273,11 +276,12 @@ class SimpleMoon(Morphology):
             bearing = np.concatenate(
                 [region_view.face_bearing, region_view.node_bearing]
             )
-            ejecta_thickness = self.ejecta_distribution(crater, distance, bearing)
+            thickness, intensity = self.ejecta_distribution(crater, distance, bearing)
         else:
-            ejecta_thickness = self.ejecta_profile(crater, distance)
+            thickness = self.ejecta_profile(crater, distance)
+            intensity = np.ones_like(thickness)
 
-        return ejecta_thickness
+        return thickness, intensity
 
     def ejecta_profile(
         self, crater: SimpleMoonCrater, r: ArrayLike
@@ -313,7 +317,7 @@ class SimpleMoon(Morphology):
 
     def ejecta_distribution(
         self, crater, r: ArrayLike, theta: ArrayLike
-    ) -> NDArray[np.float64]:
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the ejecta thickness distribution modulated by ray patterns.
 
@@ -330,6 +334,8 @@ class SimpleMoon(Morphology):
         -------
         thickness : NDArray[np.float64]
             The computed ejecta thickness for each (r, theta) pair.
+        ray_intensity : NDArray[np.float64]
+            The computed ray intensity for each (r, theta) pair.
 
         Notes
         -----
@@ -341,17 +347,17 @@ class SimpleMoon(Morphology):
         thickness = self.ejecta_profile(crater, r)
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
-        ray_intensity = sm.ray_intensity(
+        intensity = sm.ray_intensity(
             radial_distance=rflat,
             initial_bearing=theta_flat,
             crater_diameter=crater.final_diameter,
             seed=self.rng.integers(0, 2**32 - 1),
         )
         thickness = np.array(thickness, dtype=np.float64)
-        ray_intensity = np.array(ray_intensity, dtype=np.float64)
-        thickness *= ray_intensity
+        intensity = np.array(intensity, dtype=np.float64)
+        thickness *= intensity
         # reshape thickness to match the shape of r and theta
-        return np.reshape(thickness, r.shape)
+        return np.reshape(thickness, r.shape), np.reshape(intensity, r.shape)
 
     def ray_intensity(
         self, crater: SimpleMoonCrater, r: ArrayLike, theta: ArrayLike
@@ -444,6 +450,76 @@ class SimpleMoon(Morphology):
             rmax = max(rmax, crater.final_radius)
 
         return float(rmax)
+
+    def degradation_function(
+        self, crater, region_view, ejecta_thickness, ejecta_intensity
+    ) -> None:
+        """
+        Implements the degradation function, which defines the topographic degradation that each crater contributes to the surface.
+
+        This function implements a combination of the model by Minton et al. (2019) [#]_ for small craters and Riedel et al. (2020) [#]_ for large craters. It is currently not well-constrained, so may change in the future.
+
+        Parameters
+        ----------
+        crater : SimpleMoonCrater
+            The crater object that is being emplaced.
+        region_view : SurfaceView
+            The region view of the surface mesh centered at the crater center.
+        ejecta_thickness : NDArray[np.float64]
+            The computed ejecta thickness at the face and node elevations.
+        ejecta_intensity : NDArray[np.float64]
+            The computed ejecta intensity at the face and node elevations.
+
+        References
+        ----------
+        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63–87. https://doi.org/10.1016/j.icarus.2019.02.021
+        .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. https://doi.org/10.1029/2019JE006273
+        """
+        EJECTA_SOFTEN_FACTOR = 1.50
+
+        def _Kdmare(r, fe, psi):
+            """
+            This is the mare-scale ddegradation function from Minton et al. (2019). See eq. (32)
+            """
+            Kv1 = 0.17
+            neq1 = 0.0084
+            eta = 3.2
+            gamma = 2.0
+            beta = 2.0
+            Kd1 = Kv1 * (
+                math.pi
+                * fe**2
+                * neq1
+                * (gamma * beta / ((eta - 2.0) * (beta + gamma - eta)))
+            ) ** (-gamma / (eta - beta))
+            psi = gamma * ((eta - 2.0) / (eta - beta))
+            return Kd1 * r**psi
+
+        def _smooth_broken(x, A, x_break, alpha_1, alpha_2, delta):
+            return (
+                A
+                * (x / x_break) ** (alpha_1)
+                * (0.5 * (1.0 + (x / x_break) ** (1.0 / delta)))
+                ** ((alpha_2 - alpha_1) / delta)
+            )
+
+        def _Kd(r):
+            fe = 100.0  # Degradation function size factor
+            psi_1 = 2.0  # Mare scale power law exponent
+            psi_2 = 1.2  # Highlands scale power law exponent
+            rb = 0.5e3  # breakpoint radius
+            delta = 1.0e0  # Smoothing function
+
+            Kd1 = _Kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
+            return _smooth_broken(r, Kd1, rb, psi_1, psi_2, delta)
+
+        def _Kdej(h):
+            return EJECTA_SOFTEN_FACTOR * h**2
+
+        kdiff = _Kdej(ejecta_thickness[: region_view.n_face])
+        kdiff += ejecta_intensity[: region_view.n_face] * _Kd(crater.final_radius)
+        region_view.apply_diffusion(kdiff)
+        return
 
     @property
     def node_index(self):
