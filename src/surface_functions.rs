@@ -7,11 +7,22 @@ use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyArrayMethods};
 use pyo3::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
+/// Computes the positive modulus of `x` with respect to `m`.
+/// Ensures the result is always in the range `[0, m)`.
 #[inline]
 fn positive_mod(x: f64, m: f64) -> f64 {
     ((x % m) + m) % m
 }
 
+/// Computes the Haversine distance between two points on a sphere given their longitude and latitude in radians.
+///
+/// # Arguments
+/// * `lon1`, `lat1` - Coordinates of the first point in radians.
+/// * `lon2`, `lat2` - Coordinates of the second point in radians.
+/// * `radius` - Radius of the sphere in meters.
+///
+/// # Returns
+/// Distance in meters between the two points along the surface of the sphere.
 #[inline]
 fn haversine_distance_scalar(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius: f64) -> f64 {
     let dlon = lon2 - lon1;
@@ -22,6 +33,16 @@ fn haversine_distance_scalar(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius:
     radius * c
 }
 
+
+/// Computes the Haversine distance between a single point and an array of points on a sphere given their longitude and latitude in radians.
+///
+/// # Arguments
+/// * `lon1`, `lat1` - Coordinates of the first point in radians.
+/// * `lon2`, `lat2` - Array of coordinates of the second point in radians.
+/// * `radius` - Radius of the sphere in meters.
+///
+/// # Returns
+/// Distance in meters between the pairs of points along the surface of the sphere.
 #[pyfunction]
 pub fn calculate_haversine_distance<'py>(
     py: Python<'py>,
@@ -95,15 +116,9 @@ pub fn calculate_initial_bearing<'py>(
     Ok(PyArray1::from_owned_array(py, result))
 }
 
-/// View into a region of the surface mesh, consisting of node and face indices.
-///
-/// Used to localize crater effects to a subset of the full mesh.
-#[derive(FromPyObject)]
-pub struct SurfaceView<'py> {
-    pub node_indices: PyReadonlyArray1<'py, i64>,
-    pub face_indices: PyReadonlyArray1<'py, i64>,
-}
 
+/// Builds a mapping from face indices to their corresponding positions in a result array.
+/// Used to retrieve local indices efficiently from global face IDs.
 fn compute_face_index_map(face_indices: &ndarray::ArrayView1<'_, i64>) -> HashMap<usize, usize> {
     face_indices
         .iter()
@@ -112,6 +127,15 @@ fn compute_face_index_map(face_indices: &ndarray::ArrayView1<'_, i64>) -> HashMa
         .collect()
 }
 
+/// Computes the stable time step for the diffusion equation based on face areas and maximum diffusivity.
+///
+/// # Arguments
+/// * `face_areas` - Array of face areas.
+/// * `max_kappa` - Maximum diffusivity value.
+/// * `n_neighbors` - Number of neighboring faces per face.
+///
+/// # Returns
+/// The minimum allowed timestep for stability.
 fn compute_dt_initial(face_areas: &ndarray::ArrayView1<'_, f64>, max_kappa: f64, n_neighbors: usize) -> f64 {
     face_areas
         .iter()
@@ -214,6 +238,20 @@ pub fn apply_diffusion<'py>(
 }
 
 
+/// Computes the maximum squared slope magnitude at a face using adjacent neighbor pairs.
+///
+/// This function assumes neighbors are ordered counterclockwise and uses Haversine distances
+/// to determine gradient magnitudes.
+///
+/// # Arguments
+/// * `f` - Index of the central face.
+/// * `row` - Neighbor indices for the central face.
+/// * `face_elevation` - Elevation array for all faces.
+/// * `face_lon`, `face_lat` - Longitude and latitude arrays for all faces.
+/// * `radius` - Radius of the sphere.
+///
+/// # Returns
+/// Maximum squared slope from any adjacent neighbor pair around the face.
 fn compute_slope_squared(
     f: usize,
     row: &ndarray::ArrayView1<'_, i64>,
@@ -331,7 +369,6 @@ pub fn slope_collapse<'py>(
             .collect();
 
         let n_active = face_kappa.iter().filter(|&&k| k > 0.0).count();
-        println!("Iteration: {} of {}, active faces: {}", looplimit - looplimit_left, looplimit, n_active);
 
         if face_kappa.iter().all(|&k| k == 0.0) {
             break;
