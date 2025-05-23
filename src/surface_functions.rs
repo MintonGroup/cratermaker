@@ -344,7 +344,7 @@ pub fn slope_collapse<'py>(
     let mut global_kappa = vec![0.0f64; n_face];
     let mut global_elev = vec![0.0f64; n_face];
 
-    for looplimit_left in (0..looplimit).rev() {
+    for _ in (0..looplimit).rev() {
         // Compute updated face_elevation for this iteration
         let face_elevation = &face_elevation_view + &face_delta_elevation;
         let face_kappa: Vec<_> = Zip::from(&face_indices_view)
@@ -370,7 +370,7 @@ pub fn slope_collapse<'py>(
 
         let n_active = face_kappa.iter().filter(|&&k| k > 0.0).count();
 
-        if face_kappa.iter().all(|&k| k == 0.0) {
+        if n_active == 0 {
             break;
         }
     
