@@ -252,6 +252,7 @@ pub fn apply_diffusion<'py>(
 ///
 /// # Returns
 /// Maximum squared slope from any adjacent neighbor pair around the face.
+#[inline(always)]
 fn compute_slope_squared(
     f: usize,
     row: &ndarray::ArrayView1<'_, i64>,
@@ -262,12 +263,20 @@ fn compute_slope_squared(
 ) -> f64 {
     let h_f = face_elevation[f];
     let mut max_slope_sq = 0.0;
-    let neighbors: Vec<_> = row.iter().copied().filter(|&fid| fid >= 0).map(|fid| fid as usize).collect();
+    // Collect valid neighbor indices into a small array for pairing with wrapping.
+    let mut valid_neighbors = [0usize; 6];
+    let mut count = 0;
+    for &fid in row.iter() {
+        if fid >= 0 {
+            valid_neighbors[count] = fid as usize;
+            count += 1;
+        }
+    }
 
-    for i in 0..neighbors.len() {
-        let j = (i + 1) % neighbors.len();
-        let f_j = neighbors[i];
-        let f_k = neighbors[j];
+    for i in 0..count {
+        let j = (i + 1) % count;
+        let f_j = valid_neighbors[i];
+        let f_k = valid_neighbors[j];
 
         let h_j = face_elevation[f_j];
         let h_k = face_elevation[f_k];

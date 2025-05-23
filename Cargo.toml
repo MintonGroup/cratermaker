@@ -23,6 +23,7 @@ features = [ "rayon",]
 [profile.release]
 codegen-units = 1
 lto = "fat"
+opt-level = 3
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"
