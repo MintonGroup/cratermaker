@@ -198,6 +198,8 @@ class Morphology(ComponentBase):
             crater, ejecta_region_view, ejecta_thickness, ejecta_intensity
         )
 
+        ejecta_region_view.slope_collapse()
+
         return
 
     def _affected_indices(self, crater: Crater) -> tuple[set[int], set[int]]:

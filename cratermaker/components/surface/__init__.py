@@ -1605,8 +1605,8 @@ class SurfaceView:
             face_indices = np.arange(self.surface.n_face)
         else:
             face_indices = self.face_indices
-        face_lon = np.deg2rad(self.face_lon)
-        face_lat = np.deg2rad(self.face_lat)
+        face_lon = np.deg2rad(self.surface.face_lon)
+        face_lat = np.deg2rad(self.surface.face_lat)
         delta_face_elevation = surface_functions.slope_collapse(
             face_areas=self.surface.face_areas,
             face_elevation=self.surface.face_elevation,

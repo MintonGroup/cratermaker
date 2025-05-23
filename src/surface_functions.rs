@@ -268,8 +268,13 @@ fn compute_slope_squared(
     let mut count = 0;
     for &fid in row.iter() {
         if fid >= 0 {
-            valid_neighbors[count] = fid as usize;
-            count += 1;
+            let fid = fid as usize;
+            if fid < face_elevation.len() {
+                valid_neighbors[count] = fid;
+                count += 1;
+            } else {
+                panic!("Neighbor index {} out of bounds (face_elevation.len() = {})", fid, face_elevation.len());
+            }
         }
     }
 
@@ -345,17 +350,19 @@ pub fn slope_collapse<'py>(
     let n_max_face_faces = face_face_connectivity_view.ncols();
     let n_face = face_areas_view.len();
 
-    let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(face_indices_view.len());
 
     let diffmax = compute_dt_initial(&face_areas_view, 1.0, n_max_face_faces);
     let looplimit = n_face as usize;
 
     let mut global_kappa = vec![0.0f64; n_face];
-    let mut global_elev = vec![0.0f64; n_face];
+    let mut face_elevation = ndarray::Array1::<f64>::zeros(face_elevation_view.len());
+    let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(face_indices_view.len());
 
     for _ in (0..looplimit).rev() {
-        // Compute updated face_elevation for this iteration
-        let face_elevation = &face_elevation_view + &face_delta_elevation;
+        face_elevation.assign(&face_elevation_view);
+        for (i, &f) in face_indices_view.iter().enumerate() {
+            face_elevation[f as usize] += face_delta_elevation[i];
+        }
         let face_kappa: Vec<_> = Zip::from(&face_indices_view)
             .and(face_face_connectivity_view.outer_iter())
             .into_par_iter()
@@ -384,13 +391,14 @@ pub fn slope_collapse<'py>(
         }
     
         for (i, &f) in face_indices_view.iter().enumerate() {
-            global_kappa[f as usize] = face_kappa[i];
-            global_elev[f as usize] = face_elevation[i];
+            let f = f as usize;
+            assert!(f < global_kappa.len(), "f {} out of bounds for global_kappa (len = {})", f, global_kappa.len());
+            global_kappa[f] = face_kappa[i];
         }
+        assert_eq!(face_elevation.len(), n_face, "face_elevation length mismatch");
         let py_kappa_array = PyArray1::from_slice(py, &global_kappa);
         let py_kappa = py_kappa_array.readonly();
-
-        let py_elev_array = PyArray1::from_slice(py, &global_elev);
+        let py_elev_array = PyArray1::from_array(py, &face_elevation); 
         let py_elev = py_elev_array.readonly();
 
         let delta = apply_diffusion(
