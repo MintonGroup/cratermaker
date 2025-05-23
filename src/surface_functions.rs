@@ -264,7 +264,7 @@ fn compute_slope_squared(
     let h_f = face_elevation[f];
     let mut max_slope_sq = 0.0;
     // Collect valid neighbor indices into a small array for pairing with wrapping.
-    let mut valid_neighbors = [0usize; 6];
+    let mut valid_neighbors = [0usize; 24];
     let mut count = 0;
     for &fid in row.iter() {
         if fid >= 0 {
