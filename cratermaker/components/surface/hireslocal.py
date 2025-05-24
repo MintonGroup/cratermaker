@@ -63,7 +63,9 @@ class HiResLocalSurface(Surface):
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
+        object.__setattr__(self, "_local_view", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
+
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
@@ -243,7 +245,7 @@ class HiResLocalSurface(Surface):
             if (np.pi * r - arc_distance) < pix_local:
                 break
             dphi = (
-                pix_local / (r * np.sin(theta)) if np.sin(theta) > 1e-6 else 2 * np.pi
+                pix_local / (r * np.sin(theta)) if np.sin(theta) > 1e-12 else 2 * np.pi
             )
             n_phi = max(1, int(round(2 * np.pi / dphi)))
             for i in range(n_phi):
@@ -333,3 +335,14 @@ class HiResLocalSurface(Surface):
                 "superdomain_scale_factor must be a positive float greater than or equal to 1"
             )
         self._superdomain_scale_factor = value
+
+    @property
+    def local_view(self):
+        """
+        Returns the local view of the surface.
+        """
+        if self._local_view is None:
+            self._local_view = self.extract_region(
+                location=self.local_location, region_radius=self.local_radius
+            )
+        return self._local_view
