@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker"
-version = "2025.5.8-a16+g78b1ae1"
+version = "2025.5.10-a0"
 edition = "2021"
 
 [lib]
@@ -23,6 +23,7 @@ features = [ "rayon",]
 [profile.release]
 codegen-units = 1
 lto = "fat"
+opt-level = 3
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"

@@ -33,8 +33,8 @@ mod cratermaker {
     mod surface_functions {
         #[pymodule_export]
         use crate::surface_functions::{
-            apply_diffusion, calculate_initial_bearing, interpolate_node_elevation_from_faces,
-            turbulence_noise,
+            apply_diffusion, slope_collapse, calculate_initial_bearing, interpolate_node_elevation_from_faces,
+            turbulence_noise, calculate_haversine_distance,
         };
     }
 }
