@@ -8,9 +8,7 @@ This example showcases how to create a crater and ejecta profile using the "simp
 
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LightSource
 
 from cratermaker import Crater, Morphology
 
@@ -20,7 +18,6 @@ crater = Crater.maker(final_radius=1.0e3)
 
 # Generate 1000x1000 grid centered at (0, 0)
 gridsize = 1000
-dpi = 300
 extent = 5e3  # +/- extent in meters
 pix = 2 * extent / gridsize  # pixel size in meters
 x = np.linspace(-extent, extent, gridsize)
@@ -37,25 +34,35 @@ ejecta_elevation = morphology.ejecta_profile(crater, r)
 # Combine into a total DEM
 dem = crater_elevation + ejecta_elevation
 
-# Create hillshade
-azimuth = 300.0  # user['azimuth']
-solar_angle = 20.0  # user['solar_angle']
-height = gridsize / dpi
-width = gridsize / dpi
-fig = plt.figure(figsize=(width, height), dpi=dpi)
-ax = plt.axes([0, 0, 1, 1])
 
-ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
-hillshade = ls.hillshade(dem, dx=pix, dy=pix, fraction=1)
+def plot_hillshade(dem, pix):
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LightSource
 
-# Plot the shaded relief
-ax.imshow(
-    hillshade,
-    interpolation="nearest",
-    cmap="gray",
-    vmin=0.0,
-    vmax=1.0,
-    extent=(-extent, extent, -extent, extent),
-)
-plt.axis("off")
-plt.show()
+    dpi = 300
+    gridsize = dem.shape[0]
+    # Create hillshade
+    azimuth = 300.0  # user['azimuth']
+    solar_angle = 20.0  # user['solar_angle']
+    height = gridsize / dpi
+    width = gridsize / dpi
+    fig = plt.figure(figsize=(width, height), dpi=dpi)
+    ax = plt.axes([0, 0, 1, 1])
+
+    ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+    hillshade = ls.hillshade(dem, dx=pix, dy=pix, fraction=1)
+
+    # Plot the shaded relief
+    ax.imshow(
+        hillshade,
+        interpolation="nearest",
+        cmap="gray",
+        vmin=0.0,
+        vmax=1.0,
+        extent=(-extent, extent, -extent, extent),
+    )
+    plt.axis("off")
+    plt.show()
+
+
+plot_hillshade(dem, pix)
