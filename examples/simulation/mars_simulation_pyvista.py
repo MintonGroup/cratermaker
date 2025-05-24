@@ -3,7 +3,7 @@ Visualize a Mars crater simulation with PyVista
 ===============================================
 
 This example demonstrates how to run a short crater population simulation on Mars
-and visualize the final surface state using PyVista.
+and visualize the final surface state using PyVista. 
 
 The simulation uses the default Mars configuration and runs for 1 billion years.
 Cratermaker automatically exports the surface as a VTK PolyData file (`.vtp`),
