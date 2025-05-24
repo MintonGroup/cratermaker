@@ -126,7 +126,7 @@ class TestSurface(unittest.TestCase):
             expected_distance = np.pi * surface.radius / 2
             calculated_distance = surface.calculate_haversine_distance(
                 lon1, lat1, lon2, lat2
-            )
+            )[0]
 
             # Compare the expected and calculated distances
             self.assertAlmostEqual(calculated_distance, expected_distance, places=1)
