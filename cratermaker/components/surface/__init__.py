@@ -1183,12 +1183,7 @@ class Surface(ComponentBase):
 
         """
         if self._face_areas is None:
-            import time
-
-            start = time.perf_counter()
             self._face_areas = self.uxgrid.face_areas.values * self.radius**2
-            end = time.perf_counter()
-            print(f"Face areas computed in {end - start:.2f} seconds")
         return self._face_areas
 
     @property
