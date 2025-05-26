@@ -1089,7 +1089,8 @@ class Surface(ComponentBase):
                 return None, None, None, None
             else:
                 uxgrid = self.uxgrid
-        face_areas = uxgrid.face_areas
+        face_areas = uxgrid.face_areas.values * self.radius**2
+        self._face_areas = face_areas
         face_sizes = np.sqrt(face_areas / (4 * np.pi))
         pix_mean = face_sizes.mean().item() * self.radius
         pix_std = face_sizes.std().item() * self.radius
@@ -1178,7 +1179,12 @@ class Surface(ComponentBase):
 
         """
         if self._face_areas is None:
+            import time
+
+            start = time.perf_counter()
             self._face_areas = self.uxgrid.face_areas.values * self.radius**2
+            end = time.perf_counter()
+            print(f"Face areas computed in {end - start:.2f} seconds")
         return self._face_areas
 
     @property
