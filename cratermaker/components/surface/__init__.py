@@ -1122,7 +1122,9 @@ class Surface(ComponentBase):
         The standard deviation of the pixel size of the mesh.
         """
         if self._pix_std is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min = self._compute_pix_size()
+            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
+                self._compute_pix_size()
+            )
         return self._pix_std
 
     @property
@@ -1131,7 +1133,9 @@ class Surface(ComponentBase):
         The minimum pixel size of the mesh.
         """
         if self._pix_min is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min = self._compute_pix_size()
+            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
+                self._compute_pix_size()
+            )
         return self._pix_min
 
     @property
