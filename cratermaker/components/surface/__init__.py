@@ -284,7 +284,10 @@ class Surface(ComponentBase):
         self.grid_file.unlink(missing_ok=True)
 
         points = self.generate_face_distribution(**kwargs)
-        uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi")
+        threshold = 10 ** np.floor(np.log10(self.pix / self.radius))
+        uxgrid = uxr.Grid.from_points(
+            points, method="spherical_voronoi", threshold=threshold
+        )
         uxgrid.attrs["_id"] = self._id
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             uxgrid.to_xarray().to_netcdf(temp_file.name)

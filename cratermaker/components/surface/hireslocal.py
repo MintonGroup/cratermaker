@@ -345,9 +345,10 @@ class HiResLocalSurface(Surface):
             exterior_points.extend(new_points)
         print(f"Generated {len(exterior_points)} points in the superdomain region.")
         points = interior_points + exterior_points
+        decimals = max(6, -int(np.floor(np.log10(self.pix / self.radius))))
 
         points = np.array(points, dtype=np.float64)
-        points = np.round(points, decimals=7)
+        points = np.round(points, decimals=decimals)
         points = np.unique(points, axis=0)
         points = self._rotate_point_cloud(
             points
@@ -389,9 +390,13 @@ class HiResLocalSurface(Surface):
             or value <= 0
         ):
             raise TypeError("local_radius must be a positive float")
-        if value > 2 * np.pi * self.radius:
+        if value > np.pi * self.radius:
             raise ValueError(
-                "local_radius must be less than 2 * pi * radius of the target body"
+                "local_radius must be less than pi * radius of the target body"
+            )
+        if value < self.pix:
+            raise ValueError(
+                "local_radius must be greater than or equal to pix (the approximate face size in the local region"
             )
         self._local_radius = value
 
