@@ -109,7 +109,11 @@ class Surface(ComponentBase):
 
     def __str__(self) -> str:
         base = super().__str__()
-        return f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}"
+        return (
+            f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}\n"
+            f"Number of faces: {self.n_face}\n"
+            f"Number of nodes: {self.n_node}"
+        )
 
     def __del__(self):
         try:
@@ -1091,11 +1095,11 @@ class Surface(ComponentBase):
                 uxgrid = self.uxgrid
         face_areas = uxgrid.face_areas.values * self.radius**2
         self._face_areas = face_areas
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_mean = face_sizes.mean().item() * self.radius
-        pix_std = face_sizes.std().item() * self.radius
-        pix_min = face_sizes.min().item() * self.radius
-        pix_max = face_sizes.max().item() * self.radius
+        face_sizes = np.sqrt(face_areas)
+        pix_mean = face_sizes.mean().item()
+        pix_std = face_sizes.std().item()
+        pix_min = face_sizes.min().item()
+        pix_max = face_sizes.max().item()
         return float(pix_mean), float(pix_std), float(pix_min), float(pix_max)
 
     @property

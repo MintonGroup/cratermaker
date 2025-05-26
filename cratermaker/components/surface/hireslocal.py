@@ -10,7 +10,6 @@ from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import Surface
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
-from cratermaker.core.crater import Crater
 from cratermaker.utils.general_utils import (
     format_large_units,
     parameter,
@@ -64,6 +63,8 @@ class HiResLocalSurface(Surface):
         **kwargs: Any,
     ):
         object.__setattr__(self, "_local_view", None)
+        object.__setattr__(self, "_superdomain_function_slope", None)
+        object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
 
         self.pix = pix
@@ -78,13 +79,16 @@ class HiResLocalSurface(Surface):
     def __str__(self) -> str:
         base = super().__str__()
         pix = format_large_units(self.pix, quantity="length")
+        pix_min = format_large_units(self.pix_min, quantity="length")
+        pix_max = format_large_units(self.pix_max, quantity="length")
         local_radius = format_large_units(self.local_radius, quantity="length")
         return (
             f"{base}\n"
-            f"Pixel Size: {pix}\n"
+            f"Local pixel size: {pix}\n"
             f"Local Radius: {local_radius}\n"
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
-            f"Superdomain Scale Factor: {self.superdomain_scale_factor:.2f}"
+            f"Minimum effective pixel size: {pix_min}\n"
+            f"Maximum effective pixel size: {pix_max}"
         )
 
     @property
@@ -100,6 +104,46 @@ class HiResLocalSurface(Surface):
             self.local_location,
             self.superdomain_scale_factor,
         ]
+
+    @property
+    def superdomain_function_slope(self):
+        if self._superdomain_function_slope is None:
+            d0 = self.local_radius
+            d1 = np.pi * self.radius - self.local_radius
+            pix_lo = self.pix
+            pix_hi = self.pix * self.superdomain_scale_factor
+            self._superdomain_function_slope = (pix_hi - pix_lo) / (d1 - d0)
+        return self._superdomain_function_slope
+
+    @property
+    def superdomain_function_exponent(self):
+        if self._superdomain_function_exponent is None:
+            self._superdomain_function_exponent = 1.0
+        return self._superdomain_function_exponent
+
+    def superdomain_function(self, r):
+        """
+        A function that defines the superdomain scale factor based on the distance from the local boundary.
+        This is set so that smallest craters that are modeled outside the local region are those whose ejecta could just reach the boundary.
+        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `set_superdomain` method.
+
+        Parameters
+        ----------
+        r : FloatLike
+            The distance from the local center in meters.
+        Returns
+        -------
+        FloatLike
+            The effective pixel size at the given distance from the local center.
+        """
+
+        return np.where(
+            r < self.local_radius,
+            self.pix,
+            self.pix
+            + self.superdomain_function_slope
+            * (r - self.local_radius) ** self.superdomain_function_exponent,
+        )
 
     def set_superdomain(
         self,
@@ -126,31 +170,48 @@ class HiResLocalSurface(Surface):
         **kwargs : Any
             Additional keyword arguments to pass to the scaling and morphology models.
         """
-        scaling = Scaling.maker(scaling, target=self.target, **kwargs)
-        morphology = Morphology.maker(morphology, target=self.target, **kwargs)
+        from scipy.optimize import curve_fit
+
+        from cratermaker import Crater
+
+        antipode_distance = np.pi * self.target.radius
         projectile_velocity = scaling.projectile.mean_velocity * 10
 
-        antipode_distance = np.pi * self.target.radius - self.local_radius
+        distance = 1.0
+        dvals = []
+        sdvals = []
+        superdomain_size = distance * 0.1
+        while distance < antipode_distance:
+            for final_diameter in np.logspace(
+                np.log10(superdomain_size),
+                np.log10(self.target.radius * 2),
+                1000,
+            ):
+                crater = Crater.maker(
+                    final_diameter=final_diameter,
+                    angle=90.0,
+                    scaling=scaling,
+                    projectile_velocity=projectile_velocity,
+                )
+                rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
+                if rmax >= distance:
+                    superdomain_size = crater.final_diameter
+                    break
+            dvals.append(distance)
+            sdvals.append(superdomain_size)
+            distance = distance + superdomain_size
 
-        for final_diameter in np.logspace(
-            np.log10(self.target.radius / 1e6),
-            np.log10(self.target.radius * 2),
-            1000,
-        ):
-            crater = Crater.maker(
-                final_diameter=final_diameter,
-                angle=90.0,
-                scaling=scaling,
-                projectile_velocity=projectile_velocity,
-                **kwargs,
-            )
-            rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
-            if rmax >= antipode_distance:
-                superdomain_scale_factor = crater.final_diameter / self.pix
-                break
+        def plaw(x, a, b):
+            return a * x**b
 
-        self.superdomain_scale_factor = superdomain_scale_factor
-        self.load_from_files(reset=reset, regrid=regrid, **kwargs)
+        popt = curve_fit(plaw, dvals, sdvals, p0=[1.0, 1.0])[0]
+        self._superdomain_function_slope = popt[0]
+        self._superdomain_function_exponent = popt[1]
+        self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
+
+        self.load_from_files(
+            reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs
+        )
         return
 
     def _rotate_point_cloud(self, points):
@@ -209,57 +270,89 @@ class HiResLocalSurface(Surface):
             Array of points on a unit sphere.
         """
 
-        print("Generating a mesh with variable resolution faces")
+        def _interior_distribution(theta):
+            arc_distance = self.radius * theta
+            delta = self.pix / self.radius
+            if arc_distance < self.pix:
+                return [], theta + delta
+            if np.pi * self.radius - arc_distance < self.pix:
+                return [], np.pi
+
+            max_extent = arc_distance / self.radius
+            coords = np.arange(-max_extent, max_extent + delta, delta)
+            lat_grid, lon_grid = np.meshgrid(coords, coords, indexing="ij")
+
+            pix_distance_sq = (lon_grid / delta) ** 2 + (lat_grid / delta) ** 2
+            inner = (arc_distance / self.pix - 1.0) ** 2
+            outer = (arc_distance / self.pix) ** 2
+            mask = (pix_distance_sq >= inner) & (pix_distance_sq < outer)
+
+            lat = lat_grid[mask]
+            lon = lon_grid[mask]
+
+            cos_lat = np.cos(lat)
+            sin_lat = np.sin(lat)
+            cos_lon = np.cos(lon)
+            sin_lon = np.sin(lon)
+
+            z = cos_lat * cos_lon
+            x = cos_lat * sin_lon
+            y = sin_lat
+
+            points = np.column_stack([x, y, z])
+            return points.tolist(), theta + delta
+
+        def _exterior_distribution(theta):
+            r = self.radius
+            arc_distance = r * theta
+            pix_local = self.superdomain_function(arc_distance)
+            if (np.pi * r - arc_distance) < pix_local:
+                return [], np.pi
+
+            theta_next = theta + pix_local / r
+
+            sin_theta = np.sin(theta)
+            cos_theta = np.cos(theta)
+
+            n_phi = max(1, int(round(2 * np.pi * r * sin_theta / pix_local)))
+            phi = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
+
+            x = sin_theta * np.cos(phi)
+            y = sin_theta * np.sin(phi)
+            z = np.full_like(phi, cos_theta)
+
+            points = np.column_stack((x, y, z))
+            return points.tolist(), theta_next
+
         print(f"Center of local region: {self.local_location}")
         print(
             f"Size of local region: {format_large_units(self.local_radius, quantity='length')}"
         )
         print(
-            f"Hires region pixel size: {format_large_units(self.pix, quantity='length')}"
-        )
-        print(
-            f"Lores region pixel size: {format_large_units(self.pix * self.superdomain_scale_factor, quantity='length')}"
+            f"Local region pixel size: {format_large_units(self.pix, quantity='length')}"
         )
 
-        def _pix_func(distance):
-            d0 = self.local_radius
-            d1 = np.pi * self.radius - self.local_radius
-            pix_lo = self.pix
-            pix_hi = self.pix * self.superdomain_scale_factor
-            slope = (pix_hi - pix_lo) / (d1 - d0)
-            return np.where(
-                distance <= d0,
-                pix_lo,
-                pix_lo + slope * (distance - d0),
-            )
+        interior_points = []
+        theta = 0.0
+        while theta <= self.local_radius / self.radius:
+            new_points, theta = _interior_distribution(theta)
+            interior_points.extend(new_points)
+        print(f"Generated {len(interior_points)} points in the local region.")
 
-        points = []
-        r = self.radius
-        dtheta = 0.5 * self.pix / r
-        theta = dtheta
-
+        exterior_points = []
         while theta < np.pi:
-            arc_distance = r * theta
-            pix_local = _pix_func(arc_distance)
-            # Stop if the distance to the antipode is less than pix_local
-            if (np.pi * r - arc_distance) < pix_local:
-                break
-            dphi = (
-                pix_local / (r * np.sin(theta)) if np.sin(theta) > 1e-12 else 2 * np.pi
-            )
-            n_phi = max(1, int(round(2 * np.pi / dphi)))
-            for i in range(n_phi):
-                phi = i * 2 * np.pi / n_phi
-                x = np.sin(theta) * np.cos(phi)
-                y = np.sin(theta) * np.sin(phi)
-                z = np.cos(theta)
-                points.append([x, y, z])
-            theta += 0.5 * pix_local / r
+            new_points, theta = _exterior_distribution(theta)
+            exterior_points.extend(new_points)
+        print(f"Generated {len(exterior_points)} points in the superdomain region.")
+        points = interior_points + exterior_points
 
-        points = np.round(points, decimals=5)
-        points = np.unique(np.array(points), axis=0)
-        points = np.array(points).T
-        points = self._rotate_point_cloud(points.T).T  # rotates from north pole
+        points = np.array(points, dtype=np.float64)
+        points = np.round(points, decimals=7)
+        points = np.unique(points, axis=0)
+        points = self._rotate_point_cloud(
+            points
+        ).T  # rotates from the north pole to local_location
+
         return points
 
     @parameter
