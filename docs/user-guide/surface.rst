@@ -10,12 +10,13 @@
 Surface
 =======
 
-Cratermaker's :ref: 'Surface <api-surface>' component is used to represent target body's topography and other properties of its surface. 
+Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. This tool contains three classes of surface implementations that can be chosen by the user: **icosphere**, **arbitrary resolution**, **high resolution local**. 
 
+ 
 
 Setting up a Surface object
 --------------------------
-All cratermaker components have a default configuration that is set when no arguments are passed through its ''maker'' method. We can observe its defauts:
+All cratermaker components have a default configuration that is set when no arguments are passed through its 'maker' method. We can observe its defauts for Surfacing:
 
 .. ipython:: python
    :okwarning:
@@ -33,7 +34,7 @@ The default surface is automatically set to 'icosphere' with a grid level of 8 a
    print(surface)
 
 
-As seen above, the arbitrary resolution grid also creates a uniform grid configurations but allows the user to define their pixel size. This class is not as nice as the icosphere grid, but does allow for any resolution that the user wants. 
+As seen above, the arbitrary resolution grid also creates a uniform grid configurations but allows the user to define their pixel size. This class allows for any resolution that the user wants. 
 
 
 .. ipython:: python
@@ -42,7 +43,7 @@ As seen above, the arbitrary resolution grid also creates a uniform grid configu
    surface=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
    print(surface)
 
-The last class for surfaces is the Hi-res local grid. There are additional arguments that the user can define based of their requirments. These are the pixel size, the local radius of the desired region, the local location in degrees, and the superdomain scale factor. The last argument allows the smallest craters that are modeled outside of the local region to be those whose ejecta could just reach the boundary. This class's overall objective is to  model local patches on the surface at high resolution.
+The last class for surfaces is the Hi-res local grid. There are additional arguments that the user can define based of their requirments. These are the pixel size, the local radius of the desired region, the local location in degrees, and the superdomain scale factor. The last argument allows the smallest craters that are modeled outside of the local region to be those whose ejecta could just reach the boundary. This class is useful for modeling local patches on the surface at a high resolution.
 
 
 Using a Surface object
@@ -71,8 +72,8 @@ Once you have surface object, you are now able to perform numerous surface-relat
     print(f"Nearest index: {surface_nearest_index}")
 
     surface_3=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
-    distance=surface_3.get_distance((0,9))
-    print(f"Distance between nodes and faces: {distance}")
+    bearing=surface_3.get_initial_bearing(location=(0,9))
+    print(f"Initial Bearing: {bearing}")
 
 
 
