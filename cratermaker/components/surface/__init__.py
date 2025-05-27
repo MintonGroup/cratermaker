@@ -234,7 +234,6 @@ class Surface(ComponentBase):
         combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
-        *args,
         **kwargs,
     ) -> None:
         """

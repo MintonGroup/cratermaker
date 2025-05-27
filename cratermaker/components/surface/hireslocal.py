@@ -356,6 +356,92 @@ class HiResLocalSurface(Surface):
 
         return points
 
+    def plot_hillshade(self, imagefile=None, **kwargs: Any) -> None:
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LightSource
+        from scipy.interpolate import griddata
+
+        region_view = self.extract_region(
+            location=self.local_location,
+            region_radius=self.local_radius * np.sqrt(2.0),
+        )
+        local_radius = self.local_radius
+        pix = self.pix
+
+        # Dynamically compute image resolution and dpi
+        extent_val = local_radius
+        resolution = int(2 * extent_val / pix)
+        dpi = resolution
+        x = np.linspace(-extent_val, extent_val, resolution)
+        y = np.linspace(-extent_val, extent_val, resolution)
+        grid_x, grid_y = np.meshgrid(x, y)
+
+        # Use polar coordinates from region_view
+        r = region_view.face_distance
+        theta = region_view.face_bearing
+        x_cart = r * np.cos(theta)
+        y_cart = r * np.sin(theta)
+
+        points = np.column_stack((x_cart, y_cart))
+        values = region_view.face_elevation
+        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
+
+        # Generate hillshade
+        azimuth = 300.0
+        solar_angle = 20.0
+        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+        hillshade = ls.hillshade(grid_z, dx=pix, dy=pix, fraction=1.0)
+
+        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
+        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
+        ax.imshow(
+            hillshade,
+            interpolation="nearest",
+            cmap="gray",
+            vmin=0.0,
+            vmax=1.0,
+            aspect="equal",
+            extent=(-extent_val, extent_val, -extent_val, extent_val),
+        )
+        ax.axis("off")
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        if imagefile:
+            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi)
+        else:
+            plt.show()
+
+    def save_to_files(
+        self,
+        combine_data_files: bool = False,
+        interval_number: int = 0,
+        time_variables: dict | None = None,
+        **kwargs,
+    ) -> None:
+        """
+        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+
+        Parameters
+        ----------
+        combine_data_files : bool, optional
+            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        """
+
+        super().save_to_files(
+            combine_data_files=combine_data_files,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            **kwargs,
+        )
+        imgdir = Path(self.simdir) / "surface_images"
+        imgdir.mkdir(parents=True, exist_ok=True)
+        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
+        self.plot_hillshade(imagefile=imagefile, **kwargs)
+        return
+
     @parameter
     def pix(self):
         """
