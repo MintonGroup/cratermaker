@@ -175,7 +175,7 @@ class Simulation(CratermakerBase):
         self.morphology = Morphology.maker(
             self.morphology, surface=self.surface, **morphology_config
         )
-        if self.surface.gridtype == "hireslocal":
+        if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
             self.surface.set_superdomain(
                 scaling=self.scaling, morphology=self.morphology, **surface_config
             )

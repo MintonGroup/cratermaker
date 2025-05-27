@@ -130,6 +130,7 @@ class Morphology(ComponentBase):
         )
 
         # Test if the ejecta is big enough to modify the surface
+
         ejecta_rmax = self.rmax(
             crater, minimum_thickness=self.surface.smallest_length, feature="ejecta"
         )
