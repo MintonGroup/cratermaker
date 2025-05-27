@@ -79,6 +79,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
         object.__setattr__(self, "_face_areas", None)
+        object.__setattr__(self, "_face_bins", None)
         object.__setattr__(self, "_face_x", None)
         object.__setattr__(self, "_face_y", None)
         object.__setattr__(self, "_face_z", None)
@@ -1029,12 +1030,12 @@ class Surface(ComponentBase):
         return self.simdir / _SURFACE_DIR / _GRID_FILE_NAME
 
     @property
-    def area(self):
+    def area(self) -> float:
         """
         Total surface area of the target body.
         """
         if self._area is None:
-            self._area = self.face_areas.sum()
+            self._area = float(self.face_areas.sum())
         return self._area
 
     @property
@@ -1193,6 +1194,27 @@ class Surface(ComponentBase):
         if self._face_areas is None:
             self._face_areas = self.uxgrid.face_areas.values * self.radius**2
         return self._face_areas
+
+    @property
+    def face_bins(self) -> dict[int, list[int]]:
+        """
+        Faces are binned by their area. All faces within a factor of 2 in area are in the same bin. This property returns a dictionary mapping bin indices to lists of face indices that the bin contains.
+        The keys are the bin indices, and the values are lists of face indices of faces within that bin.
+
+        This is used when generating craters on surfaces with varying face sizes, so that the smallest crater is sized for the smallest face of a particular bin, rather than for the entire surface.
+        """
+
+        if self._face_bins is None:
+            min_area = self.face_areas.min()
+            max_bin_index = np.ceil(np.log2(self.face_areas.max() / min_area)).astype(
+                int
+            )
+            self._face_bins = {i: [] for i in range(max_bin_index + 1)}
+
+            for face_index, area in enumerate(self.face_areas):
+                bin_index = np.floor(np.log2(area / min_area)).astype(int)
+                self._face_bins[bin_index].append(face_index)
+        return self._face_bins
 
     @property
     def face_lat(self):
@@ -2237,12 +2259,12 @@ class SurfaceView:
         return self.surface.node_face_connectivity[self.node_indices, :]
 
     @property
-    def area(self) -> NDArray:
+    def area(self) -> float:
         """
         The total area of the faces in the view.
         """
         if self._area is None:
-            self._area = self.face_areas.sum()
+            self._area = float(self.face_areas.sum())
         return self._area
 
     @property

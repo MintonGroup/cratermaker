@@ -455,27 +455,16 @@ class Simulation(CratermakerBase):
         impact_diameters = []
         impact_ages = []
         impact_locations = []
-        face_areas = self.surface.face_areas
-        min_area = face_areas.min()
-        surface_area = self.surface.area.item()
-
-        # Group surfaces into bins based on their area. All bins within a factor of 2 in surface area are grouped together.
-        max_bin_index = np.ceil(np.log2(face_areas.max() / min_area)).astype(int)
-        bins = {i: [] for i in range(max_bin_index + 1)}
-
-        for face_index, area in enumerate(face_areas):
-            bin_index = np.floor(np.log2(area / min_area)).astype(int)
-            bins[bin_index].append(face_index)
 
         # Process each bin
-        for bin_index, face_indices in bins.items():
+        for bin_index, face_indices in self.surface.face_bins.items():
             if not face_indices:
                 continue  # Skip empty bins
             face_indices = np.array(face_indices)
 
-            bin_areas = face_areas[face_indices]
+            bin_areas = self.surface.face_areas[face_indices]
             total_bin_area = bin_areas.sum()
-            area_ratio = total_bin_area / surface_area
+            area_ratio = total_bin_area / self.surface.area
 
             Dmin = self._get_smallest_diameter(
                 bin_areas, from_projectile=from_projectile
@@ -487,6 +476,7 @@ class Simulation(CratermakerBase):
                 )
             else:
                 diameter_number_local = None
+
             if diameter_number_end is not None:
                 diameter_number_end_local = (
                     diameter_number_end[0],
@@ -513,6 +503,7 @@ class Simulation(CratermakerBase):
                 face_indices = self.rng.choice(face_indices, size=diameters.shape, p=p)
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
+
         if len(impact_diameters) > 0:
             craterlist = []
             # Sort the ages, diameters, and locations so that they are in order of decreasing age
@@ -916,7 +907,7 @@ class Simulation(CratermakerBase):
                 self._get_largest_diameter(),
             )
         if "area" not in kwargs:
-            kwargs["area"] = self.surface.area.item()
+            kwargs["area"] = self.surface.area
         kwargs = self.production._validate_sample_args(**kwargs)
 
         if is_age_interval:
