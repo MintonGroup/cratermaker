@@ -204,9 +204,15 @@ class HiResLocalSurface(Surface):
         def plaw(x, a, b):
             return a * x**b
 
-        popt = curve_fit(plaw, dvals, sdvals, p0=[1.0, 1.0])[0]
-        self._superdomain_function_slope = popt[0]
-        self._superdomain_function_exponent = popt[1]
+        try:
+            popt = curve_fit(plaw, dvals, sdvals, p0=[1.0, 1.0])[0]
+            self._superdomain_function_slope = popt[0]
+            self._superdomain_function_exponent = popt[1]
+        except Exception as e:
+            logging.error(f"Curve fitting failed in set_superdomain: {e}")
+            # Set default values or re-raise the exception
+            self._superdomain_function_slope = 1.0
+            self._superdomain_function_exponent = 1.0
         self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
         self.load_from_files(
