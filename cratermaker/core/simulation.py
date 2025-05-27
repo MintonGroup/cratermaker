@@ -457,11 +457,7 @@ class Simulation(CratermakerBase):
         impact_locations = []
 
         # Process each bin
-        for bin_index, face_indices in self.surface.face_bins.items():
-            if not face_indices:
-                continue  # Skip empty bins
-            face_indices = np.array(face_indices)
-
+        for face_indices in self.surface.face_bins:
             bin_areas = self.surface.face_areas[face_indices]
             total_bin_area = bin_areas.sum()
             area_ratio = total_bin_area / self.surface.area

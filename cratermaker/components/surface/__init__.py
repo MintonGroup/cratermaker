@@ -1196,7 +1196,7 @@ class Surface(ComponentBase):
         return self._face_areas
 
     @property
-    def face_bins(self) -> dict[int, list[int]]:
+    def face_bins(self) -> list[NDArray]:
         """
         Faces are binned by their area. All faces within a factor of 2 in area are in the same bin. This property returns a dictionary mapping bin indices to lists of face indices that the bin contains.
         The keys are the bin indices, and the values are lists of face indices of faces within that bin.
@@ -1209,11 +1209,14 @@ class Surface(ComponentBase):
             max_bin_index = np.ceil(np.log2(self.face_areas.max() / min_area)).astype(
                 int
             )
-            self._face_bins = {i: [] for i in range(max_bin_index + 1)}
+            bins = {i: [] for i in range(max_bin_index + 1)}
 
             for face_index, area in enumerate(self.face_areas):
                 bin_index = np.floor(np.log2(area / min_area)).astype(int)
-                self._face_bins[bin_index].append(face_index)
+                bins[bin_index].append(face_index)
+
+            self._face_bins = [np.array(bins[i]) for i in bins if len(bins[i]) > 0]
+
         return self._face_bins
 
     @property

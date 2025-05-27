@@ -218,14 +218,22 @@ class Morphology(ComponentBase):
         return
 
     def subpixel_degradation(
-        self, production: Production | str | None = None, **kwargs
+        self,
+        age_start: float,
+        age_end: float,
+        production: Production | str | None = None,
+        **kwargs,
     ) -> None:
         """
         This method performs the subpixel degradation. This models the combined degradation of the part of the production population that is below the resolution of the mesh on each face. It is called between batches of craters by the `emplace` method.
 
         Parameters
         ----------
-        Production : Production or str, optional
+        age_start : float
+            The age of the surface at the start of the degradation.
+        age_end : float
+            The age of the surface at the end of the degradation.
+        production : Production or str, optional
             The production object containing the production population that will contribute to the degradation. This is only necessary if the Morphology model was not initialized with a production object. If not provided, the production object associated with this morphology model will be used. If passed, this will override the current production object.
         **kwargs : Any
             Additional keyword arguments for the degradation function.
@@ -234,6 +242,9 @@ class Morphology(ComponentBase):
             production = Production.maker(production, **kwargs)
         else:
             production = self.production
+
+        if age_end >= age_start:
+            raise ValueError("age_end must be less than age_start.")
 
         return
 
@@ -336,6 +347,14 @@ class Morphology(ComponentBase):
                 # max_workers=1 because something needs access to HDF files (probably grid.nc) that is not thread safe
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     executor.map(process, batch)
+
+                if len(batch) > 1:
+                    # If the craters have age values attached to them, we can perform subpixel degradation between time values
+                    agevals = [crater.age for crater in batch if crater.age is not None]
+                    if len(agevals) > 1:
+                        self.subpixel_degradation(
+                            age_start=max(agevals), age_end=min(agevals)
+                        )
 
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
