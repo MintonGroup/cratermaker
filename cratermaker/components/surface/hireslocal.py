@@ -357,13 +357,22 @@ class HiResLocalSurface(Surface):
         return points
 
     def plot_hillshade(self, imagefile=None, **kwargs: Any) -> None:
+        """
+        Plot a hillshade image of the local region.
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
         import matplotlib.pyplot as plt
         from matplotlib.colors import LightSource
         from scipy.interpolate import griddata
 
         region_view = self.extract_region(
             location=self.local_location,
-            region_radius=self.local_radius * np.sqrt(2.0),
+            region_radius=self.local_radius * np.sqrt(2.0) * 1.1,
         )
         local_radius = self.local_radius
         pix = self.pix
@@ -406,9 +415,9 @@ class HiResLocalSurface(Surface):
         ax.axis("off")
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
         if imagefile:
-            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi)
+            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
         else:
-            plt.show()
+            plt.show(**kwargs)
 
     def save_to_files(
         self,
