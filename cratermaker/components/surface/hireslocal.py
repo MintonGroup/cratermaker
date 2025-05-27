@@ -364,6 +364,7 @@ class HiResLocalSurface(Surface):
     def plot_hillshade(self, imagefile=None, **kwargs: Any) -> None:
         """
         Plot a hillshade image of the local region.
+
         Parameters
         ----------
         imagefile : str | Path, optional
