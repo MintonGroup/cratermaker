@@ -65,7 +65,7 @@ Once you have installed the documentation dependencies, be sure that you also ha
 
     cd docs
     make clean
-    make rtdhml
+    make rtdhtml
 
 
 The documentation pages will be built in the ``docs/_build/html`` directory, which you can then open in your web browser to view.
