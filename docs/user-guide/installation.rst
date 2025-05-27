@@ -85,4 +85,4 @@ In the same virtual environment that you installed Cratermaker in, activate the 
 
     python -m maturin_import_hook site install
 
-For mor information, see the the `Import Hook <https://www.maturin.rs/import_hook.html>`__ section of the Maturin documentation.
+For more information, see the the `Import Hook <https://www.maturin.rs/import_hook.html>`__ section of the Maturin documentation.
