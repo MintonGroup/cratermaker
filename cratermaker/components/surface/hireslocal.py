@@ -376,10 +376,7 @@ class HiResLocalSurface(Surface):
         from matplotlib.colors import LightSource
         from scipy.interpolate import griddata
 
-        region_view = self.extract_region(
-            location=self.local_location,
-            region_radius=self.local_radius * np.sqrt(2.0) * 1.1,
-        )
+        region_view = self.local_view
         local_radius = self.local_radius
         pix = self.pix
 
