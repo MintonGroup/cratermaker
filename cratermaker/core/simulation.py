@@ -406,194 +406,6 @@ class Simulation(CratermakerBase):
         self.export("vtp")
         return
 
-    def _validate_run_args(self, **kwargs) -> dict:
-        """
-        Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
-        It will also convert age arguments to diameter_number and vice versa.
-
-        Parameters
-        ----------
-        age : FloatLike, optional
-            Start age in My relative to the present for the simulation, used to compute the starting point of the production function.
-            Default is None, which requires `diameter_number` to be set.
-        age_end : FloatLike, optional
-            End age in My relative to the present for the simulation, used to compute the ending point of the production function.
-            Default is 0 (present day) if not provided.
-        age_interval : FloatLike, optional
-            Interval in My for outputting intermediate results. If not provided, calculated as `age - age_end` / `ninterval` if `ninterval` is provided, otherwise set to the total simulation duration.
-        diameter_number : PairOfFloats, optional
-            Starting cumulative number and diameter pair (D, N) to define the simulation start in terms of crater frequency.
-            Default is None, which requires `age` to be set.
-        diameter_number_end : PairOfFloats, optional
-            Ending cumulative number and diameter pair (D, N) to define the simulation end in terms of crater frequency.
-            Default is the present-day values if not provided.
-        diameter_number_interval : PairOfFloats, optional
-            Interval for outputting results in terms of cumulative number and diameter (D, N). Calculated based on `ninterval` if provided.
-        ninterval : int, optional
-            Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output
-            in equal cumulative number intervals and vice versa.
-
-        Returns
-        -------
-        A dict containing all arguments listed in Parameters above, as well as `is_age_interval`, which is a boolean flag indicating
-        whether or not the simulation is being run in equal age intervals or equal number intervals.
-
-        Raises
-        ------
-        ValueError
-            If any of the following conditions are met:
-            - Neither the age nore the diameter_number argument is provided.
-            - Both the age and diameter_number arguments are provided.
-            - Both the age_end and diameter_number_end arguments are provided.
-            - The age argument is provided but is not a scalar.
-            - The age_end argument is provided but is not a scalar.
-            - The age_interval is provided but is not a positive scalar
-            - The age_interval provided is negative, or is greater than age - age_end
-            - The diameter_number argument is not a pair of values, or any of them are less than 0
-            - The diameter_number_end argument is not a pair of values, or any of them are less than 0
-            - The diameter_number_interval argument is not a pair of values, or any of them are less than 0
-            - The age_interval and diameter_number_interval arguments are both provided.
-            - The diameter_number_interval provided is negative, or is greater than diameter_number - diameter_number_end
-            - The ninterval is provided but is not an integer or is less than 1.
-            - The ninterval is provided and either age_interval or diameter_number_interval is also provided
-        """
-        # Determine whether we are going to do equal time intervals or equal number intervals
-        age = kwargs.get("age", None)
-        age_interval = kwargs.get("age_interval", None)
-        diameter_number_interval = kwargs.get("diameter_number_interval", None)
-        ninterval = kwargs.pop("ninterval", None)
-        if age_interval is not None and diameter_number_interval is not None:
-            raise ValueError(
-                "Cannot specify both ninterval and age_interval or diameter_number_interval"
-            )
-        if ninterval is not None:
-            if not isinstance(ninterval, int):
-                raise TypeError("ninterval must be an integer")
-            if ninterval < 1:
-                raise ValueError("ninterval must be greater than zero")
-            if age_interval is not None or diameter_number_interval is not None:
-                raise ValueError(
-                    "Cannot specify both ninterval and age_interval or diameter_number_interval"
-                )
-
-        is_age_interval = age_interval is not None
-
-        # Validate arguments using the production function validator first
-        if "diameter_range" not in kwargs:
-            kwargs["diameter_range"] = (
-                self.get_smallest_diameter(),
-                self.get_largest_diameter(),
-            )
-        if "area" not in kwargs:
-            kwargs["area"] = self.surface.area.item()
-        kwargs = self.production._validate_sample_args(**kwargs)
-
-        if is_age_interval:
-            age = kwargs.get("age", None)
-            if age is None:
-                raise ValueError(
-                    "Something went wrong! age should be set by self.production_validate_sample_args"
-                )
-            age_end = kwargs.get("age_end", None)
-            if age_end is None:
-                raise ValueError(
-                    "Something went wrong! age_end should be set by self.production_validate_sample_args"
-                )
-            if age_interval is None:
-                if ninterval is None:
-                    ninterval = 1
-                age_interval = (age - kwargs["age_end"]) / ninterval
-            else:
-                if age_interval > age - age_end:
-                    raise ValueError("age_interval must be less than age - age_end")
-                elif age_interval <= 0:
-                    raise ValueError("age_interval must be greater than zero")
-                ninterval = int(np.ceil((age - age_end) / age_interval))
-
-            kwargs["age_interval"] = age_interval
-            kwargs["ninterval"] = ninterval
-        else:
-            diameter_number = kwargs.get("diameter_number", None)
-            if diameter_number is None:
-                raise ValueError(
-                    "Something went wrong! diameter_number should be set by self.production_validate_sample_args"
-                )
-            diameter_number_end = kwargs.get("diameter_number_end", None)
-            if diameter_number_end is None:
-                raise ValueError(
-                    "Something went wrong! diameter_number_end should be set by self.production_validate_sample_args"
-                )
-            if diameter_number_interval is None:
-                if ninterval is None:
-                    ninterval = 1
-                diameter_number_interval = (
-                    diameter_number[0],
-                    (diameter_number[1] - diameter_number_end[1]) / ninterval,
-                )
-            else:
-                if len(diameter_number_interval) != 2:
-                    raise ValueError(
-                        "The 'diameter_number_interval' must be a pair of values in the form (D,N)"
-                    )
-                # Check to be sure that the diameter in the diameter_number_interval is the same as diameter_number.
-                # If not, we need to adjust the end diameter value it so that they match
-                diameter_number_interval = self.production._validate_csfd(
-                    *diameter_number_interval
-                )
-                if diameter_number_interval[0] != diameter_number[0]:
-                    area = kwargs.get("area", None)
-                    if area is None:
-                        raise ValueError(
-                            "Something went wrong! area should be set by self.production_validate_sample_args"
-                        )
-                    diameter_number_density_interval = (
-                        diameter_number_interval[0],
-                        diameter_number_interval[1] / area,
-                    )
-                    age_val = self.production.function_inverse(
-                        *diameter_number_density_interval
-                    )
-                    diameter_number_density_interval = (
-                        diameter_number[0],
-                        self.production.function(
-                            diameter=diameter_number[0], age=age_val
-                        ),
-                    )
-                    diameter_number_interval = (
-                        diameter_number[0],
-                        diameter_number_density_interval[1] * area,
-                    )
-
-                if (
-                    diameter_number_interval[1]
-                    >= diameter_number[1] - diameter_number_end[1]
-                ):
-                    raise ValueError(
-                        "diameter_number_interval must be less than diameter_number - diameter_number_end"
-                    )
-                if diameter_number_interval[1] <= 0:
-                    raise ValueError(
-                        "diameter_number_interval must be greater than zero"
-                    )
-                ninterval = int(
-                    np.ceil(
-                        (diameter_number[1] - diameter_number_end[1])
-                        / diameter_number_interval[1]
-                    )
-                )
-
-            kwargs["diameter_number_interval"] = diameter_number_interval
-            kwargs["ninterval"] = ninterval
-
-        kwargs["is_age_interval"] = is_age_interval
-
-        # Remove unecessary arguments that came out of the production._validate_sample_args method
-        kwargs.pop("diameter_range")
-        kwargs.pop("area")
-        kwargs.pop("return_age")
-
-        return kwargs
-
     def populate(
         self,
         age: FloatLike | None = None,
@@ -635,8 +447,8 @@ class Simulation(CratermakerBase):
             diam_key = "projectile_diameter"
         else:
             diam_key = "final_diameter"
-        Dmax = self.get_largest_diameter(from_projectile=from_projectile)
-        Dmin = self.get_smallest_diameter(from_projectile=from_projectile)
+        Dmax = self._get_largest_diameter(from_projectile=from_projectile)
+        Dmin = self._get_smallest_diameter(from_projectile=from_projectile)
 
         # Loop over each face in the mesh to build up a population of craters in this interval. This is done because faces may
         # not all have the same surface area, the range of crater sizes that can be formed on each face may be different.
@@ -665,7 +477,7 @@ class Simulation(CratermakerBase):
             total_bin_area = bin_areas.sum()
             area_ratio = total_bin_area / surface_area
 
-            Dmin = self.get_smallest_diameter(
+            Dmin = self._get_smallest_diameter(
                 bin_areas, from_projectile=from_projectile
             )
             if diameter_number is not None:
@@ -787,40 +599,6 @@ class Simulation(CratermakerBase):
             self._true_crater_list.append(crater)
             self.morphology.emplace(crater, **kwargs)
 
-        return
-
-    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
-        """
-        Add a crater to the queue for later emplacement.
-
-        Parameters
-        ----------
-        crater : Crater
-            The crater object to enqueue.
-
-        **kwargs : Any
-            Additional keyword arguments for initializing the :class:`Crater`.
-
-        Raises
-        ------
-        RuntimeError
-            If the queue manager has not been initialized.
-        """
-        self.morphology._enqueue_crater(crater, **kwargs)
-        return
-
-    def _process_queue(self) -> None:
-        """
-        Process all queued craters in the order they were added, forming non-overlapping
-        batches and applying each to the surface.
-
-
-        Raises
-        ------
-        RuntimeError
-            If the queue manager has not been initialized.
-        """
-        self.morphology._process_queue()
         return
 
     def save(self, **kwargs: Any) -> None:
@@ -985,7 +763,41 @@ class Simulation(CratermakerBase):
         """
         return self.surface.update_elevation(*args, **kwargs)
 
-    def get_smallest_diameter(
+    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
+        """
+        Add a crater to the queue for later emplacement.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater object to enqueue.
+
+        **kwargs : Any
+            Additional keyword arguments for initializing the :class:`Crater`.
+
+        Raises
+        ------
+        RuntimeError
+            If the queue manager has not been initialized.
+        """
+        self.morphology._enqueue_crater(crater, **kwargs)
+        return
+
+    def _process_queue(self) -> None:
+        """
+        Process all queued craters in the order they were added, forming non-overlapping
+        batches and applying each to the surface.
+
+
+        Raises
+        ------
+        RuntimeError
+            If the queue manager has not been initialized.
+        """
+        self.morphology._process_queue()
+        return
+
+    def _get_smallest_diameter(
         self, face_areas: ArrayLike | None = None, from_projectile: bool = False
     ) -> float:
         """
@@ -1008,7 +820,7 @@ class Simulation(CratermakerBase):
         else:
             return smallest_crater
 
-    def get_largest_diameter(self, from_projectile: bool = False) -> float:
+    def _get_largest_diameter(self, from_projectile: bool = False) -> float:
         """
         Get the largest possible crater or projectile that can be formed on the surface.
         """
@@ -1024,6 +836,194 @@ class Simulation(CratermakerBase):
             return crater.projectile_diameter
         else:
             return largest_crater
+
+    def _validate_run_args(self, **kwargs) -> dict:
+        """
+        Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
+        It will also convert age arguments to diameter_number and vice versa.
+
+        Parameters
+        ----------
+        age : FloatLike, optional
+            Start age in My relative to the present for the simulation, used to compute the starting point of the production function.
+            Default is None, which requires `diameter_number` to be set.
+        age_end : FloatLike, optional
+            End age in My relative to the present for the simulation, used to compute the ending point of the production function.
+            Default is 0 (present day) if not provided.
+        age_interval : FloatLike, optional
+            Interval in My for outputting intermediate results. If not provided, calculated as `age - age_end` / `ninterval` if `ninterval` is provided, otherwise set to the total simulation duration.
+        diameter_number : PairOfFloats, optional
+            Starting cumulative number and diameter pair (D, N) to define the simulation start in terms of crater frequency.
+            Default is None, which requires `age` to be set.
+        diameter_number_end : PairOfFloats, optional
+            Ending cumulative number and diameter pair (D, N) to define the simulation end in terms of crater frequency.
+            Default is the present-day values if not provided.
+        diameter_number_interval : PairOfFloats, optional
+            Interval for outputting results in terms of cumulative number and diameter (D, N). Calculated based on `ninterval` if provided.
+        ninterval : int, optional
+            Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output
+            in equal cumulative number intervals and vice versa.
+
+        Returns
+        -------
+        A dict containing all arguments listed in Parameters above, as well as `is_age_interval`, which is a boolean flag indicating
+        whether or not the simulation is being run in equal age intervals or equal number intervals.
+
+        Raises
+        ------
+        ValueError
+            If any of the following conditions are met:
+            - Neither the age nore the diameter_number argument is provided.
+            - Both the age and diameter_number arguments are provided.
+            - Both the age_end and diameter_number_end arguments are provided.
+            - The age argument is provided but is not a scalar.
+            - The age_end argument is provided but is not a scalar.
+            - The age_interval is provided but is not a positive scalar
+            - The age_interval provided is negative, or is greater than age - age_end
+            - The diameter_number argument is not a pair of values, or any of them are less than 0
+            - The diameter_number_end argument is not a pair of values, or any of them are less than 0
+            - The diameter_number_interval argument is not a pair of values, or any of them are less than 0
+            - The age_interval and diameter_number_interval arguments are both provided.
+            - The diameter_number_interval provided is negative, or is greater than diameter_number - diameter_number_end
+            - The ninterval is provided but is not an integer or is less than 1.
+            - The ninterval is provided and either age_interval or diameter_number_interval is also provided
+        """
+        # Determine whether we are going to do equal time intervals or equal number intervals
+        age = kwargs.get("age", None)
+        age_interval = kwargs.get("age_interval", None)
+        diameter_number_interval = kwargs.get("diameter_number_interval", None)
+        ninterval = kwargs.pop("ninterval", None)
+        if age_interval is not None and diameter_number_interval is not None:
+            raise ValueError(
+                "Cannot specify both ninterval and age_interval or diameter_number_interval"
+            )
+        if ninterval is not None:
+            if not isinstance(ninterval, int):
+                raise TypeError("ninterval must be an integer")
+            if ninterval < 1:
+                raise ValueError("ninterval must be greater than zero")
+            if age_interval is not None or diameter_number_interval is not None:
+                raise ValueError(
+                    "Cannot specify both ninterval and age_interval or diameter_number_interval"
+                )
+
+        is_age_interval = age_interval is not None
+
+        # Validate arguments using the production function validator first
+        if "diameter_range" not in kwargs:
+            kwargs["diameter_range"] = (
+                self._get_smallest_diameter(),
+                self._get_largest_diameter(),
+            )
+        if "area" not in kwargs:
+            kwargs["area"] = self.surface.area.item()
+        kwargs = self.production._validate_sample_args(**kwargs)
+
+        if is_age_interval:
+            age = kwargs.get("age", None)
+            if age is None:
+                raise ValueError(
+                    "Something went wrong! age should be set by self.production_validate_sample_args"
+                )
+            age_end = kwargs.get("age_end", None)
+            if age_end is None:
+                raise ValueError(
+                    "Something went wrong! age_end should be set by self.production_validate_sample_args"
+                )
+            if age_interval is None:
+                if ninterval is None:
+                    ninterval = 1
+                age_interval = (age - kwargs["age_end"]) / ninterval
+            else:
+                if age_interval > age - age_end:
+                    raise ValueError("age_interval must be less than age - age_end")
+                elif age_interval <= 0:
+                    raise ValueError("age_interval must be greater than zero")
+                ninterval = int(np.ceil((age - age_end) / age_interval))
+
+            kwargs["age_interval"] = age_interval
+            kwargs["ninterval"] = ninterval
+        else:
+            diameter_number = kwargs.get("diameter_number", None)
+            if diameter_number is None:
+                raise ValueError(
+                    "Something went wrong! diameter_number should be set by self.production_validate_sample_args"
+                )
+            diameter_number_end = kwargs.get("diameter_number_end", None)
+            if diameter_number_end is None:
+                raise ValueError(
+                    "Something went wrong! diameter_number_end should be set by self.production_validate_sample_args"
+                )
+            if diameter_number_interval is None:
+                if ninterval is None:
+                    ninterval = 1
+                diameter_number_interval = (
+                    diameter_number[0],
+                    (diameter_number[1] - diameter_number_end[1]) / ninterval,
+                )
+            else:
+                if len(diameter_number_interval) != 2:
+                    raise ValueError(
+                        "The 'diameter_number_interval' must be a pair of values in the form (D,N)"
+                    )
+                # Check to be sure that the diameter in the diameter_number_interval is the same as diameter_number.
+                # If not, we need to adjust the end diameter value it so that they match
+                diameter_number_interval = self.production._validate_csfd(
+                    *diameter_number_interval
+                )
+                if diameter_number_interval[0] != diameter_number[0]:
+                    area = kwargs.get("area", None)
+                    if area is None:
+                        raise ValueError(
+                            "Something went wrong! area should be set by self.production_validate_sample_args"
+                        )
+                    diameter_number_density_interval = (
+                        diameter_number_interval[0],
+                        diameter_number_interval[1] / area,
+                    )
+                    age_val = self.production.function_inverse(
+                        *diameter_number_density_interval
+                    )
+                    diameter_number_density_interval = (
+                        diameter_number[0],
+                        self.production.function(
+                            diameter=diameter_number[0], age=age_val
+                        ),
+                    )
+                    diameter_number_interval = (
+                        diameter_number[0],
+                        diameter_number_density_interval[1] * area,
+                    )
+
+                if (
+                    diameter_number_interval[1]
+                    >= diameter_number[1] - diameter_number_end[1]
+                ):
+                    raise ValueError(
+                        "diameter_number_interval must be less than diameter_number - diameter_number_end"
+                    )
+                if diameter_number_interval[1] <= 0:
+                    raise ValueError(
+                        "diameter_number_interval must be greater than zero"
+                    )
+                ninterval = int(
+                    np.ceil(
+                        (diameter_number[1] - diameter_number_end[1])
+                        / diameter_number_interval[1]
+                    )
+                )
+
+            kwargs["diameter_number_interval"] = diameter_number_interval
+            kwargs["ninterval"] = ninterval
+
+        kwargs["is_age_interval"] = is_age_interval
+
+        # Remove unecessary arguments that came out of the production._validate_sample_args method
+        kwargs.pop("diameter_range")
+        kwargs.pop("area")
+        kwargs.pop("return_age")
+
+        return kwargs
 
     @property
     def target(self):

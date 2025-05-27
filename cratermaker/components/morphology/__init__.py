@@ -217,6 +217,26 @@ class Morphology(ComponentBase):
 
         return
 
+    def subpixel_degradation(
+        self, production: Production | str | None = None, **kwargs
+    ) -> None:
+        """
+        This method performs the subpixel degradation. This models the combined degradation of the part of the production population that is below the resolution of the mesh on each face. It is called between batches of craters by the `emplace` method.
+
+        Parameters
+        ----------
+        Production : Production or str, optional
+            The production object containing the production population that will contribute to the degradation. This is only necessary if the Morphology model was not initialized with a production object. If not provided, the production object associated with this morphology model will be used. If passed, this will override the current production object.
+        **kwargs : Any
+            Additional keyword arguments for the degradation function.
+        """
+        if production is not None:
+            production = Production.maker(production, **kwargs)
+        else:
+            production = self.production
+
+        return
+
     def _affected_indices(self, crater: Crater) -> tuple[set[int], set[int]]:
         """
         Determine the set of node and face indices affected by a crater's ejecta blanket.
@@ -333,26 +353,6 @@ class Morphology(ComponentBase):
                 _batch_process(pbar)
         else:
             _batch_process()
-        return
-
-    def subpixel_degradation(
-        self, production: Production | str | None = None, **kwargs
-    ) -> None:
-        """
-        This method performs the subpixel degradation. This models the combined degradation of the part of the production population that is below the resolution of the mesh on each face. It is called between batches of craters by the `emplace` method.
-
-        Parameters
-        ----------
-        Production : Production or str, optional
-            The production object containing the production population that will contribute to the degradation. This is only necessary if the Morphology model was not initialized with a production object. If not provided, the production object associated with this morphology model will be used. If passed, this will override the current production object.
-        **kwargs : Any
-            Additional keyword arguments for the degradation function.
-        """
-        if production is not None:
-            production = Production.maker(production, **kwargs)
-        else:
-            production = self.production
-
         return
 
     @abstractmethod
