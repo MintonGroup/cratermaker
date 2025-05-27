@@ -126,7 +126,7 @@ class TestSurface(unittest.TestCase):
             expected_distance = np.pi * surface.radius / 2
             calculated_distance = surface.calculate_haversine_distance(
                 lon1, lat1, lon2, lat2
-            )
+            )[0]
 
             # Compare the expected and calculated distances
             self.assertAlmostEqual(calculated_distance, expected_distance, places=1)
@@ -275,10 +275,10 @@ class TestSurface(unittest.TestCase):
                 "pix": self.pix,
             },
             "hireslocal": {
-                "pix": self.pix,
+                "pix": self.pix / 100.0,
                 "local_location": (0, 0),
-                "local_radius": 100e3,
-                "superdomain_scale_factor": 10,
+                "local_radius": self.pix * 2,
+                "superdomain_scale_factor": 100,
             },
         }
 

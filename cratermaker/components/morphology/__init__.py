@@ -130,6 +130,7 @@ class Morphology(ComponentBase):
         )
 
         # Test if the ejecta is big enough to modify the surface
+
         ejecta_rmax = self.rmax(
             crater, minimum_thickness=self.surface.smallest_length, feature="ejecta"
         )
@@ -197,6 +198,8 @@ class Morphology(ComponentBase):
         self.degradation_function(
             crater, ejecta_region_view, ejecta_thickness, ejecta_intensity
         )
+
+        ejecta_region_view.slope_collapse()
 
         return
 

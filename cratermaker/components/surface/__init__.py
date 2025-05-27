@@ -70,6 +70,7 @@ class Surface(ComponentBase):
 
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_uxds", None)
+        object.__setattr__(self, "_pix", None)
         object.__setattr__(self, "_pix_mean", None)
         object.__setattr__(self, "_pix_std", None)
         object.__setattr__(self, "_pix_min", None)
@@ -109,7 +110,11 @@ class Surface(ComponentBase):
 
     def __str__(self) -> str:
         base = super().__str__()
-        return f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}"
+        return (
+            f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}\n"
+            f"Number of faces: {self.n_face}\n"
+            f"Number of nodes: {self.n_node}"
+        )
 
     def __del__(self):
         try:
@@ -230,7 +235,6 @@ class Surface(ComponentBase):
         combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
-        *args,
         **kwargs,
     ) -> None:
         """
@@ -280,7 +284,11 @@ class Surface(ComponentBase):
         self.grid_file.unlink(missing_ok=True)
 
         points = self.generate_face_distribution(**kwargs)
-        uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi")
+
+        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-6)
+        uxgrid = uxr.Grid.from_points(
+            points, method="spherical_voronoi", threshold=threshold
+        )
         uxgrid.attrs["_id"] = self._id
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             uxgrid.to_xarray().to_netcdf(temp_file.name)
@@ -367,7 +375,7 @@ class Surface(ComponentBase):
     def full_view(self):
         return SurfaceView(self, slice(None), slice(None))
 
-    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
+    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> None:
         """
         Apply diffusion to the surface.
 
@@ -378,12 +386,19 @@ class Surface(ComponentBase):
             If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
             The value of kdiff must be greater than 0.0.
 
-        Returns
-        -------
-        NDArray
-            The elevation change after applying diffusion.
         """
         return self.full_view().apply_diffusion(kdiff)
+
+    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> None:
+        """
+        Collapse all slopes larger than the critical slope angle.
+
+        Parameters
+        ----------
+        critical_slope_angle : float
+            The critical slope angle (angle of repose) in degrees.
+        """
+        return self.full_view().slope_collapse(critical_slope_angle)
 
     def apply_noise(
         self,
@@ -665,18 +680,14 @@ class Surface(ComponentBase):
             if lat1.size != 1:
                 raise ValueError("lat1 must be a single point")
             lat1 = lat1.item()
+        if np.isscalar(lon2):
+            lon2 = np.array([lon2])
+        if np.isscalar(lat2):
+            lat2 = np.array([lat2])
 
-        # Calculate differences in coordinates
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-
-        # Haversine formula
-        a = (
-            np.sin(dlat / 2.0) ** 2
-            + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2.0) ** 2
+        return surface_functions.calculate_haversine_distance(
+            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2, radius=self.radius
         )
-        c = 2 * np.arcsin(np.sqrt(a))
-        return self.radius * c
 
     @staticmethod
     def calculate_initial_bearing(
@@ -1086,12 +1097,13 @@ class Surface(ComponentBase):
                 return None, None, None, None
             else:
                 uxgrid = self.uxgrid
-        face_areas = uxgrid.face_areas
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_mean = face_sizes.mean().item() * self.radius
-        pix_std = face_sizes.std().item() * self.radius
-        pix_min = face_sizes.min().item() * self.radius
-        pix_max = face_sizes.max().item() * self.radius
+        face_areas = uxgrid.face_areas.values * self.radius**2
+        self._face_areas = face_areas
+        face_sizes = np.sqrt(face_areas)
+        pix_mean = face_sizes.mean().item()
+        pix_std = face_sizes.std().item()
+        pix_min = face_sizes.min().item()
+        pix_max = face_sizes.max().item()
         return float(pix_mean), float(pix_std), float(pix_min), float(pix_max)
 
     @property
@@ -1111,7 +1123,9 @@ class Surface(ComponentBase):
         The standard deviation of the pixel size of the mesh.
         """
         if self._pix_std is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min = self._compute_pix_size()
+            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
+                self._compute_pix_size()
+            )
         return self._pix_std
 
     @property
@@ -1120,7 +1134,9 @@ class Surface(ComponentBase):
         The minimum pixel size of the mesh.
         """
         if self._pix_min is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min = self._compute_pix_size()
+            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
+                self._compute_pix_size()
+            )
         return self._pix_min
 
     @property
@@ -1539,7 +1555,7 @@ class SurfaceView:
         self.update_elevation(node_elevation, overwrite=True)
         return
 
-    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> NDArray:
+    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> None:
         """
         Apply diffusion to the surface.
 
@@ -1550,10 +1566,6 @@ class SurfaceView:
             If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
             The value of kdiff must be greater than 0.0.
 
-        Returns
-        -------
-        NDArray
-            The elevation change after applying diffusion.
         """
         if np.isscalar(kdiff):
             kdiff = np.full(self.n_face, kdiff)
@@ -1579,6 +1591,44 @@ class SurfaceView:
             face_elevation=self.surface.face_elevation,
             face_face_connectivity=self.face_face_connectivity,
             face_indices=face_indices,
+        )
+        self.update_elevation(delta_face_elevation)
+        self.add_data("ejecta_thickness", delta_face_elevation)
+        self.interpolate_node_elevation_from_faces()
+        return
+
+    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
+        """
+        Collapse all slopes larger than the critical slope angle.
+
+        Parameters
+        ----------
+        critical_slope_angle : float
+            The critical slope angle (angle of repose) in degrees.
+
+        """
+        try:
+            critical_slope = np.tan(np.deg2rad(critical_slope_angle))
+        except ValueError as e:
+            raise ValueError(
+                "critical_slope_angle must be between 0 and 90 degrees"
+            ) from e
+
+        if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
+            face_indices = np.arange(self.surface.n_face)
+        else:
+            face_indices = self.face_indices
+        face_lon = np.deg2rad(self.surface.face_lon)
+        face_lat = np.deg2rad(self.surface.face_lat)
+        delta_face_elevation = surface_functions.slope_collapse(
+            face_areas=self.surface.face_areas,
+            face_elevation=self.surface.face_elevation,
+            face_face_connectivity=self.face_face_connectivity,
+            face_indices=face_indices,
+            face_lon=face_lon,
+            face_lat=face_lat,
+            radius=self.surface.radius,
+            critical_slope=critical_slope,
         )
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", delta_face_elevation)
