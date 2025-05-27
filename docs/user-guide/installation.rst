@@ -11,7 +11,7 @@ Cratermaker is designed to be both user-friendly and highly configurable, ensuri
 Normal installation
 ===================
 
-Cratermaker is a Python package that is designed to work with Python 3.10 or later on MacOS, Linux, and Windows. It contain some Rust components for performance. You may need to install Rust before installing Cratermaker. Installation instructions for your operating system can be found in `the Rust documentation <https://www.rust-lang.org/tools/install>`__. 
+Cratermaker is a Python package that is designed to work with Python 3.10 or later on MacOS, Linux, and Windows. It contains some Rust components for performance. You may need to install Rust before installing Cratermaker. Installation instructions for your operating system can be found in `the Rust documentation <https://www.rust-lang.org/tools/install>`__. 
 
 You can install Cratermaker using pip into the Python environment of your choice, provided it is at least Python 3.10 or above.
 
