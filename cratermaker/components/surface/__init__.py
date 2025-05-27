@@ -285,7 +285,7 @@ class Surface(ComponentBase):
 
         points = self.generate_face_distribution(**kwargs)
 
-        threshold = 10 ** np.floor(np.log10(self.pix / self.radius))
+        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-6)
         uxgrid = uxr.Grid.from_points(
             points, method="spherical_voronoi", threshold=threshold
         )
