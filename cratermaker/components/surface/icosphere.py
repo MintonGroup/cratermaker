@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 from typing import Any
 
@@ -87,3 +88,13 @@ class IcosphereSurface(Surface):
         if value < 0:
             raise ValueError("Grid level must be a non-negative integer.")
         self._gridlevel = int(value)
+
+    @property
+    def pix(self) -> float:
+        """
+        The approximate face size for a cell of the mesh.
+        """
+        if self._pix is None:
+            nfaces = 20 * 4**self.gridlevel
+            self._pix = (4 * math.pi * self.radius**2 / nfaces) ** 0.5
+        return self._pix

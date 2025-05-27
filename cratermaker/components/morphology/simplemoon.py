@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
-from scipy.optimize import fsolve
+from scipy.optimize import root_scalar
 
 from cratermaker._cratermaker import simplemoon_functions as sm
 from cratermaker.components.morphology import Morphology
@@ -230,6 +230,11 @@ class SimpleMoon(Morphology):
         if r_ref is None:
             r_ref = np.zeros_like(r)
 
+        if np.isscalar(r):
+            r = np.array([r], dtype=np.float64)
+        elif isinstance(r, (list, tuple)):
+            r = np.array(r, dtype=np.float64)
+
         # flatten r to 1D array
         rflat = np.ravel(r)
         r_ref_flat = np.ravel(r_ref)
@@ -307,6 +312,10 @@ class SimpleMoon(Morphology):
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
+        if np.isscalar(r):
+            r = np.array([r], dtype=np.float64)
+        elif isinstance(r, (list, tuple)):
+            r = np.array(r, dtype=np.float64)
         # flatten r to 1D array
         rflat = np.ravel(r)
         elevation = sm.ejecta_profile(rflat, crater.final_diameter, crater.ejrim)
@@ -428,10 +437,12 @@ class SimpleMoon(Morphology):
             crater = SimpleMoonCrater.maker(crater)
 
         def _profile_invert_ejecta(r):
-            return self.ejecta_profile(crater, r) - minimum_thickness
+            ans = self.ejecta_profile(crater, r) - minimum_thickness
+            return ans[0]
 
         def _profile_invert_crater(r):
-            return self.crater_profile(crater, r, np.zeros(1)) - minimum_thickness
+            ans = self.crater_profile(crater, r, np.zeros(1)) - minimum_thickness
+            return ans[0]
 
         if feature == "ejecta":
             _profile_invert = _profile_invert_ejecta
@@ -441,15 +452,28 @@ class SimpleMoon(Morphology):
             raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
 
         # Get the maximum extent
-        rmax = fsolve(_profile_invert, x0=crater.final_radius * 1.01)[0]
-
+        lower_limit = crater.final_radius * 1.0001
         if self.ejecta_truncation:
-            rmax = min(rmax, self.ejecta_truncation * crater.final_radius)
+            upper_limit = self.ejecta_truncation * crater.final_radius
+        else:
+            upper_limit = np.pi * self.surface.target.radius
 
-        if feature == "crater":
-            rmax = max(rmax, crater.final_radius)
+        if _profile_invert(lower_limit) < 0:
+            ans = lower_limit
+        elif _profile_invert(upper_limit) > 0:
+            ans = upper_limit
+        else:
+            sol = root_scalar(
+                _profile_invert,
+                bracket=[lower_limit, upper_limit],
+                method="brentq",
+            )
+            if not sol.converged:
+                ans = crater.final_radius
+            else:
+                ans = sol.root
 
-        return float(rmax)
+        return float(ans)
 
     def degradation_function(
         self, crater, region_view, ejecta_thickness, ejecta_intensity
