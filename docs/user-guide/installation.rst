@@ -68,7 +68,7 @@ Once you have installed the documentation dependencies, be sure that you also ha
     make rtdhml
 
 
-This documentation pages will be built in the ``docs/_build/html`` directory, which you can then open in your web browser to view.
+The documentation pages will be built in the ``docs/_build/html`` directory, which you can then open in your web browser to view.
 
 Automatically rebuild Rust components
 -------------------------------------
