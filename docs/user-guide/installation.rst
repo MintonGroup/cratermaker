@@ -38,7 +38,7 @@ The first time you install Cratermaker from source, you will need to generate th
 
     python buildscripts/set_version.py    
 
-For development, it's best to install the package in "editable" mode. The build and install an editable version you can install Cratermaker from source using the following command:
+For development, it's best to build and install the package in "editable" mode. To build and install an editable version you can install Cratermaker from source using the following command:
 
 .. code-block:: bash
 
