@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 from tqdm import tqdm
 
+from cratermaker.components.production import Production
 from cratermaker.constants import FloatLike
 from cratermaker.core.crater import Crater
 from cratermaker.utils.component_utils import ComponentBase, import_components
@@ -17,7 +18,12 @@ if TYPE_CHECKING:
 
 
 class Morphology(ComponentBase):
-    def __init__(self, surface: Surface | str | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        surface: Surface | str | None = None,
+        production: Production | str | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize the Morphology class.
 
@@ -25,6 +31,8 @@ class Morphology(ComponentBase):
         ----------
         surface : str or Surface, optional
             The name of a Surface object, or an instance of Surface, to be associated the morphology model.
+        production : str or Production, optional
+            The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
         **kwargs : Any
             Additional keyword arguments.
 
@@ -38,8 +46,11 @@ class Morphology(ComponentBase):
         from cratermaker.components.surface import Surface
 
         super().__init__(**kwargs)
+        object.__setattr__(self, "_production", None)
         self._surface = Surface.maker(surface, **kwargs)
         self._queue_manager: CraterQueueManager | None = None
+        if production is not None:
+            self._production = Production.maker(production, **kwargs)
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -50,6 +61,7 @@ class Morphology(ComponentBase):
         cls,
         morphology: str | type[Morphology] | Morphology | None = None,
         surface: Surface | str | None = None,
+        production: Production | str | None = None,
         **kwargs: Any,
     ) -> Morphology:
         """
@@ -80,7 +92,9 @@ class Morphology(ComponentBase):
         # Call the base class version of make and pass the morphology argument as the component argument
         if morphology is None:
             morphology = "simplemoon"
-        morphology = super().maker(component=morphology, surface=surface, **kwargs)
+        morphology = super().maker(
+            component=morphology, surface=surface, production=production, **kwargs
+        )
         return morphology
 
     def emplace(self, crater: Crater | list[Crater], **kwargs: Any) -> None:
@@ -321,6 +335,26 @@ class Morphology(ComponentBase):
             _batch_process()
         return
 
+    def subpixel_degradation(
+        self, production: Production | str | None = None, **kwargs
+    ) -> None:
+        """
+        This method performs the subpixel degradation. This models the combined degradation of the part of the production population that is below the resolution of the mesh on each face. It is called between batches of craters by the `emplace` method.
+
+        Parameters
+        ----------
+        Production : Production or str, optional
+            The production object containing the production population that will contribute to the degradation. This is only necessary if the Morphology model was not initialized with a production object. If not provided, the production object associated with this morphology model will be used. If passed, this will override the current production object.
+        **kwargs : Any
+            Additional keyword arguments for the degradation function.
+        """
+        if production is not None:
+            production = Production.maker(production, **kwargs)
+        else:
+            production = self.production
+
+        return
+
     @abstractmethod
     def degradation_function(self) -> None: ...
 
@@ -366,6 +400,24 @@ class Morphology(ComponentBase):
             raise TypeError("surface must be an instance of Surface or a string")
         self._surface = Surface.maker(surface)
         self._queue_manager: CraterQueueManager | None = None
+
+    @property
+    def production(self) -> Production:
+        """
+        The production object associated with this morphology model.
+        """
+        return self._production
+
+    @production.setter
+    def production(self, production: Production) -> None:
+        """
+        Set the production object associated with this morphology model.
+        """
+        from cratermaker.components.production import Production
+
+        if not isinstance(production, (Production, str)):
+            raise TypeError("production must be an instance of Production or a string")
+        self._production = Production.maker(production)
 
 
 class CraterQueueManager:

@@ -503,7 +503,7 @@ class SimpleMoon(Morphology):
 
         def _Kdmare(r, fe, psi):
             """
-            This is the mare-scale ddegradation function from Minton et al. (2019). See eq. (32)
+            This is the mare-scale degradation function from Minton et al. (2019). See eq. (32)
             """
             Kv1 = 0.17
             neq1 = 0.0084
