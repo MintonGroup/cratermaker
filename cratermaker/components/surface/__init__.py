@@ -70,6 +70,7 @@ class Surface(ComponentBase):
 
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_uxds", None)
+        object.__setattr__(self, "_pix", None)
         object.__setattr__(self, "_pix_mean", None)
         object.__setattr__(self, "_pix_std", None)
         object.__setattr__(self, "_pix_min", None)
@@ -283,6 +284,7 @@ class Surface(ComponentBase):
         self.grid_file.unlink(missing_ok=True)
 
         points = self.generate_face_distribution(**kwargs)
+
         threshold = 10 ** np.floor(np.log10(self.pix / self.radius))
         uxgrid = uxr.Grid.from_points(
             points, method="spherical_voronoi", threshold=threshold
