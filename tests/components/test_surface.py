@@ -275,10 +275,10 @@ class TestSurface(unittest.TestCase):
                 "pix": self.pix,
             },
             "hireslocal": {
-                "pix": self.pix,
+                "pix": self.pix / 100.0,
                 "local_location": (0, 0),
-                "local_radius": 100e3,
-                "superdomain_scale_factor": 10,
+                "local_radius": self.pix * 2,
+                "superdomain_scale_factor": 100,
             },
         }
 

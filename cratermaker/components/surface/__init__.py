@@ -70,6 +70,7 @@ class Surface(ComponentBase):
 
         object.__setattr__(self, "_target", None)
         object.__setattr__(self, "_uxds", None)
+        object.__setattr__(self, "_pix", None)
         object.__setattr__(self, "_pix_mean", None)
         object.__setattr__(self, "_pix_std", None)
         object.__setattr__(self, "_pix_min", None)
@@ -109,7 +110,11 @@ class Surface(ComponentBase):
 
     def __str__(self) -> str:
         base = super().__str__()
-        return f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}"
+        return (
+            f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}\n"
+            f"Number of faces: {self.n_face}\n"
+            f"Number of nodes: {self.n_node}"
+        )
 
     def __del__(self):
         try:
@@ -230,7 +235,6 @@ class Surface(ComponentBase):
         combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
-        *args,
         **kwargs,
     ) -> None:
         """
@@ -280,7 +284,11 @@ class Surface(ComponentBase):
         self.grid_file.unlink(missing_ok=True)
 
         points = self.generate_face_distribution(**kwargs)
-        uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi")
+
+        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-6)
+        uxgrid = uxr.Grid.from_points(
+            points, method="spherical_voronoi", threshold=threshold
+        )
         uxgrid.attrs["_id"] = self._id
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             uxgrid.to_xarray().to_netcdf(temp_file.name)
@@ -1089,12 +1097,13 @@ class Surface(ComponentBase):
                 return None, None, None, None
             else:
                 uxgrid = self.uxgrid
-        face_areas = uxgrid.face_areas
-        face_sizes = np.sqrt(face_areas / (4 * np.pi))
-        pix_mean = face_sizes.mean().item() * self.radius
-        pix_std = face_sizes.std().item() * self.radius
-        pix_min = face_sizes.min().item() * self.radius
-        pix_max = face_sizes.max().item() * self.radius
+        face_areas = uxgrid.face_areas.values * self.radius**2
+        self._face_areas = face_areas
+        face_sizes = np.sqrt(face_areas)
+        pix_mean = face_sizes.mean().item()
+        pix_std = face_sizes.std().item()
+        pix_min = face_sizes.min().item()
+        pix_max = face_sizes.max().item()
         return float(pix_mean), float(pix_std), float(pix_min), float(pix_max)
 
     @property
@@ -1114,7 +1123,9 @@ class Surface(ComponentBase):
         The standard deviation of the pixel size of the mesh.
         """
         if self._pix_std is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min = self._compute_pix_size()
+            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
+                self._compute_pix_size()
+            )
         return self._pix_std
 
     @property
@@ -1123,7 +1134,9 @@ class Surface(ComponentBase):
         The minimum pixel size of the mesh.
         """
         if self._pix_min is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min = self._compute_pix_size()
+            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
+                self._compute_pix_size()
+            )
         return self._pix_min
 
     @property

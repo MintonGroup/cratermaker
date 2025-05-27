@@ -10,7 +10,6 @@ from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import Surface
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
-from cratermaker.core.crater import Crater
 from cratermaker.utils.general_utils import (
     format_large_units,
     parameter,
@@ -63,7 +62,11 @@ class HiResLocalSurface(Surface):
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
+        object.__setattr__(self, "_local_view", None)
+        object.__setattr__(self, "_superdomain_function_slope", None)
+        object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
+
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
@@ -76,13 +79,16 @@ class HiResLocalSurface(Surface):
     def __str__(self) -> str:
         base = super().__str__()
         pix = format_large_units(self.pix, quantity="length")
+        pix_min = format_large_units(self.pix_min, quantity="length")
+        pix_max = format_large_units(self.pix_max, quantity="length")
         local_radius = format_large_units(self.local_radius, quantity="length")
         return (
             f"{base}\n"
-            f"Pixel Size: {pix}\n"
+            f"Local pixel size: {pix}\n"
             f"Local Radius: {local_radius}\n"
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
-            f"Superdomain Scale Factor: {self.superdomain_scale_factor:.2f}"
+            f"Minimum effective pixel size: {pix_min}\n"
+            f"Maximum effective pixel size: {pix_max}"
         )
 
     @property
@@ -98,6 +104,46 @@ class HiResLocalSurface(Surface):
             self.local_location,
             self.superdomain_scale_factor,
         ]
+
+    @property
+    def superdomain_function_slope(self):
+        if self._superdomain_function_slope is None:
+            d0 = self.local_radius
+            d1 = np.pi * self.radius - self.local_radius
+            pix_lo = self.pix
+            pix_hi = self.pix * self.superdomain_scale_factor
+            self._superdomain_function_slope = (pix_hi - pix_lo) / (d1 - d0)
+        return self._superdomain_function_slope
+
+    @property
+    def superdomain_function_exponent(self):
+        if self._superdomain_function_exponent is None:
+            self._superdomain_function_exponent = 1.0
+        return self._superdomain_function_exponent
+
+    def superdomain_function(self, r):
+        """
+        A function that defines the superdomain scale factor based on the distance from the local boundary.
+        This is set so that smallest craters that are modeled outside the local region are those whose ejecta could just reach the boundary.
+        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `set_superdomain` method.
+
+        Parameters
+        ----------
+        r : FloatLike
+            The distance from the local center in meters.
+        Returns
+        -------
+        FloatLike
+            The effective pixel size at the given distance from the local center.
+        """
+
+        return np.where(
+            r < self.local_radius,
+            self.pix,
+            self.pix
+            + self.superdomain_function_slope
+            * (r - self.local_radius) ** self.superdomain_function_exponent,
+        )
 
     def set_superdomain(
         self,
@@ -124,31 +170,53 @@ class HiResLocalSurface(Surface):
         **kwargs : Any
             Additional keyword arguments to pass to the scaling and morphology models.
         """
-        scaling = Scaling.maker(scaling, target=self.target, **kwargs)
-        morphology = Morphology.maker(morphology, target=self.target, **kwargs)
+        from scipy.optimize import curve_fit
+
+        from cratermaker import Crater
+
+        antipode_distance = np.pi * self.target.radius
         projectile_velocity = scaling.projectile.mean_velocity * 10
 
-        antipode_distance = np.pi * self.target.radius - self.local_radius
+        distance = 1.0
+        dvals = []
+        sdvals = []
+        superdomain_size = distance * 0.1
+        while distance < antipode_distance:
+            for final_diameter in np.logspace(
+                np.log10(superdomain_size),
+                np.log10(self.target.radius * 2),
+                1000,
+            ):
+                crater = Crater.maker(
+                    final_diameter=final_diameter,
+                    angle=90.0,
+                    scaling=scaling,
+                    projectile_velocity=projectile_velocity,
+                )
+                rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
+                if rmax >= distance:
+                    superdomain_size = crater.final_diameter
+                    break
+            dvals.append(distance)
+            sdvals.append(superdomain_size)
+            distance = distance + superdomain_size
 
-        for final_diameter in np.logspace(
-            np.log10(self.target.radius / 1e6),
-            np.log10(self.target.radius * 2),
-            1000,
-        ):
-            crater = Crater.maker(
-                final_diameter=final_diameter,
-                angle=90.0,
-                scaling=scaling,
-                projectile_velocity=projectile_velocity,
-                **kwargs,
-            )
-            rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
-            if rmax >= antipode_distance:
-                superdomain_scale_factor = crater.final_diameter / self.pix
-                break
+        def plaw(x, a, b):
+            return a * x**b
 
-        self.superdomain_scale_factor = superdomain_scale_factor
-        self.load_from_files(reset=reset, regrid=regrid, **kwargs)
+        try:
+            popt = curve_fit(plaw, dvals, sdvals, p0=[1.0, 1.0])[0]
+            self._superdomain_function_slope = popt[0]
+            self._superdomain_function_exponent = popt[1]
+        except Exception:
+            print("Could not fit superdomain function, using default values.")
+            self._superdomain_function_slope = 1.0
+            self._superdomain_function_exponent = 1.0
+        self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
+
+        self.load_from_files(
+            reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs
+        )
         return
 
     def _rotate_point_cloud(self, points):
@@ -207,58 +275,184 @@ class HiResLocalSurface(Surface):
             Array of points on a unit sphere.
         """
 
-        print("Generating a mesh with variable resolution faces")
+        def _interior_distribution(theta):
+            arc_distance = self.radius * theta
+            delta = self.pix / self.radius
+            if arc_distance < self.pix:
+                return [], theta + delta
+            if np.pi * self.radius - arc_distance < self.pix:
+                return [], np.pi
+
+            max_extent = arc_distance / self.radius
+            coords = np.arange(-max_extent, max_extent + delta, delta)
+            lat_grid, lon_grid = np.meshgrid(coords, coords, indexing="ij")
+
+            pix_distance_sq = (lon_grid / delta) ** 2 + (lat_grid / delta) ** 2
+            inner = (arc_distance / self.pix - 1.0) ** 2
+            outer = (arc_distance / self.pix) ** 2
+            mask = (pix_distance_sq >= inner) & (pix_distance_sq < outer)
+
+            lat = lat_grid[mask]
+            lon = lon_grid[mask]
+
+            cos_lat = np.cos(lat)
+            sin_lat = np.sin(lat)
+            cos_lon = np.cos(lon)
+            sin_lon = np.sin(lon)
+
+            z = cos_lat * cos_lon
+            x = cos_lat * sin_lon
+            y = sin_lat
+
+            points = np.column_stack([x, y, z])
+            return points.tolist(), theta + delta
+
+        def _exterior_distribution(theta):
+            r = self.radius
+            arc_distance = r * theta
+            pix_local = self.superdomain_function(arc_distance)
+            if (np.pi * r - arc_distance) < pix_local:
+                return [], np.pi
+
+            theta_next = theta + pix_local / r
+
+            sin_theta = np.sin(theta)
+            cos_theta = np.cos(theta)
+
+            n_phi = max(1, int(round(2 * np.pi * r * sin_theta / pix_local)))
+            phi = np.linspace(0, 2 * np.pi, n_phi, endpoint=False)
+
+            x = sin_theta * np.cos(phi)
+            y = sin_theta * np.sin(phi)
+            z = np.full_like(phi, cos_theta)
+
+            points = np.column_stack((x, y, z))
+            return points.tolist(), theta_next
+
         print(f"Center of local region: {self.local_location}")
         print(
             f"Size of local region: {format_large_units(self.local_radius, quantity='length')}"
         )
         print(
-            f"Hires region pixel size: {format_large_units(self.pix, quantity='length')}"
-        )
-        print(
-            f"Lores region pixel size: {format_large_units(self.pix * self.superdomain_scale_factor, quantity='length')}"
+            f"Local region pixel size: {format_large_units(self.pix, quantity='length')}"
         )
 
-        def _pix_func(distance):
-            d0 = self.local_radius
-            d1 = np.pi * self.radius - self.local_radius
-            pix_lo = self.pix
-            pix_hi = self.pix * self.superdomain_scale_factor
-            slope = (pix_hi - pix_lo) / (d1 - d0)
-            return np.where(
-                distance <= d0,
-                pix_lo,
-                pix_lo + slope * (distance - d0),
-            )
+        interior_points = []
+        theta = 0.0
+        while theta <= self.local_radius / self.radius:
+            new_points, theta = _interior_distribution(theta)
+            interior_points.extend(new_points)
+        print(f"Generated {len(interior_points)} points in the local region.")
 
-        points = []
-        r = self.radius
-        dtheta = 0.5 * self.pix / r
-        theta = dtheta
-
+        exterior_points = []
         while theta < np.pi:
-            arc_distance = r * theta
-            pix_local = _pix_func(arc_distance)
-            # Stop if the distance to the antipode is less than pix_local
-            if (np.pi * r - arc_distance) < pix_local:
-                break
-            dphi = (
-                pix_local / (r * np.sin(theta)) if np.sin(theta) > 1e-6 else 2 * np.pi
-            )
-            n_phi = max(1, int(round(2 * np.pi / dphi)))
-            for i in range(n_phi):
-                phi = i * 2 * np.pi / n_phi
-                x = np.sin(theta) * np.cos(phi)
-                y = np.sin(theta) * np.sin(phi)
-                z = np.cos(theta)
-                points.append([x, y, z])
-            theta += 0.5 * pix_local / r
+            new_points, theta = _exterior_distribution(theta)
+            exterior_points.extend(new_points)
+        print(f"Generated {len(exterior_points)} points in the superdomain region.")
+        points = interior_points + exterior_points
+        decimals = max(6, -int(np.floor(np.log10(self.pix / self.radius))))
 
-        points = np.round(points, decimals=5)
-        points = np.unique(np.array(points), axis=0)
-        points = np.array(points).T
-        points = self._rotate_point_cloud(points.T).T  # rotates from north pole
+        points = np.array(points, dtype=np.float64)
+        points = np.round(points, decimals=decimals)
+        points = np.unique(points, axis=0)
+        points = self._rotate_point_cloud(
+            points
+        ).T  # rotates from the north pole to local_location
+
         return points
+
+    def plot_hillshade(self, imagefile=None, **kwargs: Any) -> None:
+        """
+        Plot a hillshade image of the local region.
+
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LightSource
+        from scipy.interpolate import griddata
+
+        region_view = self.local_view
+        local_radius = self.local_radius
+        pix = self.pix
+
+        # Dynamically compute image resolution and dpi
+        extent_val = local_radius
+        resolution = int(2 * extent_val / pix)
+        dpi = resolution
+        x = np.linspace(-extent_val, extent_val, resolution)
+        y = np.linspace(-extent_val, extent_val, resolution)
+        grid_x, grid_y = np.meshgrid(x, y)
+
+        # Use polar coordinates from region_view
+        r = region_view.face_distance
+        theta = region_view.face_bearing
+        x_cart = r * np.cos(theta)
+        y_cart = r * np.sin(theta)
+
+        points = np.column_stack((x_cart, y_cart))
+        values = region_view.face_elevation
+        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
+
+        # Generate hillshade
+        azimuth = 300.0
+        solar_angle = 20.0
+        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+        hillshade = ls.hillshade(grid_z, dx=pix, dy=pix, fraction=1.0)
+
+        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
+        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
+        ax.imshow(
+            hillshade,
+            interpolation="nearest",
+            cmap="gray",
+            vmin=0.0,
+            vmax=1.0,
+            aspect="equal",
+            extent=(-extent_val, extent_val, -extent_val, extent_val),
+        )
+        ax.axis("off")
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        if imagefile:
+            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
+        else:
+            plt.show(**kwargs)
+
+    def save_to_files(
+        self,
+        combine_data_files: bool = False,
+        interval_number: int = 0,
+        time_variables: dict | None = None,
+        **kwargs,
+    ) -> None:
+        """
+        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+
+        Parameters
+        ----------
+        combine_data_files : bool, optional
+            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        """
+
+        super().save_to_files(
+            combine_data_files=combine_data_files,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            **kwargs,
+        )
+        imgdir = Path(self.simdir) / "surface_images"
+        imgdir.mkdir(parents=True, exist_ok=True)
+        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
+        self.plot_hillshade(imagefile=imagefile, **kwargs)
+        return
 
     @parameter
     def pix(self):
@@ -294,9 +488,13 @@ class HiResLocalSurface(Surface):
             or value <= 0
         ):
             raise TypeError("local_radius must be a positive float")
-        if value > 2 * np.pi * self.radius:
+        if value > np.pi * self.radius:
             raise ValueError(
-                "local_radius must be less than 2 * pi * radius of the target body"
+                "local_radius must be less than pi * radius of the target body"
+            )
+        if value < self.pix:
+            raise ValueError(
+                "local_radius must be greater than or equal to pix (the approximate face size in the local region"
             )
         self._local_radius = value
 
@@ -333,3 +531,14 @@ class HiResLocalSurface(Surface):
                 "superdomain_scale_factor must be a positive float greater than or equal to 1"
             )
         self._superdomain_scale_factor = value
+
+    @property
+    def local_view(self):
+        """
+        Returns the local view of the surface.
+        """
+        if self._local_view is None:
+            self._local_view = self.extract_region(
+                location=self.local_location, region_radius=self.local_radius
+            )
+        return self._local_view
