@@ -72,7 +72,7 @@ class HiResLocalSurface(Surface):
         self.local_location = local_location
         if superdomain_scale_factor is not None:
             self.superdomain_scale_factor = superdomain_scale_factor
-            self.load_from_files(reset=reset, regrid=regrid, **kwargs)
+            self._load_from_files(reset=reset, regrid=regrid, **kwargs)
 
         return
 
@@ -214,7 +214,7 @@ class HiResLocalSurface(Surface):
             self._superdomain_function_exponent = 1.0
         self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
-        self.load_from_files(
+        self._load_from_files(
             reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs
         )
         return
@@ -265,7 +265,7 @@ class HiResLocalSurface(Surface):
         rotation = R.from_rotvec(rotvec)
         return rotation.apply(points)
 
-    def generate_face_distribution(self, **kwargs: Any) -> NDArray:
+    def _generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
         Creates the points that define the mesh centers.
 
@@ -422,7 +422,7 @@ class HiResLocalSurface(Surface):
         else:
             plt.show(**kwargs)
 
-    def save_to_files(
+    def _save_to_files(
         self,
         combine_data_files: bool = False,
         interval_number: int = 0,
@@ -442,7 +442,7 @@ class HiResLocalSurface(Surface):
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
 
-        super().save_to_files(
+        super()._save_to_files(
             combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,

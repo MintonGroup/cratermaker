@@ -44,7 +44,7 @@ class IcosphereSurface(Surface):
     ):
         super().__init__(target=target, simdir=simdir, **kwargs)
         self.gridlevel = gridlevel
-        self.load_from_files(reset=reset, regrid=regrid, **kwargs)
+        self._load_from_files(reset=reset, regrid=regrid, **kwargs)
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -63,7 +63,7 @@ class IcosphereSurface(Surface):
         """
         return [self._component_name, self.radius, self.gridlevel]
 
-    def generate_face_distribution(self, **kwargs: Any) -> NDArray:
+    def _generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
         Creates the points that define the mesh centers.
 

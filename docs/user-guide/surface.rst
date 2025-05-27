@@ -50,11 +50,11 @@ Using a Surface object
 Once you have surface object, you are now able to perform numerous surface-related computations. 
 
 
-- :meth:`calculate_haversine_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
-- :meth:`calculate_initial_bearing`: Takes a longitude and latitude pair and computes the intitial bearing from one point to another on the surface of the sphere.=
+- :meth:`calculate_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
+- :meth:`calculate_bearing`: Takes a longitude and latitude pair and computes the intitial bearing from one point to another on the surface of the sphere.=
 - :meth:`find_nearest_index`: Takes a longitude and latitude pair and calculates the Haversine Distance for each face of the grid. You will get a tuple that tells you the index of the face with the minimum distance.
-- :meth:`get_distance`: Calculates the distances between nodes and faces at a given location
-- :meth:`get_initial_bearing`: Calculates the initial bearing between nodes and faces at a given location
+- :meth:`calculate_face_and_node_distances`: Calculates the distances between nodes and faces at a given location
+- :meth:`calculate_face_and_node_bearings`: Calculates the initial bearing between nodes and faces at a given location
 - :meth:`interpolate_node_elevation_from_faces`: Computes the elevation for each node by taking the area-weighted average of the surrounding faces.
 
 
@@ -63,7 +63,7 @@ Once you have surface object, you are now able to perform numerous surface-relat
 
     surface = Surface.maker()
 
-    haversine=surface.calculate_haversine_distance(-1.457,0.732,2.738,-1.102)
+    haversine=surface.calculate_distance(-1.457,0.732,2.738,-1.102)
     print(f"Haversine Distance: {haversine}")
 
     surface_2 = Surface.maker('arbitrary_resolution', target='Mars')
@@ -71,7 +71,7 @@ Once you have surface object, you are now able to perform numerous surface-relat
     print(f"Nearest index: {surface_nearest_index}")
 
     surface_3=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
-    distance=surface_3.get_distance((0,9))
+    distance=surface_3.calculate_face_and_node_distances((0,9))
     print(f"Distance between nodes and faces: {distance}")
 
 
