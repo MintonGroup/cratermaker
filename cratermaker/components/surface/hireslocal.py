@@ -91,41 +91,72 @@ class HiResLocalSurface(Surface):
             f"Maximum effective pixel size: {pix_max}"
         )
 
-    @property
-    def _hashvars(self):
+    def plot_hillshade(self, imagefile=None, **kwargs: Any) -> None:
         """
-        The variables used to generate the hash.
+        Plot a hillshade image of the local region.
+
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
         """
-        return [
-            self._component_name,
-            self.radius,
-            self.pix,
-            self.local_radius,
-            self.local_location,
-            self.superdomain_scale_factor,
-        ]
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LightSource
+        from scipy.interpolate import griddata
 
-    @property
-    def superdomain_function_slope(self):
-        if self._superdomain_function_slope is None:
-            d0 = self.local_radius
-            d1 = np.pi * self.radius - self.local_radius
-            pix_lo = self.pix
-            pix_hi = self.pix * self.superdomain_scale_factor
-            self._superdomain_function_slope = (pix_hi - pix_lo) / (d1 - d0)
-        return self._superdomain_function_slope
+        region_view = self.local_view
+        local_radius = self.local_radius
+        pix = self.pix
 
-    @property
-    def superdomain_function_exponent(self):
-        if self._superdomain_function_exponent is None:
-            self._superdomain_function_exponent = 1.0
-        return self._superdomain_function_exponent
+        # Dynamically compute image resolution and dpi
+        extent_val = local_radius
+        resolution = int(2 * extent_val / pix)
+        dpi = resolution
+        x = np.linspace(-extent_val, extent_val, resolution)
+        y = np.linspace(-extent_val, extent_val, resolution)
+        grid_x, grid_y = np.meshgrid(x, y)
+
+        # Use polar coordinates from region_view
+        r = region_view.face_distance
+        theta = region_view.face_bearing
+        x_cart = r * np.cos(theta)
+        y_cart = r * np.sin(theta)
+
+        points = np.column_stack((x_cart, y_cart))
+        values = region_view.face_elevation
+        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
+
+        # Generate hillshade
+        azimuth = 300.0
+        solar_angle = 20.0
+        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+        hillshade = ls.hillshade(grid_z, dx=pix, dy=pix, fraction=1.0)
+
+        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
+        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
+        ax.imshow(
+            hillshade,
+            interpolation="nearest",
+            cmap="gray",
+            vmin=0.0,
+            vmax=1.0,
+            aspect="equal",
+            extent=(-extent_val, extent_val, -extent_val, extent_val),
+        )
+        ax.axis("off")
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        if imagefile:
+            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
+        else:
+            plt.show(**kwargs)
 
     def superdomain_function(self, r):
         """
         A function that defines the superdomain scale factor based on the distance from the local boundary.
         This is set so that smallest craters that are modeled outside the local region are those whose ejecta could just reach the boundary.
-        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `set_superdomain` method.
+        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `_set_superdomain` method.
 
         Parameters
         ----------
@@ -145,7 +176,7 @@ class HiResLocalSurface(Surface):
             * (r - self.local_radius) ** self.superdomain_function_exponent,
         )
 
-    def set_superdomain(
+    def _set_superdomain(
         self,
         scaling: Scaling | str | None = None,
         morphology: Morphology | str | None = None,
@@ -361,67 +392,6 @@ class HiResLocalSurface(Surface):
 
         return points
 
-    def plot_hillshade(self, imagefile=None, **kwargs: Any) -> None:
-        """
-        Plot a hillshade image of the local region.
-
-        Parameters
-        ----------
-        imagefile : str | Path, optional
-            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
-        **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
-        """
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import LightSource
-        from scipy.interpolate import griddata
-
-        region_view = self.local_view
-        local_radius = self.local_radius
-        pix = self.pix
-
-        # Dynamically compute image resolution and dpi
-        extent_val = local_radius
-        resolution = int(2 * extent_val / pix)
-        dpi = resolution
-        x = np.linspace(-extent_val, extent_val, resolution)
-        y = np.linspace(-extent_val, extent_val, resolution)
-        grid_x, grid_y = np.meshgrid(x, y)
-
-        # Use polar coordinates from region_view
-        r = region_view.face_distance
-        theta = region_view.face_bearing
-        x_cart = r * np.cos(theta)
-        y_cart = r * np.sin(theta)
-
-        points = np.column_stack((x_cart, y_cart))
-        values = region_view.face_elevation
-        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
-
-        # Generate hillshade
-        azimuth = 300.0
-        solar_angle = 20.0
-        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
-        hillshade = ls.hillshade(grid_z, dx=pix, dy=pix, fraction=1.0)
-
-        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
-        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
-        ax.imshow(
-            hillshade,
-            interpolation="nearest",
-            cmap="gray",
-            vmin=0.0,
-            vmax=1.0,
-            aspect="equal",
-            extent=(-extent_val, extent_val, -extent_val, extent_val),
-        )
-        ax.axis("off")
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        if imagefile:
-            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
-        else:
-            plt.show(**kwargs)
-
     def _save_to_files(
         self,
         combine_data_files: bool = False,
@@ -453,6 +423,17 @@ class HiResLocalSurface(Surface):
         imagefile = imgdir / f"hillshade{interval_number:06d}.png"
         self.plot_hillshade(imagefile=imagefile, **kwargs)
         return
+
+    @property
+    def local_view(self):
+        """
+        Returns the local view of the surface.
+        """
+        if self._local_view is None:
+            self._local_view = self.extract_region(
+                location=self.local_location, region_radius=self.local_radius
+            )
+        return self._local_view
 
     @parameter
     def pix(self):
@@ -511,6 +492,22 @@ class HiResLocalSurface(Surface):
             raise TypeError("local_location must be a tuple of two floats")
         self._local_location = validate_and_normalize_location(value)
 
+    @property
+    def superdomain_function_slope(self):
+        if self._superdomain_function_slope is None:
+            d0 = self.local_radius
+            d1 = np.pi * self.radius - self.local_radius
+            pix_lo = self.pix
+            pix_hi = self.pix * self.superdomain_scale_factor
+            self._superdomain_function_slope = (pix_hi - pix_lo) / (d1 - d0)
+        return self._superdomain_function_slope
+
+    @property
+    def superdomain_function_exponent(self):
+        if self._superdomain_function_exponent is None:
+            self._superdomain_function_exponent = 1.0
+        return self._superdomain_function_exponent
+
     @parameter
     def superdomain_scale_factor(self):
         """
@@ -533,12 +530,15 @@ class HiResLocalSurface(Surface):
         self._superdomain_scale_factor = value
 
     @property
-    def local_view(self):
+    def _hashvars(self):
         """
-        Returns the local view of the surface.
+        The variables used to generate the hash.
         """
-        if self._local_view is None:
-            self._local_view = self.extract_region(
-                location=self.local_location, region_radius=self.local_radius
-            )
-        return self._local_view
+        return [
+            self._component_name,
+            self.radius,
+            self.pix,
+            self.local_radius,
+            self.local_location,
+            self.superdomain_scale_factor,
+        ]
