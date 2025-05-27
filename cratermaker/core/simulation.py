@@ -179,7 +179,7 @@ class Simulation(CratermakerBase):
             **morphology_config,
         )
         if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
-            self.surface.set_superdomain(
+            self.surface._set_superdomain(
                 scaling=self.scaling, morphology=self.morphology, **surface_config
             )
 
@@ -834,7 +834,7 @@ class Simulation(CratermakerBase):
             "elapsed_n1": self.elapsed_n1,
         }
 
-        self.surface.save_to_files(
+        self.surface._save_to_files(
             interval_number=self.interval_number,
             time_variables=time_variables,
             **kwargs,
