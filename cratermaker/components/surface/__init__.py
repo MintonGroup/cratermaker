@@ -227,6 +227,7 @@ class Surface(ComponentBase):
         region_angle = np.rad2deg(region_radius / self.radius)
         if len(location) == 1:
             location = location.item()
+        location = validate_and_normalize_location(location)
         coords = np.asarray(location)
 
         face_indices = self.face_tree.query_radius(coords, region_angle)

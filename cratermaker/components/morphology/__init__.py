@@ -264,9 +264,13 @@ class Morphology(ComponentBase):
             raise ValueError("age_end must be less than age_start.")
 
         bin_min_areas = []
+        total_bin_area = []
+        bin_p = []
         for face_indices in self.surface.face_bins:
             bin_areas = self.surface.face_areas[face_indices]
             bin_min_areas.append(np.min(bin_areas))
+            total_bin_area.append(np.sum(bin_areas))
+            bin_p.append(bin_areas / total_bin_area[-1])
 
         bin_min_areas = np.array(bin_min_areas)
         n_sample = 0.1 / bin_min_areas
@@ -274,10 +278,30 @@ class Morphology(ComponentBase):
             cumulative_number_density=n_sample, age=age_start, age_end=age_end
         )
         Kdiff = np.zeros_like(self.surface.face_elevation)
+
         for i, face_indices in enumerate(self.surface.face_bins):
             rmin = DC_MIN / 2
             rmax = dc_sample[i] / 2
             Kdiff[face_indices], _ = quad(_subpixel_degradation, rmin, rmax)
+            diameters, _ = self.production.sample(
+                age=age_start,
+                age_end=age_end,
+                diameter_range=(dc_sample[i], np.sqrt(bin_min_areas[i])),
+                area=total_bin_area[i],
+                **kwargs,
+            )
+            face_indices = self.rng.choice(
+                face_indices, size=diameters.shape, p=bin_p[i]
+            )
+            locations = self.surface.get_random_location_on_face(face_indices)
+            for d, loc in zip(diameters, locations):
+                region_view = self.surface.extract_region(
+                    location=loc, region_radius=100 * d / 2
+                )
+                K_deg = self.degradation_function(
+                    final_radius=d / 2, ejecta_intensity=np.ones(region_view.n_face)
+                )
+                region_view.apply_diffusion(K_deg)
 
         self.surface.apply_diffusion(Kdiff)
 
