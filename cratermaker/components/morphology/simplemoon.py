@@ -476,30 +476,30 @@ class SimpleMoon(Morphology):
         return float(ans)
 
     def degradation_function(
-        self, crater, region_view, ejecta_thickness, ejecta_intensity
-    ) -> None:
+        self, final_radius: FloatLike, ejecta_intensity: NDArray[np.float64]
+    ) -> NDArray[np.float64]:
         """
-        Implements the degradation function, which defines the topographic degradation that each crater contributes to the surface.
+        Computes the degradation function, which defines the topographic degradation that each crater contributes to the surface.
 
         This function implements a combination of the model by Minton et al. (2019) [#]_ for small craters and Riedel et al. (2020) [#]_ for large craters. It is currently not well-constrained, so may change in the future.
 
         Parameters
         ----------
-        crater : SimpleMoonCrater
-            The crater object that is being emplaced.
-        region_view : SurfaceView
-            The region view of the surface mesh centered at the crater center.
-        ejecta_thickness : NDArray[np.float64]
-            The computed ejecta thickness at the face and node elevations.
+        final_radius : FloatLike
+            The final radius of the crater in meters.
         ejecta_intensity : NDArray[np.float64]
-            The computed ejecta intensity at the face and node elevations.
+            The computed ejecta intensity at at faces.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The computed degradation function at each face.
 
         References
         ----------
         .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63–87. https://doi.org/10.1016/j.icarus.2019.02.021
         .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. https://doi.org/10.1029/2019JE006273
         """
-        EJECTA_SOFTEN_FACTOR = 1.50
 
         def _Kdmare(r, fe, psi):
             """
@@ -537,13 +537,9 @@ class SimpleMoon(Morphology):
             Kd1 = _Kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
             return _smooth_broken(r, Kd1, rb, psi_1, psi_2, delta)
 
-        def _Kdej(h):
-            return EJECTA_SOFTEN_FACTOR * h**2
+        ejecta_intensity = np.asarray(ejecta_intensity, dtype=np.float64)
 
-        kdiff = _Kdej(ejecta_thickness[: region_view.n_face])
-        kdiff += ejecta_intensity[: region_view.n_face] * _Kd(crater.final_radius)
-        region_view.apply_diffusion(kdiff)
-        return
+        return ejecta_intensity * _Kd(final_radius)
 
     @property
     def node_index(self):

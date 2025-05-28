@@ -171,6 +171,7 @@ class Morphology(ComponentBase):
                 # Form the crater shape
                 elevation_change = self.crater_shape(crater, crater_region_view)
                 crater_region_view.update_elevation(elevation_change)
+                crater_region_view.slope_collapse()
                 crater_volume = crater_region_view.compute_volume(
                     elevation_change[: crater_region_view.n_face]
                 )
@@ -209,11 +210,15 @@ class Morphology(ComponentBase):
 
         ejecta_region_view.update_elevation(ejecta_thickness)
 
-        self.degradation_function(
-            crater, ejecta_region_view, ejecta_thickness, ejecta_intensity
+        K_ej = self.ejecta_burial_K(
+            ejecta_thickness[: ejecta_region_view.n_face], ejecta_soften_factor=1.50
         )
+        ejecta_region_view.apply_diffusion(K_ej)
 
-        ejecta_region_view.slope_collapse()
+        K_deg = self.degradation_function(
+            crater.final_radius, ejecta_intensity[: ejecta_region_view.n_face]
+        )
+        ejecta_region_view.apply_diffusion(K_deg)
 
         return
 
@@ -247,12 +252,24 @@ class Morphology(ComponentBase):
         if age_end >= age_start:
             raise ValueError("age_end must be less than age_start.")
 
-        for i, area in enumerate(self.surface.face_areas):
-            dc_max = np.sqrt(area)
-            Nlo = production.function(diameter=DC_MIN, age=age_start, age_end=age_end)
-            Nhi = production.function(diameter=dc_max, age=age_start, age_end=age_end)
-            if Nlo == 0 and Nhi == 0:
-                continue
+        # for i, area in enumerate(self.surface.face_areas):
+        #     dc_max = np.sqrt(
+        #         area
+        #     )  # This is the smallest crater size that can be formed on this face.
+        #     n_sample = (
+        #         0.1 / area
+        #     )  # Degradation functions for craters with an expected number density value above this will be sampled rather than integrated
+        #     dc_sample = production.D_from_N_age(
+        #         cumulative_number_density=n_sample, age=age_start, age_end=age_end
+        #     )
+        #     Nlo = production.function(diameter=DC_MIN, age=age_start, age_end=age_end)
+        #     if dc_sample < dc_max:
+        #         Nhi = production.function(
+        #             diameter=dc_max, age=age_start, age_end=age_end
+        #         )
+
+        #     if Nlo == 0 and Nhi == 0:
+        #         continue
 
         return
 
@@ -381,6 +398,32 @@ class Morphology(ComponentBase):
         else:
             _batch_process()
         return
+
+    def ejecta_burial_K(
+        self, ejecta_thickness, ejecta_soften_factor=1.50
+    ) -> NDArray[np.float64]:
+        """
+        Computes the change in degradation state due to ejecta burial.
+
+        This function implements a combination of the model by Minton et al. (2019) [#]_.
+
+        Parameters
+        ----------
+        region_view : SurfaceView
+            The region view of the surface mesh centered at the crater center.
+        ejecta_thickness : NDArray[np.float64]
+            The computed ejecta thickness at the face and node elevations.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The computed change in degradation state for all faces in the
+
+        References
+        ----------
+        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63–87. https://doi.org/10.1016/j.icarus.2019.02.021
+        """
+        return ejecta_soften_factor * ejecta_thickness**2
 
     @abstractmethod
     def degradation_function(self) -> None: ...
