@@ -1,6 +1,6 @@
 .. currentmodule:: cratermaker
 
-.. image:: ../_static/simulation_icon.svg
+.. image:: ../_static/full_simulation.png
     :alt: Simulation
     :align: center
     :width: 300px
