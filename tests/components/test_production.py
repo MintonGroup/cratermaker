@@ -14,7 +14,7 @@ class TestProduction(unittest.TestCase):
             for age_orig in np.linspace(0, 4500, num=10):
                 D = np.logspace(-1, 3, num=1000)
                 N = production.function(diameter=D, age=age_orig, check_valid_age=False)
-                age_new = production.function_inverse(
+                age_new = production.age_from_D_N(
                     cumulative_number_density=N, diameter=D
                 )
                 np.testing.assert_array_almost_equal(age_orig, age_new, decimal=2)

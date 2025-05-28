@@ -378,7 +378,7 @@ class Simulation(CratermakerBase):
                     current_diameter_number[0],
                     current_diameter_number[1] / self.surface.area,
                 )
-                current_age = self.production.function_inverse(
+                current_age = self.production.age_from_D_N(
                     *current_diameter_number_density
                 )
                 if current_diameter_number_end[1] > 0:
@@ -387,7 +387,7 @@ class Simulation(CratermakerBase):
                         current_diameter_number_end[1] / self.surface.area,
                     )
 
-                    current_age_end = self.production.function_inverse(
+                    current_age_end = self.production.age_from_D_N(
                         *current_diameter_number_density_end
                     )
                 else:
@@ -968,7 +968,7 @@ class Simulation(CratermakerBase):
                         diameter_number_interval[0],
                         diameter_number_interval[1] / area,
                     )
-                    age_val = self.production.function_inverse(
+                    age_val = self.production.age_from_D_N(
                         *diameter_number_density_interval
                     )
                     diameter_number_density_interval = (

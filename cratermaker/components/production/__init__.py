@@ -259,7 +259,17 @@ class Production(ComponentBase):
 
         return diameters, ages
 
-    def function_inverse(
+    @abstractmethod
+    def function(
+        self,
+        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        check_valid_age: bool = True,
+        **kwargs: Any,
+    ) -> FloatLike | ArrayLike: ...
+
+    def age_from_D_N(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
         cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
@@ -270,7 +280,7 @@ class Production(ComponentBase):
 
         Parameters
         ----------
-        diameter : float-lik or  array-like
+        diameter : float-like or  array-like
             diameter of the crater in m
         cumulative_number_density : float-like or array-like
             number density of craters per m^2 surface area greater than the input diameter
@@ -352,16 +362,6 @@ class Production(ComponentBase):
     def chronology(
         self,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        check_valid_age: bool = True,
-        **kwargs: Any,
-    ) -> FloatLike | ArrayLike: ...
-
-    @abstractmethod
-    def function(
-        self,
-        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
         check_valid_age: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike: ...
@@ -551,7 +551,7 @@ class Production(ComponentBase):
                 )
             diameter_number = self._validate_csfd(*diameter_number)
             diameter_number_density = (diameter_number[0], diameter_number[1] / area)
-            age = self.function_inverse(*diameter_number_density)
+            age = self.age_from_D_N(*diameter_number_density)
         else:
             diameter_number_density = (
                 _REF_DIAM,
@@ -596,7 +596,7 @@ class Production(ComponentBase):
                 diameter_number_end[0],
                 diameter_number_end[1] / area,
             )
-            age_end = self.function_inverse(*diameter_number_density_end)
+            age_end = self.age_from_D_N(*diameter_number_density_end)
 
         age, age_end = self._validate_age(age, age_end)
 

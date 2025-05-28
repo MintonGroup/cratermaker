@@ -238,6 +238,7 @@ class Morphology(ComponentBase):
         **kwargs : Any
             Additional keyword arguments for the degradation function.
         """
+        DC_MIN = 1e-6  # Minimum crater size for subpixel degradation calculation.
         if production is not None:
             production = Production.maker(production, **kwargs)
         else:
@@ -245,6 +246,13 @@ class Morphology(ComponentBase):
 
         if age_end >= age_start:
             raise ValueError("age_end must be less than age_start.")
+
+        for i, area in enumerate(self.surface.face_areas):
+            dc_max = np.sqrt(area)
+            Nlo = production.function(diameter=DC_MIN, age=age_start, age_end=age_end)
+            Nhi = production.function(diameter=dc_max, age=age_start, age_end=age_end)
+            if Nlo == 0 and Nhi == 0:
+                continue
 
         return
 
