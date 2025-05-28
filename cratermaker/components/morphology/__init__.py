@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.integrate import quad
 from tqdm import tqdm
 
 from cratermaker.components.production import Production
@@ -249,6 +250,16 @@ class Morphology(ComponentBase):
         else:
             production = self.production
 
+        def _subpixel_degradation(final_radius):
+            K_deg = self.degradation_function(
+                final_radius=final_radius, ejecta_intensity=[1]
+            )
+            N = production.function(
+                diameter=final_radius * 2, age=age_start, age_end=age_end
+            )
+            crater_area = np.pi * final_radius**2
+            return K_deg * N * crater_area
+
         if age_end >= age_start:
             raise ValueError("age_end must be less than age_start.")
 
@@ -262,7 +273,16 @@ class Morphology(ComponentBase):
         dc_sample = production.D_from_N_age(
             cumulative_number_density=n_sample, age=age_start, age_end=age_end
         )
-        Nlo = production.function(diameter=DC_MIN, age=age_start, age_end=age_end)
+        K_bins = np.zeros_like(bin_min_areas)
+        for i, dc_max in enumerate(dc_sample):
+            rmin = DC_MIN / 2
+            rmax = dc_max / 2
+            K_bins[i], _ = quad(_subpixel_degradation, rmin, rmax)
+        Kdiff = np.zeros_like(self.surface.face_elevation)
+        for i, face_indices in enumerate(self.surface.face_bins):
+            Kdiff[face_indices] = K_bins[i]
+
+        self.surface.apply_diffusion(Kdiff)
 
         return
 
@@ -419,7 +439,9 @@ class Morphology(ComponentBase):
         return ejecta_soften_factor * ejecta_thickness**2
 
     @abstractmethod
-    def degradation_function(self) -> None: ...
+    def degradation_function(
+        self, final_radius: FloatLike, ejecta_intensity: NDArray[np.float64]
+    ) -> NDArray[np.float64]: ...
 
     @abstractmethod
     def crater_shape(
