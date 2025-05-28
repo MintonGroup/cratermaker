@@ -252,24 +252,17 @@ class Morphology(ComponentBase):
         if age_end >= age_start:
             raise ValueError("age_end must be less than age_start.")
 
-        # for i, area in enumerate(self.surface.face_areas):
-        #     dc_max = np.sqrt(
-        #         area
-        #     )  # This is the smallest crater size that can be formed on this face.
-        #     n_sample = (
-        #         0.1 / area
-        #     )  # Degradation functions for craters with an expected number density value above this will be sampled rather than integrated
-        #     dc_sample = production.D_from_N_age(
-        #         cumulative_number_density=n_sample, age=age_start, age_end=age_end
-        #     )
-        #     Nlo = production.function(diameter=DC_MIN, age=age_start, age_end=age_end)
-        #     if dc_sample < dc_max:
-        #         Nhi = production.function(
-        #             diameter=dc_max, age=age_start, age_end=age_end
-        #         )
+        bin_min_areas = []
+        for face_indices in self.surface.face_bins:
+            bin_areas = self.surface.face_areas[face_indices]
+            bin_min_areas.append(np.min(bin_areas))
 
-        #     if Nlo == 0 and Nhi == 0:
-        #         continue
+        bin_min_areas = np.array(bin_min_areas)
+        n_sample = 0.1 / bin_min_areas
+        dc_sample = production.D_from_N_age(
+            cumulative_number_density=n_sample, age=age_start, age_end=age_end
+        )
+        Nlo = production.function(diameter=DC_MIN, age=age_start, age_end=age_end)
 
         return
 
