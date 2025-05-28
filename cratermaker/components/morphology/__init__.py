@@ -273,7 +273,7 @@ class Morphology(ComponentBase):
             bin_p.append(bin_areas / total_bin_area[-1])
 
         bin_min_areas = np.array(bin_min_areas)
-        n_sample = 0.5 / bin_min_areas
+        n_sample = 0.01 / bin_min_areas
         dc_sample = production.D_from_N_age(
             cumulative_number_density=n_sample, age=age_start, age_end=age_end
         )
@@ -298,6 +298,8 @@ class Morphology(ComponentBase):
                 region_view = self.surface.extract_region(
                     location=loc, region_radius=100 * d / 2
                 )
+                if not region_view:
+                    continue
                 K_deg = self.degradation_function(
                     final_radius=d / 2, ejecta_intensity=np.ones(region_view.n_face)
                 )
