@@ -273,14 +273,11 @@ class Morphology(ComponentBase):
         dc_sample = production.D_from_N_age(
             cumulative_number_density=n_sample, age=age_start, age_end=age_end
         )
-        K_bins = np.zeros_like(bin_min_areas)
-        for i, dc_max in enumerate(dc_sample):
-            rmin = DC_MIN / 2
-            rmax = dc_max / 2
-            K_bins[i], _ = quad(_subpixel_degradation, rmin, rmax)
         Kdiff = np.zeros_like(self.surface.face_elevation)
         for i, face_indices in enumerate(self.surface.face_bins):
-            Kdiff[face_indices] = K_bins[i]
+            rmin = DC_MIN / 2
+            rmax = dc_sample[i] / 2
+            Kdiff[face_indices], _ = quad(_subpixel_degradation, rmin, rmax)
 
         self.surface.apply_diffusion(Kdiff)
 
