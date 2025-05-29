@@ -14,7 +14,8 @@ Cratermaker's :ref: 'Surface <api-surface>' component is used to represent targe
 
 
 Setting up a Surface object
---------------------------
+---------------------------
+
 All cratermaker components have a default configuration that is set when no arguments are passed through its ''maker'' method. We can observe its defauts:
 
 .. ipython:: python
