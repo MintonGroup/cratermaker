@@ -36,7 +36,7 @@ The default surface is automatically set to 'icosphere' with a grid level of 8 a
     print(f"The areas of each face for grid level of 7:{surface_7.face_areas}",f"The areas of each face for grid level of 9:{surface_9.face_areas}",)
 
 
- The user has the capability of changing the surface class as well as the target. This can be done by doing the following: 
+As expected, we observe more faces with a lower area when we increase the grid level. The user has the capability of changing the surface class as well as the target. This can be done by doing the following: 
 
 .. ipython:: python
    :okwarning:
@@ -45,7 +45,7 @@ The default surface is automatically set to 'icosphere' with a grid level of 8 a
    print(surface)
 
 
-As seen above, the arbitrary resolution grid also creates a uniform grid configurations but allows the user to define their pixel size. This class allows for any resolution that the user wants. 
+As seen above, the arbitrary resolution grid also creates a uniform grid configurations but allows the user to define their pixel size. Unlike the icosphere, the faces for this class can vary in shape, making it less ideal. However, this class is useful when the user wants more flexibility in the resolution regime. 
 
 
 .. ipython:: python
@@ -54,7 +54,7 @@ As seen above, the arbitrary resolution grid also creates a uniform grid configu
    surface=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
    print(surface)
 
-The last class for surfaces is the Hi-res local grid. There are additional arguments that the user can define based of their requirments. These are the pixel size, the local radius of the desired region, the local location in degrees, and the superdomain scale factor. The last argument allows the smallest craters that are modeled outside of the local region to be those whose ejecta could just reach the boundary. This class is useful for modeling local patches on the surface at a high resolution.
+The last class for surfaces is the Hi-res local grid. There are additional arguments that the user can define based of their requirments. These are the pixel size, the local radius of the desired region, the local location in degrees, and the superdomain scale factor. The last argument allows the smallest craters that are modeled outside of the local region to be those whose ejecta could just reach the boundary. This class is useful for modeling local patches on the surface at a high resolution. Thus, if the user wants to simulate an impactor and study its ejecta behvior and its effect on local topography, this class would be useful due to its high resolution capabilities. 
 
 
 Using a Surface object
@@ -62,12 +62,11 @@ Using a Surface object
 Once you have surface object, you are now able to perform numerous surface-related computations. 
 
 
-- :meth:`calculate_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
+- :meth:`calculate_haversine_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
 - :meth:`calculate_bearing`: Takes a longitude and latitude pair and computes the intitial bearing from one point to another on the surface of the sphere.=
 - :meth:`find_nearest_index`: Takes a longitude and latitude pair and calculates the Haversine Distance for each face of the grid. You will get a tuple that tells you the index of the face with the minimum distance.
 - :meth:`calculate_face_and_node_distances`: Calculates the distances between nodes and faces at a given location
 - :meth:`calculate_face_and_node_bearings`: Calculates the initial bearing between nodes and faces at a given location
-- :meth:`interpolate_node_elevation_from_faces`: Computes the elevation for each node by taking the area-weighted average of the surrounding faces.
 
 
 .. ipython:: python
@@ -83,3 +82,5 @@ Once you have surface object, you are now able to perform numerous surface-relat
     print(f"Nearest index: {surface_nearest_index}")
 
     surface_3=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
+    bearing=surface_3.calculate_face_and_node_distances((-1.457,0.732))
+    print(f"Face and NodeDistances:{bearing}")
