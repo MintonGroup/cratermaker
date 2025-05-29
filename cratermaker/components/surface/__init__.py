@@ -369,7 +369,7 @@ class Surface(ComponentBase):
         lat2: FloatLike,
     ) -> float:
         """
-        Calculate the great circle distance between two points on a sphere.
+        Calculate the great circle distance between two points.
 
         Parameters
         ----------
@@ -435,7 +435,7 @@ class Surface(ComponentBase):
         self, location: tuple[float, float]
     ) -> tuple[NDArray, NDArray]:
         """
-        Computes the distances between nodes and faces and a given location.
+        Computes the distances from a given location to all faces and nodes.
 
         Parameters
         ----------
@@ -455,7 +455,7 @@ class Surface(ComponentBase):
         self, location: tuple[float, float]
     ) -> tuple[NDArray, NDArray]:
         """
-        Computes the initial bearing between nodes and faces and a given location.
+        Computes the initial bearing from a given location to all faces and nodes.
 
         Parameters
         ----------
