@@ -79,7 +79,11 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
         object.__setattr__(self, "_face_areas", None)
-        object.__setattr__(self, "_face_bins", None)
+        object.__setattr__(self, "_face_sizes", None)
+        object.__setattr__(self, "_face_bin_indices", None)
+        object.__setattr__(self, "_face_bin_argmin", None)
+        object.__setattr__(self, "_face_bin_argmax", None)
+        object.__setattr__(self, "_face_bin_areas", None)
         object.__setattr__(self, "_face_x", None)
         object.__setattr__(self, "_face_y", None)
         object.__setattr__(self, "_face_z", None)
@@ -704,9 +708,7 @@ class Surface(ComponentBase):
         regrid = self._regrid_if_needed(**kwargs)
         assert not regrid
 
-        self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
-            self._compute_pix_size(uxgrid)
-        )
+        self._compute_face_sizes(uxgrid)
 
         return
 
@@ -981,7 +983,7 @@ class Surface(ComponentBase):
         self, **kwargs: Any
     ) -> tuple[NDArray, NDArray, NDArray]: ...
 
-    def _compute_pix_size(self, uxgrid: UxDataset | None = None) -> tuple[float, float]:
+    def _compute_face_sizes(self, uxgrid: UxDataset | None = None) -> None:
         """
         Compute the effective pixel size of the mesh based on the face areas.
 
@@ -990,24 +992,19 @@ class Surface(ComponentBase):
         uxgrid : UxDataset
             The grid object containing the mesh information. If not set, it will be retrieved self.uxds.uxgrid
 
-        Returns
-        -------
-        tuple[float, float, float, float]
-            The mean, standard deviation, minimum, and maximum of the pixel size in meters.
         """
         if uxgrid is None:
             if self.uxgrid is None:
-                return None, None, None, None
+                return
             else:
                 uxgrid = self.uxgrid
-        face_areas = uxgrid.face_areas.values * self.radius**2
-        self._face_areas = face_areas
-        face_sizes = np.sqrt(face_areas)
-        pix_mean = face_sizes.mean().item()
-        pix_std = face_sizes.std().item()
-        pix_min = face_sizes.min().item()
-        pix_max = face_sizes.max().item()
-        return float(pix_mean), float(pix_std), float(pix_min), float(pix_max)
+        self._face_areas = uxgrid.face_areas.values * self.radius**2
+        self._face_sizes = np.sqrt(self._face_areas)
+        self._pix_mean = float(self._face_sizes.mean().item())
+        self._pix_std = float(self._face_sizes.std().item())
+        self._pix_min = float(self._face_sizes.min().item())
+        self._pix_max = float(self._face_sizes.max().item())
+        return
 
     @property
     def uxds(self) -> UxDataset:
@@ -1109,47 +1106,39 @@ class Surface(ComponentBase):
             return self.uxds.uxgrid
 
     @property
-    def pix_mean(self):
+    def pix_mean(self) -> float:
         """
         The mean pixel size of the mesh.
         """
         if self._pix_mean is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
-                self._compute_pix_size()
-            )
+            self._compute_face_sizes()
         return self._pix_mean
 
     @property
-    def pix_std(self):
+    def pix_std(self) -> float:
         """
         The standard deviation of the pixel size of the mesh.
         """
         if self._pix_std is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
-                self._compute_pix_size()
-            )
+            self._compute_face_sizes()
         return self._pix_std
 
     @property
-    def pix_min(self):
+    def pix_min(self) -> float:
         """
         The minimum pixel size of the mesh.
         """
         if self._pix_min is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
-                self._compute_pix_size()
-            )
+            self._compute_face_sizes()
         return self._pix_min
 
     @property
-    def pix_max(self):
+    def pix_max(self) -> float:
         """
         The maximum pixel size of the mesh.
         """
         if self._pix_max is None and self.uxgrid is not None:
-            self._pix_mean, self._pix_std, self._pix_min, self._pix_max = (
-                self._compute_pix_size()
-            )
+            self._compute_face_sizes()
         return self._pix_max
 
     @property
@@ -1160,82 +1149,184 @@ class Surface(ComponentBase):
         return self._component_name
 
     @property
-    def smallest_length(self):
+    def smallest_length(self) -> float:
         """
         The smallest length of the mesh.
         """
         if self._smallest_length is None:
-            self._smallest_length = np.sqrt(np.min(self.face_areas)) * _SMALLFAC
+            self._smallest_length = float(np.min(self.face_sizes) * _SMALLFAC)
         return self._smallest_length
 
     @property
-    def n_face(self):
+    def n_face(self) -> int:
         """
         Total number of faces
         """
-        return self.uxgrid.n_face
+        return int(self.uxgrid.n_face)
 
     @property
-    def n_max_face_faces(self):
+    def n_max_face_faces(self) -> int:
         """
         The maximum number of faces that surround a face.
         """
-        return self.uxgrid.n_max_face_faces
+        return int(self.uxgrid.n_max_face_faces)
 
     @property
-    def face_areas(self):
+    def face_areas(self) -> NDArray[np.float64]:
         """
         The areas of each face.
 
         Notes
         -----
-        Unlike uxarray.Grid.face_areas, this is in meters squared.
+        Unlike uxarray.Grid.face_areas, this is in meters squared rather than normalized to a unit sphere.
 
         """
         if self._face_areas is None:
-            self._face_areas = self.uxgrid.face_areas.values * self.radius**2
+            self._compute_face_sizes()
         return self._face_areas
 
     @property
-    def face_bins(self) -> list[NDArray]:
+    def face_sizes(self) -> NDArray[np.float64]:
         """
-        Faces are binned by their area. All faces within a factor of 2 in area are in the same bin. This property returns a dictionary mapping bin indices to lists of face indices that the bin contains.
+        The effective size of each face in meters. This is simply the square root of the face area, but is useful for certain comparisons and is equivalent to the `pix` variable from CTEM
+        """
+        if self._face_sizes is None:
+            self._compute_face_sizes()
+        return self._face_sizes
+
+    def _compute_face_bins(self) -> None:
+        """
+        Compute the face bins based on the face areas. This is used to bin faces by their area for crater generation.
+        """
+
+        min_area = self.face_areas.min()
+        max_area = self.face_areas.max()
+        max_bin_index = np.ceil(np.log2(max_area / min_area)).astype(int)
+        bins = {i: [] for i in range(max_bin_index + 1)}
+
+        for face_index, area in enumerate(self.face_areas):
+            bin_index = np.floor(np.log2(area / min_area)).astype(int)
+            bins[bin_index].append(face_index)
+
+        self._face_bin_indices = [np.array(bins[i]) for i in bins if len(bins[i]) > 0]
+
+        self._face_bin_areas = [
+            np.sum(self.face_areas[face_indices])
+            for face_indices in self.face_bin_indices
+        ]
+
+        self._face_bin_argmin = [
+            np.argmin(
+                self.face_areas[face_indices] for face_indices in self.face_bin_indices
+            )
+        ]
+        self._face_bin_argmax = [
+            np.argmax(
+                self.face_areas[face_indices] for face_indices in self.face_bin_indices
+            )
+        ]
+        return
+
+    @property
+    def face_bin_indices(self) -> list[NDArray]:
+        """
+        Faces are binned by their area. All faces within a factor of 2 in area are in the same bin. This property returns a list of face indices lists for each bin.
         The keys are the bin indices, and the values are lists of face indices of faces within that bin.
 
         This is used when generating craters on surfaces with varying face sizes, so that the smallest crater is sized for the smallest face of a particular bin, rather than for the entire surface.
         """
 
-        if self._face_bins is None:
-            min_area = self.face_areas.min()
-            max_bin_index = np.ceil(np.log2(self.face_areas.max() / min_area)).astype(
-                int
-            )
-            bins = {i: [] for i in range(max_bin_index + 1)}
+        if self._face_bin_indices is None:
+            self._compute_face_bins()
 
-            for face_index, area in enumerate(self.face_areas):
-                bin_index = np.floor(np.log2(area / min_area)).astype(int)
-                bins[bin_index].append(face_index)
-
-            self._face_bins = [np.array(bins[i]) for i in bins if len(bins[i]) > 0]
-
-        return self._face_bins
+        return self._face_bin_indices
 
     @property
-    def face_lat(self):
+    def face_bin_areas(self) -> list[float]:
+        """
+        The total area of all faces in each bin.
+        """
+        if self._face_bin_areas is None:
+            self._compute_face_bins()
+
+        return self._face_bin_areas
+
+    @property
+    def face_bin_argmin(self) -> list[int]:
+        """
+        The index of the smallest face in each bin.
+        """
+        if self._face_bin_argmin is None:
+            self._compute_face_bins()
+
+        return self._face_bin_argmin
+
+    @property
+    def face_bin_argmax(self) -> list[int]:
+        """
+        The index of the largest face in each bin.
+        """
+        if self._face_bin_argmax is None:
+            self._compute_face_bins()
+
+        return self._face_bin_argmax
+
+    @property
+    def face_bin_min_areas(self) -> list[float]:
+        """
+        The area of the smallest face in each bin.
+        """
+        if self._face_bin_argmin is None:
+            self._compute_face_bins()
+
+        return [self.face_areas[face_index] for face_index in self.face_bin_argmin]
+
+    @property
+    def face_bin_max_areas(self) -> list[float]:
+        """
+        The area of the largest face in each bin.
+        """
+        if self._face_bin_argmax is None:
+            self._compute_face_bins()
+
+        return [self.face_areas[face_index] for face_index in self.face_bin_argmax]
+
+    @property
+    def face_bin_min_sizes(self) -> list[float]:
+        """
+        The effective size of the smallest face in each bin.
+        """
+        if self._face_bin_argmin is None:
+            self._compute_face_bins()
+
+        return [self.face_sizes[face_index] for face_index in self.face_bin_argmin]
+
+    @property
+    def face_bin_max_sizes(self) -> list[float]:
+        """
+        The effective size of the largest face in each bin.
+        """
+        if self._face_bin_argmax is None:
+            self._compute_face_bins()
+
+        return [self.face_sizes[face_index] for face_index in self.face_bin_argmax]
+
+    @property
+    def face_lat(self) -> NDArray[np.float64]:
         """
         Latitude of the center of each face in degrees.
         """
         return self.uxgrid.face_lat.values
 
     @property
-    def face_lon(self):
+    def face_lon(self) -> NDArray[np.float64]:
         """
         Longitude of the center of each face in degrees.
         """
         return self.uxgrid.face_lon.values
 
     @property
-    def face_node_connectivity(self):
+    def face_node_connectivity(self) -> NDArray[np.int64]:
         """
         Indices of the nodes that make up each face.
 
@@ -1246,7 +1337,7 @@ class Surface(ComponentBase):
         return self.uxgrid.face_node_connectivity.values
 
     @property
-    def face_face_connectivity(self):
+    def face_face_connectivity(self) -> NDArray[np.int64]:
         """
         Indices of the faces that surround each face.
 
@@ -1255,7 +1346,7 @@ class Surface(ComponentBase):
         return self.uxgrid.face_face_connectivity.values
 
     @property
-    def face_x(self):
+    def face_x(self) -> NDArray[np.float64]:
         """
         Cartesian x location of the center of each face in meters.
         """
@@ -1264,7 +1355,7 @@ class Surface(ComponentBase):
         return self._face_x
 
     @property
-    def face_y(self):
+    def face_y(self) -> NDArray[np.float64]:
         """
         Cartesian y location of the center of each face in meters.
         """
@@ -1273,7 +1364,7 @@ class Surface(ComponentBase):
         return self._face_y
 
     @property
-    def face_z(self):
+    def face_z(self) -> NDArray[np.float64]:
         """
         Cartesian z location of the center of each face in meters.
         """
@@ -1282,14 +1373,14 @@ class Surface(ComponentBase):
         return self._face_z
 
     @property
-    def n_node(self):
+    def n_node(self) -> int:
         """
         Total number of nodes
         """
-        return self.uxgrid.n_node
+        return int(self.uxgrid.n_node)
 
     @property
-    def n_nodes_per_face(self):
+    def n_nodes_per_face(self) -> NDArray[np.int64]:
         """
         The number of nodes that make up each face.
 
@@ -1298,21 +1389,21 @@ class Surface(ComponentBase):
         return self.uxgrid.n_nodes_per_face.values
 
     @property
-    def node_lat(self):
+    def node_lat(self) -> NDArray[np.float64]:
         """
         Latitude of each node in degrees.
         """
         return self.uxgrid.node_lat.values
 
     @property
-    def node_lon(self):
+    def node_lon(self) -> NDArray[np.float64]:
         """
         Longitude of each node in degrees.
         """
         return self.uxgrid.node_lon.values
 
     @property
-    def node_x(self):
+    def node_x(self) -> NDArray[np.float64]:
         """
         Cartesian x location of each node in meters.
         """
@@ -1321,7 +1412,7 @@ class Surface(ComponentBase):
         return self._node_x
 
     @property
-    def node_y(self):
+    def node_y(self) -> NDArray[np.float64]:
         """
         Cartesian y location of each node in meters.
         """
@@ -1330,7 +1421,7 @@ class Surface(ComponentBase):
         return self._node_y
 
     @property
-    def node_z(self):
+    def node_z(self) -> NDArray[np.float64]:
         """
         Cartesian z location of each node in meters.
         """
@@ -1339,7 +1430,7 @@ class Surface(ComponentBase):
         return self._node_z
 
     @property
-    def node_face_connectivity(self):
+    def node_face_connectivity(self) -> NDArray[np.int64]:
         """
         Indices of the faces that surround each node.
 
@@ -1348,7 +1439,7 @@ class Surface(ComponentBase):
         return self.uxgrid.node_face_connectivity.values
 
     @property
-    def node_elevation(self):
+    def node_elevation(self) -> NDArray[np.float64]:
         """
         The elevation of the nodes.
         """
@@ -1364,10 +1455,16 @@ class Surface(ComponentBase):
         value : NDArray
             The elevation values to set for the nodes.
         """
+        value = np.asarray(value, dtype=np.float64)
+        if value.size != self.n_node:
+            raise ValueError(
+                f"Value must have size {self.n_node}, got {value.size} instead."
+            )
         self.uxds["node_elevation"][:] = value
+        return
 
     @property
-    def face_elevation(self):
+    def face_elevation(self) -> NDArray[np.float64]:
         """
         The elevation of the faces.
         """
@@ -1383,17 +1480,23 @@ class Surface(ComponentBase):
         value : NDArray
             The elevation values to set for the faces.
         """
+        value = np.asarray(value, dtype=np.float64)
+        if value.size != self.n_face:
+            raise ValueError(
+                f"Value must have size {self.n_face}, got {value.size} instead."
+            )
         self.uxds["face_elevation"][:] = value
+        return
 
     @property
-    def face_indices(self) -> NDArray:
+    def face_indices(self) -> NDArray[np.int64]:
         """
         The indices of the faces of the surface.
         """
         return self.uxds.n_face.values
 
     @property
-    def node_indices(self) -> NDArray:
+    def node_indices(self) -> NDArray[np.int64]:
         """
         The indices of the nodes of the surface.
         """

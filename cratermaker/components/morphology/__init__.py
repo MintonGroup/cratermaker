@@ -13,6 +13,7 @@ from cratermaker.components.production import Production
 from cratermaker.constants import FloatLike
 from cratermaker.core.crater import Crater
 from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import Surface, SurfaceView
@@ -23,6 +24,7 @@ class Morphology(ComponentBase):
         self,
         surface: Surface | str | None = None,
         production: Production | str | None = None,
+        dosubpixel_degradation: bool = False,
         **kwargs: Any,
     ) -> None:
         """
@@ -34,14 +36,9 @@ class Morphology(ComponentBase):
             The name of a Surface object, or an instance of Surface, to be associated the morphology model.
         production : str or Production, optional
             The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
+        dosubpixel_degradation : bool, optional
+            If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
         **kwargs : Any
-            Additional keyword arguments.
-
-        Raises
-        -------
-
-        TypeError
-            If the crater is not an instance of Crater.
 
         """
         from cratermaker.components.surface import Surface
@@ -52,6 +49,8 @@ class Morphology(ComponentBase):
         self._queue_manager: CraterQueueManager | None = None
         if production is not None:
             self._production = Production.maker(production, **kwargs)
+        self.dosubpixel_degradation = dosubpixel_degradation
+        return
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -63,6 +62,7 @@ class Morphology(ComponentBase):
         morphology: str | type[Morphology] | Morphology | None = None,
         surface: Surface | str | None = None,
         production: Production | str | None = None,
+        dosubpixel_degradation: bool = False,
         **kwargs: Any,
     ) -> Morphology:
         """
@@ -74,6 +74,8 @@ class Morphology(ComponentBase):
             The name of the morphology model to use, or an instance of Morphology. If None, the default "simplemoon" is used.
         surface : str or Surface, optional
             The name of a Surface object, or an instance of Surface, to be associated the morphology model.
+        dosubpixel_degradation : bool, optional
+            If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
         **kwargs : Any
             Additional keyword arguments that are required for the specific morphology model being created.
 
@@ -94,7 +96,11 @@ class Morphology(ComponentBase):
         if morphology is None:
             morphology = "simplemoon"
         morphology = super().maker(
-            component=morphology, surface=surface, production=production, **kwargs
+            component=morphology,
+            surface=surface,
+            production=production,
+            dosubpixel_degradation=dosubpixel_degradation,
+            **kwargs,
         )
         return morphology
 
@@ -253,7 +259,7 @@ class Morphology(ComponentBase):
         def _subpixel_degradation(final_radius):
             K_deg = self.degradation_function(
                 final_radius=final_radius, ejecta_intensity=[1]
-            )
+            ).item()
             N = production.function(
                 diameter=final_radius * 2, age=age_start, age_end=age_end
             )
@@ -263,20 +269,13 @@ class Morphology(ComponentBase):
         if age_end >= age_start:
             raise ValueError("age_end must be less than age_start.")
 
-        bin_min_areas = []
-        total_bin_area = []
-        bin_p = []
-        for face_indices in self.surface.face_bins:
-            bin_areas = self.surface.face_areas[face_indices]
-            bin_min_areas.append(np.min(bin_areas))
-            total_bin_area.append(np.sum(bin_areas))
-            bin_p.append(bin_areas / total_bin_area[-1])
-
         Kdiff = np.zeros_like(self.surface.face_elevation)
 
-        for i, face_indices in enumerate(self.surface.face_bins):
+        for face_indices, face_min_size in zip(
+            self.surface.face_bin_indices, self.surface.face_bin_min_sizes
+        ):
             rmin = DC_MIN / 2
-            rmax = np.sqrt(bin_min_areas[i] / np.pi)
+            rmax = face_min_size / 2
             Kdiff[face_indices], _ = quad(_subpixel_degradation, rmin, rmax)
 
         self.surface.apply_diffusion(Kdiff)
@@ -383,13 +382,16 @@ class Morphology(ComponentBase):
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     executor.map(process, batch)
 
-                if len(batch) > 1:
-                    # If the craters have age values attached to them, we can perform subpixel degradation between time values
-                    agevals = [crater.age for crater in batch if crater.age is not None]
-                    if len(agevals) > 1:
-                        self.subpixel_degradation(
-                            age_start=max(agevals), age_end=min(agevals)
-                        )
+                if self.dosubpixel_degradation:
+                    if len(batch) > 1:
+                        # If the craters have age values attached to them, we can perform subpixel degradation between time values
+                        agevals = [
+                            crater.age for crater in batch if crater.age is not None
+                        ]
+                        if len(agevals) > 1:
+                            self.subpixel_degradation(
+                                age_start=max(agevals), age_end=min(agevals)
+                            )
 
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
@@ -500,6 +502,22 @@ class Morphology(ComponentBase):
         if not isinstance(production, (Production, str)):
             raise TypeError("production must be an instance of Production or a string")
         self._production = Production.maker(production)
+
+    @parameter
+    def dosubpixel_degradation(self) -> bool:
+        """
+        Whether to perform subpixel degradation during crater emplacement.
+        """
+        return self._dosubpixel_degradation
+
+    @dosubpixel_degradation.setter
+    def dosubpixel_degradation(self, value: bool) -> None:
+        """
+        Set whether to perform subpixel degradation during crater emplacement.
+        """
+        if not isinstance(value, bool):
+            raise TypeError("dosubpixel_degradation must be a boolean value")
+        self._dosubpixel_degradation = value
 
 
 class CraterQueueManager:

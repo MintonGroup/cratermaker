@@ -457,13 +457,12 @@ class Simulation(CratermakerBase):
         impact_locations = []
 
         # Process each bin
-        for face_indices in self.surface.face_bins:
-            bin_areas = self.surface.face_areas[face_indices]
-            total_bin_area = bin_areas.sum()
+        for i, face_indices in enumerate(self.surface.face_bin_indices):
+            total_bin_area = self.surface.face_bin_areas[i]
             area_ratio = total_bin_area / self.surface.area
 
             Dmin = self._get_smallest_diameter(
-                bin_areas, from_projectile=from_projectile
+                self.surface.face_bin_min_sizes[i], from_projectile=from_projectile
             )
             if diameter_number is not None:
                 diameter_number_local = (
@@ -495,7 +494,7 @@ class Simulation(CratermakerBase):
                 impact_ages.extend(ages.tolist())
 
                 # Get the relative probability of impact onto any particular face then get the locations of the impacts
-                p = bin_areas / total_bin_area
+                p = self.surface.face_areas[face_indices] / total_bin_area
                 face_indices = self.rng.choice(face_indices, size=diameters.shape, p=p)
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
@@ -785,19 +784,28 @@ class Simulation(CratermakerBase):
         return
 
     def _get_smallest_diameter(
-        self, face_areas: ArrayLike | None = None, from_projectile: bool = False
+        self, face_size: ArrayLike | None = None, from_projectile: bool = False
     ) -> float:
         """
-        Get the smallest possible crater or projectile be formed on the surface.
+        Get the smallest possible crater or projectile be formed on a face.
+
+        Parameters
+        ----------
+        face_size : FloatLike, optional
+            The effective size of the face to determine the smallest crater size that can be formed on it. If None, the size of the smallest face on the surface will be used.
+        from_projectile : bool, optional
+            If True, the smallest projectile diameter will be returned instead of the smallest crater diameter. Default is False.
+
+        Returns
+        -------
+        float
+            The smallest possible crater or projectile diameter that can be formed on the surface.
         """
-        if face_areas is None:
-            face_areas = self.surface.face_areas
-        else:
-            face_areas = np.asarray(face_areas)
-        smallest_crater = np.sqrt(face_areas.min().item() / np.pi) * 2
+        if face_size is None:
+            face_size = np.min(self.surface.face_sizes)
         if from_projectile:
             crater = Crater.maker(
-                final_diameter=smallest_crater,
+                final_diameter=face_size,
                 angle=90.0,
                 projectile_velocity=self.scaling.projectile_mean_velocity * 10,
                 scaling=self.scaling,
@@ -805,7 +813,7 @@ class Simulation(CratermakerBase):
             )
             return crater.projectile_diameter
         else:
-            return smallest_crater
+            return float(face_size)
 
     def _get_largest_diameter(self, from_projectile: bool = False) -> float:
         """
