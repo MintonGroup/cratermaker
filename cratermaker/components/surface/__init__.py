@@ -1202,13 +1202,15 @@ class Surface(ComponentBase):
         min_area = self.face_areas.min()
         max_area = self.face_areas.max()
         max_bin_index = np.ceil(np.log2(max_area / min_area)).astype(int)
-        bins = {i: [] for i in range(max_bin_index + 1)}
+        bins = [[] for _ in range(max_bin_index)]
 
         for face_index, area in enumerate(self.face_areas):
             bin_index = np.floor(np.log2(area / min_area)).astype(int)
             bins[bin_index].append(face_index)
 
-        self._face_bin_indices = [np.array(bins[i]) for i in bins if len(bins[i]) > 0]
+        self._face_bin_indices = [
+            np.array(bins[i]) for i in range(max_bin_index) if len(bins[i]) > 0
+        ]
 
         self._face_bin_areas = [
             np.sum(self.face_areas[face_indices])
@@ -1216,14 +1218,13 @@ class Surface(ComponentBase):
         ]
 
         self._face_bin_argmin = [
-            np.argmin(
-                self.face_areas[face_indices] for face_indices in self.face_bin_indices
-            )
+            int(face_indices[np.argmin(self.face_areas[face_indices])])
+            for face_indices in self._face_bin_indices
         ]
+
         self._face_bin_argmax = [
-            np.argmax(
-                self.face_areas[face_indices] for face_indices in self.face_bin_indices
-            )
+            int(face_indices[np.argmax(self.face_areas[face_indices])])
+            for face_indices in self._face_bin_indices
         ]
         return
 
@@ -1279,7 +1280,9 @@ class Surface(ComponentBase):
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
-        return [self.face_areas[face_index] for face_index in self.face_bin_argmin]
+        return [
+            float(self.face_areas[face_index]) for face_index in self.face_bin_argmin
+        ]
 
     @property
     def face_bin_max_areas(self) -> list[float]:
@@ -1289,7 +1292,9 @@ class Surface(ComponentBase):
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
-        return [self.face_areas[face_index] for face_index in self.face_bin_argmax]
+        return [
+            float(self.face_areas[face_index]) for face_index in self.face_bin_argmax
+        ]
 
     @property
     def face_bin_min_sizes(self) -> list[float]:
@@ -1299,7 +1304,9 @@ class Surface(ComponentBase):
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
-        return [self.face_sizes[face_index] for face_index in self.face_bin_argmin]
+        return [
+            float(self.face_sizes[face_index]) for face_index in self.face_bin_argmin
+        ]
 
     @property
     def face_bin_max_sizes(self) -> list[float]:
@@ -1309,7 +1316,9 @@ class Surface(ComponentBase):
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
-        return [self.face_sizes[face_index] for face_index in self.face_bin_argmax]
+        return [
+            float(self.face_sizes[face_index]) for face_index in self.face_bin_argmax
+        ]
 
     @property
     def face_lat(self) -> NDArray[np.float64]:
