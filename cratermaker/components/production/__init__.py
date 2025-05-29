@@ -259,7 +259,17 @@ class Production(ComponentBase):
 
         return diameters, ages
 
-    def function_inverse(
+    @abstractmethod
+    def function(
+        self,
+        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        check_valid_age: bool = True,
+        **kwargs: Any,
+    ) -> FloatLike | ArrayLike: ...
+
+    def age_from_D_N(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
         cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
@@ -270,7 +280,7 @@ class Production(ComponentBase):
 
         Parameters
         ----------
-        diameter : float-lik or  array-like
+        diameter : float-like or  array-like
             diameter of the crater in m
         cumulative_number_density : float-like or array-like
             number density of craters per m^2 surface area greater than the input diameter
@@ -330,6 +340,76 @@ class Production(ComponentBase):
                 f"The root finding algorithm did not converge for all values of diameter and cumulative_number. Flag {flag}"
             )
 
+    def D_from_N_age(
+        self,
+        cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
+        age: FloatLike | Sequence[FloatLike] | ArrayLike,
+        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        **kwargs: Any,
+    ) -> FloatLike | ArrayLike:
+        """
+        Return the diameter for a given number density of craters and age
+
+        Parameters
+        ----------
+        cumulative_number_density : float-like or array-like
+            number density of craters per m^2 surface area greater than the input diameter
+        age : FloatLike or ArrayLike, default=1.0
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age_end, FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        **kwargs: Any
+            Any additional keywords that are passed to the function method.
+
+        Returns
+        -------
+        float_like or numpy array
+            The diameter for the given number density and age.
+        """
+
+        def _root_func(D, N, age, age_end):
+            kwargs.pop("check_valid_age", None)
+            retval = (
+                self.function(
+                    diameter=D,
+                    age=age,
+                    age_end=age_end,
+                    check_valid_age=False,
+                    **kwargs,
+                )
+                - N
+            )
+            return retval
+
+        xtol = 1e-8
+        x0 = 1.0  # Initial guess for the diameter
+        xlo = 1e-6
+        xhi = 1e6
+        retval = []
+        narr = np.array(cumulative_number_density)
+        converged = []
+        flag = []
+        for i, n in np.ndenumerate(narr):
+            sol = root_scalar(
+                lambda x: _root_func(x, n, age, age_end),
+                x0=x0,
+                xtol=xtol,
+                method="brentq",
+                bracket=[xlo, xhi],
+            )
+            retval.append(sol.root)
+            converged.append(sol.converged)
+            flag.append(sol.flag)
+        retval = np.array(retval)
+        converged = np.array(converged)
+        flag = np.array(flag)
+        if np.all(converged):
+            return retval.item() if np.isscalar(cumulative_number_density) else retval
+        else:
+            raise ValueError(
+                f"The root finding algorithm did not converge for all values of cumulative_number and age. Flag {flag}"
+            )
+
     def get_projectile_properties(
         self, projectile_mean_velocity: FloatLike | None = None, **kwargs
     ) -> dict:
@@ -352,16 +432,6 @@ class Production(ComponentBase):
     def chronology(
         self,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        check_valid_age: bool = True,
-        **kwargs: Any,
-    ) -> FloatLike | ArrayLike: ...
-
-    @abstractmethod
-    def function(
-        self,
-        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
         check_valid_age: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike: ...
@@ -551,7 +621,7 @@ class Production(ComponentBase):
                 )
             diameter_number = self._validate_csfd(*diameter_number)
             diameter_number_density = (diameter_number[0], diameter_number[1] / area)
-            age = self.function_inverse(*diameter_number_density)
+            age = self.age_from_D_N(*diameter_number_density)
         else:
             diameter_number_density = (
                 _REF_DIAM,
@@ -596,7 +666,7 @@ class Production(ComponentBase):
                 diameter_number_end[0],
                 diameter_number_end[1] / area,
             )
-            age_end = self.function_inverse(*diameter_number_density_end)
+            age_end = self.age_from_D_N(*diameter_number_density_end)
 
         age, age_end = self._validate_age(age, age_end)
 
