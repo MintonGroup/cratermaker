@@ -478,6 +478,7 @@ class SimpleMoon(Morphology):
     def degradation_function(
         self,
         final_diameter: FloatLike,
+        fe: FloatLike = 100.0,
     ) -> float:
         """
         Computes the degradation function, which defines the topographic degradation that each crater contributes to the surface.
@@ -488,11 +489,14 @@ class SimpleMoon(Morphology):
         ----------
         final_diameter : FloatLike
             The final diameter of the crater in meters.
+        fe : FloatLike, optional
+            The degradation function size factor, which is a scaling factor for the degradation function. Default is 100.0.
 
         Returns
         -------
         float
             The computed degradation function
+
 
         References
         ----------
@@ -526,8 +530,7 @@ class SimpleMoon(Morphology):
                 ** ((alpha_2 - alpha_1) / delta)
             )
 
-        def _Kd(r):
-            fe = 100.0  # Degradation function size factor
+        def _Kd(r, fe):
             psi_1 = 2.0  # Mare scale power law exponent
             psi_2 = 1.2  # Highlands scale power law exponent
             rb = 0.5e3  # breakpoint radius
@@ -536,7 +539,7 @@ class SimpleMoon(Morphology):
             Kd1 = _Kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
             return _smooth_broken(r, Kd1, rb, psi_1, psi_2, delta)
 
-        return float(_Kd(final_diameter / 2))
+        return float(_Kd(final_diameter / 2, fe))
 
     @property
     def node_index(self):

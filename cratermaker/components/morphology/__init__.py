@@ -223,7 +223,7 @@ class Morphology(ComponentBase):
         ejecta_region_view.apply_diffusion(K_ej)
 
         K_deg = (
-            self.degradation_function(crater.final_diameter)
+            self.degradation_function(crater.final_diameter, fe=100)
             * ejecta_intensity[: ejecta_region_view.n_face]
         )
         ejecta_region_view.apply_diffusion(K_deg)
@@ -265,12 +265,13 @@ class Morphology(ComponentBase):
             self._Kdiff = np.zeros_like(self.surface.face_elevation)
 
         def _subpixel_degradation(final_diameter):
-            K = self.degradation_function(final_diameter)
+            fe = 100.0
+            K = self.degradation_function(final_diameter, fe)
             n = production.function(
                 diameter=final_diameter, age=age_start, age_end=age_end
             )
-            crater_area = np.pi * (final_diameter / 2) * 2
-            return K * n * crater_area
+            degradation_region_area = np.pi * (final_diameter / 2) * fe
+            return K * n * degradation_region_area
 
         for face_indices, dc_max in zip(
             self.surface.face_bin_indices, self.surface.face_bin_max_sizes
@@ -459,7 +460,9 @@ class Morphology(ComponentBase):
         return ejecta_soften_factor * ejecta_thickness**2
 
     @abstractmethod
-    def degradation_function(self, final_diameter: FloatLike) -> float: ...
+    def degradation_function(
+        self, final_diameter: FloatLike, fe: FloatLike
+    ) -> float: ...
 
     @abstractmethod
     def crater_shape(
