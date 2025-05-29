@@ -124,9 +124,7 @@ class TestSurface(unittest.TestCase):
 
             # Known distance should be 1/4 the circumference of the Earth
             expected_distance = np.pi * surface.radius / 2
-            calculated_distance = surface.calculate_haversine_distance(
-                lon1, lat1, lon2, lat2
-            )[0]
+            calculated_distance = surface.calculate_distance(lon1, lat1, lon2, lat2)[0]
 
             # Compare the expected and calculated distances
             self.assertAlmostEqual(calculated_distance, expected_distance, places=1)
@@ -160,7 +158,7 @@ class TestSurface(unittest.TestCase):
             delta = 2 * self.pix
 
             # Test distances
-            distances, _ = surface.get_distance(location)
+            distances, _ = surface.calculate_face_and_node_distances(location)
             self.assertAlmostEqual(
                 distances[north_idx],
                 north_distance,
@@ -209,7 +207,7 @@ class TestSurface(unittest.TestCase):
             delta = 2 * self.pix
 
             # Test distances
-            _, node_distances = surface.get_distance(location)
+            _, node_distances = surface.calculate_face_and_node_distances(location)
             self.assertAlmostEqual(
                 node_distances[north_idx],
                 north_distance,
@@ -236,7 +234,7 @@ class TestSurface(unittest.TestCase):
 
         # The bearing from (0, 0) to (90, 0) should be 90 degrees in radians
         expected_bearing = np.radians(90)
-        calculated_bearing = Surface.calculate_initial_bearing(lon1, lat1, lon2, lat2)
+        calculated_bearing = Surface.calculate_bearing(lon1, lat1, lon2, lat2)
 
         # Compare the expected and calculated bearings
         self.assertAlmostEqual(calculated_bearing, expected_bearing, places=1)
