@@ -25,7 +25,7 @@ All cratermaker components have a default configuration that is set when no argu
    surface=Surface.maker()
    print(surface)
 
-The default surface is automatically set to 'icosphere' with a grid level of 8 and the :ref:`Target <ug-target>` being the Moon. This surface consists of a uniform grid configuration with triangular faces that will be subdivided by the input value for the gridlevel argument.  Though it is limited to a few resolutions, it is the most accuracte and efficient class. As seen from the above, the effective pixel size is automatically set based on the surface and target that is used. The gridlevel arguement is useful because it controls the number of faces of the icosphere, and therefore defining its resolution via 10*4**gridlevel. We can see this change by doing the following:
+The default surface is automatically set to 'icosphere' with a grid level of 8 and the :ref:`Target <ug-target>` being the Moon. This surface consists of a uniform grid configuration with triangular faces that will be subdivided by the input value for the gridlevel argument.  Though it is limited to a few resolutions, it is the most accuracte and efficient class. As seen from the above, the effective pixel size is automatically set based on the surface and target that is used. The gridlevel arguement is useful because it controls the number of faces of the icosphere, and therefore defining its resolution via :math:`10\times4^{gridlevel}`. We can see this change by doing the following:
 
 .. ipython:: python
    :okwarning:
@@ -62,11 +62,9 @@ Using a Surface object
 Once you have surface object, you are now able to perform numerous surface-related computations. 
 
 
-- :meth:`calculate_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
-- :meth:`calculate_bearing`: Takes a longitude and latitude pair and computes the intitial bearing from one point to another on the surface of the sphere.=
 - :meth:`calculate_face_and_node_distances`: Computes the distances from a given location to all faces and nodes.
 - :meth:`calculate_face_and_node_bearings`: Computes the initial bearing from a given location to all faces and nodes.
-- :meth:`find_nearest_index`: Takes a longitude and latitude pair and calculates the Haversine Distance for each face of the grid. You will get a tuple that tells you the index of the face with the minimum distance.
+- :meth:`find_nearest_index`: Returns the indices of the face and node that are the closest to a given point. 
 
 
 .. ipython:: python
