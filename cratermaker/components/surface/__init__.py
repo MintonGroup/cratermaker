@@ -28,7 +28,10 @@ from cratermaker.constants import (
     PairOfFloats,
 )
 from cratermaker.utils.component_utils import ComponentBase, import_components
-from cratermaker.utils.general_utils import validate_and_normalize_location
+from cratermaker.utils.general_utils import (
+    format_large_units,
+    validate_and_normalize_location,
+)
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 if TYPE_CHECKING:
@@ -232,7 +235,12 @@ class Surface(ComponentBase):
         if len(face_indices) == 0:
             return None
 
-        return SurfaceView(surface=self, face_indices=face_indices, location=location)
+        return SurfaceView(
+            surface=self,
+            face_indices=face_indices,
+            location=location,
+            region_radius=region_radius,
+        )
 
     def add_data(
         self,
@@ -1387,7 +1395,9 @@ class SurfaceView:
     node_indices : NDArray | slice | None, optional
         The indices of the nodes to include in the view. If None, all nodes connected to the faces are included.
     location : tuple[float, float] | None, optional
-        The location of the center of the view in degrees. If this is set, then the view will contain `face_distance`, `node_distance`, `face_bearing`, and `node_bearing` arrays. Otherwise, these will be None.
+        The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
+    region_radius : FloatLike | None, optional
+        The radius of the region to include in the view in meters. This is intended to be passed via the extract_region method of Surface.
     """
 
     def __init__(
@@ -1396,6 +1406,7 @@ class SurfaceView:
         face_indices: NDArray | slice,
         node_indices: NDArray | slice | None = None,
         location: tuple[float, float] | None = None,
+        region_radius: FloatLike | None = None,
         **kwargs: Any,
     ):
         object.__setattr__(self, "_surface", None)
@@ -1406,11 +1417,13 @@ class SurfaceView:
         object.__setattr__(self, "_node_distance", None)
         object.__setattr__(self, "_face_bearing", None)
         object.__setattr__(self, "_node_bearing", None)
-        object.__setattr__(self, "_location", None)
         object.__setattr__(self, "_face_indices", None)
         object.__setattr__(self, "_node_indices", None)
+        object.__setattr__(self, "_location", None)
+        object.__setattr__(self, "_region_radius", region_radius)
 
         self.surface = surface
+
         self._face_indices = face_indices
         if isinstance(face_indices, slice):
             self._n_face = self.surface.face_elevation[face_indices].size
@@ -1438,6 +1451,19 @@ class SurfaceView:
                 self.calculate_face_and_node_bearings()
             )
         return
+
+    def __str__(self) -> str:
+        """
+        String representation of the SurfaceView object.
+        """
+        base = "<SurfaceView>"
+        if self.location:
+            base += f"\nLocation: {self.location[0]:.2f}°, {self.location[1]:.2f}°"
+
+        if self.region_radius:
+            base += f"\nRegion Radius: {format_large_units(self.region_radius, quantity='length')}"
+
+        return f"{base}\nNumber of faces: {self.n_face}\nNumber of nodes: {self.n_node}"
 
     def add_data(
         self,
@@ -2101,6 +2127,13 @@ class SurfaceView:
         The location of the center of the view.
         """
         return self._location
+
+    @property
+    def region_radius(self) -> FloatLike:
+        """
+        The radius of the region to include in the view in meters.
+        """
+        return self._region_radius
 
     @property
     def face_bearing(self) -> NDArray:
