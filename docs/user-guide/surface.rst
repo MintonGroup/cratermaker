@@ -52,7 +52,7 @@ Once you have surface object, you are now able to perform numerous surface-relat
 
 
 - :meth:`calculate_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
-- :meth:`calculate_bearing`: Takes a longitude and latitude pair and computes the intitial bearing from one point to another on the surface of the sphere.=
+- :meth:`calculate_bearing`: Takes a longitude and latitude pair and computes the initial bearing from one point to another on the surface of the sphere.
 - :meth:`find_nearest_index`: Takes a longitude and latitude pair and calculates the Haversine Distance for each face of the grid. You will get a tuple that tells you the index of the face with the minimum distance.
 - :meth:`calculate_face_and_node_distances`: Calculates the distances between nodes and faces at a given location
 - :meth:`calculate_face_and_node_bearings`: Calculates the initial bearing between nodes and faces at a given location
