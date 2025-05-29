@@ -15,7 +15,7 @@ Cratermaker's :ref:`Surface <api-surface>` component is used to represent target
  
 
 Setting up a Surface object
---------------------------
+---------------------------
 All cratermaker components have a default configuration that is set when no arguments are passed through its 'maker' method. We can observe its defauts for Surfacing:
 
 .. ipython:: python
@@ -25,7 +25,18 @@ All cratermaker components have a default configuration that is set when no argu
    surface=Surface.maker()
    print(surface)
 
-The default surface is automatically set to 'icosphere' with a grid level of 8 and the :ref:`Target <ug-target>` being the moon. The effective pixel size is automatically set based on the surface and target that is used. The icosphere grid creates a uniform grid configuration and is the most accurate and efficient. However, it is only limited to a few resolutions. The user has the capability of changing the surface class as well as the target. This can be done by doing the following: 
+The default surface is automatically set to 'icosphere' with a grid level of 8 and the :ref:`Target <ug-target>` being the Moon. This surface consists of a uniform grid configuration with triangular faces that will be subdivided by the input value for the gridlevel argument.  Though it is limited to a few resolutions, it is the most accuracte and efficient class. As seen from the above, the effective pixel size is automatically set based on the surface and target that is used. The gridlevel arguement is useful because it controls the number of faces of the icosphere, and therefore defining its resolution via 10*4**gridlevel. We can see this change by doing the following:
+
+.. ipython:: python
+   :okwarning:
+
+    surface_7=Surface.maker('icosphere',gridlevel=7)
+    surface_9=Surface.maker('icosphere', gridlevel=9)
+    print(f"Number of faces for a grid level of 7: {surface_7.n_face}",f"Number of faces for a grid level of 9: {surface_9.n_face}")
+    print(f"The areas of each face for grid level of 7:{surface_7.face_areas}",f"The areas of each face for grid level of 9:{surface_9.face_areas}",)
+
+
+ The user has the capability of changing the surface class as well as the target. This can be done by doing the following: 
 
 .. ipython:: python
    :okwarning:
@@ -51,11 +62,11 @@ Using a Surface object
 Once you have surface object, you are now able to perform numerous surface-related computations. 
 
 
-- :meth:`calculate_haversine_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
-- :meth:`calculate_initial_bearing`: Takes a longitude and latitude pair and computes the intitial bearing from one point to another on the surface of the sphere.=
+- :meth:`calculate_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
+- :meth:`calculate_bearing`: Takes a longitude and latitude pair and computes the intitial bearing from one point to another on the surface of the sphere.=
 - :meth:`find_nearest_index`: Takes a longitude and latitude pair and calculates the Haversine Distance for each face of the grid. You will get a tuple that tells you the index of the face with the minimum distance.
-- :meth:`get_distance`: Calculates the distances between nodes and faces at a given location
-- :meth:`get_initial_bearing`: Calculates the initial bearing between nodes and faces at a given location
+- :meth:`calculate_face_and_node_distances`: Calculates the distances between nodes and faces at a given location
+- :meth:`calculate_face_and_node_bearings`: Calculates the initial bearing between nodes and faces at a given location
 - :meth:`interpolate_node_elevation_from_faces`: Computes the elevation for each node by taking the area-weighted average of the surrounding faces.
 
 
@@ -64,7 +75,7 @@ Once you have surface object, you are now able to perform numerous surface-relat
 
     surface = Surface.maker()
 
-    haversine=surface.calculate_haversine_distance(-1.457,0.732,2.738,-1.102)
+    haversine=surface.calculate_distance(-1.457,0.732,2.738,-1.102)
     print(f"Haversine Distance: {haversine}")
 
     surface_2 = Surface.maker('arbitrary_resolution', target='Mars')
@@ -72,32 +83,3 @@ Once you have surface object, you are now able to perform numerous surface-relat
     print(f"Nearest index: {surface_nearest_index}")
 
     surface_3=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
-    bearing=surface_3.get_initial_bearing(location=(0,9))
-    print(f"Initial Bearing: {bearing}")
-
-
-
-
-
- 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
