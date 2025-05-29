@@ -151,6 +151,8 @@ class HiResLocalSurface(Surface):
             plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
         else:
             plt.show(**kwargs)
+        plt.close(fig)
+        return
 
     def superdomain_function(self, r):
         """
