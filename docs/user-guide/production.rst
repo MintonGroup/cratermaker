@@ -75,15 +75,15 @@ Example: Plot a power law production function with a slope of -3 for craters 1 m
    plt.show()
 
 
-Example: Using Production.function_inverse
+Example: Using Production.age_from_D_N
 ------------------------------------------
 
-:func:`Production.function_inverse` returns the age in My for a given crater number density and diameter. It has the following parameters:
+:func:`Production.age_from_D_N` returns the age in My for a given crater number density and diameter. It has the following parameters:
 
 - **diameter**: Diameter of the crater in m
 - **cumulative_number_density**: Number density of craters per m² surface area greater than the input diameter.
 
-For this example, we are going to use :func:`Production.function_inverse` to plot the age in Ma for a number density of 1e-6 craters per m² from 1 m to 1 km in diameter. 
+For this example, we are going to use :func:`Production.age_from_D_N` to plot the age in Ma for a number density of 1e-6 craters per m² from 1 m to 1 km in diameter. 
 
 
 .. ipython:: python
@@ -96,7 +96,7 @@ For this example, we are going to use :func:`Production.function_inverse` to plo
    production = Production.maker("powerlaw", slope=-2.5)
    diameters = np.logspace(0, 3)
    cumulative_number_density = np.full_like(diameters, 1e-6)
-   age = production.function_inverse(diameter=diameters, cumulative_number_density=cumulative_number_density)
+   age = production.age_from_D_N(diameter=diameters, cumulative_number_density=cumulative_number_density)
 
    def plot_inv(diameter, age):
       fig, ax = plt.subplots()
