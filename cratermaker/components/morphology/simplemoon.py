@@ -476,8 +476,9 @@ class SimpleMoon(Morphology):
         return float(ans)
 
     def degradation_function(
-        self, final_radius: FloatLike, ejecta_intensity: NDArray[np.float64]
-    ) -> NDArray[np.float64]:
+        self,
+        final_diameter: FloatLike,
+    ) -> float:
         """
         Computes the degradation function, which defines the topographic degradation that each crater contributes to the surface.
 
@@ -485,15 +486,13 @@ class SimpleMoon(Morphology):
 
         Parameters
         ----------
-        final_radius : FloatLike
-            The final radius of the crater in meters.
-        ejecta_intensity : NDArray[np.float64]
-            The computed ejecta intensity at at faces.
+        final_diameter : FloatLike
+            The final diameter of the crater in meters.
 
         Returns
         -------
-        NDArray[np.float64]
-            The computed degradation function at each face.
+        float
+            The computed degradation function
 
         References
         ----------
@@ -537,9 +536,7 @@ class SimpleMoon(Morphology):
             Kd1 = _Kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
             return _smooth_broken(r, Kd1, rb, psi_1, psi_2, delta)
 
-        ejecta_intensity = np.asarray(ejecta_intensity, dtype=np.float64)
-
-        return ejecta_intensity * _Kd(final_radius)
+        return float(_Kd(final_diameter / 2))
 
     @property
     def node_index(self):

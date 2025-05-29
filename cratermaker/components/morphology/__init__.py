@@ -222,14 +222,15 @@ class Morphology(ComponentBase):
         )
         ejecta_region_view.apply_diffusion(K_ej)
 
-        K_deg = self.degradation_function(
-            crater.final_radius, ejecta_intensity[: ejecta_region_view.n_face]
+        K_deg = (
+            self.degradation_function(crater.final_diameter)
+            * ejecta_intensity[: ejecta_region_view.n_face]
         )
         ejecta_region_view.apply_diffusion(K_deg)
 
         return
 
-    def subpixel_degradation(
+    def compute_subpixel_degradation(
         self,
         age_start: float,
         age_end: float,
@@ -250,36 +251,53 @@ class Morphology(ComponentBase):
         **kwargs : Any
             Additional keyword arguments for the degradation function.
         """
-        DC_MIN = 1e-6  # Minimum crater size for subpixel degradation calculation.
+        DC_MIN = 1e-8  # Minimum crater size for subpixel degradation calculation.
+
+        if age_end >= age_start:
+            raise ValueError("age_end must be less than age_start.")
+
         if production is not None:
             production = Production.maker(production, **kwargs)
         else:
             production = self.production
 
-        def _subpixel_degradation(final_radius):
-            K_deg = self.degradation_function(
-                final_radius=final_radius, ejecta_intensity=[1]
-            ).item()
-            N = production.function(
-                diameter=final_radius * 2, age=age_start, age_end=age_end
+        if not hasattr(self, "_Kdiff"):
+            self._Kdiff = np.zeros_like(self.surface.face_elevation)
+
+        def _subpixel_degradation(final_diameter):
+            K = self.degradation_function(final_diameter)
+            n = production.function(
+                diameter=final_diameter, age=age_start, age_end=age_end
             )
-            crater_area = np.pi * final_radius**2
-            return K_deg * N * crater_area
+            crater_area = np.pi * (final_diameter / 2) * 2
+            return K * n * crater_area
 
-        if age_end >= age_start:
-            raise ValueError("age_end must be less than age_start.")
-
-        Kdiff = np.zeros_like(self.surface.face_elevation)
-
-        for face_indices, face_min_size in zip(
-            self.surface.face_bin_indices, self.surface.face_bin_min_sizes
+        for face_indices, dc_max in zip(
+            self.surface.face_bin_indices, self.surface.face_bin_max_sizes
         ):
-            rmin = DC_MIN / 2
-            rmax = face_min_size / 2
-            Kdiff[face_indices], _ = quad(_subpixel_degradation, rmin, rmax)
+            deltaKdiff, _ = quad(_subpixel_degradation, DC_MIN, dc_max)
+            self._Kdiff[face_indices] += deltaKdiff
 
-        self.surface.apply_diffusion(Kdiff)
+        # If any Kdiff values reaches a threshold where a meaningful amount of diffusion will occur on the surface, then go ahead and apply it.
+        # Otherwise, degradation will continue to accumulate until the next batch of craters is processed.
+        if np.any(self._Kdiff / self.surface.face_areas > 1):
+            self.apply_subpixel_degradation()
 
+        return
+
+    def apply_subpixel_degradation(self) -> None:
+        """
+        Apply subpixel degradation to the surface using the current Kdiff values.
+        This method is called after all craters have been processed and is used to
+        apply the accumulated degradation effects.
+        """
+        if not hasattr(self, "_Kdiff"):
+            raise RuntimeError(
+                "Kdiff has not been initialized. Call compute_subpixel_degradation first."
+            )
+
+        self.surface.apply_diffusion(self._Kdiff)
+        self._Kdiff = np.zeros_like(self.surface.face_elevation)
         return
 
     def _affected_indices(self, crater: Crater) -> tuple[set[int], set[int]]:
@@ -389,12 +407,15 @@ class Morphology(ComponentBase):
                             crater.age for crater in batch if crater.age is not None
                         ]
                         if len(agevals) > 1:
-                            self.subpixel_degradation(
+                            self.compute_subpixel_degradation(
                                 age_start=max(agevals), age_end=min(agevals)
                             )
 
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
+
+            if self.dosubpixel_degradation:
+                self.apply_subpixel_degradation()
             return
 
         total_craters = len(self._queue_manager._queue)
@@ -438,9 +459,7 @@ class Morphology(ComponentBase):
         return ejecta_soften_factor * ejecta_thickness**2
 
     @abstractmethod
-    def degradation_function(
-        self, final_radius: FloatLike, ejecta_intensity: NDArray[np.float64]
-    ) -> NDArray[np.float64]: ...
+    def degradation_function(self, final_diameter: FloatLike) -> float: ...
 
     @abstractmethod
     def crater_shape(
