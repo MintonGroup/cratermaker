@@ -11,13 +11,22 @@ class TestProduction(unittest.TestCase):
     def test_production_N_to_time(self):
         for model_name in production_models:
             production = Production.maker(production=model_name)
-            for age_orig in np.linspace(0, 4500, num=10):
+            for age_orig in np.logspace(np.log10(4500), np.log10(0.1), num=10):
                 D = np.logspace(-1, 3, num=1000)
                 N = production.function(diameter=D, age=age_orig, check_valid_age=False)
-                age_new = production.function_inverse(
+                age_new = production.age_from_D_N(
                     cumulative_number_density=N, diameter=D
                 )
                 np.testing.assert_array_almost_equal(age_orig, age_new, decimal=2)
+
+    def test_production_N_age_to_D(self):
+        for model_name in production_models:
+            production = Production.maker(production=model_name)
+            for age in np.logspace(np.log10(4500), np.log10(0.1), num=10):
+                D_orig = np.logspace(-1, 3, num=1000)
+                N = production.function(diameter=D_orig, age=age, check_valid_age=False)
+                D_new = production.D_from_N_age(cumulative_number_density=N, age=age)
+                np.testing.assert_array_almost_equal(D_orig, D_new, decimal=2)
 
     def test_sample_arguments(self):
         for model_name in production_models:
