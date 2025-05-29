@@ -120,7 +120,9 @@ class TestSimulation(unittest.TestCase):
 
     def test_run(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(
+                simdir=simdir, gridlevel=self.gridlevel, dosubpixel_degradation=True
+            )
             sim.run(age=1000)
 
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)

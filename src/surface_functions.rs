@@ -44,7 +44,7 @@ fn haversine_distance_scalar(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius:
 /// # Returns
 /// Distance in meters between the pairs of points along the surface of the sphere.
 #[pyfunction]
-pub fn calculate_haversine_distance<'py>(
+pub fn calculate_distance<'py>(
     py: Python<'py>,
     lon1: f64,
     lat1: f64,
@@ -85,7 +85,7 @@ pub fn calculate_haversine_distance<'py>(
 ///
 /// * A NumPy array of initial bearing angles (radians), one for each (lon2, lat2) pair.
 #[pyfunction]
-pub fn calculate_initial_bearing<'py>(
+pub fn calculate_bearing<'py>(
     py: Python<'py>,
     lon1: f64,
     lat1: f64,
