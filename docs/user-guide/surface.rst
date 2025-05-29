@@ -10,7 +10,7 @@
 Surface
 =======
 
-Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. This tool contains three classes of surface implementations that can be chosen by the user: **icosphere**, **arbitrary resolution**, **high resolution local**. 
+Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. This tool contains three classes of surface implementations that can be chosen by the user: **icosphere**, **arbitrary resolution**, **high resolution local**. SurfaceView is another usefool tool that exists in the Surface object, in which allows numerous operations and a view of the regional grid insteads of the entire mesh. 
 
  
 
