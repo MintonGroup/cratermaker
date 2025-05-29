@@ -72,9 +72,6 @@ Once you have surface object, you are now able to perform numerous surface-relat
 
     surface = Surface.maker()
 
-    haversine=surface.calculate_distance(-1.457,0.732,2.738,-1.102)
-    print(f"Haversine Distance: {haversine}")
-
     surface_2 = Surface.maker('arbitrary_resolution', target='Mars')
     surface_nearest_index=surface_2.find_nearest_index((21.37,124.82))
     print(f"Nearest index: {surface_nearest_index}")
