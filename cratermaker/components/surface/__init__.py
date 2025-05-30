@@ -28,7 +28,10 @@ from cratermaker.constants import (
     PairOfFloats,
 )
 from cratermaker.utils.component_utils import ComponentBase, import_components
-from cratermaker.utils.general_utils import validate_and_normalize_location
+from cratermaker.utils.general_utils import (
+    format_large_units,
+    validate_and_normalize_location,
+)
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 if TYPE_CHECKING:
@@ -238,7 +241,12 @@ class Surface(ComponentBase):
         if len(face_indices) == 0:
             return None
 
-        return SurfaceView(surface=self, face_indices=face_indices, location=location)
+        return SurfaceView(
+            surface=self,
+            face_indices=face_indices,
+            location=location,
+            region_radius=region_radius,
+        )
 
     def add_data(
         self,
@@ -359,81 +367,11 @@ class Surface(ComponentBase):
             model=model, noise_width=noise_width, noise_height=noise_height, **kwargs
         )
 
-    def calculate_distance(
-        self,
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: FloatLike,
-        lat2: FloatLike,
-    ) -> float:
-        """
-        Calculate the great circle distance between two points on a sphere.
-
-        Parameters
-        ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike
-            Longitude of the second point in radians.
-        lat2 : FloatLike
-            Latitude of the second point in radians.
-
-        Returns
-        -------
-        float
-            Great circle distance between the two points in meters.
-        """
-        # Validate that lon1 and lat1 are single points
-        if not np.isscalar(lon1):
-            if lon1.size != 1:
-                raise ValueError("lon1 must be a single point")
-            lon1 = lon1.item()
-        if not np.isscalar(lat1):
-            if lat1.size != 1:
-                raise ValueError("lat1 must be a single point")
-            lat1 = lat1.item()
-        if np.isscalar(lon2):
-            lon2 = np.array([lon2])
-        if np.isscalar(lat2):
-            lat2 = np.array([lat2])
-
-        return surface_functions.calculate_distance(
-            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2, radius=self.radius
-        )
-
-    @staticmethod
-    def calculate_bearing(
-        lon1: FloatLike, lat1: FloatLike, lon2: FloatLike, lat2: FloatLike
-    ) -> float:
-        """
-        Calculate the initial bearing from one point to another on the surface of a sphere.
-
-        Parameters
-        ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike
-            Longitude of the second point in radians.
-        lat2 : FloatLike
-            Latitude of the second point in radians.
-
-        Returns
-        -------
-        float
-            Initial bearing from the first point to the second point in radians.
-        """
-
-        return SurfaceView.calculate_bearing(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2)
-
     def calculate_face_and_node_distances(
         self, location: tuple[float, float]
     ) -> tuple[NDArray, NDArray]:
         """
-        Computes the distances between nodes and faces and a given location.
+        Computes the distances from a given location to all faces and nodes.
 
         Parameters
         ----------
@@ -453,7 +391,7 @@ class Surface(ComponentBase):
         self, location: tuple[float, float]
     ) -> tuple[NDArray, NDArray]:
         """
-        Computes the initial bearing between nodes and faces and a given location.
+        Computes the initial bearing from a given location to all faces and nodes.
 
         Parameters
         ----------
@@ -466,6 +404,10 @@ class Surface(ComponentBase):
             Array of initial bearings for each face in radians.
         NDArray
             Array of initial bearings for each node in radians.
+
+        Notes
+        -----
+        This is intended to be used as a helper to calculate_face_and_node_bearings.
         """
         return self._full_view().calculate_face_and_node_bearings(location)
 
@@ -585,6 +527,85 @@ class Surface(ComponentBase):
 
         return get_random_location_on_face(
             self.uxgrid, face_index, rng=self.rng, **kwargs
+        )
+
+    def _calculate_distance(
+        self,
+        lon1: FloatLike,
+        lat1: FloatLike,
+        lon2: ArrayLike,
+        lat2: ArrayLike,
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the great circle distance between one point and one or more other points in meters.
+
+        Parameters
+        ----------
+        lon1 : FloatLike
+            Longitude of the first point in radians.
+        lat1 : FloatLike
+            Latitude of the first point in radians.
+        lon2 : FloatLike or ArrayLike
+            Longitude of the second point or array of points in radians.
+        lat2 : FloatLike or ArrayLike
+            Latitude of the second point or array of points in radians.
+
+        Returns
+        -------
+        NDArray
+            Great circle distance between the two points in meters.
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
+        """
+        # Validate that lon1 and lat1 are single points
+        if not np.isscalar(lon1):
+            if lon1.size != 1:
+                raise ValueError("lon1 must be a single point")
+            lon1 = lon1.item()
+        if not np.isscalar(lat1):
+            if lat1.size != 1:
+                raise ValueError("lat1 must be a single point")
+            lat1 = lat1.item()
+        if np.isscalar(lon2):
+            lon2 = np.array([lon2])
+        if np.isscalar(lat2):
+            lat2 = np.array([lat2])
+
+        return surface_functions.calculate_distance(
+            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2, radius=self.radius
+        )
+
+    @staticmethod
+    def _calculate_bearing(
+        lon1: FloatLike,
+        lat1: FloatLike,
+        lon2: FloatLike | ArrayLike,
+        lat2: FloatLike | ArrayLike,
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the initial bearing from one point to one or more other points in radians.
+
+        Parameters
+        ----------
+        lon1 : FloatLike
+            Longitude of the first point in radians.
+        lat1 : FloatLike
+            Latitude of the first point in radians.
+        lon2 : FloatLike or ArrayLike
+            Longitude of the second point or array of points in radians.
+        lat2 : FloatLike or ArrayLike
+            Latitude of the second point or array of points in radians.
+
+        Returns
+        -------
+        NDArray
+            Initial bearing from the first point to the second point or points in radians.
+        """
+
+        return SurfaceView._calculate_bearing(
+            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2
         )
 
     def _load_from_files(self, reset: bool = False, **kwargs: Any) -> None:
@@ -1525,7 +1546,9 @@ class SurfaceView:
     node_indices : NDArray | slice | None, optional
         The indices of the nodes to include in the view. If None, all nodes connected to the faces are included.
     location : tuple[float, float] | None, optional
-        The location of the center of the view in degrees. If this is set, then the view will contain `face_distance`, `node_distance`, `face_bearing`, and `node_bearing` arrays. Otherwise, these will be None.
+        The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
+    region_radius : FloatLike | None, optional
+        The radius of the region to include in the view in meters. This is intended to be passed via the extract_region method of Surface.
     """
 
     def __init__(
@@ -1534,6 +1557,7 @@ class SurfaceView:
         face_indices: NDArray | slice,
         node_indices: NDArray | slice | None = None,
         location: tuple[float, float] | None = None,
+        region_radius: FloatLike | None = None,
         **kwargs: Any,
     ):
         object.__setattr__(self, "_surface", None)
@@ -1544,11 +1568,13 @@ class SurfaceView:
         object.__setattr__(self, "_node_distance", None)
         object.__setattr__(self, "_face_bearing", None)
         object.__setattr__(self, "_node_bearing", None)
-        object.__setattr__(self, "_location", None)
         object.__setattr__(self, "_face_indices", None)
         object.__setattr__(self, "_node_indices", None)
+        object.__setattr__(self, "_location", None)
+        object.__setattr__(self, "_region_radius", region_radius)
 
         self.surface = surface
+
         self._face_indices = face_indices
         if isinstance(face_indices, slice):
             self._n_face = self.surface.face_elevation[face_indices].size
@@ -1576,6 +1602,19 @@ class SurfaceView:
                 self.calculate_face_and_node_bearings()
             )
         return
+
+    def __str__(self) -> str:
+        """
+        String representation of the SurfaceView object.
+        """
+        base = "<SurfaceView>"
+        if self.location:
+            base += f"\nLocation: {self.location[0]:.2f}°, {self.location[1]:.2f}°"
+
+        if self.region_radius:
+            base += f"\nRegion Radius: {format_large_units(self.region_radius, quantity='length')}"
+
+        return f"{base}\nNumber of faces: {self.n_face}\nNumber of nodes: {self.n_node}"
 
     def add_data(
         self,
@@ -1834,70 +1873,6 @@ class SurfaceView:
         self.update_elevation(noise)
         return
 
-    def calculate_distance(
-        self,
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: FloatLike,
-        lat2: FloatLike,
-    ) -> float:
-        """
-        Calculate the great circle distance between two points on a sphere.
-
-        Parameters
-        ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike
-            Longitude of the second point in radians.
-        lat2 : FloatLike
-            Latitude of the second point in radians.
-
-        Returns
-        -------
-        float
-            Great circle distance between the two points in meters.
-        """
-        return self.surface.calculate_distance(lon1, lat1, lon2, lat2)
-
-    @staticmethod
-    def calculate_bearing(
-        lon1: FloatLike, lat1: FloatLike, lon2: FloatLike, lat2: FloatLike
-    ) -> float:
-        """
-        Calculate the initial bearing from one point to another on the surface of a sphere.
-
-        Parameters
-        ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike
-            Longitude of the second point in radians.
-        lat2 : FloatLike
-            Latitude of the second point in radians.
-
-        Returns
-        -------
-        float
-            Initial bearing from the first point to the second point in radians.
-        """
-        # Calculate differences in coordinates
-        dlon = np.mod(lon2 - lon1 + np.pi, 2 * np.pi) - np.pi
-
-        # Haversine formula calculations
-        x = np.sin(dlon) * np.cos(lat2)
-        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
-        initial_bearing = np.arctan2(x, y)
-
-        # Normalize bearing to 0 to 2*pi
-        initial_bearing = (initial_bearing + 2 * np.pi) % (2 * np.pi)
-
-        return initial_bearing
-
     def calculate_face_and_node_distances(
         self, location: tuple[float, float] | None = None
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -1932,9 +1907,9 @@ class SurfaceView:
         node_lat2 = np.deg2rad(self.node_lat)
         face_lon2 = np.deg2rad(self.face_lon)
         face_lat2 = np.deg2rad(self.face_lat)
-        return self.calculate_distance(
+        return self._calculate_distance(
             lon1, lat1, face_lon2, face_lat2
-        ), self.calculate_distance(lon1, lat1, node_lon2, node_lat2)
+        ), self._calculate_distance(lon1, lat1, node_lon2, node_lat2)
 
     def calculate_face_and_node_bearings(
         self, location: tuple[float, float] | None = None
@@ -2162,6 +2137,81 @@ class SurfaceView:
             )
         return np.sum(elevation * self.face_areas)
 
+    def _calculate_distance(
+        self,
+        lon1: FloatLike,
+        lat1: FloatLike,
+        lon2: FloatLike | ArrayLike,
+        lat2: FloatLike | ArrayLike,
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the great circle distance between one point and one or more other points in meters.
+
+        Parameters
+        ----------
+        lon1 : FloatLike
+            Longitude of the first point in radians.
+        lat1 : FloatLike
+            Latitude of the first point in radians.
+        lon2 : FloatLike or ArrayLike
+            Longitude of the second point or array of points in radians.
+        lat2 : FloatLike or ArrayLike
+            Latitude of the second point or array of points in radians.
+
+        Returns
+        -------
+        NDArray
+            Great circle distance between the two points in meters.
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
+        """
+        return self.surface._calculate_distance(lon1, lat1, lon2, lat2)
+
+    @staticmethod
+    def _calculate_bearing(
+        lon1: FloatLike,
+        lat1: FloatLike,
+        lon2: FloatLike | ArrayLike,
+        lat2: FloatLike | ArrayLike,
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the initial bearing from one point to one or more other points in radians.
+
+        Parameters
+        ----------
+        lon1 : FloatLike
+            Longitude of the first point in radians.
+        lat1 : FloatLike
+            Latitude of the first point in radians.
+        lon2 : FloatLike or ArrayLike
+            Longitude of the second point or array of points in radians.
+        lat2 : FloatLike or ArrayLike
+            Latitude of the second point or array of points in radians.
+
+        Returns
+        -------
+        NDArray
+            Initial bearing from the first point to the second point or points in radians.
+
+        Notes
+        -----
+        This is intended to be used as a helper to calculate_face_and_node_bearings.
+        """
+        # Calculate differences in coordinates
+        dlon = np.mod(lon2 - lon1 + np.pi, 2 * np.pi) - np.pi
+
+        # Haversine formula calculations
+        x = np.sin(dlon) * np.cos(lat2)
+        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+        initial_bearing = np.arctan2(x, y)
+
+        # Normalize bearing to 0 to 2*pi
+        initial_bearing = (initial_bearing + 2 * np.pi) % (2 * np.pi)
+
+        return initial_bearing
+
     @property
     def surface(self) -> Surface:
         """
@@ -2239,6 +2289,13 @@ class SurfaceView:
         The location of the center of the view.
         """
         return self._location
+
+    @property
+    def region_radius(self) -> FloatLike:
+        """
+        The radius of the region to include in the view in meters.
+        """
+        return self._region_radius
 
     @property
     def face_bearing(self) -> NDArray:
