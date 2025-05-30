@@ -358,8 +358,8 @@ class Simulation(CratermakerBase):
             if is_age_interval:
                 current_age = age - i * age_interval
                 current_age_end = age - (i + 1) * age_interval
-                if current_age_end < 0.0:
-                    current_age_end = 0.0
+                if current_age_end < age_end:
+                    current_age_end = age_end
                 self.populate(age=current_age, age_end=current_age_end)
             else:
                 current_diameter_number = (
