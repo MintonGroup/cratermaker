@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 from numpy.random import Generator
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from cratermaker.components.production import Production
 from cratermaker.constants import FloatLike
@@ -130,8 +130,12 @@ class PowerLawProduction(Production):
             return n_array * age_difference
 
     def chronology(
-        self, age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0, **kwargs: Any
-    ) -> FloatLike | ArrayLike:
+        self,
+        age: ArrayLike = np.array([1000.0]),
+        age_end: ArrayLike | None = None,
+        validate_inputs: bool = True,
+        **kwargs: Any,
+    ) -> NDArray[np.float64]:
         """
         Returns the age in My. Because the powerlaw model assumes constant impact rate, the returned age is the same as the input age.
 
@@ -144,10 +148,20 @@ class PowerLawProduction(Production):
 
         Returns
         -------
-        FloatLike or numpy array of FloatLike
-            The age in My for the given relative number density of craters.
+        NDArray
+            The number of craters relative to the amount produced in the last 1 My.
+
         """
-        return age
+        if validate_inputs:
+            age, age_end = self._validate_age(age, age_end)
+        else:
+            if age_end is None:
+                if np.isscalar(age):
+                    age_end = 0.0
+                else:
+                    age_end = np.zeros_like(age)
+
+        return age - age_end
 
     def csfd(
         self, diameter: FloatLike | ArrayLike, **kwargs: Any

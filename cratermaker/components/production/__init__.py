@@ -718,43 +718,67 @@ class Production(ComponentBase):
         ValueError
             If the the start age is greater than the end age or the age variable is not a scalar or a sequence of 2 values.
         """
-        scalar_input = np.isscalar(age)
-        if scalar_input:
+
+        if np.isscalar(age):
             if not isinstance(age, FloatLike):
                 raise TypeError("age must be a numeric value (float or int)")
-            age = np.array([age], dtype=np.float64)
-        elif isinstance(age, (list, tuple, np.ndarray)):
-            age = np.array(age, dtype=np.float64)
-
-        if age_end is None:
-            age_end = np.zeros_like(age)
-        elif np.isscalar(age_end):
-            if not isinstance(age_end, FloatLike):
+            if age_end is None:
+                age_end = 0.0
+            elif not np.isscalar(age_end):
                 raise TypeError("age_end must be a numeric value (float or int)")
-            age_end = np.array([age_end], dtype=np.float64)
-        elif isinstance(age_end, (list, tuple, np.ndarray)):
-            age_end = np.array(age_end, dtype=np.float64)
-
-        if age.size != age_end.size:
-            raise ValueError(
-                "The 'age' and 'age_end' arguments must be the same size if both are provided"
-            )
-        if np.any(age < age_end):
-            raise ValueError("age must be greater than the age_end")
-
-        if self.valid_age[0] is not None:
-            if np.any(age < self.valid_age[0]) or np.any(age_end < self.valid_age[0]):
+            elif not isinstance(age_end, FloatLike):
+                raise TypeError("age_end must be a numeric value (float or int)")
+            if age < age_end:
+                raise ValueError("age must be greater than the age_end")
+            if self.valid_age[0] is not None and age < self.valid_age[0]:
                 raise ValueError(
                     f"age must be greater than the minimum valid age {self.valid_age[0]}"
                 )
-        if self.valid_age[1] is not None:
-            if np.any(age > self.valid_age[1]) or np.any(age_end > self.valid_age[1]):
+            if self.valid_age[1] is not None and age > self.valid_age[1]:
                 raise ValueError(
                     f"age must be less than the maximum valid age {self.valid_age[1]}"
                 )
-        if scalar_input:
-            age = age.item()
-            age_end = age_end.item()
+        else:
+            if isinstance(age, (list, tuple)):
+                age = np.array(age, dtype=np.float64)
+            elif not isinstance(age, np.ndarray):
+                raise TypeError(
+                    "age must be a numeric value (float or int) or an array"
+                )
+
+            if age_end is None:
+                age_end = np.zeros_like(age)
+            elif np.isscalar(age_end):
+                age_end = np.full_like(age, age_end, dtype=np.float64)
+            elif isinstance(age_end, (list, tuple)):
+                age_end = np.array(age_end, dtype=np.float64)
+            elif not isinstance(age_end, np.ndarray):
+                raise TypeError(
+                    "age_end must be a numeric value (float or int) or an array"
+                )
+
+            if age.size != age_end.size:
+                raise ValueError(
+                    "The 'age' and 'age_end' arguments must be the same size if both are provided"
+                )
+
+            if np.any(age < age_end):
+                raise ValueError("age must be greater than the age_end")
+
+            if self.valid_age[0] is not None:
+                if np.any(age < self.valid_age[0]) or np.any(
+                    age_end < self.valid_age[0]
+                ):
+                    raise ValueError(
+                        f"age must be greater than the minimum valid age {self.valid_age[0]}"
+                    )
+            if self.valid_age[1] is not None:
+                if np.any(age > self.valid_age[1]) or np.any(
+                    age_end > self.valid_age[1]
+                ):
+                    raise ValueError(
+                        f"age must be less than the maximum valid age {self.valid_age[1]}"
+                    )
 
         return age, age_end
 

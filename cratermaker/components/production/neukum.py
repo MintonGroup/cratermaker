@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 from numpy.random import Generator
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from cratermaker.components.production import Production
 from cratermaker.constants import FloatLike
@@ -128,7 +128,7 @@ class NeukumProduction(Production):
         age_end: ArrayLike | None = None,
         validate_inputs: bool = True,
         **kwargs: Any,
-    ) -> FloatLike | ArrayLike:
+    ) -> NDArray[np.float64]:
         """
         Returns the relative number of craters produced over a given age range. This implements the chronology function given in
         Eq. 5 of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86, but takes in the age argument in the Cratermaker unit
@@ -146,23 +146,11 @@ class NeukumProduction(Production):
         Returns
         -------
         NDArray
-            The number of craters relative to the amount produced in the last 1 My.
+            The number of craters relative to the amount produced in the last 1 My between age and ange_end.
 
         """
         if validate_inputs:
             age, age_end = self._validate_age(age, age_end)
-
-        time_Gy = (
-            np.array(age) * 1e-3
-        )  # Convert age range from My to Gy ago for internal functions
-
-        time_end_Gy = (
-            np.array(age_end) * 1e-3 if age_end is not None else np.zeros_like(time_Gy)
-        )
-        if time_Gy.size != time_end_Gy.size:
-            raise ValueError(
-                "age and age_end must have the same length or age_end must be None."
-            )
 
         def _N1km(
             age: Sequence[FloatLike] | ArrayLike,
@@ -174,21 +162,23 @@ class NeukumProduction(Production):
             Parameters
             ----------
             age : FloatLike or numpy array
-                Time ago in units of Gy
+                Time ago in units of My
 
             Returns
             -------
             FloatLike or numpy array
-                The number of craters per square kilometer greater than 1 km in diameter
+                The number of craters per square meter greater than 1 km in diameter
             """
-            N1 = self.Cexp * (np.exp(age / self.tau) - 1.0) + self.Clin * age
-            return N1
+            N1 = (
+                self.Cexp * (np.exp(age * 1e-3 / self.tau) - 1.0)
+                + self.Clin * age * 1e-3
+            )
+            return N1 * 1e-6
 
-        N1_values_start = _N1km(age=time_Gy) * 1e-6
-        N1_values_end = _N1km(age=time_end_Gy) * 1e-6
-        N1 = N1_values_start - N1_values_end
-
-        return N1
+        if age_end is None:
+            return _N1km(age=age)
+        else:
+            return _N1km(age=age) - _N1km(age=age_end)
 
     @property
     def valid_versions(self) -> list[str]:
