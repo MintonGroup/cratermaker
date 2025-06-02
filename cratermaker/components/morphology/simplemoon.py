@@ -11,7 +11,7 @@ from scipy.optimize import root_scalar
 
 from cratermaker._cratermaker import simplemoon_functions as sm
 from cratermaker.components.morphology import Morphology
-from cratermaker.components.surface import Surface, SurfaceView
+from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import FloatLike
 from cratermaker.core.crater import Crater
 from cratermaker.utils.general_utils import format_large_units, parameter
@@ -164,7 +164,7 @@ class SimpleMoon(Morphology):
         return
 
     def crater_shape(
-        self, crater: SimpleMoonCrater, region_view: SurfaceView, **kwargs: Any
+        self, crater: SimpleMoonCrater, region_view: LocalSurface, **kwargs: Any
     ) -> NDArray[np.float64]:
         """
         Compute the crater shape based on the region view and surface.
@@ -173,7 +173,7 @@ class SimpleMoon(Morphology):
         ----------
         crater : SimpleMoonCrater
             The crater object containing the parameters for the crater shape.
-        region_view:  SurfaceView
+        region_view:  LocalSurface
             The region view of the surface mesh centered at the crater center.
 
         Returns
@@ -254,14 +254,14 @@ class SimpleMoon(Morphology):
         return elevation
 
     def ejecta_shape(
-        self, crater: SimpleMoonCrater, region_view: SurfaceView, **kwargs: Any
+        self, crater: SimpleMoonCrater, region_view: LocalSurface, **kwargs: Any
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the ejecta shape based on the region view and surface.
 
         Parameters
         ----------
-        region_view : SurfaceView
+        region_view : LocalSurface
             The region view of the surface mesh centered at the crat er center.
 
         Returns

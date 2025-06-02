@@ -226,8 +226,8 @@ class Surface(ComponentBase):
 
         Returns
         -------
-        SurfaceView
-            A SurfaceView object containing a view of the regional grid.
+        LocalSurface
+            A LocalSurface object containing a view of the regional grid.
 
         """
 
@@ -241,7 +241,7 @@ class Surface(ComponentBase):
         if len(face_indices) == 0:
             return None
 
-        return SurfaceView(
+        return LocalSurface(
             surface=self,
             face_indices=face_indices,
             location=location,
@@ -497,7 +497,7 @@ class Surface(ComponentBase):
         NDArray
             The Cartesian coordinates of the points with the given elevation.
         """
-        return SurfaceView.elevation_to_cartesian(position, elevation)
+        return LocalSurface.elevation_to_cartesian(position, elevation)
 
     def get_random_location_on_face(
         self, face_index: int, **kwargs
@@ -604,7 +604,7 @@ class Surface(ComponentBase):
             Initial bearing from the first point to the second point or points in radians.
         """
 
-        return SurfaceView._calculate_bearing(
+        return LocalSurface._calculate_bearing(
             lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2
         )
 
@@ -776,7 +776,7 @@ class Surface(ComponentBase):
         return regrid
 
     def _full_view(self):
-        return SurfaceView(self, slice(None), slice(None))
+        return LocalSurface(self, slice(None), slice(None))
 
     def _save_data(
         self,
@@ -1533,7 +1533,7 @@ class Surface(ComponentBase):
         return self.uxds.n_node.values
 
 
-class SurfaceView:
+class LocalSurface:
     """
     This is used to generate a regional view of a subset of the surface mesh without making copies of any of the data.
 
@@ -1605,9 +1605,9 @@ class SurfaceView:
 
     def __str__(self) -> str:
         """
-        String representation of the SurfaceView object.
+        String representation of the LocalSurface object.
         """
-        base = "<SurfaceView>"
+        base = "<LocalSurface>"
         if self.location:
             base += f"\nLocation: {self.location[0]:.2f}°, {self.location[1]:.2f}°"
 

@@ -16,7 +16,7 @@ from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:
-    from cratermaker.components.surface import Surface, SurfaceView
+    from cratermaker.components.surface import LocalSurface, Surface
 
 
 class Morphology(ComponentBase):
@@ -446,7 +446,7 @@ class Morphology(ComponentBase):
 
         Parameters
         ----------
-        region_view : SurfaceView
+        region_view : LocalSurface
             The region view of the surface mesh centered at the crater center.
         ejecta_thickness : NDArray[np.float64]
             The computed ejecta thickness at the face and node elevations.
@@ -471,7 +471,7 @@ class Morphology(ComponentBase):
     def crater_shape(
         self,
         crater: Crater,
-        region_view: SurfaceView,
+        region_view: LocalSurface,
         **kwarg: Any,
     ) -> NDArray[np.float64]: ...
 
@@ -479,7 +479,7 @@ class Morphology(ComponentBase):
     def ejecta_shape(
         self,
         crater: Crater,
-        region_view: SurfaceView,
+        region_view: LocalSurface,
         **kwarg: Any,
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
