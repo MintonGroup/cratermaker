@@ -342,6 +342,7 @@ class Simulation(CratermakerBase):
             is_age_interval = True
             age_interval = age
 
+        validate_inputs = kwargs.pop("validate_inputs", False)
         self.current_age = age
         self.elapsed_time = 0.0
         self.elapsed_n1 = 0.0
@@ -379,7 +380,7 @@ class Simulation(CratermakerBase):
                     current_diameter_number[1] / self.surface.area,
                 )
                 current_age = self.production.age_from_D_N(
-                    *current_diameter_number_density
+                    *current_diameter_number_density, validate_inputs=validate_inputs
                 )
                 if current_diameter_number_end[1] > 0:
                     current_diameter_number_density_end = (
@@ -388,7 +389,8 @@ class Simulation(CratermakerBase):
                     )
 
                     current_age_end = self.production.age_from_D_N(
-                        *current_diameter_number_density_end
+                        *current_diameter_number_density_end,
+                        validate_inputs=validate_inputs,
                     )
                 else:
                     current_age_end = 0.0
@@ -397,8 +399,11 @@ class Simulation(CratermakerBase):
                 age_interval = current_age - current_age_end
             self.elapsed_time += age_interval
             self.elapsed_n1 += self.production.function(
-                diameter=1000.0, age=current_age
-            ) - self.production.function(diameter=1000.0, age=current_age_end)
+                diameter=1000.0,
+                age=current_age,
+                age_end=current_age_end,
+                validate_inputs=validate_inputs,
+            ).item()
             self.current_age = current_age_end
 
             self.save()

@@ -85,6 +85,7 @@ class PowerLawProduction(Production):
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
         """
@@ -99,6 +100,8 @@ class PowerLawProduction(Production):
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
         age_end, FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        validate_inputs: bool, default=True
+            If True, the function will check that the validity of age, age_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
         **kwargs : Any
             Any additional keywords. These are not used in this base class, but included here so that any extended class can share
             the same function signature.
@@ -109,8 +112,14 @@ class PowerLawProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
             surface over the given age range.
         """
-        diameter, _ = self._validate_csfd(diameter=diameter)
-        age, age_end = self._validate_age(age, age_end)
+        if validate_inputs:
+            diameter, _ = self._validate_csfd(diameter=diameter)
+            age, age_end = self._validate_age(age, age_end)
+        elif age_end is None:
+            if np.isscalar(age):
+                age_end = 0.0
+            else:
+                age_end = np.zeros_like(age)
 
         n_array = np.asarray(self.csfd(diameter))
         age_difference = np.asarray(age - age_end)

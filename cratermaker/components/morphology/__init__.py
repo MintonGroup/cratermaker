@@ -268,8 +268,11 @@ class Morphology(ComponentBase):
             fe = 100.0
             K = self.degradation_function(final_diameter, fe)
             n = production.function(
-                diameter=final_diameter, age=age_start, age_end=age_end
-            )
+                diameter=final_diameter,
+                age=age_start,
+                age_end=age_end,
+                validate_inputs=False,
+            ).item()
             degradation_region_area = np.pi * (final_diameter / 2) * fe
             return K * n * degradation_region_area
 

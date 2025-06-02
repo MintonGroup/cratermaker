@@ -294,10 +294,10 @@ def get_random_size(
         raise ValueError("The 'diameters' and 'cdf' arguments must be arrays")
     if diameters.ndim != 1:
         raise ValueError("The 'diameters' argument must be a 1-dimensional array")
-    if diameters.shape != cdf.shape:
-        raise ValueError("The 'diameters' and 'cdf' arguments must have the same shape")
-    if diameters.size != cdf.size:
-        raise ValueError("The 'diameters' and 'cdf' arguments must have the same size")
+    if diameters.size != cdf.shape[0]:
+        raise ValueError(
+            "The 'diameters' array must have the same size as axis 0 of 'cdf'"
+        )
     if diameters.size < 2:
         raise ValueError(
             "The 'diameters' and 'cdf' arguments must have at least two elements"
