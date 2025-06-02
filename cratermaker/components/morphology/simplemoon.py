@@ -164,7 +164,7 @@ class SimpleMoon(Morphology):
         return
 
     def crater_shape(
-        self, crater: SimpleMoonCrater, region_view: LocalSurface, **kwargs: Any
+        self, crater: SimpleMoonCrater, region: LocalSurface, **kwargs: Any
     ) -> NDArray[np.float64]:
         """
         Compute the crater shape based on the region view and surface.
@@ -173,7 +173,7 @@ class SimpleMoon(Morphology):
         ----------
         crater : SimpleMoonCrater
             The crater object containing the parameters for the crater shape.
-        region_view:  LocalSurface
+        region:  LocalSurface
             The region view of the surface mesh centered at the crater center.
 
         Returns
@@ -183,17 +183,15 @@ class SimpleMoon(Morphology):
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        reference_elevation = region_view.get_reference_surface(
+        reference_elevation = region.get_reference_surface(
             reference_radius=crater.final_radius
         )
 
         # Combine distances and references for nodes and faces
-        distance = np.concatenate(
-            [region_view.face_distance, region_view.node_distance]
-        )
+        distance = np.concatenate([region.face_distance, region.node_distance])
 
         original_elevation = np.concatenate(
-            [region_view.face_elevation, region_view.node_elevation]
+            [region.face_elevation, region.node_elevation]
         )
 
         new_elevation = self.crater_profile(crater, distance, reference_elevation)
@@ -254,14 +252,14 @@ class SimpleMoon(Morphology):
         return elevation
 
     def ejecta_shape(
-        self, crater: SimpleMoonCrater, region_view: LocalSurface, **kwargs: Any
+        self, crater: SimpleMoonCrater, region: LocalSurface, **kwargs: Any
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the ejecta shape based on the region view and surface.
 
         Parameters
         ----------
-        region_view : LocalSurface
+        region : LocalSurface
             The region view of the surface mesh centered at the crat er center.
 
         Returns
@@ -274,13 +272,9 @@ class SimpleMoon(Morphology):
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
 
-        distance = np.concatenate(
-            [region_view.face_distance, region_view.node_distance]
-        )
+        distance = np.concatenate([region.face_distance, region.node_distance])
         if self.dorays:
-            bearing = np.concatenate(
-                [region_view.face_bearing, region_view.node_bearing]
-            )
+            bearing = np.concatenate([region.face_bearing, region.node_bearing])
             thickness, intensity = self.ejecta_distribution(crater, distance, bearing)
         else:
             thickness = self.ejecta_profile(crater, distance)

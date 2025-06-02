@@ -155,10 +155,10 @@ class Morphology(ComponentBase):
         ejecta_rmax = self.rmax(
             crater, minimum_thickness=self.surface.smallest_length, feature="ejecta"
         )
-        ejecta_region_view = self.surface.extract_region(crater.location, ejecta_rmax)
+        ejecta_region = self.surface.extract_region(crater.location, ejecta_rmax)
         ejecta_area = pi * ejecta_rmax**2
         if (
-            ejecta_region_view is None
+            ejecta_region is None
             or ejecta_area < self.surface.face_areas[self.face_index]
         ):  # The crater is too small to change the surface
             return
@@ -166,21 +166,19 @@ class Morphology(ComponentBase):
         crater_rmax = self.rmax(
             crater, minimum_thickness=self.surface.smallest_length, feature="crater"
         )
-        crater_region_view = self.surface.extract_region(crater.location, crater_rmax)
+        crater_region = self.surface.extract_region(crater.location, crater_rmax)
         crater_volume = None
-        if (
-            crater_region_view is not None
-        ):  # The crater is big enough to affect the surface
+        if crater_region is not None:  # The crater is big enough to affect the surface
             crater_area = pi * crater_rmax**2
 
             # Check to make sure that the face at the crater location is not smaller than the crater area
             if crater_area > self.surface.face_areas[self.face_index]:
                 # Form the crater shape
-                elevation_change = self.crater_shape(crater, crater_region_view)
-                crater_region_view.update_elevation(elevation_change)
-                crater_region_view.slope_collapse()
-                crater_volume = crater_region_view.compute_volume(
-                    elevation_change[: crater_region_view.n_face]
+                elevation_change = self.crater_shape(crater, crater_region)
+                crater_region.update_elevation(elevation_change)
+                crater_region.slope_collapse()
+                crater_volume = crater_region.compute_volume(
+                    elevation_change[: crater_region.n_face]
                 )
 
                 # Remove any ejecta from the surface
@@ -197,36 +195,34 @@ class Morphology(ComponentBase):
                     )
 
         # Now form the ejecta blanket
-        ejecta_thickness, ejecta_intensity = self.ejecta_shape(
-            crater, ejecta_region_view
-        )
+        ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, ejecta_region)
 
         if crater_volume:
-            ejecta_volume = ejecta_region_view.compute_volume(
-                ejecta_thickness[: ejecta_region_view.n_face]
+            ejecta_volume = ejecta_region.compute_volume(
+                ejecta_thickness[: ejecta_region.n_face]
             )
             conservation_factor = -crater_volume / ejecta_volume
             ejecta_thickness *= conservation_factor
 
-        ejecta_region_view.add_data(
+        ejecta_region.add_data(
             "ejecta_thickness",
             long_name="ejecta thickness",
             units="m",
-            data=ejecta_thickness[: ejecta_region_view.n_face],
+            data=ejecta_thickness[: ejecta_region.n_face],
         )
 
-        ejecta_region_view.update_elevation(ejecta_thickness)
+        ejecta_region.update_elevation(ejecta_thickness)
 
         K_ej = self.ejecta_burial_K(
-            ejecta_thickness[: ejecta_region_view.n_face], ejecta_soften_factor=1.50
+            ejecta_thickness[: ejecta_region.n_face], ejecta_soften_factor=1.50
         )
-        ejecta_region_view.apply_diffusion(K_ej)
+        ejecta_region.apply_diffusion(K_ej)
 
         K_deg = (
             self.degradation_function(crater.final_diameter, fe=100)
-            * ejecta_intensity[: ejecta_region_view.n_face]
+            * ejecta_intensity[: ejecta_region.n_face]
         )
-        ejecta_region_view.apply_diffusion(K_deg)
+        ejecta_region.apply_diffusion(K_deg)
 
         return
 
@@ -323,10 +319,10 @@ class Morphology(ComponentBase):
         rmax = self.rmax(
             crater, minimum_thickness=self.surface.smallest_length, feature="ejecta"
         )
-        region_view = self.surface.extract_region(crater.location, rmax)
-        if region_view is None:
+        region = self.surface.extract_region(crater.location, rmax)
+        if region is None:
             return set(), set()
-        return set(region_view.node_indices), set(region_view.face_indices)
+        return set(region.node_indices), set(region.face_indices)
 
     def _init_queue_manager(self) -> None:
         """
@@ -446,7 +442,7 @@ class Morphology(ComponentBase):
 
         Parameters
         ----------
-        region_view : LocalSurface
+        region : LocalSurface
             The region view of the surface mesh centered at the crater center.
         ejecta_thickness : NDArray[np.float64]
             The computed ejecta thickness at the face and node elevations.
@@ -471,7 +467,7 @@ class Morphology(ComponentBase):
     def crater_shape(
         self,
         crater: Crater,
-        region_view: LocalSurface,
+        region: LocalSurface,
         **kwarg: Any,
     ) -> NDArray[np.float64]: ...
 
@@ -479,7 +475,7 @@ class Morphology(ComponentBase):
     def ejecta_shape(
         self,
         crater: Crater,
-        region_view: LocalSurface,
+        region: LocalSurface,
         **kwarg: Any,
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 

@@ -7,7 +7,7 @@ from scipy.spatial.transform import Rotation as R
 
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.scaling import Scaling
-from cratermaker.components.surface import Surface
+from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import (
@@ -62,7 +62,7 @@ class HiResLocalSurface(Surface):
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
-        object.__setattr__(self, "_local_view", None)
+        object.__setattr__(self, "_local", None)
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
@@ -106,7 +106,7 @@ class HiResLocalSurface(Surface):
         from matplotlib.colors import LightSource
         from scipy.interpolate import griddata
 
-        region_view = self.local_view
+        region = self.local
         local_radius = self.local_radius
         pix = self.pix
 
@@ -118,14 +118,14 @@ class HiResLocalSurface(Surface):
         y = np.linspace(-extent_val, extent_val, resolution)
         grid_x, grid_y = np.meshgrid(x, y)
 
-        # Use polar coordinates from region_view
-        r = region_view.face_distance
-        theta = region_view.face_bearing
+        # Use polar coordinates from region
+        r = region.face_distance
+        theta = region.face_bearing
         x_cart = r * np.cos(theta)
         y_cart = r * np.sin(theta)
 
         points = np.column_stack((x_cart, y_cart))
-        values = region_view.face_elevation
+        values = region.face_elevation
         grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
 
         # Generate hillshade
@@ -427,15 +427,15 @@ class HiResLocalSurface(Surface):
         return
 
     @property
-    def local_view(self):
+    def local(self):
         """
         Returns the local view of the surface.
         """
-        if self._local_view is None:
-            self._local_view = self.extract_region(
+        if self._local is None:
+            self._local = self.extract_region(
                 location=self.local_location, region_radius=self.local_radius
             )
-        return self._local_view
+        return self._local
 
     @parameter
     def pix(self):
@@ -544,3 +544,42 @@ class HiResLocalSurface(Surface):
             self.local_location,
             self.superdomain_scale_factor,
         ]
+
+
+class LocalHiresLocalSurface(LocalSurface):
+    """
+    This is used to generate a regional view of a subset of the surface mesh without making copies of any of the data.
+
+    Parameters
+    ----------
+    surface : Surface
+        The surface object that contains the mesh data.
+    face_indices : NDArray | slice
+        The indices of the faces to include in the view.
+    node_indices : NDArray | slice | None, optional
+        The indices of the nodes to include in the view. If None, all nodes connected to the faces are included.
+    location : tuple[float, float] | None, optional
+        The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
+    region_radius : FloatLike | None, optional
+        The radius of the region to include in the view in meters. This is intended to be passed via the extract_region method of Surface.
+    """
+
+    def __init__(
+        self,
+        surface: Surface,
+        face_indices: NDArray | slice,
+        node_indices: NDArray | slice | None = None,
+        location: tuple[float, float] | None = None,
+        region_radius: FloatLike | None = None,
+        **kwargs: Any,
+    ):
+        super().__init__(
+            surface=surface,
+            face_indices=face_indices,
+            node_indices=node_indices,
+            location=location,
+            region_radius=region_radius,
+            **kwargs,
+        )
+
+        return

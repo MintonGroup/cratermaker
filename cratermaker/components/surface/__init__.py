@@ -280,7 +280,7 @@ class Surface(ComponentBase):
         -------
         None
         """
-        return self._full_view().add_data(
+        return self._full().add_data(
             name=name,
             data=data,
             long_name=long_name,
@@ -312,7 +312,7 @@ class Surface(ComponentBase):
         When passing combined data, the first part of the array will be used for face elevation and the second part for node elevation.
         """
 
-        return self._full_view().update_elevation(
+        return self._full().update_elevation(
             new_elevation=new_elevation, overwrite=overwrite, **kwargs
         )
 
@@ -328,7 +328,7 @@ class Surface(ComponentBase):
             The value of kdiff must be greater than 0.0.
 
         """
-        return self._full_view().apply_diffusion(kdiff)
+        return self._full().apply_diffusion(kdiff)
 
     def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> None:
         """
@@ -339,7 +339,7 @@ class Surface(ComponentBase):
         critical_slope_angle : float
             The critical slope angle (angle of repose) in degrees.
         """
-        return self._full_view().slope_collapse(critical_slope_angle)
+        return self._full().slope_collapse(critical_slope_angle)
 
     def apply_noise(
         self,
@@ -363,7 +363,7 @@ class Surface(ComponentBase):
             Additional arguments to pass to the noise model.
         """
 
-        return self._full_view().apply_noise(
+        return self._full().apply_noise(
             model=model, noise_width=noise_width, noise_height=noise_height, **kwargs
         )
 
@@ -385,7 +385,7 @@ class Surface(ComponentBase):
         NDArray
             Array of distances for each node in meters.
         """
-        return self._full_view().calculate_face_and_node_distances(location)
+        return self._full().calculate_face_and_node_distances(location)
 
     def calculate_face_and_node_bearings(
         self, location: tuple[float, float]
@@ -409,7 +409,7 @@ class Surface(ComponentBase):
         -----
         This is intended to be used as a helper to calculate_face_and_node_bearings.
         """
-        return self._full_view().calculate_face_and_node_bearings(location)
+        return self._full().calculate_face_and_node_bearings(location)
 
     def find_nearest_index(self, location):
         """
@@ -775,7 +775,7 @@ class Surface(ComponentBase):
 
         return regrid
 
-    def _full_view(self):
+    def _full(self):
         return LocalSurface(self, slice(None), slice(None))
 
     def _save_data(

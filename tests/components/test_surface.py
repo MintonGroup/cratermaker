@@ -293,10 +293,10 @@ class TestSurface(unittest.TestCase):
             surface = Surface.maker(
                 simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
             )
-            region_view = surface.extract_region(location=(0, 0), region_radius=100e3)
+            region = surface.extract_region(location=(0, 0), region_radius=100e3)
 
             for obj, uxds in zip(
-                [surface, region_view], [surface.uxds, region_view.surface.uxds]
+                [surface, region], [surface.uxds, region.surface.uxds]
             ):
                 surface.reset()
                 obj.add_data(
