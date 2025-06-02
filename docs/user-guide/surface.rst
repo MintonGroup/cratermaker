@@ -30,13 +30,22 @@ The default surface is automatically set to 'icosphere' with a grid level of 8 a
 .. ipython:: python
    :okwarning:
 
-    surface_7=Surface.maker('icosphere',gridlevel=7)
-    surface_9=Surface.maker('icosphere', gridlevel=9)
-    print(f"Number of faces for a grid level of 7: {surface_7.n_face}",f"Number of faces for a grid level of 9: {surface_9.n_face}")
-    print(f"The areas of each face for grid level of 7:{surface_7.face_areas}",f"The areas of each face for grid level of 9:{surface_9.face_areas}",)
+    number_faces_4=10*4**4
+    print(f"Number of faces for a grid level of 4: {number_faces_4}")
+
+    surface_area_sphere_4=4*3.14*1738000**2
+    average_area_4=surface_area_sphere_4/number_faces_4
+    print(f"Average face area for grid level 4: {average_area_4}")
 
 
-As expected, we observe more faces with a lower area when we increase the grid level. The user has the capability of changing the surface class as well as the target. This can be done by doing the following: 
+    number_faces_5=10*4**5
+    print(f"Number of faces for a grid level of 5: {number_faces_5}")
+
+    surface_area_sphere_5=4*3.14*1738000**2
+    average_area_5=surface_area_sphere_5/number_faces_5
+    print(f"Average face area for grid level 5: {average_area_5}")
+
+As expected, we observe more faces with a lower area when we increase the grid level. The number of faces and the average face area can be determined by using the .n_face command and by taking the mean of .face_areas. Users also have the capability of changing the surface class as well as the target. This can be done by doing the following: 
 
 .. ipython:: python
    :okwarning:
@@ -62,8 +71,8 @@ Using a Surface object
 Once you have surface object, you are now able to perform numerous surface-related computations. 
 
 
-- :meth:`calculate_face_and_node_distances`: Computes the distances from a given location to all faces and nodes.
-- :meth:`calculate_face_and_node_bearings`: Computes the initial bearing from a given location to all faces and nodes.
+- :meth:`calculate_face_and_node_distances`: Returns one array for distances between a point and all faces, and another array with distances between that point and all nodes.
+- :meth:`calculate_face_and_node_bearings`: Returns two arrays: Bearings (direction in degrees) between a point and all faces, Bearing between a point and all nodes.
 - :meth:`find_nearest_index`: Returns the indices of the face and node that are the closest to a given point. 
 
 
@@ -76,6 +85,8 @@ Once you have surface object, you are now able to perform numerous surface-relat
     surface_nearest_index=surface_2.find_nearest_index((21.37,124.82))
     print(f"Nearest index: {surface_nearest_index}")
 
-    surface_3=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
-    bearing=surface_3.calculate_face_and_node_distances((-1.457,0.732))
-    print(f"Face and NodeDistances:{bearing}")
+    region=surface.extract_region(location=[0,3],region_radius=30000)
+    face_bearing, node_bearing=region.calculate_face_and_node_bearings((1,2))
+    print(face_bearing,node_bearing)
+
+A SurfaceView is beneficial for the last example because you are able to a view a portion of the crater that is of interest. If you did the calculation without extracting a region, the user will recieve two large arrays that does not inform the user of any particular crater or portion of the surface. 
