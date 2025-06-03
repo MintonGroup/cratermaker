@@ -16,8 +16,8 @@ class IcosphereSurface(Surface):
 
     Parameters
     ----------
-    gridlevel : float
-        The subdivision level of the icosphere. The number of faces is 20 * 4**gridlevel. The default gridlevel is 8.
+    gridlevel : float, default 8
+        The subdivision level of the icosphere.
     target : Target, optional
         The target body or name of a known target body for the impact simulation.
     reset : bool, optional
@@ -31,6 +31,18 @@ class IcosphereSurface(Surface):
     -------
     IcosphereSurface
         An instance of the IcosphereSurface class initialized with the given pixel size.
+
+    Notes
+    -----
+    The number of faces of the icosphere is given by the formula:
+
+    .. math::
+        n_face = 10 * 4^{gridlevel} + 2
+
+    The number of nodes is given by the formula:
+
+    .. math::
+        n_node = 20 * 4^{gridlevel}
     """
 
     def __init__(
@@ -50,11 +62,7 @@ class IcosphereSurface(Surface):
         base = super().__str__()
         pix_mean = format_large_units(self.pix_mean, quantity="length")
         pix_std = format_large_units(self.pix_std, quantity="length")
-        return (
-            f"{base}\n"
-            f"Grid Level: {self.gridlevel}\n"
-            f"Effective pixel size: {pix_mean} +/- {pix_std}"
-        )
+        return f"{base}\nGrid Level: {self.gridlevel}\nEffective pixel size: {pix_mean} +/- {pix_std}"
 
     @property
     def _hashvars(self):
@@ -95,6 +103,6 @@ class IcosphereSurface(Surface):
         The approximate face size for a cell of the mesh.
         """
         if self._pix is None:
-            nfaces = 20 * 4**self.gridlevel
+            nfaces = 10 * 4**self.gridlevel + 2
             self._pix = (4 * math.pi * self.radius**2 / nfaces) ** 0.5
         return self._pix
