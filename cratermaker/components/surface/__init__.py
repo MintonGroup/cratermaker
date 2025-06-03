@@ -44,19 +44,19 @@ class Surface(ComponentBase):
     _registry: dict[str, type[Surface]] = {}
 
     """
-    This class is used for handling surface-related data and operations in the cratermaker project. It provides methods for 
-    setting elevation data, calculating distances and bearings, and other surface-related computations.
-    
+    Used for handling surface-related data and operations in the cratermaker project.
+
+    It provides methods for setting elevation data, calculating distances and bearings, and other surface-related computations.
     The Surface class extends UxDataset for the cratermaker project.
-    
+
     Parameters
     ----------
     target : Target, optional
-        The target body or name of a known target body for the impact simulation. 
+        The target body or name of a known target body for the impact simulation.
     reset : bool, optional
         Flag to indicate whether to reset the surface. Default is the value of `regrid`
     regrid : bool, optional
-        Flag to indicate whether to regrid the surface. Default is False. 
+        Flag to indicate whether to regrid the surface. Default is False.
     simdir : str | Path
         The main project simulation directory. Defaults to the current working directory if None.
     **kwargs : Any
@@ -130,13 +130,13 @@ class Surface(ComponentBase):
                 if hasattr(self._uxds, "uxgrid") and hasattr(self._uxds.uxgrid, "_ds"):
                     self._uxds.uxgrid._ds.close()
                 self._uxds.close()
-        except Exception:
-            pass
+        except Exception as e:
+            warnings.warn(f"An error occurred while closing the dataset: {e}", RuntimeWarning, stacklevel=2)
         try:
             if hasattr(self, "_grid") and hasattr(self._grid, "uxgrid") and hasattr(self._grid.uxgrid, "_ds"):
                 self._grid.uxgrid._ds.close()
-        except Exception:
-            pass
+        except Exception as e:
+            warnings.warn(f"An error occurred while closing the dataset: {e}", RuntimeWarning, stacklevel=2)
 
     @classmethod
     def maker(
@@ -249,7 +249,7 @@ class Surface(ComponentBase):
         overwrite: bool = False,
     ) -> None:
         """
-        Adds new data
+        Adds new data to the surface. If the data variable already exists, it will be overwritten if `overwrite` is set to True.
 
         Parameters
         ----------
@@ -581,6 +581,7 @@ class Surface(ComponentBase):
     def _load_from_files(self, reset: bool = False, **kwargs: Any) -> None:
         """
         Load the grid and data files into the surface object.
+
         This function loads the grid file and data files from the specified directory. If the grid file does not exist, it will attempt to create a new grid.
         If the data files do not exist, it will create an empty dataset. If reset is True, it will delete all data files except the grid file.
 
@@ -688,8 +689,8 @@ class Surface(ComponentBase):
         self._uxgrid = uxgrid
 
         regrid = self._regrid_if_needed(**kwargs)
-        assert not regrid
-
+        if not regrid:
+            raise ValueError("Grid file does not match the expected parameters.")
         self._compute_face_sizes(uxgrid)
 
         return
@@ -745,7 +746,9 @@ class Surface(ComponentBase):
         combine_data_files: bool = False,
     ) -> None:
         """
-        Save the data to the specified directory. If `combine_data_files` is True, then all data variables are saved to a single NetCDF
+        Save the data to the specified directory.
+
+        If `combine_data_files` is True, then all data variables are saved to a single NetCDF
         file. If False, then only the data variables for the current interval are saved to a NetCDF file with the interval number
         appended.
 
@@ -787,7 +790,7 @@ class Surface(ComponentBase):
 
             temp_file = Path(temp_dir) / filename
 
-            comp = dict(zlib=True, complevel=9)
+            comp = {"zlib": True, "complevel": 9}
             encoding = dict.fromkeys(ds_file.data_vars, comp)
             ds_file.to_netcdf(temp_file, encoding=encoding)
             ds_file.close()
@@ -932,16 +935,16 @@ class Surface(ComponentBase):
 
         a = 4 * np.pi / n
         d = np.sqrt(a)
-        Mtheta = int(np.round(np.pi / d))
-        dtheta = np.pi / Mtheta
+        mtheta = int(np.round(np.pi / d))
+        dtheta = np.pi / mtheta
         dphi = a / dtheta
 
-        thetavals = np.pi * (np.arange(Mtheta) + 0.5) / Mtheta
+        thetavals = np.pi * (np.arange(mtheta) + 0.5) / mtheta
         thetavals = thetavals[(thetavals >= theta_range[0]) & (thetavals < theta_range[1])]
 
         for theta in thetavals:
-            Mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
-            phivals = 2 * np.pi * np.arange(Mphi) / Mphi
+            mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
+            phivals = 2 * np.pi * np.arange(mphi) / mphi
             phivals = phivals[(phivals >= phi_range[0]) & (phivals < phi_range[1])]
             for phi in phivals:
                 points.append(_sph2cart(theta, phi, radius))
@@ -1133,7 +1136,7 @@ class Surface(ComponentBase):
     @property
     def n_face(self) -> int:
         """
-        Total number of faces
+        Total number of faces.
         """
         return int(self.uxgrid.n_face)
 
@@ -1161,7 +1164,9 @@ class Surface(ComponentBase):
     @property
     def face_sizes(self) -> NDArray[np.float64]:
         """
-        The effective size of each face in meters. This is simply the square root of the face area, but is useful for certain comparisons and is equivalent to the `pix` variable from CTEM
+        The effective size of each face in meters.
+
+        This is simply the square root of the face area, but is useful for certain comparisons and is equivalent to the `pix` variable from CTEM
         """
         if self._face_sizes is None:
             self._compute_face_sizes()
@@ -1196,7 +1201,9 @@ class Surface(ComponentBase):
     @property
     def face_bin_indices(self) -> list[NDArray]:
         """
-        Faces are binned by their area. All faces within a factor of 2 in area are in the same bin. This property returns a list of face indices lists for each bin.
+        Faces binned based on their area.
+
+        All faces within a factor of 2 in area are in the same bin. This property returns a list of face indices lists for each bin.
         The keys are the bin indices, and the values are lists of face indices of faces within that bin.
 
         This is used when generating craters on surfaces with varying face sizes, so that the smallest crater is sized for the smallest face of a particular bin, rather than for the entire surface.
@@ -1340,7 +1347,7 @@ class Surface(ComponentBase):
     @property
     def n_node(self) -> int:
         """
-        Total number of nodes
+        Total number of nodes.
         """
         return int(self.uxgrid.n_node)
 
@@ -1551,7 +1558,7 @@ class LocalSurface:
         overwrite: bool = False,
     ) -> None:
         """
-        Adds new data
+        Adds new data to the surface.
 
         Parameters
         ----------
@@ -1574,10 +1581,7 @@ class LocalSurface:
         """
         # Check if the data is a scalar or an array
         if np.isscalar(data):
-            if isfacedata:
-                n = self.n_face
-            else:
-                n = self.n_node
+            n = self.n_face if isfacedata else self.n_node
             data = np.full(n, data)
         elif isinstance(data, list):
             data = np.array(data)
@@ -1628,6 +1632,12 @@ class LocalSurface:
         -----
         When passing combined data, the first part of the array will be used for face elevation and the second part for node elevation.
         """
+
+        def raise_invalid_elevation_error():
+            raise ValueError(
+                "new_elev must be None, a scalar, or an array with the same size as the number of nodes, faces, or nodes+faces"
+            )
+
         try:
             new_elevation = np.asarray(new_elevation)
 
@@ -1651,9 +1661,7 @@ class LocalSurface:
                     new_face_elev = new_elevation[: self.n_face]
                     new_node_elev = new_elevation[self.n_face :]
                 else:
-                    raise ValueError(
-                        "new_elev must be None, a scalar, or an array with the same size as the number of nodes, faces, or nodes+faces"
-                    )
+                    raise_invalid_elevation_error()
         except Exception as e:
             raise ValueError("new_elev must be None, a scalar, or an array") from e
 
@@ -1965,26 +1973,26 @@ class LocalSurface:
 
             # Find the point along the original vector that intersects the sphere
             f_vec = region_coords / self.surface.radius
-            A = f_vec[:, 0] ** 2 + f_vec[:, 1] ** 2 + f_vec[:, 2] ** 2
-            B = -2 * (
+            a = f_vec[:, 0] ** 2 + f_vec[:, 1] ** 2 + f_vec[:, 2] ** 2
+            b = -2 * (
                 f_vec[:, 0] * reference_sphere_center[0]
                 + f_vec[:, 1] * reference_sphere_center[1]
                 + f_vec[:, 2] * reference_sphere_center[2]
             )
-            C = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
-            sqrt_term = B**2 - 4 * A * C
-            valid = ~np.isnan(A) & (sqrt_term >= 0.0)
+            c = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
+            sqrt_term = b**2 - 4 * a * c
+            valid = ~np.isnan(a) & (sqrt_term >= 0.0)
 
             # Initialize t with default value
-            t = np.full_like(A, 1.0)
+            t = np.full_like(a, 1.0)
 
             # Calculate square root only for valid terms
             sqrt_valid_term = np.sqrt(np.where(valid, sqrt_term, 0))
 
             # Apply the formula only where valid
-            t = np.where(valid, (-B + sqrt_valid_term) / (2 * A), t)
+            t = np.where(valid, (-b + sqrt_valid_term) / (2 * a), t)
             if np.any(t[valid] < 0):
-                t = np.where(valid & (t < 0), (-B - sqrt_valid_term) / (2 * A), t)
+                t = np.where(valid & (t < 0), (-b - sqrt_valid_term) / (2 * a), t)
 
             elevations = self.surface.radius * (t * np.linalg.norm(f_vec, axis=1) - 1)
             return elevations
@@ -2020,7 +2028,7 @@ class LocalSurface:
 
     def compute_volume(self, elevation: NDArray) -> NDArray:
         """
-        Compute the volume of an array of elevation points
+        Compute the volume of an array of elevation points.
 
         Parameters
         ----------
