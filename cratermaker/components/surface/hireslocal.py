@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation
 
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.scaling import Scaling
@@ -156,7 +158,8 @@ class HiResLocalSurface(Surface):
 
     def superdomain_function(self, r):
         """
-        A function that defines the superdomain scale factor based on the distance from the local boundary.
+        Defines the superdomain scale factor based on the distance from the local boundary.
+
         This is set so that smallest craters that are modeled outside the local region are those whose ejecta could just reach the boundary.
         It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `_set_superdomain` method.
 
@@ -164,19 +167,40 @@ class HiResLocalSurface(Surface):
         ----------
         r : FloatLike
             The distance from the local center in meters.
+
         Returns
         -------
         FloatLike
             The effective pixel size at the given distance from the local center.
         """
-
         return np.where(
             r < self.local_radius,
             self.pix,
-            self.pix
-            + self.superdomain_function_slope
-            * (r - self.local_radius) ** self.superdomain_function_exponent,
+            self.pix + self.superdomain_function_slope * (r - self.local_radius) ** self.superdomain_function_exponent,
         )
+
+    def extract_region(self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike):
+        """
+        Extract a regional grid based on a given location and radius.
+
+        Parameters
+        ----------
+        location : tuple[float, float]
+            tuple containing the longitude and latitude of the location in degrees.
+        region_radius : float
+            The radius of the region to extract in meters.
+
+        Returns
+        -------
+        LocalSurface
+            A LocalSurface object containing a view of the regional grid.
+
+        """
+        local = super().extract_region(location=location, region_radius=region_radius)
+        if local is None:
+            return None
+
+        return LocalHiResLocalSurface(local)
 
     def _set_superdomain(
         self,
@@ -188,6 +212,7 @@ class HiResLocalSurface(Surface):
     ):
         """
         Set the superdomain scale factor based on the scaling and morphology models.
+
         This sets the cell size at the antipode such that ejecta from a crater of that size just reaches the local region.
 
         Parameters
@@ -247,26 +272,26 @@ class HiResLocalSurface(Surface):
             self._superdomain_function_exponent = 1.0
         self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
-        self._load_from_files(
-            reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs
-        )
+        self._load_from_files(reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs)
         return
 
     def _rotate_point_cloud(self, points):
         """
-        Rotate a point cloud so that the point at [0,0,1] moves to (lon,lat)
-        using the convention:
-        - Longitude [-180, 180] degrees, increasing eastward
-        - Latitude [-90, 90] degrees, increasing northward
-        - (0,0) lon/lat corresponds to [0,0,1] in Cartesian space
+        Rotate a point cloud so that the point at [0,0,1] moves to (lon,lat).
 
-        Parameters:
+        The following convention is used:
+            - Longitude [-180, 180] degrees, increasing eastward.
+            - Latitude [-90, 90] degrees, increasing northward.
+            - (0,0) lon/lat corresponds to [0,0,1] in Cartesian space.
+
+        Parameters
+        ----------
             points (np.ndarray): Nx3 array of (x,y,z) points.
 
-        Returns:
+        Returns
+        -------
             np.ndarray: Rotated Nx3 point cloud.
         """
-
         # Convert target lon, lat to radians
         lon_rad, lat_rad = (
             np.radians(self.local_location[0]),
@@ -295,7 +320,7 @@ class HiResLocalSurface(Surface):
         angle = np.arccos(np.clip(np.dot(original, target), -1.0, 1.0))
 
         rotvec = axis * angle
-        rotation = R.from_rotvec(rotvec)
+        rotation = Rotation.from_rotvec(rotvec)
         return rotation.apply(points)
 
     def _generate_face_distribution(self, **kwargs: Any) -> NDArray:
@@ -363,12 +388,8 @@ class HiResLocalSurface(Surface):
             return points.tolist(), theta_next
 
         print(f"Center of local region: {self.local_location}")
-        print(
-            f"Size of local region: {format_large_units(self.local_radius, quantity='length')}"
-        )
-        print(
-            f"Local region pixel size: {format_large_units(self.pix, quantity='length')}"
-        )
+        print(f"Size of local region: {format_large_units(self.local_radius, quantity='length')}")
+        print(f"Local region pixel size: {format_large_units(self.pix, quantity='length')}")
 
         interior_points = []
         theta = 0.0
@@ -388,9 +409,7 @@ class HiResLocalSurface(Surface):
         points = np.array(points, dtype=np.float64)
         points = np.round(points, decimals=decimals)
         points = np.unique(points, axis=0)
-        points = self._rotate_point_cloud(
-            points
-        ).T  # rotates from the north pole to local_location
+        points = self._rotate_point_cloud(points).T  # rotates from the north pole to local_location
 
         return points
 
@@ -413,7 +432,6 @@ class HiResLocalSurface(Surface):
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
-
         super()._save_to_files(
             combine_data_files=combine_data_files,
             interval_number=interval_number,
@@ -432,9 +450,7 @@ class HiResLocalSurface(Surface):
         Returns the local view of the surface.
         """
         if self._local is None:
-            self._local = self.extract_region(
-                location=self.local_location, region_radius=self.local_radius
-            )
+            self._local = self.extract_region(location=self.local_location, region_radius=self.local_radius)
         return self._local
 
     @parameter
@@ -446,12 +462,7 @@ class HiResLocalSurface(Surface):
 
     @pix.setter
     def pix(self, value: FloatLike):
-        if (
-            not isinstance(value, FloatLike)
-            or np.isnan(value)
-            or np.isinf(value)
-            or value <= 0
-        ):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
             raise TypeError("pix must be a positive float")
         self._pix = value
 
@@ -464,21 +475,12 @@ class HiResLocalSurface(Surface):
 
     @local_radius.setter
     def local_radius(self, value: FloatLike):
-        if (
-            not isinstance(value, FloatLike)
-            or np.isnan(value)
-            or np.isinf(value)
-            or value <= 0
-        ):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
             raise TypeError("local_radius must be a positive float")
         if value > np.pi * self.radius:
-            raise ValueError(
-                "local_radius must be less than pi * radius of the target body"
-            )
+            raise ValueError("local_radius must be less than pi * radius of the target body")
         if value < self.pix:
-            raise ValueError(
-                "local_radius must be greater than or equal to pix (the approximate face size in the local region"
-            )
+            raise ValueError("local_radius must be greater than or equal to pix (the approximate face size in the local region")
         self._local_radius = value
 
     @parameter
@@ -513,22 +515,16 @@ class HiResLocalSurface(Surface):
     @parameter
     def superdomain_scale_factor(self):
         """
-        A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters that are
-        modeled outside the local region are those whose ejecta could just reach the boundary.
+        A factor defining the ratio of cell size to the distance from the local boundary.
+
+        This is set so that smallest craters that are modeled outside the local region are those whose ejecta could just reach the boundary.
         """
         return self._superdomain_scale_factor
 
     @superdomain_scale_factor.setter
     def superdomain_scale_factor(self, value: FloatLike):
-        if (
-            not isinstance(value, FloatLike)
-            or np.isnan(value)
-            or np.isinf(value)
-            or value < 1.0
-        ):
-            raise TypeError(
-                "superdomain_scale_factor must be a positive float greater than or equal to 1"
-            )
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
+            raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
         self._superdomain_scale_factor = value
 
     @property
@@ -546,9 +542,9 @@ class HiResLocalSurface(Surface):
         ]
 
 
-class LocalHiresLocalSurface(LocalSurface):
+class LocalHiResLocalSurface(LocalSurface):
     """
-    This is used to generate a regional view of a subset of the surface mesh without making copies of any of the data.
+    Generates a regional view of a subset of the surface mesh without making copies of any of the data.
 
     Parameters
     ----------
@@ -566,13 +562,23 @@ class LocalHiresLocalSurface(LocalSurface):
 
     def __init__(
         self,
-        surface: Surface,
-        face_indices: NDArray | slice,
+        surface: Surface | LocalSurface,
+        face_indices: NDArray | slice | None = None,
         node_indices: NDArray | slice | None = None,
         location: tuple[float, float] | None = None,
         region_radius: FloatLike | None = None,
         **kwargs: Any,
     ):
+        if isinstance(surface, LocalSurface):
+            face_indices = surface.face_indices
+            node_indices = surface.node_indices
+            location = surface.location
+            region_radius = surface.region_radius
+            surface = surface.surface
+
+        object.__setattr__(self, "_local_overlap", None)
+        object.__setattr__(self, "_face_mask", None)
+        object.__setattr__(self, "_node_mask", None)
         super().__init__(
             surface=surface,
             face_indices=face_indices,
@@ -581,5 +587,74 @@ class LocalHiresLocalSurface(LocalSurface):
             region_radius=region_radius,
             **kwargs,
         )
-
         return
+
+    def apply_diffusion(self, kdiff: FloatLike | NDArray) -> None:
+        """
+        Apply diffusion to the surface.
+
+        Parameters
+        ----------
+        kdiff : float or array-like
+            The degradation state of the surface, which is the product of diffusivity and time. It can be a scalar or an array of the same size as the number of faces in the grid.
+            If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
+            The value of kdiff must be greater than 0.0.
+
+        """
+        if self.local_overlap:
+            self.local_overlap.apply_diffusion(kdiff[self.face_mask])
+            return
+
+    @property
+    def local_overlap(self) -> LocalHiResLocalSurface | None:
+        """
+        Returns a LocalHiResLocalSurface object that contains the overlap between this object and the high resolution local region of the surface. Returns None if there is no overlap.
+        """
+        if self._local_overlap is None:
+            if self._surface._local is None:
+                return None
+
+            self._node_mask = np.isin(self._node_indices, self._surface._local._node_indices, kind="table")
+            if not np.any(self._node_mask):
+                return None
+            shared_nodes = self._node_indices[self._node_mask]
+            if len(shared_nodes) == self._n_node:
+                # If all nodes are shared, then we can assume all faces are also shared.
+                shared_faces = self._face_indices
+                self._face_mask = np.full(self.n_face, True, dtype=bool)
+            else:
+                self._face_mask = np.isin(self._face_indices, self._surface._local._face_indices, kind="table")
+                if not np.any(self._face_mask):
+                    return None
+                shared_faces = self._face_indices[self._face_mask]
+
+            self._local_overlap = LocalSurface(
+                surface=self._surface,
+                face_indices=shared_faces,
+                node_indices=shared_nodes,
+                region_radius=self._region_radius,
+            )
+            self._local_overlap._location = self._location
+            self._local_overlap._face_distance = self._face_distance[self._face_mask]
+            self._local_overlap._face_bearing = self._face_bearing[self._face_mask]
+            self._local_overlap._node_distance = self._node_distance[self._node_mask]
+            self._local_overlap._node_bearing = self._node_bearing[self._node_mask]
+        return self._local_overlap
+
+    @property
+    def face_mask(self) -> NDArray[np.bool] | None:
+        """
+        A boolean indicating which face indices overlap with the local region.
+        """
+        if self._face_mask is None:
+            _ = self.local_overlap
+        return self._face_mask
+
+    @property
+    def node_mask(self) -> NDArray[np.bool] | None:
+        """
+        A boolean indicating which node indices overlap with the local region.
+        """
+        if self._node_mask is None:
+            _ = self.local_overlap
+        return self._node_mask

@@ -38,11 +38,11 @@ def get_random_location(
         The state of the random number generator. If None, a new state is created.
     **kwargs : Any
         Additional keyword arguments.
+
     Returns
     -------
     A structured numpy array with the location data in the format [('lon', 'f8'), ('lat', 'f8')].
     """
-
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     u = rng.uniform(size=size)
@@ -53,9 +53,7 @@ def get_random_location(
     phi = np.arccos(2 * v - 1)
 
     # Convert to lon/lat
-    lon = np.rad2deg(
-        theta - np.pi
-    )  # Use the convention that longitude is in the range [-180, 180]
+    lon = np.rad2deg(theta - np.pi)  # Use the convention that longitude is in the range [-180, 180]
     lat = np.rad2deg(phi - np.pi / 2.0)
 
     lonlat_arr = np.empty(size, dtype=[("lon", "f8"), ("lat", "f8")])
@@ -153,9 +151,7 @@ def get_random_location_on_face(
     node_indices = node_indices.values
     rng_vals = rng.random((size, 3))
     for i in range(size):
-        p = _get_one_random_location(
-            node_indices[i], node_x, node_y, node_z, rng_vals=rng_vals[i, :]
-        )
+        p = _get_one_random_location(node_indices[i], node_x, node_y, node_z, rng_vals=rng_vals[i, :])
         lon, lat = coordinates._xyz_to_lonlat_deg(*p)
         locations["lon"][i] = np.float64(lon)
         locations["lat"][i] = np.float64(lat)
@@ -189,11 +185,10 @@ def get_random_impact_angle(
         Additional keyword arguments.
 
     Returns
-    ----------
+    -------
     ndarray of np.float64
         An array of impact angles (in degrees).
     """
-
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     u = np.sqrt(rng.uniform(size=size))
@@ -281,12 +276,11 @@ def get_random_size(
 
     Examples
     --------
-    >>> diameters = np.array([100.,  56.,  32.,  18.,  10.])
-    >>> ncumul = np.array([1.  , 0.51, 0.21, 0.06, 0.01])
+    >>> diameters = np.array([100.0, 56.0, 32.0, 18.0, 10.0])
+    >>> ncumul = np.array([1.0, 0.51, 0.21, 0.06, 0.01])
     >>> sample_from_sfd(diameters, cdf=ncumul, size=4)
     array([14.80803668, 44.95292261, 29.80797715, 23.11082091])
     """
-
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     # Check that the shapes and sizes of diameters and cdf are compatible
@@ -295,13 +289,9 @@ def get_random_size(
     if diameters.ndim != 1:
         raise ValueError("The 'diameters' argument must be a 1-dimensional array")
     if diameters.size != cdf.shape[0]:
-        raise ValueError(
-            "The 'diameters' array must have the same size as axis 0 of 'cdf'"
-        )
+        raise ValueError("The 'diameters' array must have the same size as axis 0 of 'cdf'")
     if diameters.size < 2:
-        raise ValueError(
-            "The 'diameters' and 'cdf' arguments must have at least two elements"
-        )
+        raise ValueError("The 'diameters' and 'cdf' arguments must have at least two elements")
     if np.any(diameters <= 0.0):
         raise ValueError("All values in the 'diameters' argument must be positive")
     if np.any(cdf <= 0.0):
@@ -321,9 +311,7 @@ def get_random_size(
     # Check to make sure that the CDF is correctly specified so that as diameter is decreasing it is monotonically increasing
     is_monotonic_increasing = np.all(np.diff(sorted_cdf) >= 0)
     if not is_monotonic_increasing:
-        raise ValueError(
-            "The CDF must be monotonically increasing with decreasing diameter."
-        )
+        raise ValueError("The CDF must be monotonically increasing with decreasing diameter.")
 
     # Normalize the cdf and put it in logspace
     sorted_cdf /= sorted_cdf[-1]
@@ -397,11 +385,10 @@ def get_random_velocity(
         Additional keyword arguments.
 
     Returns
-    ----------
+    -------
     ndarray
         An array of impact velocities (in m/s).
     """
-
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     if vescape is not None:
@@ -413,9 +400,7 @@ def get_random_velocity(
             velocities = np.full(size, 2 * vescape)
             while True:
                 nbad = np.sum(velocities > vescape)
-                velocities[velocities > vescape] = get_random_velocity(
-                    vmean, rng=rng, size=nbad
-                )
+                velocities[velocities > vescape] = get_random_velocity(vmean, rng=rng, size=nbad)
                 if np.all(velocities < vescape):
                     return velocities
 
@@ -458,7 +443,7 @@ def bounded_norm(
     **kwargs : Any
 
     Returns
-    ----------
+    -------
     float
        Truncated norm bounded by loc-scale, loc+scale
     """

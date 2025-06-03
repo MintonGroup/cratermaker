@@ -133,11 +133,7 @@ class Surface(ComponentBase):
         except Exception:
             pass
         try:
-            if (
-                hasattr(self, "_grid")
-                and hasattr(self._grid, "uxgrid")
-                and hasattr(self._grid.uxgrid, "_ds")
-            ):
+            if hasattr(self, "_grid") and hasattr(self._grid, "uxgrid") and hasattr(self._grid.uxgrid, "_ds"):
                 self._grid.uxgrid._ds.close()
         except Exception:
             pass
@@ -175,7 +171,6 @@ class Surface(ComponentBase):
         Surface
             An initialized Surface object.
         """
-
         if surface is None:
             surface = "icosphere"
 
@@ -193,7 +188,6 @@ class Surface(ComponentBase):
         """
         Reset the surface to its initial state.
         """
-
         # Remove all old data from the dataset
         varlist = list(self.uxds.data_vars)
         for name in varlist:
@@ -211,9 +205,7 @@ class Surface(ComponentBase):
 
         return
 
-    def extract_region(
-        self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike
-    ):
+    def extract_region(self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike):
         """
         Extract a regional grid based on a given location and radius.
 
@@ -230,7 +222,6 @@ class Surface(ComponentBase):
             A LocalSurface object containing a view of the regional grid.
 
         """
-
         region_angle = np.rad2deg(region_radius / self.radius)
         if len(location) == 1:
             location = location.item()
@@ -311,10 +302,7 @@ class Surface(ComponentBase):
         -----
         When passing combined data, the first part of the array will be used for face elevation and the second part for node elevation.
         """
-
-        return self._full().update_elevation(
-            new_elevation=new_elevation, overwrite=overwrite, **kwargs
-        )
+        return self._full().update_elevation(new_elevation=new_elevation, overwrite=overwrite, **kwargs)
 
     def apply_diffusion(self, kdiff: FloatLike | NDArray) -> None:
         """
@@ -362,14 +350,9 @@ class Surface(ComponentBase):
         kwargs : Any
             Additional arguments to pass to the noise model.
         """
+        return self._full().apply_noise(model=model, noise_width=noise_width, noise_height=noise_height, **kwargs)
 
-        return self._full().apply_noise(
-            model=model, noise_width=noise_width, noise_height=noise_height, **kwargs
-        )
-
-    def calculate_face_and_node_distances(
-        self, location: tuple[float, float]
-    ) -> tuple[NDArray, NDArray]:
+    def calculate_face_and_node_distances(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
         Computes the distances from a given location to all faces and nodes.
 
@@ -387,9 +370,7 @@ class Surface(ComponentBase):
         """
         return self._full().calculate_face_and_node_distances(location)
 
-    def calculate_face_and_node_bearings(
-        self, location: tuple[float, float]
-    ) -> tuple[NDArray, NDArray]:
+    def calculate_face_and_node_bearings(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
         Computes the initial bearing from a given location to all faces and nodes.
 
@@ -434,7 +415,6 @@ class Surface(ComponentBase):
         -----
         The method uses the ball tree query method that is included in the UxArray.Grid class.
         """
-
         if len(location) == 1:
             location = location.item()
         coords = np.asarray(location)
@@ -499,9 +479,7 @@ class Surface(ComponentBase):
         """
         return LocalSurface.elevation_to_cartesian(position, elevation)
 
-    def get_random_location_on_face(
-        self, face_index: int, **kwargs
-    ) -> float | tuple[float, float] | ArrayLike:
+    def get_random_location_on_face(self, face_index: int, **kwargs) -> float | tuple[float, float] | ArrayLike:
         """
         Generate a random coordinate within a given face of an ungridtyped mesh.
 
@@ -524,10 +502,7 @@ class Surface(ComponentBase):
         -----
         This method is a wrapper for :func:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`.
         """
-
-        return get_random_location_on_face(
-            self.uxgrid, face_index, rng=self.rng, **kwargs
-        )
+        return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
 
     def _calculate_distance(
         self,
@@ -573,9 +548,7 @@ class Surface(ComponentBase):
         if np.isscalar(lat2):
             lat2 = np.array([lat2])
 
-        return surface_functions.calculate_distance(
-            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2, radius=self.radius
-        )
+        return surface_functions.calculate_distance(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2, radius=self.radius)
 
     @staticmethod
     def _calculate_bearing(
@@ -603,10 +576,7 @@ class Surface(ComponentBase):
         NDArray
             Initial bearing from the first point to the second point or points in radians.
         """
-
-        return LocalSurface._calculate_bearing(
-            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2
-        )
+        return LocalSurface._calculate_bearing(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2)
 
     def _load_from_files(self, reset: bool = False, **kwargs: Any) -> None:
         """
@@ -619,7 +589,6 @@ class Surface(ComponentBase):
         reset : bool, optional
             Flag to indicate whether to reset the surface. Default is False.
         """
-
         # Get the names of all data files in the data directory that are not the grid file
         regrid = self._regrid_if_needed(**kwargs)
         reset = reset or regrid
@@ -643,9 +612,7 @@ class Surface(ComponentBase):
                 if reset:  # Create an empty dataset
                     self._uxds = uxr.UxDataset()
                 else:  # Read data from from existing datafiles
-                    with uxr.open_mfdataset(
-                        uxgrid, data_file_list, use_dual=False
-                    ) as ds:
+                    with uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False) as ds:
                         self._uxds = ds.isel(time=-1).load()
                 self._uxds.uxgrid = uxr.Grid.from_dataset(uxgrid)
                 self._uxgrid = uxgrid
@@ -688,13 +655,9 @@ class Surface(ComponentBase):
 
         self.uxds.close()
 
-        ds = self.uxds.expand_dims(dim="time").assign_coords(
-            {"time": [interval_number]}
-        )
+        ds = self.uxds.expand_dims(dim="time").assign_coords({"time": [interval_number]})
         for k, v in time_variables.items():
-            ds[k] = xr.DataArray(
-                data=[v], name=k, dims=["time"], coords={"time": [interval_number]}
-            )
+            ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time": [interval_number]})
 
         drop_vars = [k for k in ds.data_vars if k in do_not_save]
         if len(drop_vars) > 0:
@@ -713,9 +676,7 @@ class Surface(ComponentBase):
         points = self._generate_face_distribution(**kwargs)
 
         threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-6)
-        uxgrid = uxr.Grid.from_points(
-            points, method="spherical_voronoi", threshold=threshold
-        )
+        uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
         uxgrid.attrs["_id"] = self._id
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             uxgrid.to_xarray().to_netcdf(temp_file.name)
@@ -750,7 +711,6 @@ class Surface(ComponentBase):
         bool
             A boolean indicating whether the grid should be regenerated.
         """
-
         # Find out if the file exists, if it does't we'll need to make a new grid
         self.data_dir.mkdir(parents=True, exist_ok=True)
         regrid = regrid or not Path(self.grid_file).exists()
@@ -815,9 +775,7 @@ class Surface(ComponentBase):
             if combine_data_files:
                 filename = _COMBINED_DATA_FILE_NAME
             else:
-                filename = _COMBINED_DATA_FILE_NAME.replace(
-                    ".nc", f"{interval_number:06d}.nc"
-                )
+                filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
 
             data_file = self.data_dir / filename
             if data_file.exists():
@@ -830,7 +788,7 @@ class Surface(ComponentBase):
             temp_file = Path(temp_dir) / filename
 
             comp = dict(zlib=True, complevel=9)
-            encoding = {var: comp for var in ds_file.data_vars}
+            encoding = dict.fromkeys(ds_file.data_vars, comp)
             ds_file.to_netcdf(temp_file, encoding=encoding)
             ds_file.close()
             shutil.move(temp_file, data_file)
@@ -899,9 +857,7 @@ class Surface(ComponentBase):
             data = np.full(size, data)
         else:
             if data.size != size:
-                raise ValueError(
-                    "data must have the same size as the number of faces or nodes in the grid"
-                )
+                raise ValueError("data must have the same size as the number of faces or nodes in the grid")
         uxda = UxDataArray(
             data=data,
             dims=dims,
@@ -981,9 +937,7 @@ class Surface(ComponentBase):
         dphi = a / dtheta
 
         thetavals = np.pi * (np.arange(Mtheta) + 0.5) / Mtheta
-        thetavals = thetavals[
-            (thetavals >= theta_range[0]) & (thetavals < theta_range[1])
-        ]
+        thetavals = thetavals[(thetavals >= theta_range[0]) & (thetavals < theta_range[1])]
 
         for theta in thetavals:
             Mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
@@ -1000,9 +954,7 @@ class Surface(ComponentBase):
         return points
 
     @abstractmethod
-    def _generate_face_distribution(
-        self, **kwargs: Any
-    ) -> tuple[NDArray, NDArray, NDArray]: ...
+    def _generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray, NDArray, NDArray]: ...
 
     def _compute_face_sizes(self, uxgrid: UxDataset | None = None) -> None:
         """
@@ -1219,7 +1171,6 @@ class Surface(ComponentBase):
         """
         Compute the face bins based on the face areas. This is used to bin faces by their area for crater generation.
         """
-
         min_area = self.face_areas.min()
         max_area = self.face_areas.max()
         max_bin_index = np.ceil(np.log2(max_area / min_area)).astype(int)
@@ -1229,23 +1180,16 @@ class Surface(ComponentBase):
             bin_index = np.floor(np.log2(area / min_area)).astype(int)
             bins[bin_index].append(face_index)
 
-        self._face_bin_indices = [
-            np.array(bins[i]) for i in range(max_bin_index) if len(bins[i]) > 0
-        ]
+        self._face_bin_indices = [np.array(bins[i]) for i in range(max_bin_index) if len(bins[i]) > 0]
 
-        self._face_bin_areas = [
-            np.sum(self.face_areas[face_indices])
-            for face_indices in self.face_bin_indices
-        ]
+        self._face_bin_areas = [np.sum(self.face_areas[face_indices]) for face_indices in self.face_bin_indices]
 
         self._face_bin_argmin = [
-            int(face_indices[np.argmin(self.face_areas[face_indices])])
-            for face_indices in self._face_bin_indices
+            int(face_indices[np.argmin(self.face_areas[face_indices])]) for face_indices in self._face_bin_indices
         ]
 
         self._face_bin_argmax = [
-            int(face_indices[np.argmax(self.face_areas[face_indices])])
-            for face_indices in self._face_bin_indices
+            int(face_indices[np.argmax(self.face_areas[face_indices])]) for face_indices in self._face_bin_indices
         ]
         return
 
@@ -1257,7 +1201,6 @@ class Surface(ComponentBase):
 
         This is used when generating craters on surfaces with varying face sizes, so that the smallest crater is sized for the smallest face of a particular bin, rather than for the entire surface.
         """
-
         if self._face_bin_indices is None:
             self._compute_face_bins()
 
@@ -1301,9 +1244,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
-        return [
-            float(self.face_areas[face_index]) for face_index in self.face_bin_argmin
-        ]
+        return [float(self.face_areas[face_index]) for face_index in self.face_bin_argmin]
 
     @property
     def face_bin_max_areas(self) -> list[float]:
@@ -1313,9 +1254,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
-        return [
-            float(self.face_areas[face_index]) for face_index in self.face_bin_argmax
-        ]
+        return [float(self.face_areas[face_index]) for face_index in self.face_bin_argmax]
 
     @property
     def face_bin_min_sizes(self) -> list[float]:
@@ -1325,9 +1264,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
-        return [
-            float(self.face_sizes[face_index]) for face_index in self.face_bin_argmin
-        ]
+        return [float(self.face_sizes[face_index]) for face_index in self.face_bin_argmin]
 
     @property
     def face_bin_max_sizes(self) -> list[float]:
@@ -1337,9 +1274,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
-        return [
-            float(self.face_sizes[face_index]) for face_index in self.face_bin_argmax
-        ]
+        return [float(self.face_sizes[face_index]) for face_index in self.face_bin_argmax]
 
     @property
     def face_lat(self) -> NDArray[np.float64]:
@@ -1487,9 +1422,7 @@ class Surface(ComponentBase):
         """
         value = np.asarray(value, dtype=np.float64)
         if value.size != self.n_node:
-            raise ValueError(
-                f"Value must have size {self.n_node}, got {value.size} instead."
-            )
+            raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
         self.uxds["node_elevation"][:] = value
         return
 
@@ -1512,9 +1445,7 @@ class Surface(ComponentBase):
         """
         value = np.asarray(value, dtype=np.float64)
         if value.size != self.n_face:
-            raise ValueError(
-                f"Value must have size {self.n_face}, got {value.size} instead."
-            )
+            raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
         self.uxds["face_elevation"][:] = value
         return
 
@@ -1535,7 +1466,7 @@ class Surface(ComponentBase):
 
 class LocalSurface:
     """
-    This is used to generate a regional view of a subset of the surface mesh without making copies of any of the data.
+    Generates a regional view of a subset of the surface mesh without making copies of any of the data.
 
     Parameters
     ----------
@@ -1582,9 +1513,7 @@ class LocalSurface:
             self._n_face = face_indices.size
 
         if node_indices is None:
-            node_indices = np.unique(
-                surface.uxds.uxgrid.face_node_connectivity.values[face_indices].ravel()
-            )
+            node_indices = np.unique(surface.uxds.uxgrid.face_node_connectivity.values[face_indices].ravel())
             node_indices = node_indices[node_indices != INT_FILL_VALUE]
 
         self._node_indices = node_indices
@@ -1595,12 +1524,8 @@ class LocalSurface:
 
         if location is not None:
             self._location = validate_and_normalize_location(location)
-            self._face_distance, self._node_distance = (
-                self.calculate_face_and_node_distances()
-            )
-            self._face_bearing, self._node_bearing = (
-                self.calculate_face_and_node_bearings()
-            )
+            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
+            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
         return
 
     def __str__(self) -> str:
@@ -1647,7 +1572,6 @@ class LocalSurface:
         -------
         None
         """
-
         # Check if the data is a scalar or an array
         if np.isscalar(data):
             if isfacedata:
@@ -1668,14 +1592,10 @@ class LocalSurface:
             indices = self.node_indices
             dim_name = "n_node"
         else:
-            raise ValueError(
-                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
-            )
+            raise ValueError("data must be a scalar or an array with the same size as the number of faces or nodes in the grid")
 
         if name not in self.surface.uxds.data_vars:
-            self.surface._add_new_data(
-                name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata
-            )
+            self.surface._add_new_data(name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata)
 
         # This prevents concurrent writes to the same data variable when used in
         with surface_lock:
@@ -1738,13 +1658,9 @@ class LocalSurface:
             raise ValueError("new_elev must be None, a scalar, or an array") from e
 
         if update_face:
-            self.add_data(
-                name="face_elevation", data=new_face_elev, overwrite=overwrite
-            )
+            self.add_data(name="face_elevation", data=new_face_elev, overwrite=overwrite)
         if update_node:
-            self.add_data(
-                name="node_elevation", data=new_node_elev, overwrite=overwrite
-            )
+            self.add_data(name="node_elevation", data=new_node_elev, overwrite=overwrite)
 
         return
 
@@ -1763,9 +1679,7 @@ class LocalSurface:
         if np.isscalar(kdiff):
             kdiff = np.full(self.n_face, kdiff)
         elif kdiff.size != self.n_face:
-            raise ValueError(
-                "kdiff must be a scalar or an array with the same size as the number of faces in the grid"
-            )
+            raise ValueError("kdiff must be a scalar or an array with the same size as the number of faces in the grid")
         if np.any(kdiff < 0.0):
             raise ValueError("kdiff must be greater than 0.0")
         kdiffmax = np.max(kdiff)
@@ -1803,9 +1717,7 @@ class LocalSurface:
         try:
             critical_slope = np.tan(np.deg2rad(critical_slope_angle))
         except ValueError as e:
-            raise ValueError(
-                "critical_slope_angle must be between 0 and 90 degrees"
-            ) from e
+            raise ValueError("critical_slope_angle must be between 0 and 90 degrees") from e
 
         if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
             face_indices = np.arange(self.surface.n_face)
@@ -1907,13 +1819,11 @@ class LocalSurface:
         node_lat2 = np.deg2rad(self.node_lat)
         face_lon2 = np.deg2rad(self.face_lon)
         face_lat2 = np.deg2rad(self.face_lat)
-        return self._calculate_distance(
-            lon1, lat1, face_lon2, face_lat2
-        ), self._calculate_distance(lon1, lat1, node_lon2, node_lat2)
+        return self._calculate_distance(lon1, lat1, face_lon2, face_lat2), self._calculate_distance(
+            lon1, lat1, node_lon2, node_lat2
+        )
 
-    def calculate_face_and_node_bearings(
-        self, location: tuple[float, float] | None = None
-    ) -> tuple[NDArray, NDArray]:
+    def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
         Computes the initial bearing between nodes and faces and a given location.
 
@@ -1990,9 +1900,7 @@ class LocalSurface:
 
         return position + elevation[:, np.newaxis] * runit
 
-    def get_reference_surface(
-        self, reference_radius: float, **kwargs: Any
-    ) -> NDArray[np.float64]:
+    def get_reference_surface(self, reference_radius: float, **kwargs: Any) -> NDArray[np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
 
@@ -2063,10 +1971,7 @@ class LocalSurface:
                 + f_vec[:, 1] * reference_sphere_center[1]
                 + f_vec[:, 2] * reference_sphere_center[2]
             )
-            C = (
-                np.dot(reference_sphere_center, reference_sphere_center)
-                - reference_sphere_radius**2
-            )
+            C = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
             sqrt_term = B**2 - 4 * A * C
             valid = ~np.isnan(A) & (sqrt_term >= 0.0)
 
@@ -2087,9 +1992,7 @@ class LocalSurface:
         # Find cells within the crater radius
         faces_within_region = self.face_distance <= reference_radius
         nodes_within_region = self.node_distance <= reference_radius
-        points_within_region = np.concatenate(
-            [faces_within_region, nodes_within_region]
-        )
+        points_within_region = np.concatenate([faces_within_region, nodes_within_region])
 
         elevation = np.concatenate([self.face_elevation, self.node_elevation])
 
@@ -2111,9 +2014,7 @@ class LocalSurface:
         region_elevation = elevation[points_within_region] / self.surface.radius
 
         reference_elevation = elevation
-        reference_elevation[points_within_region] = _find_reference_elevations(
-            region_coords, region_elevation
-        )
+        reference_elevation[points_within_region] = _find_reference_elevations(region_coords, region_elevation)
 
         return reference_elevation
 
@@ -2132,9 +2033,7 @@ class LocalSurface:
             The volume of the elevation points
         """
         if elevation.size != self.n_face:
-            raise ValueError(
-                "elevation must be an array with the same size as the number of faces in the grid"
-            )
+            raise ValueError("elevation must be an array with the same size as the number of faces in the grid")
         return np.sum(elevation * self.face_areas)
 
     def _calculate_distance(
