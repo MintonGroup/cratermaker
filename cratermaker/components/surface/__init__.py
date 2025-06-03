@@ -689,7 +689,7 @@ class Surface(ComponentBase):
         self._uxgrid = uxgrid
 
         regrid = self._regrid_if_needed(**kwargs)
-        if not regrid:
+        if regrid:
             raise ValueError("Grid file does not match the expected parameters.")
         self._compute_face_sizes(uxgrid)
 
