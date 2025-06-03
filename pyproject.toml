@@ -81,10 +81,8 @@ include = ["cratermaker/_version.py", "cratermaker/**/*.py", "pyproject.toml", "
 features = ["pyo3/extension-module"]
 module-name = "cratermaker._cratermaker"
 
-
-
 [tool.ruff]
-target-version = 'py39'
+target-version = 'py310'
 
 exclude = [
     "migrations",
