@@ -50,15 +50,11 @@ class CratermakerBase:
         self.simdir = simdir
 
         self._rng_seed = rng_seed
-        self.rng, self.rng_state = _rng_init(
-            rng=rng, rng_seed=rng_seed, rng_state=rng_state
-        )
+        self.rng, self.rng_state = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state)
 
         super().__init__()
 
-    def to_config(
-        self, remove_common_args: bool = False, **kwargs: Any
-    ) -> dict[str, Any]:
+    def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
         """
         Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file.
 
@@ -75,6 +71,7 @@ class CratermakerBase:
         -------
         dict[str, Any]
             A dictionary of the object's attributes that can be serialized to YAML.
+
         Notes
         -----
         - The function will ignore any attributes that are not serializable to human-readable YAML. Therefore, it will ignore anything that cannot be converted into a str, int, float, or bool.
@@ -113,12 +110,7 @@ class CratermakerBase:
     @rng_seed.setter
     def rng_seed(self, value):
         if value is not None:
-            if (
-                not isinstance(value, int)
-                or np.isnan(value)
-                or np.isinf(value)
-                or value < 0
-            ):
+            if not isinstance(value, int) or np.isnan(value) or np.isinf(value) or value < 0:
                 raise TypeError("rng_seed must be a positive integer")
             self._rng_seed = int(value)
         else:
@@ -138,9 +130,7 @@ class CratermakerBase:
 
     @rng.setter
     def rng(self, value):
-        self._rng, _ = _rng_init(
-            rng=value, rng_seed=self.rng_seed, rng_state=self.rng_state
-        )
+        self._rng, _ = _rng_init(rng=value, rng_seed=self.rng_seed, rng_state=self.rng_state)
 
     @parameter
     def rng_state(self):
@@ -156,9 +146,7 @@ class CratermakerBase:
 
     @rng_state.setter
     def rng_state(self, value):
-        _, self._rng_state = _rng_init(
-            rng=self.rng, rng_seed=self.rng_seed, rng_state=value
-        )
+        _, self._rng_state = _rng_init(rng=self.rng, rng_seed=self.rng_seed, rng_state=value)
 
     @property
     def common_args(self) -> CommonArgs:
@@ -172,13 +160,7 @@ class CratermakerBase:
 
 def _rng_init(
     rng: Generator | None = None,
-    rng_seed: int
-    | ArrayLike
-    | SeedSequence
-    | BitGenerator
-    | Generator
-    | RandomState
-    | None = None,
+    rng_seed: int | ArrayLike | SeedSequence | BitGenerator | Generator | RandomState | None = None,
     rng_state: dict | None = None,
     **kwargs: Any,
 ) -> tuple[Generator, dict]:
@@ -244,7 +226,6 @@ def _simdir_init(simdir: str | Path | None = None, **kwargs: Any) -> Path:
     Path
         The initialized simulation directory as a Path object. Will be a relative path if possible, otherwise will be absolute.
     """
-
     if simdir is None:
         p = Path.cwd()
     else:
@@ -254,8 +235,8 @@ def _simdir_init(simdir: str | Path | None = None, **kwargs: Any) -> Path:
                 p = Path.cwd() / p
             p.mkdir(parents=True, exist_ok=True)
             p = p.resolve()
-        except TypeError:
-            raise TypeError("simdir must be a path-like object (str, Path, or None)")
+        except TypeError as e:
+            raise TypeError("simdir must be a path-like object (str, Path, or None)") from e
     try:
         simdir = p.relative_to(Path.cwd())
     except ValueError:
@@ -285,13 +266,7 @@ def _convert_for_yaml(obj):
 
 
 def _to_config(obj, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
-    config = _convert_for_yaml(
-        {name: getattr(obj, name) for name in obj._user_defined if hasattr(obj, name)}
-    )
+    config = _convert_for_yaml({name: getattr(obj, name) for name in obj._user_defined if hasattr(obj, name)})
     if remove_common_args:
-        config = {
-            key: value
-            for key, value in config.items()
-            if key not in obj.common_args.__dict__
-        }
+        config = {key: value for key, value in config.items() if key not in obj.common_args.__dict__}
     return {key: value for key, value in config.items() if value is not None}

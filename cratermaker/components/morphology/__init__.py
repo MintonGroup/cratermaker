@@ -16,7 +16,7 @@ from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:
-    from cratermaker.components.surface import Surface, SurfaceView
+    from cratermaker.components.surface import LocalSurface, Surface
 
 
 class Morphology(ComponentBase):
@@ -91,7 +91,6 @@ class Morphology(ComponentBase):
         TypeError
             If the specified morphology model is not a string or a subclass of Morphology.
         """
-
         # Call the base class version of make and pass the morphology argument as the component argument
         if morphology is None:
             morphology = "simplemoon"
@@ -128,7 +127,7 @@ class Morphology(ComponentBase):
 
     def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """
-        This method forms the interior of the crater by altering the elevation variable of the surface mesh.
+        Form the interior of the crater by altering the elevation variable of the surface mesh.
 
         Parameters
         ----------
@@ -141,52 +140,38 @@ class Morphology(ComponentBase):
         -------
         None
         """
-
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
         # Find the node and face center of the crater
-        self.face_index, self.node_index = self.surface.find_nearest_index(
-            crater.location
-        )
+        self.face_index, self.node_index = self.surface.find_nearest_index(crater.location)
 
         # Test if the ejecta is big enough to modify the surface
 
-        ejecta_rmax = self.rmax(
-            crater, minimum_thickness=self.surface.smallest_length, feature="ejecta"
-        )
-        ejecta_region_view = self.surface.extract_region(crater.location, ejecta_rmax)
+        ejecta_rmax = self.rmax(crater, minimum_thickness=self.surface.smallest_length, feature="ejecta")
+        ejecta_region = self.surface.extract_region(crater.location, ejecta_rmax)
         ejecta_area = pi * ejecta_rmax**2
         if (
-            ejecta_region_view is None
-            or ejecta_area < self.surface.face_areas[self.face_index]
+            ejecta_region is None or ejecta_area < self.surface.face_areas[self.face_index]
         ):  # The crater is too small to change the surface
             return
 
-        crater_rmax = self.rmax(
-            crater, minimum_thickness=self.surface.smallest_length, feature="crater"
-        )
-        crater_region_view = self.surface.extract_region(crater.location, crater_rmax)
+        crater_rmax = self.rmax(crater, minimum_thickness=self.surface.smallest_length, feature="crater")
+        crater_region = self.surface.extract_region(crater.location, crater_rmax)
         crater_volume = None
-        if (
-            crater_region_view is not None
-        ):  # The crater is big enough to affect the surface
+        if crater_region is not None:  # The crater is big enough to affect the surface
             crater_area = pi * crater_rmax**2
 
             # Check to make sure that the face at the crater location is not smaller than the crater area
             if crater_area > self.surface.face_areas[self.face_index]:
                 # Form the crater shape
-                elevation_change = self.crater_shape(crater, crater_region_view)
-                crater_region_view.update_elevation(elevation_change)
-                crater_region_view.slope_collapse()
-                crater_volume = crater_region_view.compute_volume(
-                    elevation_change[: crater_region_view.n_face]
-                )
+                elevation_change = self.crater_shape(crater, crater_region)
+                crater_region.update_elevation(elevation_change)
+                crater_region.slope_collapse()
+                crater_volume = crater_region.compute_volume(elevation_change[: crater_region.n_face])
 
                 # Remove any ejecta from the surface
-                inner_crater_region = self.surface.extract_region(
-                    crater.location, crater.final_radius
-                )
+                inner_crater_region = self.surface.extract_region(crater.location, crater.final_radius)
                 if inner_crater_region is not None:
                     inner_crater_region.add_data(
                         "ejecta_thickness",
@@ -197,36 +182,27 @@ class Morphology(ComponentBase):
                     )
 
         # Now form the ejecta blanket
-        ejecta_thickness, ejecta_intensity = self.ejecta_shape(
-            crater, ejecta_region_view
-        )
+        ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, ejecta_region)
 
         if crater_volume:
-            ejecta_volume = ejecta_region_view.compute_volume(
-                ejecta_thickness[: ejecta_region_view.n_face]
-            )
+            ejecta_volume = ejecta_region.compute_volume(ejecta_thickness[: ejecta_region.n_face])
             conservation_factor = -crater_volume / ejecta_volume
             ejecta_thickness *= conservation_factor
 
-        ejecta_region_view.add_data(
+        ejecta_region.add_data(
             "ejecta_thickness",
             long_name="ejecta thickness",
             units="m",
-            data=ejecta_thickness[: ejecta_region_view.n_face],
+            data=ejecta_thickness[: ejecta_region.n_face],
         )
 
-        ejecta_region_view.update_elevation(ejecta_thickness)
+        ejecta_region.update_elevation(ejecta_thickness)
 
-        K_ej = self.ejecta_burial_K(
-            ejecta_thickness[: ejecta_region_view.n_face], ejecta_soften_factor=1.50
-        )
-        ejecta_region_view.apply_diffusion(K_ej)
+        K_ej = self.ejecta_burial_K(ejecta_thickness[: ejecta_region.n_face], ejecta_soften_factor=1.50)
+        ejecta_region.apply_diffusion(K_ej)
 
-        K_deg = (
-            self.degradation_function(crater.final_diameter, fe=100)
-            * ejecta_intensity[: ejecta_region_view.n_face]
-        )
-        ejecta_region_view.apply_diffusion(K_deg)
+        K_deg = self.degradation_function(crater.final_diameter, fe=100) * ejecta_intensity[: ejecta_region.n_face]
+        ejecta_region.apply_diffusion(K_deg)
 
         return
 
@@ -268,14 +244,15 @@ class Morphology(ComponentBase):
             fe = 100.0
             K = self.degradation_function(final_diameter, fe)
             n = production.function(
-                diameter=final_diameter, age=age_start, age_end=age_end
-            )
+                diameter=final_diameter,
+                age=age_start,
+                age_end=age_end,
+                validate_inputs=False,
+            ).item()
             degradation_region_area = np.pi * (final_diameter / 2) * fe
             return K * n * degradation_region_area
 
-        for face_indices, dc_max in zip(
-            self.surface.face_bin_indices, self.surface.face_bin_max_sizes
-        ):
+        for face_indices, dc_max in zip(self.surface.face_bin_indices, self.surface.face_bin_max_sizes):
             deltaKdiff, _ = quad(_subpixel_degradation, DC_MIN, dc_max)
             self._Kdiff[face_indices] += deltaKdiff
 
@@ -293,9 +270,7 @@ class Morphology(ComponentBase):
         apply the accumulated degradation effects.
         """
         if not hasattr(self, "_Kdiff"):
-            raise RuntimeError(
-                "Kdiff has not been initialized. Call compute_subpixel_degradation first."
-            )
+            raise RuntimeError("Kdiff has not been initialized. Call compute_subpixel_degradation first.")
 
         self.surface.apply_diffusion(self._Kdiff)
         self._Kdiff = np.zeros_like(self.surface.face_elevation)
@@ -317,13 +292,11 @@ class Morphology(ComponentBase):
         affected_faces : set of int
             The set of face indices affected by the crater.
         """
-        rmax = self.rmax(
-            crater, minimum_thickness=self.surface.smallest_length, feature="ejecta"
-        )
-        region_view = self.surface.extract_region(crater.location, rmax)
-        if region_view is None:
+        rmax = self.rmax(crater, minimum_thickness=self.surface.smallest_length, feature="ejecta")
+        region = self.surface.extract_region(crater.location, rmax)
+        if region is None:
             return set(), set()
-        return set(region_view.node_indices), set(region_view.face_indices)
+        return set(region.node_indices), set(region.face_indices)
 
     def _init_queue_manager(self) -> None:
         """
@@ -358,9 +331,7 @@ class Morphology(ComponentBase):
         """
         if self._queue_manager is None:
             if self.surface is None:
-                raise RuntimeError(
-                    "Surface must be provided to initialize queue manager."
-                )
+                raise RuntimeError("Surface must be provided to initialize queue manager.")
             self._init_queue_manager()
 
         if crater is None:
@@ -378,9 +349,7 @@ class Morphology(ComponentBase):
             If the queue manager has not been initialized.
         """
         if not hasattr(self, "_queue_manager"):
-            raise RuntimeError(
-                "Queue manager has not been initialized. Call _init_queue_manager first."
-            )
+            raise RuntimeError("Queue manager has not been initialized. Call _init_queue_manager first.")
 
         # import threading
         from concurrent.futures import ThreadPoolExecutor
@@ -404,13 +373,9 @@ class Morphology(ComponentBase):
                 if self.dosubpixel_degradation:
                     if len(batch) > 1:
                         # If the craters have age values attached to them, we can perform subpixel degradation between time values
-                        agevals = [
-                            crater.age for crater in batch if crater.age is not None
-                        ]
+                        agevals = [crater.age for crater in batch if crater.age is not None]
                         if len(agevals) > 1:
-                            self.compute_subpixel_degradation(
-                                age_start=max(agevals), age_end=min(agevals)
-                            )
+                            self.compute_subpixel_degradation(age_start=max(agevals), age_end=min(agevals))
 
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
@@ -433,9 +398,7 @@ class Morphology(ComponentBase):
             _batch_process()
         return
 
-    def ejecta_burial_K(
-        self, ejecta_thickness, ejecta_soften_factor=1.50
-    ) -> NDArray[np.float64]:
+    def ejecta_burial_K(self, ejecta_thickness, ejecta_soften_factor=1.50) -> NDArray[np.float64]:
         """
         Computes the change in degradation state due to ejecta burial.
 
@@ -443,7 +406,7 @@ class Morphology(ComponentBase):
 
         Parameters
         ----------
-        region_view : SurfaceView
+        region : LocalSurface
             The region view of the surface mesh centered at the crater center.
         ejecta_thickness : NDArray[np.float64]
             The computed ejecta thickness at the face and node elevations.
@@ -460,15 +423,13 @@ class Morphology(ComponentBase):
         return ejecta_soften_factor * ejecta_thickness**2
 
     @abstractmethod
-    def degradation_function(
-        self, final_diameter: FloatLike, fe: FloatLike
-    ) -> float: ...
+    def degradation_function(self, final_diameter: FloatLike, fe: FloatLike) -> float: ...
 
     @abstractmethod
     def crater_shape(
         self,
         crater: Crater,
-        region_view: SurfaceView,
+        region: LocalSurface,
         **kwarg: Any,
     ) -> NDArray[np.float64]: ...
 
@@ -476,7 +437,7 @@ class Morphology(ComponentBase):
     def ejecta_shape(
         self,
         crater: Crater,
-        region_view: SurfaceView,
+        region: LocalSurface,
         **kwarg: Any,
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
@@ -562,7 +523,7 @@ class CraterQueueManager:
     def push(self, crater: Crater) -> None:
         self._queue.append(crater)
 
-    def peek_next_batch(self) -> list["Crater"]:
+    def peek_next_batch(self) -> list[Crater]:
         """
         Return a list of the next batch of craters that do not overlap with each other
         or the current active region.
@@ -572,9 +533,7 @@ class CraterQueueManager:
         reserved_faces = set(self._active_faces)
         for crater in self._queue:
             node_indices, face_indices = self._overlap_fn(crater)
-            if reserved_nodes.isdisjoint(node_indices) and reserved_faces.isdisjoint(
-                face_indices
-            ):
+            if reserved_nodes.isdisjoint(node_indices) and reserved_faces.isdisjoint(face_indices):
                 batch.append(crater)
                 reserved_nodes.update(node_indices)
                 reserved_faces.update(face_indices)
@@ -582,7 +541,7 @@ class CraterQueueManager:
                 break
         return batch
 
-    def pop_batch(self, batch: list["Crater"]) -> None:
+    def pop_batch(self, batch: list[Crater]) -> None:
         """
         Remove a processed batch of craters from the queue.
         """
