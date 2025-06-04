@@ -110,7 +110,7 @@ class CratermakerBase:
     @rng_seed.setter
     def rng_seed(self, value):
         if value is not None:
-            if not isinstance(value, int) or np.isnan(value) or np.isinf(value) or value < 0:
+            if not isinstance(value, (int | np.integer)) or np.isnan(value) or np.isinf(value) or value < 0:
                 raise TypeError("rng_seed must be a positive integer")
             self._rng_seed = int(value)
         else:
