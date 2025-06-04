@@ -388,7 +388,7 @@ class HiResLocalSurface(Surface):
             return points.tolist(), theta_next
 
         print(f"Center of local region: {self.local_location}")
-        print(f"Size of local region: {format_large_units(self.local_radius, quantity='length')}")
+        print(f"Radius of local region: {format_large_units(self.local_radius, quantity='length')}")
         print(f"Local region pixel size: {format_large_units(self.pix, quantity='length')}")
 
         interior_points = []

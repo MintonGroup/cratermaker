@@ -249,7 +249,9 @@ class Surface(ComponentBase):
         overwrite: bool = False,
     ) -> None:
         """
-        Adds new data to the surface. If the data variable already exists, it will be overwritten if `overwrite` is set to True.
+        Adds new data to the surface.
+
+        If the data variable already exists, it will be overwritten if `overwrite` is set to True.
 
         Parameters
         ----------
@@ -481,7 +483,7 @@ class Surface(ComponentBase):
 
     def get_random_location_on_face(self, face_index: int, **kwargs) -> float | tuple[float, float] | ArrayLike:
         """
-        Generate a random coordinate within a given face of an ungridtyped mesh.
+        Generate a random coordinate within a given face of a the mesh.
 
         Parameters
         ----------
