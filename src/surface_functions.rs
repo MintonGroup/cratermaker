@@ -450,7 +450,6 @@ pub fn slope_collapse<'py>(
         if n_active == 0 {
             break;
         }
-        println!("slope_collapse iteration {} of {}. n_active: {}", loopnum, looplimit, n_active);
 
         for (i, &f) in face_indices_view.iter().enumerate() {
             let f = f as usize;
