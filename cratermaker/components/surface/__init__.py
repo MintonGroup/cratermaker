@@ -1641,7 +1641,6 @@ class LocalSurface:
         ----------
         critical_slope_angle : float
             The critical slope angle (angle of repose) in degrees.
-
         """
         try:
             critical_slope = np.tan(np.deg2rad(critical_slope_angle))

@@ -352,13 +352,13 @@ pub fn slope_collapse<'py>(
 
 
     let diffmax = compute_dt_initial(&face_areas_view, 1.0, n_max_face_faces);
-    let looplimit = n_face as usize;
+    let looplimit = 500 as usize;
 
     let mut global_kappa = vec![0.0f64; n_face];
     let mut face_elevation = ndarray::Array1::<f64>::zeros(face_elevation_view.len());
     let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(face_indices_view.len());
 
-    for _ in (0..looplimit).rev() {
+    for _ in 0..looplimit {
         face_elevation.assign(&face_elevation_view);
         for (i, &f) in face_indices_view.iter().enumerate() {
             face_elevation[f as usize] += face_delta_elevation[i];

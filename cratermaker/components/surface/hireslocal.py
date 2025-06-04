@@ -600,10 +600,62 @@ class LocalHiResLocalSurface(LocalSurface):
             If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
             The value of kdiff must be greater than 0.0.
 
+        Notes
+        -----
+        This method only operates on the faces that overlap with the local region of the surface.
         """
         if self.local_overlap:
-            self.local_overlap.apply_diffusion(kdiff[self.face_mask])
-            return
+            if not np.isscalar(kdiff):
+                kdiff = kdiff[self.face_mask]
+            self.local_overlap.apply_diffusion(kdiff)
+        return
+
+    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
+        """
+        Collapse all slopes larger than the critical slope angle.
+
+        Parameters
+        ----------
+        critical_slope_angle : float
+            The critical slope angle (angle of repose) in degrees.
+
+        Notes
+        -----
+        This method only operates on the faces that overlap with the local region of the surface.
+        """
+        if self.local_overlap:
+            self.local_overlap.slope_collapse(critical_slope_angle=critical_slope_angle)
+        return
+
+    def apply_noise(
+        self,
+        model: str = "turbulence",
+        noise_width: FloatLike = 1000e3,
+        noise_height: FloatLike = 1e3,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Apply noise to the node elevations of the surface view.
+
+        Parameters
+        ----------
+        noise_width : float
+            The spatial wavelength of the noise.
+        noise_height : float
+            The amplitude of the noise.
+
+        Notes
+        -----
+        This method only operates on the faces that overlap with the local region of the surface.
+        """
+        if self.local_overlap:
+            self.local_overlap.apply_noise(
+                model=model,
+                noise_width=noise_width,
+                noise_height=noise_height,
+                **kwargs,
+            )
+        return
 
     @property
     def local_overlap(self) -> LocalHiResLocalSurface | None:
