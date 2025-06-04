@@ -255,7 +255,8 @@ fn compute_slope_squared(
     use ndarray::{Array2, Array1};
     use ndarray_linalg::{SVD, Norm};
 
-    let mut points = Vec::new();
+    let mut data = Array2::<f64>::zeros((3, row.len() + 1));
+    let mut n = 0;
 
     for &fid_raw in row.iter().chain(std::iter::once(&(f as i64))) {
         if fid_raw < 0 {
@@ -278,20 +279,18 @@ fn compute_slope_squared(
         let x = d * bearing.cos();
         let y = d * bearing.sin();
         let z = face_elevation[fid];
-        points.push([x, y, z]);
+
+        data[[0, n]] = x;
+        data[[1, n]] = y;
+        data[[2, n]] = z;
+        n += 1;
     }
 
-    if points.len() < 3 {
+    if n < 3 {
         return 0.0;
     }
 
-    let n = points.len();
-    let mut data = Array2::<f64>::zeros((3, n));
-    for (i, pt) in points.iter().enumerate() {
-        data[[0, i]] = pt[0];
-        data[[1, i]] = pt[1];
-        data[[2, i]] = pt[2];
-    }
+    let mut data = data.slice_move(ndarray::s![.., 0..n]);
 
     // Subtract mean using broadcasting
     let mean: Array1<f64> = data.mean_axis(ndarray::Axis(1)).unwrap();
@@ -350,6 +349,7 @@ pub fn compute_slope<'py>(
     let face_lat_view = face_lat.as_array();
 
     let mut slope = ndarray::Array1::<f64>::zeros(face_indices_view.len());
+    let face_elevation = face_elevation_view.to_owned();
     Zip::from(&face_indices_view)
         .and(face_face_connectivity_view.outer_iter())
         .and(&mut slope)
@@ -359,7 +359,7 @@ pub fn compute_slope<'py>(
             let slope_sq = compute_slope_squared(
                 f,
                 &row,
-                &face_elevation_view.to_owned(),
+                &face_elevation,
                 &face_lon_view,
                 &face_lat_view,
                 radius,
