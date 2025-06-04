@@ -308,6 +308,63 @@ fn compute_slope_squared(
     max_slope_sq
 }
 
+/// Computes the square root of the maximum squared slope at each face in a surface mesh.
+///
+/// For each face in the given `face_indices` subset, this function calculates the steepest
+/// slope using pairs of neighboring faces, where slope is defined as the change in elevation
+/// divided by the great-circle (haversine) distance. The result is the maximum root-sum-square
+/// slope magnitude from adjacent neighbor pairs.
+///
+/// This function is designed to be parallel and returns a NumPy array of slopes
+/// corresponding to the provided face indices.
+///
+/// # Arguments
+/// * `py` - Python interpreter token.
+/// * `face_elevation` - Elevation value at each face (1D array of length n_face).
+/// * `face_face_connectivity` - Neighbor connectivity (2D array: n_face × n_max_neighbors).
+/// * `face_indices` - Subset of face indices (1D array).
+/// * `face_lon`, `face_lat` - Longitude and latitude of faces, in radians (1D arrays).
+/// * `radius` - Radius of the sphere.
+///
+/// # Returns
+/// A NumPy array of slope values (1D array), same length as `face_indices`.
+#[pyfunction]
+pub fn compute_slope<'py>(
+    py: Python<'py>,
+    face_elevation: PyReadonlyArray1<'py, f64>,
+    face_face_connectivity: PyReadonlyArray2<'py, i64>,
+    face_indices: PyReadonlyArray1<'py, i64>,
+    face_lon: PyReadonlyArray1<'py, f64>,
+    face_lat: PyReadonlyArray1<'py, f64>,
+    radius: f64
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let face_elevation_view = face_elevation.as_array();
+    let face_face_connectivity_view = face_face_connectivity.as_array();
+    let face_indices_view = face_indices.as_array();
+    let face_lon_view = face_lon.as_array();
+    let face_lat_view = face_lat.as_array();
+
+    let mut slope = ndarray::Array1::<f64>::zeros(face_indices_view.len());
+    Zip::from(&face_indices_view)
+        .and(face_face_connectivity_view.outer_iter())
+        .and(&mut slope)
+        .into_par_iter()
+        .for_each(|(f, row, out)| {
+            let f = *f as usize;
+            let slope_sq = compute_slope_squared(
+                f,
+                &row,
+                &face_elevation_view.to_owned(),
+                &face_lon_view,
+                &face_lat_view,
+                radius,
+            );
+            *out = f64::sqrt(slope_sq);
+        });
+
+    Ok(PyArray1::from_owned_array(py, slope))
+}
+
 
 /// Computes the spatially varying diffusivity (`face_kappa`) for a slope collapse step.
 ///
@@ -350,7 +407,6 @@ pub fn slope_collapse<'py>(
     let n_max_face_faces = face_face_connectivity_view.ncols();
     let n_face = face_areas_view.len();
 
-
     let diffmax = compute_dt_initial(&face_areas_view, 1.0, n_max_face_faces);
     let looplimit = 500 as usize;
 
@@ -385,11 +441,10 @@ pub fn slope_collapse<'py>(
             .collect();
 
         let n_active = face_kappa.iter().filter(|&&k| k > 0.0).count();
-
         if n_active == 0 {
             break;
         }
-    
+
         for (i, &f) in face_indices_view.iter().enumerate() {
             let f = f as usize;
             assert!(f < global_kappa.len(), "f {} out of bounds for global_kappa (len = {})", f, global_kappa.len());
