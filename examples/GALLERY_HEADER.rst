@@ -1,7 +1,6 @@
-.. _gallery-header:
+.. _gal-simulation:
 
-###############
-Example Gallery
-###############
+Simuation Examples
+==================
 
-This gallery contains example scripts demonstrating how to use the Cratermaker API
+This section provides examples of how to use the :ref:`ug-simulation` component of Cratermaker.

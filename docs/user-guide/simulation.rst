@@ -1,6 +1,5 @@
 .. currentmodule:: cratermaker
 
-
 .. image:: ../_static/full_simulation.png
     :alt: Simulation
     :align: center
@@ -8,26 +7,65 @@
 
 .. _ug-simulation:
 
-##########
 Simulation
-##########
+==========
 
+The :class:`Simulation` class manages the process of evolving cratered planetary surfaces through time. It supports configuring a target body, choosing a production function, and generating craters through emplacement or time evolution.
 
+To run a simulation, use the :class:`cratermaker.Simulation` constructor and call :meth:`Simulation.run` or :meth:`Simulation.emplace`.
 
-The Simulation class is the main orchestration tool used to manage and run landscape evolution simulations.
+.. ipython:: python
+    :okwarning:
 
+    from cratermaker import Simulation
+    sim = Simulation(target="Moon")
+    sim.run(age=100)
 
-Simulating a population of craters
-==================================
+    print(f"Craters emplaced: {len(sim.true_crater_list)}")
 
-Simulating a single crater is useful for testing, but Cratermaker is designed to simulate populations of craters over time. The following example demonstrates how to initialize a simulation of the Moon and emplace a population of craters using the default Neukum production function. The simulation will run for 4.31 Gy, and save the state of the surface in intervals of 50 My.
+.. _ug-simulation-examples:
 
-.. code-block:: python
+Examples
+--------
 
-    import cratermaker as cm
-    sim = cm.Simulation()
-    sim.run(age=4300, age_interval=50)
+Below are examples of how to use the Simulation class.
 
-.. note::
+**Example 1: Run a short simulation on Mars**
 
-      The default units for Cratermaker are meters for length and million years for time.
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Simulation
+    sim = Simulation(target="Mars")
+    sim.run(age=500)
+    print(f"Crater count: {len(sim.true_crater_list)}")
+
+**Example 2: Simulate default Moon configuration**
+
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Simulation
+    sim = Simulation()
+    sim.run(age=1000)
+    print(f"Crater count: {len(sim.true_crater_list)}")
+
+**Example 3: Emplacing a single crater on the Moon**
+
+You can manually emplace a crater with a specified size and location using the :meth:`Simulation.emplace` method.
+
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Simulation
+
+    # Create a simulation on the Moon
+    sim = Simulation(target="Moon")
+
+    # Emplace a single crater with 20 km diameter 
+    sim.emplace(final_diameter=20000, location=(0, 0))
+
+    # Inspect crater
+    crater = sim.true_crater_list[0]
+    print(f"Crater diameter: {crater.final_diameter:.1f} m")
+    print(f"Location (lon, lat): {crater.location}")

@@ -21,8 +21,8 @@ Creating a Projectile
 
 .. ipython:: python
 
-    from cratermaker.components.projectile import Projectile
-    from cratermaker.components.target import Target
+    from cratermaker import Projectile
+    from cratermaker import Target
 
     # First define the target
     target = Target.maker("Moon")
