@@ -1,4 +1,5 @@
 import shutil
+from contextlib import suppress
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -224,12 +225,9 @@ class Simulation(CratermakerBase):
         if name not in self._user_defined:
             return
         # Avoid recursive calls during initialization or early access
-        if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)):
-            if _convert_for_yaml(value) is not None:
-                try:
-                    self.to_config()
-                except Exception:
-                    pass
+        if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)) and _convert_for_yaml(value) is not None:
+            with suppress(Exception):
+                self.to_config()
 
     def run(
         self,
@@ -486,7 +484,7 @@ class Simulation(CratermakerBase):
             impact_diameters = np.asarray(impact_diameters)[sort_indices]
             impact_ages = np.asarray(impact_ages)[sort_indices]
             impact_locations = np.array(impact_locations)[sort_indices]
-            for diameter, location, age in zip(impact_diameters, impact_locations, impact_ages):
+            for diameter, location, age in zip(impact_diameters, impact_locations, impact_ages, strict=False):
                 diam_arg = {diam_key: diameter}
                 craterlist.append(
                     Crater.maker(

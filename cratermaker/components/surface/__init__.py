@@ -331,6 +331,17 @@ class Surface(ComponentBase):
         """
         return self._full().slope_collapse(critical_slope_angle)
 
+    def compute_slope(self) -> NDArray[np.float64]:
+        """
+        Compute the slope of the surface.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The slope of all faces in degrees.
+        """
+        return self._full().compute_slope()
+
     def apply_noise(
         self,
         model: str = "turbulence",
@@ -1641,7 +1652,6 @@ class LocalSurface:
         ----------
         critical_slope_angle : float
             The critical slope angle (angle of repose) in degrees.
-
         """
         try:
             critical_slope = np.tan(np.deg2rad(critical_slope_angle))
@@ -1667,6 +1677,32 @@ class LocalSurface:
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", delta_face_elevation)
         self.interpolate_node_elevation_from_faces()
+
+    def compute_slope(self) -> NDArray[np.float64]:
+        """
+        Compute the slope of the surface.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The slope of all faces in degrees.
+        """
+        if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
+            face_indices = np.arange(self.surface.n_face)
+        else:
+            face_indices = self.face_indices
+        face_lon = np.deg2rad(self.surface.face_lon)
+        face_lat = np.deg2rad(self.surface.face_lat)
+        slope = surface_functions.compute_slope(
+            face_elevation=self.surface.face_elevation,
+            face_face_connectivity=self.face_face_connectivity,
+            face_indices=face_indices,
+            face_lon=face_lon,
+            face_lat=face_lat,
+            radius=self.surface.radius,
+        )
+
+        return np.rad2deg(np.arctan(slope))
 
     def apply_noise(
         self,

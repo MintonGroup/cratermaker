@@ -93,7 +93,7 @@ class HiResLocalSurface(Surface):
             f"Maximum effective pixel size: {pix_max}"
         )
 
-    def plot_hillshade(self, imagefile=None, **kwargs: Any) -> None:
+    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
         """
         Plot a hillshade image of the local region.
 
@@ -101,6 +101,10 @@ class HiResLocalSurface(Surface):
         ----------
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
@@ -149,6 +153,50 @@ class HiResLocalSurface(Surface):
         )
         ax.axis("off")
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        fontsize_px = resolution * 0.03
+        fontsize = fontsize_px * 72 / dpi
+        # Add scale bar before saving/showing image
+        if scalebar:
+            # Determine max physical size for the scale bar
+            max_physical_size = extent_val / 2 / np.sqrt(2)
+
+            # Choose "nice" scale bar length
+            nice_values = np.array([100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
+            scale_length = nice_values[nice_values <= max_physical_size].max()
+            bar_height = extent_val * 0.01
+            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
+
+            # Position in lower right corner
+            x_start = extent_val - scale_length - extent_val * 0.1
+            y_start = -(extent_val - bar_height - extent_val * 0.1)
+
+            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
+            ax.add_patch(rect)
+            # Label above the scale bar
+            ax.text(
+                x_start + scale_length / 2,
+                y_start + 2 * bar_height,
+                scale_text,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
+        if label:
+            x_start = -extent_val / np.sqrt(2.0)
+            y_start = extent_val * 0.85
+            # Label above the scale bar
+            ax.text(
+                x_start,
+                y_start,
+                label,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
         if imagefile:
             plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
         else:
@@ -441,6 +489,8 @@ class HiResLocalSurface(Surface):
         imgdir = Path(self.simdir) / "surface_images"
         imgdir.mkdir(parents=True, exist_ok=True)
         imagefile = imgdir / f"hillshade{interval_number:06d}.png"
+        if time_variables:
+            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
         self.plot_hillshade(imagefile=imagefile, **kwargs)
         return
 
@@ -600,10 +650,62 @@ class LocalHiResLocalSurface(LocalSurface):
             If it is a scalar, the same value is applied to all faces. If it is an array, it must have the same size as the number of faces in the grid.
             The value of kdiff must be greater than 0.0.
 
+        Notes
+        -----
+        This method only operates on the faces that overlap with the local region of the surface.
         """
         if self.local_overlap:
-            self.local_overlap.apply_diffusion(kdiff[self.face_mask])
-            return
+            if not np.isscalar(kdiff):
+                kdiff = kdiff[self.face_mask]
+            self.local_overlap.apply_diffusion(kdiff)
+        return
+
+    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
+        """
+        Collapse all slopes larger than the critical slope angle.
+
+        Parameters
+        ----------
+        critical_slope_angle : float
+            The critical slope angle (angle of repose) in degrees.
+
+        Notes
+        -----
+        This method only operates on the faces that overlap with the local region of the surface.
+        """
+        if self.local_overlap:
+            self.local_overlap.slope_collapse(critical_slope_angle=critical_slope_angle)
+        return
+
+    def apply_noise(
+        self,
+        model: str = "turbulence",
+        noise_width: FloatLike = 1000e3,
+        noise_height: FloatLike = 1e3,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Apply noise to the node elevations of the surface view.
+
+        Parameters
+        ----------
+        noise_width : float
+            The spatial wavelength of the noise.
+        noise_height : float
+            The amplitude of the noise.
+
+        Notes
+        -----
+        This method only operates on the faces that overlap with the local region of the surface.
+        """
+        if self.local_overlap:
+            self.local_overlap.apply_noise(
+                model=model,
+                noise_width=noise_width,
+                noise_height=noise_height,
+                **kwargs,
+            )
+        return
 
     @property
     def local_overlap(self) -> LocalHiResLocalSurface | None:
