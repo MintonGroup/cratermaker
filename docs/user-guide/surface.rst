@@ -34,14 +34,14 @@ This is equivalent to:
 This surface consists of a uniform grid configuration with polygonal faces that will be subdivided by the input value for the gridlevel argument.  Though it is limited to a few resolutions, the icosphere surface will have the most uniform face sizes. The number of faces and nodes of the icosphere is determined by the formulas :math:`N_{face} = 10\times4^{gridlevel}+2` and :math:`N_{node} = 20\times4^{gridlevel}`. The Surface object contains an attribute called `pix`, which is the value of the "effective pixel size" in meters, where :math:`pix=\sqrt{\left<Area_{face}\right>}`. The following table shows the relationship between the grid level, the number of faces and nodes, and the effective pixel size for a default target of the Moon
 
 .. csv-table::
-     :header: "gridlevel", "n_face", "n_node", "pix (for Moon target)"
-     :widths: 10, 10, 10, 10
+    :header: "gridlevel", "n_face", "n_node", "pix (for Moon target)"
+    :widths: 10, 10, 10, 10
 
-     5, 10242, 20480, 60.8 km ± 2.42 km
-     6, 40962, 81920, 30.4 km ± 1.25 km
-     7, 163842, 327680, 15.2 km ± 634 m
-     8, 655362, 1310720, 7.60 km ± 319 m
-     9, 2621442, 5242880, 3.80 km ± 160 m
+    5, 10242, 20480, 60.8 km ± 2.42 km
+    6, 40962, 81920, 30.4 km ± 1.25 km
+    7, 163842, 327680, 15.2 km ± 634 m
+    8, 655362, 1310720, 7.60 km ± 319 m
+    9, 2621442, 5242880, 3.80 km ± 160 m
 
 
 Lower values of `gridlevel` will result in fewer but larger face sizes, which can be computed quickly but will not resolve detail well. Higher values of `gridlevel` will result in more faces with smaller areas, which will resolve detail better but will take longer to generate and use, and will consume more memory. We recommend keeping `gridlevel` to between ~7-9. Also, keep in mind that the value of `pix` in the table above is computed for the Moon, and will vary for other targets.
