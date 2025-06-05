@@ -10,34 +10,34 @@
 Crater
 ======
 
-The ``Crater`` method is used to represent craters and the relationship properties of the projectile.
+The :ref:`Crater <api-crater>` class is one of the core components of Cratermaker. It is a dataclass that represents the properties of a crater and the projectile that formed it. Like all other components, it is instantiated with its `maker` factory method. You can create a crater by either specifying either its size or the size of a projectile. In either case, the crater and projectile properties will be computed using :ref:`Target <ug-scaling>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` objects. These can be provided to :ref:`Crater.maker() <api-crater>`, but if not, then the :ref:`default <ug-defaults>` values will be used. 
 
-To start, the following is a simple example that creates a crater on the Moon from a 100 meter diameter projectile:
+At a minimum, you need to specify exactly one size input, which can be one of the following:
+
+- ``final_diameter``: The final rim-to-rim diameter (post collapse phase) of the crater in meters.
+- ``final_radius``: The final rim-to-rim radius (post collapse phase) of the crater in meters.
+- ``transient_diameter``: The transient diameter (pre-collapse phase) of the crater in meters.  
+- ``transient_radius``: The transient radius (pre-collapse phase) of the crater in meters.  
+- ``projectile_diameter``: The diameter of the projectile that formed the crater in meters.
+- ``projectile_radius``: The radius of the projectile that formed the crater in meters.
+- ``projectile_mass``: The mass of the projectile that formed the crater in kilograms.
+
+All other parameters are optional, and if not specified, will be determined by the provided (or default) Target, Scaling, and Projectile objects. We can demonstrate this behavior by specifiying the minimum set of arguments for a Crater, in which we define a crater with a final rim-to-rim diameter of 100 meters and then printing the resulting crater object to show its full set of properties:
 
 .. ipython:: python
 
     from cratermaker import Crater
 
-    # By default the crater method will default to the Moon 
-   
-    crater = Crater.maker(
-        projectile_diameter=100,
-        projectile_density=3000,
-        projectile_velocity=20000,
-        projectile_angle=45,
-        location=(0, 0),
-    )
+    crater = Crater.maker(final_diameter=100)
+    print(crater)
 
-    print(f"Crater final diameter: {crater.final_diameter:.2f} m")
-
+As we can see, the Crater object contains values for the transient crater diameter, projectile properties, including size, mass, and impact velocity, angle and direction. It also contains a set of location coordinates on the target body, and a string value of the morphology type indicating that this is a simple crater. 
 
 Additional Examples
 -------------------
 
 .. ipython:: python
 
-    # Asteroid impact on the Moon
-    
     from cratermaker import Crater
 
     crater = Crater.maker(
@@ -54,8 +54,6 @@ Additional Examples
 
 .. ipython:: python
 
-    # Icy comet impact on Europa
-    
     from cratermaker import Crater
 
     crater = Crater.maker(
