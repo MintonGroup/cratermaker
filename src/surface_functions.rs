@@ -253,7 +253,6 @@ fn compute_slope_squared(
     radius: f64,
 ) -> f64 {
     use ndarray::{Array2, Array1};
-    use ndarray_linalg::{SVD, Norm};
 
     let mut data = Array2::<f64>::zeros((3, row.len() + 1));
     let mut n = 0;
@@ -297,19 +296,47 @@ fn compute_slope_squared(
     let mean = mean.insert_axis(ndarray::Axis(1));
     data -= &mean;
 
-    // SVD
-    if let Ok((u_opt, _, _)) = data.svd(true, false) {
-        if let Some(u) = u_opt {
-            let normal = u.column(2);
-            let vertical = ndarray::arr1(&[0.0, 0.0, 1.0]);
-            let cos_theta = normal.dot(&vertical) / normal.norm();
-            let sin_theta = f64::sqrt(1.0 - cos_theta * cos_theta);
-            let slope = sin_theta / cos_theta;
-            return slope * slope;
-        }
-    }
+    // Use nalgebra for symmetric eigendecomposition of covariance
+    {
+        use nalgebra::{Matrix3, Vector3, SymmetricEigen};
 
-    0.0
+        // Convert to nalgebra 3xN matrix
+        let x = data.row(0).to_vec();
+        let y = data.row(1).to_vec();
+        let z = data.row(2).to_vec();
+
+        let n = x.len();
+        let mut cov = Matrix3::<f64>::zeros();
+        for i in 0..n {
+            let xi = x[i];
+            let yi = y[i];
+            let zi = z[i];
+            cov[(0, 0)] += xi * xi;
+            cov[(0, 1)] += xi * yi;
+            cov[(0, 2)] += xi * zi;
+            cov[(1, 1)] += yi * yi;
+            cov[(1, 2)] += yi * zi;
+            cov[(2, 2)] += zi * zi;
+        }
+        cov[(1, 0)] = cov[(0, 1)];
+        cov[(2, 0)] = cov[(0, 2)];
+        cov[(2, 1)] = cov[(1, 2)];
+
+        let eig = SymmetricEigen::new(cov);
+        let mut min_index = 0;
+        for i in 1..3 {
+            if eig.eigenvalues[i] < eig.eigenvalues[min_index] {
+                min_index = i;
+            }
+        }
+        let normal: Vector3<f64> = eig.eigenvectors.column(min_index).into();
+
+        let vertical = Vector3::new(0.0, 0.0, 1.0);
+        let cos_theta = normal.dot(&vertical) / normal.norm();
+        let sin_theta = f64::sqrt(1.0 - cos_theta * cos_theta);
+        let slope = sin_theta / cos_theta;
+        return slope * slope;
+    }
 }
 
 /// Computes the square root of the maximum squared slope at each face in a surface mesh.
