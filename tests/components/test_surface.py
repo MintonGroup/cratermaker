@@ -124,7 +124,7 @@ class TestSurface(unittest.TestCase):
 
             # Known distance should be 1/4 the circumference of the Earth
             expected_distance = np.pi * surface.radius / 2
-            calculated_distance = surface.calculate_distance(lon1, lat1, lon2, lat2)[0]
+            calculated_distance = surface._calculate_distance(lon1, lat1, lon2, lat2)[0]
 
             # Compare the expected and calculated distances
             self.assertAlmostEqual(calculated_distance, expected_distance, places=1)
@@ -234,7 +234,7 @@ class TestSurface(unittest.TestCase):
 
         # The bearing from (0, 0) to (90, 0) should be 90 degrees in radians
         expected_bearing = np.radians(90)
-        calculated_bearing = Surface.calculate_bearing(lon1, lat1, lon2, lat2)
+        calculated_bearing = Surface._calculate_bearing(lon1, lat1, lon2, lat2)
 
         # Compare the expected and calculated bearings
         self.assertAlmostEqual(calculated_bearing, expected_bearing, places=1)
@@ -293,10 +293,10 @@ class TestSurface(unittest.TestCase):
             surface = Surface.maker(
                 simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
             )
-            region_view = surface.extract_region(location=(0, 0), region_radius=100e3)
+            region = surface.extract_region(location=(0, 0), region_radius=100e3)
 
             for obj, uxds in zip(
-                [surface, region_view], [surface.uxds, region_view.surface.uxds]
+                [surface, region], [surface.uxds, region.surface.uxds]
             ):
                 surface.reset()
                 obj.add_data(

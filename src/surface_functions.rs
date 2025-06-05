@@ -68,6 +68,16 @@ pub fn calculate_distance<'py>(
     Ok(PyArray1::from_owned_array(py, result))
 }
 
+
+/// Computes the initial bearing (forward azimuth) from point 1 to point 2 on a sphere.
+#[inline]
+fn compute_initial_bearing(lon1: f64, lat1: f64, lon2: f64, lat2: f64) -> f64 {
+    let dlon = positive_mod(lon2 - lon1 + PI, 2.0 * PI) - PI;
+    let x = dlon.sin() * lat2.cos();
+    let y = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * dlon.cos();
+    x.atan2(y)
+}
+
 /// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
 ///
 /// The bearing is calculated on a spherical surface using great-circle paths and returned in radians,
@@ -101,13 +111,7 @@ pub fn calculate_bearing<'py>(
         .and(lat2)
         .into_par_iter()
         .for_each(|(out, &lon2, &lat2)| {
-            // Calculate differences in coordinates
-            let dlon = positive_mod(lon2 - lon1 + PI, 2.0 * PI) - PI;
-
-            // Haversine formula calculations
-            let x = dlon.sin() * lat2.cos();
-            let y = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * dlon.cos();
-            let initial_bearing = f64::atan2(x, y);
+            let initial_bearing = compute_initial_bearing(lon1, lat1, lon2, lat2);
 
             // Normalize bearing to 0 to 2*pi
             *out = (initial_bearing + 2.0 * PI) % (2.0 * PI);
@@ -238,20 +242,7 @@ pub fn apply_diffusion<'py>(
 }
 
 
-/// Computes the maximum squared slope magnitude at a face using adjacent neighbor pairs.
-///
-/// This function assumes neighbors are ordered counterclockwise and uses Haversine distances
-/// to determine gradient magnitudes.
-///
-/// # Arguments
-/// * `f` - Index of the central face.
-/// * `row` - Neighbor indices for the central face.
-/// * `face_elevation` - Elevation array for all faces.
-/// * `face_lon`, `face_lat` - Longitude and latitude arrays for all faces.
-/// * `radius` - Radius of the sphere.
-///
-/// # Returns
-/// Maximum squared slope from any adjacent neighbor pair around the face.
+/// Computes the slope squared at a face by fitting a plane to the face and its neighbors using SVD.
 #[inline(always)]
 fn compute_slope_squared(
     f: usize,
@@ -261,51 +252,149 @@ fn compute_slope_squared(
     face_lat: &ndarray::ArrayView1<'_, f64>,
     radius: f64,
 ) -> f64 {
-    let h_f = face_elevation[f];
-    let mut max_slope_sq = 0.0;
-    // Collect valid neighbor indices into a small array for pairing with wrapping.
-    let mut valid_neighbors = [0usize; 24];
-    let mut count = 0;
-    for &fid in row.iter() {
-        if fid >= 0 {
-            let fid = fid as usize;
-            if fid < face_elevation.len() {
-                valid_neighbors[count] = fid;
-                count += 1;
-            } else {
-                panic!("Neighbor index {} out of bounds (face_elevation.len() = {})", fid, face_elevation.len());
-            }
+    use ndarray::{Array2, Array1};
+
+    let mut data = Array2::<f64>::zeros((3, row.len() + 1));
+    let mut n = 0;
+
+    for &fid_raw in row.iter().chain(std::iter::once(&(f as i64))) {
+        if fid_raw < 0 {
+            continue;
         }
-    }
-
-    for i in 0..count {
-        let j = (i + 1) % count;
-        let f_j = valid_neighbors[i];
-        let f_k = valid_neighbors[j];
-
-        let h_j = face_elevation[f_j];
-        let h_k = face_elevation[f_k];
-
-        let slope_j = h_j - h_f;
-        let slope_k = h_k - h_f;
-
-        let d_j = haversine_distance_scalar(face_lon[f], face_lat[f], face_lon[f_j], face_lat[f_j], radius);
-        let d_k = haversine_distance_scalar(face_lon[f], face_lat[f], face_lon[f_k], face_lat[f_k], radius);
-
-        if d_j == 0.0 || d_k == 0.0 {
+        let fid = fid_raw as usize;
+        if fid >= face_elevation.len() {
             continue;
         }
 
-        let grad_j = slope_j / d_j;
-        let grad_k = slope_k / d_k;
-        let slope_sq = grad_j * grad_j + grad_k * grad_k;
+        let d = haversine_distance_scalar(
+            face_lon[f],
+            face_lat[f],
+            face_lon[fid],
+            face_lat[fid],
+            radius,
+        );
+        let bearing = compute_initial_bearing(face_lon[f], face_lat[f], face_lon[fid], face_lat[fid]);
 
-        if slope_sq > max_slope_sq {
-            max_slope_sq = slope_sq;
-        }
+        let x = d * bearing.cos();
+        let y = d * bearing.sin();
+        let z = face_elevation[fid];
+
+        data[[0, n]] = x;
+        data[[1, n]] = y;
+        data[[2, n]] = z;
+        n += 1;
     }
 
-    max_slope_sq
+    if n < 3 {
+        return 0.0;
+    }
+
+    let mut data = data.slice_move(ndarray::s![.., 0..n]);
+
+    // Subtract mean using broadcasting
+    let mean: Array1<f64> = data.mean_axis(ndarray::Axis(1)).unwrap();
+    let mean = mean.insert_axis(ndarray::Axis(1));
+    data -= &mean;
+
+    // Use nalgebra for symmetric eigendecomposition of covariance
+    {
+        use nalgebra::{Matrix3, Vector3, SymmetricEigen};
+
+        // Convert to nalgebra 3xN matrix
+        let x = data.row(0).to_vec();
+        let y = data.row(1).to_vec();
+        let z = data.row(2).to_vec();
+
+        let n = x.len();
+        let mut cov = Matrix3::<f64>::zeros();
+        for i in 0..n {
+            let xi = x[i];
+            let yi = y[i];
+            let zi = z[i];
+            cov[(0, 0)] += xi * xi;
+            cov[(0, 1)] += xi * yi;
+            cov[(0, 2)] += xi * zi;
+            cov[(1, 1)] += yi * yi;
+            cov[(1, 2)] += yi * zi;
+            cov[(2, 2)] += zi * zi;
+        }
+        cov[(1, 0)] = cov[(0, 1)];
+        cov[(2, 0)] = cov[(0, 2)];
+        cov[(2, 1)] = cov[(1, 2)];
+
+        let eig = SymmetricEigen::new(cov);
+        let mut min_index = 0;
+        for i in 1..3 {
+            if eig.eigenvalues[i] < eig.eigenvalues[min_index] {
+                min_index = i;
+            }
+        }
+        let normal: Vector3<f64> = eig.eigenvectors.column(min_index).into();
+
+        let vertical = Vector3::new(0.0, 0.0, 1.0);
+        let cos_theta = normal.dot(&vertical) / normal.norm();
+        let sin_theta = f64::sqrt(1.0 - cos_theta * cos_theta);
+        let slope = sin_theta / cos_theta;
+        return slope * slope;
+    }
+}
+
+/// Computes the square root of the maximum squared slope at each face in a surface mesh.
+///
+/// For each face in the given `face_indices` subset, this function calculates the steepest
+/// slope using pairs of neighboring faces, where slope is defined as the change in elevation
+/// divided by the great-circle (haversine) distance. The result is the maximum root-sum-square
+/// slope magnitude from adjacent neighbor pairs.
+///
+/// This function is designed to be parallel and returns a NumPy array of slopes
+/// corresponding to the provided face indices.
+///
+/// # Arguments
+/// * `py` - Python interpreter token.
+/// * `face_elevation` - Elevation value at each face (1D array of length n_face).
+/// * `face_face_connectivity` - Neighbor connectivity (2D array: n_face × n_max_neighbors).
+/// * `face_indices` - Subset of face indices (1D array).
+/// * `face_lon`, `face_lat` - Longitude and latitude of faces, in radians (1D arrays).
+/// * `radius` - Radius of the sphere.
+///
+/// # Returns
+/// A NumPy array of slope values (1D array), same length as `face_indices`.
+#[pyfunction]
+pub fn compute_slope<'py>(
+    py: Python<'py>,
+    face_elevation: PyReadonlyArray1<'py, f64>,
+    face_face_connectivity: PyReadonlyArray2<'py, i64>,
+    face_indices: PyReadonlyArray1<'py, i64>,
+    face_lon: PyReadonlyArray1<'py, f64>,
+    face_lat: PyReadonlyArray1<'py, f64>,
+    radius: f64
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let face_elevation_view = face_elevation.as_array();
+    let face_face_connectivity_view = face_face_connectivity.as_array();
+    let face_indices_view = face_indices.as_array();
+    let face_lon_view = face_lon.as_array();
+    let face_lat_view = face_lat.as_array();
+
+    let mut slope = ndarray::Array1::<f64>::zeros(face_indices_view.len());
+    let face_elevation = face_elevation_view.to_owned();
+    Zip::from(&face_indices_view)
+        .and(face_face_connectivity_view.outer_iter())
+        .and(&mut slope)
+        .into_par_iter()
+        .for_each(|(f, row, out)| {
+            let f = *f as usize;
+            let slope_sq = compute_slope_squared(
+                f,
+                &row,
+                &face_elevation,
+                &face_lon_view,
+                &face_lat_view,
+                radius,
+            );
+            *out = f64::sqrt(slope_sq);
+        });
+
+    Ok(PyArray1::from_owned_array(py, slope))
 }
 
 
@@ -349,16 +438,16 @@ pub fn slope_collapse<'py>(
     let face_lat_view = face_lat.as_array();
     let n_max_face_faces = face_face_connectivity_view.ncols();
     let n_face = face_areas_view.len();
-
+    let critical_slope_sq = critical_slope * critical_slope;
 
     let diffmax = compute_dt_initial(&face_areas_view, 1.0, n_max_face_faces);
-    let looplimit = n_face as usize;
+    let looplimit = 1000 as usize;
 
     let mut global_kappa = vec![0.0f64; n_face];
     let mut face_elevation = ndarray::Array1::<f64>::zeros(face_elevation_view.len());
     let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(face_indices_view.len());
 
-    for _ in (0..looplimit).rev() {
+    for _ in 0..looplimit {
         face_elevation.assign(&face_elevation_view);
         for (i, &f) in face_indices_view.iter().enumerate() {
             face_elevation[f as usize] += face_delta_elevation[i];
@@ -376,7 +465,7 @@ pub fn slope_collapse<'py>(
                     &face_lat_view,
                     radius,
                 );
-                if slope_sq > critical_slope {
+                if slope_sq > critical_slope_sq {
                     diffmax
                 } else {
                     0.0
@@ -385,11 +474,10 @@ pub fn slope_collapse<'py>(
             .collect();
 
         let n_active = face_kappa.iter().filter(|&&k| k > 0.0).count();
-
         if n_active == 0 {
             break;
         }
-    
+
         for (i, &f) in face_indices_view.iter().enumerate() {
             let f = f as usize;
             assert!(f < global_kappa.len(), "f {} out of bounds for global_kappa (len = {})", f, global_kappa.len());

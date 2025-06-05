@@ -10,94 +10,131 @@
 Surface
 =======
 
-Cratermaker's :ref: 'Surface <api-surface>' component is used to represent target body's topography and other properties of its surface. 
+Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. This tool contains three classes of surface implementations that can be chosen by the user: **icosphere**, **arbitrary_resolution**, **hireslocal**. 
 
-
-Setting up a Surface object
----------------------------
-
-All cratermaker components have a default configuration that is set when no arguments are passed through its ''maker'' method. We can observe its defauts:
-
-.. ipython:: python
-   :okwarning:
-
-   from cratermaker import Surface
-   surface=Surface.maker()
-   print(surface)
-
-The default surface is automatically set to 'icosphere' with a grid level of 8 and the :ref:`Target <ug-target>` being the moon. The effective pixel size is automatically set based on the surface and target that is used. The icosphere grid creates a uniform grid configuration and is the most accurate and efficient. However, it is only limited to a few resolutions. The user has the capability of changing the surface class as well as the target. This can be done by doing the following: 
-
-.. ipython:: python
-   :okwarning:
-
-   surface=Surface.maker(surface='arbitrary_resolution', target='Mercury')
-   print(surface)
-
-
-As seen above, the arbitrary resolution grid also creates a uniform grid configurations but allows the user to define their pixel size. This class is not as nice as the icosphere grid, but does allow for any resolution that the user wants. 
-
-
-.. ipython:: python
-   :okwarning:
-
-   surface=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
-   print(surface)
-
-The last class for surfaces is the Hi-res local grid. There are additional arguments that the user can define based of their requirments. These are the pixel size, the local radius of the desired region, the local location in degrees, and the superdomain scale factor. The last argument allows the smallest craters that are modeled outside of the local region to be those whose ejecta could just reach the boundary. This class's overall objective is to  model local patches on the surface at high resolution.
-
-
-Using a Surface object
-----------------------
-Once you have surface object, you are now able to perform numerous surface-related computations. 
-
-
-- :meth:`calculate_distance`: Takes a longitude and latitude pair and computes the great circle distance. 
-- :meth:`calculate_bearing`: Takes a longitude and latitude pair and computes the initial bearing from one point to another on the surface of the sphere.
-- :meth:`find_nearest_index`: Takes a longitude and latitude pair and calculates the Haversine Distance for each face of the grid. You will get a tuple that tells you the index of the face with the minimum distance.
-- :meth:`calculate_face_and_node_distances`: Calculates the distances between nodes and faces at a given location
-- :meth:`calculate_face_and_node_bearings`: Calculates the initial bearing between nodes and faces at a given location
-- :meth:`interpolate_node_elevation_from_faces`: Computes the elevation for each node by taking the area-weighted average of the surrounding faces.
-
+The default Surface type: Icosphere
+-----------------------------------
+The default Surface is "icosphere" with a grid level of 8 and the :ref:`Target <ug-target>` being the Moon. The default can be set by: 
 
 .. ipython:: python
     :okwarning:
 
-    surface = Surface.maker()
+    from cratermaker import Surface
+    surface=Surface.maker()
+    print(surface)
 
-    haversine=surface.calculate_distance(-1.457,0.732,2.738,-1.102)
-    print(f"Haversine Distance: {haversine}")
+This is equivalent to:
 
-    surface_2 = Surface.maker('arbitrary_resolution', target='Mars')
-    surface_nearest_index=surface_2.find_nearest_index((21.37,124.82))
-    print(f"Nearest index: {surface_nearest_index}")
+.. ipython:: python
+    :okwarning:
 
-    surface_3=Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9), superdomain_scale_factor=1000)
-    distance=surface_3.calculate_face_and_node_distances((0,9))
-    print(f"Distance between nodes and faces: {distance}")
+    surface=Surface.maker(surface='icosphere', gridlevel=8, target='Moon')
+    print(surface)
 
+This surface consists of a uniform grid configuration with polygonal faces that will be subdivided by the input value for the gridlevel argument.  Though it is limited to a few resolutions, the icosphere surface will have the most uniform face sizes. The number of faces and nodes of the icosphere is determined by the formulas :math:`N_{face} = 10\times4^{gridlevel}+2` and :math:`N_{node} = 20\times4^{gridlevel}`. The Surface object contains an attribute called `pix`, which is the value of the "effective pixel size" in meters, where :math:`pix=\sqrt{\left<Area_{face}\right>}`. The following table shows the relationship between the grid level, the number of faces and nodes, and the effective pixel size for a default target of the Moon
 
+.. csv-table::
+    :header: "gridlevel", "n_face", "n_node", "pix (for Moon target)"
+    :widths: 10, 10, 10, 10
 
-
-
- 
-
-
-
-
-
-
-
+    5, 10242, 20480, 60.8 km ± 2.42 km
+    6, 40962, 81920, 30.4 km ± 1.25 km
+    7, 163842, 327680, 15.2 km ± 634 m
+    8, 655362, 1310720, 7.60 km ± 319 m
+    9, 2621442, 5242880, 3.80 km ± 160 m
 
 
+Lower values of `gridlevel` will result in fewer but larger face sizes, which can be computed quickly but will not resolve detail well. Higher values of `gridlevel` will result in more faces with smaller areas, which will resolve detail better but will take longer to generate and use, and will consume more memory. We recommend keeping `gridlevel` to between ~7-9. Also, keep in mind that the value of `pix` in the table above is computed for the Moon, and will vary for other targets.
 
 
+Arbitrary resolution grids
+--------------------------
+
+While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of ~20 km per face:
+
+.. ipython:: python
+    :okwarning:
+
+    surface=Surface.maker(surface='arbitrary_resolution', target='Mercury', pix=20e3)
+    print(surface)
 
 
+As seen above, the arbitrary resolution grid also creates a uniform grid configurations but allows the user to define their pixel size. Unlike the icosphere, the faces on the surface will be more irregular in shape, making it less ideal. 
+
+High resolution local grids
+-----------------------------
+
+In many application of Cratermaker, it is useful to model a small local region at high resolution. This surface type requires the following 4 arguments:
+
+- `pix`: The pixel size in meters within the high resolution local region.
+- `local_radius`: The radius of the local region in meters.
+- `local_location`: The center of the local region in degrees, given as a tuple of (longitude, latitude).
+- `superdomain_scale_factor`: A scale factor that determines how much larger the faces will be at the antipode of the local region.
+
+.. note::
+    When used as part of a :ref:`Simulation <ug-simulation>`, the `superdomain_scale_factor` can be omitted. It is computed using the Simulation's production and morphology models in order to compute the sizes of faces in the superdomain as a function of distance from the local region boundary. 
+
+For instance, suppose we want to generate a high resolution local grid on the Moon with a resolution of ~10 m per pixel, with a radius of 5 km, centered at the equator and prime meridian (0° longitude, 0° latitude), and a superdomain scale factor of 10,000:
+
+.. ipython:: python
+    :okwarning:
+
+    surface=Surface.maker("hireslocal", pix=10.0, local_radius=5e3, local_location=(0, 0), superdomain_scale_factor=10000)
+    print(surface)
+
+The "hireslocal" surface type works somewhat differently than the others. For instance, the diffusive degradation is only applied on the local region. You can think of the local region as the "primary" surface being modeled, and the superdomain as simply a source for distal ejecta fram large far away craters. 
 
 
+Extracting a local subsection of the surface
+--------------------------------------------
+
+Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that only contains the faces and nodes within a specified radius of a given location. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters.
+
+For instance, suppose we'd like to extract a 16 km radius region at the south pole of the Moon:
+
+.. ipython:: python
+    :okwarning:
+
+    surface=Surface.maker()
+    print(surface)
+    region=surface.extract_region(location=(0,-90),region_radius=16e3)
+    print(region)
+
+As we can see, this selects only 15 of the full 655362 faces, which is a significant reduction in the number of faces and nodes that need to be processed. The LocalSurface object can be used to perform operations on this local region without affecting the full surface. 
+
+.. note::
+    The "hireslocal" Surface type contains a built-in attribute called `local`, which represents the high resolution region of the surface. In addition, when `extract_region` is called on a "hireslocal" surface, it will return a special `LocalHiResLocalSurface` object that contains within it an additional object called `local_overlap`. This is a view of only the portion of the extracted region that overlaps the high resolution region (or None if there is no overlap).
+
+Using a Surface object
+----------------------
+Once you have either a Surface or LocalSurface object, you are now able to perform numerous surface-related computations. 
+
+- :meth:`extract_region`: Extracts a local region of the surface, which is useful for performing operations on a small portion of the surface without affecting the full surface. This returns a `LocalSurface`` object.
+- :meth:`add_data`: Adds a new data variable that is associated with either faces (default) or nodes of the surface. 
+- :meth:`update_elevation`: Updates the elevation data of the surface using the `new_elevation` argument. The data is added to the existing elevation data by default, unless the user specifies `overwrite=True`.
+- :meth:`apply_diffusion`: Applies diffusive degradation to the surface, which is a process that smooths out the surface by averaging the elevations of neighboring faces. This is useful for simulating the effects of erosion over time.
+- :meth:`slope_collapse`: Applies diffusion only to surfaces that are steeper than a given threshold  given by the argument `critical_slope_angle`, which is set to 35 degrees by default (a typical value for the angle of repose). 
+- :meth:`apply_noise`: Applies tubulence-style simplex noise to the surface. This can be useful for generating realistic surface features, such as hills and valleys. The noise is applied to the elevation data of the surface.
+- :meth:`calculate_face_and_node_distances`: Returns one array for distances between a point and all faces, and another array with distances between that point and all nodes.
+- :meth:`calculate_face_and_node_bearings`: Returns two arrays: Bearings (direction in degrees) between a point and all faces, Bearing between a point and all nodes.
+- :meth:`find_nearest_index`: Returns the indices of the face and node that are the closest to a given point. 
+- :meth:`interpolate_node_elevation_from_faces`: Some operations only affect faces, and so this method can be used to interpolate the elevation of nodes from the face elevations.
+- :meth:`elevation_to_cartesian`: Convert elevation values to Cartesian coordinates. This is a basic utility function that takes the cartesian positions of the surface of a sphere and elevation values and returns the Cartesian coordinates of the surface with the elevations applied. This is used because the mesh is never altered in Cratermaker, but rather the elevations are applied to the mesh when it is visualized.
+- :meth:`get_random_location_on_face`: Given a face index, this method will return a random location on that face. This is used to generate craters on a surface, as some surfaces have highly variable faces and therefore production functions must be evaluated on a face-by-face basis.
+
+.. note::
+    The LocalSurface object comes with distances and bearings from the center of the local region pre-computed. See below:
+
+.. ipython:: python
+    :okwarning:
+
+    region=surface.extract_region(location=(205,45),region_radius=10e3)
+    print(f"Region face distances:\n{region.face_distance}")
+    print(f"Region face bearings:\n{region.face_bearing}")
 
 
+More Surface examples
+---------------------
 
-
-
+See more examples at  :ref:`gal-surface`
 
