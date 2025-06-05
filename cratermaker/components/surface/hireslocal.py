@@ -93,7 +93,7 @@ class HiResLocalSurface(Surface):
             f"Maximum effective pixel size: {pix_max}"
         )
 
-    def plot_hillshade(self, imagefile=None, **kwargs: Any) -> None:
+    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
         """
         Plot a hillshade image of the local region.
 
@@ -101,6 +101,10 @@ class HiResLocalSurface(Surface):
         ----------
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
@@ -149,6 +153,50 @@ class HiResLocalSurface(Surface):
         )
         ax.axis("off")
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        fontsize_px = resolution * 0.03
+        fontsize = fontsize_px * 72 / dpi
+        # Add scale bar before saving/showing image
+        if scalebar:
+            # Determine max physical size for the scale bar
+            max_physical_size = extent_val / 2 / np.sqrt(2)
+
+            # Choose "nice" scale bar length
+            nice_values = np.array([100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
+            scale_length = nice_values[nice_values <= max_physical_size].max()
+            bar_height = extent_val * 0.01
+            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
+
+            # Position in lower right corner
+            x_start = extent_val - scale_length - extent_val * 0.1
+            y_start = -(extent_val - bar_height - extent_val * 0.1)
+
+            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
+            ax.add_patch(rect)
+            # Label above the scale bar
+            ax.text(
+                x_start + scale_length / 2,
+                y_start + 2 * bar_height,
+                scale_text,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
+        if label:
+            x_start = -extent_val / np.sqrt(2.0)
+            y_start = extent_val * 0.85
+            # Label above the scale bar
+            ax.text(
+                x_start,
+                y_start,
+                label,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
         if imagefile:
             plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
         else:
@@ -441,6 +489,8 @@ class HiResLocalSurface(Surface):
         imgdir = Path(self.simdir) / "surface_images"
         imgdir.mkdir(parents=True, exist_ok=True)
         imagefile = imgdir / f"hillshade{interval_number:06d}.png"
+        if time_variables:
+            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
         self.plot_hillshade(imagefile=imagefile, **kwargs)
         return
 
