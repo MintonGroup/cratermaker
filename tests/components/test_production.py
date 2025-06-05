@@ -13,7 +13,7 @@ class TestProduction(unittest.TestCase):
             production = Production.maker(production=model_name)
             for age_orig in np.logspace(np.log10(4500), np.log10(0.1), num=10):
                 D = np.logspace(-1, 3, num=1000)
-                N = production.function(diameter=D, age=age_orig, check_valid_age=False)
+                N = production.function(diameter=D, age=age_orig)
                 age_new = production.age_from_D_N(
                     cumulative_number_density=N, diameter=D
                 )
@@ -24,7 +24,7 @@ class TestProduction(unittest.TestCase):
             production = Production.maker(production=model_name)
             for age in np.logspace(np.log10(4500), np.log10(0.1), num=10):
                 D_orig = np.logspace(-1, 3, num=1000)
-                N = production.function(diameter=D_orig, age=age, check_valid_age=False)
+                N = production.function(diameter=D_orig, age=age)
                 D_new = production.D_from_N_age(cumulative_number_density=N, age=age)
                 np.testing.assert_array_almost_equal(D_orig, D_new, decimal=2)
 
@@ -35,9 +35,9 @@ class TestProduction(unittest.TestCase):
             # Test valid arguments
             try:
                 production.sample(age=500.0, diameter_range=(10.0, 100.0), area=1e6)
-            except ValueError:
+            except ValueError as e:
                 self.fail(
-                    "sample() raised ValueError unexpectedly with valid arguments!"
+                    f"sample() raised ValueError unexpectedly with valid arguments! {e}"
                 )
 
             # Test providing both age and cumulative_number

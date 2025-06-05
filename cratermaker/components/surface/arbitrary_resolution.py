@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 
 from cratermaker.components.surface import Surface
 from cratermaker.components.target import Target
-from cratermaker.constants import FloatLike
+from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 
@@ -73,14 +73,90 @@ class ArbitraryResolutionSurface(Surface):
             value = (
                 np.sqrt(4 * np.pi * self.radius**2) * 1e-3
             )  # Default mesh scale that is somewhat comparable to a 1000x1000 CTEM grid
-        elif (
-            not isinstance(value, FloatLike)
-            or np.isnan(value)
-            or np.isinf(value)
-            or value <= 0
-        ):
+        elif not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
             raise TypeError("pix must be a positive float")
         self._pix = float(value)
+
+    @staticmethod
+    def _distribute_points(
+        distance: FloatLike,
+        radius: FloatLike = 1.0,
+        lon_range: PairOfFloats = (-180, 180),
+        lat_range: PairOfFloats = (-90, 90),
+    ) -> NDArray:
+        """
+        Distributes points on a sphere using Deserno's algorithm (Deserno 2004).
+
+        Parameters
+        ----------
+        distance : float
+            Approximate distance between points, used to determine the number of points, where n = 1/distance**2 when distributed over the whole sphere.
+        radius : float, optional
+            Radius of the sphere. Default is 1.0
+        lon_range : tuple, optional
+            Range of longitudes in degrees. Default is (-180,180).
+        lat_range : tuple, optional
+            Range of latitudes in degrees. Default is (-90,90).
+
+        Returns
+        -------
+        (3,n) ndarray of np.float64
+            Array of cartesian points on the sphere.
+
+        References
+        ----------
+        - Deserno, Markus., 2004. How to generate equidistributed points on the surface of a sphere. https://www.cmu.edu/biolphys/deserno/pdf/sphere_equi.pdf
+
+        """
+
+        def _sph2cart(theta, phi, r):
+            """
+            Converts spherical coordinates to Cartesian coordinates.
+
+            Parameters
+            ----------
+            theta : float
+                Inclination angle in radians.
+            phi : float
+                Azimuthal angle in radians.
+            r : float
+                Radius.
+            """
+            x = r * np.sin(theta) * np.cos(phi)
+            y = r * np.sin(theta) * np.sin(phi)
+            z = r * np.cos(theta)
+            return x, y, z
+
+        phi_range = np.deg2rad(lon_range) + np.pi
+        theta_range = np.deg2rad(lat_range) + np.pi / 2
+        points = []
+
+        n = int(4 * np.pi / distance**2)
+        if n < 1:
+            return
+
+        a = 4 * np.pi / n
+        d = np.sqrt(a)
+        mtheta = int(np.round(np.pi / d))
+        dtheta = np.pi / mtheta
+        dphi = a / dtheta
+
+        thetavals = np.pi * (np.arange(mtheta) + 0.5) / mtheta
+        thetavals = thetavals[(thetavals >= theta_range[0]) & (thetavals < theta_range[1])]
+
+        for theta in thetavals:
+            mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
+            phivals = 2 * np.pi * np.arange(mphi) / mphi
+            phivals = phivals[(phivals >= phi_range[0]) & (phivals < phi_range[1])]
+            for phi in phivals:
+                points.append(_sph2cart(theta, phi, radius))
+        if len(points) == 0:
+            return
+
+        points = np.array(points, dtype=np.float64)
+        points = points.T
+
+        return points
 
     def _generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
@@ -90,12 +166,9 @@ class ArbitraryResolutionSurface(Surface):
         -------
         (3,n) ndarray of np.float64
             Array of points on a unit sphere.
-
         """
-
-        print(
-            f"Generating a mesh with uniformly distributed faces of size ~{self.pix} m."
-        )
+        pix_str = format_large_units(self.pix, quantity="length")
+        print(f"Generating a mesh with uniformly distributed faces of size ~{pix_str}.")
         points = self._distribute_points(distance=self.pix / self.radius)
         points[:, 0] = np.array([0, 0, 1])
         points[:, -1] = np.array([0, 0, -1])
