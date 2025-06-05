@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 from numpy.random import Generator
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import root_scalar
 
 from cratermaker.components.target import Target
@@ -176,14 +176,21 @@ class Production(ComponentBase):
         diameter_range = arguments["diameter_range"]
         area = arguments["area"]
         return_age = arguments["return_age"]
+        validate_inputs = kwargs.pop("validate_inputs", False)
 
         # Build the cumulative distribution function from which we will sample
         input_diameters = np.logspace(
             np.log10(diameter_range[0]), np.log10(diameter_range[1])
         )
         cdf = self.function(
-            diameter=input_diameters, age=age, age_end=age_end, **kwargs
+            diameter=input_diameters,
+            age=age,
+            age_end=age_end,
+            validate_inputs=validate_inputs,
+            **kwargs,
         )
+        if cdf.ndim > 1:
+            cdf = cdf[:, 0]
         expected_num = cdf[0] * area if area is not None else None
         diameters = mc.get_random_size(
             diameters=input_diameters,
@@ -196,7 +203,12 @@ class Production(ComponentBase):
 
         if return_age:
             age_subinterval = np.linspace(age_end, age, num=1000)
-            N_vs_age = self.function(diameter=diameters, age=age_subinterval, **kwargs)
+            N_vs_age = self.function(
+                diameter=diameters,
+                age=age_subinterval,
+                validate_inputs=validate_inputs,
+                **kwargs,
+            )
 
             # Normalize the weights for each diameter
             if N_vs_age.ndim > 1:
@@ -265,14 +277,14 @@ class Production(ComponentBase):
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-        check_valid_age: bool = True,
         **kwargs: Any,
-    ) -> FloatLike | ArrayLike: ...
+    ) -> NDArray[np.float64]: ...
 
     def age_from_D_N(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
         cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
+        validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
         """
@@ -280,10 +292,12 @@ class Production(ComponentBase):
 
         Parameters
         ----------
-        diameter : float-like or  array-like
+        diameter : float-like or array-like
             diameter of the crater in m
         cumulative_number_density : float-like or array-like
             number density of craters per m^2 surface area greater than the input diameter
+        validate_inputs : bool, optional
+            If True, the function will validate the inputs. The default is True.
         **kwargs: Any
             Any additional keywords that are passed to the function method.
 
@@ -293,14 +307,15 @@ class Production(ComponentBase):
             The age in My for the given relative number density of craters.
         """
 
-        diameter, cumulative_number_density = self._validate_csfd(
-            diameter=diameter, cumulative_number_density=cumulative_number_density
-        )
+        if validate_inputs:
+            diameter, cumulative_number_density = self._validate_csfd(
+                diameter=diameter, cumulative_number_density=cumulative_number_density
+            )
 
         def _root_func(t, D, N):
-            kwargs.pop("check_valid_age", None)
+            kwargs.pop("validate_inputs", None)
             retval = (
-                self.function(diameter=D, age=t, check_valid_age=False, **kwargs) - N
+                self.function(diameter=D, age=t, validate_inputs=False, **kwargs) - N
             )
             return retval
 
@@ -345,6 +360,7 @@ class Production(ComponentBase):
         cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
         age: FloatLike | Sequence[FloatLike] | ArrayLike,
         age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
         """
@@ -358,6 +374,8 @@ class Production(ComponentBase):
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
         age_end, FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        validate_inputs : bool, optional
+            If True, the function will validate the inputs. The default is True.
         **kwargs: Any
             Any additional keywords that are passed to the function method.
 
@@ -367,14 +385,17 @@ class Production(ComponentBase):
             The diameter for the given number density and age.
         """
 
+        if validate_inputs:
+            age, age_end = self._validate_age(age, age_end)
+
         def _root_func(D, N, age, age_end):
-            kwargs.pop("check_valid_age", None)
+            kwargs.pop("validate_inputs", None)
             retval = (
                 self.function(
                     diameter=D,
                     age=age,
                     age_end=age_end,
-                    check_valid_age=False,
+                    validate_inputs=False,
                     **kwargs,
                 )
                 - N
@@ -410,29 +431,11 @@ class Production(ComponentBase):
                 f"The root finding algorithm did not converge for all values of cumulative_number and age. Flag {flag}"
             )
 
-    def get_projectile_properties(
-        self, projectile_mean_velocity: FloatLike | None = None, **kwargs
-    ) -> dict:
-        """
-        Generates basic projectile properties including density, velocity, and angle.
-
-        Returns
-        -------
-        dict
-            A dictionary containing the projectile properties.
-        """
-
-        return {
-            "projectile_density": 0.0,
-            "projectile_velocity": 0.0,
-            "projectile_angle": 0.0,
-        }
-
     @abstractmethod
     def chronology(
         self,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        check_valid_age: bool = True,
+        validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike: ...
 
@@ -693,7 +696,6 @@ class Production(ComponentBase):
         self,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-        check_valid_age: bool = True,
     ) -> FloatLike | ArrayLike:
         """
         Processes the age argument and age_end arguments. Checks that they are valid and returns a tuple of age and age_end.
@@ -720,43 +722,60 @@ class Production(ComponentBase):
         if np.isscalar(age):
             if not isinstance(age, FloatLike):
                 raise TypeError("age must be a numeric value (float or int)")
-            age = float(age)
-
             if age_end is None:
-                age_end = float(0.0)
-            else:
-                if not np.isscalar(age_end):
-                    raise ValueError("If age is a scalar, age_end must be a scalar")
-                elif not isinstance(age_end, FloatLike):
-                    raise TypeError("age_end must be a numeric value (float or int)")
-                age_end = float(age_end)
+                age_end = 0.0
+            elif not np.isscalar(age_end):
+                raise TypeError("age_end must be a numeric value (float or int)")
+            elif not isinstance(age_end, FloatLike):
+                raise TypeError("age_end must be a numeric value (float or int)")
             if age < age_end:
-                raise ValueError("age must be greater than or equal to the age_end")
-        elif isinstance(age, (list, tuple, np.ndarray)):
-            age = np.array(age, dtype=np.float64)
+                raise ValueError("age must be greater than the age_end")
+            if self.valid_age[0] is not None and age < self.valid_age[0]:
+                raise ValueError(
+                    f"age must be greater than the minimum valid age {self.valid_age[0]}"
+                )
+            if self.valid_age[1] is not None and age > self.valid_age[1]:
+                raise ValueError(
+                    f"age must be less than the maximum valid age {self.valid_age[1]}"
+                )
+        else:
+            if isinstance(age, (list, tuple)):
+                age = np.array(age, dtype=np.float64)
+            elif not isinstance(age, np.ndarray):
+                raise TypeError(
+                    "age must be a numeric value (float or int) or an array"
+                )
+
             if age_end is None:
                 age_end = np.zeros_like(age)
-            elif isinstance(age_end, (list, tuple, np.ndarray)):
+            elif np.isscalar(age_end):
+                age_end = np.full_like(age, age_end, dtype=np.float64)
+            elif isinstance(age_end, (list, tuple)):
                 age_end = np.array(age_end, dtype=np.float64)
-            else:
-                raise ValueError("If age is a sequence, age_end must be a sequence")
+            elif not isinstance(age_end, np.ndarray):
+                raise TypeError(
+                    "age_end must be a numeric value (float or int) or an array"
+                )
+
             if age.size != age_end.size:
                 raise ValueError(
-                    "If age is a sequence, age_end must be a sequence of the same size"
+                    "The 'age' and 'age_end' arguments must be the same size if both are provided"
                 )
+
             if np.any(age < age_end):
                 raise ValueError("age must be greater than the age_end")
-        else:
-            raise ValueError("age must be a scalar or a sequence")
 
-        if check_valid_age:
             if self.valid_age[0] is not None:
-                if np.any(age < self.valid_age[0]):
+                if np.any(age < self.valid_age[0]) or np.any(
+                    age_end < self.valid_age[0]
+                ):
                     raise ValueError(
                         f"age must be greater than the minimum valid age {self.valid_age[0]}"
                     )
             if self.valid_age[1] is not None:
-                if np.any(age > self.valid_age[1]):
+                if np.any(age > self.valid_age[1]) or np.any(
+                    age_end > self.valid_age[1]
+                ):
                     raise ValueError(
                         f"age must be less than the maximum valid age {self.valid_age[1]}"
                     )

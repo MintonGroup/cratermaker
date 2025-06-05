@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 from numpy.random import Generator
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from cratermaker.components.production import Production
 from cratermaker.constants import FloatLike
@@ -85,6 +85,7 @@ class PowerLawProduction(Production):
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
         age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
         """
@@ -99,6 +100,8 @@ class PowerLawProduction(Production):
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
         age_end, FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        validate_inputs: bool, default=True
+            If True, the function will check that the validity of age, age_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
         **kwargs : Any
             Any additional keywords. These are not used in this base class, but included here so that any extended class can share
             the same function signature.
@@ -109,8 +112,14 @@ class PowerLawProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
             surface over the given age range.
         """
-        diameter, _ = self._validate_csfd(diameter=diameter)
-        age, age_end = self._validate_age(age, age_end)
+        if validate_inputs:
+            diameter, _ = self._validate_csfd(diameter=diameter)
+            age, age_end = self._validate_age(age, age_end)
+        elif age_end is None:
+            if np.isscalar(age):
+                age_end = 0.0
+            else:
+                age_end = np.zeros_like(age)
 
         n_array = np.asarray(self.csfd(diameter))
         age_difference = np.asarray(age - age_end)
@@ -121,8 +130,12 @@ class PowerLawProduction(Production):
             return n_array * age_difference
 
     def chronology(
-        self, age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0, **kwargs: Any
-    ) -> FloatLike | ArrayLike:
+        self,
+        age: ArrayLike = np.array([1000.0]),
+        age_end: ArrayLike | None = None,
+        validate_inputs: bool = True,
+        **kwargs: Any,
+    ) -> NDArray[np.float64]:
         """
         Returns the age in My. Because the powerlaw model assumes constant impact rate, the returned age is the same as the input age.
 
@@ -135,10 +148,20 @@ class PowerLawProduction(Production):
 
         Returns
         -------
-        FloatLike or numpy array of FloatLike
-            The age in My for the given relative number density of craters.
+        NDArray
+            The number of craters relative to the amount produced in the last 1 My.
+
         """
-        return age
+        if validate_inputs:
+            age, age_end = self._validate_age(age, age_end)
+        else:
+            if age_end is None:
+                if np.isscalar(age):
+                    age_end = 0.0
+                else:
+                    age_end = np.zeros_like(age)
+
+        return age - age_end
 
     def csfd(
         self, diameter: FloatLike | ArrayLike, **kwargs: Any
