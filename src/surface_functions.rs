@@ -119,33 +119,55 @@ pub fn calculate_bearing<'py>(
     Ok(PyArray1::from_owned_array(py, result))
 }
 
-/// Computes a conservative explicit timestep for stability using edge-based distances and face diffusivities.
+/// Computes a conservative explicit timestep for stability using per-face aggregated flux contributions.
+///
+/// This method loops over all edges and accumulates inverse dt estimates for each face.
+/// The final dt is the minimum over all faces of the reciprocal flux sum.
 fn compute_dt_max(
     edge_face_distances: &ndarray::ArrayView1<'_, f64>,
     edge_face_connectivity: &ndarray::ArrayView2<'_, i64>,
     face_kappa: &ndarray::ArrayView1<'_, f64>,
+    face_areas: &ndarray::ArrayView1<'_, f64>,
+    edge_lengths: &ndarray::ArrayView1<'_, f64>,
 ) -> f64 {
-    let mut dt_min = f64::INFINITY;
+    let n_face = face_kappa.len();
+    let mut inverse_dt_sum = ndarray::Array1::<f64>::zeros(n_face);
 
     for (e, faces) in edge_face_connectivity.outer_iter().enumerate() {
-        let d = edge_face_distances[e];
-        if d <= 0.0 {
+        let distance = edge_face_distances[e];
+        if distance <= 0.0 {
             continue;
         }
-        let [f1, f2] = <[i64; 2]>::try_from(faces.as_slice().unwrap()).unwrap();
+
+        let [f1, f2] = match <[i64; 2]>::try_from(faces.as_slice().unwrap()) {
+            Ok(pair) => pair,
+            Err(_) => continue,
+        };
+
         let f1 = f1 as usize;
         let f2 = f2 as usize;
+        if f1 >= n_face || f2 >= n_face {
+            continue;
+        }
 
         let k1 = face_kappa[f1];
         let k2 = face_kappa[f2];
         let k_avg = 0.5 * (k1 + k2);
+        let length = edge_lengths[e];
 
         if k_avg > 0.0 {
-            dt_min = dt_min.min(d * d / (4.0 * k_avg));
+            let contrib_f1 = 2.0 * k_avg * length / (distance * face_areas[f1]);
+            let contrib_f2 = 2.0 * k_avg * length / (distance * face_areas[f2]);
+            inverse_dt_sum[f1] += contrib_f1;
+            inverse_dt_sum[f2] += contrib_f2;
         }
     }
 
-    dt_min
+    inverse_dt_sum
+        .iter()
+        .filter(|&&x| x > 0.0)
+        .map(|&x| 1.0 / x)
+        .fold(f64::INFINITY, f64::min)
 }
 
 /// Applies one explicit diffusion update step over a surface mesh with variable diffusivity.
@@ -176,12 +198,14 @@ pub fn apply_diffusion<'py>(
     face_areas: PyReadonlyArray1<'py, f64>,
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     edge_face_distances: PyReadonlyArray1<'py, f64>,
+    edge_lengths: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let face_kappa = face_kappa.as_array();
     let face_elevation = face_elevation.as_array();
     let face_areas = face_areas.as_array();
     let edge_face_connectivity = edge_face_connectivity.as_array();
     let edge_face_distances = edge_face_distances.as_array();
+    let edge_lengths = edge_lengths.as_array();
     let n_face = face_areas.len();
 
     // Compute initial dt von neumann stability condition
@@ -189,6 +213,8 @@ pub fn apply_diffusion<'py>(
         &edge_face_distances,
         &edge_face_connectivity,
         &face_kappa,
+        &face_areas,
+        &edge_lengths,
     );
 
     if !dt_max.is_finite() || dt_max <= 0.0 {
@@ -211,21 +237,22 @@ pub fn apply_diffusion<'py>(
             let [f1, f2] = <[i64; 2]>::try_from(faces.as_slice().unwrap()).unwrap();
             let f1 = f1 as usize;
             let f2 = f2 as usize;
-            let d = edge_face_distances[e];
+            let distance = edge_face_distances[e];
+            let length = edge_lengths[e];
 
-            if d <= 0.0 || f1 >= n_face || f2 >= n_face {
+            if distance <= 0.0 || f1 >= n_face || f2 >= n_face {
                 continue;
             }
 
-            let h1 = face_elevation[f1];
-            let h2 = face_elevation[f2];
+            let h1 = face_elevation[f1] + face_delta_elevation[f1];
+            let h2 = face_elevation[f2] + face_delta_elevation[f2];
             let k1 = face_kappa[f1];
             let k2 = face_kappa[f2];
 
-            let flux = (k1 + k2) * (h2 - h1) / d;
+            let flux = (k1 + k2) * (h2 - h1) / distance * length;
 
-            dhdt[f1] += flux;
-            dhdt[f2] -= flux;
+            dhdt[f1] += flux / face_areas[f1];
+            dhdt[f2] -= flux / face_areas[f2];
         }
 
         for i in 0..n_face {
@@ -381,11 +408,13 @@ pub fn slope_collapse<'py>(
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_edge_connectivity: PyReadonlyArray2<'py, i64>,
     edge_face_distances: PyReadonlyArray1<'py, f64>,
+    edge_lengths: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let face_areas = face_areas.as_array();
     let edge_face_connectivity = edge_face_connectivity.as_array();
     let face_edge_connectivity = face_edge_connectivity.as_array();
     let edge_face_distances = edge_face_distances.as_array();
+    let edge_lengths = edge_lengths.as_array();
     let face_elevation_view = face_elevation.as_array();
     let n_face = face_areas.len();
     let critical_slope_sq = critical_slope * critical_slope;
@@ -397,7 +426,9 @@ pub fn slope_collapse<'py>(
     let diffmax = compute_dt_max(
         &edge_face_distances,
         &edge_face_connectivity,
-        &kappa_ref
+        &kappa_ref,
+        &face_areas,
+        &edge_lengths,
     );
     let looplimit = 1000 as usize;
 
@@ -441,6 +472,7 @@ pub fn slope_collapse<'py>(
         let py_face_areas = PyArray1::from_array(py, &face_areas).readonly();
         let py_edge_face_connectivity = PyArray2::from_array(py, &edge_face_connectivity).readonly();
         let py_edge_face_distances = PyArray1::from_array(py, &edge_face_distances).readonly();
+        let py_edge_lengths = PyArray1::from_array(py, &edge_lengths).readonly();
 
         let delta = apply_diffusion(
             py,
@@ -448,7 +480,8 @@ pub fn slope_collapse<'py>(
             py_face_elevation,
             py_face_areas,
             py_edge_face_connectivity,
-            py_edge_face_distances
+            py_edge_face_distances,
+            py_edge_lengths
         )?;
 
         let delta_array = unsafe { delta.as_array() };
@@ -578,50 +611,50 @@ pub fn turbulence_noise<'py>(
     Ok(PyArray1::from_owned_array(py, result))
 }
 
-/// Constructs the edge-face distances for a surface mesh
+/// Constructs the edge-other distances for a surface mesh
 ///
-/// This will compute the haversine distance between the centers of the faces that saddle each edge.
+/// This will compute the haversine distance between the coordinates of the two components (faces, nodes, etc) that are associated with each edge.
 ///
 /// # Arguments
 /// * `py` - Python interpreter token.
-/// * `edge_face_connectivity` - Indices of the faces that saddle each edge. (2D array of shape n_edge x 2).
+/// * `edge_connectivity` - Indices of the elements associated each edge. (2D array of shape n_edge x 2).
 ///
 /// # Returns
-/// A 1D NumPy array of edge-face distances in meters, one for each edge.
+/// A 1D NumPy array of edge-other distances in meters, one for each edge.
 #[pyfunction]
-pub fn construct_edge_face_distances<'py>(
+pub fn compute_edge_distances<'py>(
     py: Python<'py>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    face_lon: PyReadonlyArray1<'py, f64>,
-    face_lat: PyReadonlyArray1<'py, f64>,
+    edge_connectivity: PyReadonlyArray2<'py, i64>,
+    lon: PyReadonlyArray1<'py, f64>,
+    lat: PyReadonlyArray1<'py, f64>,
     radius: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
 
-    let edge_face_connectivity = edge_face_connectivity.as_array();
-    let face_lon = face_lon.as_array();
-    let face_lat = face_lat.as_array();
-    let n_edge = edge_face_connectivity.nrows();
+    let edge_connectivity = edge_connectivity.as_array();
+    let lon = lon.as_array();
+    let lat = lat.as_array();
+    let n_edge = edge_connectivity.nrows();
 
-    let mut edge_face_distances = ndarray::Array1::<f64>::zeros(n_edge);
+    let mut edge_distances = ndarray::Array1::<f64>::zeros(n_edge);
 
-    Zip::from(&mut edge_face_distances)
-        .and(edge_face_connectivity.outer_iter())
+    Zip::from(&mut edge_distances)
+        .and(edge_connectivity.outer_iter())
         .into_par_iter()
-        .for_each(|(out, faces)| {
-            let f1 = faces[0];
-            let f2 = faces[1];
-            if f1 < 0 || f2 < 0 {
+        .for_each(|(out, other)| {
+            let o1 = other[0];
+            let o2 = other[1];
+            if o1 < 0 || o2 < 0 {
                 *out = 0.0;
             } else {
-                let f1 = f1 as usize;
-                let f2 = f2 as usize;
+                let o1 = o1 as usize;
+                let o2 = o2 as usize;
                 *out = haversine_distance_scalar(
-                    face_lon[f1], face_lat[f1],
-                    face_lon[f2], face_lat[f2],
+                    lon[o1], lat[o1],
+                    lon[o2], lat[o2],
                     radius,
                 );
             }
         });
 
-    Ok(PyArray1::from_owned_array(py, edge_face_distances))
+    Ok(PyArray1::from_owned_array(py, edge_distances))
 }
