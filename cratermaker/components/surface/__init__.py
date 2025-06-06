@@ -79,6 +79,8 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_pix_min", None)
         object.__setattr__(self, "_pix_max", None)
         object.__setattr__(self, "_area", None)
+        object.__setattr__(self, "_edge_tree", None)
+        object.__setattr__(self, "_edge_face_distances", None)
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
         object.__setattr__(self, "_face_areas", None)
@@ -228,13 +230,13 @@ class Surface(ComponentBase):
         location = validate_and_normalize_location(location)
         coords = np.asarray(location)
 
-        face_indices = self.face_tree.query_radius(coords, region_angle)
-        if len(face_indices) == 0:
+        edge_indices = self.edge_tree.query_radius(coords, region_angle)
+        if len(edge_indices) == 0:
             return None
 
         return LocalSurface(
             surface=self,
-            face_indices=face_indices,
+            edge_indices=edge_indices,
             location=location,
             region_radius=region_radius,
         )
@@ -750,7 +752,7 @@ class Surface(ComponentBase):
         return regrid
 
     def _full(self):
-        return LocalSurface(self, slice(None), slice(None))
+        return LocalSurface(self, edge_indices=slice(None), face_indices=slice(None), node_indices=slice(None))
 
     def _save_data(
         self,
@@ -990,6 +992,18 @@ class Surface(ComponentBase):
         return self._face_tree
 
     @property
+    def edge_tree(self):
+        if self._edge_tree is None:
+            self._edge_tree = self.uxgrid.get_ball_tree(
+                "edge centers",
+                distance_metric="haversine",
+                coordinate_system="spherical",
+                reconstruct=True,
+            )
+
+        return self._edge_tree
+
+    @property
     def _hashvars(self):
         """
         The variables used to generate the hash.
@@ -1064,6 +1078,44 @@ class Surface(ComponentBase):
         if self._smallest_length is None:
             self._smallest_length = float(np.min(self.face_sizes) * _SMALLFAC)
         return self._smallest_length
+
+    @property
+    def n_edge(self) -> int:
+        """
+        Total number of edges.
+        """
+        return int(self.uxgrid.n_edge)
+
+    @property
+    def edge_face_distances(self) -> NDArray[np.float64]:
+        """
+        Distances between the centers of the faces that saddle each edge in meters.
+        """
+        if self._edge_face_distances is None:
+            self._edge_face_distances = surface_functions.construct_edge_face_distances(
+                self.edge_face_connectivity, self.face_lon, self.face_lat, self.radius
+            )
+        return self._edge_face_distances
+
+    @property
+    def edge_face_connectivity(self) -> NDArray[np.int64]:
+        """
+        Indices of the faces that saddle each edge.
+
+        Dimensions (n_edge, 2)
+
+        """
+        return self.uxgrid.edge_face_connectivity.values
+
+    @property
+    def face_edge_connectivity(self) -> NDArray[np.int64]:
+        """
+        Indices of the edges that surround each face.
+
+        Dimensions (n_face, n_max_face_edges)
+
+        """
+        return self.uxgrid.face_edge_connectivity.values
 
     @property
     def n_face(self) -> int:
@@ -1411,10 +1463,12 @@ class LocalSurface:
     ----------
     surface : Surface
         The surface object that contains the mesh data.
-    face_indices : NDArray | slice
-        The indices of the faces to include in the view.
+    edge_indices : NDArray | slice
+        The indices of the edges to include in the view.
+    face_indices : NDArray | slice | None, optional
+        The indices of the faces to include in the view. If None, all faces connected to the edges will be extracted when required.
     node_indices : NDArray | slice | None, optional
-        The indices of the nodes to include in the view. If None, all nodes connected to the faces are included.
+        The indices of the nodes to include in the view. If None, all nodes connected to the faces will be extracted when required
     location : tuple[float, float] | None, optional
         The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
     region_radius : FloatLike | None, optional
@@ -1424,42 +1478,32 @@ class LocalSurface:
     def __init__(
         self,
         surface: Surface,
-        face_indices: NDArray | slice,
+        edge_indices: NDArray | slice,
+        face_indices: NDArray | slice | None = None,
         node_indices: NDArray | slice | None = None,
         location: tuple[float, float] | None = None,
         region_radius: FloatLike | None = None,
         **kwargs: Any,
     ):
-        object.__setattr__(self, "_surface", None)
+        object.__setattr__(self, "_surface", Surface.maker(surface))
+        object.__setattr__(self, "_edge_indices", edge_indices)
+        object.__setattr__(self, "_face_indices", face_indices)
+        object.__setattr__(self, "_node_indices", node_indices)
+        object.__setattr__(self, "_region_radius", region_radius)
+        object.__setattr__(self, "_location", None)
         object.__setattr__(self, "_area", None)
+        object.__setattr__(self, "_n_edge", None)
         object.__setattr__(self, "_n_face", None)
         object.__setattr__(self, "_n_node", None)
         object.__setattr__(self, "_face_distance", None)
         object.__setattr__(self, "_node_distance", None)
         object.__setattr__(self, "_face_bearing", None)
         object.__setattr__(self, "_node_bearing", None)
-        object.__setattr__(self, "_face_indices", None)
-        object.__setattr__(self, "_node_indices", None)
-        object.__setattr__(self, "_location", None)
-        object.__setattr__(self, "_region_radius", region_radius)
-
-        self.surface = surface
-
-        self._face_indices = face_indices
-        if isinstance(face_indices, slice):
-            self._n_face = self.surface.face_elevation[face_indices].size
-        else:
-            self._n_face = face_indices.size
-
-        if node_indices is None:
-            node_indices = np.unique(surface.uxds.uxgrid.face_node_connectivity.values[face_indices].ravel())
-            node_indices = node_indices[node_indices != INT_FILL_VALUE]
-
-        self._node_indices = node_indices
-        if isinstance(node_indices, slice):
-            self._n_node = surface.node_elevation[node_indices].size
-        else:
-            self._n_node = node_indices.size
+        object.__setattr__(self, "_edge_face_connectivity", None)
+        object.__setattr__(self, "_face_edge_connectivity", None)
+        object.__setattr__(self, "_face_node_connectivity", None)
+        object.__setattr__(self, "_face_face_connectivity", None)
+        object.__setattr__(self, "_node_face_connectivity", None)
 
         if location is not None:
             self._location = validate_and_normalize_location(location)
@@ -1626,18 +1670,13 @@ class LocalSurface:
 
         if abs(kdiffmax) < _VSMALL:
             return
-        face_kappa = np.zeros(self.surface.n_face)
-        face_kappa[self.face_indices] = kdiff
-        if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
-            face_indices = np.arange(self.surface.n_face)
-        else:
-            face_indices = self.face_indices
+
         delta_face_elevation = surface_functions.apply_diffusion(
-            face_areas=self.surface.face_areas,
-            face_kappa=face_kappa,
-            face_elevation=self.surface.face_elevation,
-            face_face_connectivity=self.face_face_connectivity,
-            face_indices=face_indices,
+            face_kappa=kdiff,
+            face_elevation=self.face_elevation,
+            face_areas=self.face_areas,
+            edge_face_connectivity=self.edge_face_connectivity,
+            edge_face_distances=self.edge_face_distances,
         )
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", delta_face_elevation)
@@ -1658,21 +1697,12 @@ class LocalSurface:
         except ValueError as e:
             raise ValueError("critical_slope_angle must be between 0 and 90 degrees") from e
 
-        if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
-            face_indices = np.arange(self.surface.n_face)
-        else:
-            face_indices = self.face_indices
-        face_lon = np.deg2rad(self.surface.face_lon)
-        face_lat = np.deg2rad(self.surface.face_lat)
         delta_face_elevation = surface_functions.slope_collapse(
-            face_areas=self.surface.face_areas,
-            face_elevation=self.surface.face_elevation,
-            face_face_connectivity=self.face_face_connectivity,
-            face_indices=face_indices,
-            face_lon=face_lon,
-            face_lat=face_lat,
-            radius=self.surface.radius,
             critical_slope=critical_slope,
+            face_elevation=self.face_elevation,
+            face_areas=self.face_areas,
+            edge_face_connectivity=self.edge_face_connectivity,
+            edge_face_distances=self.edge_face_distances,
         )
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", delta_face_elevation)
@@ -1687,19 +1717,12 @@ class LocalSurface:
         NDArray[np.float64]
             The slope of all faces in degrees.
         """
-        if isinstance(self.face_indices, slice) and self.face_indices == slice(None):
-            face_indices = np.arange(self.surface.n_face)
-        else:
-            face_indices = self.face_indices
-        face_lon = np.deg2rad(self.surface.face_lon)
-        face_lat = np.deg2rad(self.surface.face_lat)
         slope = surface_functions.compute_slope(
-            face_elevation=self.surface.face_elevation,
-            face_face_connectivity=self.face_face_connectivity,
-            face_indices=face_indices,
-            face_lon=face_lon,
-            face_lat=face_lat,
-            radius=self.surface.radius,
+            face_elevation=self.face_elevation,
+            face_areas=self.face_areas,
+            edge_face_connectivity=self.edge_face_connectivity,
+            face_edge_connectivity=self.face_edge_connectivity,
+            edge_face_distances=self.edge_face_distances,
         )
 
         return np.rad2deg(np.arctan(slope))
@@ -2076,6 +2099,44 @@ class LocalSurface:
 
         return initial_bearing
 
+    @staticmethod
+    def _remap_connectivity_to_local(
+        connectivity_array: np.ndarray,
+        row_indices: np.ndarray,
+        value_indices: np.ndarray,
+        total_value_size: int,
+        fill_value: int = INT_FILL_VALUE,
+    ) -> np.ndarray:
+        """
+        Remap a 2D connectivity array where the rows are indexed by one entity (e.g., edges) and the values are global references to another entity (e.g., faces).
+
+        Only rows in `row_indices` are retained, and their values are remapped from global to local indices using `value_indices`.
+
+        Parameters
+        ----------
+        connectivity_array : np.ndarray
+            The global 2D connectivity array of shape (N, K).
+        row_indices : np.ndarray
+            Global indices indicating which rows to retain.
+        value_indices : np.ndarray
+            Global indices of values to remap (e.g., face indices).
+        total_value_size : int
+            Total number of global items in the value domain (e.g., total number of faces).
+        fill_value : int, optional
+            Fill value indicating invalid entries (default is INT_FILL_VALUE).
+
+        Returns
+        -------
+        np.ndarray
+            A new 2D connectivity array of shape (len(row_indices), K) with local indices.
+        """
+        subset = connectivity_array[row_indices, :]
+        mapping = np.full(total_value_size, -1, dtype=np.int64)
+        mapping[value_indices] = np.arange(len(value_indices))
+        remapped = mapping[subset]
+        remapped[subset == fill_value] = fill_value
+        return remapped
+
     @property
     def surface(self) -> Surface:
         """
@@ -2083,23 +2144,29 @@ class LocalSurface:
         """
         return self._surface
 
-    @surface.setter
-    def surface(self, value: Surface) -> None:
+    @property
+    def n_edge(self) -> int:
         """
-        Set the surface object.
-
-        Parameters
-        ----------
-        value : Surface
-            The surface object to set.
+        The number of edges in the view.
         """
-        self._surface = Surface.maker(value)
+        if self._n_edge is None:
+            if isinstance(self._edge_indices, slice):
+                self._n_edge = int(self._surface._uxds.uxgrid.n_edge[self._edge_indices].size)
+            else:
+                self._n_edge = self._edge_indices.size
+        return self._n_edge
 
     @property
     def n_face(self) -> int:
         """
         The number of faces in the view.
         """
+        if self._n_face is None:
+            if isinstance(self._face_indices, slice):
+                self._n_face = int(self._surface._face_elevation[self._face_indices].size)
+            elif isinstance(self._face_indices, np.ndarray):
+                self._n_face = int(self._face_indices.size)
+
         return self._n_face
 
     @property
@@ -2107,6 +2174,12 @@ class LocalSurface:
         """
         The number of nodes in the view.
         """
+        if self._n_node is None:
+            if isinstance(self._node_indices, slice):
+                self._n_node = int(self._surface._node_elevation[self._node_indices].size)
+            elif isinstance(self._node_indices, np.ndarray):
+                self._n_node = int(self._node_indices.size)
+
         return self._n_node
 
     @property
@@ -2126,6 +2199,8 @@ class LocalSurface:
         value : NDArray
             The elevation values to set for the faces.
         """
+        if value.size != self.n_face:
+            raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
         self.surface.face_elevation[self.face_indices] = value
 
     @property
@@ -2145,6 +2220,8 @@ class LocalSurface:
         value : NDArray
             The elevation values to set for the nodes.
         """
+        if value.size != self.n_node:
+            raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
         self.surface.node_elevation[self.node_indices] = value
 
     @property
@@ -2232,24 +2309,13 @@ class LocalSurface:
         return self.surface.face_z[self.face_indices]
 
     @property
-    def face_node_connectivity(self) -> NDArray:
+    def edge_face_distances(self) -> NDArray:
         """
-        Indices of the nodes that make up the faces.
+        Distances between the edges and the faces.
 
-        Dimensions: `(n_face, n_max_face_nodes)`
-
-        Nodes are in counter-clockwise order.
+        Dimensions: `(n_edge)`
         """
-        return self.surface.face_node_connectivity[self.face_indices, :]
-
-    @property
-    def face_face_connectivity(self) -> NDArray:
-        """
-        Indices of the faces that surround the faces.
-
-        Dimensions: `(n_face, n_max_face_faces)`
-        """
-        return self.surface.face_face_connectivity[self.face_indices, :]
+        return self.surface.edge_face_distances[self.edge_indices]
 
     @property
     def node_lat(self) -> NDArray:
@@ -2287,15 +2353,6 @@ class LocalSurface:
         return self.surface.node_z[self.node_indices]
 
     @property
-    def node_face_connectivity(self) -> NDArray:
-        """
-        Indices of the faces that surround the nodes.
-
-        Dimensions: `(n_node, n_max_node_faces)`
-        """
-        return self.surface.node_face_connectivity[self.node_indices, :]
-
-    @property
     def area(self) -> float:
         """
         The total area of the faces in the view.
@@ -2305,10 +2362,22 @@ class LocalSurface:
         return self._area
 
     @property
+    def edge_indices(self) -> NDArray:
+        """
+        The indices of the edges in the view.
+        """
+        if self._edge_indices is None:
+            raise ValueError("edge_indices must be set to use this object.")
+        return self._edge_indices
+
+    @property
     def face_indices(self) -> NDArray:
         """
         The indices of the faces in the view.
         """
+        if self._face_indices is None:
+            self._face_indices = np.unique(self.surface.edge_face_connectivity[self.edge_indices].ravel())
+            self._face_indices = self._face_indices[self._face_indices != INT_FILL_VALUE]
         return self._face_indices
 
     @property
@@ -2316,7 +2385,93 @@ class LocalSurface:
         """
         The indices of the nodes in the view.
         """
+        if self._node_indices is None:
+            self._node_indices = np.unique(self.surface.face_node_connectivity[self.face_indices].ravel())
+            self._node_indices = self._node_indices[self._node_indices != INT_FILL_VALUE]
+
         return self._node_indices
+
+    @property
+    def edge_face_connectivity(self) -> NDArray:
+        """
+        Local indices of the faces that make up the edges.
+
+        Dimensions: `(n_edge, 2)`
+        """
+        if self._edge_face_connectivity is None:
+            self._edge_face_connectivity = self._remap_connectivity_to_local(
+                connectivity_array=self.surface.edge_face_connectivity,
+                row_indices=self.edge_indices,
+                value_indices=self.face_indices,
+                total_value_size=self.surface.n_face,
+            )
+        return self._edge_face_connectivity
+
+    @property
+    def face_edge_connectivity(self) -> NDArray:
+        """
+        Local indices of the edges that make up the faces.
+
+        Dimensions: `(n_face, n_max_face_edges)`
+        """
+        if self._face_edge_connectivity is None:
+            self._face_edge_connectivity = self._remap_connectivity_to_local(
+                connectivity_array=self.surface.face_edge_connectivity,
+                row_indices=self.face_indices,
+                value_indices=self.edge_indices,
+                total_value_size=self.surface.n_edge,
+            )
+        return self._face_edge_connectivity
+
+    @property
+    def face_node_connectivity(self) -> NDArray:
+        """
+        Local indices of the nodes that make up the faces.
+
+        Dimensions: `(n_face, n_max_face_nodes)`
+
+        Nodes are in counter-clockwise order.
+        """
+        if self._face_node_connectivity is None:
+            self._face_node_connectivity = self._remap_connectivity_to_local(
+                connectivity_array=self.surface.face_node_connectivity,
+                row_indices=self.face_indices,
+                value_indices=self.node_indices,
+                total_value_size=self.surface.n_node,
+            )
+        return self._face_node_connectivity
+
+    @property
+    def face_face_connectivity(self) -> NDArray:
+        """
+        Indices of the faces that surround the faces.
+
+        Dimensions: `(n_face, n_max_face_faces)`
+        """
+        if self._face_face_connectivity is None:
+            self._face_face_connectivity = self._remap_connectivity_to_local(
+                connectivity_array=self.surface.face_face_connectivity,
+                row_indices=self.face_indices,
+                value_indices=self.face_indices,
+                total_value_size=self.surface.n_face,
+            )
+        return self._face_face_connectivity
+
+    @property
+    def node_face_connectivity(self) -> NDArray:
+        """
+        Indices of the faces that surround the nodes.
+
+        Dimensions: `(n_node, n_max_node_faces)`
+        """
+        if self._node_face_connectivity is None:
+            self._node_face_connectivity = self._remap_connectivity_to_local(
+                connectivity_array=self.surface.node_face_connectivity,
+                row_indices=self.node_indices,
+                value_indices=self.face_indices,
+                total_value_size=self.surface.n_face,
+            )
+        return self._node_face_connectivity
 
 
 import_components(__name__, __path__, ignore_private=True)
