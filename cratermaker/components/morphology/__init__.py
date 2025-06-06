@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Callable
 from math import pi
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -144,7 +145,7 @@ class Morphology(ComponentBase):
             raise TypeError("crater must be an instance of Crater")
 
         # Find the node and face center of the crater
-        self.face_index, self.node_index = self.surface.find_nearest_index(crater.location)
+        self._face_index = self.surface.find_nearest_face(crater.location)
 
         # Test if the ejecta is big enough to modify the surface
 
@@ -252,7 +253,7 @@ class Morphology(ComponentBase):
             degradation_region_area = np.pi * (final_diameter / 2) * fe
             return K * n * degradation_region_area
 
-        for face_indices, dc_max in zip(self.surface.face_bin_indices, self.surface.face_bin_max_sizes):
+        for face_indices, dc_max in zip(self.surface.face_bin_indices, self.surface.face_bin_max_sizes, strict=False):
             deltaKdiff, _ = quad(_subpixel_degradation, DC_MIN, dc_max)
             self._Kdiff[face_indices] += deltaKdiff
 
@@ -501,6 +502,17 @@ class Morphology(ComponentBase):
         if not isinstance(value, bool):
             raise TypeError("dosubpixel_degradation must be a boolean value")
         self._dosubpixel_degradation = value
+
+    @property
+    def face_index(self):
+        """
+        The index of the face closest to the crater location.
+
+        Returns
+        -------
+        int
+        """
+        return self._face_index
 
 
 class CraterQueueManager:

@@ -35,6 +35,8 @@ from cratermaker.utils.general_utils import (
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 if TYPE_CHECKING:
+    from uxarray.grid.neighbors import SpatialHash
+
     from cratermaker.components.target import Target
 
 surface_lock = threading.Lock()
@@ -97,6 +99,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_y", None)
         object.__setattr__(self, "_node_z", None)
         object.__setattr__(self, "_smallest_length", None)
+        object.__setattr__(self, "_spatial_hash", None)
 
         super().__init__(simdir=simdir, **kwargs)
 
@@ -441,6 +444,14 @@ class Surface(ComponentBase):
             face_ind = self.face_tree.query(coords=coords, k=1, return_distance=False)
 
         return face_ind.item(), node_ind.item()
+
+    def find_nearest_face(self, location):
+        location = validate_and_normalize_location(location)
+        if len(location) == 1:
+            location = location.item()
+        coords = np.asarray(location)
+        face_ind, _ = self.spatial_hash.query(coords)
+        return face_ind.item()
 
     def interpolate_node_elevation_from_faces(self) -> None:
         """
@@ -1480,6 +1491,15 @@ class Surface(ComponentBase):
         """
         return self.uxds.n_node.values
 
+    @property
+    def spatial_hash(self) -> SpatialHash:
+        """
+        The spatial hash of the surface view.
+        """
+        if self._spatial_hash is None:
+            self._spatial_hash = self.uxgrid.get_spatial_hash(reconstruct="True")
+        return self._spatial_hash
+
 
 class LocalSurface:
     """
@@ -1729,6 +1749,7 @@ class LocalSurface:
             face_elevation=self.face_elevation,
             face_areas=self.face_areas,
             edge_face_connectivity=self.edge_face_connectivity,
+            face_edge_connectivity=self.face_edge_connectivity,
             edge_face_distances=self.edge_face_distances,
             edge_lengths=self.edge_lengths,
         )
@@ -2190,10 +2211,10 @@ class LocalSurface:
         The number of faces in the view.
         """
         if self._n_face is None:
-            if isinstance(self._face_indices, slice):
-                self._n_face = int(self._surface._face_elevation[self._face_indices].size)
-            elif isinstance(self._face_indices, np.ndarray):
-                self._n_face = int(self._face_indices.size)
+            if isinstance(self.face_indices, slice):
+                self._n_face = int(self.surface.face_elevation[self.face_indices].size)
+            elif isinstance(self.face_indices, np.ndarray):
+                self._n_face = int(self.face_indices.size)
 
         return self._n_face
 
@@ -2203,10 +2224,10 @@ class LocalSurface:
         The number of nodes in the view.
         """
         if self._n_node is None:
-            if isinstance(self._node_indices, slice):
-                self._n_node = int(self._surface._node_elevation[self._node_indices].size)
-            elif isinstance(self._node_indices, np.ndarray):
-                self._n_node = int(self._node_indices.size)
+            if isinstance(self.node_indices, slice):
+                self._n_node = int(self.surface.node_elevation[self.node_indices].size)
+            elif isinstance(self.node_indices, np.ndarray):
+                self._n_node = int(self.node_indices.size)
 
         return self._n_node
 
