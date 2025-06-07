@@ -737,7 +737,7 @@ class LocalHiResLocalSurface(LocalSurface):
                     return None
                 shared_nodes = self.node_indices[self._node_mask]
 
-                self._edge_mask = np.isin(self.edge_indices, self.suredge.local.edge_indices, kind="table")
+                self._edge_mask = np.isin(self.edge_indices, self.surface.local.edge_indices, kind="table")
                 if not np.any(self._edge_mask):
                     return None
                 shared_edges = self.edge_indices[self._edge_mask]
