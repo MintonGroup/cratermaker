@@ -600,12 +600,12 @@ class LocalHiResLocalSurface(LocalSurface):
     ----------
     surface : Surface
         The surface object that contains the mesh data.
-    edge_indices : NDArray | slice
-        The indices of the edges to include in the view.
-    face_indices : NDArray | slice | None, optional
-        The indices of the faces to include in the view. If None, all faces connected to the edges will be extracted when required.
+    face_indices : NDArray | slice
+        The indices of the faces to include in the view.
     node_indices : NDArray | slice | None, optional
         The indices of the nodes to include in the view. If None, all nodes connected to the faces will be extracted when required
+    edge_indices : NDArray | slice | None, optional
+        The indices of the edges to include in the view. If None, all edges connected to the faces will be extracted when required.
     location : tuple[float, float] | None, optional
         The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
     region_radius : FloatLike | None, optional
@@ -615,17 +615,17 @@ class LocalHiResLocalSurface(LocalSurface):
     def __init__(
         self,
         surface: Surface | LocalSurface,
-        edge_indices: NDArray | slice | None = None,
         face_indices: NDArray | slice | None = None,
         node_indices: NDArray | slice | None = None,
+        edge_indices: NDArray | slice | None = None,
         location: tuple[float, float] | None = None,
         region_radius: FloatLike | None = None,
         **kwargs: Any,
     ):
         if isinstance(surface, LocalSurface):
-            edge_indices = surface.edge_indices
             face_indices = surface.face_indices
             node_indices = surface.node_indices
+            edge_indices = surface.edge_indices
             location = surface.location
             region_radius = surface.region_radius
             surface = surface.surface
@@ -636,9 +636,9 @@ class LocalHiResLocalSurface(LocalSurface):
         object.__setattr__(self, "_node_mask", None)
         super().__init__(
             surface=surface,
-            edge_indices=edge_indices,
             face_indices=face_indices,
             node_indices=node_indices,
+            edge_indices=edge_indices,
             location=location,
             region_radius=region_radius,
             **kwargs,
@@ -721,32 +721,32 @@ class LocalHiResLocalSurface(LocalSurface):
         if self._local_overlap is None:
             if self.surface.local is None:
                 return None
-            self._edge_mask = np.isin(self.edge_indices, self.surface.local.edge_indices, kind="table")
-            if not np.any(self._edge_mask):
+            self._face_mask = np.isin(self.face_indices, self.surface.local.face_indices, kind="table")
+            if not np.any(self._face_mask):
                 return None
-            shared_edges = self.edge_indices[self._edge_mask]
-            if len(shared_edges) == self.n_edge:
-                # If all edges are shared, then we can assume all faces and nodes are also shared.
-                shared_faces = self.face_indices
+            shared_faces = self.face_indices[self._face_mask]
+            if len(shared_faces) == self.n_face:
+                # If all faces are shared, then we can assume all nodes and edges are also shared.
                 shared_nodes = self.node_indices
-                self._face_mask = np.full(self.n_face, True, dtype=bool)
+                shared_edges = self.edge_indices
                 self._node_mask = np.full(self.n_node, True, dtype=bool)
+                self._edge_mask = np.full(self.n_edge, True, dtype=bool)
             else:
-                self._face_mask = np.isin(self.face_indices, self.surface.local.face_indices, kind="table")
-                if not np.any(self._face_mask):
-                    return None
-                shared_faces = self.face_indices[self._face_mask]
-
                 self._node_mask = np.isin(self.node_indices, self.surface.local.node_indices, kind="table")
                 if not np.any(self._node_mask):
                     return None
                 shared_nodes = self.node_indices[self._node_mask]
 
+                self._edge_mask = np.isin(self.edge_indices, self.suredge.local.edge_indices, kind="table")
+                if not np.any(self._edge_mask):
+                    return None
+                shared_edges = self.edge_indices[self._edge_mask]
+
             self._local_overlap = LocalSurface(
                 surface=self._surface,
-                edge_indices=shared_edges,
                 face_indices=shared_faces,
                 node_indices=shared_nodes,
+                edge_indices=shared_edges,
                 region_radius=self._region_radius,
             )
             self._local_overlap._location = self.location

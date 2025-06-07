@@ -465,6 +465,7 @@ pub fn slope_collapse<'py>(
         if n_active == 0 {
             break;
         }
+        println!("Active faces: {}", n_active);
 
         // Cast all of the arrays to the correct types for the Python bindings so that they can be passed to the apply_diffusion function
         let py_kappa = PyArray1::from_slice(py, &face_kappa).readonly();

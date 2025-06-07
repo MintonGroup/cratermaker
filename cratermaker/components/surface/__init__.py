@@ -234,13 +234,13 @@ class Surface(ComponentBase):
         location = validate_and_normalize_location(location)
         coords = np.asarray(location)
 
-        edge_indices = self.edge_tree.query_radius(coords, region_angle)
-        if len(edge_indices) == 0:
+        face_indices = self.face_tree.query_radius(coords, region_angle)
+        if len(face_indices) == 0:
             return None
 
         return LocalSurface(
             surface=self,
-            edge_indices=edge_indices,
+            face_indices=face_indices,
             location=location,
             region_radius=region_radius,
         )
@@ -764,7 +764,7 @@ class Surface(ComponentBase):
         return regrid
 
     def _full(self):
-        return LocalSurface(self, edge_indices=slice(None), face_indices=slice(None), node_indices=slice(None))
+        return LocalSurface(self, face_indices=slice(None), node_indices=slice(None), edge_indices=slice(None))
 
     def _save_data(
         self,
@@ -929,93 +929,6 @@ class Surface(ComponentBase):
         return
 
     @property
-    def uxds(self) -> UxDataset:
-        """
-        The data associated with the surface. This is an instance of UxDataset.
-        """
-        return self._uxds
-
-    @property
-    def data_dir(self):
-        """
-        Directory for data files.
-        """
-        return self.simdir / _SURFACE_DIR
-
-    @property
-    def grid_file(self):
-        """
-        Path to the grid file.
-        """
-        return self.simdir / _SURFACE_DIR / _GRID_FILE_NAME
-
-    @property
-    def area(self) -> float:
-        """
-        Total surface area of the target body.
-        """
-        if self._area is None:
-            self._area = float(self.face_areas.sum())
-        return self._area
-
-    @property
-    def target(self):
-        """
-        The target body for the impact simulation. Set during initialization.
-        """
-        return self._target
-
-    @target.setter
-    def target(self, value):
-        from cratermaker.components.target import Target
-
-        self._target = Target.maker(value)
-        return
-
-    @property
-    def radius(self):
-        """
-        Radius of the target body.
-        """
-        return self.target.radius
-
-    @property
-    def node_tree(self):
-        if self._node_tree is None:
-            self._node_tree = self.uxgrid.get_ball_tree(
-                "nodes",
-                distance_metric="haversine",
-                coordinate_system="spherical",
-                reconstruct=True,
-            )
-
-        return self._node_tree
-
-    @property
-    def face_tree(self):
-        if self._face_tree is None:
-            self._face_tree = self.uxgrid.get_ball_tree(
-                "face centers",
-                distance_metric="haversine",
-                coordinate_system="spherical",
-                reconstruct=True,
-            )
-
-        return self._face_tree
-
-    @property
-    def edge_tree(self):
-        if self._edge_tree is None:
-            self._edge_tree = self.uxgrid.get_ball_tree(
-                "edge centers",
-                distance_metric="haversine",
-                coordinate_system="spherical",
-                reconstruct=True,
-            )
-
-        return self._edge_tree
-
-    @property
     def _hashvars(self):
         """
         The variables used to generate the hash.
@@ -1032,12 +945,100 @@ class Surface(ComponentBase):
         return hash_object.hexdigest()
 
     @property
+    def uxds(self) -> UxDataset:
+        """
+        The data associated with the surface. This is an instance of UxDataset.
+        """
+        return self._uxds
+
+    @property
     def uxgrid(self):
         """
         The grid object.
         """
         if self.uxds is not None:
             return self.uxds.uxgrid
+
+    @property
+    def data_dir(self):
+        """
+        Directory for data files.
+        """
+        return self.simdir / _SURFACE_DIR
+
+    @property
+    def gridtype(self):
+        """
+        The name of the grid type.
+        """
+        return self._component_name
+
+    @property
+    def grid_file(self):
+        """
+        Path to the grid file.
+        """
+        return self.simdir / _SURFACE_DIR / _GRID_FILE_NAME
+
+    @property
+    def target(self):
+        """
+        The target body for the impact simulation. Set during initialization.
+        """
+        return self._target
+
+    @target.setter
+    def target(self, value):
+        from cratermaker.components.target import Target
+
+        self._target = Target.maker(value)
+        return
+
+    @property
+    def face_elevation(self) -> NDArray[np.float64]:
+        """
+        The elevation of the faces.
+        """
+        return self.uxds["face_elevation"].values
+
+    @face_elevation.setter
+    def face_elevation(self, value: NDArray) -> None:
+        """
+        Set the elevation of the faces.
+
+        Parameters
+        ----------
+        value : NDArray
+            The elevation values to set for the faces.
+        """
+        value = np.asarray(value, dtype=np.float64)
+        if value.size != self.n_face:
+            raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
+        self.uxds["face_elevation"][:] = value
+        return
+
+    @property
+    def node_elevation(self) -> NDArray[np.float64]:
+        """
+        The elevation of the nodes.
+        """
+        return self.uxds["node_elevation"].values
+
+    @node_elevation.setter
+    def node_elevation(self, value: NDArray) -> None:
+        """
+        Set the elevation of the nodes.
+
+        Parameters
+        ----------
+        value : NDArray
+            The elevation values to set for the nodes.
+        """
+        value = np.asarray(value, dtype=np.float64)
+        if value.size != self.n_node:
+            raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
+        self.uxds["node_elevation"][:] = value
+        return
 
     @property
     def pix_mean(self) -> float:
@@ -1076,97 +1077,20 @@ class Surface(ComponentBase):
         return self._pix_max
 
     @property
-    def gridtype(self):
+    def radius(self):
         """
-        The name of the grid type.
+        Radius of the target body.
         """
-        return self._component_name
+        return self.target.radius
 
     @property
-    def smallest_length(self) -> float:
+    def area(self) -> float:
         """
-        The smallest length of the mesh.
+        Total surface area of the target body.
         """
-        if self._smallest_length is None:
-            self._smallest_length = float(np.min(self.face_sizes) * _SMALLFAC)
-        return self._smallest_length
-
-    @property
-    def n_edge(self) -> int:
-        """
-        Total number of edges.
-        """
-        return int(self.uxgrid.n_edge)
-
-    @property
-    def edge_face_distances(self) -> NDArray[np.float64]:
-        """
-        Distances between the centers of the faces that saddle each edge in meters.
-        """
-        if self._edge_face_distances is None:
-            self._edge_face_distances = surface_functions.compute_edge_distances(
-                self.edge_face_connectivity, self.face_lon, self.face_lat, self.radius
-            )
-        return self._edge_face_distances
-
-    @property
-    def edge_lengths(self) -> NDArray[np.float64]:
-        """
-        Lengths of each edge in meters.
-
-        Notes
-        -----
-        This is computed as the distance between the nodes that define the edge
-        """
-        if self._edge_lengths is None:
-            self._edge_lengths = surface_functions.compute_edge_distances(
-                self.edge_node_connectivity, self.node_lon, self.node_lat, self.radius
-            )
-        return self._edge_lengths
-
-    @property
-    def edge_face_connectivity(self) -> NDArray[np.int64]:
-        """
-        Indices of the faces that saddle each edge.
-
-        Dimensions (n_edge, 2)
-
-        """
-        return self.uxgrid.edge_face_connectivity.values
-
-    @property
-    def face_edge_connectivity(self) -> NDArray[np.int64]:
-        """
-        Indices of the edges that surround each face.
-
-        Dimensions (n_face, n_max_face_edges)
-
-        """
-        return self.uxgrid.face_edge_connectivity.values
-
-    @property
-    def edge_node_connectivity(self) -> NDArray[np.int64]:
-        """
-        Indices of the nodes that define each edge.
-
-        Dimensions (n_edge, 2)
-
-        """
-        return self.uxgrid.edge_node_connectivity.values
-
-    @property
-    def n_face(self) -> int:
-        """
-        Total number of faces.
-        """
-        return int(self.uxgrid.n_face)
-
-    @property
-    def n_max_face_faces(self) -> int:
-        """
-        The maximum number of faces that surround a face.
-        """
-        return int(self.uxgrid.n_max_face_faces)
+        if self._area is None:
+            self._area = float(self.face_areas.sum())
+        return self._area
 
     @property
     def face_areas(self) -> NDArray[np.float64]:
@@ -1192,6 +1116,111 @@ class Surface(ComponentBase):
         if self._face_sizes is None:
             self._compute_face_sizes()
         return self._face_sizes
+
+    @property
+    def smallest_length(self) -> float:
+        """
+        The smallest length of the mesh.
+        """
+        if self._smallest_length is None:
+            self._smallest_length = float(np.min(self.face_sizes) * _SMALLFAC)
+        return self._smallest_length
+
+    @property
+    def face_lat(self) -> NDArray[np.float64]:
+        """
+        Latitude of the center of each face in degrees.
+        """
+        return self.uxgrid.face_lat.values
+
+    @property
+    def face_lon(self) -> NDArray[np.float64]:
+        """
+        Longitude of the center of each face in degrees.
+        """
+        return self.uxgrid.face_lon.values
+
+    @property
+    def face_x(self) -> NDArray[np.float64]:
+        """
+        Cartesian x location of the center of each face in meters.
+        """
+        if self._face_x is None:
+            self._face_x = self.uxgrid.face_x.values * self.radius
+        return self._face_x
+
+    @property
+    def face_y(self) -> NDArray[np.float64]:
+        """
+        Cartesian y location of the center of each face in meters.
+        """
+        if self._face_y is None:
+            self._face_y = self.uxgrid.face_y.values * self.radius
+        return self._face_y
+
+    @property
+    def face_z(self) -> NDArray[np.float64]:
+        """
+        Cartesian z location of the center of each face in meters.
+        """
+        if self._face_z is None:
+            self._face_z = self.uxgrid.face_z.values * self.radius
+        return self._face_z
+
+    @property
+    def node_lat(self) -> NDArray[np.float64]:
+        """
+        Latitude of each node in degrees.
+        """
+        return self.uxgrid.node_lat.values
+
+    @property
+    def node_lon(self) -> NDArray[np.float64]:
+        """
+        Longitude of each node in degrees.
+        """
+        return self.uxgrid.node_lon.values
+
+    @property
+    def node_x(self) -> NDArray[np.float64]:
+        """
+        Cartesian x location of each node in meters.
+        """
+        if self._node_x is None:
+            self._node_x = self.uxgrid.node_x.values * self.radius
+        return self._node_x
+
+    @property
+    def node_y(self) -> NDArray[np.float64]:
+        """
+        Cartesian y location of each node in meters.
+        """
+        if self._node_y is None:
+            self._node_y = self.uxgrid.node_y.values * self.radius
+        return self._node_y
+
+    @property
+    def node_z(self) -> NDArray[np.float64]:
+        """
+        Cartesian z location of each node in meters.
+        """
+        if self._node_z is None:
+            self._node_z = self.uxgrid.node_z.values * self.radius
+        return self._node_z
+
+    @property
+    def face_indices(self) -> NDArray[np.int64]:
+        """
+        The indices of the faces of the surface.
+        """
+        return self.uxds.n_face.values
+
+    @property
+    def node_indices(self) -> NDArray[np.int64]:
+        """
+        The indices of the nodes of the surface.
+        """
+        return self.uxds.n_node.values
 
     def _compute_face_bins(self) -> None:
         """
@@ -1305,18 +1334,67 @@ class Surface(ComponentBase):
         return [float(self.face_sizes[face_index]) for face_index in self.face_bin_argmax]
 
     @property
-    def face_lat(self) -> NDArray[np.float64]:
+    def n_face(self) -> int:
         """
-        Latitude of the center of each face in degrees.
+        Total number of faces.
         """
-        return self.uxgrid.face_lat.values
+        return int(self.uxgrid.n_face)
 
     @property
-    def face_lon(self) -> NDArray[np.float64]:
+    def n_node(self) -> int:
         """
-        Longitude of the center of each face in degrees.
+        Total number of nodes.
         """
-        return self.uxgrid.face_lon.values
+        return int(self.uxgrid.n_node)
+
+    @property
+    def n_edge(self) -> int:
+        """
+        Total number of edges.
+        """
+        return int(self.uxgrid.n_edge)
+
+    @property
+    def n_nodes_per_face(self) -> NDArray[np.int64]:
+        """
+        The number of nodes that make up each face.
+
+        Dimensions: `(n_node, )`
+        """
+        return self.uxgrid.n_nodes_per_face.values
+
+    @property
+    def n_max_face_faces(self) -> int:
+        """
+        The maximum number of faces that surround a face.
+        """
+        return int(self.uxgrid.n_max_face_faces)
+
+    @property
+    def edge_face_distances(self) -> NDArray[np.float64]:
+        """
+        Distances between the centers of the faces that saddle each edge in meters.
+        """
+        if self._edge_face_distances is None:
+            self._edge_face_distances = surface_functions.compute_edge_distances(
+                self.edge_face_connectivity, self.face_lon, self.face_lat, self.radius
+            )
+        return self._edge_face_distances
+
+    @property
+    def edge_lengths(self) -> NDArray[np.float64]:
+        """
+        Lengths of each edge in meters.
+
+        Notes
+        -----
+        This is computed as the distance between the nodes that define the edge
+        """
+        if self._edge_lengths is None:
+            self._edge_lengths = surface_functions.compute_edge_distances(
+                self.edge_node_connectivity, self.node_lon, self.node_lat, self.radius
+            )
+        return self._edge_lengths
 
     @property
     def face_node_connectivity(self) -> NDArray[np.int64]:
@@ -1339,88 +1417,14 @@ class Surface(ComponentBase):
         return self.uxgrid.face_face_connectivity.values
 
     @property
-    def face_x(self) -> NDArray[np.float64]:
+    def face_edge_connectivity(self) -> NDArray[np.int64]:
         """
-        Cartesian x location of the center of each face in meters.
-        """
-        if self._face_x is None:
-            self._face_x = self.uxgrid.face_x.values * self.radius
-        return self._face_x
+        Indices of the edges that surround each face.
 
-    @property
-    def face_y(self) -> NDArray[np.float64]:
-        """
-        Cartesian y location of the center of each face in meters.
-        """
-        if self._face_y is None:
-            self._face_y = self.uxgrid.face_y.values * self.radius
-        return self._face_y
+        Dimensions (n_face, n_max_face_edges)
 
-    @property
-    def face_z(self) -> NDArray[np.float64]:
         """
-        Cartesian z location of the center of each face in meters.
-        """
-        if self._face_z is None:
-            self._face_z = self.uxgrid.face_z.values * self.radius
-        return self._face_z
-
-    @property
-    def n_node(self) -> int:
-        """
-        Total number of nodes.
-        """
-        return int(self.uxgrid.n_node)
-
-    @property
-    def n_nodes_per_face(self) -> NDArray[np.int64]:
-        """
-        The number of nodes that make up each face.
-
-        Dimensions: `(n_node, )`
-        """
-        return self.uxgrid.n_nodes_per_face.values
-
-    @property
-    def node_lat(self) -> NDArray[np.float64]:
-        """
-        Latitude of each node in degrees.
-        """
-        return self.uxgrid.node_lat.values
-
-    @property
-    def node_lon(self) -> NDArray[np.float64]:
-        """
-        Longitude of each node in degrees.
-        """
-        return self.uxgrid.node_lon.values
-
-    @property
-    def node_x(self) -> NDArray[np.float64]:
-        """
-        Cartesian x location of each node in meters.
-        """
-        if self._node_x is None:
-            self._node_x = self.uxgrid.node_x.values * self.radius
-        return self._node_x
-
-    @property
-    def node_y(self) -> NDArray[np.float64]:
-        """
-        Cartesian y location of each node in meters.
-        """
-        if self._node_y is None:
-            self._node_y = self.uxgrid.node_y.values * self.radius
-        return self._node_y
-
-    @property
-    def node_z(self) -> NDArray[np.float64]:
-        """
-        Cartesian z location of each node in meters.
-        """
-        if self._node_z is None:
-            self._node_z = self.uxgrid.node_z.values * self.radius
-        return self._node_z
+        return self.uxgrid.face_edge_connectivity.values
 
     @property
     def node_face_connectivity(self) -> NDArray[np.int64]:
@@ -1432,64 +1436,60 @@ class Surface(ComponentBase):
         return self.uxgrid.node_face_connectivity.values
 
     @property
-    def node_elevation(self) -> NDArray[np.float64]:
+    def edge_face_connectivity(self) -> NDArray[np.int64]:
         """
-        The elevation of the nodes.
-        """
-        return self.uxds["node_elevation"].values
+        Indices of the faces that saddle each edge.
 
-    @node_elevation.setter
-    def node_elevation(self, value: NDArray) -> None:
-        """
-        Set the elevation of the nodes.
+        Dimensions (n_edge, 2)
 
-        Parameters
-        ----------
-        value : NDArray
-            The elevation values to set for the nodes.
         """
-        value = np.asarray(value, dtype=np.float64)
-        if value.size != self.n_node:
-            raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
-        self.uxds["node_elevation"][:] = value
-        return
+        return self.uxgrid.edge_face_connectivity.values
 
     @property
-    def face_elevation(self) -> NDArray[np.float64]:
+    def edge_node_connectivity(self) -> NDArray[np.int64]:
         """
-        The elevation of the faces.
-        """
-        return self.uxds["face_elevation"].values
+        Indices of the nodes that define each edge.
 
-    @face_elevation.setter
-    def face_elevation(self, value: NDArray) -> None:
-        """
-        Set the elevation of the faces.
+        Dimensions (n_edge, 2)
 
-        Parameters
-        ----------
-        value : NDArray
-            The elevation values to set for the faces.
         """
-        value = np.asarray(value, dtype=np.float64)
-        if value.size != self.n_face:
-            raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
-        self.uxds["face_elevation"][:] = value
-        return
+        return self.uxgrid.edge_node_connectivity.values
 
     @property
-    def face_indices(self) -> NDArray[np.int64]:
-        """
-        The indices of the faces of the surface.
-        """
-        return self.uxds.n_face.values
+    def face_tree(self):
+        if self._face_tree is None:
+            self._face_tree = self.uxgrid.get_ball_tree(
+                "face centers",
+                distance_metric="haversine",
+                coordinate_system="spherical",
+                reconstruct=True,
+            )
+
+        return self._face_tree
 
     @property
-    def node_indices(self) -> NDArray[np.int64]:
-        """
-        The indices of the nodes of the surface.
-        """
-        return self.uxds.n_node.values
+    def node_tree(self):
+        if self._node_tree is None:
+            self._node_tree = self.uxgrid.get_ball_tree(
+                "nodes",
+                distance_metric="haversine",
+                coordinate_system="spherical",
+                reconstruct=True,
+            )
+
+        return self._node_tree
+
+    @property
+    def edge_tree(self):
+        if self._edge_tree is None:
+            self._edge_tree = self.uxgrid.get_ball_tree(
+                "edge centers",
+                distance_metric="haversine",
+                coordinate_system="spherical",
+                reconstruct=True,
+            )
+
+        return self._edge_tree
 
     @property
     def spatial_hash(self) -> SpatialHash:
@@ -1509,12 +1509,12 @@ class LocalSurface:
     ----------
     surface : Surface
         The surface object that contains the mesh data.
-    edge_indices : NDArray | slice
-        The indices of the edges to include in the view.
-    face_indices : NDArray | slice | None, optional
-        The indices of the faces to include in the view. If None, all faces connected to the edges will be extracted when required.
+    face_indices : NDArray | slice
+        The indices of the faces to include in the view.
     node_indices : NDArray | slice | None, optional
         The indices of the nodes to include in the view. If None, all nodes connected to the faces will be extracted when required
+    edge_indices : NDArray | slice | None, optional
+        The indices of the edges to include in the view. If None, all edges connected to the faces will be extracted when required.
     location : tuple[float, float] | None, optional
         The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
     region_radius : FloatLike | None, optional
@@ -1524,17 +1524,17 @@ class LocalSurface:
     def __init__(
         self,
         surface: Surface,
-        edge_indices: NDArray | slice,
-        face_indices: NDArray | slice | None = None,
+        face_indices: NDArray | slice,
         node_indices: NDArray | slice | None = None,
+        edge_indices: NDArray | slice | None = None,
         location: tuple[float, float] | None = None,
         region_radius: FloatLike | None = None,
         **kwargs: Any,
     ):
         object.__setattr__(self, "_surface", Surface.maker(surface))
-        object.__setattr__(self, "_edge_indices", edge_indices)
         object.__setattr__(self, "_face_indices", face_indices)
         object.__setattr__(self, "_node_indices", node_indices)
+        object.__setattr__(self, "_edge_indices", edge_indices)
         object.__setattr__(self, "_region_radius", region_radius)
         object.__setattr__(self, "_location", None)
         object.__setattr__(self, "_area", None)
@@ -2182,8 +2182,9 @@ class LocalSurface:
         subset = connectivity_array[row_indices, :]
         mapping = np.full(total_value_size, -1, dtype=np.int64)
         mapping[value_indices] = np.arange(len(value_indices))
-        remapped = mapping[subset]
-        remapped[subset == fill_value] = fill_value
+        remapped = np.full_like(subset, fill_value)
+        mask = subset != fill_value
+        remapped[mask] = mapping[subset[mask]]
         return remapped
 
     @property
