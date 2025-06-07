@@ -261,8 +261,8 @@ pub fn apply_diffusion<'py>(
             dhdt[f2] -= flux / face_areas[f2];
         }
 
-        for i in 0..n_face {
-            face_delta_elevation[i] += fac * dhdt[i];
+        for f in 0..n_face {
+            face_delta_elevation[f] += fac * dhdt[f];
         }
     }
 

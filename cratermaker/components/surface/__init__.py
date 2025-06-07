@@ -2192,14 +2192,17 @@ class LocalSurface:
         Returns
         -------
         np.ndarray
-            A new 2D connectivity array of shape (len(row_indices), K) with local indices.
+            A new 2D connectivity array of shape (len(row_indices), K) with local indices or fill_value where not applicable.
         """
-        subset = connectivity_array[row_indices, :]
-        mapping = np.full(total_value_size, -1, dtype=np.int64)
-        mapping[value_indices] = np.arange(len(value_indices))
+        # Build global-to-local index mapping
+        mapping = np.full(total_value_size, fill_value, dtype=np.int64)
+        mapping[value_indices] = np.arange(value_indices.size)
+
+        subset = connectivity_array[row_indices]
         remapped = np.full_like(subset, fill_value)
-        mask = subset != fill_value
-        remapped[mask] = mapping[subset[mask]]
+        valid = subset != fill_value
+        remapped[valid] = mapping[subset[valid]]
+
         return remapped
 
     @property
