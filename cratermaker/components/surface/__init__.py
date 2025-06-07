@@ -1727,6 +1727,7 @@ class LocalSurface:
             raise ValueError("kdiff must be a scalar or an array with the same size as the number of faces in the grid")
         if np.any(kdiff < 0.0):
             raise ValueError("kdiff must be greater than 0.0")
+        kdiff = np.asarray(kdiff, dtype=np.float64)
         kdiffmax = np.max(kdiff)
 
         if abs(kdiffmax) < _VSMALL:
@@ -1783,7 +1784,6 @@ class LocalSurface:
         """
         slope = surface_functions.compute_slope(
             face_elevation=self.face_elevation,
-            face_areas=self.face_areas,
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
             edge_face_distances=self.edge_face_distances,

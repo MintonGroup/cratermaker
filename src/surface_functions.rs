@@ -243,6 +243,12 @@ pub fn apply_diffusion<'py>(
             if distance <= 0.0 || f1 >= n_face || f2 >= n_face {
                 continue;
             }
+            if f1 == f2 {
+                panic!("Edge {e} has identical face indices: {f1}");
+            }
+            if face_areas[f1] == 0.0 || face_areas[f2] == 0.0 {
+                panic!("Zero area at f1={} or f2={} on edge {}", f1, f2, e);
+            }
 
             let h1 = face_elevation[f1] + face_delta_elevation[f1];
             let h2 = face_elevation[f2] + face_delta_elevation[f2];
@@ -264,12 +270,11 @@ pub fn apply_diffusion<'py>(
 }
 
 
-/// Computes the slope squared at a face using the magnitude of the gradient, weighted by edge length and normalized by face area. 
+/// Computes the slope squared at a face using the magnitude of the gradient.
 /// 
 /// # Arguments
 /// * `f` - Index of the face for which to compute the slope.
 /// * `face_elevation` - Elevation at each face (1D array).
-/// * `face_areas` - Area of each face (1D array).
 /// * `connected_edges` - Indices of the edges that surround the face (1D array).
 /// * `edge_face_connectivity` - Indices of the faces (global) that saddle each edge (2D array).
 /// * `edge_face_distances` - Distances between the centers of the faces that saddle each edge in meters (1D array).
@@ -277,13 +282,11 @@ pub fn apply_diffusion<'py>(
 fn compute_slope_squared(
     f: usize,
     face_elevation: &ndarray::Array1<f64>,
-    face_areas: &ndarray::ArrayView1<f64>,
     connected_edges: &ndarray::ArrayView1<'_, i64>,
     edge_face_connectivity: &ndarray::ArrayView2<i64>,
     edge_face_distances: &ndarray::ArrayView1<f64>,
 ) -> f64 {
-    let mut slope_sum = 0.0;
-    let mut edge_count = 0;
+    let mut max_slope_sq = 0.0 as f64;
 
     for &edge_id in connected_edges.iter() {
         if edge_id < 0 {
@@ -307,19 +310,10 @@ fn compute_slope_squared(
 
         let dh = (face_elevation[other] - face_elevation[f]).abs();
         let slope = dh / d;
-
-        slope_sum += slope;
-        edge_count += 1;
+        max_slope_sq = max_slope_sq.max(slope * slope);
     }
 
-    if edge_count == 0 {
-        return 0.0;
-    }
-
-    let slope_avg = slope_sum / edge_count as f64;
-    let slope_mag = slope_avg / face_areas[f]; // consistent with ∇h ∼ (slope / area)
-
-    slope_mag * slope_mag
+    max_slope_sq
 }
 
 /// Computes the square root of the maximum squared slope at each face in a surface mesh.
@@ -346,13 +340,11 @@ fn compute_slope_squared(
 pub fn compute_slope<'py>(
     py: Python<'py>,
     face_elevation: PyReadonlyArray1<'py, f64>,
-    face_areas: PyReadonlyArray1<'py, f64>,
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_edge_connectivity: PyReadonlyArray2<'py, i64>,
     edge_face_distances: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let face_elevation = face_elevation.as_array();
-    let face_areas = face_areas.as_array();
     let edge_face_connectivity = edge_face_connectivity.as_array();
     let face_edge_connectivity = face_edge_connectivity.as_array();
     let edge_face_distances = edge_face_distances.as_array();
@@ -361,14 +353,13 @@ pub fn compute_slope<'py>(
     let face_elevation = face_elevation.to_owned();
     let slope_vec: Vec<_> = (0..n_face).into_par_iter()
         .map(|f| {
-        let connected_edges = face_edge_connectivity.row(f);
-        let slope_sq = compute_slope_squared(
-            f,
-            &face_elevation,
-            &face_areas,
-            &connected_edges,
-            &edge_face_connectivity,
-            &edge_face_distances,
+            let connected_edges = face_edge_connectivity.row(f);
+            let slope_sq = compute_slope_squared(
+                f,
+                &face_elevation,
+                &connected_edges,
+                &edge_face_connectivity,
+                &edge_face_distances,
             );
             slope_sq.sqrt()
         })
@@ -428,7 +419,7 @@ pub fn slope_collapse<'py>(
         &face_areas,
         &edge_lengths,
     );
-    let looplimit = 1000 as usize;
+    let looplimit = 10000 as usize;
 
     let mut face_elevation = ndarray::Array1::<f64>::zeros(n_face);
     let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(n_face);
@@ -445,7 +436,6 @@ pub fn slope_collapse<'py>(
                 let slope_sq = compute_slope_squared(
                     f,
                     &face_elevation,
-                    &face_areas,
                     &connected_edges,
                     &edge_face_connectivity,
                     &edge_face_distances, 
@@ -462,7 +452,6 @@ pub fn slope_collapse<'py>(
         if n_active == 0 {
             break;
         }
-        println!("Active faces: {}", n_active);
 
         // Cast all of the arrays to the correct types for the Python bindings so that they can be passed to the apply_diffusion function
         let py_kappa = PyArray1::from_slice(py, &face_kappa).readonly();
