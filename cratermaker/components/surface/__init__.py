@@ -2421,22 +2421,12 @@ class LocalSurface:
         return self._area
 
     @property
-    def edge_indices(self) -> NDArray:
-        """
-        The indices of the edges in the view.
-        """
-        if self._edge_indices is None:
-            raise ValueError("edge_indices must be set to use this object.")
-        return self._edge_indices
-
-    @property
     def face_indices(self) -> NDArray:
         """
         The indices of the faces in the view.
         """
         if self._face_indices is None:
-            self._face_indices = np.unique(self.surface.edge_face_connectivity[self.edge_indices].ravel())
-            self._face_indices = self._face_indices[self._face_indices != INT_FILL_VALUE]
+            raise ValueError("face_indices must be set to use this object.")
         return self._face_indices
 
     @property
@@ -2449,6 +2439,16 @@ class LocalSurface:
             self._node_indices = self._node_indices[self._node_indices != INT_FILL_VALUE]
 
         return self._node_indices
+
+    @property
+    def edge_indices(self) -> NDArray:
+        """
+        The indices of the edges in the view.
+        """
+        if self._edge_indices is None:
+            self._edge_indices = np.unique(self.surface.face_edge_connectivity[self.face_indices].ravel())
+            self._edge_indices = self._edge_indices[self._edge_indices != INT_FILL_VALUE]
+        return self._edge_indices
 
     @property
     def edge_face_connectivity(self) -> NDArray:
