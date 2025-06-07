@@ -249,7 +249,9 @@ class Surface(ComponentBase):
         # These are needed for diffusion calculations
         neighbor_faces = self.face_face_connectivity[face_indices]
         neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
-        face_indices = np.unique(np.concatenate((face_indices, neighbor_faces)))
+        node_faces = self.node_face_connectivity[node_indices]
+        node_faces = node_faces[node_faces != INT_FILL_VALUE]
+        face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces)))
 
         return LocalSurface(
             surface=self,
@@ -1924,8 +1926,8 @@ class LocalSurface:
         None
         """
         node_elevation = surface_functions.interpolate_node_elevation_from_faces(
-            face_areas=self.surface.face_areas,
-            face_elevation=self.surface.face_elevation,
+            face_areas=self.face_areas,
+            face_elevation=self.face_elevation,
             node_face_connectivity=self.node_face_connectivity,
         )
         self.update_elevation(node_elevation, overwrite=True)
