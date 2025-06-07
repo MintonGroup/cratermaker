@@ -238,9 +238,24 @@ class Surface(ComponentBase):
         if len(face_indices) == 0:
             return None
 
+        # First select edges and nodes that are attached to these faces
+        edge_indices = np.unique(self.face_edge_connectivity[face_indices].ravel())
+        edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
+
+        node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
+        node_indices = node_indices[node_indices != INT_FILL_VALUE]
+
+        # Now add in all faces that are connected to the faces so that the outer border of the local region has a buffer of faces
+        # These are needed for diffusion calculations
+        neighbor_faces = self.face_face_connectivity[face_indices]
+        neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
+        face_indices = np.unique(np.concatenate((face_indices, neighbor_faces)))
+
         return LocalSurface(
             surface=self,
             face_indices=face_indices,
+            node_indices=node_indices,
+            edge_indices=edge_indices,
             location=location,
             region_radius=region_radius,
         )

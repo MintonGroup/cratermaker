@@ -358,24 +358,22 @@ pub fn compute_slope<'py>(
     let edge_face_distances = edge_face_distances.as_array();
     let n_face = face_elevation.len();
 
-    let mut slope = ndarray::Array1::<f64>::zeros(n_face);
     let face_elevation = face_elevation.to_owned();
-    Zip::from(&face_elevation)
-        .and(face_edge_connectivity.outer_iter())
-        .and(&mut slope)
-        .into_par_iter()
-        .for_each(|(f, connected_edges, out)| {
-            let f = *f as usize;
-            let slope_sq = compute_slope_squared(
-                f,
-                &face_elevation,
-                &face_areas,
-                &connected_edges,
-                &edge_face_connectivity,
-                &edge_face_distances, 
+    let slope_vec: Vec<_> = (0..n_face).into_par_iter()
+        .map(|f| {
+        let connected_edges = face_edge_connectivity.row(f);
+        let slope_sq = compute_slope_squared(
+            f,
+            &face_elevation,
+            &face_areas,
+            &connected_edges,
+            &edge_face_connectivity,
+            &edge_face_distances,
             );
-            *out = f64::sqrt(slope_sq);
-        });
+            slope_sq.sqrt()
+        })
+        .collect();
+    let slope = ndarray::Array1::from_vec(slope_vec);
 
     Ok(PyArray1::from_owned_array(py, slope))
 }
@@ -416,7 +414,7 @@ pub fn slope_collapse<'py>(
     let edge_face_distances = edge_face_distances.as_array();
     let edge_lengths = edge_lengths.as_array();
     let face_elevation_view = face_elevation.as_array();
-    let n_face = face_areas.len();
+    let n_face = face_edge_connectivity.nrows();
     let critical_slope_sq = critical_slope * critical_slope;
 
     // face_kappa_ones should be an array view
@@ -437,14 +435,13 @@ pub fn slope_collapse<'py>(
 
     for _ in 0..looplimit {
         face_elevation.assign(&face_elevation_view);
-        for i in 0..n_face {
-            face_elevation[i] += face_delta_elevation[i];
+        for f in 0..n_face {
+            face_elevation[f] += face_delta_elevation[f];
         }
-        let face_kappa: Vec<_> = Zip::from(&face_elevation)
-            .and(face_edge_connectivity.outer_iter())
+        let face_kappa: Vec<_> = (0..n_face)
             .into_par_iter()
-            .map(|(f, connected_edges)| {
-                let f = *f as usize;
+            .map(|f| {
+                let connected_edges = face_edge_connectivity.row(f);
                 let slope_sq = compute_slope_squared(
                     f,
                     &face_elevation,
