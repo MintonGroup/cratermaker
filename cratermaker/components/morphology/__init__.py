@@ -107,6 +107,7 @@ class Morphology(ComponentBase):
     def emplace(self, crater: Crater | list[Crater], **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
+
         Initializes and uses the queue system behind the scenes.
 
         Parameters
@@ -199,11 +200,11 @@ class Morphology(ComponentBase):
 
         ejecta_region.update_elevation(ejecta_thickness)
 
-        K_ej = self.ejecta_burial_K(ejecta_thickness[: ejecta_region.n_face], ejecta_soften_factor=1.50)
-        ejecta_region.apply_diffusion(K_ej)
+        k_ej = self.ejecta_burial_degradation(ejecta_thickness[: ejecta_region.n_face], ejecta_soften_factor=1.50)
+        ejecta_region.apply_diffusion(k_ej)
 
-        K_deg = self.degradation_function(crater.final_diameter, fe=100) * ejecta_intensity[: ejecta_region.n_face]
-        ejecta_region.apply_diffusion(K_deg)
+        k_deg = self.degradation_function(crater.final_diameter, fe=100) * ejecta_intensity[: ejecta_region.n_face]
+        ejecta_region.apply_diffusion(k_deg)
 
         return
 
@@ -215,7 +216,9 @@ class Morphology(ComponentBase):
         **kwargs,
     ) -> None:
         """
-        This method performs the subpixel degradation. This models the combined degradation of the part of the production population that is below the resolution of the mesh on each face. It is called between batches of craters by the `emplace` method.
+        Performs the subpixel degradation.
+
+        This models the combined degradation of the part of the production population that is below the resolution of the mesh on each face. It is called between batches of craters by the `emplace` method.
 
         Parameters
         ----------
@@ -228,22 +231,19 @@ class Morphology(ComponentBase):
         **kwargs : Any
             Additional keyword arguments for the degradation function.
         """
-        DC_MIN = 1e-8  # Minimum crater size for subpixel degradation calculation.
+        dc_min = 1e-8  # Minimum crater size for subpixel degradation calculation.
 
         if age_end >= age_start:
             raise ValueError("age_end must be less than age_start.")
 
-        if production is not None:
-            production = Production.maker(production, **kwargs)
-        else:
-            production = self.production
+        production = Production.maker(production, **kwargs) if production is not None else self.production
 
         if not hasattr(self, "_Kdiff"):
             self._Kdiff = np.zeros_like(self.surface.face_elevation)
 
         def _subpixel_degradation(final_diameter):
             fe = 100.0
-            K = self.degradation_function(final_diameter, fe)
+            k = self.degradation_function(final_diameter, fe)
             n = production.function(
                 diameter=final_diameter,
                 age=age_start,
@@ -251,11 +251,11 @@ class Morphology(ComponentBase):
                 validate_inputs=False,
             ).item()
             degradation_region_area = np.pi * (final_diameter / 2) * fe
-            return K * n * degradation_region_area
+            return k * n * degradation_region_area
 
         for face_indices, dc_max in zip(self.surface.face_bin_indices, self.surface.face_bin_max_sizes, strict=False):
-            deltaKdiff, _ = quad(_subpixel_degradation, DC_MIN, dc_max)
-            self._Kdiff[face_indices] += deltaKdiff
+            delta_kdiff, _ = quad(_subpixel_degradation, dc_min, dc_max)
+            self._Kdiff[face_indices] += delta_kdiff
 
         # If any Kdiff values reaches a threshold where a meaningful amount of diffusion will occur on the surface, then go ahead and apply it.
         # Otherwise, degradation will continue to accumulate until the next batch of craters is processed.
@@ -267,6 +267,7 @@ class Morphology(ComponentBase):
     def apply_subpixel_degradation(self) -> None:
         """
         Apply subpixel degradation to the surface using the current Kdiff values.
+
         This method is called after all craters have been processed and is used to
         apply the accumulated degradation effects.
         """
@@ -315,8 +316,9 @@ class Morphology(ComponentBase):
         **kwarg: Any,
     ) -> None:
         """
-        Add a crater to the queue for later emplacement. Automatically initializes
-        the queue manager if it hasn't been set.
+        Add a crater to the queue for later emplacement.
+
+        Automatically initializes the queue manager if it hasn't been set.
 
         Parameters
         ----------
@@ -341,8 +343,7 @@ class Morphology(ComponentBase):
 
     def _process_queue(self) -> None:
         """
-        Process all queued craters in the order they were added, forming non-overlapping
-        batches and applying each to the surface.
+        Process all queued craters in the order they were added, forming non-overlapping batches and applying each to the surface.
 
         Raises
         ------
@@ -371,12 +372,11 @@ class Morphology(ComponentBase):
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     executor.map(process, batch)
 
-                if self.dosubpixel_degradation:
-                    if len(batch) > 1:
-                        # If the craters have age values attached to them, we can perform subpixel degradation between time values
-                        agevals = [crater.age for crater in batch if crater.age is not None]
-                        if len(agevals) > 1:
-                            self.compute_subpixel_degradation(age_start=max(agevals), age_end=min(agevals))
+                if self.dosubpixel_degradation and len(batch) > 1:
+                    # If the craters have age values attached to them, we can perform subpixel degradation between time values
+                    agevals = [crater.age for crater in batch if crater.age is not None]
+                    if len(agevals) > 1:
+                        self.compute_subpixel_degradation(age_start=max(agevals), age_end=min(agevals))
 
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
@@ -399,7 +399,7 @@ class Morphology(ComponentBase):
             _batch_process()
         return
 
-    def ejecta_burial_K(self, ejecta_thickness, ejecta_soften_factor=1.50) -> NDArray[np.float64]:
+    def ejecta_burial_degradation(self, ejecta_thickness, ejecta_soften_factor=1.50) -> NDArray[np.float64]:
         """
         Computes the change in degradation state due to ejecta burial.
 
@@ -419,7 +419,7 @@ class Morphology(ComponentBase):
 
         References
         ----------
-        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63–87. https://doi.org/10.1016/j.icarus.2019.02.021
+        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
         """
         return ejecta_soften_factor * ejecta_thickness**2
 
@@ -464,7 +464,7 @@ class Morphology(ComponentBase):
         """
         from cratermaker.components.surface import Surface
 
-        if not isinstance(surface, (Surface, str)):
+        if not isinstance(surface, (Surface | str)):
             raise TypeError("surface must be an instance of Surface or a string")
         self._surface = Surface.maker(surface)
         self._queue_manager: CraterQueueManager | None = None
@@ -483,7 +483,7 @@ class Morphology(ComponentBase):
         """
         from cratermaker.components.production import Production
 
-        if not isinstance(production, (Production, str)):
+        if not isinstance(production, (Production | str)):
             raise TypeError("production must be an instance of Production or a string")
         self._production = Production.maker(production)
 
@@ -517,8 +517,7 @@ class Morphology(ComponentBase):
 
 class CraterQueueManager:
     """
-    A manager for craters awaiting emplacement. Craters are processed in order (FIFO),
-    but batches of non-overlapping craters can be processed simultaneously.
+    A manager for craters awaiting emplacement. Craters are processed in order (FIFO) but batches of non-overlapping craters can be processed simultaneously.
 
     Parameters
     ----------
@@ -537,8 +536,7 @@ class CraterQueueManager:
 
     def peek_next_batch(self) -> list[Crater]:
         """
-        Return a list of the next batch of craters that do not overlap with each other
-        or the current active region.
+        Return a list of the next batch of craters that do not overlap with each other or the current active region.
         """
         batch = []
         reserved_nodes = set(self._active_nodes)
