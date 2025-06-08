@@ -116,7 +116,7 @@ Once you have either a Surface or LocalSurface object, you are now able to perfo
 - :meth:`slope_collapse`: Applies diffusion only to surfaces that are steeper than a given threshold  given by the argument `critical_slope_angle`, which is set to 35 degrees by default (a typical value for the angle of repose). 
 - :meth:`apply_noise`: Applies tubulence-style simplex noise to the surface. This can be useful for generating realistic surface features, such as hills and valleys. The noise is applied to the elevation data of the surface.
 - :meth:`calculate_face_and_node_distances`: Returns one array for distances between a point and all faces, and another array with distances between that point and all nodes.
-- :meth:`calculate_face_and_node_bearings`: Returns two arrays: Bearings (direction in degrees) between a point and all faces, Bearing between a point and all nodes.
+- :meth:`calculate_face_and_node_bearings`: Returns two arrays: Bearings (direction in degrees) between a point and all faces, Bearing between a point and all nodes. 
 - :meth:`find_nearest_index`: Returns the indices of the face and node that are the closest to a given point. 
 - :meth:`interpolate_node_elevation_from_faces`: Some operations only affect faces, and so this method can be used to interpolate the elevation of nodes from the face elevations.
 - :meth:`elevation_to_cartesian`: Convert elevation values to Cartesian coordinates. This is a basic utility function that takes the cartesian positions of the surface of a sphere and elevation values and returns the Cartesian coordinates of the surface with the elevations applied. This is used because the mesh is never altered in Cratermaker, but rather the elevations are applied to the mesh when it is visualized.
@@ -132,6 +132,55 @@ Once you have either a Surface or LocalSurface object, you are now able to perfo
     print(f"Region face distances:\n{region.face_distance}")
     print(f"Region face bearings:\n{region.face_bearing}")
 
+
+Examples
+--------
+Suppose we use the icosphere class for the Moon with grid level equal to 8. We then wish to extract a local region of the surface, which will be at the longtiude and latitude coordinates (205, 45), and a region radius of :math:`10^3`:
+
+.. ipython:: python
+    :okwarning:
+
+    surface=Surface.maker(surface='icosphere', gridlevel=8, target='Moon')
+    region=surface.extract_region(location=(205,45), region_radius=10e3)
+    print(f'Local region: {region}')
+
+As seen above, we extract the desired region with its respective radius. We can also see that this region contains 7 faces and 25 nodes. From here, we can perform many of the calculations as seen in the list above. With the same extracted surface, lets calculate the distances between all faces and all nodes from that given location:
+
+.. ipython:: python
+    :okwarning:
+
+    distance=region.calculate_face_and_node_distances(location=(205,45))
+    print(f'Distances betwen location (205,45) and faces and nodes respectively:{distance}')
+
+With this method, two arrays are returned where the first array gives us an array of distances between the input location and the face, and the second array returns multiple distances between the input and the nodes. It is best to use this method on smaller regions due to the size of the arrays if used on entire surface. We can do a similar calculation, but rather finding the distances between a location and the faces and nodes, we find the bearings: 
+
+.. ipython:: python
+    :okwarning:
+    
+    bearing=region.calculate_face_and_node_bearings(location=(205,45))
+    print(f'Bearings betwen location (205,45) and faces and nodes respectively:{bearing}')
+
+As you can see from above, we recieve two arrays, which are the same sizes as the previous examples. However, they now tell us the direction of the between a point and all faces and all nodes. Suppose we now look at the entire surface again and wish to find the nearest face and node, we can do the following:
+
+.. ipython:: python
+    :okwarning:
+
+    index=surface.find_nearest_index(location=(205,45))
+    print(f'Nearest index to (205,40):{index}')
+
+As seen above, we recieve a tuple that gives us the nearest index. Now lets say we are given an array of cartesian coordinates and an array of elevation, and we wish to convert the elevation values to Cartesian coordinates. We can do this by calling on :meth:`elevation_to_cartesian`: 
+
+.. ipython:: python
+    :okwarning:
+    
+    position = np.array([[0.0, 0.0, 1.0],
+                        [0.707, 0.0, 0.707],
+                        [0.0, 1.0, 0.0]])
+    elevation = np.array([0.01, -0.02, 0.00])
+    cartesian=surface.elevation_to_cartesian(position=position, elevation=elevation)
+    print(cartesian)
+
+From the result, we are returned an array the same size as the original poistion array, but with the elevation taken in account. Wherever there is a value other than 0 in the position array, the elevation is added to that value. 
 
 More Surface examples
 ---------------------
