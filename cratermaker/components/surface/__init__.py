@@ -25,7 +25,6 @@ from cratermaker.constants import (
     _SURFACE_DIR,
     _VSMALL,
     FloatLike,
-    PairOfFloats,
 )
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import (
@@ -251,7 +250,7 @@ class Surface(ComponentBase):
         neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
         node_faces = self.node_face_connectivity[node_indices]
         node_faces = node_faces[node_faces != INT_FILL_VALUE]
-        face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces)))
+        face_indices = np.unique(np.concatenate((face_indices, neighbor_faces)))
 
         return LocalSurface(
             surface=self,
@@ -783,12 +782,7 @@ class Surface(ComponentBase):
     def _full(self):
         return LocalSurface(self, face_indices=slice(None), node_indices=slice(None), edge_indices=slice(None))
 
-    def _save_data(
-        self,
-        ds: xr.Dataset | xr.DataArray,
-        interval_number: int = 0,
-        combine_data_files: bool = False,
-    ) -> None:
+    def _save_data(self, ds: xr.Dataset | xr.DataArray, interval_number: int = 0, combine_data_files: bool = False) -> None:
         """
         Save the data to the specified directory.
 
@@ -2272,6 +2266,7 @@ class LocalSurface:
         if value.size != self.n_face:
             raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
         self.surface.face_elevation[self.face_indices] = value
+        return
 
     @property
     def node_elevation(self) -> NDArray:
@@ -2293,6 +2288,7 @@ class LocalSurface:
         if value.size != self.n_node:
             raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
         self.surface.node_elevation[self.node_indices] = value
+        return
 
     @property
     def location(self) -> tuple[float, float]:

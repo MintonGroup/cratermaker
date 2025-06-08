@@ -134,6 +134,7 @@ class SimpleMoon(Morphology):
     def emplace(self, crater: Crater, **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
+
         Initializes and uses the queue system behind the scenes.
 
         Parameters
@@ -218,7 +219,7 @@ class SimpleMoon(Morphology):
 
         if np.isscalar(r):
             r = np.array([r], dtype=np.float64)
-        elif isinstance(r, (list, tuple)):
+        elif isinstance(r, (list | tuple)):
             r = np.array(r, dtype=np.float64)
 
         # flatten r to 1D array
@@ -294,7 +295,7 @@ class SimpleMoon(Morphology):
             crater = SimpleMoonCrater.maker(crater)
         if np.isscalar(r):
             r = np.array([r], dtype=np.float64)
-        elif isinstance(r, (list, tuple)):
+        elif isinstance(r, (list | tuple)):
             r = np.array(r, dtype=np.float64)
         # flatten r to 1D array
         rflat = np.ravel(r)
@@ -428,10 +429,7 @@ class SimpleMoon(Morphology):
 
         # Get the maximum extent
         lower_limit = crater.final_radius * 1.0001
-        if self.ejecta_truncation:
-            upper_limit = self.ejecta_truncation * crater.final_radius
-        else:
-            upper_limit = np.pi * self.surface.target.radius
+        upper_limit = self.ejecta_truncation * crater.final_radius if self.ejecta_truncation else np.pi * self.surface.target.radius
 
         if _profile_invert(lower_limit) < 0:
             ans = lower_limit
@@ -443,10 +441,7 @@ class SimpleMoon(Morphology):
                 bracket=[lower_limit, upper_limit],
                 method="brentq",
             )
-            if not sol.converged:
-                ans = crater.final_radius
-            else:
-                ans = sol.root
+            ans = sol.root if sol.converged else crater.final_radius
 
         return float(ans)
 
@@ -475,36 +470,36 @@ class SimpleMoon(Morphology):
 
         References
         ----------
-        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63–87. https://doi.org/10.1016/j.icarus.2019.02.021
+        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
         .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. https://doi.org/10.1029/2019JE006273
         """
 
-        def _Kdmare(r, fe, psi):
+        def _kdmare(r, fe, psi):
             """
-            This is the mare-scale degradation function from Minton et al. (2019). See eq. (32)
+            The mare-scale degradation function from Minton et al. (2019). See eq. (32).
             """
-            Kv1 = 0.17
+            kv1 = 0.17
             neq1 = 0.0084
             eta = 3.2
             gamma = 2.0
             beta = 2.0
-            Kd1 = Kv1 * (math.pi * fe**2 * neq1 * (gamma * beta / ((eta - 2.0) * (beta + gamma - eta)))) ** (-gamma / (eta - beta))
+            kd1 = kv1 * (math.pi * fe**2 * neq1 * (gamma * beta / ((eta - 2.0) * (beta + gamma - eta)))) ** (-gamma / (eta - beta))
             psi = gamma * ((eta - 2.0) / (eta - beta))
-            return Kd1 * r**psi
+            return kd1 * r**psi
 
-        def _smooth_broken(x, A, x_break, alpha_1, alpha_2, delta):
-            return A * (x / x_break) ** (alpha_1) * (0.5 * (1.0 + (x / x_break) ** (1.0 / delta))) ** ((alpha_2 - alpha_1) / delta)
+        def _smooth_broken(x, a, x_break, alpha_1, alpha_2, delta):
+            return a * (x / x_break) ** (alpha_1) * (0.5 * (1.0 + (x / x_break) ** (1.0 / delta))) ** ((alpha_2 - alpha_1) / delta)
 
-        def _Kd(r, fe):
+        def _kd(r, fe):
             psi_1 = 2.0  # Mare scale power law exponent
             psi_2 = 1.2  # Highlands scale power law exponent
             rb = 0.5e3  # breakpoint radius
             delta = 1.0e0  # Smoothing function
 
-            Kd1 = _Kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
-            return _smooth_broken(r, Kd1, rb, psi_1, psi_2, delta)
+            kd1 = _kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
+            return _smooth_broken(r, kd1, rb, psi_1, psi_2, delta)
 
-        return float(_Kd(final_diameter / 2, fe))
+        return float(_kd(final_diameter / 2, fe))
 
     @parameter
     def ejecta_truncation(self) -> float:
