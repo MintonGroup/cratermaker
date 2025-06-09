@@ -26,6 +26,7 @@ class Morphology(ComponentBase):
         surface: Surface | str | None = None,
         production: Production | str | None = None,
         dosubpixel_degradation: bool = False,
+        doslope_collapse: bool = True,
         **kwargs: Any,
     ) -> None:
         """
@@ -39,6 +40,8 @@ class Morphology(ComponentBase):
             The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
         dosubpixel_degradation : bool, optional
             If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
+        doslope_collapse : bool, optional
+            If True, slope collapse will be performed during the emplacement of craters. Defaults to True.
         **kwargs : Any
 
         """
@@ -51,6 +54,7 @@ class Morphology(ComponentBase):
         if production is not None:
             self._production = Production.maker(production, **kwargs)
         self.dosubpixel_degradation = dosubpixel_degradation
+        self.doslope_collapse = doslope_collapse
         return
 
     def __str__(self) -> str:
@@ -64,6 +68,7 @@ class Morphology(ComponentBase):
         surface: Surface | str | None = None,
         production: Production | str | None = None,
         dosubpixel_degradation: bool = False,
+        doslope_collapse: bool = True,
         **kwargs: Any,
     ) -> Morphology:
         """
@@ -77,6 +82,8 @@ class Morphology(ComponentBase):
             The name of a Surface object, or an instance of Surface, to be associated the morphology model.
         dosubpixel_degradation : bool, optional
             If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
+        doslope_collapse : bool, optional
+            If True, slope collapse will be performed during the emplacement of craters. Defaults to True.
         **kwargs : Any
             Additional keyword arguments that are required for the specific morphology model being created.
 
@@ -100,6 +107,7 @@ class Morphology(ComponentBase):
             surface=surface,
             production=production,
             dosubpixel_degradation=dosubpixel_degradation,
+            doslope_collapse=doslope_collapse,
             **kwargs,
         )
         return morphology
@@ -169,7 +177,8 @@ class Morphology(ComponentBase):
                 # Form the crater shape
                 elevation_change = self.crater_shape(crater, crater_region)
                 crater_region.update_elevation(elevation_change)
-                crater_region.slope_collapse()
+                if self.doslope_collapse:
+                    crater_region.slope_collapse()
                 crater_volume = crater_region.compute_volume(elevation_change[: crater_region.n_face])
 
                 # Remove any ejecta from the surface
@@ -298,6 +307,10 @@ class Morphology(ComponentBase):
         region = self.surface.extract_region(crater.location, rmax)
         if region is None:
             return set(), set()
+        if isinstance(region.node_indices, slice) or isinstance(region.face_indices, slice):
+            return set(np.arange(self.surface.n_node)[region.node_indices]), set(
+                np.arange(self.surface.n_face)[region.face_indices]
+            )
         return set(region.node_indices), set(region.face_indices)
 
     def _init_queue_manager(self) -> None:
@@ -502,6 +515,22 @@ class Morphology(ComponentBase):
         if not isinstance(value, bool):
             raise TypeError("dosubpixel_degradation must be a boolean value")
         self._dosubpixel_degradation = value
+
+    @parameter
+    def doslope_collapse(self) -> bool:
+        """
+        Whether to perform slope collapse during crater emplacement.
+        """
+        return self._doslope_collapse
+
+    @doslope_collapse.setter
+    def doslope_collapse(self, value: bool) -> None:
+        """
+        Set whether to perform slope collapse during crater emplacement.
+        """
+        if not isinstance(value, bool):
+            raise TypeError("doslope_collapse must be a boolean value")
+        self._doslope_collapse = value
 
     @property
     def face_index(self):

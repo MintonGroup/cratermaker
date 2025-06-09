@@ -270,18 +270,17 @@ pub fn apply_diffusion<'py>(
 }
 
 
-/// Computes the slope squared at a face using a least-squares gradient estimator.
+/// Computes the slope squared at a face using the Green-Gauss method.
 ///
-/// For each face, uses all its connected neighbors to solve for the gradient vector (∂h/∂x, ∂h/∂y)
-/// in the local tangent plane using relative distances and elevations.
+/// For each face, this function estimates the gradient vector (∂h/∂x, ∂h/∂y)
+/// in the local tangent plane by summing contributions from all connected neighbors,
+/// using the Green-Gauss theorem applied to the face's surrounding edges.
 /// Returns the squared magnitude of this gradient as the slope squared.
-/// 
-/// This will estimate the gradient using least-squares from all neighbors.
+///
 /// For each neighbor, we take the vector (dx, dy) in the tangent plane and the elevation difference dh,
-/// and fit grad_h such that dh ≈ grad_h ⋅ (dx, dy)
+/// and estimate the gradient using the Green-Gauss formula.
 /// Since we lack explicit (x, y) positions, we approximate dx, dy as unit vectors around the face.
-/// This gives a crude local coordinate system, but is better than the single-edge max.
-
+/// This provides a reasonable local coordinate system for gradient estimation.
 #[inline(always)]
 fn compute_slope_squared(
     f: usize,
@@ -289,15 +288,13 @@ fn compute_slope_squared(
     connected_edges: &ndarray::ArrayView1<'_, i64>,
     edge_face_connectivity: &ndarray::ArrayView2<i64>,
     edge_face_distances: &ndarray::ArrayView1<f64>,
+    edge_lengths: &ndarray::ArrayView1<f64>,
 ) -> f64 {
+    let mut dh_dx = 0.0;
+    let mut dh_dy = 0.0;
+    let mut weight_sum = 0.0;
 
-    // Collect neighbor vectors and elevation differences
-    let mut dxs = Vec::new();
-    let mut dys = Vec::new();
-    let mut dhs = Vec::new();
-
-    // Count valid neighbors first for angular placement
-    let mut neighbor_edges = Vec::new();
+    let mut neighbors = Vec::new();
     for &edge_id in connected_edges.iter() {
         if edge_id < 0 {
             continue;
@@ -311,52 +308,37 @@ fn compute_slope_squared(
         let f2 = f2 as usize;
         let other = if f == f1 { f2 } else if f == f2 { f1 } else { continue };
         let d = edge_face_distances[e];
-        if d <= 0.0 {
+        let l = edge_lengths[e];
+        if d <= 0.0 || l <= 0.0 {
             continue;
         }
-        neighbor_edges.push((other, d));
+        neighbors.push((other, d, l));
     }
-    let n = neighbor_edges.len();
+
+    let n = neighbors.len();
     if n < 2 {
         return 0.0;
     }
-    // Place neighbors evenly around a circle in local tangent plane (just for basis)
-    for (i, &(other, d)) in neighbor_edges.iter().enumerate() {
+
+    for (i, &(other, distance, length)) in neighbors.iter().enumerate() {
         let angle = 2.0 * std::f64::consts::PI * (i as f64) / (n as f64);
-        let dx = angle.cos() * d;
-        let dy = angle.sin() * d;
+        let nx = angle.cos();
+        let ny = angle.sin();
         let dh = face_elevation[other] - face_elevation[f];
-        dxs.push(dx);
-        dys.push(dy);
-        dhs.push(dh);
+        let flux = dh * length / distance;
+
+        dh_dx += flux * nx;
+        dh_dy += flux * ny;
+        weight_sum += length;
     }
-    // Form least-squares: [dx dy][grad_x; grad_y] = dh
-    // I.e., A x = b
-    let mut ata = [[0.0, 0.0], [0.0, 0.0]];
-    let mut atb = [0.0, 0.0];
-    for i in 0..n {
-        let dx = dxs[i];
-        let dy = dys[i];
-        let dh = dhs[i];
-        ata[0][0] += dx * dx;
-        ata[0][1] += dx * dy;
-        ata[1][0] += dy * dx;
-        ata[1][1] += dy * dy;
-        atb[0] += dx * dh;
-        atb[1] += dy * dh;
+
+    if weight_sum > 0.0 {
+        dh_dx /= weight_sum;
+        dh_dy /= weight_sum;
+        return dh_dx * dh_dx + dh_dy * dh_dy;
     }
-    // Solve 2x2 system for grad
-    let det = ata[0][0] * ata[1][1] - ata[0][1] * ata[1][0];
-    if det.abs() < 1e-12 {
-        return 0.0;
-    }
-    let inv_ata00 = ata[1][1] / det;
-    let inv_ata01 = -ata[0][1] / det;
-    let inv_ata10 = -ata[1][0] / det;
-    let inv_ata11 = ata[0][0] / det;
-    let grad_x = inv_ata00 * atb[0] + inv_ata01 * atb[1];
-    let grad_y = inv_ata10 * atb[0] + inv_ata11 * atb[1];
-    grad_x * grad_x + grad_y * grad_y
+
+    0.0
 }
 
 /// Computes the square root of the maximum squared slope at each face in a surface mesh.
@@ -386,11 +368,13 @@ pub fn compute_slope<'py>(
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_edge_connectivity: PyReadonlyArray2<'py, i64>,
     edge_face_distances: PyReadonlyArray1<'py, f64>,
+    edge_lengths: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let face_elevation = face_elevation.as_array();
     let edge_face_connectivity = edge_face_connectivity.as_array();
     let face_edge_connectivity = face_edge_connectivity.as_array();
     let edge_face_distances = edge_face_distances.as_array();
+    let edge_lengths = edge_lengths.as_array();
     let n_face = face_elevation.len();
 
     let face_elevation = face_elevation.to_owned();
@@ -403,6 +387,7 @@ pub fn compute_slope<'py>(
                 &connected_edges,
                 &edge_face_connectivity,
                 &edge_face_distances,
+                &edge_lengths,
             );
             slope_sq.sqrt()
         })
@@ -472,7 +457,9 @@ pub fn slope_collapse<'py>(
         for f in 0..n_face {
             face_elevation[f] += face_delta_elevation[f];
         }
-        let face_kappa: Vec<_> = (0..n_face)
+
+        // Compute (slope_sq, kappa) for each face in parallel
+        let slope_kappa: Vec<_> = (0..n_face)
             .into_par_iter()
             .map(|f| {
                 let connected_edges = face_edge_connectivity.row(f);
@@ -481,15 +468,19 @@ pub fn slope_collapse<'py>(
                     &face_elevation,
                     &connected_edges,
                     &edge_face_connectivity,
-                    &edge_face_distances, 
+                    &edge_face_distances,
+                    &edge_lengths,
                 );
-                if slope_sq > critical_slope_sq {
-                    diffmax
+                let kappa = if slope_sq > critical_slope_sq {
+                    diffmax * (1.0 + slope_sq / critical_slope_sq) * 10.0
                 } else {
                     0.0
-                }
+                };
+                kappa
             })
             .collect();
+
+        let face_kappa: Vec<f64> = slope_kappa.into_iter().collect();
 
         let n_active = face_kappa.iter().filter(|&&k| k > 0.0).count();
         if n_active == 0 {
@@ -498,7 +489,7 @@ pub fn slope_collapse<'py>(
 
         // Cast all of the arrays to the correct types for the Python bindings so that they can be passed to the apply_diffusion function
         let py_kappa = PyArray1::from_slice(py, &face_kappa).readonly();
-        let py_face_elevation = PyArray1::from_array(py, &face_elevation).readonly(); 
+        let py_face_elevation = PyArray1::from_array(py, &face_elevation).readonly();
         let py_face_areas = PyArray1::from_array(py, &face_areas).readonly();
         let py_edge_face_connectivity = PyArray2::from_array(py, &edge_face_connectivity).readonly();
         let py_edge_face_distances = PyArray1::from_array(py, &edge_face_distances).readonly();
@@ -511,9 +502,8 @@ pub fn slope_collapse<'py>(
             py_face_areas,
             py_edge_face_connectivity,
             py_edge_face_distances,
-            py_edge_lengths
+            py_edge_lengths,
         )?;
-
         let delta_array = unsafe { delta.as_array() };
         face_delta_elevation += &delta_array;
     }

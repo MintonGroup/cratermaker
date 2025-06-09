@@ -233,24 +233,31 @@ class Surface(ComponentBase):
         location = validate_and_normalize_location(location)
         coords = np.asarray(location)
 
-        face_indices = self.face_tree.query_radius(coords, region_angle)
-        if len(face_indices) == 0:
-            return None
+        if region_angle < 180.0:
+            face_indices = self.face_tree.query_radius(coords, region_angle)
+            if len(face_indices) == 0:
+                return None
 
-        # First select edges and nodes that are attached to these faces
-        edge_indices = np.unique(self.face_edge_connectivity[face_indices].ravel())
-        edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
+            # First select edges and nodes that are attached to these faces
+            edge_indices = np.unique(self.face_edge_connectivity[face_indices].ravel())
+            edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
 
-        node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
-        node_indices = node_indices[node_indices != INT_FILL_VALUE]
+            node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
+            node_indices = node_indices[node_indices != INT_FILL_VALUE]
 
-        # Now add in all faces that are connected to the faces so that the outer border of the local region has a buffer of faces
-        # These are needed for diffusion calculations
-        neighbor_faces = self.face_face_connectivity[face_indices]
-        neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
-        node_faces = self.node_face_connectivity[node_indices]
-        node_faces = node_faces[node_faces != INT_FILL_VALUE]
-        face_indices = np.unique(np.concatenate((face_indices, neighbor_faces)))
+            # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
+            # These are needed for diffusion calculations
+            neighbor_faces = self.face_face_connectivity[face_indices]
+            neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
+            node_faces = self.node_face_connectivity[node_indices]
+            node_faces = node_faces[node_faces != INT_FILL_VALUE]
+            edge_faces = self.edge_face_connectivity[edge_indices]
+            edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
+            face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
+        else:  # This is the entire surface
+            face_indices = slice(None)
+            edge_indices = slice(None)
+            node_indices = slice(None)
 
         return LocalSurface(
             surface=self,
@@ -1783,6 +1790,7 @@ class LocalSurface:
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
             edge_face_distances=self.edge_face_distances,
+            edge_lengths=self.edge_lengths,
         )
 
         return np.rad2deg(np.arctan(slope))
@@ -2190,6 +2198,11 @@ class LocalSurface:
         np.ndarray
             A new 2D connectivity array of shape (len(row_indices), K) with local indices or fill_value where not applicable.
         """
+        if isinstance(row_indices, slice) and row_indices == slice(None):  # This is a global slice. Just return the original array
+            return connectivity_array
+        if isinstance(value_indices, slice):
+            value_indices = np.arange(total_value_size)[value_indices]
+
         # Build global-to-local index mapping
         mapping = np.full(total_value_size, fill_value, dtype=np.int64)
         mapping[value_indices] = np.arange(value_indices.size)
