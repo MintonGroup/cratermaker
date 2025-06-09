@@ -603,7 +603,9 @@ class LocalHiResLocalSurface(LocalSurface):
     face_indices : NDArray | slice
         The indices of the faces to include in the view.
     node_indices : NDArray | slice | None, optional
-        The indices of the nodes to include in the view. If None, all nodes connected to the faces are included.
+        The indices of the nodes to include in the view. If None, all nodes connected to the faces will be extracted when required
+    edge_indices : NDArray | slice | None, optional
+        The indices of the edges to include in the view. If None, all edges connected to the faces will be extracted when required.
     location : tuple[float, float] | None, optional
         The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
     region_radius : FloatLike | None, optional
@@ -615,6 +617,7 @@ class LocalHiResLocalSurface(LocalSurface):
         surface: Surface | LocalSurface,
         face_indices: NDArray | slice | None = None,
         node_indices: NDArray | slice | None = None,
+        edge_indices: NDArray | slice | None = None,
         location: tuple[float, float] | None = None,
         region_radius: FloatLike | None = None,
         **kwargs: Any,
@@ -622,17 +625,20 @@ class LocalHiResLocalSurface(LocalSurface):
         if isinstance(surface, LocalSurface):
             face_indices = surface.face_indices
             node_indices = surface.node_indices
+            edge_indices = surface.edge_indices
             location = surface.location
             region_radius = surface.region_radius
             surface = surface.surface
 
         object.__setattr__(self, "_local_overlap", None)
+        object.__setattr__(self, "_edge_mask", None)
         object.__setattr__(self, "_face_mask", None)
         object.__setattr__(self, "_node_mask", None)
         super().__init__(
             surface=surface,
             face_indices=face_indices,
             node_indices=node_indices,
+            edge_indices=edge_indices,
             location=location,
             region_radius=region_radius,
             **kwargs,
@@ -707,41 +713,85 @@ class LocalHiResLocalSurface(LocalSurface):
             )
         return
 
+    def extract_subregion(self, subregion_radius: FloatLike):
+        """
+        Extract a subset of the LocalHiResLocalSurface region with a smaller radius than the original region.
+
+        Parameters
+        ----------
+        subregion_radius : float
+            The radius of the subregion to extract in meters.
+
+        Returns
+        -------
+        LocalHiResLocalSurface
+            A LocalHiResSurface object containing a view of the regional grid.
+        """
+        region = super().extract_subregion(subregion_radius=subregion_radius)
+        if region is None:
+            return None
+
+        return LocalHiResLocalSurface(region)
+
     @property
     def local_overlap(self) -> LocalHiResLocalSurface | None:
         """
         Returns a LocalHiResLocalSurface object that contains the overlap between this object and the high resolution local region of the surface. Returns None if there is no overlap.
         """
         if self._local_overlap is None:
-            if self._surface._local is None:
+            if self.surface.local is None:
                 return None
-
-            self._node_mask = np.isin(self._node_indices, self._surface._local._node_indices, kind="table")
-            if not np.any(self._node_mask):
-                return None
-            shared_nodes = self._node_indices[self._node_mask]
-            if len(shared_nodes) == self._n_node:
-                # If all nodes are shared, then we can assume all faces are also shared.
-                shared_faces = self._face_indices
-                self._face_mask = np.full(self.n_face, True, dtype=bool)
+            if isinstance(self.face_indices, slice):
+                face_indices = self.surface.face_indices[self.face_indices]
+                node_indices = self.surface.node_indices[self.node_indices]
+                edge_indices = self.surface.edge_indices[self.edge_indices]
             else:
-                self._face_mask = np.isin(self._face_indices, self._surface._local._face_indices, kind="table")
-                if not np.any(self._face_mask):
+                face_indices = self.face_indices
+                node_indices = self.node_indices
+                edge_indices = self.edge_indices
+            self._face_mask = np.isin(face_indices, self.surface.local.face_indices, kind="table")
+            if not np.any(self._face_mask):
+                return None
+            shared_faces = face_indices[self._face_mask]
+            if len(shared_faces) == self.n_face:
+                # If all faces are shared, then we can assume all nodes and edges are also shared.
+                shared_nodes = self.node_indices
+                shared_edges = self.edge_indices
+                self._node_mask = np.full(self.n_node, True, dtype=bool)
+                self._edge_mask = np.full(self.n_edge, True, dtype=bool)
+            else:
+                self._node_mask = np.isin(node_indices, self.surface.local.node_indices, kind="table")
+                if not np.any(self._node_mask):
                     return None
-                shared_faces = self._face_indices[self._face_mask]
+                shared_nodes = node_indices[self._node_mask]
+
+                self._edge_mask = np.isin(edge_indices, self.surface.local.edge_indices, kind="table")
+                if not np.any(self._edge_mask):
+                    return None
+                shared_edges = edge_indices[self._edge_mask]
 
             self._local_overlap = LocalSurface(
                 surface=self._surface,
                 face_indices=shared_faces,
                 node_indices=shared_nodes,
+                edge_indices=shared_edges,
                 region_radius=self._region_radius,
             )
-            self._local_overlap._location = self._location
-            self._local_overlap._face_distance = self._face_distance[self._face_mask]
-            self._local_overlap._face_bearing = self._face_bearing[self._face_mask]
-            self._local_overlap._node_distance = self._node_distance[self._node_mask]
-            self._local_overlap._node_bearing = self._node_bearing[self._node_mask]
+            self._local_overlap._location = self.location
+            self._local_overlap._face_distance = self.face_distance[self._face_mask]
+            self._local_overlap._face_bearing = self.face_bearing[self._face_mask]
+            self._local_overlap._node_distance = self.node_distance[self._node_mask]
+            self._local_overlap._node_bearing = self.node_bearing[self._node_mask]
         return self._local_overlap
+
+    @property
+    def edge_mask(self) -> NDArray[np.bool] | None:
+        """
+        A boolean indicating which edge indices overlap with the local region.
+        """
+        if self._edge_mask is None:
+            _ = self.local_overlap
+        return self._edge_mask
 
     @property
     def face_mask(self) -> NDArray[np.bool] | None:
