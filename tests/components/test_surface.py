@@ -132,9 +132,9 @@ class TestSurface(unittest.TestCase):
             south = normalize_coords(south)
             antipode = normalize_coords(antipode)
 
-            north_idx, _ = surface.find_nearest_index(north)
-            south_idx, _ = surface.find_nearest_index(south)
-            antipode_idx, _ = surface.find_nearest_index(antipode)
+            north_idx = surface.find_nearest_face(north)
+            south_idx = surface.find_nearest_face(south)
+            antipode_idx = surface.find_nearest_face(antipode)
 
             north_distance = surface.target.radius * np.pi / 2
             south_distance = surface.target.radius * np.pi / 2
@@ -162,13 +162,6 @@ class TestSurface(unittest.TestCase):
                 msg=f"Antipode face distance ratio: {distances[antipode_idx].item() / antipode_distance}",
             )
 
-            north_face_idx = surface.find_nearest_face(north)
-            south_face_idx = surface.find_nearest_face(south)
-            antipode_face_idx = surface.find_nearest_face(antipode)
-            self.assertEqual(north_face_idx, north_idx, "North face index mismatch")
-            self.assertEqual(south_face_idx, south_idx, "South face index mismatch")
-            self.assertEqual(antipode_face_idx, antipode_idx, "Antipode face index mismatch")
-
     def test_get_node_distance(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
@@ -186,9 +179,9 @@ class TestSurface(unittest.TestCase):
             south = normalize_coords(south)
             antipode = normalize_coords(antipode)
 
-            _, north_idx = surface.find_nearest_index(north)
-            _, south_idx = surface.find_nearest_index(south)
-            _, antipode_idx = surface.find_nearest_index(antipode)
+            north_idx = surface.find_nearest_node(north)
+            south_idx = surface.find_nearest_node(south)
+            antipode_idx = surface.find_nearest_node(antipode)
 
             north_distance = surface.target.radius * np.pi / 2
             south_distance = surface.target.radius * np.pi / 2
@@ -236,7 +229,7 @@ class TestSurface(unittest.TestCase):
     #         original_face_index = i.values.item()
     #         for _ in range(n_per_face):
     #             location = surface.get_random_location_on_face(original_face_index)
-    #             new_face_index, _ = surface.find_nearest_index(location)
+    #             new_face_index = surface.find_nearest_fac(location)
     #             self.assertEqual(original_face_index, new_face_index)
 
     def test_face_surface_values(self):

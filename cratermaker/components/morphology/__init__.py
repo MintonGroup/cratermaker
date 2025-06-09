@@ -365,7 +365,6 @@ class Morphology(ComponentBase):
         if not hasattr(self, "_queue_manager"):
             raise RuntimeError("Queue manager has not been initialized. Call _init_queue_manager first.")
 
-        # import threading
         from concurrent.futures import ThreadPoolExecutor
 
         def _batch_process(pbar=None):
@@ -378,7 +377,7 @@ class Morphology(ComponentBase):
                         if pbar is not None:
                             pbar.update(1)
                     except Exception as e:
-                        print(f"Exception during form_crater: {e}")
+                        raise RuntimeError(f"Error processing crater {crater}: {e}") from e
 
                 # max_workers=1 because something needs access to HDF files (probably grid.nc) that is not thread safe
                 with ThreadPoolExecutor(max_workers=1) as executor:

@@ -99,7 +99,6 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_y", None)
         object.__setattr__(self, "_node_z", None)
         object.__setattr__(self, "_smallest_length", None)
-        object.__setattr__(self, "_spatial_hash", None)
 
         super().__init__(simdir=simdir, **kwargs)
 
@@ -435,12 +434,42 @@ class Surface(ComponentBase):
         """
         return self._full().calculate_face_and_node_bearings(location)
 
-    def find_nearest_index(self, location):
+    def find_nearest_node(self, location):
         """
-        Find the index of the nearest node and face to a given point.
+        Find the index of the nearest node to a given point.
 
-        This method calculates the Haversine distance from the given point to each face in the grid,
-        and returns the index of the face with the minimum distance.
+        This method calculates the Haversine distance from the given point to each node in the grid, and returns the index of the node with the minimum distance.
+
+        Parameters
+        ----------
+        location : tuple
+            A tuple containing two elements: (longitude, latitude) in degrees.
+
+        Returns
+        -------
+        int
+            The index of the nearest node in the grid to the given point.
+
+        Notes
+        -----
+        The method uses the ball tree query method that is included in the UxArray.Grid class.
+        """
+        location = validate_and_normalize_location(location)
+        if len(location) == 1:
+            location = location.item()
+        coords = np.asarray(location)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", Warning)
+            node_ind = self.node_tree.query(coords=coords, k=1, return_distance=False)
+
+        return node_ind.item()
+
+    def find_nearest_face(self, location):
+        """
+        Find the index of the nearest face to a given point.
+
+        This method calculates the Haversine distance from the given point to each face in the grid, and returns the index of the face with the minimum distance.
 
         Parameters
         ----------
@@ -451,35 +480,20 @@ class Surface(ComponentBase):
         -------
         int
             The index of the nearest face in the grid to the given point.
-        int
-            The index of the nearest node in the grid to the given point.
 
         Notes
         -----
         The method uses the ball tree query method that is included in the UxArray.Grid class.
         """
+        location = validate_and_normalize_location(location)
         if len(location) == 1:
             location = location.item()
         coords = np.asarray(location)
 
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", Warning)
-            node_ind = self.node_tree.query(coords=coords, k=1, return_distance=False)
+            warnings.simplefilter("ignore", OptimizeWarning)
             face_ind = self.face_tree.query(coords=coords, k=1, return_distance=False)
 
-        return face_ind.item(), node_ind.item()
-
-    def find_nearest_face(self, location):
-        location = validate_and_normalize_location(location)
-        if len(location) == 1:
-            location = location.item()
-        coords = np.asarray(location)
-        try:
-            face_ind, _ = self.spatial_hash.query(coords)
-        except IndexError:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", OptimizeWarning)
-                face_ind = self.face_tree.query(coords=coords, k=1, return_distance=False)
         return face_ind.item()
 
     def interpolate_node_elevation_from_faces(self) -> None:
@@ -1523,15 +1537,6 @@ class Surface(ComponentBase):
             )
 
         return self._edge_tree
-
-    @property
-    def spatial_hash(self) -> SpatialHash:
-        """
-        The spatial hash of the surface view.
-        """
-        if self._spatial_hash is None:
-            self._spatial_hash = self.uxgrid.get_spatial_hash(reconstruct=False)
-        return self._spatial_hash
 
 
 class LocalSurface:
