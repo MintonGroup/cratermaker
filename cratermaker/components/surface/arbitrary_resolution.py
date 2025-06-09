@@ -145,7 +145,7 @@ class ArbitraryResolutionSurface(Surface):
         thetavals = thetavals[(thetavals >= theta_range[0]) & (thetavals < theta_range[1])]
 
         for theta in thetavals:
-            mphi = int(np.round(2 * np.pi * np.sin(theta) / dphi))
+            mphi = max(1, int(np.round(2 * np.pi * np.sin(theta) / dphi)))
             phivals = 2 * np.pi * np.arange(mphi) / mphi
             phivals = phivals[(phivals >= phi_range[0]) & (phivals < phi_range[1])]
             for phi in phivals:
@@ -154,6 +154,8 @@ class ArbitraryResolutionSurface(Surface):
             return
 
         points = np.array(points, dtype=np.float64)
+        decimals = int(np.ceil(np.log10((2 * np.pi * radius) / distance)))
+        points = np.unique(points.T.round(decimals=decimals), axis=0).T
         points = points.T
 
         return points
