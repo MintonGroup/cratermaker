@@ -32,9 +32,7 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
     from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
     if not isinstance(surface, Surface):
-        raise TypeError(
-            "The surface argument must be an instance of the Surface class."
-        )
+        raise TypeError("The surface argument must be an instance of the Surface class.")
     # Create the output directory if it doesn't exist
     out_dir = surface.simdir / _EXPORT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -70,9 +68,7 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
         vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids)
 
     warp = vtkWarpScalar()
-    warp.SetInputArrayToProcess(
-        0, 0, 0, vtkUnstructuredGrid.FIELD_ASSOCIATION_POINTS, "node_elevation"
-    )
+    warp.SetInputArrayToProcess(0, 0, 0, vtkUnstructuredGrid.FIELD_ASSOCIATION_POINTS, "node_elevation")
 
     writer = vtkXMLPolyDataWriter()
     writer.SetDataModeToBinary()
@@ -121,9 +117,7 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
             warp.SetInputData(polyDataWithNormals)
             warp.Update()
             warped_output = warp.GetOutput()
-            output_filename = out_dir / _COMBINED_DATA_FILE_NAME.replace(
-                ".nc", f"{i:06d}.{_VTK_FILE_EXTENSION}"
-            )
+            output_filename = out_dir / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{i:06d}.{_VTK_FILE_EXTENSION}")
             writer.SetFileName(output_filename)
             writer.SetInputData(warped_output)
             writer.Write()
@@ -172,9 +166,7 @@ def make_circle_file(
     latitudes = np.atleast_1d(latitudes)
     # Check for length consistency
     if len(diameters) != len(longitudes) or len(diameters) != len(latitudes):
-        raise ValueError(
-            "The diameters, latitudes, and longitudes, arguments must have the same length"
-        )
+        raise ValueError("The diameters, latitudes, and longitudes, arguments must have the same length")
 
     # Validate non-negative values
     if np.any(diameters < 0):
@@ -225,21 +217,9 @@ def make_circle_file(
 
         # Calculate the points around the circle
         for i in range(num_points):
-            x[i] = (
-                center_x
-                + circle_radius * np.cos(radians[i]) * east[0]
-                + circle_radius * np.sin(radians[i]) * north[0]
-            )
-            y[i] = (
-                center_y
-                + circle_radius * np.cos(radians[i]) * east[1]
-                + circle_radius * np.sin(radians[i]) * north[1]
-            )
-            z[i] = (
-                center_z
-                + circle_radius * np.cos(radians[i]) * east[2]
-                + circle_radius * np.sin(radians[i]) * north[2]
-            )
+            x[i] = center_x + circle_radius * np.cos(radians[i]) * east[0] + circle_radius * np.sin(radians[i]) * north[0]
+            y[i] = center_y + circle_radius * np.cos(radians[i]) * east[1] + circle_radius * np.sin(radians[i]) * north[1]
+            z[i] = center_z + circle_radius * np.cos(radians[i]) * east[2] + circle_radius * np.sin(radians[i]) * north[2]
 
         return x, y, z
 
@@ -247,7 +227,7 @@ def make_circle_file(
     lines = vtkCellArray()
     point_id = 0  # Keep track of the point ID across all circles
 
-    for lon, lat, diameter in zip(longitudes, latitudes, diameters):
+    for lon, lat, diameter in zip(longitudes, latitudes, diameters, strict=False):
         circle_radius = diameter / 2
         x, y, z = create_circle(lon, lat, circle_radius)
 
