@@ -138,9 +138,9 @@ def get_random_location_on_face(
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     # Extract node indices for the given face(s)
-    node_indices = grid.face_node_connectivity[face_index, :]
     face_index = np.atleast_1d(face_index)
     size = len(face_index)
+    node_indices = grid.face_node_connectivity[face_index, :]
 
     # Prepare index arrays
     locations = np.empty(size, dtype=[("lon", "f8"), ("lat", "f8")])
@@ -148,10 +148,11 @@ def get_random_location_on_face(
     node_x = grid.node_x.values
     node_y = grid.node_y.values
     node_z = grid.node_z.values
-    node_indices = node_indices.values
     rng_vals = rng.random((size, 3))
     for i in range(size):
-        p = _get_one_random_location(node_indices[i], node_x, node_y, node_z, rng_vals=rng_vals[i, :])
+        ind = node_indices.values[i]
+        ind = ind[ind >= 0]
+        p = _get_one_random_location(ind, node_x, node_y, node_z, rng_vals=rng_vals[i, :])
         lon, lat = coordinates._xyz_to_lonlat_deg(*p)
         locations["lon"][i] = np.float64(lon)
         locations["lat"][i] = np.float64(lat)

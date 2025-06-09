@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from cratermaker import Surface, Target
+from cratermaker import Simulation, Surface, Target
 from cratermaker.utils.general_utils import normalize_coords
 from cratermaker.utils.montecarlo_utils import get_random_location
 
@@ -23,15 +23,11 @@ class TestSurface(unittest.TestCase):
     def test_initialize_surface(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             # Initializing it first should run the mesh generator
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
             del surface
 
             # Try initializing the surface again with the same parameters. This should find the existing grid file and load it
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=False
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=False)
 
             # Test regridding if the parameters change
             n_face_orig = surface.uxgrid.n_face
@@ -55,16 +51,12 @@ class TestSurface(unittest.TestCase):
             )
             del surface
 
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target="Mercury", reset=False
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target="Mercury", reset=False)
             del surface
 
             # Test bad values
             with self.assertRaises(TypeError):
-                Surface.maker(
-                    simdir=simdir, gridlevel=self.gridlevel, target=1, reset=False
-                )
+                Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=1, reset=False)
             with self.assertRaises(ValueError):
                 Surface.maker(
                     simdir=simdir,
@@ -83,13 +75,9 @@ class TestSurface(unittest.TestCase):
 
     def test_update_elevation(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
             # Test with valid elevation data
-            new_elev = np.random.rand(
-                surface.uxds.uxgrid.n_node
-            )  # Generate random elevation data
+            new_elev = np.random.rand(surface.uxds.uxgrid.n_node)  # Generate random elevation data
             surface.update_elevation(new_elev)
 
             # Test with invalid elevation data (wrong size)
@@ -118,9 +106,7 @@ class TestSurface(unittest.TestCase):
             # Example coordinates (lat/lon in radians)
             lon1, lat1 = np.radians(0), np.radians(0)  # Equator, prime meridian
             lon2, lat2 = np.radians(90), np.radians(0)  # 90 degrees East, equator
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target="Earth"
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target="Earth")
 
             # Known distance should be 1/4 the circumference of the Earth
             expected_distance = np.pi * surface.radius / 2
@@ -131,9 +117,7 @@ class TestSurface(unittest.TestCase):
 
     def test_get_face_distance(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
 
             location = get_random_location()[0]
             lon = location[0]
@@ -148,9 +132,9 @@ class TestSurface(unittest.TestCase):
             south = normalize_coords(south)
             antipode = normalize_coords(antipode)
 
-            north_idx, _ = surface.find_nearest_index(north)
-            south_idx, _ = surface.find_nearest_index(south)
-            antipode_idx, _ = surface.find_nearest_index(antipode)
+            north_idx = surface.find_nearest_face(north)
+            south_idx = surface.find_nearest_face(south)
+            antipode_idx = surface.find_nearest_face(antipode)
 
             north_distance = surface.target.radius * np.pi / 2
             south_distance = surface.target.radius * np.pi / 2
@@ -180,9 +164,7 @@ class TestSurface(unittest.TestCase):
 
     def test_get_node_distance(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
 
             location = get_random_location()[0]
             lon = location[0]
@@ -197,9 +179,9 @@ class TestSurface(unittest.TestCase):
             south = normalize_coords(south)
             antipode = normalize_coords(antipode)
 
-            _, north_idx = surface.find_nearest_index(north)
-            _, south_idx = surface.find_nearest_index(south)
-            _, antipode_idx = surface.find_nearest_index(antipode)
+            north_idx = surface.find_nearest_node(north)
+            south_idx = surface.find_nearest_node(south)
+            antipode_idx = surface.find_nearest_node(antipode)
 
             north_distance = surface.target.radius * np.pi / 2
             south_distance = surface.target.radius * np.pi / 2
@@ -239,30 +221,32 @@ class TestSurface(unittest.TestCase):
         # Compare the expected and calculated bearings
         self.assertAlmostEqual(calculated_bearing, expected_bearing, places=1)
 
-    # def test_get_random_on_face(self):
-    #     # Tests that the random location is within the face we expect
-    #     surface = Surface.maker(gridlevel=self.gridlevel*2, target=self.target, reset=True)
-    #     n_per_face = 10
-    #     for i in surface.n_face:
-    #         original_face_index = i.values.item()
-    #         for _ in range(n_per_face):
-    #             location = surface.get_random_location_on_face(original_face_index)
-    #             new_face_index, _ = surface.find_nearest_index(location)
-    #             self.assertEqual(original_face_index, new_face_index)
+    def test_get_random_on_face(self):
+        # Tests that the random location is within the face we expect
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
+            n_per_face = 10
+            for original_face_index in range(surface.n_face):
+                for _ in range(n_per_face):
+                    location = surface.get_random_location_on_face(face_index=original_face_index)
+                    new_face_index = surface.find_nearest_face(location.item())
+                    neighbors = surface.face_face_connectivity[new_face_index].tolist()
+                    neighbors.append(new_face_index)
+                    self.assertIn(
+                        original_face_index,
+                        neighbors,
+                        msg=f"Face {original_face_index} not found in neighbors of face {new_face_index}",
+                    )
 
     def test_face_surface_values(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             # Tests that the face_surface generates the correct values
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
             total_area_1 = surface.uxgrid.calculate_total_face_area()
             total_area_2 = surface.face_areas.sum().item()
             ratio = np.sqrt(total_area_2 / total_area_1) / self.target.radius
             self.assertAlmostEqual(ratio, 1.0, places=2)
-            self.assertAlmostEqual(
-                total_area_2 / (4 * np.pi * self.target.radius**2), 1.0, places=2
-            )
+            self.assertAlmostEqual(total_area_2 / (4 * np.pi * self.target.radius**2), 1.0, places=2)
 
     def test_generate_grid(self):
         gridargs = {
@@ -290,14 +274,10 @@ class TestSurface(unittest.TestCase):
     def test_add_data(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             test_value = 76.0
-            surface = Surface.maker(
-                simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True
-            )
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
             region = surface.extract_region(location=(0, 0), region_radius=100e3)
 
-            for obj, uxds in zip(
-                [surface, region], [surface.uxds, region.surface.uxds]
-            ):
+            for obj, uxds in zip([surface, region], [surface.uxds, region.surface.uxds], strict=False):
                 surface.reset()
                 obj.add_data(
                     name="test_data",
@@ -345,9 +325,7 @@ class TestSurface(unittest.TestCase):
                 # Add array face data
                 data_array = np.arange(n_face)
                 obj.add_data(name="array_face", data=data_array)
-                np.testing.assert_array_equal(
-                    uxds["array_face"].sel(n_face=face_indices).values, data_array
-                )
+                np.testing.assert_array_equal(uxds["array_face"].sel(n_face=face_indices).values, data_array)
 
                 # Overwrite behavior
                 obj.add_data(name="array_face", data=np.ones(n_face), overwrite=False)
@@ -361,6 +339,41 @@ class TestSurface(unittest.TestCase):
                     uxds["array_face"].sel(n_face=face_indices).values,
                     np.zeros(n_face),
                 )
+
+    def test_diffusion(self):
+        def initial_elevation(r, h0, sigma):
+            return h0 * np.exp(-(r**2) / (2 * sigma**2))
+
+        def analytical_elevation(r, h0, sigma, kappa):
+            variance_t = sigma**2 + 2 * kappa
+            return h0 * (sigma**2 / variance_t) * np.exp(-(r**2) / (2 * variance_t))
+
+        local_radius = 2000.0
+        pix = 10.0
+        local_location = (0, 0)
+        h0 = 100.0
+        sigma = 200.0
+        kdiff = 20000.0
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = Simulation(simdir=simdir, surface="hireslocal", local_location=local_location, pix=pix, local_radius=local_radius)
+
+            region_view = sim.surface.local
+            rvals = region_view.face_distance
+
+            # Initial elevation setup
+            h_initial = initial_elevation(rvals, h0, sigma)
+            region_view.update_elevation(h_initial)
+
+            # Compute the analytical solution result after
+            h_analytical = analytical_elevation(rvals, h0, sigma, kdiff)
+            hnorm = h_analytical.max()
+            h_analytical /= hnorm  # Normalize the elevations so that the maximum expected value is 1.0
+            region_view.apply_diffusion(kdiff)
+            h_numerical = region_view.face_elevation / hnorm
+            np.testing.assert_array_almost_equal(
+                h_analytical, h_numerical, decimal=2, err_msg="Diffusion did not match analytical solution"
+            )
 
 
 if __name__ == "__main__":
