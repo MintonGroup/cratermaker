@@ -483,7 +483,7 @@ class Surface(ComponentBase):
 
         Notes
         -----
-        The method uses the ball tree query method that is included in the UxArray.Grid class.
+        The method uses the ball tree query method that is included in the UxArray.Grid class.  It is only approximate, as it looks for whichever face center is closest to the location. This means that it can return a neighboring face, rather than the face that contains the point.
         """
         location = validate_and_normalize_location(location)
         if len(location) == 1:

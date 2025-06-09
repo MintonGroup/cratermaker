@@ -221,16 +221,22 @@ class TestSurface(unittest.TestCase):
         # Compare the expected and calculated bearings
         self.assertAlmostEqual(calculated_bearing, expected_bearing, places=1)
 
-    # def test_get_random_on_face(self):
-    #     # Tests that the random location is within the face we expect
-    #     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-    #         surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
-    #         n_per_face = 10
-    #         for original_face_index in range(surface.n_face):
-    #             for _ in range(n_per_face):
-    #                 location = surface.get_random_location_on_face(face_index=original_face_index)
-    #                 new_face_index = surface.find_nearest_face(location.item())
-    #                 self.assertEqual(original_face_index, new_face_index)
+    def test_get_random_on_face(self):
+        # Tests that the random location is within the face we expect
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
+            n_per_face = 10
+            for original_face_index in range(surface.n_face):
+                for _ in range(n_per_face):
+                    location = surface.get_random_location_on_face(face_index=original_face_index)
+                    new_face_index = surface.find_nearest_face(location.item())
+                    neighbors = surface.face_face_connectivity[new_face_index].tolist()
+                    neighbors.append(new_face_index)
+                    self.assertIn(
+                        original_face_index,
+                        neighbors,
+                        msg=f"Face {original_face_index} not found in neighbors of face {new_face_index}",
+                    )
 
     def test_face_surface_values(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
