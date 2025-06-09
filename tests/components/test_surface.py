@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from cratermaker import Surface, Target
+from cratermaker import Simulation, Surface, Target
 from cratermaker.utils.general_utils import normalize_coords
 from cratermaker.utils.montecarlo_utils import get_random_location
 
@@ -339,6 +339,41 @@ class TestSurface(unittest.TestCase):
                     uxds["array_face"].sel(n_face=face_indices).values,
                     np.zeros(n_face),
                 )
+
+    def test_diffusion(self):
+        def initial_elevation(r, h0, sigma):
+            return h0 * np.exp(-(r**2) / (2 * sigma**2))
+
+        def analytical_elevation(r, h0, sigma, kappa):
+            variance_t = sigma**2 + 2 * kappa
+            return h0 * (sigma**2 / variance_t) * np.exp(-(r**2) / (2 * variance_t))
+
+        local_radius = 2000.0
+        pix = 10.0
+        local_location = (0, 0)
+        h0 = 100.0
+        sigma = 200.0
+        kdiff = 20000.0
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = Simulation(simdir=simdir, surface="hireslocal", local_location=local_location, pix=pix, local_radius=local_radius)
+
+            region_view = sim.surface.local
+            rvals = region_view.face_distance
+
+            # Initial elevation setup
+            h_initial = initial_elevation(rvals, h0, sigma)
+            region_view.update_elevation(h_initial)
+
+            # Compute the analytical solution result after
+            h_analytical = analytical_elevation(rvals, h0, sigma, kdiff)
+            hnorm = h_analytical.max()
+            h_analytical /= hnorm  # Normalize the elevations so that the maximum expected value is 1.0
+            region_view.apply_diffusion(kdiff)
+            h_numerical = region_view.face_elevation / hnorm
+            np.testing.assert_array_almost_equal(
+                h_analytical, h_numerical, decimal=2, err_msg="Diffusion did not match analytical solution"
+            )
 
 
 if __name__ == "__main__":
