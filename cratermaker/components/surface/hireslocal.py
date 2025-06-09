@@ -721,10 +721,18 @@ class LocalHiResLocalSurface(LocalSurface):
         if self._local_overlap is None:
             if self.surface.local is None:
                 return None
-            self._face_mask = np.isin(self.face_indices, self.surface.local.face_indices, kind="table")
+            if isinstance(self.face_indices, slice):
+                face_indices = self.surface.face_indices[self.face_indices]
+                node_indices = self.surface.node_indices[self.node_indices]
+                edge_indices = self.surface.edge_indices[self.edge_indices]
+            else:
+                face_indices = self.face_indices
+                node_indices = self.node_indices
+                edge_indices = self.edge_indices
+            self._face_mask = np.isin(face_indices, self.surface.local.face_indices, kind="table")
             if not np.any(self._face_mask):
                 return None
-            shared_faces = self.face_indices[self._face_mask]
+            shared_faces = face_indices[self._face_mask]
             if len(shared_faces) == self.n_face:
                 # If all faces are shared, then we can assume all nodes and edges are also shared.
                 shared_nodes = self.node_indices
@@ -732,15 +740,15 @@ class LocalHiResLocalSurface(LocalSurface):
                 self._node_mask = np.full(self.n_node, True, dtype=bool)
                 self._edge_mask = np.full(self.n_edge, True, dtype=bool)
             else:
-                self._node_mask = np.isin(self.node_indices, self.surface.local.node_indices, kind="table")
+                self._node_mask = np.isin(node_indices, self.surface.local.node_indices, kind="table")
                 if not np.any(self._node_mask):
                     return None
-                shared_nodes = self.node_indices[self._node_mask]
+                shared_nodes = node_indices[self._node_mask]
 
-                self._edge_mask = np.isin(self.edge_indices, self.surface.local.edge_indices, kind="table")
+                self._edge_mask = np.isin(edge_indices, self.surface.local.edge_indices, kind="table")
                 if not np.any(self._edge_mask):
                     return None
-                shared_edges = self.edge_indices[self._edge_mask]
+                shared_edges = edge_indices[self._edge_mask]
 
             self._local_overlap = LocalSurface(
                 surface=self._surface,

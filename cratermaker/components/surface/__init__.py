@@ -83,6 +83,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_edge_tree", None)
         object.__setattr__(self, "_edge_face_distances", None)
         object.__setattr__(self, "_edge_lengths", None)
+        object.__setattr__(self, "_edge_indices", None)
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
         object.__setattr__(self, "_face_areas", None)
@@ -473,7 +474,12 @@ class Surface(ComponentBase):
         if len(location) == 1:
             location = location.item()
         coords = np.asarray(location)
-        face_ind, _ = self.spatial_hash.query(coords)
+        try:
+            face_ind, _ = self.spatial_hash.query(coords)
+        except IndexError:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", OptimizeWarning)
+                face_ind = self.face_tree.query(coords=coords, k=1, return_distance=False)
         return face_ind.item()
 
     def interpolate_node_elevation_from_faces(self) -> None:
@@ -1240,6 +1246,15 @@ class Surface(ComponentBase):
         """
         return self.uxds.n_node.values
 
+    @property
+    def edge_indices(self) -> NDArray[np.int64]:
+        """
+        The indices of the edges of the surface.
+        """
+        if self._edge_indices is None:
+            self._edge_indices = np.arange(self.uxgrid.n_edge, dtype=np.int64)
+        return self._edge_indices
+
     def _compute_face_bins(self) -> None:
         """
         Compute the face bins based on the face areas. This is used to bin faces by their area for crater generation.
@@ -1515,7 +1530,7 @@ class Surface(ComponentBase):
         The spatial hash of the surface view.
         """
         if self._spatial_hash is None:
-            self._spatial_hash = self.uxgrid.get_spatial_hash(reconstruct="True")
+            self._spatial_hash = self.uxgrid.get_spatial_hash(reconstruct=False)
         return self._spatial_hash
 
 

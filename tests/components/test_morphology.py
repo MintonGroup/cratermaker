@@ -37,9 +37,7 @@ class TestMorphology(unittest.TestCase):
 
     def test_form_crater_executes(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(
-                simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel
-            )
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel)
             for model_name in morphology_models:
                 morphology = Morphology.maker(model_name, surface=surface)
                 morphology.emplace(self.dummy_crater)
@@ -78,7 +76,7 @@ class TestMorphology(unittest.TestCase):
         gridargs = {
             "icosphere": {"gridlevel": 6},
             "arbitrary_resolution": {
-                "pix": 10e3,
+                "pix": 30e3,
             },
             "hireslocal": {
                 "pix": 1.0e3,
@@ -90,7 +88,7 @@ class TestMorphology(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             for name, args in gridargs.items():
                 sim = Simulation(simdir=simdir, surface=name, **args)
-                for final_diameter, delta in zip(final_diameter_list, delta_vals):
+                for final_diameter, delta in zip(final_diameter_list, delta_vals, strict=False):
                     sim.surface.reset()
                     # verify that the surface is flat
                     self.assertAlmostEqual(
@@ -118,9 +116,7 @@ class TestMorphology(unittest.TestCase):
                         msg=f"Failed for {name} with diameter {final_diameter}",
                     )
 
-                    crater = SimpleMoonCrater.maker(
-                        final_diameter=final_diameter, location=(0, 0)
-                    )
+                    crater = SimpleMoonCrater.maker(final_diameter=final_diameter, location=(0, 0))
                     sim.emplace(crater)
 
                     # Verify that the crater depth and rim heights are close to the expected values

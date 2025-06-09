@@ -157,7 +157,6 @@ class Morphology(ComponentBase):
         self._face_index = self.surface.find_nearest_face(crater.location)
 
         # Test if the ejecta is big enough to modify the surface
-
         ejecta_rmax = self.rmax(crater, minimum_thickness=self.surface.smallest_length, feature="ejecta")
         ejecta_region = self.surface.extract_region(crater.location, ejecta_rmax)
         ejecta_area = pi * ejecta_rmax**2
