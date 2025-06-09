@@ -44,9 +44,7 @@ class SimpleMoonCrater(Crater):
             crater = super(cls, cls).maker(**kwargs)
         base_fields = asdict(crater)
         # Remove any SimpleMoonCrater-specific fields to avoid conflicts
-        morphology_fields = set(cls.__dataclass_fields__) - set(
-            super(cls, cls).__dataclass_fields__
-        )
+        morphology_fields = set(cls.__dataclass_fields__) - set(super(cls, cls).__dataclass_fields__)
         for key in morphology_fields:
             base_fields.pop(key, None)
 
@@ -123,9 +121,7 @@ class SimpleMoon(Morphology):
         object.__setattr__(self, "_node", None)
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
-        super().__init__(
-            surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs
-        )
+        super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -138,6 +134,7 @@ class SimpleMoon(Morphology):
     def emplace(self, crater: Crater, **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
+
         Initializes and uses the queue system behind the scenes.
 
         Parameters
@@ -163,9 +160,7 @@ class SimpleMoon(Morphology):
         super().emplace(crater)
         return
 
-    def crater_shape(
-        self, crater: SimpleMoonCrater, region: LocalSurface, **kwargs: Any
-    ) -> NDArray[np.float64]:
+    def crater_shape(self, crater: SimpleMoonCrater, region: LocalSurface, **kwargs: Any) -> NDArray[np.float64]:
         """
         Compute the crater shape based on the region view and surface.
 
@@ -183,25 +178,19 @@ class SimpleMoon(Morphology):
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
-        reference_elevation = region.get_reference_surface(
-            reference_radius=crater.final_radius
-        )
+        reference_elevation = region.get_reference_surface(reference_radius=crater.final_radius)
 
         # Combine distances and references for nodes and faces
         distance = np.concatenate([region.face_distance, region.node_distance])
 
-        original_elevation = np.concatenate(
-            [region.face_elevation, region.node_elevation]
-        )
+        original_elevation = np.concatenate([region.face_elevation, region.node_elevation])
 
         new_elevation = self.crater_profile(crater, distance, reference_elevation)
         elevation_change = new_elevation - original_elevation
 
         return elevation_change
 
-    def crater_profile(
-        self, crater: SimpleMoonCrater, r: ArrayLike, r_ref: ArrayLike | None = None
-    ) -> NDArray[np.float64]:
+    def crater_profile(self, crater: SimpleMoonCrater, r: ArrayLike, r_ref: ArrayLike | None = None) -> NDArray[np.float64]:
         """
         Compute the crater profile elevation at a given radial distance.
 
@@ -230,7 +219,7 @@ class SimpleMoon(Morphology):
 
         if np.isscalar(r):
             r = np.array([r], dtype=np.float64)
-        elif isinstance(r, (list, tuple)):
+        elif isinstance(r, (list | tuple)):
             r = np.array(r, dtype=np.float64)
 
         # flatten r to 1D array
@@ -282,9 +271,7 @@ class SimpleMoon(Morphology):
 
         return thickness, intensity
 
-    def ejecta_profile(
-        self, crater: SimpleMoonCrater, r: ArrayLike
-    ) -> NDArray[np.float64]:
+    def ejecta_profile(self, crater: SimpleMoonCrater, r: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the ejecta elevation profile at a given radial distance.
 
@@ -308,7 +295,7 @@ class SimpleMoon(Morphology):
             crater = SimpleMoonCrater.maker(crater)
         if np.isscalar(r):
             r = np.array([r], dtype=np.float64)
-        elif isinstance(r, (list, tuple)):
+        elif isinstance(r, (list | tuple)):
             r = np.array(r, dtype=np.float64)
         # flatten r to 1D array
         rflat = np.ravel(r)
@@ -318,9 +305,7 @@ class SimpleMoon(Morphology):
         elevation = np.reshape(elevation, r.shape)
         return elevation
 
-    def ejecta_distribution(
-        self, crater, r: ArrayLike, theta: ArrayLike
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def ejecta_distribution(self, crater, r: ArrayLike, theta: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the ejecta thickness distribution modulated by ray patterns.
 
@@ -362,9 +347,7 @@ class SimpleMoon(Morphology):
         # reshape thickness to match the shape of r and theta
         return np.reshape(thickness, r.shape), np.reshape(intensity, r.shape)
 
-    def ray_intensity(
-        self, crater: SimpleMoonCrater, r: ArrayLike, theta: ArrayLike
-    ) -> NDArray[np.float64]:
+    def ray_intensity(self, crater: SimpleMoonCrater, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the ray pattern intensity modulation at each (r, theta) pair.
 
@@ -409,8 +392,7 @@ class SimpleMoon(Morphology):
         feature: str = "ejecta",
     ) -> float:
         """
-        Compute the maximum extent of the crater based on the minimum thickness of a feature, or the ejecta_truncation factor,
-        whichever is smaller.
+        Compute the maximum extent of the crater based on the minimum thickness of a feature, or the ejecta_truncation factor, whichever is smaller.
 
         Parameters
         ----------
@@ -421,12 +403,12 @@ class SimpleMoon(Morphology):
         feature : str, optional, default = "ejecta"
             The feature to compute the maximum extent. Either "crater" or "ejecta". If "crater" is chosen, the rmax is based
             on where the raised rim is smaller than minimum thickness.
+
         Returns
         -------
         float
             The maximum extent of the crater or ejecta blanket in meters.
         """
-
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater)
 
@@ -447,10 +429,7 @@ class SimpleMoon(Morphology):
 
         # Get the maximum extent
         lower_limit = crater.final_radius * 1.0001
-        if self.ejecta_truncation:
-            upper_limit = self.ejecta_truncation * crater.final_radius
-        else:
-            upper_limit = np.pi * self.surface.target.radius
+        upper_limit = self.ejecta_truncation * crater.final_radius if self.ejecta_truncation else np.pi * self.surface.target.radius
 
         if _profile_invert(lower_limit) < 0:
             ans = lower_limit
@@ -462,10 +441,7 @@ class SimpleMoon(Morphology):
                 bracket=[lower_limit, upper_limit],
                 method="brentq",
             )
-            if not sol.converged:
-                ans = crater.final_radius
-            else:
-                ans = sol.root
+            ans = sol.root if sol.converged else crater.final_radius
 
         return float(ans)
 
@@ -494,80 +470,36 @@ class SimpleMoon(Morphology):
 
         References
         ----------
-        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63–87. https://doi.org/10.1016/j.icarus.2019.02.021
+        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
         .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. https://doi.org/10.1029/2019JE006273
         """
 
-        def _Kdmare(r, fe, psi):
+        def _kdmare(r, fe, psi):
             """
-            This is the mare-scale degradation function from Minton et al. (2019). See eq. (32)
+            The mare-scale degradation function from Minton et al. (2019). See eq. (32).
             """
-            Kv1 = 0.17
+            kv1 = 0.17
             neq1 = 0.0084
             eta = 3.2
             gamma = 2.0
             beta = 2.0
-            Kd1 = Kv1 * (
-                math.pi
-                * fe**2
-                * neq1
-                * (gamma * beta / ((eta - 2.0) * (beta + gamma - eta)))
-            ) ** (-gamma / (eta - beta))
+            kd1 = kv1 * (math.pi * fe**2 * neq1 * (gamma * beta / ((eta - 2.0) * (beta + gamma - eta)))) ** (-gamma / (eta - beta))
             psi = gamma * ((eta - 2.0) / (eta - beta))
-            return Kd1 * r**psi
+            return kd1 * r**psi
 
-        def _smooth_broken(x, A, x_break, alpha_1, alpha_2, delta):
-            return (
-                A
-                * (x / x_break) ** (alpha_1)
-                * (0.5 * (1.0 + (x / x_break) ** (1.0 / delta)))
-                ** ((alpha_2 - alpha_1) / delta)
-            )
+        def _smooth_broken(x, a, x_break, alpha_1, alpha_2, delta):
+            return a * (x / x_break) ** (alpha_1) * (0.5 * (1.0 + (x / x_break) ** (1.0 / delta))) ** ((alpha_2 - alpha_1) / delta)
 
-        def _Kd(r, fe):
+        def _kd(r, fe):
             psi_1 = 2.0  # Mare scale power law exponent
             psi_2 = 1.2  # Highlands scale power law exponent
             rb = 0.5e3  # breakpoint radius
             delta = 1.0e0  # Smoothing function
 
-            Kd1 = _Kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
-            return _smooth_broken(r, Kd1, rb, psi_1, psi_2, delta)
+            kd1 = _kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
+            return _smooth_broken(r, kd1, rb, psi_1, psi_2, delta)
 
-        return float(_Kd(final_diameter / 2, fe))
-
-    @property
-    def node_index(self):
-        """
-        The index of the node closest to the crater location.
-
-        Returns
-        -------
-        int
-        """
-        return self._node_index
-
-    @node_index.setter
-    def node_index(self, value: int) -> None:
-        if not isinstance(value, int):
-            raise TypeError("node_index must be of type int")
-        self._node_index = value
-
-    @property
-    def face_index(self):
-        """
-        The index of the face closest to the crater location.
-
-        Returns
-        -------
-        int
-        """
-        return self._face_index
-
-    @face_index.setter
-    def face_index(self, value: int) -> None:
-        if not isinstance(value, int):
-            raise TypeError("face_index must be of type int")
-        self._face_index = value
+        return float(_kd(final_diameter / 2, fe))
 
     @parameter
     def ejecta_truncation(self) -> float:

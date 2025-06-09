@@ -31,7 +31,7 @@ from .crater import Crater
 
 class Simulation(CratermakerBase):
     """
-    This class is used to create a simulation of a crater population on a target body. It allows for the generation of craters based on a variety of parameters, including the target body, scaling laws, production functions, and morphology models.
+    Creates a simulation of a crater population on a target body. It allows for the generation of craters based on a variety of parameters, including the target body, scaling laws, production functions, and morphology models.
 
     Parameters
     ----------
@@ -423,12 +423,9 @@ class Simulation(CratermakerBase):
             raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
 
         from_projectile = self.production.generator_type == "projectile"
-        if from_projectile:
-            diam_key = "projectile_diameter"
-        else:
-            diam_key = "final_diameter"
-        Dmax = self._get_largest_diameter(from_projectile=from_projectile)
-        Dmin = self._get_smallest_diameter(from_projectile=from_projectile)
+        diam_key = "projectile_diameter" if from_projectile else "final_diameter"
+        diam_max = self._get_largest_diameter(from_projectile=from_projectile)
+        diam_min = self._get_smallest_diameter(from_projectile=from_projectile)
 
         # Loop over each face in the mesh to build up a population of craters in this interval. This is done because faces may
         # not all have the same surface area, the range of crater sizes that can be formed on each face may be different.
@@ -441,14 +438,8 @@ class Simulation(CratermakerBase):
             total_bin_area = self.surface.face_bin_areas[i]
             area_ratio = total_bin_area / self.surface.area
 
-            Dmin = self._get_smallest_diameter(self.surface.face_bin_min_sizes[i], from_projectile=from_projectile)
-            if diameter_number is not None:
-                diameter_number_local = (
-                    diameter_number[0],
-                    diameter_number[1] * area_ratio,
-                )
-            else:
-                diameter_number_local = None
+            diam_min = self._get_smallest_diameter(self.surface.face_bin_min_sizes[i], from_projectile=from_projectile)
+            diameter_number_local = (diameter_number[0], diameter_number[1] * area_ratio) if diameter_number is not None else None
 
             if diameter_number_end is not None:
                 diameter_number_end_local = (
@@ -463,7 +454,7 @@ class Simulation(CratermakerBase):
                 age_end=age_end,
                 diameter_number=diameter_number_local,
                 diameter_number_end=diameter_number_end_local,
-                diameter_range=(Dmin, Dmax),
+                diameter_range=(diam_min, diam_max),
                 area=total_bin_area,
                 **kwargs,
             )
@@ -629,7 +620,9 @@ class Simulation(CratermakerBase):
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """
-        Converts values to types that can be used in yaml.safe_dump. This will convert various types into a format that can be saved in a human-readable YAML file. This will consolidate all of the configuration
+        Converts values to types that can be used in yaml.safe_dump.
+
+        This will convert various types into a format that can be saved in a human-readable YAML file. This will consolidate all of the configuration
         parameters into a single dictionary that can be saved to a YAML file. This will also remove any common arguments from the individual configurations for each component model to avoid repeating them.
 
         Parameters
@@ -672,16 +665,16 @@ class Simulation(CratermakerBase):
             "surface",
         ]:
             # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
-            if config in sim_config:
-                if sim_config[config] is None or sim_config[config] == {}:
-                    sim_config.pop(config)
-            if f"{config}_config" in sim_config:
-                if sim_config[f"{config}_config"] is None or sim_config[f"{config}_config"] == {}:
-                    sim_config.pop(f"{config}_config")
+            if config in sim_config and (sim_config[config] is None or sim_config[config] == {}):
+                sim_config.pop(config)
+            if f"{config}_config" in sim_config and (
+                sim_config[f"{config}_config"] is None or sim_config[f"{config}_config"] == {}
+            ):
+                sim_config.pop(f"{config}_config")
 
         # Write the combined configuration to a YAML file
         if save_to_file:
-            with open(self.config_file, "w") as f:
+            with Path.open(self.config_file, "w") as f:
                 yaml.safe_dump(sim_config, f, indent=4)
 
         return sim_config
@@ -735,9 +728,7 @@ class Simulation(CratermakerBase):
 
     def _process_queue(self) -> None:
         """
-        Process all queued craters in the order they were added, forming non-overlapping
-        batches and applying each to the surface.
-
+        Process all queued craters in the order they were added, forming non-overlapping batches and applying each to the surface.
 
         Raises
         ------
@@ -797,6 +788,7 @@ class Simulation(CratermakerBase):
     def _validate_run_args(self, **kwargs) -> dict:
         """
         Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
+
         It will also convert age arguments to diameter_number and vice versa.
 
         Parameters
@@ -957,7 +949,7 @@ class Simulation(CratermakerBase):
 
     @target.setter
     def target(self, value):
-        if not isinstance(value, (Target, str)):
+        if not isinstance(value, (Target | str)):
             raise TypeError("target must be an instance of Target or str")
         self._target = value
 
@@ -970,7 +962,7 @@ class Simulation(CratermakerBase):
 
     @surface.setter
     def surface(self, value):
-        if not isinstance(value, (Surface, str)):
+        if not isinstance(value, (Surface | str)):
             raise TypeError("surface must be an instance of Surface or str")
         self._surface = value
 
@@ -983,7 +975,7 @@ class Simulation(CratermakerBase):
 
     @production.setter
     def production(self, value):
-        if not isinstance(value, (Production, str)):
+        if not isinstance(value, (Production | str)):
             raise TypeError("production must be a subclass of Production or str")
         self._production = value
 
@@ -996,7 +988,7 @@ class Simulation(CratermakerBase):
 
     @scaling.setter
     def scaling(self, value):
-        if not isinstance(value, (Scaling, str)):
+        if not isinstance(value, (Scaling | str)):
             raise TypeError("scaling must be of Scaling type or str")
         self._scaling = value
 
@@ -1009,7 +1001,7 @@ class Simulation(CratermakerBase):
 
     @morphology.setter
     def morphology(self, value):
-        if not isinstance(value, (Morphology, str)):
+        if not isinstance(value, (Morphology | str)):
             raise TypeError("morphology must be of Morphology type or str")
         self._morphology = value
 
@@ -1022,7 +1014,7 @@ class Simulation(CratermakerBase):
 
     @projectile.setter
     def projectile(self, value):
-        if not isinstance(value, (Projectile, str)):
+        if not isinstance(value, (Projectile | str)):
             raise TypeError("projectile must be of Projectile type or str")
         self._projectile = value
 
