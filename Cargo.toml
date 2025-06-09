@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker"
-version = "2025.5.12-a52+g2014212"
+version = "2025.5.12-a53+gbda67b9"
 edition = "2021"
 
 [lib]

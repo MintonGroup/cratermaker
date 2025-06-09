@@ -172,25 +172,50 @@ We can also calculate these for any arbitrary point within the local region (or 
     :okwarning:
 
     face_distance, node_distance=region.calculate_face_and_node_distances(location=(205,45))
-    print(f'Distances betwen location (205,45) and faces and nodes respectively:{distance}')
+    print(f'Distances betwen location (205,45) and faces :{face_distance}')
+    print(f'Distances betwen location (205,45) and nodes :{node_distance}')
 
-With this method, two arrays are returned where the first array gives us an array of distances between the input location and the face, and the second array returns multiple distances between the input and the nodes. It is best to use this method on smaller regions due to the size of the arrays if used on entire surface. We can do a similar calculation, but rather finding the distances between a location and the faces and nodes, we find the bearings: 
+With this method, two arrays are returned where the first array gives us an array of distances between the input location and the all faces, and the second array returns the distances from the input locaion and all of the nodes. It is best to use this method on smaller regions due to the size of the arrays if used on entire surface. We can do a similar calculation, but rather finding the distances between a location and the faces and nodes, we find the bearings: 
 
 .. ipython:: python
     :okwarning:
     
-    bearing=region.calculate_face_and_node_bearings(location=(205,45))
-    print(f'Bearings betwen location (205,45) and faces and nodes respectively:{bearing}')
+    face_bearing, node_bearing =region.calculate_face_and_node_bearings(location=(205,45))
+    print(f'Bearings betwen location (205,45) and faces :{face_bearing}')
+    print(f'bearings betwen location (205,45) and nodes :{face_bearing}')
 
-As you can see from above, we recieve two arrays, which are the same sizes as the previous examples. However, they now tell us the direction of the between a point and all faces and all nodes. Suppose we now look at the entire surface again and wish to find the nearest face and node, we can do the following:
+As you can see from above, we recieve two arrays, which are the same sizes as the previous examples. However, they now tell us the "initial bearing" (the direction relative to due North) between a point and all faces and all nodes. 
+
+
+Finding a face index
+~~~~~~~~~~~~~~~~~~~~
+
+Suppose we would like to find a face correspnding to a particulal location. We can do the following:
 
 .. ipython:: python
     :okwarning:
 
     face_index=surface.find_nearest_face(location=(205,45))
-    print(f'Nearest face to (205,40):{face_index}')
+    print(f'Nearest face to (205,40): {face_index}')
 
-As seen above, we recieve a tuple that gives us the index to the nearest face. Now lets say we are given an array of cartesian coordinates and an array of elevation, and we wish to convert the elevation values to Cartesian coordinates. We can do this by calling on :meth:`elevation_to_cartesian`: 
+As seen above, we recieve an integer that gives us the index to the nearest face. One caveat is that this method will return the index of the face in which its center is the closest to the input location. Due to the shapes of the faces, this may or may not correspond to the face that contains the input location. However, it should correspond to at least one of the faces that borders the one containing the input location. You can view which faces these are using one of the built-in connectivity arrays. In this case, :attr:`face_face_connectivity`` contains the array of faces that are connected to a particular face:
+
+
+.. ipython:: python
+    :okwarning:
+
+    print(f'Neighboring faces of {face_index} include: {surface.face_face_connectivity[face_index]}')
+
+There are corresponding methods for finding the nearest node, as well as connectivity arrays for nodes, such as :attr:`node_face_connectivity` (faces associated with each node) and :attr:`face_node_connectivity` (nodes associated with each face).
+
+.. note::
+    Due to the variable number of nodes and edges associated with each face, there will sometimes be unused elements of the connectivity arrays. These are set to a large negative number, and so filtering out only indices greater than or equal to 0 will give you the valid indices. 
+
+
+Converting elevation to Cartesian coordinates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Now lets say we are given an array of cartesian coordinates and an array of elevation, and we wish to convert the elevation values to Cartesian coordinates. We can do this by calling on :meth:`elevation_to_cartesian`: 
 
 .. ipython:: python
     :okwarning:
