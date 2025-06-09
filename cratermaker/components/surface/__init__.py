@@ -2094,6 +2094,62 @@ class LocalSurface:
 
         return reference_elevation
 
+    def extract_subregion(self, subregion_radius: FloatLike):
+        """
+        Extract a subset of the LocalSurface region with a smaller radius than the original region.
+
+        Parameters
+        ----------
+        subregion_radius : float
+            The radius of the subregion to extract in meters.
+
+        Returns
+        -------
+        LocalSurface
+            A LocalSurface object containing a view of the regional grid.
+
+        """
+        if subregion_radius > self.region_radius:
+            raise ValueError("subregion_radius must be smaller than the original region radius")
+
+        if subregion_radius < self.region_radius:
+            if isinstance(self.face_indices, slice):
+                face_indices = np.arange(self.n_face)[self.face_indices][self.face_distance <= subregion_radius]
+            else:
+                face_indices = self.face_indices[self.face_distance <= subregion_radius]
+            if face_indices.size == 0:
+                return None
+
+            # First select edges and nodes that are attached to these faces
+            edge_indices = np.unique(self.surface.face_edge_connectivity[face_indices].ravel())
+            edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
+
+            node_indices = np.unique(self.surface.face_node_connectivity[face_indices].ravel())
+            node_indices = node_indices[node_indices != INT_FILL_VALUE]
+
+            # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
+            # These are needed for diffusion calculations
+            neighbor_faces = self.surface.face_face_connectivity[face_indices]
+            neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
+            node_faces = self.surface.node_face_connectivity[node_indices]
+            node_faces = node_faces[node_faces != INT_FILL_VALUE]
+            edge_faces = self.surface.edge_face_connectivity[edge_indices]
+            edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
+            face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
+        else:
+            face_indices = self.face_indices
+            edge_indices = self.edge_indices
+            node_indices = self.node_indices
+
+        return LocalSurface(
+            surface=self.surface,
+            face_indices=face_indices,
+            node_indices=node_indices,
+            edge_indices=edge_indices,
+            location=self.location,
+            region_radius=subregion_radius,
+        )
+
     def compute_volume(self, elevation: NDArray) -> NDArray:
         """
         Compute the volume of an array of elevation points.

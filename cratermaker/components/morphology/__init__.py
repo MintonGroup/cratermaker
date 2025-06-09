@@ -166,7 +166,7 @@ class Morphology(ComponentBase):
             return
 
         crater_rmax = self.rmax(crater, minimum_thickness=self.surface.smallest_length, feature="crater")
-        crater_region = self.surface.extract_region(crater.location, crater_rmax)
+        crater_region = ejecta_region.extract_subregion(crater_rmax)
         crater_volume = None
         if crater_region is not None:  # The crater is big enough to affect the surface
             crater_area = pi * crater_rmax**2
@@ -181,7 +181,7 @@ class Morphology(ComponentBase):
                 crater_volume = crater_region.compute_volume(elevation_change[: crater_region.n_face])
 
                 # Remove any ejecta from the surface
-                inner_crater_region = self.surface.extract_region(crater.location, crater.final_radius)
+                inner_crater_region = crater_region.extract_subregion(crater.final_radius)
                 if inner_crater_region is not None:
                     inner_crater_region.add_data(
                         "ejecta_thickness",

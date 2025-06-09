@@ -713,6 +713,26 @@ class LocalHiResLocalSurface(LocalSurface):
             )
         return
 
+    def extract_subregion(self, subregion_radius: FloatLike):
+        """
+        Extract a subset of the LocalHiResLocalSurface region with a smaller radius than the original region.
+
+        Parameters
+        ----------
+        subregion_radius : float
+            The radius of the subregion to extract in meters.
+
+        Returns
+        -------
+        LocalHiResLocalSurface
+            A LocalHiResSurface object containing a view of the regional grid.
+        """
+        region = super().extract_subregion(subregion_radius=subregion_radius)
+        if region is None:
+            return None
+
+        return LocalHiResLocalSurface(region)
+
     @property
     def local_overlap(self) -> LocalHiResLocalSurface | None:
         """
