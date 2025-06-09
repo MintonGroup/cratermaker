@@ -182,7 +182,7 @@ With this method, two arrays are returned where the first array gives us an arra
     
     face_bearing, node_bearing =region.calculate_face_and_node_bearings(location=(205,45))
     print(f'Bearings betwen location (205,45) and faces :{face_bearing}')
-    print(f'bearings betwen location (205,45) and nodes :{face_bearing}')
+    print(f'Bearings betwen location (205,45) and nodes :{node_bearing}')
 
 As you can see from above, we recieve two arrays, which are the same sizes as the previous examples. However, they now tell us the "initial bearing" (the direction relative to due North) between a point and all faces and all nodes. 
 
