@@ -136,21 +136,42 @@ Once you have either a Surface or LocalSurface object, you are now able to perfo
 
 Examples
 --------
-Suppose we use the icosphere class for the Moon with grid level equal to 8. We then wish to extract a local region of the surface, which will be at the longtiude and latitude coordinates (205, 45), and a region radius of :math:`10^3`:
+
+Extracting a local subset of the grid
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Suppose wish to extract a 10 km radius local region of the surface of the Moon centered at 45° N latitude, 205° E longitude:
 
 .. ipython:: python
     :okwarning:
 
-    surface=Surface.maker(surface='icosphere', gridlevel=8, target='Moon')
+    surface=Surface.maker()
     region=surface.extract_region(location=(205,45), region_radius=10e3)
     print(f'Local region: {region}')
 
-As seen above, we extract the desired region with its respective radius. We can also see that this region contains 7 faces and 25 nodes. From here, we can perform many of the calculations as seen in the list above. With the same extracted surface, lets calculate the distances between all faces and all nodes from that given location:
+The ``region`` object now contains a view of all faces (along with their corresponding nodes and edges) of a local subset of the grid. Because it is a view of the surface not a copy, it allows for fast computation on small portions of the full grid..
+
+
+Distances and bearings 
+~~~~~~~~~~~~~~~~~~~~~~
+
+The :class:`LocalSurface` object has two attributes called `face_distance` and `face_bearing` (and also `node_distance` and `node_bearing`), which are pre-computed distances and bearings from the center of the local region to all faces (nodes). This is useful for quickly accessing these values without having to compute them yourself.
 
 .. ipython:: python
     :okwarning:
 
-    distance=region.calculate_face_and_node_distances(location=(205,45))
+    print(f'Face distances from center of local region: {region.face_distance}')
+    print(f'Face bearings from center of local region: {region.face_bearing}')
+
+We can see that the local region contains points outside of the 10 km region. This is because  it contains a "buffer" of all faces that surround the outermost border of the local region, such that any operations that require neighboring faces across included edges or nodes can have access to them. We can see that this region contains 20 faces and 25 nodes, but only 7 of the faces actually lie within the 10 km local region. 
+The other 13 are the buffer. From here, we can perform many of the calculations as seen in the list above. 
+
+We can also calculate these for any arbitrary point within the local region (or full surface) using the methods :meth:`calculate_face_and_node_distances` and :meth:`calculate_face_and_node_bearings`. For instance, suppose we want to find the distances and bearings between a point at (205,45) and all faces and nodes in the local region:
+
+.. ipython:: python
+    :okwarning:
+
+    face_distance, node_distance=region.calculate_face_and_node_distances(location=(205,45))
     print(f'Distances betwen location (205,45) and faces and nodes respectively:{distance}')
 
 With this method, two arrays are returned where the first array gives us an array of distances between the input location and the face, and the second array returns multiple distances between the input and the nodes. It is best to use this method on smaller regions due to the size of the arrays if used on entire surface. We can do a similar calculation, but rather finding the distances between a location and the faces and nodes, we find the bearings: 
@@ -166,10 +187,10 @@ As you can see from above, we recieve two arrays, which are the same sizes as th
 .. ipython:: python
     :okwarning:
 
-    index=surface.find_nearest_index(location=(205,45))
-    print(f'Nearest index to (205,40):{index}')
+    face_index=surface.find_nearest_face(location=(205,45))
+    print(f'Nearest face to (205,40):{face_index}')
 
-As seen above, we recieve a tuple that gives us the nearest index. Now lets say we are given an array of cartesian coordinates and an array of elevation, and we wish to convert the elevation values to Cartesian coordinates. We can do this by calling on :meth:`elevation_to_cartesian`: 
+As seen above, we recieve a tuple that gives us the index to the nearest face. Now lets say we are given an array of cartesian coordinates and an array of elevation, and we wish to convert the elevation values to Cartesian coordinates. We can do this by calling on :meth:`elevation_to_cartesian`: 
 
 .. ipython:: python
     :okwarning:
