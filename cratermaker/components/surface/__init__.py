@@ -531,25 +531,6 @@ class Surface(ComponentBase):
 
         self.node_elevation = node_elevation
 
-    @staticmethod
-    def elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
-        """
-        Convert elevation values to Cartesian coordinates.
-
-        Parameters
-        ----------
-        position : NDArray
-            The position of the points in Cartesian coordinates.
-        elevation : NDArray
-            The elevation values to convert.
-
-        Returns
-        -------
-        NDArray
-            The Cartesian coordinates of the points with the given elevation.
-        """
-        return LocalSurface.elevation_to_cartesian(position, elevation)
-
     def get_random_location_on_face(self, face_index: int, **kwargs) -> float | tuple[float, float] | ArrayLike:
         """
         Generate a random coordinate within a given face of a the mesh.
@@ -574,6 +555,22 @@ class Surface(ComponentBase):
         This method is a wrapper for :func:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`.
         """
         return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
+
+    def elevation_to_cartesian(self, element="face") -> NDArray[np.float64]:
+        """
+        Convert either the face or node elevations to Cartesian coordinates.
+
+        Parameters
+        ----------
+        element : str, optional
+            The type of element to convert. Can be "face" or "node". Default is "face".
+
+        Returns
+        -------
+        NDArray[np.float64, 3]
+            The Cartesian coordinates of the face elevations.
+        """
+        return self._full().elevation_to_cartesian(element=element)
 
     def save(
         self,
@@ -631,6 +628,28 @@ class Surface(ComponentBase):
             export.to_vtk(self, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")
+
+    @staticmethod
+    def _sphere_function(coords, x_c, y_c, z_c, r):
+        """
+        Compute the sphere function.
+
+        Parameters
+        ----------
+        coords : ndarray
+            Array of x, y, and z coordinates.
+        x_c, y_c, z_c : float
+            Center coordinates of the sphere.
+        r : float
+            Radius of the sphere.
+
+        Returns
+        -------
+        ndarray
+            The values of the sphere function at the given coordinates.
+        """
+        x, y, z = coords.T
+        return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
 
     def _calculate_distance(
         self,
@@ -705,6 +724,27 @@ class Surface(ComponentBase):
             Initial bearing from the first point to the second point or points in radians.
         """
         return LocalSurface._calculate_bearing(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2)
+
+    @staticmethod
+    def _compute_elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
+        """
+        Convert elevation values to Cartesian coordinates.
+
+        Parameters
+        ----------
+        position : NDArray
+            The position of the points in Cartesian coordinates.
+        elevation : NDArray
+            The elevation values to convert.
+
+        Returns
+        -------
+        NDArray
+            The Cartesian coordinates of the points with the given elevation.
+        """
+        runit = position / np.linalg.norm(position, axis=1, keepdims=True)
+
+        return position + elevation[:, np.newaxis] * runit
 
     def _load_from_files(self, reset: bool = False, **kwargs: Any) -> None:
         """
@@ -1970,27 +2010,6 @@ class LocalSurface:
         self.update_elevation(node_elevation, overwrite=True)
         return
 
-    @staticmethod
-    def elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
-        """
-        Convert elevation values to Cartesian coordinates.
-
-        Parameters
-        ----------
-        position : NDArray
-            The position of the points in Cartesian coordinates.
-        elevation : NDArray
-            The elevation values to convert.
-
-        Returns
-        -------
-        NDArray
-            The Cartesian coordinates of the points with the given elevation.
-        """
-        runit = position / np.linalg.norm(position, axis=1, keepdims=True)
-
-        return position + elevation[:, np.newaxis] * runit
-
     def get_reference_surface(self, reference_radius: float, **kwargs: Any) -> NDArray[np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
@@ -2011,28 +2030,7 @@ class LocalSurface:
         def _find_reference_elevations(region_coords, region_elevation):
             # Perform the curve fitting to get the best fitting spherical cap for the reference surface
 
-            def _sphere_function(coords, x_c, y_c, z_c, r):
-                """
-                Compute the sphere function.
-
-                Parameters
-                ----------
-                coords : ndarray
-                    Array of x, y, and z coordinates.
-                x_c, y_c, z_c : float
-                    Center coordinates of the sphere.
-                r : float
-                    Radius of the sphere.
-
-                Returns
-                -------
-                ndarray
-                    The values of the sphere function at the given coordinates.
-                """
-                x, y, z = coords.T
-                return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
-
-            region_surf = self.elevation_to_cartesian(region_coords, region_elevation)
+            region_surf = self.surface._compute_elevation_to_cartesian(region_coords, region_elevation)
 
             # Initial guess for the sphere center and radius
             guess_radius = 1.0 + region_elevation.mean()
@@ -2042,7 +2040,7 @@ class LocalSurface:
                 try:
                     bounds = ([-1.0, -1.0, -1.0, 0.5], [1.0, 1.0, 1.0, 2.0])
                     fit_result, _ = curve_fit(
-                        _sphere_function,
+                        self.surface._sphere_function,
                         region_surf,
                         np.zeros_like(region_elevation),
                         p0=initial_guess,
@@ -2182,6 +2180,31 @@ class LocalSurface:
         if elevation.size != self.n_face:
             raise ValueError("elevation must be an array with the same size as the number of faces in the grid")
         return np.sum(elevation * self.face_area)
+
+    def elevation_to_cartesian(self, element="face") -> NDArray[np.float64]:
+        """
+        Convert either the face or node elevations to Cartesian coordinates.
+
+        Parameters
+        ----------
+        element : str, optional
+            The type of element to convert. Can be "face" or "node". Default is "face".
+
+        Returns
+        -------
+        NDArray[np.float64, 3]
+            The Cartesian coordinates of the face elevations.
+        """
+        if element not in ("face", "node"):
+            raise ValueError("element must be either 'face' or 'node'")
+        if element == "face":
+            position = np.column_stack((self.face_x, self.face_y, self.face_z))
+            elevation = self.face_elevation
+        elif element == "node":
+            position = np.column_stack((self.node_x, self.node_y, self.node_z))
+            elevation = self.node_elevation
+
+        return self.surface._compute_elevation_to_cartesian(position, elevation)
 
     def _calculate_distance(
         self,

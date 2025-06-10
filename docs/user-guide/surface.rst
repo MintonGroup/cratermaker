@@ -321,19 +321,16 @@ There are corresponding methods for finding the nearest node, as well as connect
 Converting elevation to Cartesian coordinates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Now lets say we are given an array of cartesian coordinates and an array of elevation, and we wish to convert the elevation values to Cartesian coordinates. We can do this by calling on :meth:`elevation_to_cartesian`: 
+Cratermaker saves the face and node elevations independently of the mesh geometry. Suppose you want to visualize the surface with the elevations applied. You can use the :meth:`elevation_to_cartesian` method to convert the elevations to Cartesian coordinates. This method takes one argument, `element`, which can either be "face" or "node". The method will return an (n, 3) array of Cartesian coordinates, where n is the number of faces or nodes, depending on the value of `element`.
 
 .. ipython:: python
     :okwarning:
     
-    position = np.array([[0.0, 0.0, 1.0],
-                        [0.707, 0.0, 0.707],
-                        [0.0, 1.0, 0.0]])
-    elevation = np.array([0.01, -0.02, 0.00])
-    cartesian=surface.elevation_to_cartesian(position=position, elevation=elevation)
+    region = surface.extract_region(location=(0,0), region_radius=10e3)
+    cartesian = region.elevation_to_cartesian(element='face') 
     print(cartesian)
 
-From the result, we are returned an array the same size as the original poistion array, but with the elevation taken in account. Wherever there is a value other than 0 in the position array, the elevation is added to that value. 
+This could be used to visualize the surface using a 3D plotting library, such as Matplotlib or Plotly. The Cartesian coordinates will have the elevations applied, so you can see the topography of the surface.
 
 More Surface examples
 ---------------------
