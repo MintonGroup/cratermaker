@@ -15,7 +15,7 @@ Cratermaker's :ref:`Surface <api-surface>` component is used to represent target
 UxArray-based surface mesh
 --------------------------
 
-The surface of a celestial body in Cratermaker is represented by an unstructured mesh using the `UxArray <https://uxarray.readthedocs.io/en/latest/index.html>`_ package. UxArray provides a rich set of tools for representing unstructured mesh geometry and data associated with the mesh, through their `UxDataset <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#uxdataset>`_ and associated `Grid <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#grid>`_.  The surface mesh is composed of faces, nodes, and edges, where each face is a polygonal shape defined by its nodes. The faces are connected to each other through edges, and the nodes are the points in space that define the corners of the faces. A simple diagram showing the relationship between faces, nodes, and edges is shown below:
+The surface of a celestial body in Cratermaker is represented as a sphere that has been discretized as an unstructured polygonal mesh using the `UxArray <https://uxarray.readthedocs.io/en/latest/index.html>`_ package. UxArray provides a rich set of tools for representing unstructured mesh geometry and data associated with the mesh, through their `UxDataset <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#uxdataset>`_ and associated `Grid <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#grid>`_.  The surface mesh is composed of faces, nodes, and edges, where each face is a polygonal shape defined by its nodes. The faces are connected to each other through edges, and the nodes are the points in space that define the corners of the faces. A simple diagram showing the relationship between faces, nodes, and edges is shown below:
 
 .. image:: ../_static/mesh_diagram.svg
     :alt: Surface faces, nodes, and edges
@@ -27,8 +27,18 @@ In the above image, show a single face with 6 nodes and 6 edges, surrounded by 6
 - :attr:`n_face`: The number of faces in the surface mesh.
 - :attr:`n_node`: The number of nodes in the surface mesh.
 - :attr:`n_edge`: The number of edges in the surface mesh.
-
+- :attr:`face_area` : An array that contains the area of each face in m\ :sup:`2`
+- :attr:`face_size` : The "effective" size of each face, which is defined as the square root of the area of each face in meters.
+- :attr:`face_x`, :attr:`face_y`, :attr:`face_z`: Arrays that contain the x, y, and z coordinates of the center of each face in Cartesian coordinates.
+- :attr:`node_x`, :attr:`node_y`, :attr:`node_z`: Arrays that contain the x, y, and z coordinates of each node in Cartesian coordinates.
+- :attr:`face_lon`, :attr:`face_lat`: Arrays that contain the longitude and latitude of the center of each face in degrees.
+- :attr:`node_lon`, :attr:`node_lat`: Arrays that contain the longitude and latitude of each node in degrees.
+- :attr:`face_elevation`, :attr:`node_elevation`: Arrays that contain the elevation of each face and node in meters. The mesh itself remains static inside Cratermaker, and so the elevations are only applied to the mesh when it is visualized.
+- :attr:`edge_length`: An array that contains the length of each edge in meters.
+- :attr:`edge_face_distance`: An array that contains the distance between the centers of the two faces that saddle each edge in meters.
 - :attr:`face_face_connectivity`: An array that contains the faces that surround each face.
+- :attr:`face_node_connectivity`: An array that contains the nodes that are associated with each face.  
+- :attr:`node_face_connectivity`: An array that contains the faces that are associated with each node.
 
 The default Surface type: Icosphere
 -----------------------------------

@@ -81,7 +81,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_pix_max", None)
         object.__setattr__(self, "_area", None)
         object.__setattr__(self, "_edge_tree", None)
-        object.__setattr__(self, "_edge_face_distances", None)
+        object.__setattr__(self, "_edge_face_distance", None)
         object.__setattr__(self, "_edge_lengths", None)
         object.__setattr__(self, "_edge_indices", None)
         object.__setattr__(self, "_node_tree", None)
@@ -1418,15 +1418,15 @@ class Surface(ComponentBase):
         return int(self.uxgrid.n_max_face_faces)
 
     @property
-    def edge_face_distances(self) -> NDArray[np.float64]:
+    def edge_face_distance(self) -> NDArray[np.float64]:
         """
         Distances between the centers of the faces that saddle each edge in meters.
         """
-        if self._edge_face_distances is None:
-            self._edge_face_distances = surface_functions.compute_edge_distances(
+        if self._edge_face_distance is None:
+            self._edge_face_distance = surface_functions.compute_edge_distances(
                 self.edge_face_connectivity, self.face_lon, self.face_lat, self.radius
             )
-        return self._edge_face_distances
+        return self._edge_face_distance
 
     @property
     def edge_length(self) -> NDArray[np.float64]:
@@ -1761,7 +1761,7 @@ class LocalSurface:
             face_elevation=self.face_elevation,
             face_area=self.face_area,
             edge_face_connectivity=self.edge_face_connectivity,
-            edge_face_distances=self.edge_face_distances,
+            edge_face_distance=self.edge_face_distance,
             edge_length=self.edge_length,
         )
         self.update_elevation(delta_face_elevation)
@@ -1789,7 +1789,7 @@ class LocalSurface:
             face_area=self.face_area,
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
-            edge_face_distances=self.edge_face_distances,
+            edge_face_distance=self.edge_face_distance,
             edge_length=self.edge_length,
         )
         self.update_elevation(delta_face_elevation)
@@ -1809,7 +1809,7 @@ class LocalSurface:
             face_elevation=self.face_elevation,
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
-            edge_face_distances=self.edge_face_distances,
+            edge_face_distance=self.edge_face_distance,
             edge_length=self.edge_length,
         )
 
@@ -2464,13 +2464,13 @@ class LocalSurface:
         return self.surface.face_z[self.face_indices]
 
     @property
-    def edge_face_distances(self) -> NDArray:
+    def edge_face_distance(self) -> NDArray:
         """
         Distances between the edges and the faces.
 
         Dimensions: `(n_edge)`
         """
-        return self.surface.edge_face_distances[self.edge_indices]
+        return self.surface.edge_face_distance[self.edge_indices]
 
     @property
     def edge_length(self) -> NDArray:
