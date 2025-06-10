@@ -679,13 +679,13 @@ class Simulation(CratermakerBase):
 
         return sim_config
 
-    def export(self, format="vtp", *args, **kwargs) -> None:
+    def export(self, format="vtp", **kwargs) -> None:
         """
         Export the surface mesh to a file in the specified format. Currently only VTK is supported.
         """
         self.save()
         if format == "vtp" or format == "vtk":
-            export.to_vtk(self.surface, *args, **kwargs)
+            export.to_vtk(self.surface, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")
 

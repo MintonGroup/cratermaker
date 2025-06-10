@@ -10,13 +10,14 @@ from cratermaker.constants import (
     _CIRCLE_FILE_NAME,
     _COMBINED_DATA_FILE_NAME,
     _EXPORT_DIR,
+    _GRID_FILE_NAME,
     _SURFACE_DIR,
     _VTK_FILE_EXTENSION,
     FloatLike,
 )
 
 
-def to_vtk(surface: Surface, *args, **kwargs) -> None:
+def to_vtk(surface: Surface, save_geometry=True, **kwargs) -> None:
     """
     Export the surface mesh to a VTK file and stores it in the default export directory.
     """
@@ -74,6 +75,55 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
     writer.SetDataModeToBinary()
     writer.SetCompressorTypeToZLib()
 
+    if save_geometry:
+        print("Exporting surface geometry to VTK...")
+        # Saves the surface mesh and its geometry as a separate file
+        geometry_variables = [
+            "node_x",
+            "node_y",
+            "node_z",
+            "node_lon",
+            "node_lat",
+            "face_x",
+            "face_y",
+            "face_z",
+            "face_lon",
+            "face_lat",
+            "face_area",
+            "face_size",
+        ]
+        current_grid = vtkUnstructuredGrid()
+        current_grid.DeepCopy(vtk_data)
+
+        for v in geometry_variables:
+            # extract the attribute v from the surface object
+            array = numpy_to_vtk(getattr(surface, v), deep=True)
+            array.SetName(v)
+            n = getattr(surface, v).size
+            if n == surface.n_face:
+                current_grid.GetCellData().AddArray(array)
+            elif n == surface.n_node:
+                current_grid.GetPointData().AddArray(array)
+
+        geom_filter = vtkGeometryFilter()
+        geom_filter.SetInputData(current_grid)
+        geom_filter.Update()
+        poly_data = geom_filter.GetOutput()
+
+        normals_filter = vtkPolyDataNormals()
+        normals_filter.SetInputData(poly_data)
+        normals_filter.ComputeCellNormalsOn()
+        normals_filter.ConsistencyOn()  # Tries to make normals consistent across shared edges
+        normals_filter.AutoOrientNormalsOn()  # Attempt to orient normals consistently outward/inward
+        normals_filter.SplittingOff()
+        normals_filter.Update()
+        poly_data_with_normals = normals_filter.GetOutput()
+
+        output_filename = out_dir / _GRID_FILE_NAME.replace(".nc", f".{_VTK_FILE_EXTENSION}")
+        writer.SetFileName(output_filename)
+        writer.SetInputData(poly_data_with_normals)
+        writer.Write()
+
     with xr.open_mfdataset(data_file_list) as ds:
         # Warp the surface based on node_elevation data so that the exported mesh is the true shape rather than a sphere
         for i in tqdm(
@@ -100,21 +150,21 @@ def to_vtk(surface: Surface, *args, **kwargs) -> None:
                 elif n == 1:
                     current_grid.GetFieldData().AddArray(array)
 
-            geomFilter = vtkGeometryFilter()
-            geomFilter.SetInputData(current_grid)
-            geomFilter.Update()
-            polyData = geomFilter.GetOutput()
+            geom_filter = vtkGeometryFilter()
+            geom_filter.SetInputData(current_grid)
+            geom_filter.Update()
+            poly_data = geom_filter.GetOutput()
 
-            normalsFilter = vtkPolyDataNormals()
-            normalsFilter.SetInputData(polyData)
-            normalsFilter.ComputeCellNormalsOn()
-            normalsFilter.ConsistencyOn()  # Tries to make normals consistent across shared edges
-            normalsFilter.AutoOrientNormalsOn()  # Attempt to orient normals consistently outward/inward
-            normalsFilter.SplittingOff()
-            normalsFilter.Update()
-            polyDataWithNormals = normalsFilter.GetOutput()
+            normals_filter = vtkPolyDataNormals()
+            normals_filter.SetInputData(poly_data)
+            normals_filter.ComputeCellNormalsOn()
+            normals_filter.ConsistencyOn()  # Tries to make normals consistent across shared edges
+            normals_filter.AutoOrientNormalsOn()  # Attempt to orient normals consistently outward/inward
+            normals_filter.SplittingOff()
+            normals_filter.Update()
+            poly_data_with_normals = normals_filter.GetOutput()
 
-            warp.SetInputData(polyDataWithNormals)
+            warp.SetInputData(poly_data_with_normals)
             warp.Update()
             warped_output = warp.GetOutput()
             output_filename = out_dir / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{i:06d}.{_VTK_FILE_EXTENSION}")
@@ -151,9 +201,9 @@ def make_circle_file(
     from vtk import (
         vtkCellArray,
         vtkPoints,
-        vtkPolyData,
+        vtkpoly_data,
         vtkPolyLine,
-        vtkXMLPolyDataWriter,
+        vtkXMLpoly_dataWriter,
     )
 
     if output_filename is None:
@@ -242,15 +292,15 @@ def make_circle_file(
 
         lines.InsertNextCell(polyline)
 
-    # Create a polydata object and add points and lines to it
-    polydata = vtkPolyData()
-    polydata.SetPoints(points)
-    polydata.SetLines(lines)
+    # Create a poly_data object and add points and lines to it
+    poly_data = vtkpoly_data()
+    poly_data.SetPoints(points)
+    poly_data.SetLines(lines)
 
-    # Write the polydata to a VTK file
-    writer = vtkXMLPolyDataWriter()
+    # Write the poly_data to a VTK file
+    writer = vtkXMLpoly_dataWriter()
     writer.SetFileName(output_filename)
-    writer.SetInputData(polydata)
+    writer.SetInputData(poly_data)
 
     # Optional: set the data mode to binary to save disk space
     writer.SetDataModeToBinary()
