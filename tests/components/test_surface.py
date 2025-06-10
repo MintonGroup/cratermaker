@@ -243,7 +243,7 @@ class TestSurface(unittest.TestCase):
             # Tests that the face_surface generates the correct values
             surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
             total_area_1 = surface.uxgrid.calculate_total_face_area()
-            total_area_2 = surface.face_areas.sum().item()
+            total_area_2 = surface.face_area.sum().item()
             ratio = np.sqrt(total_area_2 / total_area_1) / self.target.radius
             self.assertAlmostEqual(ratio, 1.0, places=2)
             self.assertAlmostEqual(total_area_2 / (4 * np.pi * self.target.radius**2), 1.0, places=2)

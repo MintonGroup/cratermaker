@@ -86,12 +86,12 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_edge_indices", None)
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
-        object.__setattr__(self, "_face_areas", None)
-        object.__setattr__(self, "_face_sizes", None)
+        object.__setattr__(self, "_face_area", None)
+        object.__setattr__(self, "_face_size", None)
         object.__setattr__(self, "_face_bin_indices", None)
         object.__setattr__(self, "_face_bin_argmin", None)
         object.__setattr__(self, "_face_bin_argmax", None)
-        object.__setattr__(self, "_face_bin_areas", None)
+        object.__setattr__(self, "_face_bin_area", None)
         object.__setattr__(self, "_face_x", None)
         object.__setattr__(self, "_face_y", None)
         object.__setattr__(self, "_face_z", None)
@@ -508,7 +508,7 @@ class Surface(ComponentBase):
         None
         """
         face_elevation = self.face_elevation
-        face_areas = self.face_areas
+        face_area = self.face_area
         node_face_conn = self.node_face_connectivity
 
         node_elevation = np.zeros(self.n_node, dtype=np.float64)
@@ -521,7 +521,7 @@ class Surface(ComponentBase):
             if faces.size == 0:
                 continue
 
-            areas = face_areas[faces]
+            areas = face_area[faces]
             elevations = face_elevation[faces]
 
             total_area = np.sum(areas)
@@ -714,7 +714,7 @@ class Surface(ComponentBase):
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
-        do_not_save = ["face_areas"]
+        do_not_save = ["face_area"]
 
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -761,7 +761,7 @@ class Surface(ComponentBase):
         regrid = self._regrid_if_needed(**kwargs)
         if regrid:
             raise ValueError("Grid file does not match the expected parameters.")
-        self._compute_face_sizes(uxgrid)
+        self._compute_face_size(uxgrid)
 
         return
 
@@ -943,7 +943,7 @@ class Surface(ComponentBase):
     @abstractmethod
     def _generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray, NDArray, NDArray]: ...
 
-    def _compute_face_sizes(self, uxgrid: UxDataset | None = None) -> None:
+    def _compute_face_size(self, uxgrid: UxDataset | None = None) -> None:
         """
         Compute the effective pixel size of the mesh based on the face areas.
 
@@ -958,12 +958,12 @@ class Surface(ComponentBase):
                 return
             else:
                 uxgrid = self.uxgrid
-        self._face_areas = uxgrid.face_areas.values * self.radius**2
-        self._face_sizes = np.sqrt(self._face_areas)
-        self._pix_mean = float(self._face_sizes.mean().item())
-        self._pix_std = float(self._face_sizes.std().item())
-        self._pix_min = float(self._face_sizes.min().item())
-        self._pix_max = float(self._face_sizes.max().item())
+        self._face_area = uxgrid.face_areas.values * self.radius**2
+        self._face_size = np.sqrt(self._face_area)
+        self._pix_mean = float(self._face_size.mean().item())
+        self._pix_std = float(self._face_size.std().item())
+        self._pix_min = float(self._face_size.min().item())
+        self._pix_max = float(self._face_size.max().item())
         return
 
     @property
@@ -1084,7 +1084,7 @@ class Surface(ComponentBase):
         The mean pixel size of the mesh.
         """
         if self._pix_mean is None and self.uxgrid is not None:
-            self._compute_face_sizes()
+            self._compute_face_size()
         return self._pix_mean
 
     @property
@@ -1093,7 +1093,7 @@ class Surface(ComponentBase):
         The standard deviation of the pixel size of the mesh.
         """
         if self._pix_std is None and self.uxgrid is not None:
-            self._compute_face_sizes()
+            self._compute_face_size()
         return self._pix_std
 
     @property
@@ -1102,7 +1102,7 @@ class Surface(ComponentBase):
         The minimum pixel size of the mesh.
         """
         if self._pix_min is None and self.uxgrid is not None:
-            self._compute_face_sizes()
+            self._compute_face_size()
         return self._pix_min
 
     @property
@@ -1111,7 +1111,7 @@ class Surface(ComponentBase):
         The maximum pixel size of the mesh.
         """
         if self._pix_max is None and self.uxgrid is not None:
-            self._compute_face_sizes()
+            self._compute_face_size()
         return self._pix_max
 
     @property
@@ -1127,33 +1127,33 @@ class Surface(ComponentBase):
         Total surface area of the target body.
         """
         if self._area is None:
-            self._area = float(self.face_areas.sum())
+            self._area = float(self.face_area.sum())
         return self._area
 
     @property
-    def face_areas(self) -> NDArray[np.float64]:
+    def face_area(self) -> NDArray[np.float64]:
         """
         The areas of each face.
 
         Notes
         -----
-        Unlike uxarray.Grid.face_areas, this is in meters squared rather than normalized to a unit sphere.
+        Unlike uxarray.Grid.face_area, this is in meters squared rather than normalized to a unit sphere.
 
         """
-        if self._face_areas is None:
-            self._compute_face_sizes()
-        return self._face_areas
+        if self._face_area is None:
+            self._compute_face_size()
+        return self._face_area
 
     @property
-    def face_sizes(self) -> NDArray[np.float64]:
+    def face_size(self) -> NDArray[np.float64]:
         """
         The effective size of each face in meters.
 
         This is simply the square root of the face area, but is useful for certain comparisons and is equivalent to the `pix` variable from CTEM
         """
-        if self._face_sizes is None:
-            self._compute_face_sizes()
-        return self._face_sizes
+        if self._face_size is None:
+            self._compute_face_size()
+        return self._face_size
 
     @property
     def smallest_length(self) -> float:
@@ -1161,7 +1161,7 @@ class Surface(ComponentBase):
         The smallest length of the mesh.
         """
         if self._smallest_length is None:
-            self._smallest_length = float(np.min(self.face_sizes) * _SMALLFAC)
+            self._smallest_length = float(np.min(self.face_size) * _SMALLFAC)
         return self._smallest_length
 
     @property
@@ -1273,25 +1273,25 @@ class Surface(ComponentBase):
         """
         Compute the face bins based on the face areas. This is used to bin faces by their area for crater generation.
         """
-        min_area = self.face_areas.min()
-        max_area = self.face_areas.max()
+        min_area = self.face_area.min()
+        max_area = self.face_area.max()
         max_bin_index = np.ceil(np.log2(max_area / min_area)).astype(int)
         bins = [[] for _ in range(max_bin_index)]
 
-        for face_index, area in enumerate(self.face_areas):
+        for face_index, area in enumerate(self.face_area):
             bin_index = np.floor(np.log2(area / min_area)).astype(int)
             bins[bin_index].append(face_index)
 
         self._face_bin_indices = [np.array(bins[i]) for i in range(max_bin_index) if len(bins[i]) > 0]
 
-        self._face_bin_areas = [np.sum(self.face_areas[face_indices]) for face_indices in self.face_bin_indices]
+        self._face_bin_area = [np.sum(self.face_area[face_indices]) for face_indices in self.face_bin_indices]
 
         self._face_bin_argmin = [
-            int(face_indices[np.argmin(self.face_areas[face_indices])]) for face_indices in self._face_bin_indices
+            int(face_indices[np.argmin(self.face_area[face_indices])]) for face_indices in self._face_bin_indices
         ]
 
         self._face_bin_argmax = [
-            int(face_indices[np.argmax(self.face_areas[face_indices])]) for face_indices in self._face_bin_indices
+            int(face_indices[np.argmax(self.face_area[face_indices])]) for face_indices in self._face_bin_indices
         ]
         return
 
@@ -1311,14 +1311,14 @@ class Surface(ComponentBase):
         return self._face_bin_indices
 
     @property
-    def face_bin_areas(self) -> list[float]:
+    def face_bin_area(self) -> list[float]:
         """
         The total area of all faces in each bin.
         """
-        if self._face_bin_areas is None:
+        if self._face_bin_area is None:
             self._compute_face_bins()
 
-        return self._face_bin_areas
+        return self._face_bin_area
 
     @property
     def face_bin_argmin(self) -> list[int]:
@@ -1348,7 +1348,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
-        return [float(self.face_areas[face_index]) for face_index in self.face_bin_argmin]
+        return [float(self.face_area[face_index]) for face_index in self.face_bin_argmin]
 
     @property
     def face_bin_max_areas(self) -> list[float]:
@@ -1358,7 +1358,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
-        return [float(self.face_areas[face_index]) for face_index in self.face_bin_argmax]
+        return [float(self.face_area[face_index]) for face_index in self.face_bin_argmax]
 
     @property
     def face_bin_min_sizes(self) -> list[float]:
@@ -1368,7 +1368,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
-        return [float(self.face_sizes[face_index]) for face_index in self.face_bin_argmin]
+        return [float(self.face_size[face_index]) for face_index in self.face_bin_argmin]
 
     @property
     def face_bin_max_sizes(self) -> list[float]:
@@ -1378,7 +1378,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
-        return [float(self.face_sizes[face_index]) for face_index in self.face_bin_argmax]
+        return [float(self.face_size[face_index]) for face_index in self.face_bin_argmax]
 
     @property
     def n_face(self) -> int:
@@ -1429,7 +1429,7 @@ class Surface(ComponentBase):
         return self._edge_face_distances
 
     @property
-    def edge_lengths(self) -> NDArray[np.float64]:
+    def edge_length(self) -> NDArray[np.float64]:
         """
         Lengths of each edge in meters.
 
@@ -1759,10 +1759,10 @@ class LocalSurface:
         delta_face_elevation = surface_functions.apply_diffusion(
             face_kappa=kdiff,
             face_elevation=self.face_elevation,
-            face_areas=self.face_areas,
+            face_area=self.face_area,
             edge_face_connectivity=self.edge_face_connectivity,
             edge_face_distances=self.edge_face_distances,
-            edge_lengths=self.edge_lengths,
+            edge_length=self.edge_length,
         )
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", delta_face_elevation)
@@ -1786,11 +1786,11 @@ class LocalSurface:
         delta_face_elevation = surface_functions.slope_collapse(
             critical_slope=critical_slope,
             face_elevation=self.face_elevation,
-            face_areas=self.face_areas,
+            face_area=self.face_area,
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
             edge_face_distances=self.edge_face_distances,
-            edge_lengths=self.edge_lengths,
+            edge_length=self.edge_length,
         )
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", delta_face_elevation)
@@ -1810,7 +1810,7 @@ class LocalSurface:
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
             edge_face_distances=self.edge_face_distances,
-            edge_lengths=self.edge_lengths,
+            edge_length=self.edge_length,
         )
 
         return np.rad2deg(np.arctan(slope))
@@ -1856,7 +1856,7 @@ class LocalSurface:
         else:
             raise ValueError(f"Unknown noise model: {model}")
         # Compute the weighted mean to ensure volume conservation
-        mean = np.sum(noise[: self.n_face] * self.face_areas) / self.area
+        mean = np.sum(noise[: self.n_face] * self.face_area) / self.area
         noise -= mean
         self.update_elevation(noise)
         return
@@ -1948,7 +1948,7 @@ class LocalSurface:
         None
         """
         node_elevation = surface_functions.interpolate_node_elevation_from_faces(
-            face_areas=self.face_areas,
+            face_area=self.face_area,
             face_elevation=self.face_elevation,
             node_face_connectivity=self.node_face_connectivity,
         )
@@ -2166,7 +2166,7 @@ class LocalSurface:
         """
         if elevation.size != self.n_face:
             raise ValueError("elevation must be an array with the same size as the number of faces in the grid")
-        return np.sum(elevation * self.face_areas)
+        return np.sum(elevation * self.face_area)
 
     def _calculate_distance(
         self,
@@ -2422,11 +2422,11 @@ class LocalSurface:
         return self._node_distance
 
     @property
-    def face_areas(self) -> NDArray:
+    def face_area(self) -> NDArray:
         """
         The areas of the faces.
         """
-        return self.surface.face_areas[self.face_indices]
+        return self.surface.face_area[self.face_indices]
 
     @property
     def face_lat(self) -> NDArray:
@@ -2473,13 +2473,13 @@ class LocalSurface:
         return self.surface.edge_face_distances[self.edge_indices]
 
     @property
-    def edge_lengths(self) -> NDArray:
+    def edge_length(self) -> NDArray:
         """
         Lengths of the edges in meters.
 
         Dimensions: `(n_edge)`
         """
-        return self.surface.edge_lengths[self.edge_indices]
+        return self.surface.edge_length[self.edge_indices]
 
     @property
     def node_lat(self) -> NDArray:
@@ -2522,7 +2522,7 @@ class LocalSurface:
         The total area of the faces in the view.
         """
         if self._area is None:
-            self._area = float(self.face_areas.sum())
+            self._area = float(self.face_area.sum())
         return self._area
 
     @property

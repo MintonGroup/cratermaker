@@ -12,6 +12,24 @@ Surface
 
 Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. This tool contains three classes of surface implementations that can be chosen by the user: **icosphere**, **arbitrary_resolution**, **hireslocal**. 
 
+UxArray-based surface mesh
+--------------------------
+
+The surface of a celestial body in Cratermaker is represented by an unstructured mesh using the `UxArray <https://uxarray.readthedocs.io/en/latest/index.html>`_ package. UxArray provides a rich set of tools for representing unstructured mesh geometry and data associated with the mesh, through their `UxDataset <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#uxdataset>`_ and associated `Grid <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#grid>`_.  The surface mesh is composed of faces, nodes, and edges, where each face is a polygonal shape defined by its nodes. The faces are connected to each other through edges, and the nodes are the points in space that define the corners of the faces. A simple diagram showing the relationship between faces, nodes, and edges is shown below:
+
+.. image:: ../_static/mesh_diagram.svg
+    :alt: Surface faces, nodes, and edges
+    :align: center
+    :width: 300px
+
+In the above image, show a single face with 6 nodes and 6 edges, surrounded by 6 neighboring faces. Each face, node, and edge is identified with an integer index. A Surface object contains a number of attributes that represent the mesh geometry and connectivity, such as:
+
+- :attr:`n_face`: The number of faces in the surface mesh.
+- :attr:`n_node`: The number of nodes in the surface mesh.
+- :attr:`n_edge`: The number of edges in the surface mesh.
+
+- :attr:`face_face_connectivity`: An array that contains the faces that surround each face.
+
 The default Surface type: Icosphere
 -----------------------------------
 The default Surface is "icosphere" with a grid level of 8 and the :ref:`Target <ug-target>` being the Moon. The default can be set by: 

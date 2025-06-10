@@ -435,7 +435,7 @@ class Simulation(CratermakerBase):
 
         # Process each bin
         for i, face_indices in enumerate(self.surface.face_bin_indices):
-            total_bin_area = self.surface.face_bin_areas[i]
+            total_bin_area = self.surface.face_bin_area[i]
             area_ratio = total_bin_area / self.surface.area
 
             diam_min = self._get_smallest_diameter(self.surface.face_bin_min_sizes[i], from_projectile=from_projectile)
@@ -463,7 +463,7 @@ class Simulation(CratermakerBase):
                 impact_ages.extend(ages.tolist())
 
                 # Get the relative probability of impact onto any particular face then get the locations of the impacts
-                p = self.surface.face_areas[face_indices] / total_bin_area
+                p = self.surface.face_area[face_indices] / total_bin_area
                 face_indices = self.rng.choice(face_indices, size=diameters.shape, p=p)
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
@@ -755,7 +755,7 @@ class Simulation(CratermakerBase):
             The smallest possible crater or projectile diameter that can be formed on the surface.
         """
         if face_size is None:
-            face_size = np.min(self.surface.face_sizes)
+            face_size = np.min(self.surface.face_size)
         if from_projectile:
             crater = Crater.maker(
                 final_diameter=face_size,
