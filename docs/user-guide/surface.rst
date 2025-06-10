@@ -10,9 +10,7 @@
 Surface
 =======
 
-Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. This tool contains three classes of surface implementations that can be chosen by the user: **icosphere**, **arbitrary_resolution**, **hireslocal**. 
-
-These classes contain a number of attributes and methods that allow the user to perform various operations on the surface. Every Surface object contains the following basic attributes:
+Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. The Surface class number of attributes and methods that allow the user to perform various operations on the surface. Every Surface object contains the following basic attributes:
 
 - :attr:`target`: The :ref:`Target <ug-target>` that the surface is associated with. The default target is "Moon."
 - :attr:`radius`: The radius of the target body in meters. This is a convenience attribute that retrieves the radius from the :ref:`Target <ug-target>` object.
@@ -21,8 +19,8 @@ These classes contain a number of attributes and methods that allow the user to 
 - :attr:`data_dir`: The directory where the surface data files are stored. 
 - :attr:`uxds`, :attr:`uxgrid`: The UxArray dataset and grid object used to represent the surface mesh (see the next section for more details).
 
-UxArray-based surface mesh
---------------------------
+The UxArray-based surface mesh
+------------------------------
 
 The surface of a celestial body in Cratermaker is represented as a sphere that has been discretized as an unstructured polygonal mesh using the `UxArray <https://uxarray.readthedocs.io/en/latest/index.html>`_ package. UxArray provides a rich set of tools for representing unstructured mesh geometry and data associated with the mesh, through their `UxDataset <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#uxdataset>`_ and associated `Grid <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#grid>`_.  The surface mesh is composed of faces, nodes, and edges, where each face is a polygonal shape defined by its nodes. The faces are connected to each other through edges, and the nodes are the points in space that define the corners of the faces. A simple diagram showing the relationship between faces, nodes, and edges is shown below:
 
@@ -38,23 +36,86 @@ In the above image, show a single face with 6 nodes and 6 edges, surrounded by 6
 - :attr:`n_edge`: The number of edges in the surface mesh.
 - :attr:`face_area` : An array that contains the area of each face in m\ :sup:`2`
 - :attr:`face_size` : The "effective" size of each face, which is defined as the square root of the area of each face in meters.
+- :attr:`pix` : The estimated effective size of the faces in meters.  
+- :attr:`pix_mean` : The mean effective size of the faces in meters. This is the average of the `face_size` array.
+- :attr:`pix_std` : The standard deviation of the effective size of the faces in meters. This is the standard deviation of the `face_size` array.
+- :attr:`pix_max` : The maximum effective size of the faces in meters. This is the maximum value of the `face_size` array.
+- :attr:`pix_min` : The minimum effective size of the faces in meters. This is the minimum value of the `face_size` array.
 - :attr:`face_x`, :attr:`face_y`, :attr:`face_z`: Arrays that contain the x, y, and z coordinates of the center of each face in Cartesian coordinates.
 - :attr:`node_x`, :attr:`node_y`, :attr:`node_z`: Arrays that contain the x, y, and z coordinates of each node in Cartesian coordinates.
 - :attr:`face_lon`, :attr:`face_lat`: Arrays that contain the longitude and latitude of the center of each face in degrees.
 - :attr:`node_lon`, :attr:`node_lat`: Arrays that contain the longitude and latitude of each node in degrees.
-- :attr:`face_elevation`, :attr:`node_elevation`: Arrays that contain the elevation of each face and node in meters. The mesh itself remains static inside Cratermaker, and so the elevations are only applied to the mesh when it is visualized.
-- :attr:`edge_length`: An array that contains the length of each edge in meters.
-- :attr:`edge_face_distance`: An array that contains the distance between the centers of the two faces that saddle each edge in meters.
+- :attr:`face_elevation`: Array that contains the elevation at each face center.
+- :attr:`node_elevation`: Array that contains the elevation at each node.
+
+.. note::
+    The mesh itself remains static inside Cratermaker, and so the elevations are only applied to the mesh when it is visualized.
+
+Many of the above attributes are based on similar once found in UxArray, though some are modified to be more useful for Cratermaker's purposes. For instance, the `face_area` attribute is computed using the true dimensions of the surface, rather than assuming a unit sphere, which is how UxArray computes it by default. You can access the underlying UxArray structures through the :attr:`uxds` and :attr:`uxgrid` properties.
+
+Mesh connectivity
+~~~~~~~~~~~~~~~~~
+
+Many of the functions within Cratermaker require knowledge of the connectivity between faces, nodes, and edges. The Surface object contains several attributes that represent this connectivity:
+
 - :attr:`face_face_connectivity`: An array that contains the faces that surround each face.
 - :attr:`face_node_connectivity`: An array that contains the nodes that are associated with each face.  
-- :attr:`node_face_connectivity`: An array that contains the faces that are associated with each node.
 - :attr:`face_edge_connectivity`: An array that contains the edges that are associated with each face.
+- :attr:`node_face_connectivity`: An array that contains the faces that are associated with each node.
 - :attr:`edge_node_connectivity`: An array that contains the nodes that are associated with each edge.
+- :attr:`edge_length`: An array that contains the length of each edge in meters.
+- :attr:`edge_face_distance`: An array that contains the distance between the centers of the two faces that saddle each edge in meters.
+
+As an example of how these are structured, take the diagram shown above of a single face with 6 nodes and 6 edges. The following table shows the connectivity arrays for that face:
+
+.. code-block:: python
+
+    face_face_connectivity[0] = [1, 2, 3, 4, 5, 6]
+    face_node_connectivity[0] = [0, 1, 2, 3, 4, 5]
+    face_edge_connectivity[0] = [0, 1, 2, 3, 4, 5]
+    node_face_connectivity[0:6] = [[1, 0, 2], [0, 3, 2], [0, 4, 3], [5, 4, 0], [6, 5, 0], [6, 0, 1]]
+    edge_node_connectivity[0:6] = [[0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6]]
 
 
-The default Surface type: Icosphere
------------------------------------
-The default Surface is "icosphere" with a grid level of 8 and the :ref:`Target <ug-target>` being the Moon. The default can be set by: 
+In the next section we will describe the different types of surfaces that can be created in Cratermaker, and how they are used.
+
+Surface Types
+-------------
+
+Like all Cratermaker components, a Surface object is instantiated with a special factory method called :meth:`maker()`, along with arguments that control how the Surface is created. There are currently three different surface types of surface implementations that can be chosen by the user, which are selected by passing the `surface` argument to the :meth:`maker()` method. The available surface types are:
+
+
+- "icosphere": This is the default surface type, which generates a uniform grid configuration with polygonal faces that will be subdivided by the input value for the `gridlevel` argument. The icosphere surface will have the most uniform face sizes, but is limited to a few resolutions. It is best suited for general use and is the default surface type.
+- "arbitrary_resolution": This surface type allows the user to define the approximate size of the faces of the grid using the `pix` argument. It creates a uniform grid configuration but allows for more control over the sizes of the faces. The faces on this surface will be more irregular in shape, making it less ideal for some applications, but it is useful when specific face sizes are needed.
+- "hireslocal": This surface type is used for modeling a small local region at high resolution. It requires the `pix`, `local_radius`, `local_location`, and `superdomain_scale_factor` arguments. The local region is the "primary" surface being modeled, and the superdomain is simply a source for distal ejecta from large far away craters. This surface type is useful for applications that require high resolution in a small area, but still allows for global processes to affect the small local area.
+
+The following sections will describe each of these surface types in more detail, including how to create them and their specific attributes and methods.
+
+
+Icosphere
+~~~~~~~~~
+
+.. image:: ../_static/icosphere_grid.png
+    :alt: Icosphere grid
+    :align: center
+    :width: 600px
+
+The default Surface is "icosphere," which consists of a uniform grid configuration with polygonal faces that are be subdivided by the input value for the `gridlevel` argument. The number of faces and nodes of the icosphere is determined by the formulas :math:`N_{face} = 10\times4^{gridlevel}+2` and :math:`N_{node} = 20\times4^{gridlevel}`. The Surface object contains an attribute called `pix`, which is the value of the "effective pixel size" in meters, where :math:`pix=\sqrt{\left<Area_{face}\right>}`. The following table shows the relationship between the grid level, the number of faces and nodes, and the effective pixel size for a default target of the Moon:
+ 
+
+.. csv-table::
+    :header: "gridlevel", "n_face", "n_node", "pix (for Moon target)"
+    :widths: 10, 10, 10, 10
+
+    5, 10242, 20480, 60.8 km ± 2.42 km
+    6, 40962, 81920, 30.4 km ± 1.25 km
+    7, 163842, 327680, 15.2 km ± 634 m
+    8, 655362, 1310720, 7.60 km ± 319 m
+    9, 2621442, 5242880, 3.80 km ± 160 m
+
+
+Though it is limited to a few resolutions, the icosphere surface will have the most uniform face sizes. Lower values of `gridlevel` will result in fewer but larger face sizes, which can be computed quickly but will not resolve detail well. Higher values of `gridlevel` will result in more faces with smaller areas, which will resolve detail better but will take longer to generate and use, and will consume more memory. The default value is 8, and we recommend keeping `gridlevel` to between ~7-9. Also, keep in mind that the value of `pix` in the table above is computed for the Moon, and will vary for other targets. 
+
 
 .. ipython:: python
     :okwarning:
@@ -71,26 +132,18 @@ This is equivalent to:
     surface=Surface.maker(surface='icosphere', gridlevel=8, target='Moon')
     print(surface)
 
-This surface consists of a uniform grid configuration with polygonal faces that will be subdivided by the input value for the gridlevel argument.  Though it is limited to a few resolutions, the icosphere surface will have the most uniform face sizes. The number of faces and nodes of the icosphere is determined by the formulas :math:`N_{face} = 10\times4^{gridlevel}+2` and :math:`N_{node} = 20\times4^{gridlevel}`. The Surface object contains an attribute called `pix`, which is the value of the "effective pixel size" in meters, where :math:`pix=\sqrt{\left<Area_{face}\right>}`. The following table shows the relationship between the grid level, the number of faces and nodes, and the effective pixel size for a default target of the Moon
-
-.. csv-table::
-    :header: "gridlevel", "n_face", "n_node", "pix (for Moon target)"
-    :widths: 10, 10, 10, 10
-
-    5, 10242, 20480, 60.8 km ± 2.42 km
-    6, 40962, 81920, 30.4 km ± 1.25 km
-    7, 163842, 327680, 15.2 km ± 634 m
-    8, 655362, 1310720, 7.60 km ± 319 m
-    9, 2621442, 5242880, 3.80 km ± 160 m
 
 
-Lower values of `gridlevel` will result in fewer but larger face sizes, which can be computed quickly but will not resolve detail well. Higher values of `gridlevel` will result in more faces with smaller areas, which will resolve detail better but will take longer to generate and use, and will consume more memory. We recommend keeping `gridlevel` to between ~7-9. Also, keep in mind that the value of `pix` in the table above is computed for the Moon, and will vary for other targets.
+Arbitrary Resolution 
+~~~~~~~~~~~~~~~~~~~~
+
+.. image:: ../_static/arbitrary_resolution_grid.png
+    :alt: Arbitrary resolution grid
+    :align: center
+    :width: 400px
 
 
-Arbitrary resolution grids
---------------------------
-
-While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of ~20 km per face:
+While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of ~20 km per face (shown in the figure above):
 
 .. ipython:: python
     :okwarning:
@@ -99,12 +152,18 @@ While the `icosphere` surface generates the most regular grids, it is limited to
     print(surface)
 
 
-As seen above, the arbitrary resolution grid also creates a uniform grid configurations but allows the user to define their pixel size. Unlike the icosphere, the faces on the surface will be more irregular in shape, making it less ideal. 
+The arbitrary resolution grid is similar to the icosphphere grid in that the surface will be discretized into approximately equal-sized faces. Unlike the icosphere, the faces on the surface will be more irregular in shape, making it less ideal. 
 
-High resolution local grids
------------------------------
+High Resolution Local
+~~~~~~~~~~~~~~~~~~~~~
 
-In many application of Cratermaker, it is useful to model a small local region at high resolution. This surface type requires the following 4 arguments:
+
+.. image:: ../_static/hireslocal_grid_with_inset.png
+    :alt: High resolution local grid
+    :align: center
+    :width: 400px
+
+In many application of Cratermaker, it is useful to model a small local region at high resolution. This can be done with the "hireslocal" Surface type. This Surface requires the following 4 arguments:
 
 - `pix`: The pixel size in meters within the high resolution local region.
 - `local_radius`: The radius of the local region in meters.
@@ -114,7 +173,7 @@ In many application of Cratermaker, it is useful to model a small local region a
 .. note::
     When used as part of a :ref:`Simulation <ug-simulation>`, the `superdomain_scale_factor` can be omitted. It is computed using the Simulation's production and morphology models in order to compute the sizes of faces in the superdomain as a function of distance from the local region boundary. 
 
-For instance, suppose we want to generate a high resolution local grid on the Moon with a resolution of ~10 m per pixel, with a radius of 5 km, centered at the equator and prime meridian (0° longitude, 0° latitude), and a superdomain scale factor of 10,000:
+For instance, suppose we want to generate a high resolution local grid on the Moon with a resolution of ~10 m per pixel, with a high resolution region radius of 5 km, centered at the equator and prime meridian (0° longitude, 0° latitude), and a superdomain scale factor of 10,000:
 
 .. ipython:: python
     :okwarning:
@@ -122,13 +181,21 @@ For instance, suppose we want to generate a high resolution local grid on the Mo
     surface=Surface.maker("hireslocal", pix=10.0, local_radius=5e3, local_location=(0, 0), superdomain_scale_factor=10000)
     print(surface)
 
+The image above shows a rendering of this high resolution local grid, showing a view of the whole local region and an inset showing the high resolution portion inside. The local region will have approximately square and equal-sized faces, but the faces will be more irregular in shape as you move away from the center of the local region. The superdomain will have larger faces that are scaled by the `superdomain_scale_factor`, which allows for distal ejecta to be modeled from large far away craters. The superdomain is not a separate surface, but rather a part of the same surface that is used to model the effects of distant craters on the local region.
 The "hireslocal" surface type works somewhat differently than the others. For instance, the diffusive degradation is only applied on the local region. You can think of the local region as the "primary" surface being modeled, and the superdomain as simply a source for distal ejecta fram large far away craters. 
 
 
 Extracting a local subsection of the surface
 --------------------------------------------
 
-Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that only contains the faces and nodes within a specified radius of a given location. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters.
+
+.. image:: ../_static/localsurface_diagram.svg
+    :alt: LocalSurface region diagram
+    :align: center
+    :width: 400px
+
+
+Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that only contains the faces and nodes within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters.
 
 For instance, suppose we'd like to extract a 16 km radius region at the south pole of the Moon:
 
@@ -140,7 +207,7 @@ For instance, suppose we'd like to extract a 16 km radius region at the south po
     region=surface.extract_region(location=(0,-90),region_radius=16e3)
     print(region)
 
-As we can see, this selects only 15 of the full 655362 faces, which is a significant reduction in the number of faces and nodes that need to be processed. The LocalSurface object can be used to perform operations on this local region without affecting the full surface. 
+As we can see, this selects only 33 of the full 655362 faces, which is a significant reduction in the number of faces and nodes that need to be processed. All faces with their centers interior to circle defined by location and region_radius are included, as well as their associated edges and nodes (highlighted in the diagram above). In addition, the region will also contain a "buffer" of all faces that surround the outermost border of the local region, such that any operations that require neighboring faces across included edges or nodes can have access to them. 
 
 .. note::
     The "hireslocal" Surface type contains a built-in attribute called `local`, which represents the high resolution region of the surface. In addition, when `extract_region` is called on a "hireslocal" surface, it will return a special `LocalHiResLocalSurface` object that contains within it an additional object called `local_overlap`. This is a view of only the portion of the extracted region that overlaps the high resolution region (or None if there is no overlap).
@@ -203,8 +270,7 @@ The :class:`LocalSurface` object has two attributes called `face_distance` and `
     print(f'Face distances from center of local region: {region.face_distance}')
     print(f'Face bearings from center of local region: {region.face_bearing}')
 
-We can see that the local region contains points outside of the 10 km region. This is because  it contains a "buffer" of all faces that surround the outermost border of the local region, such that any operations that require neighboring faces across included edges or nodes can have access to them. We can see that this region contains 20 faces and 25 nodes, but only 7 of the faces actually lie within the 10 km local region. 
-The other 13 are the buffer. From here, we can perform many of the calculations as seen in the list above. 
+We can see that the local region contains points outside of the 10 km region. We can see that this region contains 20 faces and 25 nodes, but only 7 of the faces actually lie within the 10 km local region, while the other 13 are part of the buffer. From here, we can perform many of the calculations as seen in the list above. 
 
 We can also calculate these for any arbitrary point within the local region (or full surface) using the methods :meth:`calculate_face_and_node_distances` and :meth:`calculate_face_and_node_bearings`. For instance, suppose we want to find the distances and bearings between a point at (205,45) and all faces and nodes in the local region:
 
