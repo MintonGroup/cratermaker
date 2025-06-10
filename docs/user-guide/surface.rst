@@ -12,6 +12,15 @@ Surface
 
 Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. This tool contains three classes of surface implementations that can be chosen by the user: **icosphere**, **arbitrary_resolution**, **hireslocal**. 
 
+These classes contain a number of attributes and methods that allow the user to perform various operations on the surface. Every Surface object contains the following basic attributes:
+
+- :attr:`target`: The :ref:`Target <ug-target>` that the surface is associated with. The default target is "Moon."
+- :attr:`radius`: The radius of the target body in meters. This is a convenience attribute that retrieves the radius from the :ref:`Target <ug-target>` object.
+- :attr:`smallest_length`: The smallest length scale that the surface can resolve. This is used for determining minimum elevation changes, such as when ejecta deposits are added to the surface. It is set when the surface is created.
+- :attr:`gridtype`: The type of surface grid that is being used. This will be one of "icosphere", "arbitrary_resolution", or "hireslocal", depending on how it was created.
+- :attr:`data_dir`: The directory where the surface data files are stored. 
+- :attr:`uxds`, :attr:`uxgrid`: The UxArray dataset and grid object used to represent the surface mesh (see the next section for more details).
+
 UxArray-based surface mesh
 --------------------------
 
@@ -39,6 +48,9 @@ In the above image, show a single face with 6 nodes and 6 edges, surrounded by 6
 - :attr:`face_face_connectivity`: An array that contains the faces that surround each face.
 - :attr:`face_node_connectivity`: An array that contains the nodes that are associated with each face.  
 - :attr:`node_face_connectivity`: An array that contains the faces that are associated with each node.
+- :attr:`face_edge_connectivity`: An array that contains the edges that are associated with each face.
+- :attr:`edge_node_connectivity`: An array that contains the nodes that are associated with each edge.
+
 
 The default Surface type: Icosphere
 -----------------------------------
