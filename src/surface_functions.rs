@@ -447,7 +447,7 @@ pub fn slope_collapse<'py>(
         &face_area,
         &edge_length,
     );
-    let looplimit = 100000 as usize;
+    let looplimit = 1000 as usize;
 
     let mut face_elevation = ndarray::Array1::<f64>::zeros(n_face);
     let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(n_face);

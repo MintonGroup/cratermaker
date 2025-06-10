@@ -23,7 +23,6 @@ from ..constants import (
     FloatLike,
     PairOfFloats,
 )
-from ..utils import export
 from ..utils.general_utils import _set_properties, format_large_units, parameter
 from .base import CratermakerBase, _convert_for_yaml
 from .crater import Crater
@@ -388,7 +387,6 @@ class Simulation(CratermakerBase):
 
             self.save()
 
-        self.export("vtp")
         return
 
     def populate(
@@ -563,7 +561,7 @@ class Simulation(CratermakerBase):
             "elapsed_n1": self.elapsed_n1,
         }
 
-        self.surface._save_to_files(
+        self.surface.save(
             interval_number=self.interval_number,
             time_variables=time_variables,
             **kwargs,
@@ -678,16 +676,6 @@ class Simulation(CratermakerBase):
                 yaml.safe_dump(sim_config, f, indent=4)
 
         return sim_config
-
-    def export(self, format="vtp", **kwargs) -> None:
-        """
-        Export the surface mesh to a file in the specified format. Currently only VTK is supported.
-        """
-        self.save()
-        if format == "vtp" or format == "vtk":
-            export.to_vtk(self.surface, **kwargs)
-        else:
-            raise ValueError(f"Unsupported export format: {format}")
 
     def reset(self):
         crater_dir = self.simdir / _CRATER_DIR

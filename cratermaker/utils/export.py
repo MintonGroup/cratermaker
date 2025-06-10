@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import xarray as xr
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 
-from cratermaker.components.surface import Surface
 from cratermaker.constants import (
     _CIRCLE_FILE_NAME,
     _COMBINED_DATA_FILE_NAME,
@@ -16,8 +18,17 @@ from cratermaker.constants import (
     FloatLike,
 )
 
+if TYPE_CHECKING:
+    from cratermaker.components.surface import Surface
 
-def to_vtk(surface: Surface, save_geometry=True, **kwargs) -> None:
+
+def to_vtk(
+    surface: Surface,
+    interval_number: int = 0,
+    time_variables: dict | None = None,
+    save_geometry=True,
+    **kwargs,
+) -> None:
     """
     Export the surface mesh to a VTK file and stores it in the default export directory.
     """
@@ -32,6 +43,8 @@ def to_vtk(surface: Surface, save_geometry=True, **kwargs) -> None:
     from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
     from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
+    from cratermaker import Surface
+
     if not isinstance(surface, Surface):
         raise TypeError("The surface argument must be an instance of the Surface class.")
     # Create the output directory if it doesn't exist
@@ -42,12 +55,6 @@ def to_vtk(surface: Surface, save_geometry=True, **kwargs) -> None:
     data_file_list = list(data_dir.glob("*.nc"))
     if surface.grid_file in data_file_list:
         data_file_list.remove(surface.grid_file)
-
-    # Delete old export files if they exist
-    old_export_files = list(out_dir.glob(f"*.{_VTK_FILE_EXTENSION}"))
-    if len(old_export_files) > 0:
-        for old_file in old_export_files:
-            old_file.unlink()
 
     # Convert uxarray grid arrays to regular numpy arrays for vtk processing
     n_node = surface.n_node
@@ -76,7 +83,6 @@ def to_vtk(surface: Surface, save_geometry=True, **kwargs) -> None:
     writer.SetCompressorTypeToZLib()
 
     if save_geometry:
-        print("Exporting surface geometry to VTK...")
         # Saves the surface mesh and its geometry as a separate file
         geometry_variables = [
             "node_x",
@@ -124,53 +130,55 @@ def to_vtk(surface: Surface, save_geometry=True, **kwargs) -> None:
         writer.SetInputData(poly_data_with_normals)
         writer.Write()
 
-    with xr.open_mfdataset(data_file_list) as ds:
-        # Warp the surface based on node_elevation data so that the exported mesh is the true shape rather than a sphere
-        for i in tqdm(
-            range(len(ds.time)),
-            desc="Exporting VTK files",
-            unit="file",
-            position=0,
-            leave=True,
-        ):
-            ids = ds.isel(time=i).load()
-            current_grid = vtkUnstructuredGrid()
-            current_grid.DeepCopy(vtk_data)
+    ds = surface.uxds.load()
+    current_grid = vtkUnstructuredGrid()
+    current_grid.DeepCopy(vtk_data)
 
-            for v in ds.variables:
-                array = numpy_to_vtk(ids[v].values, deep=True)
-                array.SetName(v)
-                n = ids[v].size
-                if "n_face" in ids[v].dims:
-                    current_grid.GetCellData().AddArray(array)
-                elif "n_node" in ids[v].dims:
-                    current_grid.GetPointData().AddArray(array)
-                    if v == "node_elevation":
-                        current_grid.GetPointData().SetActiveScalars(v)
-                elif n == 1:
-                    current_grid.GetFieldData().AddArray(array)
+    for v in ds.variables:
+        array = numpy_to_vtk(ds[v].values, deep=True)
+        array.SetName(v)
+        n = ds[v].size
+        if "n_face" in ds[v].dims:
+            current_grid.GetCellData().AddArray(array)
+        elif "n_node" in ds[v].dims:
+            current_grid.GetPointData().AddArray(array)
+            if v == "node_elevation":
+                current_grid.GetPointData().SetActiveScalars(v)
+        elif n == 1:
+            current_grid.GetFieldData().AddArray(array)
 
-            geom_filter = vtkGeometryFilter()
-            geom_filter.SetInputData(current_grid)
-            geom_filter.Update()
-            poly_data = geom_filter.GetOutput()
+    if time_variables is None:
+        time_variables = {"elapsed_time": float(interval_number)}
+    else:
+        if not isinstance(time_variables, dict):
+            raise TypeError("time_variables must be a dictionary")
 
-            normals_filter = vtkPolyDataNormals()
-            normals_filter.SetInputData(poly_data)
-            normals_filter.ComputeCellNormalsOn()
-            normals_filter.ConsistencyOn()  # Tries to make normals consistent across shared edges
-            normals_filter.AutoOrientNormalsOn()  # Attempt to orient normals consistently outward/inward
-            normals_filter.SplittingOff()
-            normals_filter.Update()
-            poly_data_with_normals = normals_filter.GetOutput()
+    for k, v in time_variables.items():
+        array = numpy_to_vtk(np.array([v]), deep=True)
+        array.SetName(k)
+        current_grid.GetFieldData().AddArray(array)
 
-            warp.SetInputData(poly_data_with_normals)
-            warp.Update()
-            warped_output = warp.GetOutput()
-            output_filename = out_dir / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{i:06d}.{_VTK_FILE_EXTENSION}")
-            writer.SetFileName(output_filename)
-            writer.SetInputData(warped_output)
-            writer.Write()
+    geom_filter = vtkGeometryFilter()
+    geom_filter.SetInputData(current_grid)
+    geom_filter.Update()
+    poly_data = geom_filter.GetOutput()
+
+    normals_filter = vtkPolyDataNormals()
+    normals_filter.SetInputData(poly_data)
+    normals_filter.ComputeCellNormalsOn()
+    normals_filter.ConsistencyOn()  # Tries to make normals consistent across shared edges
+    normals_filter.AutoOrientNormalsOn()  # Attempt to orient normals consistently outward/inward
+    normals_filter.SplittingOff()
+    normals_filter.Update()
+    poly_data_with_normals = normals_filter.GetOutput()
+
+    warp.SetInputData(poly_data_with_normals)
+    warp.Update()
+    warped_output = warp.GetOutput()
+    output_filename = out_dir / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.{_VTK_FILE_EXTENSION}")
+    writer.SetFileName(output_filename)
+    writer.SetInputData(warped_output)
+    writer.Write()
 
     return
 

@@ -26,6 +26,7 @@ from cratermaker.constants import (
     _VSMALL,
     FloatLike,
 )
+from cratermaker.utils import export
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import (
     format_large_units,
@@ -574,6 +575,63 @@ class Surface(ComponentBase):
         """
         return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
 
+    def save(
+        self,
+        combine_data_files: bool = False,
+        interval_number: int = 0,
+        time_variables: dict | None = None,
+        **kwargs,
+    ) -> None:
+        """
+        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+
+        Parameters
+        ----------
+        combine_data_files : bool, optional
+            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        """
+        do_not_save = ["face_area"]
+
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+        if time_variables is None:
+            time_variables = {"elapsed_time": float(interval_number)}
+        else:
+            if not isinstance(time_variables, dict):
+                raise TypeError("time_variables must be a dictionary")
+
+        self.uxds.close()
+
+        ds = self.uxds.expand_dims(dim="time").assign_coords({"time": [interval_number]})
+        for k, v in time_variables.items():
+            ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time": [interval_number]})
+
+        drop_vars = [k for k in ds.data_vars if k in do_not_save]
+        if len(drop_vars) > 0:
+            ds = ds.drop_vars(drop_vars)
+
+        self._save_data(ds, interval_number, combine_data_files)
+
+        save_geometry = interval_number == 0
+        self.export(
+            format="vtp", interval_number=interval_number, time_variables=time_variables, save_geometry=save_geometry, **kwargs
+        )
+
+        return
+
+    def export(self, format="vtp", **kwargs) -> None:
+        """
+        Export the surface mesh to a file in the specified format. Currently only VTK is supported.
+        """
+        if format == "vtp" or format == "vtk":
+            export.to_vtk(self, **kwargs)
+        else:
+            raise ValueError(f"Unsupported export format: {format}")
+
     def _calculate_distance(
         self,
         lon1: FloatLike,
@@ -692,49 +750,6 @@ class Surface(ComponentBase):
 
         if reset:
             self.reset(**kwargs)
-
-        return
-
-    def _save_to_files(
-        self,
-        combine_data_files: bool = False,
-        interval_number: int = 0,
-        time_variables: dict | None = None,
-        **kwargs,
-    ) -> None:
-        """
-        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
-
-        Parameters
-        ----------
-        combine_data_files : bool, optional
-            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
-        interval_number : int, optional
-            Interval number to append to the data file name. Default is 0.
-        time_variables : dict, optional
-            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        """
-        do_not_save = ["face_area"]
-
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-
-        if time_variables is None:
-            time_variables = {"elapsed_time": float(interval_number)}
-        else:
-            if not isinstance(time_variables, dict):
-                raise TypeError("time_variables must be a dictionary")
-
-        self.uxds.close()
-
-        ds = self.uxds.expand_dims(dim="time").assign_coords({"time": [interval_number]})
-        for k, v in time_variables.items():
-            ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time": [interval_number]})
-
-        drop_vars = [k for k in ds.data_vars if k in do_not_save]
-        if len(drop_vars) > 0:
-            ds = ds.drop_vars(drop_vars)
-
-        self._save_data(ds, interval_number, combine_data_files)
 
         return
 
