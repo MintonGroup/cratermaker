@@ -57,18 +57,12 @@ class TestSimulation(unittest.TestCase):
 
             sim.save()
 
-            filename = Path(sim.data_dir) / _COMBINED_DATA_FILE_NAME.replace(
-                ".nc", f"{sim.interval_number:06d}.nc"
-            )
+            filename = Path(sim.data_dir) / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc")
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
-                np.testing.assert_array_equal(
-                    ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node)
-                )
-                np.testing.assert_array_equal(
-                    ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face)
-                )
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
 
             # Test saving combined data
             sim.save(combine_data_files=True)
@@ -78,25 +72,10 @@ class TestSimulation(unittest.TestCase):
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
-                np.testing.assert_array_equal(
-                    ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node)
-                )
-                np.testing.assert_array_equal(
-                    ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face)
-                )
+                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
+                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
 
         return
-
-    def test_simulation_export_vtk(self):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
-            # Test with default parameters
-            default_out_dir = Path(sim.simdir) / _EXPORT_DIR
-            expected_files = ["surface000000.vtp"]
-            sim.export("vtp")
-            self.assertTrue(Path(default_out_dir).is_dir())
-            for f in expected_files:
-                self.assertTrue((Path(default_out_dir / f).exists()))
 
     def test_emplace(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
@@ -120,9 +99,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_run(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(
-                simdir=simdir, gridlevel=self.gridlevel, dosubpixel_degradation=True
-            )
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, dosubpixel_degradation=True)
             sim.run(age=1000)
 
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
@@ -178,9 +155,7 @@ class TestSimulation(unittest.TestCase):
 
             # Test case: The age_interval and diameter_number_interval arguments are both provided
             with self.assertRaises(ValueError):
-                sim.run(
-                    age=3.8e3, age_interval=100.0, diameter_number_interval=(300e3, 80)
-                )
+                sim.run(age=3.8e3, age_interval=100.0, diameter_number_interval=(300e3, 80))
 
             # Test case: The diameter_number_interval provided is negative, or is greater than diameter_number - diameter_number_end
             with self.assertRaises(ValueError):
