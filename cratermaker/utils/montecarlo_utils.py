@@ -71,7 +71,7 @@ def get_random_location(
 
 @njit
 def _get_one_random_location(face_nodes, node_x, node_y, node_z, rng_vals):
-    valid_nodes = face_nodes[face_nodes > 0]
+    valid_nodes = face_nodes[face_nodes >= 0]
     n = len(valid_nodes)
     tris = [(0, j, j + 1) for j in range(1, n - 1)]
 
