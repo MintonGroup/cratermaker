@@ -250,6 +250,39 @@ class HiResLocalSurface(Surface):
 
         return LocalHiResLocalSurface(local)
 
+    def save(
+        self,
+        combine_data_files: bool = False,
+        interval_number: int = 0,
+        time_variables: dict | None = None,
+        **kwargs,
+    ) -> None:
+        """
+        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+
+        Parameters
+        ----------
+        combine_data_files : bool, optional
+            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        """
+        super().save(
+            combine_data_files=combine_data_files,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            **kwargs,
+        )
+        imgdir = Path(self.simdir) / "surface_images"
+        imgdir.mkdir(parents=True, exist_ok=True)
+        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
+        if time_variables:
+            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+        self.plot_hillshade(imagefile=imagefile, **kwargs)
+        return
+
     def _set_superdomain(
         self,
         scaling: Scaling | str | None = None,
@@ -460,39 +493,6 @@ class HiResLocalSurface(Surface):
         points = self._rotate_point_cloud(points).T  # rotates from the north pole to local_location
 
         return points
-
-    def _save_to_files(
-        self,
-        combine_data_files: bool = False,
-        interval_number: int = 0,
-        time_variables: dict | None = None,
-        **kwargs,
-    ) -> None:
-        """
-        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
-
-        Parameters
-        ----------
-        combine_data_files : bool, optional
-            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
-        interval_number : int, optional
-            Interval number to append to the data file name. Default is 0.
-        time_variables : dict, optional
-            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        """
-        super()._save_to_files(
-            combine_data_files=combine_data_files,
-            interval_number=interval_number,
-            time_variables=time_variables,
-            **kwargs,
-        )
-        imgdir = Path(self.simdir) / "surface_images"
-        imgdir.mkdir(parents=True, exist_ok=True)
-        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
-        if time_variables:
-            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
-        self.plot_hillshade(imagefile=imagefile, **kwargs)
-        return
 
     @property
     def local(self):

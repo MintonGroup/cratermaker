@@ -41,7 +41,7 @@ Contributors
 ---------------------------
 
 - Updated the requirements to use newer versions of xarray and uxarray. It should be compatible with Numpy 2 now. 
-- UxArray changed the `face_areas` calculation to use the true dimensions rather than assuming a unit sphere. Changed it so that the area of faces is correct and added a new test.`
+- UxArray changed the `face_area` calculation to use the true dimensions rather than assuming a unit sphere. Changed it so that the area of faces is correct and added a new test.`
 
 Contributors
 ~~~~~~~~~~~~
