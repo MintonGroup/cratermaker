@@ -161,7 +161,7 @@ class Morphology(ComponentBase):
         ejecta_region = self.surface.extract_region(crater.location, ejecta_rmax)
         ejecta_area = pi * ejecta_rmax**2
         if (
-            ejecta_region is None or ejecta_area < self.surface.face_areas[self.face_index]
+            ejecta_region is None or ejecta_area < self.surface.face_area[self.face_index]
         ):  # The crater is too small to change the surface
             return
 
@@ -172,7 +172,7 @@ class Morphology(ComponentBase):
             crater_area = pi * crater_rmax**2
 
             # Check to make sure that the face at the crater location is not smaller than the crater area
-            if crater_area > self.surface.face_areas[self.face_index]:
+            if crater_area > self.surface.face_area[self.face_index]:
                 # Form the crater shape
                 elevation_change = self.crater_shape(crater, crater_region)
                 crater_region.update_elevation(elevation_change)
@@ -267,7 +267,7 @@ class Morphology(ComponentBase):
 
         # If any Kdiff values reaches a threshold where a meaningful amount of diffusion will occur on the surface, then go ahead and apply it.
         # Otherwise, degradation will continue to accumulate until the next batch of craters is processed.
-        if np.any(self._Kdiff / self.surface.face_areas > 1):
+        if np.any(self._Kdiff / self.surface.face_area > 1):
             self.apply_subpixel_degradation()
 
         return

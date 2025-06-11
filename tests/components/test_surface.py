@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from cratermaker import Simulation, Surface, Target
+from cratermaker.constants import _COMBINED_DATA_FILE_NAME, _EXPORT_DIR
 from cratermaker.utils.general_utils import normalize_coords
 from cratermaker.utils.montecarlo_utils import get_random_location
 
@@ -243,7 +244,7 @@ class TestSurface(unittest.TestCase):
             # Tests that the face_surface generates the correct values
             surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
             total_area_1 = surface.uxgrid.calculate_total_face_area()
-            total_area_2 = surface.face_areas.sum().item()
+            total_area_2 = surface.face_area.sum().item()
             ratio = np.sqrt(total_area_2 / total_area_1) / self.target.radius
             self.assertAlmostEqual(ratio, 1.0, places=2)
             self.assertAlmostEqual(total_area_2 / (4 * np.pi * self.target.radius**2), 1.0, places=2)
@@ -374,6 +375,17 @@ class TestSurface(unittest.TestCase):
             np.testing.assert_array_almost_equal(
                 h_analytical, h_numerical, decimal=2, err_msg="Diffusion did not match analytical solution"
             )
+
+    def test_export_vtk(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel)
+            # Test with default parameters
+            default_out_dir = Path(surface.simdir) / _EXPORT_DIR
+            expected_files = ["surface000000.vtp", "grid.vtp"]
+            surface.export("vtp")
+            self.assertTrue(Path(default_out_dir).is_dir())
+            for f in expected_files:
+                self.assertTrue(Path(default_out_dir / f).exists())
 
 
 if __name__ == "__main__":
