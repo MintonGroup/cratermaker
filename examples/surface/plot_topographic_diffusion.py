@@ -33,7 +33,7 @@ superdomain_scale_factor = 10000
 h0 = 100.0
 sigma = 200.0
 
-# The diffusivity κ will be set to 2000 m² per time step (in arbitrary time units), and we will run the simulation for 10 steps over a total time of 10 time steps.h0 = 100.0
+# The diffusivity κ will be set to 5000 m² per time step (in arbitrary time units), and we will run the simulation for a total time of 10 time steps.
 kappa = 5000.0
 nsteps = 10
 total_time = 10.0  # total simulated time in arbitrary units
