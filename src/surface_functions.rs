@@ -124,17 +124,17 @@ pub fn calculate_bearing<'py>(
 /// This method loops over all edges and accumulates inverse dt estimates for each face.
 /// The final dt is the minimum over all faces of the reciprocal flux sum.
 fn compute_dt_max(
-    edge_face_distances: &ndarray::ArrayView1<'_, f64>,
+    edge_face_distance: &ndarray::ArrayView1<'_, f64>,
     edge_face_connectivity: &ndarray::ArrayView2<'_, i64>,
     face_kappa: &ndarray::ArrayView1<'_, f64>,
-    face_areas: &ndarray::ArrayView1<'_, f64>,
-    edge_lengths: &ndarray::ArrayView1<'_, f64>,
+    face_area: &ndarray::ArrayView1<'_, f64>,
+    edge_length: &ndarray::ArrayView1<'_, f64>,
 ) -> f64 {
     let n_face = face_kappa.len();
     let mut inverse_dt_sum = ndarray::Array1::<f64>::zeros(n_face);
 
     for (e, faces) in edge_face_connectivity.outer_iter().enumerate() {
-        let distance = edge_face_distances[e];
+        let distance = edge_face_distance[e];
         if distance <= 0.0 {
             continue;
         }
@@ -153,11 +153,11 @@ fn compute_dt_max(
         let k1 = face_kappa[f1];
         let k2 = face_kappa[f2];
         let k_avg = 0.5 * (k1 + k2);
-        let length = edge_lengths[e];
+        let length = edge_length[e];
 
         if k_avg > 0.0 {
-            let contrib_f1 = 2.0 * k_avg * length / (distance * face_areas[f1]);
-            let contrib_f2 = 2.0 * k_avg * length / (distance * face_areas[f2]);
+            let contrib_f1 = 2.0 * k_avg * length / (distance * face_area[f1]);
+            let contrib_f2 = 2.0 * k_avg * length / (distance * face_area[f2]);
             inverse_dt_sum[f1] += contrib_f1;
             inverse_dt_sum[f2] += contrib_f2;
         }
@@ -183,9 +183,9 @@ fn compute_dt_max(
 /// * `py` - Python interpreter token.
 /// * `face_kappa` - Topographic diffusivity (1D array of length n_face)
 /// * `face_elevation` - Elevation value of the faces (1D array of length n_face)
-/// * `face_areas` - Area of the faces (1D array of length n_face)
+/// * `face_area` - Area of the faces (1D array of length n_face)
 /// * `edge_face_connectivity` - Indices of the faces saddle each edge. (2D array of shape n_edge x 2).
-/// * `edge_face_distances` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
 ///
 /// # Returns
 ///
@@ -195,26 +195,26 @@ pub fn apply_diffusion<'py>(
     py: Python<'py>,
     face_kappa: PyReadonlyArray1<'py, f64>,
     face_elevation: PyReadonlyArray1<'py, f64>,
-    face_areas: PyReadonlyArray1<'py, f64>,
+    face_area: PyReadonlyArray1<'py, f64>,
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distances: PyReadonlyArray1<'py, f64>,
-    edge_lengths: PyReadonlyArray1<'py, f64>,
+    edge_face_distance: PyReadonlyArray1<'py, f64>,
+    edge_length: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let face_kappa = face_kappa.as_array();
     let face_elevation = face_elevation.as_array();
-    let face_areas = face_areas.as_array();
+    let face_area = face_area.as_array();
     let edge_face_connectivity = edge_face_connectivity.as_array();
-    let edge_face_distances = edge_face_distances.as_array();
-    let edge_lengths = edge_lengths.as_array();
-    let n_face = face_areas.len();
+    let edge_face_distance = edge_face_distance.as_array();
+    let edge_length = edge_length.as_array();
+    let n_face = face_area.len();
 
     // Compute initial dt von neumann stability condition
     let dt_max = compute_dt_max(
-        &edge_face_distances,
+        &edge_face_distance,
         &edge_face_connectivity,
         &face_kappa,
-        &face_areas,
-        &edge_lengths,
+        &face_area,
+        &edge_length,
     );
 
     if !dt_max.is_finite() || dt_max <= 0.0 {
@@ -237,8 +237,8 @@ pub fn apply_diffusion<'py>(
             let [f1, f2] = <[i64; 2]>::try_from(faces.as_slice().unwrap()).unwrap();
             let f1 = f1 as usize;
             let f2 = f2 as usize;
-            let distance = edge_face_distances[e];
-            let length = edge_lengths[e];
+            let distance = edge_face_distance[e];
+            let length = edge_length[e];
 
             if distance <= 0.0 || f1 >= n_face || f2 >= n_face {
                 continue;
@@ -246,7 +246,7 @@ pub fn apply_diffusion<'py>(
             if f1 == f2 {
                 panic!("Edge {e} has identical face indices: {f1}");
             }
-            if face_areas[f1] == 0.0 || face_areas[f2] == 0.0 {
+            if face_area[f1] == 0.0 || face_area[f2] == 0.0 {
                 panic!("Zero area at f1={} or f2={} on edge {}", f1, f2, e);
             }
 
@@ -257,8 +257,8 @@ pub fn apply_diffusion<'py>(
 
             let flux = (k1 + k2) * (h2 - h1) / distance * length;
 
-            dhdt[f1] += flux / face_areas[f1];
-            dhdt[f2] -= flux / face_areas[f2];
+            dhdt[f1] += flux / face_area[f1];
+            dhdt[f2] -= flux / face_area[f2];
         }
 
         for f in 0..n_face {
@@ -287,8 +287,8 @@ fn compute_slope_squared(
     face_elevation: &ndarray::Array1<f64>,
     connected_edges: &ndarray::ArrayView1<'_, i64>,
     edge_face_connectivity: &ndarray::ArrayView2<i64>,
-    edge_face_distances: &ndarray::ArrayView1<f64>,
-    edge_lengths: &ndarray::ArrayView1<f64>,
+    edge_face_distance: &ndarray::ArrayView1<f64>,
+    edge_length: &ndarray::ArrayView1<f64>,
 ) -> f64 {
     let mut dh_dx = 0.0;
     let mut dh_dy = 0.0;
@@ -307,8 +307,8 @@ fn compute_slope_squared(
         let f1 = f1 as usize;
         let f2 = f2 as usize;
         let other = if f == f1 { f2 } else if f == f2 { f1 } else { continue };
-        let d = edge_face_distances[e];
-        let l = edge_lengths[e];
+        let d = edge_face_distance[e];
+        let l = edge_length[e];
         if d <= 0.0 || l <= 0.0 {
             continue;
         }
@@ -354,10 +354,10 @@ fn compute_slope_squared(
 /// # Arguments
 /// * `py` - Python interpreter token.
 /// * `face_elevation` - Elevation at each face (1D array).
-/// * `face_areas` - Area of each face (1D array).
+/// * `face_area` - Area of each face (1D array).
 /// * `edge_face_connectivity` - Indices of the faces (global) that saddle each edge. (2D array of shape n_edge x 2).
 /// * 'face_edge_connectivity` - Indices of the edges that surround each face (2D array of shape n_face x n_max_edges).
-/// * `edge_face_distances` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
 ///
 /// # Returns
 /// A NumPy array of slope values (1D array), same length as `face_indices`.
@@ -367,14 +367,14 @@ pub fn compute_slope<'py>(
     face_elevation: PyReadonlyArray1<'py, f64>,
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distances: PyReadonlyArray1<'py, f64>,
-    edge_lengths: PyReadonlyArray1<'py, f64>,
+    edge_face_distance: PyReadonlyArray1<'py, f64>,
+    edge_length: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let face_elevation = face_elevation.as_array();
     let edge_face_connectivity = edge_face_connectivity.as_array();
     let face_edge_connectivity = face_edge_connectivity.as_array();
-    let edge_face_distances = edge_face_distances.as_array();
-    let edge_lengths = edge_lengths.as_array();
+    let edge_face_distance = edge_face_distance.as_array();
+    let edge_length = edge_length.as_array();
     let n_face = face_elevation.len();
 
     let face_elevation = face_elevation.to_owned();
@@ -386,8 +386,8 @@ pub fn compute_slope<'py>(
                 &face_elevation,
                 &connected_edges,
                 &edge_face_connectivity,
-                &edge_face_distances,
-                &edge_lengths,
+                &edge_face_distance,
+                &edge_length,
             );
             slope_sq.sqrt()
         })
@@ -408,10 +408,10 @@ pub fn compute_slope<'py>(
 /// * `py` - Python interpreter token.
 /// * `critical_slope` - Maximum allowable slope (e.g., 0.7 for ~35 degrees).
 /// * `face_elevation` - Elevation at each face (1D array).
-/// * `face_areas` - Area of each face (1D array).
+/// * `face_area` - Area of each face (1D array).
 /// * `edge_face_connectivity` - Indices of the faces that saddle each edge. (2D array of shape n_edge x 2).
 /// * 'face_edge_connectivity` - Indices of the edges that surround each face (2D array of shape n_face x n_max_edges).
-/// * `edge_face_distances` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
 ///
 /// # Returns
 ///
@@ -421,17 +421,17 @@ pub fn slope_collapse<'py>(
     py: Python<'py>,
     critical_slope: f64,
     face_elevation: PyReadonlyArray1<'py, f64>,
-    face_areas: PyReadonlyArray1<'py, f64>,
+    face_area: PyReadonlyArray1<'py, f64>,
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distances: PyReadonlyArray1<'py, f64>,
-    edge_lengths: PyReadonlyArray1<'py, f64>,
+    edge_face_distance: PyReadonlyArray1<'py, f64>,
+    edge_length: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_areas = face_areas.as_array();
+    let face_area = face_area.as_array();
     let edge_face_connectivity = edge_face_connectivity.as_array();
     let face_edge_connectivity = face_edge_connectivity.as_array();
-    let edge_face_distances = edge_face_distances.as_array();
-    let edge_lengths = edge_lengths.as_array();
+    let edge_face_distance = edge_face_distance.as_array();
+    let edge_length = edge_length.as_array();
     let face_elevation_view = face_elevation.as_array();
     let n_face = face_edge_connectivity.nrows();
     let critical_slope_sq = critical_slope * critical_slope;
@@ -441,13 +441,13 @@ pub fn slope_collapse<'py>(
     let kappa_ref: &ndarray::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::Dim<[usize; 1]>> = &face_kappa.view();
 
     let diffmax = compute_dt_max(
-        &edge_face_distances,
+        &edge_face_distance,
         &edge_face_connectivity,
         &kappa_ref,
-        &face_areas,
-        &edge_lengths,
+        &face_area,
+        &edge_length,
     );
-    let looplimit = 100000 as usize;
+    let looplimit = 1000 as usize;
 
     let mut face_elevation = ndarray::Array1::<f64>::zeros(n_face);
     let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(n_face);
@@ -468,8 +468,8 @@ pub fn slope_collapse<'py>(
                     &face_elevation,
                     &connected_edges,
                     &edge_face_connectivity,
-                    &edge_face_distances,
-                    &edge_lengths,
+                    &edge_face_distance,
+                    &edge_length,
                 );
                 let kappa = if slope_sq > critical_slope_sq {
                     diffmax * (1.0 + slope_sq / critical_slope_sq) * 10.0
@@ -490,18 +490,18 @@ pub fn slope_collapse<'py>(
         // Cast all of the arrays to the correct types for the Python bindings so that they can be passed to the apply_diffusion function
         let py_kappa = PyArray1::from_slice(py, &face_kappa).readonly();
         let py_face_elevation = PyArray1::from_array(py, &face_elevation).readonly();
-        let py_face_areas = PyArray1::from_array(py, &face_areas).readonly();
+        let py_face_area = PyArray1::from_array(py, &face_area).readonly();
         let py_edge_face_connectivity = PyArray2::from_array(py, &edge_face_connectivity).readonly();
-        let py_edge_face_distances = PyArray1::from_array(py, &edge_face_distances).readonly();
-        let py_edge_lengths = PyArray1::from_array(py, &edge_lengths).readonly();
+        let py_edge_face_distance = PyArray1::from_array(py, &edge_face_distance).readonly();
+        let py_edge_lengths = PyArray1::from_array(py, &edge_length).readonly();
 
         let delta = apply_diffusion(
             py,
             py_kappa,
             py_face_elevation,
-            py_face_areas,
+            py_face_area,
             py_edge_face_connectivity,
-            py_edge_face_distances,
+            py_edge_face_distance,
             py_edge_lengths,
         )?;
         let delta_array = unsafe { delta.as_array() };
@@ -515,7 +515,7 @@ pub fn slope_collapse<'py>(
 /// # Arguments
 ///
 /// * `py` - Python interpreter token.
-/// * `face_areas` - Area of each face (1D array).
+/// * `face_area` - Area of each face (1D array).
 /// * `face_elevation` - Elevation at each face (1D array).
 /// * `node_face_connectivity` - For each node, indices of connected faces (2D array).
 ///
@@ -525,11 +525,11 @@ pub fn slope_collapse<'py>(
 #[pyfunction]
 pub fn interpolate_node_elevation_from_faces<'py>(
     py: Python<'py>,
-    face_areas: PyReadonlyArray1<'py, f64>,
+    face_area: PyReadonlyArray1<'py, f64>,
     face_elevation: PyReadonlyArray1<'py, f64>,
     node_face_connectivity: PyReadonlyArray2<'py, i64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_areas = face_areas.as_array();
+    let face_area = face_area.as_array();
     let face_elevation = face_elevation.as_array();
     let node_face_connectivity = node_face_connectivity.as_array();
 
@@ -545,8 +545,8 @@ pub fn interpolate_node_elevation_from_faces<'py>(
                 continue;
             }
             let f = face_id as usize;
-            weighted_sum += face_elevation[f] * face_areas[f];
-            area_sum += face_areas[f];
+            weighted_sum += face_elevation[f] * face_area[f];
+            area_sum += face_area[f];
         }
 
         if area_sum > 0.0 {
