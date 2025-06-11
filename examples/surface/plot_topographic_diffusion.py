@@ -39,8 +39,6 @@ nsteps = 10
 total_time = 10.0  # total simulated time in arbitrary units
 dt = total_time / nsteps
 
-
-# Create simulation
 surface = Surface.maker(
     "hireslocal",
     local_location=local_location,
@@ -68,7 +66,7 @@ for i in range(nsteps + 1):
     rmse = np.sqrt(np.mean((h_numerical - h_analytical) ** 2))
     difference = np.linalg.norm(h_numerical - h_analytical)
     nrmse = rmse / np.ptp(h_analytical)
-    print(f"Step {i}: Normalized root mean square error = {nrmse:.4%}")
+    print(f"{label_num:<7}: Normalized root mean square error = {nrmse:.4%}")
     surface.local.apply_diffusion(kappa)
 
 plt.xlabel("Distance (m)")
