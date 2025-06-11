@@ -67,40 +67,25 @@ class Crater:
     @property
     def transient_radius(self) -> float | None:
         """Transient radius of the crater in meters."""
-        return (
-            self.transient_diameter / 2.0
-            if self.transient_diameter is not None
-            else None
-        )
+        return self.transient_diameter / 2.0 if self.transient_diameter is not None else None
 
     @property
     def projectile_radius(self) -> float | None:
         """Projectile radius in meters."""
-        return (
-            self.projectile_diameter / 2.0
-            if self.projectile_diameter is not None
-            else None
-        )
+        return self.projectile_diameter / 2.0 if self.projectile_diameter is not None else None
 
     @property
     def projectile_mass(self) -> float | None:
         """Projectile mass in kilograms."""
         if self.projectile_density is not None and self.projectile_radius is not None:
-            return (
-                (4.0 / 3.0)
-                * math.pi
-                * self.projectile_radius**3
-                * self.projectile_density
-            )
+            return (4.0 / 3.0) * math.pi * self.projectile_radius**3 * self.projectile_density
         return None
 
     @property
     def projectile_vertical_velocity(self) -> float | None:
         """Projectile vertical velocity in m/s."""
         if self.projectile_velocity is not None and self.projectile_angle is not None:
-            return self.projectile_velocity * math.sin(
-                math.radians(self.projectile_angle)
-            )
+            return self.projectile_velocity * math.sin(math.radians(self.projectile_angle))
         return None
 
     @classmethod
@@ -160,7 +145,7 @@ class Crater:
         projectile_mass : float, optional
             The mass of the projectile in kilograms.
         projectile_density : float, optional
-            The density of the projectile in kg/m^3. If not provided, the target's density is used.
+            The density of the projectile in kg/m^3. If not provided, it will be defined through the projectile population model provided.
         projectile_velocity : float, optional
             The total impact velocity of the projectile in m/s.
         projectile_mean_velocity : float, optional
@@ -241,18 +226,11 @@ class Crater:
 
         n_velocity_inputs = sum(x is not None for x in velocity_inputs.values())
         if n_velocity_inputs > 2:
-            raise ValueError(
-                f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set."
-            )
+            raise ValueError(f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set.")
 
         if projectile_mean_velocity is not None:
-            if (
-                projectile_velocity is not None
-                or projectile_vertical_velocity is not None
-            ):
-                raise ValueError(
-                    "projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity"
-                )
+            if projectile_velocity is not None or projectile_vertical_velocity is not None:
+                raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
@@ -298,14 +276,10 @@ class Crater:
                     args[field] = old_parameters[field]
 
         if n_size_inputs != 1:
-            raise ValueError(
-                f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set."
-            )
+            raise ValueError(f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set.")
 
         # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
-        argproc = CratermakerBase(
-            simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state
-        )
+        argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
         if scaling is not None and isinstance(scaling, Scaling):
             if projectile is None:
                 projectile = scaling.projectile
