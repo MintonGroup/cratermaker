@@ -71,10 +71,8 @@ def get_random_location(
 
 @njit
 def _get_one_random_location(face_nodes, node_x, node_y, node_z, rng_vals):
-    valid_nodes = face_nodes[face_nodes > 0]
+    valid_nodes = face_nodes[face_nodes >= 0]
     n = len(valid_nodes)
-    if n < 3:
-        return np.array([np.nan, np.nan, np.nan])
     tris = [(0, j, j + 1) for j in range(1, n - 1)]
 
     n_valid = len(valid_nodes)
@@ -155,13 +153,9 @@ def get_random_location_on_face(
         ind = node_indices.values[i]
         ind = ind[ind >= 0]
         p = _get_one_random_location(ind, node_x, node_y, node_z, rng_vals=rng_vals[i, :])
-        if np.all(np.isfinite(p)):
-            lon, lat = coordinates._xyz_to_lonlat_deg(*p)
-            locations["lon"][i] = np.float64(lon)
-            locations["lat"][i] = np.float64(lat)
-        else:
-            locations["lon"][i] = np.nan
-            locations["lat"][i] = np.nan
+        lon, lat = coordinates._xyz_to_lonlat_deg(*p)
+        locations["lon"][i] = np.float64(lon)
+        locations["lat"][i] = np.float64(lat)
 
     return locations
 
