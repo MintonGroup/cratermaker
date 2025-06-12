@@ -64,7 +64,6 @@ for i in range(nsteps + 1):
     plt.plot(r[isort], h_analytical[isort], linestyle="--", color="black", alpha=0.5, label=label_ana)
     # Compare difference between analytical and numerical statistically
     rmse = np.sqrt(np.mean((h_numerical - h_analytical) ** 2))
-    difference = np.linalg.norm(h_numerical - h_analytical)
     nrmse = rmse / np.ptp(h_analytical)
     print(f"{label_num:<7}: Normalized root mean square error = {nrmse:.4%}")
     surface.local.apply_diffusion(kappa)
