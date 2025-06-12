@@ -306,12 +306,12 @@ Suppose we would like to find a face correspnding to a particulal location. We c
 
 As seen above, we recieve an integer that gives us the index to the nearest face. One caveat is that this method will return the index of the face in which its center is the closest to the input location. Due to the shapes of the faces, this may or may not correspond to the face that contains the input location. However, it should correspond to at least one of the faces that borders the one containing the input location. A diagram of this is seen below:
 
-.. image:: ../docs/_static/find_neighboring_face.svg
+.. image:: ../_static/find_neighboring_face.svg
     :alt: Find Neighboring Face
     :align: center
-    :width: 600px
+    :width: 300px
 
-In the diagram above, we observe a point located within face :math:`f_0` with a distance :math:`d_0` from the center of the face. A neighboring face, :math:`f_1`, is adjacent to :math:`f_0` and has a corresponding distance, :math:`d_1`, to its center, where :math:`d_0 > d_1`. Hence, the find_nearest_face method will return :math:`f_1` as the closest face due to :math:`d_1` being a shorter distance. You can view which faces these are using one of the built-in connectivity arrays. In this case, :attr:`face_face_connectivity`` contains the array of faces that are connected to a particular face:
+In the diagram above, we observe a point located within face :math:`f_0` with a distance :math:`d_0` from the center of the face. A neighboring face, :math:`f_1`, is adjacent to :math:`f_0` and has a corresponding distance, :math:`d_1`, to its center, where :math:`d_0 > d_1`. Hence, the find_nearest_face method will return :math:`f_1` as the closest face due to :math:`d_1` being a shorter distance. You can view which faces these are using one of the built-in connectivity arrays. In this case, :attr:`face_face_connectivity` contains the array of faces that are connected to a particular face:
 
 
 .. ipython:: python
