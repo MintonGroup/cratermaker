@@ -10,62 +10,52 @@
 Simulation
 ==========
 
-The :class:`Simulation` class manages the process of evolving cratered planetary surfaces through time. It supports configuring a target body, choosing a production function, and generating craters through emplacement or time evolution.
+The :class:`Simulation` class manages the evolution of cratered planetary surfaces. It contains components such as target bodies, impactor distributions, and emplacement to simulate crater formation over time.
 
-To run a simulation, use the :class:`cratermaker.Simulation` constructor and call :meth:`Simulation.run` or :meth:`Simulation.emplace`.
+A `Simulation` instance can be initiated with keyword arguments including:
 
-.. ipython:: python
-    :okwarning:
+- :class:`Target`
+- Production function
+- Scaling laws
+- Ejecta and saturation models
+
+Any valid arguments for these components can be passed directly to the :class:`Simulation` constructor.
+
+**Basic usage:**
+
+The following example configures a simulation targeting the Moon and runs it for 100 Myr. Then it accesses the list of emplaced craters.
+
+.. code-block:: python
 
     from cratermaker import Simulation
     sim = Simulation(target="Moon")
     sim.run(age=100)
+    craters = sim.true_crater_list
 
-    print(f"Craters emplaced: {len(sim.true_crater_list)}")
+**Available parameters include** :
 
-.. _ug-simulation-examples:
+- ``target`` (str or Target): Name of target body (e.g., "Moon", "Mars"), or a `Target` instance.
+- ``radius``, ``diameter``, ``mass``, ``density``, ``material``, ``transition_scale_type``: Parameters forwarded to `Target`.
+- ``production`` (str): Choose the crater production function.
+- ``scaling`` (str): Select the impact scaling law.
+- ``morphology``, ``surface``, ``projectile`` (str): Other model component selectors.
+- ``rng``, ``rng_seed``, ``rng_state``: Random number generator configuration.
+- ``resume_old`` (bool): Resume a previously saved simulation.
 
-Examples
---------
+**Emplacement-specific arguments** (for use with :meth:`Simulation.emplace`):
 
-Below are examples of how to use the Simulation class.
+- ``final_diameter`` (float): Diameter of the crater in meters.
+- ``location`` (tuple): Longitude and latitude in degrees where the crater should be emplaced.
+- Additional projectile/crater attributes may also be passed (e.g., ``projectile_mass``, ``velocity``).
 
-**Example 1: Run a short simulation on Mars**
+**Common methods:**
 
-.. ipython:: python
-    :okwarning:
+- :meth:`Simulation.run`: Evolve a surface over a specified time or crater production interval.
+- :meth:`Simulation.emplace`: Emplace one or more specific craters manually.
 
-    from cratermaker import Simulation
-    sim = Simulation(target="Mars")
-    sim.run(age=500)
-    print(f"Crater count: {len(sim.true_crater_list)}")
+More detailed component examples are provided in the Gallery section.
 
-**Example 2: Simulate default Moon configuration**
+.. seealso::
 
-.. ipython:: python
-    :okwarning:
-
-    from cratermaker import Simulation
-    sim = Simulation()
-    sim.run(age=1000)
-    print(f"Crater count: {len(sim.true_crater_list)}")
-
-**Example 3: Emplacing a single crater on the Moon**
-
-You can manually emplace a crater with a specified size and location using the :meth:`Simulation.emplace` method.
-
-.. ipython:: python
-    :okwarning:
-
-    from cratermaker import Simulation
-
-    # Create a simulation on the Moon
-    sim = Simulation(target="Moon")
-
-    # Emplace a single crater with 20 km diameter 
-    sim.emplace(final_diameter=20000, location=(0, 0))
-
-    # Inspect crater
-    crater = sim.true_crater_list[0]
-    print(f"Crater diameter: {crater.final_diameter:.1f} m")
-    print(f"Location (lon, lat): {crater.location}")
+    - :ref:`api-simulation` for the API reference
+    - :ref:`ug-gallery` for simulation visualizations
