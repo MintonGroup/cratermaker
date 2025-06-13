@@ -40,9 +40,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-tests = [
-    "pytest",
-]
+tests = ["pytest"]
+aarch64 = ["vtk==9.5.0rc3"]
 
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
