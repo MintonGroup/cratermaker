@@ -1,4 +1,5 @@
-name: readthedocs/actions
+name: readthedocs_link_preview
+
 on:
   pull_request_target:
     types:
