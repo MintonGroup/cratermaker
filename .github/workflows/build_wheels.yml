@@ -88,7 +88,10 @@ jobs:
   build_docs:
     name: Builds documentation to ensure it works prior to release
     needs: build_wheels
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -98,7 +101,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: cibw-wheels-*
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
           path: dist/
 
       - name: Build documentation 
