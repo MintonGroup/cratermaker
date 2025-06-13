@@ -46,7 +46,8 @@ jobs:
           retention-days: 1
 
   test_wheels:
-    name: Build wheels on ${{ matrix.os }}
+    needs: build_wheels
+    name: Testing wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
