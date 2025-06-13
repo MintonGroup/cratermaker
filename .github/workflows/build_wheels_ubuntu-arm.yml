@@ -75,6 +75,10 @@ jobs:
           else
             source .venv/bin/activate
           fi
+          # If on aarch64, install vtk RC version, as this is the first version with support for it
+          if [[ "$(uname -m)" == "aarch64" ]]; then
+            pip install --pre '.[aarch64]'
+          fi
           PYTAG=$(python -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
           pip install --upgrade pip
           pip install dist/*${PYTAG}-${PYTAG}-*.whl
