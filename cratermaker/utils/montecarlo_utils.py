@@ -73,7 +73,12 @@ def get_random_location(
 def _get_one_random_location(face_nodes, node_x, node_y, node_z, rng_vals):
     valid_nodes = face_nodes[face_nodes >= 0]
     n = len(valid_nodes)
-    tris = [(0, j, j + 1) for j in range(1, n - 1)]
+    n_tris = n - 2
+    tris = np.empty((n_tris, 3), dtype=np.int64)
+    for j in range(n_tris):
+        tris[j, 0] = 0
+        tris[j, 1] = j + 1
+        tris[j, 2] = j + 2
 
     n_valid = len(valid_nodes)
     vertices = np.empty((n_valid, 3), dtype=np.float64)

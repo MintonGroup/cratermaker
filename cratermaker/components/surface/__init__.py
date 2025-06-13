@@ -1705,23 +1705,21 @@ class LocalSurface:
         if data.size == self.n_face:
             isfacedata = True
             indices = self.face_indices
-            dim_name = "n_face"
         elif data.size == self.n_node:
             isfacedata = False
             indices = self.node_indices
-            dim_name = "n_node"
         else:
             raise ValueError("data must be a scalar or an array with the same size as the number of faces or nodes in the grid")
 
         if name not in self.surface.uxds.data_vars:
             self.surface._add_new_data(name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata)
 
-        # This prevents concurrent writes to the same data variable when used in
+        # This prevents concurrent writes to the same data variable when used in threading
         with surface_lock:
             if overwrite:
-                self.surface.uxds[name].loc[{dim_name: indices}] = data
+                self.surface.uxds[name].data[indices] = data
             else:
-                self.surface.uxds[name].loc[{dim_name: indices}] += data
+                self.surface.uxds[name].data[indices] += data
 
         return
 
