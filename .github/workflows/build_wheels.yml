@@ -85,52 +85,6 @@ jobs:
           pip install pytest
           pytest
 
-  build_docs:
-    name: Builds documentation to ensure it works prior to release
-    needs: build_wheels
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '>=3.10'
-
-      - name: Get history and tags for SCM versioning to work
-        run: |
-          git fetch --prune --unshallow
-          git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
-          path: dist/
-
-      - name: Build documentation 
-        shell: bash
-        working-directory: docs
-        run: |
-          set -e
-          python3 -m venv .venv
-          source .venv/bin/activate
-          PYTAG=$(python -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
-          pip install --upgrade pip
-          pip install ../dist/*${PYTAG}-${PYTAG}-*.whl
-          pip install -r ../environments/requirements-docdev.txt 
-          make clean
-          make rtdhtml
-
-      - name: Upload documentation artifact
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation-html
-          path: docs/_build
-          retention-days: 1
-
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
