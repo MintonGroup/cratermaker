@@ -404,6 +404,7 @@ class Morphology(ComponentBase):
                 position=0,
                 leave=False,
                 unit="craters",
+                smoothing=10 / total_craters,
             ) as pbar:
                 _batch_process(pbar)
         else:
