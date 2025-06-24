@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from numpy.random import Generator
 
+from cratermaker.core.crater import Crater
 from cratermaker.utils.component_utils import ComponentBase, import_components
 
 if TYPE_CHECKING:
@@ -83,6 +84,20 @@ class Counting(ComponentBase):
     def __str__(self) -> str:
         base = super().__str__()
         return f"{base}\nSurface: {self.surface}\n"
+
+    def reset(self):
+        """
+        Remove all craters count records from the surface.
+        """
+        pass
+
+    def add(self, crater: Crater):
+        """
+        Add a crater to the surface.
+        """
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
+        return
 
     @property
     def surface(self):

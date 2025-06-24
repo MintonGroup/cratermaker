@@ -550,15 +550,14 @@ class Simulation(CratermakerBase):
             if "scaling" not in crater_args:
                 crater_args["scaling"] = self.scaling
             crater = Crater.maker(**crater_args)
+        elif isinstance(crater, Crater):
+            self._true_crater_list.append(crater)
+            self.morphology.emplace(crater, **kwargs)
         elif isinstance(crater, list) and len(crater) > 0:
             self._true_crater_list.extend(crater)
             for c in crater:
                 self._enqueue_crater(c)
             self._process_queue()
-            return
-        if isinstance(crater, Crater):
-            self._true_crater_list.append(crater)
-            self.morphology.emplace(crater, **kwargs)
 
         return
 
