@@ -68,6 +68,9 @@ asteroids = "cratermaker.components.projectile.asteroids:AsteroidProjectiles"
 comets = "cratermaker.components.projectile.comets:CometProjectiles"
 generic = "cratermaker.components.projectile.generic:GenericProjectiles"
 
+[project.entry-points."cratermaker.components.counting"]
+minton2019 = "cratermaker.components.counting.minton2019:Minton2019Counting"
+
 [build-system]
 requires = [
     "maturin>=1.8,<2.0"

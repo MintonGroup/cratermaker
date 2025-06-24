@@ -11,9 +11,9 @@ _CRATER_DIR = "crater_data"
 _EXPORT_DIR = "export"
 _COMBINED_DATA_FILE_NAME = "surface.nc"
 _GRID_FILE_NAME = "grid.nc"
-_CIRCLE_FILE_NAME = "circles.vtp"
 _VTK_FILE_EXTENSION = "vtp"
 _COMPONENT_NAMES = [
+    "counting",
     "target",
     "scaling",
     "production",

@@ -9,7 +9,6 @@ from numpy.typing import ArrayLike
 from tqdm import tqdm
 
 from cratermaker.constants import (
-    _CIRCLE_FILE_NAME,
     _COMBINED_DATA_FILE_NAME,
     _EXPORT_DIR,
     _GRID_FILE_NAME,

@@ -10,6 +10,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 
+from ..components.counting import Counting
 from ..components.morphology import Morphology
 from ..components.production import Production
 from ..components.projectile import Projectile
@@ -73,6 +74,7 @@ class Simulation(CratermakerBase):
         morphology: Morphology | str | None = None,
         projectile: Projectile | str | None = None,
         surface: Surface | str | None = None,
+        counting: Counting | str | None = None,
         simdir: str | Path | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
@@ -87,6 +89,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_morphology", morphology)
         object.__setattr__(self, "_projectile", projectile)
         object.__setattr__(self, "_surface", surface)
+        object.__setattr__(self, "_counting", counting)
         object.__setattr__(self, "_craterlist", None)
         object.__setattr__(self, "_crater", None)
         object.__setattr__(self, "_interval_number", None)
@@ -121,6 +124,7 @@ class Simulation(CratermakerBase):
             morphology=morphology,
             projectile=projectile,
             surface=surface,
+            counting=counting,
             config_file=config_file,
         )
 
@@ -135,6 +139,7 @@ class Simulation(CratermakerBase):
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
         projectile_config = unmatched.pop("projectile_config", {})
+        counting_config = unmatched.pop("counting_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
         if not resume_old:
@@ -175,6 +180,12 @@ class Simulation(CratermakerBase):
         if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
             self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, **surface_config)
 
+        counting_config = {**counting_config, **kwargs}
+        self.counting = Counting.maker(
+            self.counting,
+            surface=self.surface,
+            **counting_config,
+        )
         self._craterlist = []
         self._crater = None
         self._interval_number = 0
@@ -647,12 +658,14 @@ class Simulation(CratermakerBase):
         sim_config["surface_config"] = self.surface.to_config(remove_common_args=True)
         sim_config["projectile_config"] = self.projectile.to_config(remove_common_args=True)
         sim_config["morphology_config"] = self.morphology.to_config(remove_common_args=True)
+        sim_config["counting_config"] = self.counting.to_config(remove_common_args=True)
         sim_config["target"] = self.target.name
         sim_config["scaling"] = self.scaling._component_name
         sim_config["production"] = self.production._component_name
         sim_config["projectile"] = self.projectile._component_name
         sim_config["morphology"] = self.morphology._component_name
         sim_config["surface"] = self.surface._component_name
+        sim_config["counting"] = self.counting._component_name
 
         for config in [
             "target",
@@ -661,6 +674,7 @@ class Simulation(CratermakerBase):
             "projectile",
             "morphology",
             "surface",
+            "counting",
         ]:
             # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
             if config in sim_config and (sim_config[config] is None or sim_config[config] == {}):
@@ -1005,6 +1019,19 @@ class Simulation(CratermakerBase):
         if not isinstance(value, (Projectile | str)):
             raise TypeError("projectile must be of Projectile type or str")
         self._projectile = value
+
+    @property
+    def counting(self):
+        """
+        The crater counting model. Set during initialization.
+        """
+        return self._counting
+
+    @counting.setter
+    def counting(self, value):
+        if not isinstance(value, (Counting | str)):
+            raise TypeError("counting must be of Counting type or str")
+        self._counting = value
 
     @property
     def data_dir(self):
