@@ -18,6 +18,23 @@ class CommonArgs:
 
 
 class CratermakerBase:
+    """
+    Base class for the Cratermaker project.
+
+    Parameters
+    ----------
+    simdir : str | Path
+        The main project simulation directory. Defaults to the current working directory if None.
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
+    """
+
     def __init__(
         self,
         simdir: str | Path | None = None,
@@ -26,22 +43,6 @@ class CratermakerBase:
         rng_state: dict | None = None,
         **kwargs,
     ):
-        """
-        Initialize the CratermakerBase class.
-
-        Parameters
-        ----------
-        simdir : str | Path
-            The main project simulation directory. Defaults to the current working directory if None.
-        rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
-        rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
-        **kwargs : Any
-            Additional keyword arguments.
-        """
         object.__setattr__(self, "_user_defined", set())
         object.__setattr__(self, "_rng", None)
         object.__setattr__(self, "_rng_seed", None)

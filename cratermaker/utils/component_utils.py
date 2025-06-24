@@ -10,6 +10,17 @@ from cratermaker.utils.general_utils import parameter
 
 
 class ComponentBase(CratermakerBase, ABC):
+    """
+    Base class for components of the Cratermaker project.
+
+    Defines the common parameters and methods for all components in the Cratermaker project, including the maker class that is used to select the correct component from user arguments.
+
+    Parameters
+    ----------
+    **kwargs : Any
+        Additional keyword arguments.
+    """
+
     _registry: dict[str, type[ComponentBase]] = {}
 
     def __init__(self, **kwargs: Any) -> None:
@@ -48,23 +59,18 @@ class ComponentBase(CratermakerBase, ABC):
         TypeError
             If the specified component model is not a string or a subclass of component.
         """
-
         if component is None:
             component = cls.available()[0]  # Default to the first available component
         if isinstance(component, str):
             if component not in cls.available():
-                raise KeyError(
-                    f"Unknown component model: {component}. Available models: {cls.available()}"
-                )
+                raise KeyError(f"Unknown component model: {component}. Available models: {cls.available()}")
             return cls._registry[component](**kwargs)
         elif isinstance(component, type) and issubclass(component, ComponentBase):
             return component(**kwargs)
         elif isinstance(component, ComponentBase):
             return component
         else:
-            raise TypeError(
-                f"component must be a string or a subclass of component, not {type(component)}"
-            )
+            raise TypeError(f"component must be a string or a subclass of component, not {type(component)}")
 
     @parameter
     def name(self):
@@ -92,9 +98,7 @@ class ComponentBase(CratermakerBase, ABC):
         return list(cls._registry.keys())
 
 
-def import_components(
-    package_name: str, package_path: list[str], ignore_private: bool = True
-) -> None:
+def import_components(package_name: str, package_path: list[str], ignore_private: bool = True) -> None:
     """
     Import all modules of a component package, optionally skipping private modules.
 

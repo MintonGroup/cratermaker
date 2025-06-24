@@ -61,7 +61,7 @@ class Production(ComponentBase):
         **kwargs: Any,
     ) -> Production:
         """
-        This is a helper function that can be used to validate and initialize the production model.
+        Factory method used to initialize the production model.
 
         Parameters
         ----------
@@ -734,7 +734,7 @@ class Production(ComponentBase):
             self._generator_type = self._valid_generator_types[0]
             return
         if not isinstance(value, str):
-            raise ValueError("generator_type must be a string")
+            raise TypeError("generator_type must be a string")
         if value.lower() not in self._valid_generator_types:
             raise ValueError(f"Invalid generator_type {value}. Must be one of {self._valid_generator_types}")
         self._generator_type = value.lower()
