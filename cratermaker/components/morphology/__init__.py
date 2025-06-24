@@ -21,6 +21,25 @@ if TYPE_CHECKING:
 
 
 class Morphology(ComponentBase):
+    """
+    The base class for Morphology models.
+
+    Parameters
+    ----------
+    surface : str or Surface, optional
+        The name of a Surface object, or an instance of Surface, to be associated the morphology model.
+    production : str or Production, optional
+        The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
+    dosubpixel_degradation : bool, optional
+        If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
+    doslope_collapse : bool, optional
+        If True, slope collapse will be performed during the emplacement of craters. Defaults to True.
+    **kwargs : Any
+
+    """
+
+    _registry: dict[str, Morphology] = {}
+
     def __init__(
         self,
         surface: Surface | str | None = None,
@@ -29,22 +48,6 @@ class Morphology(ComponentBase):
         doslope_collapse: bool = True,
         **kwargs: Any,
     ) -> None:
-        """
-        Initialize the Morphology class.
-
-        Parameters
-        ----------
-        surface : str or Surface, optional
-            The name of a Surface object, or an instance of Surface, to be associated the morphology model.
-        production : str or Production, optional
-            The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
-        dosubpixel_degradation : bool, optional
-            If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
-        doslope_collapse : bool, optional
-            If True, slope collapse will be performed during the emplacement of craters. Defaults to True.
-        **kwargs : Any
-
-        """
         from cratermaker.components.surface import Surface
 
         super().__init__(**kwargs)

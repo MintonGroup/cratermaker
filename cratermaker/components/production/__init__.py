@@ -17,6 +17,23 @@ from cratermaker.utils.general_utils import parameter
 
 
 class Production(ComponentBase):
+    """
+    An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.
+
+    The production function is defined as the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
+
+    Parameters
+    ----------
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
+    """
+
     _registry: dict[str, Production] = {}
 
     def __init__(
@@ -26,21 +43,6 @@ class Production(ComponentBase):
         rng_state: dict | None = None,
         **kwargs: Any,
     ):
-        """
-        An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.  The production function is defined as
-        the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
-        rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
-        **kwargs : Any
-            Additional keyword arguments.
-        """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types", ["crater", "projectile"])
 
@@ -76,10 +78,12 @@ class Production(ComponentBase):
             The state of the random number generator. If None, a new state is created.
         **kwargs : Any
             Additional keyword arguments.
+
         Returns
         -------
         Production
             An instance of the specified production model.
+
         Raises
         ------
         KeyError
@@ -90,7 +94,6 @@ class Production(ComponentBase):
             If there is an error initializing the production model.
 
         """
-
         version = kwargs.pop("version", None)
         if production is None or production == "neukum":
             if target is None and version in ["Moon", "Mars"]:
@@ -179,9 +182,7 @@ class Production(ComponentBase):
         validate_inputs = kwargs.pop("validate_inputs", False)
 
         # Build the cumulative distribution function from which we will sample
-        input_diameters = np.logspace(
-            np.log10(diameter_range[0]), np.log10(diameter_range[1])
-        )
+        input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
         cdf = self.function(
             diameter=input_diameters,
             age=age,
@@ -212,15 +213,9 @@ class Production(ComponentBase):
 
             # Normalize the weights for each diameter
             if N_vs_age.ndim > 1:
-                N_vs_age -= np.min(N_vs_age, axis=1)[
-                    :, None
-                ]  # Subtract the min along age dimension
-                N_vs_age = N_vs_age[
-                    :, :-1
-                ]  # Remove the last value to avoid the cumulative sum reaching 1
-                weights_sum = np.sum(N_vs_age, axis=1)[
-                    :, None
-                ]  # Sum of weights for each diameter
+                N_vs_age -= np.min(N_vs_age, axis=1)[:, None]  # Subtract the min along age dimension
+                N_vs_age = N_vs_age[:, :-1]  # Remove the last value to avoid the cumulative sum reaching 1
+                weights_sum = np.sum(N_vs_age, axis=1)[:, None]  # Sum of weights for each diameter
                 weights = N_vs_age / weights_sum  # Normalize weights for each diameter
 
                 # Compute the CDF for each diameter
@@ -228,9 +223,7 @@ class Production(ComponentBase):
 
             else:
                 N_vs_age -= np.min(N_vs_age)  # Subtract the min along age dimension
-                N_vs_age = N_vs_age[
-                    :-1
-                ]  # Remove the last value to avoid the cumulative sum reaching 1
+                N_vs_age = N_vs_age[:-1]  # Remove the last value to avoid the cumulative sum reaching 1
                 weights_sum = np.sum(N_vs_age)  # Sum of weights for each diameter
                 weights = N_vs_age / weights_sum  # Normalize weights for each diameter
 
@@ -244,18 +237,12 @@ class Production(ComponentBase):
                 # For each diameter, find the corresponding index in the CDF
                 for i, cdf_row in enumerate(cdf):
                     # Find the corresponding index in the CDF for each diameter
-                    chosen_subinterval_indices[i] = (
-                        np.searchsorted(cdf_row, random_values[i], side="right") - 1
-                    )
+                    chosen_subinterval_indices[i] = np.searchsorted(cdf_row, random_values[i], side="right") - 1
             else:
-                chosen_subinterval_indices = (
-                    np.searchsorted(cdf, random_values[:], side="right") - 1
-                )
+                chosen_subinterval_indices = np.searchsorted(cdf, random_values[:], side="right") - 1
 
             # Ensure indices are within valid range
-            chosen_subinterval_indices = np.clip(
-                chosen_subinterval_indices, 0, len(age_subinterval) - 2
-            )
+            chosen_subinterval_indices = np.clip(chosen_subinterval_indices, 0, len(age_subinterval) - 2)
             # Sample a random age within the selected subinterval for each diameter
             age_lo = age_subinterval[chosen_subinterval_indices]
             age_hi = age_subinterval[chosen_subinterval_indices + 1]
@@ -306,7 +293,6 @@ class Production(ComponentBase):
         float_like or numpy array
             The age in My for the given relative number density of craters.
         """
-
         if validate_inputs:
             diameter, cumulative_number_density = self._validate_csfd(
                 diameter=diameter, cumulative_number_density=cumulative_number_density
@@ -314,9 +300,7 @@ class Production(ComponentBase):
 
         def _root_func(t, D, N):
             kwargs.pop("validate_inputs", None)
-            retval = (
-                self.function(diameter=D, age=t, validate_inputs=False, **kwargs) - N
-            )
+            retval = self.function(diameter=D, age=t, validate_inputs=False, **kwargs) - N
             return retval
 
         xtol = 1e-8
@@ -384,7 +368,6 @@ class Production(ComponentBase):
         float_like or numpy array
             The diameter for the given number density and age.
         """
-
         if validate_inputs:
             age, age_end = self._validate_age(age, age_end)
 
@@ -440,17 +423,12 @@ class Production(ComponentBase):
     ) -> FloatLike | ArrayLike: ...
 
     @abstractmethod
-    def csfd(
-        self, diameter: FloatLike | ArrayLike, **kwargs: Any
-    ) -> FloatLike | ArrayLike: ...
+    def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike: ...
 
     def _validate_csfd(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-        cumulative_number_density: FloatLike
-        | Sequence[FloatLike]
-        | ArrayLike
-        | None = None,
+        cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
     ) -> tuple[FloatLike | ArrayLike, FloatLike | ArrayLike]:
         """
         Validates the diameter and cumulative_number arguments. Both arguments can be either
@@ -469,11 +447,8 @@ class Production(ComponentBase):
         ValueError
             If any of the conditions on the CSFD are not met.
         """
-
         if diameter is None and cumulative_number_density is None:
-            raise ValueError(
-                "Either the 'diameter' or 'cumulative_number_density' must be provided"
-            )
+            raise ValueError("Either the 'diameter' or 'cumulative_number_density' must be provided")
 
         # Convert inputs to numpy arrays for uniform processing
         if diameter is not None:
@@ -489,25 +464,17 @@ class Production(ComponentBase):
         if diameter_array is not None and cumulative_number_density_array is not None:
             # Check for length consistency
             if len(diameter_array) != len(cumulative_number_density_array):
-                raise ValueError(
-                    "The 'diameter' and 'cumulative_number_density' must have the same length when both are provided"
-                )
+                raise ValueError("The 'diameter' and 'cumulative_number_density' must have the same length when both are provided")
 
         # Validate non-negative values
         if diameter_array is not None and np.any(diameter_array < 0):
             raise ValueError("All values in 'diameter' must be non-negative")
-        if cumulative_number_density_array is not None and np.any(
-            cumulative_number_density_array < 0
-        ):
-            raise ValueError(
-                "All values in 'cumulative_number_density' must be non-negative"
-            )
+        if cumulative_number_density_array is not None and np.any(cumulative_number_density_array < 0):
+            raise ValueError("All values in 'cumulative_number_density' must be non-negative")
 
         if diameter is not None and not np.isscalar(diameter):
             diameter = diameter_array
-        if cumulative_number_density is not None and not np.isscalar(
-            cumulative_number_density
-        ):
+        if cumulative_number_density is not None and not np.isscalar(cumulative_number_density):
             cumulative_number_density = cumulative_number_density_array
         return diameter, cumulative_number_density
 
@@ -573,24 +540,20 @@ class Production(ComponentBase):
             - The area argument is not a scalar or is less than 0.
         """
         _REF_DIAM = 1000.0  # The diameter value used if age arguments are provided
-        age = kwargs.get("age", None)
-        age_end = kwargs.get("age_end", None)
-        diameter_number = kwargs.get("diameter_number", None)
-        diameter_number_end = kwargs.get("diameter_number_end", None)
-        diameter_range = kwargs.get("diameter_range", None)
-        area = kwargs.get("area", None)
+        age = kwargs.get("age")
+        age_end = kwargs.get("age_end")
+        diameter_number = kwargs.get("diameter_number")
+        diameter_number_end = kwargs.get("diameter_number_end")
+        diameter_range = kwargs.get("diameter_range")
+        area = kwargs.get("area")
         return_age = kwargs.get("return_age", True)
 
         if age is None and diameter_number is None:
             raise ValueError("Either the 'age' or 'diameter_number' must be provided")
         elif age is not None and diameter_number is not None:
-            raise ValueError(
-                "Only one of the 'age' or 'diameter_number' arguments can be provided"
-            )
+            raise ValueError("Only one of the 'age' or 'diameter_number' arguments can be provided")
         if age_end is not None and diameter_number_end is not None:
-            raise ValueError(
-                "Only one of the 'age_end' or 'diameter_number_end' arguments can be provided"
-            )
+            raise ValueError("Only one of the 'age_end' or 'diameter_number_end' arguments can be provided")
         if age is not None and not np.isscalar(age):
             raise ValueError("The 'age' must be a scalar")
         if age_end is not None and not np.isscalar(age_end):
@@ -601,9 +564,7 @@ class Production(ComponentBase):
         if len(diameter_range) != 2:
             raise ValueError("The 'diameter_range' must be a pair of values")
         if diameter_range[0] <= 0:
-            raise ValueError(
-                f"Diameter range invalid: {diameter_range}. The minimum diameter must be greater than 0"
-            )
+            raise ValueError(f"Diameter range invalid: {diameter_range}. The minimum diameter must be greater than 0")
         if diameter_range[1] < diameter_range[0]:
             raise ValueError(
                 f"Diameter range invalid: {diameter_range}. The maximum diameter must be greater than or equal to the minimum diameter"
@@ -619,9 +580,7 @@ class Production(ComponentBase):
 
         if diameter_number is not None:
             if len(diameter_number) != 2:
-                raise ValueError(
-                    "The 'diameter_number' must be a pair of values in the form (D, N)"
-                )
+                raise ValueError("The 'diameter_number' must be a pair of values in the form (D, N)")
             diameter_number = self._validate_csfd(*diameter_number)
             diameter_number_density = (diameter_number[0], diameter_number[1] / area)
             age = self.age_from_D_N(*diameter_number_density)
@@ -642,9 +601,7 @@ class Production(ComponentBase):
 
         if diameter_number_end is not None:
             if len(diameter_number_end) != 2:
-                raise ValueError(
-                    "The 'diameter_number_end' must be a pair of values in the form (D,N)"
-                )
+                raise ValueError("The 'diameter_number_end' must be a pair of values in the form (D,N)")
             diameter_number_end = self._validate_csfd(*diameter_number_end)
             diameter_number_density_end = (
                 diameter_number_end[0],
@@ -718,33 +675,24 @@ class Production(ComponentBase):
         ValueError
             If the the start age is greater than the end age or the age variable is not a scalar or a sequence of 2 values.
         """
-
         if np.isscalar(age):
             if not isinstance(age, FloatLike):
                 raise TypeError("age must be a numeric value (float or int)")
             if age_end is None:
                 age_end = 0.0
-            elif not np.isscalar(age_end):
-                raise TypeError("age_end must be a numeric value (float or int)")
-            elif not isinstance(age_end, FloatLike):
+            elif not np.isscalar(age_end) or not isinstance(age_end, FloatLike):
                 raise TypeError("age_end must be a numeric value (float or int)")
             if age < age_end:
                 raise ValueError("age must be greater than the age_end")
             if self.valid_age[0] is not None and age < self.valid_age[0]:
-                raise ValueError(
-                    f"age must be greater than the minimum valid age {self.valid_age[0]}"
-                )
+                raise ValueError(f"age must be greater than the minimum valid age {self.valid_age[0]}")
             if self.valid_age[1] is not None and age > self.valid_age[1]:
-                raise ValueError(
-                    f"age must be less than the maximum valid age {self.valid_age[1]}"
-                )
+                raise ValueError(f"age must be less than the maximum valid age {self.valid_age[1]}")
         else:
             if isinstance(age, (list, tuple)):
                 age = np.array(age, dtype=np.float64)
             elif not isinstance(age, np.ndarray):
-                raise TypeError(
-                    "age must be a numeric value (float or int) or an array"
-                )
+                raise TypeError("age must be a numeric value (float or int) or an array")
 
             if age_end is None:
                 age_end = np.zeros_like(age)
@@ -753,32 +701,20 @@ class Production(ComponentBase):
             elif isinstance(age_end, (list, tuple)):
                 age_end = np.array(age_end, dtype=np.float64)
             elif not isinstance(age_end, np.ndarray):
-                raise TypeError(
-                    "age_end must be a numeric value (float or int) or an array"
-                )
+                raise TypeError("age_end must be a numeric value (float or int) or an array")
 
             if age.size != age_end.size:
-                raise ValueError(
-                    "The 'age' and 'age_end' arguments must be the same size if both are provided"
-                )
+                raise ValueError("The 'age' and 'age_end' arguments must be the same size if both are provided")
 
             if np.any(age < age_end):
                 raise ValueError("age must be greater than the age_end")
 
             if self.valid_age[0] is not None:
-                if np.any(age < self.valid_age[0]) or np.any(
-                    age_end < self.valid_age[0]
-                ):
-                    raise ValueError(
-                        f"age must be greater than the minimum valid age {self.valid_age[0]}"
-                    )
+                if np.any(age < self.valid_age[0]) or np.any(age_end < self.valid_age[0]):
+                    raise ValueError(f"age must be greater than the minimum valid age {self.valid_age[0]}")
             if self.valid_age[1] is not None:
-                if np.any(age > self.valid_age[1]) or np.any(
-                    age_end > self.valid_age[1]
-                ):
-                    raise ValueError(
-                        f"age must be less than the maximum valid age {self.valid_age[1]}"
-                    )
+                if np.any(age > self.valid_age[1]) or np.any(age_end > self.valid_age[1]):
+                    raise ValueError(f"age must be less than the maximum valid age {self.valid_age[1]}")
 
         return age, age_end
 
@@ -800,9 +736,7 @@ class Production(ComponentBase):
         if not isinstance(value, str):
             raise ValueError("generator_type must be a string")
         if value.lower() not in self._valid_generator_types:
-            raise ValueError(
-                f"Invalid generator_type {value}. Must be one of {self._valid_generator_types}"
-            )
+            raise ValueError(f"Invalid generator_type {value}. Must be one of {self._valid_generator_types}")
         self._generator_type = value.lower()
         return
 

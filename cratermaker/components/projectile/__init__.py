@@ -39,6 +39,37 @@ if TYPE_CHECKING:
 
 
 class Projectile(ComponentBase):
+    """
+    An abstract base class for all projectile models. It defines the interface for generating projectile velocities, angles, and densities for a given target body.
+
+    Parameters
+    ----------
+    sample : bool
+        Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to True, the `mean_velocity` argument is required. If set to False, the `velocity` argument is required.
+    mean_velocity : float, optional
+        The mean velocity of the projectile in m/s. Required if `sample` is True, ignored if `sample` is False.
+    velocity : float | None
+        The impact velocity in m/s. If `sample` is True, this value is ignored. If `sample` is False, this value is required.
+    density : float, optional
+        The density of the projectile in kg/m^3.
+    angle : float, optional
+        The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
+    direction : float | None
+        The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
+    location : tuple[float, float] | None
+        The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
+    target : Target or str.
+        The name of the target body for the impact. Default is "Moon"
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
+    """
+
     _registry: dict[str, Projectile] = {}
     _catalogue = None
 
@@ -57,36 +88,6 @@ class Projectile(ComponentBase):
         rng_state: dict | None = None,
         **kwargs,
     ):
-        """
-        This is the abstract base class for all projectile models. It defines the interface for generating projectile velocities, angles, and densities for a given target body.
-
-        Parameters
-        ----------
-        sample : bool
-            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to True, the `mean_velocity` argument is required. If set to False, the `velocity` argument is required.
-        mean_velocity : float, optional
-            The mean velocity of the projectile in m/s. Required if `sample` is True, ignored if `sample` is False.
-        velocity : float | None
-            The impact velocity in m/s. If `sample` is True, this value is ignored. If `sample` is False, this value is required.
-        density : float, optional
-            The density of the projectile in kg/m^3.
-        angle : float, optional
-            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
-        direction : float | None
-            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
-        location : tuple[float, float] | None
-            The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
-        target : Target or str.
-            The name of the target body for the impact. Default is "Moon"
-        rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
-        rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
-        **kwargs : Any
-            Additional keyword arguments.
-        """
         from cratermaker.components.target import Target
 
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
@@ -122,17 +123,10 @@ class Projectile(ComponentBase):
         if self.sample:
             params = f"\nMean Velocity: {format_large_units(self.mean_velocity, quantity='velocity')}"
         else:
-            params = (
-                f"\nVelocity: {format_large_units(self.velocity, quantity='velocity')}"
-            )
+            params = f"\nVelocity: {format_large_units(self.velocity, quantity='velocity')}"
             params += f"\nAngle: {self.angle:.1f} degrees"
             params += f"\nDirection: {self.direction:.1f} degrees"
-        return (
-            f"{base}\n"
-            f"Sample from distributions: {self.sample}\n"
-            f"{params}\n"
-            f"Density: {self.density:.1f} kg/m³\n"
-        )
+        return f"{base}\nSample from distributions: {self.sample}\n{params}\nDensity: {self.density:.1f} kg/m³\n"
 
     def _copy(self, deep: bool = True, memo: dict[int, Any] | None = None) -> Self:
         import copy
@@ -326,9 +320,7 @@ class Projectile(ComponentBase):
         if direction is not None:
             new_obj.direction = direction
         elif new_obj.sample:
-            new_obj._direction = float(
-                mc.get_random_impact_direction(rng=new_obj.rng)[0]
-            )
+            new_obj._direction = float(mc.get_random_impact_direction(rng=new_obj.rng)[0])
         elif new_obj._direction is None:
             new_obj._direction = 0.0
 

@@ -43,8 +43,6 @@ surface_lock = threading.Lock()
 
 
 class Surface(ComponentBase):
-    _registry: dict[str, type[Surface]] = {}
-
     """
     Used for handling surface-related data and operations in the cratermaker project.
 
@@ -64,6 +62,8 @@ class Surface(ComponentBase):
     **kwargs : Any
         Additional keyword arguments.
     """
+
+    _registry: dict[str, type[Surface]] = {}
 
     def __init__(
         self,
