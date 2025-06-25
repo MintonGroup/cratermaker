@@ -4,6 +4,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import uxarray as uxr
 from numpy.random import Generator
 
 from cratermaker.core.crater import Crater
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
 
 _TALLY_NAME = "crater_id"
 _TALLY_LONG_NAME = "Unique crater identification number"
+_N_LAYER = 8
+_RIM_BUFFER_FACTOR = 1.2
 
 
 class Counting(ComponentBase):
@@ -38,6 +41,7 @@ class Counting(ComponentBase):
         self.surface = surface
         rng = kwargs.pop("rng", surface.rng)
         super().__init__(rng=rng, **kwargs)
+        self.reset()
 
     @classmethod
     def maker(
@@ -92,7 +96,19 @@ class Counting(ComponentBase):
         """
         Remove all craters count records from the surface.
         """
-        self.surface.add_data(name=_TALLY_NAME, long_name=_TALLY_LONG_NAME, data=0, dtype=np.int64, overwrite=True)
+        dims = ("n_face", "layer")
+        data = np.zeros((self.surface.n_face, self.n_layer), dtype=np.uint32)
+        uxda = uxr.UxDataArray(
+            data=data,
+            dims=dims,
+            attrs={"long_name": _TALLY_LONG_NAME},
+            name=_TALLY_NAME,
+            uxgrid=self.surface.uxgrid,
+        )
+
+        self.surface._uxds[_TALLY_NAME] = uxda
+        self._observed = {}
+        return
 
     def add(self, crater: Crater):
         """
@@ -100,10 +116,37 @@ class Counting(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        # Tag a region twice the size of the crater rim with the id
-        crater_region = self.surface.extract_region(location=crater.location, region_radius=crater.final_diameter)
+        self.observed[crater._id] = crater
+        # Tag a region just outside crater rim with the id
+        crater_region = self.surface.extract_region(
+            location=crater.location, region_radius=_RIM_BUFFER_FACTOR * crater.final_radius
+        )
         if crater_region:
-            crater_region.add_data(name=_TALLY_NAME, long_name=_TALLY_LONG_NAME, data=crater._id, overwrite=True, dtype=np.int64)
+            insert_layer = -1
+            for i in reversed(range(self.n_layer)):
+                if np.any(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[crater_region.face_indices] > 0):
+                    # Gather the unique id values for the current layer
+                    unique_ids = np.unique(self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, i])
+                    removes = [
+                        id for id, v in self.observed.items() if v._id in unique_ids and v.final_diameter < crater.final_diameter
+                    ]
+
+                    # For every id that appears in the removes list, set it to 0 in the data array
+                    if removes:
+                        data = self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :]
+                        for remove in removes:
+                            data[data == remove] = 0
+                        self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :] = data
+                if insert_layer == -1 and np.all(
+                    self.surface.uxds[_TALLY_NAME].isel(layer=i).data[crater_region.face_indices] == 0
+                ):
+                    insert_layer = i
+            if insert_layer == -1:
+                raise ValueError("Crater counting layers are full")
+            data = self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :]
+            data[:, insert_layer] = crater._id
+            self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :] = data
+
         return
 
     @property
@@ -120,6 +163,24 @@ class Counting(ComponentBase):
         if not isinstance(value, (Surface | LocalSurface)):
             raise TypeError("surface must be an instance of Surface or LocalSurface")
         self._surface = value
+
+    @property
+    def n_layer(self) -> int:
+        """
+        Number of layers in the counting model.
+        """
+        return _N_LAYER
+
+    @property
+    def observed(self) -> dict[int, Crater]:
+        """
+        List of observed craters on the surface.
+
+        Returns
+        -------
+            A dict with the crater id as the key and the Crater object as the values
+        """
+        return self._observed
 
 
 import_components(__name__, __path__, ignore_private=True)

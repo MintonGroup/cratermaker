@@ -58,8 +58,8 @@ class Crater:
         # Ensure deterministic field order by sorting keys (optional but safer)
         data = asdict(self)
         combined = ":".join(str(data[k]) for k in sorted(data))
-        hexid = hashlib.shake_256(combined.encode()).hexdigest(7)
-        return np.int64(int(f"0x{hexid}", 16))
+        hexid = hashlib.shake_128(combined.encode()).hexdigest(4)
+        return np.uint32(int(f"0x{hexid}", 16))
 
     @property
     def final_radius(self) -> float | None:

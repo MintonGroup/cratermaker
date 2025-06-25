@@ -971,10 +971,10 @@ class Surface(ComponentBase):
                 attrs["units"] = units
 
         if isfacedata:
-            dims = ["n_face"]
+            dims = "n_face"
             size = uxgrid.n_face
         else:
-            dims = ["n_node"]
+            dims = "n_node"
             size = uxgrid.n_node
 
         if data is None:
