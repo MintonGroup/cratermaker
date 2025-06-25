@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 from numpy.random import Generator
 
 from ..utils.general_utils import format_large_units
@@ -57,7 +58,8 @@ class Crater:
         # Ensure deterministic field order by sorting keys (optional but safer)
         data = asdict(self)
         combined = ":".join(str(data[k]) for k in sorted(data))
-        return hashlib.sha256(combined.encode()).hexdigest()
+        hexid = hashlib.shake_256(combined.encode()).hexdigest(7)
+        return np.int64(int(f"0x{hexid}", 16))
 
     @property
     def final_radius(self) -> float | None:
@@ -67,40 +69,25 @@ class Crater:
     @property
     def transient_radius(self) -> float | None:
         """Transient radius of the crater in meters."""
-        return (
-            self.transient_diameter / 2.0
-            if self.transient_diameter is not None
-            else None
-        )
+        return self.transient_diameter / 2.0 if self.transient_diameter is not None else None
 
     @property
     def projectile_radius(self) -> float | None:
         """Projectile radius in meters."""
-        return (
-            self.projectile_diameter / 2.0
-            if self.projectile_diameter is not None
-            else None
-        )
+        return self.projectile_diameter / 2.0 if self.projectile_diameter is not None else None
 
     @property
     def projectile_mass(self) -> float | None:
         """Projectile mass in kilograms."""
         if self.projectile_density is not None and self.projectile_radius is not None:
-            return (
-                (4.0 / 3.0)
-                * math.pi
-                * self.projectile_radius**3
-                * self.projectile_density
-            )
+            return (4.0 / 3.0) * math.pi * self.projectile_radius**3 * self.projectile_density
         return None
 
     @property
     def projectile_vertical_velocity(self) -> float | None:
         """Projectile vertical velocity in m/s."""
         if self.projectile_velocity is not None and self.projectile_angle is not None:
-            return self.projectile_velocity * math.sin(
-                math.radians(self.projectile_angle)
-            )
+            return self.projectile_velocity * math.sin(math.radians(self.projectile_angle))
         return None
 
     @classmethod
@@ -241,18 +228,11 @@ class Crater:
 
         n_velocity_inputs = sum(x is not None for x in velocity_inputs.values())
         if n_velocity_inputs > 2:
-            raise ValueError(
-                f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set."
-            )
+            raise ValueError(f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set.")
 
         if projectile_mean_velocity is not None:
-            if (
-                projectile_velocity is not None
-                or projectile_vertical_velocity is not None
-            ):
-                raise ValueError(
-                    "projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity"
-                )
+            if projectile_velocity is not None or projectile_vertical_velocity is not None:
+                raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
@@ -298,14 +278,10 @@ class Crater:
                     args[field] = old_parameters[field]
 
         if n_size_inputs != 1:
-            raise ValueError(
-                f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set."
-            )
+            raise ValueError(f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set.")
 
         # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
-        argproc = CratermakerBase(
-            simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state
-        )
+        argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
         if scaling is not None and isinstance(scaling, Scaling):
             if projectile is None:
                 projectile = scaling.projectile

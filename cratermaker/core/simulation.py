@@ -500,7 +500,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def emplace(self, crater: Crater | list[Crater] | None = None, **kwargs: Any) -> None:
+    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> None:
         """
         Emplace one or more craters in the simulation.
 
@@ -510,7 +510,7 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
-        crater : Crater or list of Crater objects, optional
+        craters : Crater or list of Crater objects, optional
             The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
         **kwargs : Any
             Keyword arguments to pass to :class:`Crater.maker`.
@@ -544,19 +544,21 @@ class Simulation(CratermakerBase):
             sim.emplace(craters)
 
         """
-        if crater is None:
+        if craters is None:
             crater_args = {**kwargs, **vars(self.common_args)}
             # Add scaling=self.scaling to the kwargs if it is not already present
             if "scaling" not in crater_args:
                 crater_args["scaling"] = self.scaling
-            crater = Crater.maker(**crater_args)
-        elif isinstance(crater, Crater):
-            self._true_crater_list.append(crater)
-            self.morphology.emplace(crater, **kwargs)
-        elif isinstance(crater, list) and len(crater) > 0:
-            self._true_crater_list.extend(crater)
-            for c in crater:
+            craters = [Crater.maker(**crater_args)]
+        elif isinstance(craters, Crater):
+            craters = [craters]
+        if isinstance(craters, list) and len(craters) > 0:
+            for c in craters:
+                if not isinstance(c, Crater):
+                    raise TypeError(f"Expected Crater, got {type(c)}")
                 self._enqueue_crater(c)
+                self.counting.add(c)
+            self._true_crater_list.extend(craters)
             self._process_queue()
 
         return

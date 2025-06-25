@@ -12,6 +12,9 @@ from cratermaker.utils.component_utils import ComponentBase, import_components
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
+_TALLY_NAME = "crater_id"
+_TALLY_LONG_NAME = "Unique crater identification number"
+
 
 class Counting(ComponentBase):
     _registry: dict[str, Counting] = {}
@@ -89,7 +92,7 @@ class Counting(ComponentBase):
         """
         Remove all craters count records from the surface.
         """
-        pass
+        self.surface.add_data(name=_TALLY_NAME, long_name=_TALLY_LONG_NAME, data=0, dtype=np.int64, overwrite=True)
 
     def add(self, crater: Crater):
         """
@@ -97,6 +100,10 @@ class Counting(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
+        # Tag a region twice the size of the crater rim with the id
+        crater_region = self.surface.extract_region(location=crater.location, region_radius=crater.final_diameter)
+        if crater_region:
+            crater_region.add_data(name=_TALLY_NAME, long_name=_TALLY_LONG_NAME, data=crater._id, overwrite=True, dtype=np.int64)
         return
 
     @property

@@ -928,6 +928,7 @@ class Surface(ComponentBase):
         save_to_file: bool = False,
         interval_number: int = 0,
         combine_data_files: bool = False,
+        dtype=np.float64,
     ) -> None:
         """
         Generate either a node or face data variable and optionally save it to a file. If the data variable already exists, it will be overwritten.
@@ -950,6 +951,8 @@ class Surface(ComponentBase):
             The interval number to use when saving the data to the data file.
         combine_data_files : bool, optional
             If True, combine the current data with the existing data for previous intervals in the data file. Default is False.
+        dtype : data-type, optional
+            The data type of the data variable. Default is np.float64.
 
         Returns
         -------
@@ -975,9 +978,9 @@ class Surface(ComponentBase):
             size = uxgrid.n_node
 
         if data is None:
-            data = np.zeros(size, dtype=np.float64)
+            data = np.zeros(size, dtype=dtype)
         elif np.isscalar(data):
-            data = np.full(size, data)
+            data = np.full(size, data, dtype=dtype)
         else:
             if data.size != size:
                 raise ValueError("data must have the same size as the number of faces or nodes in the grid")
@@ -1671,6 +1674,7 @@ class LocalSurface:
         units: str | None = None,
         isfacedata: bool = True,
         overwrite: bool = False,
+        dtype=np.float64,
     ) -> None:
         """
         Adds new data to the surface.
@@ -1689,6 +1693,8 @@ class LocalSurface:
             Flag to indicate whether the data is face data or node data. This is only needed if `data` is a scalar, otherwise it is ignored
         overwrite : bool, optional, default False
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
+        dtype : data-type, optional
+            The data type of the data variable. Default is np.float64.
 
         Returns
         -------
@@ -1697,11 +1703,11 @@ class LocalSurface:
         # Check if the data is a scalar or an array
         if np.isscalar(data):
             n = self.n_face if isfacedata else self.n_node
-            data = np.full(n, data)
+            data = np.full(n, data, dtype=dtype)
         elif isinstance(data, list):
-            data = np.array(data)
+            data = np.array(data, dtype=dtype)
         else:
-            data = np.asarray(data)
+            data = np.asarray(data, dtype=dtype)
         if data.size == self.n_face:
             isfacedata = True
             indices = self.face_indices
@@ -1712,7 +1718,7 @@ class LocalSurface:
             raise ValueError("data must be a scalar or an array with the same size as the number of faces or nodes in the grid")
 
         if name not in self.surface.uxds.data_vars:
-            self.surface._add_new_data(name, data=0.0, long_name=long_name, units=units, isfacedata=isfacedata)
+            self.surface._add_new_data(name, data=0, long_name=long_name, units=units, isfacedata=isfacedata, dtype=dtype)
 
         # This prevents concurrent writes to the same data variable when used in threading
         with surface_lock:
@@ -2375,6 +2381,7 @@ class LocalSurface:
     def face_elevation(self) -> NDArray:
         """
         The elevation of the faces.
+
         """
         return self.surface.face_elevation[self.face_indices]
 
@@ -2387,6 +2394,7 @@ class LocalSurface:
         ----------
         value : NDArray
             The elevation values to set for the faces.
+
         """
         if value.size != self.n_face:
             raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
@@ -2397,6 +2405,7 @@ class LocalSurface:
     def node_elevation(self) -> NDArray:
         """
         The elevation of the nodes.
+
         """
         return self.surface.node_elevation[self.node_indices]
 
@@ -2409,6 +2418,7 @@ class LocalSurface:
         ----------
         value : NDArray
             The elevation values to set for the nodes.
+
         """
         if value.size != self.n_node:
             raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
@@ -2489,6 +2499,7 @@ class LocalSurface:
     def face_y(self) -> NDArray:
         """
         Cartesian y location of the center of the faces in meters.
+
         """
         return self.surface.face_y[self.face_indices]
 
@@ -2496,6 +2507,7 @@ class LocalSurface:
     def face_z(self) -> NDArray:
         """
         Cartesian z location of the center of the faces in meters.
+
         """
         return self.surface.face_z[self.face_indices]
 
