@@ -170,22 +170,24 @@ class Simulation(CratermakerBase):
             **surface_config,
         )
 
-        morphology_config = {**morphology_config, **kwargs}
-        self.morphology = Morphology.maker(
-            self.morphology,
-            surface=self.surface,
-            production=self.production,
-            **morphology_config,
-        )
-        if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
-            self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, **surface_config)
-
         counting_config = {**counting_config, **kwargs}
         self.counting = Counting.maker(
             self.counting,
             surface=self.surface,
             **counting_config,
         )
+
+        morphology_config = {**morphology_config, **kwargs}
+        self.morphology = Morphology.maker(
+            self.morphology,
+            surface=self.surface,
+            production=self.production,
+            counting=self.counting,
+            **morphology_config,
+        )
+        if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
+            self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, **surface_config)
+
         self._craterlist = []
         self._crater = None
         self._interval_number = 0
@@ -557,7 +559,6 @@ class Simulation(CratermakerBase):
                 if not isinstance(c, Crater):
                     raise TypeError(f"Expected Crater, got {type(c)}")
                 self._enqueue_crater(c)
-                self.counting.add(c)
             self._true_crater_list.extend(craters)
             self._process_queue()
 
@@ -709,7 +710,7 @@ class Simulation(CratermakerBase):
         """
         return self.surface.update_elevation(*args, **kwargs)
 
-    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
+    def _enqueue_crater(self, crater: Crater, **kwargs) -> None:
         """
         Add a crater to the queue for later emplacement.
 

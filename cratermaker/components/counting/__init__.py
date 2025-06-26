@@ -15,8 +15,11 @@ if TYPE_CHECKING:
 
 _TALLY_NAME = "crater_id"
 _TALLY_LONG_NAME = "Unique crater identification number"
-_N_LAYER = 8
-_RIM_BUFFER_FACTOR = 1.2
+
+_N_LAYER = (
+    8  # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
+)
+_RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater taggin region is extended beyond the final rim.
 
 
 class Counting(ComponentBase):
@@ -41,7 +44,6 @@ class Counting(ComponentBase):
         self.surface = surface
         rng = kwargs.pop("rng", surface.rng)
         super().__init__(rng=rng, **kwargs)
-        self.reset()
 
     @classmethod
     def maker(
@@ -110,44 +112,58 @@ class Counting(ComponentBase):
         self._observed = {}
         return
 
-    def add(self, crater: Crater):
+    def add(self, crater: Crater, region: LocalSurface | None = None):
         """
         Add a crater to the surface.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater to be added to the surface.
+        region : LocalSurface, optional
+            A LocalSurface region that contains the crater inside. If not supplied, then the associated surface property is used.
         """
+        from cratermaker.components.surface import LocalSurface
+
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
         if _TALLY_NAME not in self.surface.uxds:
             self.reset()
+
         self.observed[crater.id] = crater
         # Tag a region just outside crater rim with the id
-        crater_region = self.surface.extract_region(
-            location=crater.location, region_radius=_RIM_BUFFER_FACTOR * crater.final_radius
-        )
-        if crater_region:
+        if region is None:
+            count_region = self.surface.extract_region(
+                location=crater.location, region_radius=_RIM_BUFFER_FACTOR * crater.final_radius
+            )
+        elif isinstance(region, LocalSurface):
+            count_region = region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.final_radius)
+        else:
+            raise TypeError("region must be a LocalSurface or None")
+
+        if count_region:
             insert_layer = -1
             for i in reversed(range(self.n_layer)):
-                if np.any(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[crater_region.face_indices] > 0):
+                if np.any(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[count_region.face_indices] > 0):
                     # Gather the unique id values for the current layer
-                    unique_ids = np.unique(self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, i])
+                    unique_ids = np.unique(self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, i])
                     removes = [
                         id for id, v in self.observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter
                     ]
 
                     # For every id that appears in the removes list, set it to 0 in the data array
                     if removes:
-                        data = self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :]
+                        data = self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :]
                         for remove in removes:
                             data[data == remove] = 0
-                        self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :] = data
-                if insert_layer == -1 and np.all(
-                    self.surface.uxds[_TALLY_NAME].isel(layer=i).data[crater_region.face_indices] == 0
-                ):
+                        self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :] = data
+                if insert_layer == -1 and np.all(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[count_region.face_indices] == 0):
                     insert_layer = i
             if insert_layer == -1:
                 raise ValueError("Crater counting layers are full")
-            data = self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :]
+            data = self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :]
             data[:, insert_layer] = crater.id
-            self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :] = data
+            self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :] = data
 
         return
 

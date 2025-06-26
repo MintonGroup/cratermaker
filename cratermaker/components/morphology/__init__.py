@@ -10,13 +10,14 @@ from numpy.typing import NDArray
 from scipy.integrate import quad
 from tqdm import tqdm
 
-from cratermaker.components.production import Production
 from cratermaker.constants import FloatLike
 from cratermaker.core.crater import Crater
 from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:
+    from cratermaker.components.counting import Counting
+    from cratermaker.components.production import Production
     from cratermaker.components.surface import LocalSurface, Surface
 
 
@@ -34,6 +35,8 @@ class Morphology(ComponentBase):
         If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
     doslope_collapse : bool, optional
         If True, slope collapse will be performed during the emplacement of craters. Defaults to True.
+    docounting : bool, optional
+        If True, counting will be performed during the emplacement of craters. Defaults to True.
     **kwargs : Any
 
     """
@@ -44,20 +47,28 @@ class Morphology(ComponentBase):
         self,
         surface: Surface | str | None = None,
         production: Production | str | None = None,
+        counting: Counting | str | None = None,
         dosubpixel_degradation: bool = False,
         doslope_collapse: bool = True,
+        docounting: bool = True,
         **kwargs: Any,
     ) -> None:
+        from cratermaker.components.counting import Counting
+        from cratermaker.components.production import Production
         from cratermaker.components.surface import Surface
 
         super().__init__(**kwargs)
         object.__setattr__(self, "_production", None)
+        object.__setattr__(self, "_counting", None)
         self._surface = Surface.maker(surface, **kwargs)
         self._queue_manager: CraterQueueManager | None = None
         if production is not None:
             self._production = Production.maker(production, **kwargs)
+        if docounting and counting is not None:
+            self._counting = Counting.maker(counting, surface=self.surface, **kwargs)
         self.dosubpixel_degradation = dosubpixel_degradation
         self.doslope_collapse = doslope_collapse
+        self.docounting = docounting
         return
 
     def __str__(self) -> str:
@@ -194,6 +205,10 @@ class Morphology(ComponentBase):
                         overwrite=True,
                     )
 
+                # Record the crater to the counting layer
+                if self.docounting:
+                    self.counting.add(crater, region=ejecta_region)
+
         # Now form the ejecta blanket
         ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, ejecta_region)
 
@@ -327,7 +342,7 @@ class Morphology(ComponentBase):
 
     def _enqueue_crater(
         self,
-        crater: Crater | None = None,
+        crater: Crater,
         **kwarg: Any,
     ) -> None:
         """
@@ -337,8 +352,8 @@ class Morphology(ComponentBase):
 
         Parameters
         ----------
-        crater : Crater, optional
-            The crater object to enqueue. If None, one is created from keyword args.
+        crater : Crater
+            The crater object to enqueue.
         **kwarg : Any
             Additional keyword arguments for crater construction.
 
@@ -352,8 +367,6 @@ class Morphology(ComponentBase):
                 raise RuntimeError("Surface must be provided to initialize queue manager.")
             self._init_queue_manager()
 
-        if crater is None:
-            crater = Crater.maker(**kwarg)
         self._queue_manager.push(crater)
 
     def _process_queue(self) -> None:
@@ -491,6 +504,17 @@ class Morphology(ComponentBase):
         """
         return self._production
 
+    @property
+    def face_index(self):
+        """
+        The index of the face closest to the crater location.
+
+        Returns
+        -------
+        int
+        """
+        return self._face_index
+
     @production.setter
     def production(self, production: Production) -> None:
         """
@@ -501,6 +525,24 @@ class Morphology(ComponentBase):
         if not isinstance(production, (Production | str)):
             raise TypeError("production must be an instance of Production or a string")
         self._production = Production.maker(production)
+
+    @property
+    def counting(self) -> Counting:
+        """
+        The counting object associated with this morphology model.
+        """
+        return self._counting
+
+    @counting.setter
+    def counting(self, counting: Production) -> None:
+        """
+        Set the production object associated with this morphology model.
+        """
+        from cratermaker.components.counting import Counting
+
+        if not isinstance(counting, (Counting | str)):
+            raise TypeError("counting must be an instance of Production or a string")
+        self._counting = Counting.maker(counting, surface=self.surface)
 
     @parameter
     def dosubpixel_degradation(self) -> bool:
@@ -534,16 +576,21 @@ class Morphology(ComponentBase):
             raise TypeError("doslope_collapse must be a boolean value")
         self._doslope_collapse = value
 
-    @property
-    def face_index(self):
+    @parameter
+    def docounting(self) -> bool:
         """
-        The index of the face closest to the crater location.
+        Whether to perform crater counting during crater emplacement.
+        """
+        return self._docounting
 
-        Returns
-        -------
-        int
+    @docounting.setter
+    def docounting(self, value: bool) -> None:
         """
-        return self._face_index
+        Set whether to perform crater counting during crater emplacement.
+        """
+        if not isinstance(value, bool):
+            raise TypeError("docounting must be a boolean value")
+        self._docounting = value
 
 
 class CraterQueueManager:
@@ -563,6 +610,8 @@ class CraterQueueManager:
         self._overlap_fn = overlap_fn
 
     def push(self, crater: Crater) -> None:
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
         self._queue.append(crater)
 
     def peek_next_batch(self) -> list[Crater]:
