@@ -116,7 +116,7 @@ class Counting(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        self.observed[crater._id] = crater
+        self.observed[crater.id] = crater
         # Tag a region just outside crater rim with the id
         crater_region = self.surface.extract_region(
             location=crater.location, region_radius=_RIM_BUFFER_FACTOR * crater.final_radius
@@ -128,7 +128,7 @@ class Counting(ComponentBase):
                     # Gather the unique id values for the current layer
                     unique_ids = np.unique(self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, i])
                     removes = [
-                        id for id, v in self.observed.items() if v._id in unique_ids and v.final_diameter < crater.final_diameter
+                        id for id, v in self.observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter
                     ]
 
                     # For every id that appears in the removes list, set it to 0 in the data array
@@ -144,7 +144,7 @@ class Counting(ComponentBase):
             if insert_layer == -1:
                 raise ValueError("Crater counting layers are full")
             data = self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :]
-            data[:, insert_layer] = crater._id
+            data[:, insert_layer] = crater.id
             self.surface.uxds[_TALLY_NAME].data[crater_region.face_indices, :] = data
 
         return

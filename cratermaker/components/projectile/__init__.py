@@ -224,8 +224,8 @@ class Projectile(ComponentBase):
         from cratermaker.components.projectile.comets import CometProjectiles
         from cratermaker.components.target import Target
 
-        target = Target.maker(target, **kwargs)
         if projectile is None:
+            target = Target.maker(target, **kwargs)
             if target.name in AsteroidProjectiles._catalogue:
                 projectile = "asteroids"
             elif target.name in CometProjectiles._catalogue:
@@ -272,8 +272,7 @@ class Projectile(ComponentBase):
         **kwargs: Any,
     ) -> Self:
         """
-        Returns a new projectile instance with updated sampled or default values,
-        based on the original instance.
+        Returns a new projectile instance with updated sampled or default values based on the original instance.
 
         Parameters
         ----------

@@ -30,6 +30,7 @@ class Crater:
     location: tuple[float, float] | None = None
     morphology_type: str | None = None
     age: float | None = None
+    id: np.uint32 = None
 
     def __str__(self):
         if self.age is None:
@@ -49,17 +50,6 @@ class Crater:
             f"morphology_type: {self.morphology_type}\n"
             f"age: {agetext}"
         )
-
-    @property
-    def _id(self):
-        """
-        The hash id of the crater. This is used as a unique identifier for the crater.
-        """
-        # Ensure deterministic field order by sorting keys (optional but safer)
-        data = asdict(self)
-        combined = ":".join(str(data[k]) for k in sorted(data))
-        hexid = hashlib.shake_128(combined.encode()).hexdigest(4)
-        return np.uint32(int(f"0x{hexid}", 16))
 
     @property
     def final_radius(self) -> float | None:
@@ -192,6 +182,22 @@ class Crater:
         from ..components.projectile import Projectile
         from ..components.scaling import Scaling
         from ..components.target import Target
+
+        def _set_id(**kwargs: Any) -> np.uint32:
+            """
+            Sets the hash id of the crater based on input parameters.
+
+            This is used as a unique identifier for the crater. To reduce storage requirements, the id is a 32-bit unsigned integer derived from the hash of the input parameters. There is a very small chance of hash collisions, but this is acceptable for the purposes of crater identification.
+
+            Parameters
+            ----------
+            **kwargs : Any
+                Keyword arguments used to compute the unique identifier.
+
+            """
+            combined = "::".join(f"{k}:{kwargs[k]}" for k in kwargs)
+            hexid = hashlib.shake_128(combined.encode()).hexdigest(4)
+            return np.uint32(int(f"0x{hexid}", 16))
 
         # Validate that mutually exclusive arguments hve not been passed
         size_inputs = {
@@ -366,7 +372,7 @@ class Crater:
         pm = (4.0 / 3.0) * math.pi * pr**3 * prho
 
         # Assemble final arguments
-        args = {
+        crater_args = {
             "final_diameter": float(fd) if fd is not None else None,
             "transient_diameter": float(td) if td is not None else None,
             "projectile_diameter": float(pd) if pd is not None else None,
@@ -378,4 +384,5 @@ class Crater:
             "morphology_type": str(mt) if mt is not None else None,
             "age": float(age) if age is not None else None,
         }
-        return cls(**args)
+        crater_args["id"] = _set_id(**crater_args)
+        return cls(**crater_args)
