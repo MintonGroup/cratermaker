@@ -94,7 +94,10 @@ class CratermakerBase:
 
     @simdir.setter
     def simdir(self, value):
-        self._simdir = _simdir_init(value)
+        if isinstance(value, Path):
+            self._simdir = value
+        elif isinstance(value, (str | None)):
+            self._simdir = _simdir_init(value)
 
     @parameter
     def rng_seed(self):

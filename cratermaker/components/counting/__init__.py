@@ -116,6 +116,8 @@ class Counting(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
+        if _TALLY_NAME not in self.surface.uxds:
+            self.reset()
         self.observed[crater.id] = crater
         # Tag a region just outside crater rim with the id
         crater_region = self.surface.extract_region(

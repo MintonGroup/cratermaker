@@ -127,7 +127,7 @@ def _set_properties(
         properties = catalogue.get(key)
         properties.update({catalogue_key: key})
         # Remove any items in kwargs that are already in properties
-        for k in properties():
+        for k in properties:
             if k in kwargs:
                 del kwargs[k]
         if properties:  # A match was found to the catalogue
