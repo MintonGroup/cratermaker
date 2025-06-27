@@ -1,5 +1,6 @@
 import json
 import math
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -53,13 +54,13 @@ class Minton2019Counting(Counting):
         """
         if region is None:
             region = self.surface
-        elif not isinstance(region, LocalSurface):
+            id_array = self.surface.uxds[_TALLY_NAME].data
+        elif isinstance(region, LocalSurface):
+            id_array = self.surface.uxds[_TALLY_NAME].data[region.face_indices, :]
+        else:
             raise TypeError(f"Expected a LocalSurface, but got {type(region).__name__}.")
 
-        tally_data = self.surface.uxds[_TALLY_NAME].data[region.face_indices, :]
-        unique_ids, counts = np.unique(tally_data, return_counts=True, equal_nan=False)
-        counts = counts[unique_ids > 0]
-        unique_ids = unique_ids[unique_ids > 0]
+        observed_dict = {int(k): asdict(v) for k, v in self.observed.items()}
 
-        # counted_ids = counting_functions.tally_m19(region.face_elevation)
+        observed_ids = counting_functions.tally_m19(region.face_elevation, id_array, observed_dict)
         return

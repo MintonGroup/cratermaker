@@ -1,18 +1,26 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict, PyRef};
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 
 #[pyfunction]
 pub fn tally_m19<'py>(
     py: Python<'py>,
     face_elevation: PyReadonlyArray1<'py, f64>,
-    unique_ids: PyReadonlyArray1<'py, u32>,
     id_array: PyReadonlyArray2<'py, u32>, 
+    observed: Py<PyDict>,
 ) -> PyResult<Bound<'py, PyArray1<u32>>> {
     let face_elevation = face_elevation.as_array();
-    let unique_ids = unique_ids.as_array();
     let id_array = id_array.as_array();
-    // flatten the id array, then store it into a PyArray1<u32> variable and return that. This is a placeholder.
     let mut id_vec = Vec::with_capacity(id_array.len());
+    for (key, value) in observed.as_ref(py).iter() {
+        let id: u32 = key.extract()?;
+        let crater: &PyDict = value.downcast::<PyDict>()?;
+
+        let final_diameter: Option<f64> = crater.get_item("final_diameter").and_then(|v| v.extract().ok());
+        let location: Option<(f64, f64)> = crater.get_item("location").and_then(|v| v.extract().ok());
+
+    }
+
+
     for id in id_array.iter() {
         id_vec.push(*id);
     }
