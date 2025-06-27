@@ -19,6 +19,7 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 _N_LAYER = (
     8  # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
 )
+_MIN_FACE_FOR_COUNTING = 5
 _RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater taggin region is extended beyond the final rim.
 
 
@@ -131,17 +132,16 @@ class Counting(ComponentBase):
             self.reset()
 
         self.observed[crater.id] = crater
+        region_radius = _RIM_BUFFER_FACTOR * crater.final_radius
         # Tag a region just outside crater rim with the id
         if region is None:
-            count_region = self.surface.extract_region(
-                location=crater.location, region_radius=_RIM_BUFFER_FACTOR * crater.final_radius
-            )
+            count_region = self.surface.extract_region(location=crater.location, region_radius=region_radius)
         elif isinstance(region, LocalSurface):
-            count_region = region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.final_radius)
+            count_region = region.extract_subregion(subregion_radius=region_radius)
         else:
             raise TypeError("region must be a LocalSurface or None")
 
-        if count_region:
+        if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
             insert_layer = -1
             for i in reversed(range(self.n_layer)):
                 if np.any(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[count_region.face_indices] > 0):
@@ -166,6 +166,9 @@ class Counting(ComponentBase):
             self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :] = data
 
         return
+
+    @abstractmethod
+    def tally(self, region: LocalSurface | None = None) -> None: ...
 
     @property
     def surface(self):
