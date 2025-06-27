@@ -7,6 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import fft
 
+from cratermaker._cratermaker import counting_functions
 from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, _TALLY_NAME, Counting
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.core.crater import Crater
@@ -60,4 +61,5 @@ class Minton2019Counting(Counting):
         counts = counts[unique_ids > 0]
         unique_ids = unique_ids[unique_ids > 0]
 
+        # counted_ids = counting_functions.tally_m19(region.face_elevation)
         return
