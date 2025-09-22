@@ -58,7 +58,7 @@ class Projectile(ComponentBase):
         **kwargs,
     ):
         """
-        This is the abstract base class for all projectile models. It defines the interface for generating projectile velocities, angles, and densities for a given target body.
+        An abstract base class for all projectile models. It defines the interface for generating projectile velocities, angles, and densities for a given target body.
 
         Parameters
         ----------
@@ -122,17 +122,10 @@ class Projectile(ComponentBase):
         if self.sample:
             params = f"\nMean Velocity: {format_large_units(self.mean_velocity, quantity='velocity')}"
         else:
-            params = (
-                f"\nVelocity: {format_large_units(self.velocity, quantity='velocity')}"
-            )
+            params = f"\nVelocity: {format_large_units(self.velocity, quantity='velocity')}"
             params += f"\nAngle: {self.angle:.1f} degrees"
             params += f"\nDirection: {self.direction:.1f} degrees"
-        return (
-            f"{base}\n"
-            f"Sample from distributions: {self.sample}\n"
-            f"{params}\n"
-            f"Density: {self.density:.1f} kg/m³\n"
-        )
+        return f"{base}\nSample from distributions: {self.sample}\n{params}\nDensity: {self.density:.1f} kg/m³\n"
 
     def _copy(self, deep: bool = True, memo: dict[int, Any] | None = None) -> Self:
         import copy
@@ -278,8 +271,7 @@ class Projectile(ComponentBase):
         **kwargs: Any,
     ) -> Self:
         """
-        Returns a new projectile instance with updated sampled or default values,
-        based on the original instance.
+        Returns a new projectile instance with updated sampled or default values, based on the original instance.
 
         Parameters
         ----------
@@ -326,9 +318,7 @@ class Projectile(ComponentBase):
         if direction is not None:
             new_obj.direction = direction
         elif new_obj.sample:
-            new_obj._direction = float(
-                mc.get_random_impact_direction(rng=new_obj.rng)[0]
-            )
+            new_obj._direction = float(mc.get_random_impact_direction(rng=new_obj.rng)[0])
         elif new_obj._direction is None:
             new_obj._direction = 0.0
 

@@ -41,7 +41,6 @@ class NeukumProduction(Production):
 
     References
     ----------
-
     - Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to
       the Lunar Reference System. *Space Science Reviews*, 96, 55-86. https://doi.org/10.1023/A:1011989004263
     - Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. https://doi.org/10.1023/A:1011941121102
@@ -73,12 +72,7 @@ class NeukumProduction(Production):
         timehi = format_large_units(self.valid_age[1], quantity="time")
         dlo = format_large_units(self.sfd_range[0], quantity="length")
         dhi = format_large_units(self.sfd_range[1], quantity="length")
-        return (
-            f"{base}\n"
-            f"Version: {self.version}\n"
-            f"Valid Time Range: {timelo} - {timehi}\n"
-            f"Valid Diameter Range: {dlo} - {dhi}"
-        )
+        return f"{base}\nVersion: {self.version}\nValid Time Range: {timelo} - {timehi}\nValid Diameter Range: {dlo} - {dhi}"
 
     def function(
         self,
@@ -113,9 +107,7 @@ class NeukumProduction(Production):
             diameter, _ = self._validate_csfd(diameter=diameter)
 
         diameter_array = self.csfd(diameter)
-        age_difference = self.chronology(
-            age=age, age_end=age_end, validate_inputs=validate_inputs
-        )
+        age_difference = self.chronology(age=age, age_end=age_end, validate_inputs=validate_inputs)
 
         if diameter_array.ndim > 0 and age_difference.ndim > 0:
             return diameter_array[:, None] * age_difference
@@ -130,7 +122,9 @@ class NeukumProduction(Production):
         **kwargs: Any,
     ) -> NDArray[np.float64]:
         """
-        Returns the relative number of craters produced over a given age range. This implements the chronology function given in
+        Returns the relative number of craters produced over a given age range.
+
+        This implements the chronology function given in
         Eq. 5 of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86, but takes in the age argument in the Cratermaker unit
         system of My instead of Gy.
 
@@ -156,8 +150,9 @@ class NeukumProduction(Production):
             age: Sequence[FloatLike] | ArrayLike,
         ) -> FloatLike | ArrayLike:
             """
-            Return the cumulative number of 1 km craters as a function of age in Gy. This is a direct implementation of Eq. 5 in
-            Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 (with corrected coefficient for the linear term).
+            Return the cumulative number of 1 km craters as a function of age in Gy.
+
+            This is a direct implementation of Eq. 5 in Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 (with corrected coefficient for the linear term).
 
             Parameters
             ----------
@@ -169,10 +164,7 @@ class NeukumProduction(Production):
             FloatLike or numpy array
                 The number of craters per square meter greater than 1 km in diameter
             """
-            N1 = (
-                self.Cexp * (np.exp(age * 1e-3 / self.tau) - 1.0)
-                + self.Clin * age * 1e-3
-            )
+            N1 = self.Cexp * (np.exp(age * 1e-3 / self.tau) - 1.0) + self.Clin * age * 1e-3
             return N1 * 1e-6
 
         if age_end is None:
@@ -209,9 +201,7 @@ class NeukumProduction(Production):
         """
         The generator type for this production function is determined by the version.
         """
-        raise NotImplementedError(
-            "The generator type cannot be changed for this production function."
-        )
+        raise NotImplementedError("The generator type cannot be changed for this production function.")
 
     @parameter
     def version(self) -> str:
@@ -236,9 +226,7 @@ class NeukumProduction(Production):
             The version of the production function.
         """
         if value.title() not in self.valid_versions:
-            raise ValueError(
-                f"Invalid version '{value}'. Valid options are {self.valid_versions}"
-            )
+            raise ValueError(f"Invalid version '{value}'. Valid options are {self.valid_versions}")
         self._version = value.title()
 
         if self._version == "Projectile":
@@ -419,8 +407,7 @@ class NeukumProduction(Production):
 
         def _extrapolate_sfd(side: str = "lo") -> FloatLike | ArrayLike:
             """
-            Return the exponent, p, and and proportionality constant, A, for  the extrapolated
-            CSFD in the form N(D) = A * D**-p.
+            Return the exponent, p, and and proportionality constant, A, for  the extrapolated CSFD in the form N(D) = A * D**-p.
 
             Parameters
             ----------
@@ -445,8 +432,9 @@ class NeukumProduction(Production):
             Dkm: FloatLike | Sequence[FloatLike] | ArrayLike,
         ) -> FloatLike | ArrayLike:
             """
-            Return the derivative of the cumulative size-frequency distribution as a function of diameter. For diameter values outside
-            the range of the NPF, the derivative is extrapolated using a power law.
+            Return the derivative of the cumulative size-frequency distribution as a function of diameter.
+
+            For diameter values outside the range of the NPF, the derivative is extrapolated using a power law.
 
             Parameters
             ----------
@@ -470,18 +458,15 @@ class NeukumProduction(Production):
                 else:
                     return sum(co * np.log10(Dkm) ** i for i, co in enumerate(dcoef))
 
-            return (
-                _dNdD_scalar(Dkm)
-                if np.isscalar(Dkm)
-                else np.vectorize(_dNdD_scalar)(Dkm)
-            )
+            return _dNdD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_dNdD_scalar)(Dkm)
 
         def _CSFD(
             Dkm: FloatLike | Sequence[FloatLike] | ArrayLike,
         ) -> FloatLike | ArrayLike:
             """
-            Return the cumulative size-frequency distribution at the reference age of 1 Gy ago. For diameter values outside
-            the range of the NPF, the CSFD is extrapolated using a power law.
+            Return the cumulative size-frequency distribution at the reference age of 1 Gy ago.
+
+            For diameter values outside the range of the NPF, the CSFD is extrapolated using a power law.
 
             Parameters
             ----------
@@ -503,16 +488,10 @@ class NeukumProduction(Production):
                     p -= 2.0  # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
                     return A * (Dkm / Dkm_hi) ** p
                 else:
-                    logCSFD = sum(
-                        co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef)
-                    )
+                    logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
                     return 10**logCSFD
 
-            return (
-                _CSFD_scalar(Dkm)
-                if np.isscalar(Dkm)
-                else np.vectorize(_CSFD_scalar)(Dkm)
-            )
+            return _CSFD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD_scalar)(Dkm)
 
         if np.any(diameter < 0.0):
             raise ValueError("diameter must be greater than or equal to 0.0")

@@ -1,5 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from warnings import warn
 
 import numpy as np
@@ -11,9 +12,9 @@ from cratermaker.constants import FloatLike
 
 class Parameter(property):
     """
-    A property descriptor that tracks user-defined properties.  This class is a subclass of the built-in property class and is used
-    to create properties in a class that can be set and retrieved. It also tracks whether the property has been set by the user,
-    allowing for parameters to be exported to a YAML configuration file.
+    A property descriptor that tracks user-defined properties.
+
+    This class is a subclass of the built-in property class and is used to create properties in a class that can be set and retrieved. It also tracks whether the property has been set by the user, allowing for parameters to be exported to a YAML configuration file.
     """
 
     def __init__(self, fget, fset=None, fdel=None, doc=None):
@@ -33,6 +34,7 @@ class Parameter(property):
 def parameter(fget=None):
     """
     A decorator to mark a property as a user-settable parameter.
+
     Can be used with or without parentheses.
     """
     if fget is None:
@@ -95,10 +97,7 @@ def _set_properties(
             if value is None:
                 continue
             param = getattr(cls, key, None)
-            if (
-                isinstance(param, (property, Parameter))
-                and getattr(param, "fset", None) is not None
-            ):
+            if isinstance(param, (property, Parameter)) and getattr(param, "fset", None) is not None:
                 setattr(obj, key, value)
                 matched[key] = value
             else:
@@ -107,7 +106,7 @@ def _set_properties(
 
     def _set_properties_from_catalogue(obj, catalogue, key, **kwargs):
         if "catalogue_key" in dir(obj):
-            catalogue_key = getattr(obj, "catalogue_key")
+            catalogue_key = obj.catalogue_key
         else:
             raise ValueError(
                 "The object does not have a catalogue_key property, and therefore is not set up to receive catalogue entries."
@@ -116,13 +115,11 @@ def _set_properties(
             key = kwargs.pop(catalogue_key)
 
         if not isinstance(catalogue, dict):
-            raise ValueError("Catalogue must be a dictionary")
+            raise TypeError("Catalogue must be a dictionary")
 
         for k, v in catalogue.items():
             if not isinstance(v, dict):
-                raise ValueError(
-                    f"Value for key '{k}' in catalogue must be a dictionary"
-                )
+                raise TypeError(f"Value for key '{k}' in catalogue must be a dictionary")
 
         if key not in catalogue:
             return {}, {}
@@ -130,24 +127,20 @@ def _set_properties(
         properties = catalogue.get(key)
         properties.update({catalogue_key: key})
         # Remove any items in kwargs that are already in properties
-        for k in properties.keys():
+        for k in properties():
             if k in kwargs:
                 del kwargs[k]
         if properties:  # A match was found to the catalogue
-            matched, unmatched = _set_properties_from_arguments(
-                obj, **properties, **kwargs
-            )
-            properties.pop(
-                catalogue_key
-            )  # Make sure that the catlogue key doesn't stay in the properties
+            matched, unmatched = _set_properties_from_arguments(obj, **properties, **kwargs)
+            properties.pop(catalogue_key)  # Make sure that the catlogue key doesn't stay in the properties
         return matched, unmatched
 
     def _set_properties_from_file(obj, config_file, key=None, **kwargs):
         try:
-            with open(config_file, "r") as f:
+            with Path.open(config_file) as f:
                 properties = yaml.safe_load(f)
         except Exception as e:
-            warn(f"Could not read the file {config_file}.\n{e}", RuntimeWarning)
+            warn(f"Could not read the file {config_file}.\n{e}", RuntimeWarning, stacklevel=2)
             return {}, {}
         merged = {**properties, **{k: v for k, v in kwargs.items() if v is not None}}
         if key is None:
@@ -155,24 +148,18 @@ def _set_properties(
         else:
             if key not in properties:
                 raise ValueError(f"Key '{key}' not found in the file '{config_file}'.")
-            matched, unmatched = _set_properties_from_catalogue(
-                obj, key=key, catalogue=properties, **kwargs
-            )
+            matched, unmatched = _set_properties_from_catalogue(obj, key=key, catalogue=properties, **kwargs)
         return matched, unmatched
 
     matched = {}
     unmatched = {}
     if config_file:
-        m, u = _set_properties_from_file(
-            obj, config_file=config_file, key=key, **kwargs
-        )
+        m, u = _set_properties_from_file(obj, config_file=config_file, key=key, **kwargs)
         matched.update(m)
         unmatched.update(u)
 
     if catalogue:
-        m, u = _set_properties_from_catalogue(
-            obj, catalogue=catalogue, key=key, **kwargs
-        )
+        m, u = _set_properties_from_catalogue(obj, catalogue=catalogue, key=key, **kwargs)
         matched.update(m)
         unmatched.update(u)
 
@@ -181,7 +168,7 @@ def _set_properties(
     unmatched.update(u)
 
     # if there are any keys in unmatched that are also present in matched, remove them from unmatched
-    for key in matched.keys():
+    for key in matched:
         if key in unmatched:
             del unmatched[key]
 
@@ -212,7 +199,7 @@ def _create_catalogue(header, values):
     The catalogues built by this function are the built-in catalogues for material properties and target bodie
     """
     # Create the catalogue dictionary using the class variables
-    catalogue = {tab[0]: dict(zip(header, tab)) for tab in values}
+    catalogue = {tab[0]: dict(zip(header, tab, strict=False)) for tab in values}
 
     # Remove the first key from each dictionary in the catalogue
     for k in list(catalogue):
@@ -223,12 +210,9 @@ def _create_catalogue(header, values):
 
 def normalize_coords(location: tuple[FloatLike, FloatLike]) -> tuple[float, float]:
     """
-    Normalize geographic coordinates to ensure longitude is within [-180, 180) degrees
-    and latitude within [-90, 90] degrees.
+    Normalize geographic coordinates to ensure longitude is within [-180, 180) degrees and latitude within [-90, 90] degrees.
 
-    This function takes a tuple of longitude and latitude values in degrees, normalizes
-    them to the specified ranges, and handles cases where latitude values exceed the
-    polar extremes, adjusting both latitude and longitude accordingly.
+    This function takes a tuple of longitude and latitude values in degrees, normalizes them to the specified ranges, and handles cases where latitude values exceed the polar extremes, adjusting both latitude and longitude accordingly.
 
     Parameter
     ----------
@@ -309,10 +293,10 @@ def validate_and_normalize_location(location):
     >>> validate_and_normalize_location((370, 95))
     (10.0, 85.0))
 
-    >>> validate_and_normalize_location({'lat': 45.0, 'lon': 120.0})
+    >>> validate_and_normalize_location({"lat": 45.0, "lon": 120.0})
     (-120., 45.)
 
-    >>> validate_and_normalize_location(np.array([(-120.0, 45.0)], dtype=[('lon', 'f8'), ('lat', 'f8')]))
+    >>> validate_and_normalize_location(np.array([(-120.0, 45.0)], dtype=[("lon", "f8"), ("lat", "f8")]))
     (-120., 45.)
 
     """
@@ -328,9 +312,8 @@ def validate_and_normalize_location(location):
         return normalize_coords(location)
 
     # Check if it's a dictionary with 'lon' and 'lat' keys
-    if isinstance(location, dict):
-        if "lon" in location and "lat" in location:
-            return normalize_coords((location["lon"], location["lat"]))
+    if isinstance(location, dict) and "lon" in location and "lat" in location:
+        return normalize_coords((location["lon"], location["lat"]))
 
     if len(location) == 2:
         return normalize_coords((location[0], location[1]))
@@ -383,16 +366,10 @@ def R_to_CSFD(
 
         return N
 
-    return (
-        _R_to_CSFD_scalar(R, D, Dlim, *args)
-        if np.isscalar(D)
-        else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
-    )
+    return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
 
 
-def format_large_units(
-    value: float, threshold: float = 1000.0, quantity: str = "length"
-) -> str:
+def format_large_units(value: float, threshold: float = 1000.0, quantity: str = "length") -> str:
     """
     Format a value and automatically shift units based on threshold.
     """

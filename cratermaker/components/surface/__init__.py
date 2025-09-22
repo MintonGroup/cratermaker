@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import uxarray as uxr
 import xarray as xr
+from cratermaker._cratermaker import surface_functions
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
-from cratermaker._cratermaker import surface_functions
 from cratermaker.constants import (
     _COMBINED_DATA_FILE_NAME,
     _GRID_FILE_NAME,

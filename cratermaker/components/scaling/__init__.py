@@ -18,7 +18,7 @@ class Scaling(ComponentBase):
     _registry: dict[str, Scaling] = {}
 
     """
-    This is the abstract base class for all scaling models. It defines the interface for converting between projectile and crater diameters.
+    The abstract base class for all scaling models. It defines the interface for converting between projectile and crater diameters.
 
     Parameters
     ----------
@@ -61,13 +61,9 @@ class Scaling(ComponentBase):
     @abstractmethod
     def transient_to_projectile(self, **kwargs: Any) -> np.float64: ...
     @abstractmethod
-    def transient_to_final(
-        self, transient_diameter: FloatLike
-    ) -> tuple[np.float64, str]: ...
+    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
     @abstractmethod
-    def final_to_transient(
-        self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs
-    ) -> np.float64: ...
+    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
     @abstractmethod
     def recompute(self, **kwargs: Any) -> None: ...
 
@@ -114,7 +110,6 @@ class Scaling(ComponentBase):
         TypeError
             If the specified scaling model is not a string or a subclass of Scaling.
         """
-
         if scaling is None:
             scaling = "montecarlo"
         scaling = super().maker(
@@ -135,11 +130,7 @@ class Scaling(ComponentBase):
 
     def __str__(self) -> str:
         base = super().__str__()
-        return (
-            f"{base}\n"
-            f"Target: {self.target._component_name}\n"
-            f"Projectile: {self.projectile._component_name}"
-        )
+        return f"{base}\nTarget: {self.target._component_name}\nProjectile: {self.projectile._component_name}"
 
     @property
     def target(self):
