@@ -15,6 +15,7 @@ import uxarray as uxr
 import xarray as xr
 from cratermaker._cratermaker import surface_functions
 from numpy.typing import ArrayLike, NDArray
+from pyproj import CRS
 from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
@@ -100,6 +101,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_y", None)
         object.__setattr__(self, "_node_z", None)
         object.__setattr__(self, "_smallest_length", None)
+        object.__setattr__(self, "_crs", None)
 
         super().__init__(simdir=simdir, **kwargs)
 
@@ -626,6 +628,8 @@ class Surface(ComponentBase):
         """
         if format == "vtp" or format == "vtk":
             export.to_vtk(self, **kwargs)
+        elif format == "gpkg":
+            export.to_gpkg(self, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")
 
@@ -1593,6 +1597,28 @@ class Surface(ComponentBase):
 
         return self._edge_tree
 
+    @property
+    def crs(self) -> CRS:
+        """
+        Return a geographic CRS (lon/lat in degrees) on a sphere using the target radius from the surface. Axis order is Lon/East, Lat/North.
+        """
+        if self._crs is None:
+            radius = self.radius
+            name = self.target.name
+            wkt = (
+                f'GEOGCS["GCS_{name}",'
+                f'DATUM["D_{name}",SPHEROID["{name}_IAU",{radius:.6f},0]],'
+                'PRIMEM["Reference_Meridian",0],'
+                'UNIT["degree",0.0174532925199433],'
+                'AXIS["Longitude",EAST],AXIS["Latitude",NORTH]]'
+            )
+            try:
+                self._crs = CRS.from_wkt(wkt)
+            except Exception:
+                # Fallback to PROJ dict with spherical radius
+                self._crs = CRS.from_user_input({"proj": "longlat", "R": radius, "no_defs": True})
+        return self._crs
+
 
 class LocalSurface:
     """
@@ -1643,6 +1669,7 @@ class LocalSurface:
         object.__setattr__(self, "_face_node_connectivity", None)
         object.__setattr__(self, "_face_face_connectivity", None)
         object.__setattr__(self, "_node_face_connectivity", None)
+        object.__setattr__(self, "_crs", None)
 
         if location is not None:
             self._location = validate_and_normalize_location(location)
@@ -2688,6 +2715,22 @@ class LocalSurface:
                 total_value_size=self.surface.n_node,
             )
         return self._edge_node_connectivity
+
+    @property
+    def crs(self) -> CRS:
+        """
+        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
+
+        If `self.location` is not set, fall back to the parent `Surface` geographic CRS.
+        The AEQD CRS uses the target body's spherical radius.
+        """
+        if self._crs is None:
+            if self.location is None:
+                self._crs = self.surface.crs
+            else:
+                lon0, lat0 = self.location
+                self._crs = CRS.from_proj4(f"+proj=aeqd +lat_0={lat0} +lon_0={lon0} +R={self.surface.radius} +units=m +no_defs")
+        return self._crs
 
 
 import_components(__name__, __path__, ignore_private=True)

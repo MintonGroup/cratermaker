@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+from pyproj import CRS
 from scipy.spatial.transform import Rotation
 
 from cratermaker.components.morphology import Morphology
@@ -590,6 +591,13 @@ class HiResLocalSurface(Surface):
             self.local_location,
             self.superdomain_scale_factor,
         ]
+
+    @property
+    def crs(self) -> CRS:
+        """
+        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
+        """
+        return self.local.crs
 
 
 class LocalHiResLocalSurface(LocalSurface):

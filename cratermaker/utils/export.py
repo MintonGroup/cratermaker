@@ -315,3 +315,47 @@ def make_circle_file(
     writer.Write()
 
     return
+
+
+def to_gpkg(
+    surface: Surface,
+    interval_number: int = 0,
+    **kwargs,
+) -> None:
+    """
+    Export the surface data to a GeoPackage file and stores it in the default export directory.
+
+    Parameters
+    ----------
+    surface : Surface
+        The surface object containing the data to export.
+    interval_number : int, optional
+        The interval number to save, by default 0.
+    **kwargs : Any
+        Additional keyword arguments (not used).
+    """
+    out_dir = surface.simdir / _EXPORT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    gpkg_path = out_dir / f"surface_{interval_number:06d}.gpkg"
+
+    # load data and select the face-based variables
+    ds = surface.uxds.load()
+    variables = [v for v in ds.data_vars if any(dim == "n_face" for dim in ds[v].dims)]
+    if not variables:
+        raise ValueError("No face-based variables found to export to GeoPackage.")
+
+    # Export each face-associated variable as its own layer in the GeoPackage file
+    for var in variables:
+        gdf = ds[var].to_geodataframe(engine="geopandas")
+
+        if getattr(gdf, "crs", None) is None:
+            gdf = gdf.set_crs(surface.crs)
+
+        if var not in gdf.columns:
+            value_col = var if var in gdf.columns else ("value" if "value" in gdf.columns else None)
+            if value_col is not None and value_col != var:
+                gdf[var] = gdf[value_col]
+
+        gdf.to_file(gpkg_path, layer=var, driver="GPKG")
+
+    return
