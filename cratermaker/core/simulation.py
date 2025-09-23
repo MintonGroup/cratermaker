@@ -1,3 +1,4 @@
+import csv
 import shutil
 from contextlib import suppress
 from dataclasses import asdict
@@ -593,8 +594,6 @@ class Simulation(CratermakerBase):
 
         # If the file already exists, read it and merge
         if truefilename.exists():
-            import csv
-
             with truefilename.open("r", newline="") as f:
                 reader = csv.DictReader(f)
                 existing_data = list(reader)
@@ -606,8 +605,6 @@ class Simulation(CratermakerBase):
 
         # Write merged data back to file
         if combined_data:
-            import csv
-
             with truefilename.open("w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
                 writer.writeheader()

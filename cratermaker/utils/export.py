@@ -359,3 +359,17 @@ def to_gpkg(
         gdf.to_file(gpkg_path, layer=var, driver="GPKG")
 
     return
+
+
+def crater_layer(
+    crater_data: dict,
+    surface: Surface,
+    interval_number: int = 0,
+    **kwargs,
+) -> None:
+    """
+    Export the crater data to a GeoPackage file and stores it in the default export directory.
+    """
+    out_dir = surface.simdir / _EXPORT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    gpkg_path = out_dir / f"surface_{interval_number:06d}.gpkg"
