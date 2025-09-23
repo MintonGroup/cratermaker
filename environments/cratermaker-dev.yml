@@ -17,3 +17,15 @@ dependencies:
   - PyYAML >= 6
   - astropy >= 6
   - pytest
+  - pip >= 24.2
+  - sphinx
+  - sphinx-autosummary-accessors
+  - sphinx-book-theme >= 0.3.0
+  - sphinx-copybutton
+  - sphinx-design
+  - sphinx-inline-tabs
+  - sphinxext-rediraffe
+  - sphinxext-opengraph
+  - sphinx-gallery
+  - ipython
+  - ipykernel
