@@ -3,9 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import geopandas as gpd
 import numpy as np
+import pandas as pd
 import xarray as xr
 from numpy.typing import ArrayLike
+from pyproj import CRS, Geod, Transformer
+from shapely.geometry import Point, Polygon
+from shapely.ops import transform
 from tqdm import tqdm
 
 from cratermaker.constants import (
@@ -183,140 +188,6 @@ def to_vtk(
     return
 
 
-def make_circle_file(
-    surface,
-    diameters: FloatLike | ArrayLike,
-    longitudes: FloatLike | ArrayLike,
-    latitudes: FloatLike | ArrayLike,
-    output_filename: str | Path | None = None,
-    *args,
-    **kwargs,
-) -> None:
-    """
-    Plot circles of diameter D centered at the given location.
-
-    Parameters
-    ----------
-    diameters : FloatLike or ArrayLike
-        Diameters of the circles in m.
-    longitudes : FloatLike or ArrayLike of Floats
-        Longitudes of the circle centers in degrees.
-    latitudes : FloatLike or ArrayLike of Floats
-        Latitudes of the circle centers in degrees.
-    out_filename : str or Path, optional
-        Name of the output file. If not provided, the default is "circle.vtp"
-    """
-    from vtk import (
-        vtkCellArray,
-        vtkPoints,
-        vtkpoly_data,
-        vtkPolyLine,
-        vtkXMLpoly_dataWriter,
-    )
-
-    if output_filename is None:
-        output_filename = surface.simdir / _EXPORT_DIR / _CIRCLE_FILE_NAME
-    else:
-        output_filename = surface.simdir / _EXPORT_DIR / output_filename
-
-    diameters = np.atleast_1d(diameters)
-    longitudes = np.atleast_1d(longitudes)
-    latitudes = np.atleast_1d(latitudes)
-    # Check for length consistency
-    if len(diameters) != len(longitudes) or len(diameters) != len(latitudes):
-        raise ValueError("The diameters, latitudes, and longitudes, arguments must have the same length")
-
-    # Validate non-negative values
-    if np.any(diameters < 0):
-        raise ValueError("All values in 'diameters' must be non-negative")
-
-    sphere_radius = surface.target.radius
-
-    def create_circle(lon, lat, circle_radius, num_points=360):
-        """
-        Create a circle on the sphere's surface with a given radius and center.
-
-        Parameters
-        ----------
-        lon : float
-            Longitude of the circle's center in degrees.
-        lat : float
-            Latitude of the circle's center in degrees.
-        circle_radius : float
-            Radius of the circle in meters.
-        num_points : int, optional
-            Number of points to use to approximate the circle. The default is 360.
-        """
-        # Create an array of angle steps for the circle
-        radians = np.linspace(0, 2 * np.pi, num_points)
-        # Convert latitude and longitude to radians
-        lat_rad = np.deg2rad(lat)
-        lon_rad = np.deg2rad(lon)
-
-        # Calculate the Cartesian coordinates for the circle's center
-        center_x = sphere_radius * np.cos(lat_rad) * np.cos(lon_rad)
-        center_y = sphere_radius * np.cos(lat_rad) * np.sin(lon_rad)
-        center_z = sphere_radius * np.sin(lat_rad)
-
-        # Calculate the vectors for the local east and north directions on the sphere's surface
-        east = np.array([-np.sin(lon_rad), np.cos(lon_rad), 0])
-        north = np.array(
-            [
-                -np.cos(lon_rad) * np.sin(lat_rad),
-                -np.sin(lon_rad) * np.sin(lat_rad),
-                np.cos(lat_rad),
-            ]
-        )
-
-        # Initialize arrays to hold the circle points
-        x = np.zeros_like(radians)
-        y = np.zeros_like(radians)
-        z = np.zeros_like(radians)
-
-        # Calculate the points around the circle
-        for i in range(num_points):
-            x[i] = center_x + circle_radius * np.cos(radians[i]) * east[0] + circle_radius * np.sin(radians[i]) * north[0]
-            y[i] = center_y + circle_radius * np.cos(radians[i]) * east[1] + circle_radius * np.sin(radians[i]) * north[1]
-            z[i] = center_z + circle_radius * np.cos(radians[i]) * east[2] + circle_radius * np.sin(radians[i]) * north[2]
-
-        return x, y, z
-
-    points = vtkPoints()
-    lines = vtkCellArray()
-    point_id = 0  # Keep track of the point ID across all circles
-
-    for lon, lat, diameter in zip(longitudes, latitudes, diameters, strict=False):
-        circle_radius = diameter / 2
-        x, y, z = create_circle(lon, lat, circle_radius)
-
-        for i in range(len(x)):
-            points.InsertNextPoint(x[i], y[i], z[i])
-
-        polyline = vtkPolyLine()
-        polyline.GetPointIds().SetNumberOfIds(len(x))
-        for i in range(len(x)):
-            polyline.GetPointIds().SetId(i, point_id)
-            point_id += 1
-
-        lines.InsertNextCell(polyline)
-
-    # Create a poly_data object and add points and lines to it
-    poly_data = vtkpoly_data()
-    poly_data.SetPoints(points)
-    poly_data.SetLines(lines)
-
-    # Write the poly_data to a VTK file
-    writer = vtkXMLpoly_dataWriter()
-    writer.SetFileName(output_filename)
-    writer.SetInputData(poly_data)
-
-    # Optional: set the data mode to binary to save disk space
-    writer.SetDataModeToBinary()
-    writer.Write()
-
-    return
-
-
 def to_gpkg(
     surface: Surface,
     interval_number: int = 0,
@@ -361,10 +232,67 @@ def to_gpkg(
     return
 
 
+def geodesic_ellipse_polygon(
+    lon: float,
+    lat: float,
+    a: float,
+    b: float,
+    az_deg: float = 0.0,
+    n: int = 150,
+    R_pole: FloatLike = 1.0,
+    R_equator: FloatLike = 1.0,
+) -> Polygon:
+    """
+    Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
+
+    Parameters
+    ----------
+    lon : float
+        Longitude of the ellipse center in degrees.
+    lat : float
+        Latitude of the ellipse center in degrees.
+    a : float
+        Semi-major axis in meters.
+    b : float
+        Semi-minor axis in meters.
+    az_deg : float, optional
+        Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
+    n : int, optional
+        Number of points to use for the polygon, by default 150.
+    R_pole : FloatLike, optional
+        Planetary polar radius in units of meters, by default 1.0.
+    R_equator : FloatLike, optional
+        Planetary equatorial radius in units of meters, by default 1.0.
+
+    Returns
+    -------
+    Returns a Shapely Polygon in lon/lat degrees.
+    """
+    geod = Geod(a=R_pole, b=R_equator)
+    theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+
+    # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
+    ct = np.cos(np.deg2rad(theta))
+    st = np.sin(np.deg2rad(theta))
+    r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+
+    # Bearings (from east, CCW) rotated by azimuth
+    bearings = (theta + az_deg) % 360.0
+
+    # Forward geodesic for each bearing/distance
+    lon, lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+    # Normalize longitudes to [-180, 180] to play nice with GIS
+    lon = ((np.asarray(lon) + 180.0) % 360.0) - 180.0
+
+    return Polygon(zip(lon, lat, strict=False))
+
+
 def crater_layer(
     crater_data: dict,
     surface: Surface,
     interval_number: int = 0,
+    layer_name: str = "craters",
     **kwargs,
 ) -> None:
     """
@@ -372,4 +300,37 @@ def crater_layer(
     """
     out_dir = surface.simdir / _EXPORT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    gpkg_path = out_dir / f"surface_{interval_number:06d}.gpkg"
+    output_filename = out_dir / f"surface_{interval_number:06d}.gpkg"
+
+    if "final_diameter" not in crater_data or "longitude" not in crater_data or "latitude" not in crater_data:
+        raise ValueError("crater_data must contain 'final_diameter', 'longitude', and 'latitude' keys.")
+
+    diameter = np.atleast_1d(crater_data["final_diameter"])
+    longitude = np.atleast_1d(crater_data["longitude"])
+    latitude = np.atleast_1d(crater_data["latitude"])
+
+    attrs_df = pd.DataFrame({k: np.asarray(v) for k, v in crater_data.items()})
+
+    # Check for length consistency
+    if len(diameter) != len(longitude) or len(diameter) != len(latitude):
+        raise ValueError("The diameter, latitude, and longitude, arguments must have the same length")
+
+    # Validate non-negative values
+    if np.any(diameter < 0):
+        raise ValueError("All values in 'diameter' must be non-negative")
+
+    geoms = []
+
+    for lon, lat, diam in zip(longitude, latitude, diameter, strict=False):
+        lon = float(lon)
+        lat = float(lat)
+        radius = float(diam) / 2.0
+        poly = geodesic_ellipse_polygon(lon, lat, a=radius, b=radius, R_pole=surface.radius, R_equator=surface.radius)
+        geoms.append(poly)
+
+    gdf = gpd.GeoDataFrame(attrs_df, geometry=geoms, crs=surface.crs)
+
+    # Write to GeoPackage (layer name 'craters')
+    gdf.to_file(output_filename, layer=layer_name, driver="GPKG")
+
+    return

@@ -24,6 +24,7 @@ from ..constants import (
     FloatLike,
     PairOfFloats,
 )
+from ..utils import export
 from ..utils.general_utils import _set_properties, format_large_units, parameter
 from .base import CratermakerBase, _convert_for_yaml
 from .crater import Crater
@@ -609,6 +610,8 @@ class Simulation(CratermakerBase):
                 writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
                 writer.writeheader()
                 writer.writerows(combined_data)
+            combined_data = {k: np.array([d[k] for d in combined_data]) for k in combined_data[0]}
+            export.crater_layer(combined_data, self.surface, self.interval_number, layer_name="True Craters")
 
         self._true_crater_list = []
         return
