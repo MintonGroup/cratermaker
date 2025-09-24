@@ -11,6 +11,7 @@ datashader>=0.17.0
 geoviews>=1.14.0
 PyYAML>=6
 astropy>=6
+rasterio
 pytest
 pip>=24.2
 sphinx

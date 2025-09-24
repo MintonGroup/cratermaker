@@ -36,7 +36,8 @@ dependencies = [
     'datashader>=0.17.0',
     'geoviews>=1.14.0',
     'PyYAML>=6',
-    'astropy>=6'
+    'astropy>=6',
+    'rasterio'
 ]
 
 [project.optional-dependencies]

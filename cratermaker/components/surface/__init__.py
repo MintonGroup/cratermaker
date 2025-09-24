@@ -619,17 +619,20 @@ class Surface(ComponentBase):
         self.export(
             format="vtp", interval_number=interval_number, time_variables=time_variables, save_geometry=save_geometry, **kwargs
         )
+        self.export(format="geotiff", interval_number=interval_number, **kwargs)
 
         return
 
     def export(self, format="vtp", **kwargs) -> None:
         """
-        Export the surface mesh to a file in the specified format. Currently only VTK is supported.
+        Export the surface mesh to a file in the specified format.
         """
         if format == "vtp" or format == "vtk":
             export.to_vtk(self, **kwargs)
         elif format == "gpkg":
             export.to_gpkg(self, **kwargs)
+        elif format == "geotiff":
+            export.to_geotiff(self, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")
 

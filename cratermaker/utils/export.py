@@ -9,8 +9,6 @@ import pandas as pd
 import xarray as xr
 from numpy.typing import ArrayLike
 from pyproj import CRS, Geod, Transformer
-from shapely.geometry import Point, Polygon
-from shapely.ops import transform
 from tqdm import tqdm
 
 from cratermaker.constants import (
@@ -232,62 +230,6 @@ def to_gpkg(
     return
 
 
-def geodesic_ellipse_polygon(
-    lon: float,
-    lat: float,
-    a: float,
-    b: float,
-    az_deg: float = 0.0,
-    n: int = 150,
-    R_pole: FloatLike = 1.0,
-    R_equator: FloatLike = 1.0,
-) -> Polygon:
-    """
-    Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
-
-    Parameters
-    ----------
-    lon : float
-        Longitude of the ellipse center in degrees.
-    lat : float
-        Latitude of the ellipse center in degrees.
-    a : float
-        Semi-major axis in meters.
-    b : float
-        Semi-minor axis in meters.
-    az_deg : float, optional
-        Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
-    n : int, optional
-        Number of points to use for the polygon, by default 150.
-    R_pole : FloatLike, optional
-        Planetary polar radius in units of meters, by default 1.0.
-    R_equator : FloatLike, optional
-        Planetary equatorial radius in units of meters, by default 1.0.
-
-    Returns
-    -------
-    Returns a Shapely Polygon in lon/lat degrees.
-    """
-    geod = Geod(a=R_pole, b=R_equator)
-    theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
-
-    # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
-    ct = np.cos(np.deg2rad(theta))
-    st = np.sin(np.deg2rad(theta))
-    r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
-
-    # Bearings (from east, CCW) rotated by azimuth
-    bearings = (theta + az_deg) % 360.0
-
-    # Forward geodesic for each bearing/distance
-    lon, lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
-
-    # Normalize longitudes to [-180, 180] to play nice with GIS
-    lon = ((np.asarray(lon) + 180.0) % 360.0) - 180.0
-
-    return Polygon(zip(lon, lat, strict=False))
-
-
 def crater_layer(
     crater_data: dict,
     surface: Surface,
@@ -298,6 +240,64 @@ def crater_layer(
     """
     Export the crater data to a GeoPackage file and stores it in the default export directory.
     """
+    from shapely.geometry import Point, Polygon
+    from shapely.ops import transform
+
+    def _geodesic_ellipse_polygon(
+        lon: float,
+        lat: float,
+        a: float,
+        b: float,
+        az_deg: float = 0.0,
+        n: int = 150,
+        R_pole: FloatLike = 1.0,
+        R_equator: FloatLike = 1.0,
+    ) -> Polygon:
+        """
+        Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
+
+        Parameters
+        ----------
+        lon : float
+            Longitude of the ellipse center in degrees.
+        lat : float
+            Latitude of the ellipse center in degrees.
+        a : float
+            Semi-major axis in meters.
+        b : float
+            Semi-minor axis in meters.
+        az_deg : float, optional
+            Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
+        n : int, optional
+            Number of points to use for the polygon, by default 150.
+        R_pole : FloatLike, optional
+            Planetary polar radius in units of meters, by default 1.0.
+        R_equator : FloatLike, optional
+            Planetary equatorial radius in units of meters, by default 1.0.
+
+        Returns
+        -------
+        Returns a Shapely Polygon in lon/lat degrees.
+        """
+        geod = Geod(a=R_pole, b=R_equator)
+        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+
+        # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
+        ct = np.cos(np.deg2rad(theta))
+        st = np.sin(np.deg2rad(theta))
+        r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+
+        # Bearings (from east, CCW) rotated by azimuth
+        bearings = (theta + az_deg) % 360.0
+
+        # Forward geodesic for each bearing/distance
+        lon, lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+        # Normalize longitudes to [-180, 180] to play nice with GIS
+        lon = ((np.asarray(lon) + 180.0) % 360.0) - 180.0
+
+        return Polygon(zip(lon, lat, strict=False))
+
     out_dir = surface.simdir / _EXPORT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     output_filename = out_dir / f"surface_{interval_number:06d}.gpkg"
@@ -325,12 +325,104 @@ def crater_layer(
         lon = float(lon)
         lat = float(lat)
         radius = float(diam) / 2.0
-        poly = geodesic_ellipse_polygon(lon, lat, a=radius, b=radius, R_pole=surface.radius, R_equator=surface.radius)
+        poly = _geodesic_ellipse_polygon(lon, lat, a=radius, b=radius, R_pole=surface.radius, R_equator=surface.radius)
         geoms.append(poly)
 
     gdf = gpd.GeoDataFrame(attrs_df, geometry=geoms, crs=surface.crs)
 
     # Write to GeoPackage (layer name 'craters')
     gdf.to_file(output_filename, layer=layer_name, driver="GPKG")
+
+    return
+
+
+def to_geotiff(
+    surface: Surface,
+    interval_number: int = 0,
+    bounds: tuple[float, float, float, float] | None = None,
+    dtype: str = "float32",
+    nodata: float | None = np.nan,
+) -> None:
+    """
+    Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
+
+    Parameters
+    ----------
+    surface : Surface
+        Source surface with an unstructured mesh and face-based data in UxArray.
+    interval_number : int, optional
+        Interval number to save, by default 0.
+    bounds : tuple[float, float, float, float] | None, optional
+        (minx, miny, maxx, maxy) bounds of the output raster in the surface CRS; if None, use the full extent of the data, by default None.
+    dtype : str, optional
+        Data type for the output raster, by default "float32".
+    nodata : float | None, optional
+        NoData value for the output raster; if None, no NoData value is set, by default np.nan.
+    """
+    import rasterio as rio
+    from rasterio.features import rasterize
+
+    out_dir = surface.simdir / _EXPORT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    ds = surface.uxds.load()
+    variables = [v for v in ds.data_vars if any(dim == "n_face" for dim in ds[v].dims)]
+    if not variables:
+        raise ValueError("No face-based variables found to export to GeoTiff.")
+
+    for var in variables:
+        gdf = ds[var].to_geodataframe(engine="geopandas")
+
+        # Ensure CRS is set
+        if getattr(gdf, "crs", None) is None:
+            gdf = gdf.set_crs(surface.crs)
+
+        # Drop empty geometries
+        gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notnull()].copy()
+
+        # Choose bounds
+        if bounds is None:
+            minx, miny, maxx, maxy = gdf.total_bounds
+        else:
+            minx, miny, maxx, maxy = bounds
+
+        # degrees per pixel (same for lat/lon if you want square pixels)
+        deg_per_pix = 360.0 * surface.pix / (2 * np.pi * surface.radius)
+
+        width = int(np.ceil((maxx - minx) / deg_per_pix))
+        height = int(np.ceil((maxy - miny) / deg_per_pix))
+
+        transform = rio.transform.from_origin(-180.0, 90.0, deg_per_pix, deg_per_pix)
+
+        # Prepare shapes for rasterize function
+        shapes = list(zip(gdf.geometry.values, gdf[var].astype(dtype).values, strict=False))
+
+        print(f"Rasterizing variable '{var}' to GeoTIFF...")
+        raster = rasterize(
+            shapes=shapes,
+            out_shape=(height, width),
+            transform=transform,
+            fill=nodata,
+            dtype=dtype,
+        )
+
+        profile = {
+            "driver": "GTiff",
+            "height": height,
+            "width": width,
+            "count": 1,
+            "dtype": dtype,
+            "crs": gdf.crs,
+            "transform": transform,
+            "tiled": True,
+            "compress": "deflate",
+            "predictor": 3 if dtype in {"float32", "float64"} else 2,
+        }
+        if nodata is not None:
+            profile["nodata"] = nodata
+
+        output_file = out_dir / f"{var}_{interval_number:06d}.tiff"
+        with rio.open(output_file, "w", **profile) as dst:
+            dst.write(raster, 1)
 
     return
