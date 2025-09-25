@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import cartopy
+import cartopy.crs as ccrs
 import geopandas as gpd
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -341,7 +344,7 @@ def to_geotiff(
     interval_number: int = 0,
     bounds: tuple[float, float, float, float] | None = None,
     dtype: str = "float32",
-    nodata: float | None = np.nan,
+    nodata: float | None = 0.0,
 ) -> None:
     """
     Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
@@ -393,19 +396,10 @@ def to_geotiff(
         height = int(np.ceil((maxy - miny) / deg_per_pix))
 
         transform = rio.transform.from_origin(-180.0, 90.0, deg_per_pix, deg_per_pix)
-
-        # Prepare shapes for rasterize function
-        shapes = list(zip(gdf.geometry.values, gdf[var].astype(dtype).values, strict=False))
+        geo_axes = plt.axes(projection=cartopy.crs.PlateCarree())
 
         print(f"Rasterizing variable '{var}' to GeoTIFF...")
-        raster = rasterize(
-            shapes=shapes,
-            out_shape=(height, width),
-            transform=transform,
-            fill=nodata,
-            dtype=dtype,
-        )
-
+        raster = ds[var].to_raster(ax=geo_axes)
         profile = {
             "driver": "GTiff",
             "height": height,
@@ -414,13 +408,9 @@ def to_geotiff(
             "dtype": dtype,
             "crs": gdf.crs,
             "transform": transform,
-            "tiled": True,
-            "compress": "deflate",
-            "predictor": 3 if dtype in {"float32", "float64"} else 2,
         }
         if nodata is not None:
             profile["nodata"] = nodata
-
         output_file = out_dir / f"{var}_{interval_number:06d}.tiff"
         with rio.open(output_file, "w", **profile) as dst:
             dst.write(raster, 1)
