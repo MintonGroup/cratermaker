@@ -3,8 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import cartopy
-import cartopy.crs as ccrs
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -344,7 +342,7 @@ def to_geotiff(
     interval_number: int = 0,
     bounds: tuple[float, float, float, float] | None = None,
     dtype: str = "float32",
-    nodata: float | None = 0.0,
+    nodata: float | None = np.nan,
 ) -> None:
     """
     Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
@@ -363,6 +361,7 @@ def to_geotiff(
         NoData value for the output raster; if None, no NoData value is set, by default np.nan.
     """
     import rasterio as rio
+    from cartopy import crs as ccrs
     from rasterio.features import rasterize
 
     out_dir = surface.simdir / _EXPORT_DIR
@@ -395,11 +394,16 @@ def to_geotiff(
         width = int(np.ceil((maxx - minx) / deg_per_pix))
         height = int(np.ceil((maxy - miny) / deg_per_pix))
 
-        transform = rio.transform.from_origin(-180.0, 90.0, deg_per_pix, deg_per_pix)
-        geo_axes = plt.axes(projection=cartopy.crs.PlateCarree())
+        fig = plt.figure(figsize=(width, height), dpi=1)
+        ax = fig.add_axes([0, 0, 1, 1], projection=ccrs.PlateCarree())
+        ax.set_axis_off()
+        fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+        ax.set_global()
 
         print(f"Rasterizing variable '{var}' to GeoTIFF...")
-        raster = ds[var].to_raster(ax=geo_axes)
+        raster = ds[var].to_raster(ax=ax)
+
+        transform = rio.transform.from_origin(-180.0, 90.0, deg_per_pix, deg_per_pix)
         profile = {
             "driver": "GTiff",
             "height": height,

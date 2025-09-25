@@ -619,7 +619,6 @@ class Surface(ComponentBase):
         self.export(
             format="vtp", interval_number=interval_number, time_variables=time_variables, save_geometry=save_geometry, **kwargs
         )
-        self.export(format="geotiff", interval_number=interval_number, **kwargs)
 
         return
 
@@ -635,6 +634,120 @@ class Surface(ComponentBase):
             export.to_geotiff(self, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")
+
+    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, projection=None, **kwargs: Any) -> None:
+        """
+        Plot a hillshade image of the surface.
+
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
+        projection : cartopy.crs.Projection, optional
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        import cartopy
+        import cartopy.crs as ccrs
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LightSource
+        from scipy.interpolate import griddata
+
+        region = self.local
+        local_radius = self.local_radius
+        pix = self.pix
+
+        # Dynamically compute image resolution and dpi
+        extent_val = local_radius
+        resolution = int(2 * extent_val / pix)
+        dpi = resolution
+        x = np.linspace(-extent_val, extent_val, resolution)
+        y = np.linspace(-extent_val, extent_val, resolution)
+        grid_x, grid_y = np.meshgrid(x, y)
+
+        # Use polar coordinates from region
+        r = region.face_distance
+        theta = region.face_bearing
+        x_cart = r * np.cos(theta)
+        y_cart = r * np.sin(theta)
+
+        points = np.column_stack((x_cart, y_cart))
+        values = region.face_elevation
+        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
+
+        # Generate hillshade
+        azimuth = 300.0
+        solar_angle = 20.0
+        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+        hillshade = ls.hillshade(grid_z, dx=pix, dy=pix, fraction=1.0)
+
+        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
+        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
+        ax.imshow(
+            hillshade,
+            interpolation="nearest",
+            cmap="gray",
+            vmin=0.0,
+            vmax=1.0,
+            aspect="equal",
+            extent=(-extent_val, extent_val, -extent_val, extent_val),
+        )
+        ax.axis("off")
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        fontsize_px = resolution * 0.03
+        fontsize = fontsize_px * 72 / dpi
+        # Add scale bar before saving/showing image
+        if scalebar:
+            # Determine max physical size for the scale bar
+            max_physical_size = extent_val / 2 / np.sqrt(2)
+
+            # Choose "nice" scale bar length
+            nice_values = np.array([100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
+            scale_length = nice_values[nice_values <= max_physical_size].max()
+            bar_height = extent_val * 0.01
+            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
+
+            # Position in lower right corner
+            x_start = extent_val - scale_length - extent_val * 0.1
+            y_start = -(extent_val - bar_height - extent_val * 0.1)
+
+            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
+            ax.add_patch(rect)
+            # Label above the scale bar
+            ax.text(
+                x_start + scale_length / 2,
+                y_start + 2 * bar_height,
+                scale_text,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
+        if label:
+            x_start = -extent_val / np.sqrt(2.0)
+            y_start = extent_val * 0.85
+            # Label above the scale bar
+            ax.text(
+                x_start,
+                y_start,
+                label,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
+        if imagefile:
+            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
+        else:
+            plt.show(**kwargs)
+        plt.close(fig)
+        return
 
     @staticmethod
     def _sphere_function(coords, x_c, y_c, z_c, r):
