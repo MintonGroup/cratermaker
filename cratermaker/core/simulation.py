@@ -20,7 +20,6 @@ from ..components.target import Target
 from ..constants import (
     _COMPONENT_NAMES,
     _CONFIG_FILE_NAME,
-    _CRATER_DIR,
     FloatLike,
     PairOfFloats,
 )
@@ -579,7 +578,7 @@ class Simulation(CratermakerBase):
         """
         Dump the crater lists to a file and reset the true crater list.
         """
-        crater_dir = self.simdir / _CRATER_DIR
+        crater_dir = self.simdir / "crater_data"
         crater_dir.mkdir(parents=True, exist_ok=True)
         truefilename = crater_dir / f"true_crater_list{self.interval_number:06d}.csv"
 
@@ -678,7 +677,7 @@ class Simulation(CratermakerBase):
         return sim_config
 
     def reset(self):
-        crater_dir = self.simdir / _CRATER_DIR
+        crater_dir = self.simdir / "crater_data"
         # delete crater_dir using Pathlib
         if crater_dir.exists():
             shutil.rmtree(crater_dir)
@@ -1005,13 +1004,6 @@ class Simulation(CratermakerBase):
         if not isinstance(value, (Projectile | str)):
             raise TypeError("projectile must be of Projectile type or str")
         self._projectile = value
-
-    @property
-    def data_dir(self):
-        """
-        Directory where the data files are stored. Dynamically set based on `surface` attribute.
-        """
-        return self.surface.data_dir
 
     @property
     def n_node(self):

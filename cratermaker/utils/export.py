@@ -13,15 +13,6 @@ from pyproj import CRS, Geod, Transformer
 from tqdm import tqdm
 
 from cratermaker.constants import (
-    _CIRCLE_FILE_PREFIX,
-    _EXPORT_DIR,
-    _GEOPACKAGE_FILE_EXTENSION,
-    _GEOTIFF_FILE_EXTENSION,
-    _GRID_FILE_PREFIX,
-    _NETCDF_FILE_EXTENSION,
-    _SURFACE_DIR,
-    _SURFACE_FILE_PREFIX,
-    _VTK_FILE_EXTENSION,
     FloatLike,
 )
 
@@ -54,12 +45,15 @@ def to_vtk(
 
     if not isinstance(surface, Surface):
         raise TypeError("The surface argument must be an instance of the Surface class.")
+
+    _VTK_FILE_EXTENSION = "vtp"
+
     # Create the output directory if it doesn't exist
-    out_dir = surface.simdir / _EXPORT_DIR
+    out_dir = surface.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    data_dir = surface.simdir / _SURFACE_DIR
-    data_file_list = list(data_dir.glob(f"*.{_NETCDF_FILE_EXTENSION}"))
+    output_dir = surface.output_dir
+    data_file_list = list(output_dir.glob(f"*.{surface._SURFACE_FILE_EXTENSION}"))
     if surface.grid_file in data_file_list:
         data_file_list.remove(surface.grid_file)
 
@@ -132,7 +126,7 @@ def to_vtk(
         normals_filter.Update()
         poly_data_with_normals = normals_filter.GetOutput()
 
-        output_filename = out_dir / f"{_GRID_FILE_PREFIX}.{_VTK_FILE_EXTENSION}"
+        output_filename = out_dir / f"{surface._GRID_FILE_PREFIX}.{_VTK_FILE_EXTENSION}"
         writer.SetFileName(output_filename)
         writer.SetInputData(poly_data_with_normals)
         writer.Write()
@@ -182,7 +176,7 @@ def to_vtk(
     warp.SetInputData(poly_data_with_normals)
     warp.Update()
     warped_output = warp.GetOutput()
-    output_filename = out_dir / f"{_SURFACE_FILE_PREFIX}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
+    output_filename = out_dir / f"{surface._SURFACE_FILE_PREFIX}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
     writer.SetFileName(output_filename)
     writer.SetInputData(warped_output)
     writer.Write()
@@ -208,7 +202,7 @@ def to_gpkg(
     **kwargs : Any
         Additional keyword arguments (not used).
     """
-    out_dir = surface.simdir / _EXPORT_DIR
+    out_dir = surface.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if save_geometry:
@@ -316,7 +310,7 @@ def crater_layer(
 
         return Polygon(zip(lon, lat, strict=False))
 
-    out_dir = surface.simdir / _EXPORT_DIR
+    out_dir = surface.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     output_filename = out_dir / f"surface_{interval_number:06d}.gpkg"
 
@@ -381,7 +375,7 @@ def to_geotiff(
     from cartopy import crs as ccrs
     from rasterio.features import rasterize
 
-    out_dir = surface.simdir / _EXPORT_DIR
+    out_dir = surface.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     ds = surface.uxds.load()

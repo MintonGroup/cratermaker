@@ -14,6 +14,7 @@ class ComponentBase(CratermakerBase, ABC):
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
+        object.__setattr__(self, "_output_dir", None)  # Components define their own output directory if needed
 
     def __str__(self) -> str:
         # Get the name of the class

@@ -20,11 +20,7 @@ from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
 from cratermaker.constants import (
-    _GRID_FILE_PREFIX,
-    _NETCDF_FILE_EXTENSION,
     _SMALLFAC,
-    _SURFACE_DIR,
-    _SURFACE_FILE_PREFIX,
     _VSMALL,
     FloatLike,
 )
@@ -46,6 +42,11 @@ surface_lock = threading.Lock()
 
 class Surface(ComponentBase):
     _registry: dict[str, type[Surface]] = {}
+
+    _SURFACE_DIR = "surface_data"
+    _SURFACE_FILE_PREFIX = "surface"
+    _GRID_FILE_PREFIX = "grid"
+    _SURFACE_FILE_EXTENSION = "nc"
 
     """
     Used for handling surface-related data and operations in the cratermaker project.
@@ -596,7 +597,7 @@ class Surface(ComponentBase):
         """
         do_not_save = ["face_area"]
 
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         if time_variables is None:
             time_variables = {"elapsed_time": float(interval_number)}
@@ -883,7 +884,7 @@ class Surface(ComponentBase):
         regrid = self._regrid_if_needed(**kwargs)
         reset = reset or regrid
 
-        data_file_list = list(self.data_dir.glob(f"*.{_NETCDF_FILE_EXTENSION}"))
+        data_file_list = list(self.output_dir.glob(f"*.{self.__class__._SURFACE_FILE_EXTENSION}"))
         if self.grid_file in data_file_list:
             data_file_list.remove(self.grid_file)
 
@@ -959,7 +960,7 @@ class Surface(ComponentBase):
             A boolean indicating whether the grid should be regenerated.
         """
         # Find out if the file exists, if it does't we'll need to make a new grid
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         regrid = regrid or not Path(self.grid_file).exists()
 
         if not regrid:
@@ -1017,11 +1018,11 @@ class Surface(ComponentBase):
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             if combine_data_files:
-                filename = f"{_SURFACE_FILE_PREFIX}.{_NETCDF_FILE_EXTENSION}"
+                filename = f"{self.__class__._SURFACE_FILE_PREFIX}.{self.__class__._SURFACE_FILE_EXTENSION}"
             else:
-                filename = f"{_SURFACE_FILE_PREFIX}{interval_number:06d}.{_NETCDF_FILE_EXTENSION}"
+                filename = f"{self.__class__._SURFACE_FILE_PREFIX}{interval_number:06d}.{self.__class__._SURFACE_FILE_EXTENSION}"
 
-            data_file = self.data_dir / filename
+            data_file = self.output_dir / filename
             if data_file.exists():
                 with xr.open_mfdataset(data_file) as ds_file:
                     ds_file = ds.merge(ds_file, compat="override")
@@ -1174,13 +1175,6 @@ class Surface(ComponentBase):
             return self.uxds.uxgrid
 
     @property
-    def data_dir(self):
-        """
-        Directory for data files.
-        """
-        return self.simdir / _SURFACE_DIR
-
-    @property
     def gridtype(self):
         """
         The name of the grid type.
@@ -1192,7 +1186,7 @@ class Surface(ComponentBase):
         """
         Path to the grid file.
         """
-        return self.simdir / _SURFACE_DIR / f"{_GRID_FILE_PREFIX}.{_NETCDF_FILE_EXTENSION}"
+        return self.output_dir / f"{self.__class__._GRID_FILE_PREFIX}.{self.__class__._SURFACE_FILE_EXTENSION}"
 
     @property
     def target(self):
@@ -1735,6 +1729,15 @@ class Surface(ComponentBase):
                 # Fallback to PROJ dict with spherical radius
                 self._crs = CRS.from_user_input({"proj": "longlat", "R": radius, "no_defs": True})
         return self._crs
+
+    @property
+    def output_dir(self) -> Path | None:
+        """
+        The output directory for the surface. If None, the surface does not have an output directory set.
+        """
+        if self._output_dir is None:
+            self._output_dir = self.simdir / self.__class__._SURFACE_DIR
+        return self._output_dir
 
 
 class LocalSurface:
