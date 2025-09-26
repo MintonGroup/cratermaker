@@ -142,8 +142,6 @@ class Simulation(CratermakerBase):
         counting_config = unmatched.pop("counting_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
-        if not resume_old:
-            self.reset()
 
         target_config = {**target_config, **kwargs}
         self.target = Target.maker(self.target, **target_config)
@@ -187,6 +185,9 @@ class Simulation(CratermakerBase):
         )
         if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
             self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, **surface_config)
+
+        if not resume_old:
+            self.reset()
 
         self._craterlist = []
         self._crater = None
@@ -580,7 +581,7 @@ class Simulation(CratermakerBase):
         )
 
         if self.morphology.docounting:
-            self.counting.dump_crater_lists()
+            self.counting.dump_crater_lists(interval_number=self.interval_number)
 
         self.to_config(**kwargs)
 
@@ -651,7 +652,7 @@ class Simulation(CratermakerBase):
         return sim_config
 
     def reset(self):
-        crater_dir = self.simdir / "crater_data"
+        crater_dir = self.counting.output_dir
         # delete crater_dir using Pathlib
         if crater_dir.exists():
             shutil.rmtree(crater_dir)

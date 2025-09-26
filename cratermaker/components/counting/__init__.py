@@ -269,7 +269,7 @@ class Counting(ComponentBase):
                 writer.writeheader()
                 writer.writerows(combined_data)
             combined_data = {k: np.array([d[k] for d in combined_data]) for k in combined_data[0]}
-            export.crater_layer(combined_data, self.surface, interval_number, layer_name="True Craters")
+            export.crater_layer(combined_data, self, interval_number, layer_name="True Craters")
 
         self._true_crater_list = []
         return

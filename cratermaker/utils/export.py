@@ -17,6 +17,7 @@ from cratermaker.constants import (
 )
 
 if TYPE_CHECKING:
+    from cratermaker.components.counting import Counting
     from cratermaker.components.surface import Surface
 
 
@@ -208,7 +209,7 @@ def to_gpkg(
     if save_geometry:
         gdf = surface.uxgrid.to_geodataframe(engine="geopandas").set_crs(surface.csrs).to_file()
 
-    gpkg_path = out_dir / f"surface_{interval_number:06d}.gpkg"
+    gpkg_path = out_dir / f"surface{interval_number:06d}.gpkg"
 
     # load data and select the face-based variables
     ds = surface.uxds.load()
@@ -232,28 +233,34 @@ def to_gpkg(
 
 def crater_layer(
     crater_data: dict,
-    surface: Surface,
+    counting: Counting,
     interval_number: int = 0,
     layer_name: str = "craters",
+    format: str = "gpkg",
     **kwargs,
 ) -> None:
     """
-    Export the crater data to a GeoPackage file and stores it in the default export directory.
+    Export the crater data to a vector file and stores it in the default export directory.
 
     Parameters
     ----------
     crater_data : dict
         Dictionary containing crater attributes. Must include 'final_diameter', 'longitude', and 'latitude' keys. Any additional key value pairs will be added as attributes to each crater.
-    surface : Surface
-        The surface object containing the data to export.
+    counting : Counting
+        The crater counting object containing the data to export.
     interval_number : int, optional
         The interval number to save, by default 0.
     layer_name : str, optional
         The name of the layer in the GeoPackage file, by default "craters".
+    format : str, optional
+        The format of the output file. Currently, only "gpkg" (GeoPackage) is supported, by default "gpkg".
     **kwargs : Any
     """
     from shapely.geometry import Point, Polygon
     from shapely.ops import transform
+
+    if format.lower() != "gpkg":
+        raise ValueError("Currently, only 'gpkg' format is supported.")
 
     def _geodesic_ellipse_polygon(
         lon: float,
@@ -310,9 +317,9 @@ def crater_layer(
 
         return Polygon(zip(lon, lat, strict=False))
 
-    out_dir = surface.output_dir
+    out_dir = counting.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    output_filename = out_dir / f"surface_{interval_number:06d}.gpkg"
+    output_filename = out_dir / f"craters{interval_number:06d}.gpkg"
 
     if "final_diameter" not in crater_data or "longitude" not in crater_data or "latitude" not in crater_data:
         raise ValueError("crater_data must contain 'final_diameter', 'longitude', and 'latitude' keys.")
@@ -332,6 +339,7 @@ def crater_layer(
         raise ValueError("All values in 'diameter' must be non-negative")
 
     geoms = []
+    surface = counting.surface
 
     for lon, lat, diam in zip(longitude, latitude, diameter, strict=False):
         lon = float(lon)
@@ -426,7 +434,7 @@ def to_geotiff(
         }
         if nodata is not None:
             profile["nodata"] = nodata
-        output_file = out_dir / f"{var}_{interval_number:06d}.tiff"
+        output_file = out_dir / f"{var}{interval_number:06d}.tiff"
         with rio.open(output_file, "w", **profile) as dst:
             dst.write(raster, 1)
 
