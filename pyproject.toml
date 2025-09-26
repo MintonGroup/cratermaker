@@ -36,7 +36,8 @@ dependencies = [
     'datashader>=0.17.0',
     'geoviews>=1.14.0',
     'PyYAML>=6',
-    'astropy>=6'
+    'astropy>=6',
+    'rasterio'
 ]
 
 [project.optional-dependencies]
@@ -137,7 +138,10 @@ ignore = [
     "E501",
     "F401",
     "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
-    "SIM108", # Don't replace if else blocks with ternary expressions for readability.
+    "SIM108", # Don't suggest if else block instead of expression, as it can reduce readability
+    "N802", # Allow uppercase functions 
+    "N803", # Allow uppercase arguments 
+    "N806", # Allow uppercase variable names
 ]
 
 [tool.ruff.lint.flake8-bugbear]

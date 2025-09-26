@@ -11,7 +11,6 @@ import xarray as xr
 
 import cratermaker
 from cratermaker import Target
-from cratermaker.constants import _COMBINED_DATA_FILE_NAME, _EXPORT_DIR
 
 warnings.filterwarnings("ignore", category=FutureWarning, module="xarray")
 warnings.filterwarnings("ignore", category=FutureWarning, module="uxarray")
@@ -56,8 +55,10 @@ class TestSimulation(unittest.TestCase):
             )
 
             sim.save()
-
-            filename = Path(sim.data_dir) / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{sim.interval_number:06d}.nc")
+            filename = (
+                Path(sim.surface.output_dir)
+                / f"{sim.surface._SURFACE_FILE_PREFIX}{sim.interval_number:06d}.{sim.surface._SURFACE_FILE_EXTENSION}"
+            )
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
@@ -66,9 +67,7 @@ class TestSimulation(unittest.TestCase):
 
             # Test saving combined data
             sim.save(combine_data_files=True)
-            filename = _COMBINED_DATA_FILE_NAME
-
-            filename = Path(sim.data_dir) / _COMBINED_DATA_FILE_NAME
+            filename = Path(sim.surface.output_dir) / f"{sim.surface._SURFACE_FILE_PREFIX}.{sim.surface._SURFACE_FILE_EXTENSION}"
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)

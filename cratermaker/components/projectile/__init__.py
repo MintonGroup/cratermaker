@@ -88,6 +88,36 @@ class Projectile(ComponentBase):
         rng_state: dict | None = None,
         **kwargs,
     ):
+        """
+        An abstract base class for all projectile models. It defines the interface for generating projectile velocities, angles, and densities for a given target body.
+
+        Parameters
+        ----------
+        sample : bool
+            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to True, the `mean_velocity` argument is required. If set to False, the `velocity` argument is required.
+        mean_velocity : float, optional
+            The mean velocity of the projectile in m/s. Required if `sample` is True, ignored if `sample` is False.
+        velocity : float | None
+            The impact velocity in m/s. If `sample` is True, this value is ignored. If `sample` is False, this value is required.
+        density : float, optional
+            The density of the projectile in kg/m^3.
+        angle : float, optional
+            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
+        direction : float | None
+            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
+        location : tuple[float, float] | None
+            The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
+        **kwargs : Any
+            Additional keyword arguments.
+        """
         from cratermaker.components.target import Target
 
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
@@ -272,7 +302,7 @@ class Projectile(ComponentBase):
         **kwargs: Any,
     ) -> Self:
         """
-        Returns a new projectile instance with updated sampled or default values based on the original instance.
+        Returns a new projectile instance with updated sampled or default values, based on the original instance.
 
         Parameters
         ----------

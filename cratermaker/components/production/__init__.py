@@ -43,6 +43,23 @@ class Production(ComponentBase):
         rng_state: dict | None = None,
         **kwargs: Any,
     ):
+        """
+        An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.
+
+        The production function is defined as
+        the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
+
+        Parameters
+        ----------
+        rng : numpy.random.Generator | None
+            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            The rng_rng_seed for the RNG. If None, a new RNG is created.
+        rng_state : dict, optional
+            The state of the random number generator. If None, a new state is created.
+        **kwargs : Any
+            Additional keyword arguments.
+        """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types", ["crater", "projectile"])
 
@@ -61,7 +78,7 @@ class Production(ComponentBase):
         **kwargs: Any,
     ) -> Production:
         """
-        Factory method used to initialize the production model.
+        A helper function that can be used to validate and initialize the production model.
 
         Parameters
         ----------
@@ -130,7 +147,9 @@ class Production(ComponentBase):
         **kwargs: Any,
     ) -> np.ndarray:
         """
-        Sample diameters and ages from the production function. This function can either sample from a given age range or
+        Sample diameters and ages from the production function.
+
+        This function can either sample from a given age range or
         from a given cumulative number/diameter pair (but not both).
 
         Parameters

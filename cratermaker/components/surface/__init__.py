@@ -13,16 +13,14 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import uxarray as uxr
 import xarray as xr
+from cratermaker._cratermaker import surface_functions
 from numpy.typing import ArrayLike, NDArray
+from pyproj import CRS
 from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
-from cratermaker._cratermaker import surface_functions
 from cratermaker.constants import (
-    _COMBINED_DATA_FILE_NAME,
-    _GRID_FILE_NAME,
     _SMALLFAC,
-    _SURFACE_DIR,
     _VSMALL,
     FloatLike,
 )
@@ -43,6 +41,13 @@ surface_lock = threading.Lock()
 
 
 class Surface(ComponentBase):
+    _registry: dict[str, type[Surface]] = {}
+
+    _SURFACE_DIR = "surface_data"
+    _SURFACE_FILE_PREFIX = "surface"
+    _GRID_FILE_PREFIX = "grid"
+    _SURFACE_FILE_EXTENSION = "nc"
+
     """
     Used for handling surface-related data and operations in the cratermaker project.
 
@@ -100,6 +105,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_y", None)
         object.__setattr__(self, "_node_z", None)
         object.__setattr__(self, "_smallest_length", None)
+        object.__setattr__(self, "_crs", None)
 
         super().__init__(simdir=simdir, **kwargs)
 
@@ -593,7 +599,7 @@ class Surface(ComponentBase):
         """
         do_not_save = ["face_area"]
 
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         if time_variables is None:
             time_variables = {"elapsed_time": float(interval_number)}
@@ -622,12 +628,130 @@ class Surface(ComponentBase):
 
     def export(self, format="vtp", **kwargs) -> None:
         """
-        Export the surface mesh to a file in the specified format. Currently only VTK is supported.
+        Export the surface mesh to a file in the specified format.
         """
         if format == "vtp" or format == "vtk":
             export.to_vtk(self, **kwargs)
+        elif format == "gpkg":
+            export.to_gpkg(self, **kwargs)
+        elif format == "geotiff":
+            export.to_geotiff(self, **kwargs)
         else:
             raise ValueError(f"Unsupported export format: {format}")
+
+    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, projection=None, **kwargs: Any) -> None:
+        """
+        Plot a hillshade image of the surface.
+
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
+        projection : cartopy.crs.Projection, optional
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        import cartopy
+        import cartopy.crs as ccrs
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LightSource
+        from scipy.interpolate import griddata
+
+        region = self.local
+        local_radius = self.local_radius
+        pix = self.pix
+
+        # Dynamically compute image resolution and dpi
+        extent_val = local_radius
+        resolution = int(2 * extent_val / pix)
+        dpi = resolution
+        x = np.linspace(-extent_val, extent_val, resolution)
+        y = np.linspace(-extent_val, extent_val, resolution)
+        grid_x, grid_y = np.meshgrid(x, y)
+
+        # Use polar coordinates from region
+        r = region.face_distance
+        theta = region.face_bearing
+        x_cart = r * np.cos(theta)
+        y_cart = r * np.sin(theta)
+
+        points = np.column_stack((x_cart, y_cart))
+        values = region.face_elevation
+        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
+
+        # Generate hillshade
+        azimuth = 300.0
+        solar_angle = 20.0
+        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+        hillshade = ls.hillshade(grid_z, dx=pix, dy=pix, fraction=1.0)
+
+        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
+        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
+        ax.imshow(
+            hillshade,
+            interpolation="nearest",
+            cmap="gray",
+            vmin=0.0,
+            vmax=1.0,
+            aspect="equal",
+            extent=(-extent_val, extent_val, -extent_val, extent_val),
+        )
+        ax.axis("off")
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        fontsize_px = resolution * 0.03
+        fontsize = fontsize_px * 72 / dpi
+        # Add scale bar before saving/showing image
+        if scalebar:
+            # Determine max physical size for the scale bar
+            max_physical_size = extent_val / 2 / np.sqrt(2)
+
+            # Choose "nice" scale bar length
+            nice_values = np.array([100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
+            scale_length = nice_values[nice_values <= max_physical_size].max()
+            bar_height = extent_val * 0.01
+            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
+
+            # Position in lower right corner
+            x_start = extent_val - scale_length - extent_val * 0.1
+            y_start = -(extent_val - bar_height - extent_val * 0.1)
+
+            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
+            ax.add_patch(rect)
+            # Label above the scale bar
+            ax.text(
+                x_start + scale_length / 2,
+                y_start + 2 * bar_height,
+                scale_text,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
+        if label:
+            x_start = -extent_val / np.sqrt(2.0)
+            y_start = extent_val * 0.85
+            # Label above the scale bar
+            ax.text(
+                x_start,
+                y_start,
+                label,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
+        if imagefile:
+            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
+        else:
+            plt.show(**kwargs)
+        plt.close(fig)
+        return
 
     @staticmethod
     def _sphere_function(coords, x_c, y_c, z_c, r):
@@ -762,7 +886,7 @@ class Surface(ComponentBase):
         regrid = self._regrid_if_needed(**kwargs)
         reset = reset or regrid
 
-        data_file_list = list(self.data_dir.glob("*.nc"))
+        data_file_list = list(self.output_dir.glob(f"*.{self.__class__._SURFACE_FILE_EXTENSION}"))
         if self.grid_file in data_file_list:
             data_file_list.remove(self.grid_file)
 
@@ -838,7 +962,7 @@ class Surface(ComponentBase):
             A boolean indicating whether the grid should be regenerated.
         """
         # Find out if the file exists, if it does't we'll need to make a new grid
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         regrid = regrid or not Path(self.grid_file).exists()
 
         if not regrid:
@@ -896,11 +1020,11 @@ class Surface(ComponentBase):
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             if combine_data_files:
-                filename = _COMBINED_DATA_FILE_NAME
+                filename = f"{self.__class__._SURFACE_FILE_PREFIX}.{self.__class__._SURFACE_FILE_EXTENSION}"
             else:
-                filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
+                filename = f"{self.__class__._SURFACE_FILE_PREFIX}{interval_number:06d}.{self.__class__._SURFACE_FILE_EXTENSION}"
 
-            data_file = self.data_dir / filename
+            data_file = self.output_dir / filename
             if data_file.exists():
                 with xr.open_mfdataset(data_file) as ds_file:
                     ds_file = ds.merge(ds_file, compat="override")
@@ -1056,13 +1180,6 @@ class Surface(ComponentBase):
             return self.uxds.uxgrid
 
     @property
-    def data_dir(self):
-        """
-        Directory for data files.
-        """
-        return self.simdir / _SURFACE_DIR
-
-    @property
     def gridtype(self):
         """
         The name of the grid type.
@@ -1074,7 +1191,7 @@ class Surface(ComponentBase):
         """
         Path to the grid file.
         """
-        return self.simdir / _SURFACE_DIR / _GRID_FILE_NAME
+        return self.output_dir / f"{self.__class__._GRID_FILE_PREFIX}.{self.__class__._SURFACE_FILE_EXTENSION}"
 
     @property
     def target(self):
@@ -1596,6 +1713,37 @@ class Surface(ComponentBase):
 
         return self._edge_tree
 
+    @property
+    def crs(self) -> CRS:
+        """
+        Return a geographic CRS (lon/lat in degrees) on a sphere using the target radius from the surface. Axis order is Lon/East, Lat/North.
+        """
+        if self._crs is None:
+            radius = self.radius
+            name = self.target.name
+            wkt = (
+                f'GEOGCS["GCS_{name}",'
+                f'DATUM["D_{name}",SPHEROID["{name}_IAU",{radius:.6f},0]],'
+                'PRIMEM["Reference_Meridian",0],'
+                'UNIT["degree",0.0174532925199433],'
+                'AXIS["Longitude",EAST],AXIS["Latitude",NORTH]]'
+            )
+            try:
+                self._crs = CRS.from_wkt(wkt)
+            except Exception:
+                # Fallback to PROJ dict with spherical radius
+                self._crs = CRS.from_user_input({"proj": "longlat", "R": radius, "no_defs": True})
+        return self._crs
+
+    @property
+    def output_dir(self) -> Path | None:
+        """
+        The output directory for the surface. If None, the surface does not have an output directory set.
+        """
+        if self._output_dir is None:
+            self._output_dir = self.simdir / self.__class__._SURFACE_DIR
+        return self._output_dir
+
 
 class LocalSurface:
     """
@@ -1646,6 +1794,7 @@ class LocalSurface:
         object.__setattr__(self, "_face_node_connectivity", None)
         object.__setattr__(self, "_face_face_connectivity", None)
         object.__setattr__(self, "_node_face_connectivity", None)
+        object.__setattr__(self, "_crs", None)
 
         if location is not None:
             self._location = validate_and_normalize_location(location)
@@ -2700,6 +2849,22 @@ class LocalSurface:
                 total_value_size=self.surface.n_node,
             )
         return self._edge_node_connectivity
+
+    @property
+    def crs(self) -> CRS:
+        """
+        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
+
+        If `self.location` is not set, fall back to the parent `Surface` geographic CRS.
+        The AEQD CRS uses the target body's spherical radius.
+        """
+        if self._crs is None:
+            if self.location is None:
+                self._crs = self.surface.crs
+            else:
+                lon0, lat0 = self.location
+                self._crs = CRS.from_proj4(f"+proj=aeqd +lat_0={lat0} +lon_0={lon0} +R={self.surface.radius} +units=m +no_defs")
+        return self._crs
 
 
 import_components(__name__, __path__, ignore_private=True)

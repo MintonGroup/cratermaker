@@ -1,3 +1,4 @@
+import csv
 import shutil
 from contextlib import suppress
 from dataclasses import asdict
@@ -20,10 +21,10 @@ from ..components.target import Target
 from ..constants import (
     _COMPONENT_NAMES,
     _CONFIG_FILE_NAME,
-    _CRATER_DIR,
     FloatLike,
     PairOfFloats,
 )
+from ..utils import export
 from ..utils.general_utils import _set_properties, format_large_units, parameter
 from .base import CratermakerBase, _convert_for_yaml
 from .crater import Crater
@@ -590,7 +591,7 @@ class Simulation(CratermakerBase):
         """
         Dump the crater lists to a file and reset the true crater list.
         """
-        crater_dir = self.simdir / _CRATER_DIR
+        crater_dir = self.simdir / "crater_data"
         crater_dir.mkdir(parents=True, exist_ok=True)
         truefilename = crater_dir / f"true_crater_list{self.interval_number:06d}.csv"
 
@@ -606,8 +607,6 @@ class Simulation(CratermakerBase):
 
         # If the file already exists, read it and merge
         if truefilename.exists():
-            import csv
-
             with truefilename.open("r", newline="") as f:
                 reader = csv.DictReader(f)
                 existing_data = list(reader)
@@ -619,12 +618,12 @@ class Simulation(CratermakerBase):
 
         # Write merged data back to file
         if combined_data:
-            import csv
-
             with truefilename.open("w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
                 writer.writeheader()
                 writer.writerows(combined_data)
+            combined_data = {k: np.array([d[k] for d in combined_data]) for k in combined_data[0]}
+            export.crater_layer(combined_data, self.surface, self.interval_number, layer_name="True Craters")
 
         self._true_crater_list = []
         return
@@ -694,7 +693,7 @@ class Simulation(CratermakerBase):
         return sim_config
 
     def reset(self):
-        crater_dir = self.simdir / _CRATER_DIR
+        crater_dir = self.simdir / "crater_data"
         # delete crater_dir using Pathlib
         if crater_dir.exists():
             shutil.rmtree(crater_dir)
@@ -1028,19 +1027,10 @@ class Simulation(CratermakerBase):
         The crater counting model. Set during initialization.
         """
         return self._counting
-
     @counting.setter
     def counting(self, value):
         if not isinstance(value, (Counting | str)):
-            raise TypeError("counting must be of Counting type or str")
         self._counting = value
-
-    @property
-    def data_dir(self):
-        """
-        Directory where the data files are stored. Dynamically set based on `surface` attribute.
-        """
-        return self.surface.data_dir
 
     @property
     def n_node(self):

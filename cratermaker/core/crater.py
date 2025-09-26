@@ -236,9 +236,8 @@ class Crater:
         if n_velocity_inputs > 2:
             raise ValueError(f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set.")
 
-        if projectile_mean_velocity is not None:
-            if projectile_velocity is not None or projectile_vertical_velocity is not None:
-                raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
+        if projectile_mean_velocity is not None and (projectile_velocity is not None or projectile_vertical_velocity is not None):
+            raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 

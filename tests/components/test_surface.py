@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 
 from cratermaker import Simulation, Surface, Target
-from cratermaker.constants import _COMBINED_DATA_FILE_NAME, _EXPORT_DIR
 from cratermaker.utils.general_utils import normalize_coords
 from cratermaker.utils.montecarlo_utils import get_random_location
 
@@ -380,8 +379,8 @@ class TestSurface(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel)
             # Test with default parameters
-            default_out_dir = Path(surface.simdir) / _EXPORT_DIR
-            expected_files = ["surface000000.vtp", "grid.vtp"]
+            default_out_dir = surface.output_dir
+            expected_files = [f"{surface._SURFACE_FILE_PREFIX}{0:06d}.vtp", f"{surface._GRID_FILE_PREFIX}.vtp"]
             surface.export("vtp")
             self.assertTrue(Path(default_out_dir).is_dir())
             for f in expected_files:

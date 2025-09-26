@@ -14,7 +14,7 @@ from cratermaker.components.morphology.simplemoon import SimpleMoon
 @Morphology.register("du2025")
 class Du2025(SimpleMoon):
     """
-    An operations class for computing the morphology of a crater and applying it to a surface mesh.
+    An operations class for computing the morphology of a crater and applying it to a surface mesh. This uses the morphology model of Du et al. 2025a,b.
 
     This uses the morphology model of Du et al. 2025a,b.
 
@@ -53,7 +53,6 @@ class Du2025(SimpleMoon):
         References
         ----------
         .. [#] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2024). Spectral analysis of the morphology of fresh lunar craters I: Rim crest, floor, and rim flank outlines. Journal of Geophysical Research: Planets, 129(11), e2024JE008357. https://doi.org/10.1029/2024JE008357
-
         """
         # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
         psd_file = Path(__file__).parent / "psd_coef.json"

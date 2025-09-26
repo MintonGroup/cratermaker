@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 class Scaling(ComponentBase):
     """
-    An abstract base class for all scaling models. It defines the interface for converting between projectile and crater diameters.
+    The abstract base class for all scaling models. It defines the interface for converting between projectile and crater diameters.
 
     Parameters
     ----------

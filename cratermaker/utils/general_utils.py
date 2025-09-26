@@ -97,7 +97,7 @@ def _set_properties(
             if value is None:
                 continue
             param = getattr(cls, key, None)
-            if isinstance(param, (property | Parameter)) and getattr(param, "fset", None) is not None:
+            if isinstance(param, (property, Parameter)) and getattr(param, "fset", None) is not None:
                 setattr(obj, key, value)
                 matched[key] = value
             else:
