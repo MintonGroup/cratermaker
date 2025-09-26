@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from cratermaker._cratermaker import counting_functions
 from numpy.typing import NDArray
 from scipy import fft
 
-from cratermaker._cratermaker import counting_functions
 from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, _TALLY_NAME, Counting
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.core.crater import Crater
