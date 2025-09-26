@@ -136,20 +136,6 @@ class Surface(ComponentBase):
             f"Number of nodes: {self.n_node}"
         )
 
-    def __del__(self):
-        try:
-            if hasattr(self, "_uxds") and hasattr(self._uxds, "close"):
-                if hasattr(self._uxds, "uxgrid") and hasattr(self._uxds.uxgrid, "_ds"):
-                    self._uxds.uxgrid._ds.close()
-                self._uxds.close()
-        except Exception as e:
-            warnings.warn(f"An error occurred while closing the dataset: {e}", RuntimeWarning, stacklevel=2)
-        try:
-            if hasattr(self, "_grid") and hasattr(self._grid, "uxgrid") and hasattr(self._grid.uxgrid, "_ds"):
-                self._grid.uxgrid._ds.close()
-        except Exception as e:
-            warnings.warn(f"An error occurred while closing the dataset: {e}", RuntimeWarning, stacklevel=2)
-
     @classmethod
     def maker(
         cls: Surface,
