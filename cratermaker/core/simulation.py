@@ -101,7 +101,6 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
-        object.__setattr__(self, "_true_crater_list", [])
 
         if self.config_file.exists():
             config_file = self.config_file
@@ -560,7 +559,6 @@ class Simulation(CratermakerBase):
                 if not isinstance(c, Crater):
                     raise TypeError(f"Expected Crater, got {type(c)}")
                 self._enqueue_crater(c)
-            self._true_crater_list.extend(craters)
             self._process_queue()
 
         return
@@ -581,51 +579,11 @@ class Simulation(CratermakerBase):
             **kwargs,
         )
 
-        self.dump_crater_lists()
+        if self.morphology.docounting:
+            self.counting.dump_crater_lists()
 
         self.to_config(**kwargs)
 
-        return
-
-    def dump_crater_lists(self) -> None:
-        """
-        Dump the crater lists to a file and reset the true crater list.
-        """
-        crater_dir = self.simdir / "crater_data"
-        crater_dir.mkdir(parents=True, exist_ok=True)
-        truefilename = crater_dir / f"true_crater_list{self.interval_number:06d}.csv"
-
-        # Convert current crater list to dicts, splitting location into longitude/latitude
-        new_data = []
-        for c in self._true_crater_list:
-            d = asdict(c)
-            if "location" in d:
-                lon, lat = d.pop("location")
-                d["longitude"] = lon
-                d["latitude"] = lat
-            new_data.append(d)
-
-        # If the file already exists, read it and merge
-        if truefilename.exists():
-            with truefilename.open("r", newline="") as f:
-                reader = csv.DictReader(f)
-                existing_data = list(reader)
-            combined_data = existing_data + new_data
-            # Sort by final_diameter descending
-            combined_data = sorted(combined_data, key=lambda d: -float(d["final_diameter"]))
-        else:
-            combined_data = new_data
-
-        # Write merged data back to file
-        if combined_data:
-            with truefilename.open("w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
-                writer.writeheader()
-                writer.writerows(combined_data)
-            combined_data = {k: np.array([d[k] for d in combined_data]) for k in combined_data[0]}
-            export.crater_layer(combined_data, self.surface, self.interval_number, layer_name="True Craters")
-
-        self._true_crater_list = []
         return
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
@@ -1031,7 +989,8 @@ class Simulation(CratermakerBase):
     @counting.setter
     def counting(self, value):
         if not isinstance(value, (Counting | str)):
-            self._counting = value
+            raise TypeError("counting must be of Counting type or str")
+        self._counting = value
 
     @property
     def n_node(self):
@@ -1046,13 +1005,6 @@ class Simulation(CratermakerBase):
         Number of faces in the simulation mesh. Dynamically set based on `surface` attribute.
         """
         return self.surface.uxgrid.n_face
-
-    @property
-    def true_crater_list(self):
-        """
-        The list of craters that have been emplaced in the simulation.
-        """
-        return self._true_crater_list
 
     @parameter
     def interval_number(self):

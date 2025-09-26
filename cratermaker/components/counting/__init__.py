@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import csv
 from abc import abstractmethod
+from dataclasses import asdict
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -8,6 +11,7 @@ import uxarray as uxr
 from numpy.random import Generator
 
 from cratermaker.core.crater import Crater
+from cratermaker.utils import export
 from cratermaker.utils.component_utils import ComponentBase, import_components
 
 if TYPE_CHECKING:
@@ -25,6 +29,8 @@ _RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater taggin region is exte
 
 class Counting(ComponentBase):
     _registry: dict[str, Counting] = {}
+
+    _CRATER_DIR = "crater_data"
 
     """
     Base class for all crater counting models. It defines the interface for tallying the observable craters on a surface.
@@ -44,7 +50,9 @@ class Counting(ComponentBase):
     ):
         self.surface = surface
         rng = kwargs.pop("rng", surface.rng)
-        super().__init__(rng=rng, **kwargs)
+        simdir = kwargs.pop("simdir", surface.simdir)
+        super().__init__(rng=rng, simdir=simdir, **kwargs)
+        object.__setattr__(self, "_true_crater_list", [])
 
     @classmethod
     def maker(
@@ -131,6 +139,7 @@ class Counting(ComponentBase):
         if _TALLY_NAME not in self.surface.uxds:
             self.reset()
 
+        self.true_crater_list.append(crater)
         self.observed[crater.id] = crater
         region_radius = _RIM_BUFFER_FACTOR * crater.final_radius
         # Tag a region just outside crater rim with the id
@@ -202,6 +211,68 @@ class Counting(ComponentBase):
             A dict with the crater id as the key and the Crater object as the values
         """
         return self._observed
+
+    @property
+    def true_crater_list(self):
+        """
+        The list of craters that have been emplaced in the simulation.
+        """
+        return self._true_crater_list
+
+    @property
+    def output_dir(self) -> Path | None:
+        """
+        The output directory for the surface. If None, the surface does not have an output directory set.
+        """
+        if self._output_dir is None:
+            self._output_dir = self.simdir / self.__class__._CRATER_DIR
+        return self._output_dir
+
+    def dump_crater_lists(self, interval_number: int = 0) -> None:
+        """
+        Dump the crater lists to a file and reset the true crater list.
+
+        Parameters
+        ----------
+        interval_number : int, default=0
+            The interval number for the output file naming.
+        """
+        crater_dir = self.output_dir
+        crater_dir.mkdir(parents=True, exist_ok=True)
+        truefilename = crater_dir / f"true_crater_list{interval_number:06d}.csv"
+
+        # Convert current crater list to dicts, splitting location into longitude/latitude
+        new_data = []
+        for c in self.true_crater_list:
+            d = asdict(c)
+            if "location" in d:
+                lon, lat = d.pop("location")
+                d["longitude"] = lon
+                d["latitude"] = lat
+            new_data.append(d)
+
+        # If the file already exists, read it and merge
+        if truefilename.exists():
+            with truefilename.open("r", newline="") as f:
+                reader = csv.DictReader(f)
+                existing_data = list(reader)
+            combined_data = existing_data + new_data
+            # Sort by final_diameter descending
+            combined_data = sorted(combined_data, key=lambda d: -float(d["final_diameter"]))
+        else:
+            combined_data = new_data
+
+        # Write merged data back to file
+        if combined_data:
+            with truefilename.open("w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
+                writer.writeheader()
+                writer.writerows(combined_data)
+            combined_data = {k: np.array([d[k] for d in combined_data]) for k in combined_data[0]}
+            export.crater_layer(combined_data, self.surface, interval_number, layer_name="True Craters")
+
+        self._true_crater_list = []
+        return
 
 
 import_components(__name__, __path__, ignore_private=True)
