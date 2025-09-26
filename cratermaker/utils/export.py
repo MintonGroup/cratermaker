@@ -240,6 +240,18 @@ def crater_layer(
 ) -> None:
     """
     Export the crater data to a GeoPackage file and stores it in the default export directory.
+
+    Parameters
+    ----------
+    crater_data : dict
+        Dictionary containing crater attributes. Must include 'final_diameter', 'longitude', and 'latitude' keys. Any additional key value pairs will be added as attributes to each crater.
+    surface : Surface
+        The surface object containing the data to export.
+    interval_number : int, optional
+        The interval number to save, by default 0.
+    layer_name : str, optional
+        The name of the layer in the GeoPackage file, by default "craters".
+    **kwargs : Any
     """
     from shapely.geometry import Point, Polygon
     from shapely.ops import transform
