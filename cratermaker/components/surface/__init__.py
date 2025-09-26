@@ -20,10 +20,11 @@ from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
 from cratermaker.constants import (
-    _COMBINED_DATA_FILE_NAME,
-    _GRID_FILE_NAME,
+    _GRID_FILE_PREFIX,
+    _NETCDF_FILE_EXTENSION,
     _SMALLFAC,
     _SURFACE_DIR,
+    _SURFACE_FILE_PREFIX,
     _VSMALL,
     FloatLike,
 )
@@ -882,7 +883,7 @@ class Surface(ComponentBase):
         regrid = self._regrid_if_needed(**kwargs)
         reset = reset or regrid
 
-        data_file_list = list(self.data_dir.glob("*.nc"))
+        data_file_list = list(self.data_dir.glob(f"*.{_NETCDF_FILE_EXTENSION}"))
         if self.grid_file in data_file_list:
             data_file_list.remove(self.grid_file)
 
@@ -1016,9 +1017,9 @@ class Surface(ComponentBase):
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             if combine_data_files:
-                filename = _COMBINED_DATA_FILE_NAME
+                filename = f"{_SURFACE_FILE_PREFIX}.{_NETCDF_FILE_EXTENSION}"
             else:
-                filename = _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.nc")
+                filename = f"{_SURFACE_FILE_PREFIX}{interval_number:06d}.{_NETCDF_FILE_EXTENSION}"
 
             data_file = self.data_dir / filename
             if data_file.exists():
@@ -1191,7 +1192,7 @@ class Surface(ComponentBase):
         """
         Path to the grid file.
         """
-        return self.simdir / _SURFACE_DIR / _GRID_FILE_NAME
+        return self.simdir / _SURFACE_DIR / f"{_GRID_FILE_PREFIX}.{_NETCDF_FILE_EXTENSION}"
 
     @property
     def target(self):

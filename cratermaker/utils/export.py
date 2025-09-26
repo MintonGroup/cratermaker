@@ -13,11 +13,14 @@ from pyproj import CRS, Geod, Transformer
 from tqdm import tqdm
 
 from cratermaker.constants import (
-    _CIRCLE_FILE_NAME,
-    _COMBINED_DATA_FILE_NAME,
+    _CIRCLE_FILE_PREFIX,
     _EXPORT_DIR,
-    _GRID_FILE_NAME,
+    _GEOPACKAGE_FILE_EXTENSION,
+    _GEOTIFF_FILE_EXTENSION,
+    _GRID_FILE_PREFIX,
+    _NETCDF_FILE_EXTENSION,
     _SURFACE_DIR,
+    _SURFACE_FILE_PREFIX,
     _VTK_FILE_EXTENSION,
     FloatLike,
 )
@@ -56,7 +59,7 @@ def to_vtk(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data_dir = surface.simdir / _SURFACE_DIR
-    data_file_list = list(data_dir.glob("*.nc"))
+    data_file_list = list(data_dir.glob(f"*.{_NETCDF_FILE_EXTENSION}"))
     if surface.grid_file in data_file_list:
         data_file_list.remove(surface.grid_file)
 
@@ -129,7 +132,7 @@ def to_vtk(
         normals_filter.Update()
         poly_data_with_normals = normals_filter.GetOutput()
 
-        output_filename = out_dir / _GRID_FILE_NAME.replace(".nc", f".{_VTK_FILE_EXTENSION}")
+        output_filename = out_dir / f"{_GRID_FILE_PREFIX}.{_VTK_FILE_EXTENSION}"
         writer.SetFileName(output_filename)
         writer.SetInputData(poly_data_with_normals)
         writer.Write()
@@ -179,7 +182,7 @@ def to_vtk(
     warp.SetInputData(poly_data_with_normals)
     warp.Update()
     warped_output = warp.GetOutput()
-    output_filename = out_dir / _COMBINED_DATA_FILE_NAME.replace(".nc", f"{interval_number:06d}.{_VTK_FILE_EXTENSION}")
+    output_filename = out_dir / f"{_SURFACE_FILE_PREFIX}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
     writer.SetFileName(output_filename)
     writer.SetInputData(warped_output)
     writer.Write()
@@ -190,6 +193,7 @@ def to_vtk(
 def to_gpkg(
     surface: Surface,
     interval_number: int = 0,
+    save_geometry=True,
     **kwargs,
 ) -> None:
     """
@@ -206,6 +210,10 @@ def to_gpkg(
     """
     out_dir = surface.simdir / _EXPORT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if save_geometry:
+        gdf = surface.uxgrid.to_geodataframe(engine="geopandas").set_crs(surface.csrs).to_file()
+
     gpkg_path = out_dir / f"surface_{interval_number:06d}.gpkg"
 
     # load data and select the face-based variables
@@ -216,10 +224,7 @@ def to_gpkg(
 
     # Export each face-associated variable as its own layer in the GeoPackage file
     for var in variables:
-        gdf = ds[var].to_geodataframe(engine="geopandas")
-
-        if getattr(gdf, "crs", None) is None:
-            gdf = gdf.set_crs(surface.crs)
+        gdf = ds[var].to_geodataframe(engine="geopandas").set_crs(surface.crs)
 
         if var not in gdf.columns:
             value_col = var if var in gdf.columns else ("value" if "value" in gdf.columns else None)
