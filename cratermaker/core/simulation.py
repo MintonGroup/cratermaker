@@ -1027,10 +1027,11 @@ class Simulation(CratermakerBase):
         The crater counting model. Set during initialization.
         """
         return self._counting
+
     @counting.setter
     def counting(self, value):
         if not isinstance(value, (Counting | str)):
-        self._counting = value
+            self._counting = value
 
     @property
     def n_node(self):
