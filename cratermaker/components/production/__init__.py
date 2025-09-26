@@ -17,6 +17,23 @@ from cratermaker.utils.general_utils import parameter
 
 
 class Production(ComponentBase):
+    """
+    An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.
+
+    The production function is defined as the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
+
+    Parameters
+    ----------
+    rng : numpy.random.Generator | None
+        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        The rng_rng_seed for the RNG. If None, a new RNG is created.
+    rng_state : dict, optional
+        The state of the random number generator. If None, a new state is created.
+    **kwargs : Any
+        Additional keyword arguments.
+    """
+
     _registry: dict[str, Production] = {}
 
     def __init__(
@@ -736,7 +753,7 @@ class Production(ComponentBase):
             self._generator_type = self._valid_generator_types[0]
             return
         if not isinstance(value, str):
-            raise ValueError("generator_type must be a string")
+            raise TypeError("generator_type must be a string")
         if value.lower() not in self._valid_generator_types:
             raise ValueError(f"Invalid generator_type {value}. Must be one of {self._valid_generator_types}")
         self._generator_type = value.lower()

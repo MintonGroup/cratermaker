@@ -308,7 +308,7 @@ def validate_and_normalize_location(location):
     if isinstance(location, np.ndarray) and location.dtype.names == ("lat", "lon"):
         return normalize_coords((location[1], location[0]))
 
-    if isinstance(location, (tuple, list, np.ndarray)) and len(location) == 2:
+    if isinstance(location, (tuple | list | np.ndarray)) and len(location) == 2:
         return normalize_coords(location)
 
     # Check if it's a dictionary with 'lon' and 'lat' keys

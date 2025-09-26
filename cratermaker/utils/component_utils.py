@@ -10,6 +10,17 @@ from cratermaker.utils.general_utils import parameter
 
 
 class ComponentBase(CratermakerBase, ABC):
+    """
+    Base class for components of the Cratermaker project.
+
+    Defines the common parameters and methods for all components in the Cratermaker project, including the maker class that is used to select the correct component from user arguments.
+
+    Parameters
+    ----------
+    **kwargs : Any
+        Additional keyword arguments.
+    """
+
     _registry: dict[str, type[ComponentBase]] = {}
 
     def __init__(self, **kwargs: Any) -> None:

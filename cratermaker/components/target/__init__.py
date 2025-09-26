@@ -385,8 +385,8 @@ class Target(ComponentBase):
                     density=density,
                     **kwargs,
                 )
-            except KeyError:
-                raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.")
+            except KeyError as e:
+                raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.") from e
         elif not isinstance(target, Target):
             raise TypeError("target must be a string or a Target object")
         target._component_name = target.name

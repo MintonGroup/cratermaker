@@ -11,6 +11,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 
+from ..components.counting import Counting
 from ..components.morphology import Morphology
 from ..components.production import Production
 from ..components.projectile import Projectile
@@ -74,6 +75,7 @@ class Simulation(CratermakerBase):
         morphology: Morphology | str | None = None,
         projectile: Projectile | str | None = None,
         surface: Surface | str | None = None,
+        counting: Counting | str | None = None,
         simdir: str | Path | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
@@ -88,6 +90,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_morphology", morphology)
         object.__setattr__(self, "_projectile", projectile)
         object.__setattr__(self, "_surface", surface)
+        object.__setattr__(self, "_counting", counting)
         object.__setattr__(self, "_craterlist", None)
         object.__setattr__(self, "_crater", None)
         object.__setattr__(self, "_interval_number", None)
@@ -122,6 +125,7 @@ class Simulation(CratermakerBase):
             morphology=morphology,
             projectile=projectile,
             surface=surface,
+            counting=counting,
             config_file=config_file,
         )
 
@@ -136,6 +140,7 @@ class Simulation(CratermakerBase):
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
         projectile_config = unmatched.pop("projectile_config", {})
+        counting_config = unmatched.pop("counting_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
         if not resume_old:
@@ -166,11 +171,19 @@ class Simulation(CratermakerBase):
             **surface_config,
         )
 
+        counting_config = {**counting_config, **kwargs}
+        self.counting = Counting.maker(
+            self.counting,
+            surface=self.surface,
+            **counting_config,
+        )
+
         morphology_config = {**morphology_config, **kwargs}
         self.morphology = Morphology.maker(
             self.morphology,
             surface=self.surface,
             production=self.production,
+            counting=self.counting,
             **morphology_config,
         )
         if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
@@ -490,7 +503,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def emplace(self, crater: Crater | list[Crater] | None = None, **kwargs: Any) -> None:
+    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> None:
         """
         Emplace one or more craters in the simulation.
 
@@ -500,7 +513,7 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
-        crater : Crater or list of Crater objects, optional
+        craters : Crater or list of Crater objects, optional
             The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
         **kwargs : Any
             Keyword arguments to pass to :class:`Crater.maker`.
@@ -534,21 +547,21 @@ class Simulation(CratermakerBase):
             sim.emplace(craters)
 
         """
-        if crater is None:
+        if craters is None:
             crater_args = {**kwargs, **vars(self.common_args)}
             # Add scaling=self.scaling to the kwargs if it is not already present
             if "scaling" not in crater_args:
                 crater_args["scaling"] = self.scaling
-            crater = Crater.maker(**crater_args)
-        elif isinstance(crater, list) and len(crater) > 0:
-            self._true_crater_list.extend(crater)
-            for c in crater:
+            craters = [Crater.maker(**crater_args)]
+        elif isinstance(craters, Crater):
+            craters = [craters]
+        if isinstance(craters, list) and len(craters) > 0:
+            for c in craters:
+                if not isinstance(c, Crater):
+                    raise TypeError(f"Expected Crater, got {type(c)}")
                 self._enqueue_crater(c)
+            self._true_crater_list.extend(craters)
             self._process_queue()
-            return
-        if isinstance(crater, Crater):
-            self._true_crater_list.append(crater)
-            self.morphology.emplace(crater, **kwargs)
 
         return
 
@@ -646,12 +659,14 @@ class Simulation(CratermakerBase):
         sim_config["surface_config"] = self.surface.to_config(remove_common_args=True)
         sim_config["projectile_config"] = self.projectile.to_config(remove_common_args=True)
         sim_config["morphology_config"] = self.morphology.to_config(remove_common_args=True)
+        sim_config["counting_config"] = self.counting.to_config(remove_common_args=True)
         sim_config["target"] = self.target.name
         sim_config["scaling"] = self.scaling._component_name
         sim_config["production"] = self.production._component_name
         sim_config["projectile"] = self.projectile._component_name
         sim_config["morphology"] = self.morphology._component_name
         sim_config["surface"] = self.surface._component_name
+        sim_config["counting"] = self.counting._component_name
 
         for config in [
             "target",
@@ -660,6 +675,7 @@ class Simulation(CratermakerBase):
             "projectile",
             "morphology",
             "surface",
+            "counting",
         ]:
             # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
             if config in sim_config and (sim_config[config] is None or sim_config[config] == {}):
@@ -693,7 +709,7 @@ class Simulation(CratermakerBase):
         """
         return self.surface.update_elevation(*args, **kwargs)
 
-    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
+    def _enqueue_crater(self, crater: Crater, **kwargs) -> None:
         """
         Add a crater to the queue for later emplacement.
 
@@ -1004,6 +1020,18 @@ class Simulation(CratermakerBase):
         if not isinstance(value, (Projectile | str)):
             raise TypeError("projectile must be of Projectile type or str")
         self._projectile = value
+
+    @property
+    def counting(self):
+        """
+        The crater counting model. Set during initialization.
+        """
+        return self._counting
+
+    @counting.setter
+    def counting(self, value):
+        if not isinstance(value, (Counting | str)):
+            self._counting = value
 
     @property
     def n_node(self):

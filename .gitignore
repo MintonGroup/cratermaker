@@ -17,6 +17,7 @@
 !cratermaker/components/scaling/
 !cratermaker/components/surface/
 !cratermaker/components/target/
+!cratermaker/components/counting/
 !cratermaker/utils/
 !cratermaker/**/*.py
 !cratermaker/**/*.pyx

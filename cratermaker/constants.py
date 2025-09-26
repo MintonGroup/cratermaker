@@ -7,6 +7,7 @@ PairOfFloats = tuple[float, float] | list[float] | np.ndarray
 # Default filenames and paths
 _CONFIG_FILE_NAME = "cratermaker.yaml"
 _COMPONENT_NAMES = [
+    "counting",
     "target",
     "scaling",
     "production",

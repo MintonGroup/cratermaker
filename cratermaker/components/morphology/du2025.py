@@ -16,10 +16,20 @@ class Du2025(SimpleMoon):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh. This uses the morphology model of Du et al. 2025a,b.
 
+    This uses the morphology model of Du et al. 2025a,b.
+
+    Notes
+    -----
+    This is a placeholder until the revisions to Du et al. 2025b are finished.
+
     Parameters
     ----------
     **kwargs : Any
         Additional keyword arguments to be passed to internal functions.
+
+    Notes
+    -----
+    This is a placeholder until the revisions to Du et al. 2025b are finished.
     """
 
     def __init__(self, **kwargs: Any):

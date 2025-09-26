@@ -15,8 +15,6 @@ if TYPE_CHECKING:
 
 
 class Scaling(ComponentBase):
-    _registry: dict[str, Scaling] = {}
-
     """
     The abstract base class for all scaling models. It defines the interface for converting between projectile and crater diameters.
 
@@ -35,6 +33,8 @@ class Scaling(ComponentBase):
     **kwargs : Any
         Additional keyword arguments.
     """
+
+    _registry: dict[str, Scaling] = {}
 
     def __init__(
         self,
