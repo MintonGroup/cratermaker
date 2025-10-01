@@ -300,7 +300,7 @@ class Counting(ComponentBase):
         crater_vector_format : str, optional
             The format of the output file. This will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default "gpkg". Other drivers may require additional kwargs.
         **kwargs : Any
-            Additional keyword arguments to pass to geopandas.to_file.
+            Additional keyword arguments that are ignored.
         """
         import geopandas as gpd
         import pandas as pd
@@ -415,7 +415,7 @@ class Counting(ComponentBase):
             geoms.append(poly)
 
         gdf = gpd.GeoDataFrame(attrs_df, geometry=geoms, crs=surface.crs)
-        gdf.to_file(output_filename, layer=layer_name, **kwargs)
+        gdf.to_file(output_filename, layer=layer_name)
 
         return
 

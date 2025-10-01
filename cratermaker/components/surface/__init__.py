@@ -855,6 +855,7 @@ class Surface(ComponentBase):
         bounds: tuple[float, float, float, float] | None = None,
         dtype: str = "float32",
         nodata: float | None = np.nan,
+        **kwargs,
     ) -> None:
         """
         Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
@@ -884,8 +885,7 @@ class Surface(ComponentBase):
         if not variables:
             raise ValueError("No face-based variables found to export to GeoTiff.")
 
-        globe = ccrs.Globe(semimajor_axis=self.radius, semiminor_axis=self.radius, ellipse=None)
-        crs = ccrs.Geodetic(globe=globe)
+        projection = ccrs.PlateCarree()
 
         for var in variables:
             gdf = ds[var].to_geodataframe(engine="geopandas")
@@ -909,18 +909,19 @@ class Surface(ComponentBase):
             width = int(np.ceil((maxx - minx) / deg_per_pix))
             height = int(np.ceil((maxy - miny) / deg_per_pix))
 
-            crs = self.crs.to_proj4()
             fig = plt.figure(figsize=(width, height), dpi=1)
 
-            ax = fig.add_axes([0, 0, 1, 1], projection=ccrs.CRS(crs))
+            ax = fig.add_axes([0, 0, 1, 1], projection=projection)
             ax.set_axis_off()
             fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
-            ax.set_global()
+            ax.set_extent([minx, maxx, miny, maxy], crs=projection)
 
             print(f"Rasterizing variable '{var}' to GeoTIFF...")
             raster = ds[var].to_raster(ax=ax)
 
-            transform = rio.transform.from_origin(-180.0, 90.0, deg_per_pix, deg_per_pix)
+            # transform = rio.transform.from_origin(minx, miny, deg_per_pix, deg_per_pix)
+            transform = rio.transform.from_bounds(minx, maxy, maxx, miny, width, height)
+
             profile = {
                 "driver": "GTiff",
                 "height": height,
