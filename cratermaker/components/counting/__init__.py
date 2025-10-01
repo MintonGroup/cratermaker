@@ -8,10 +8,9 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import uxarray as uxr
-from numpy.random import Generator
 
+from cratermaker.constants import FloatLike
 from cratermaker.core.crater import Crater
-from cratermaker.utils import export
 from cratermaker.utils.component_utils import ComponentBase, import_components
 
 if TYPE_CHECKING:
@@ -228,7 +227,7 @@ class Counting(ComponentBase):
             self._output_dir = self.simdir / self.__class__._CRATER_DIR
         return self._output_dir
 
-    def dump_crater_lists(self, interval_number: int = 0) -> None:
+    def save(self, interval_number: int = 0, save_vector: bool = True, **kwargs: Any) -> None:
         """
         Dump the crater lists to a file and reset the true crater list.
 
@@ -236,6 +235,10 @@ class Counting(ComponentBase):
         ----------
         interval_number : int, default=0
             The interval number for the output file naming.
+        save_vector: bool, default=True
+            If True, export the crater data to a vector file using geopandas. See `save_vector` for more details.
+        **kwargs : Any
+            Additional keyword arguments to pass to the save_vector function.
         """
         crater_dir = self.output_dir
         crater_dir.mkdir(parents=True, exist_ok=True)
@@ -268,10 +271,152 @@ class Counting(ComponentBase):
                 writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
                 writer.writeheader()
                 writer.writerows(combined_data)
-            combined_data = {k: np.array([d[k] for d in combined_data]) for k in combined_data[0]}
-            export.crater_layer(combined_data, self, interval_number, layer_name="True Craters")
+            if save_vector:
+                combined_data = {k: np.array([d[k] for d in combined_data]) for k in combined_data[0]}
+                self.save_vector(combined_data, interval_number, layer_name="True Craters", **kwargs)
 
         self._true_crater_list = []
+        return
+
+    def save_vector(
+        self,
+        crater_data: dict,
+        interval_number: int = 0,
+        layer_name: str = "craters",
+        crater_vector_format: str = "gpkg",
+        **kwargs,
+    ) -> None:
+        """
+        Export the crater data to a vector file and stores it in the default export directory.
+
+        Parameters
+        ----------
+        crater_data : dict
+            Dictionary containing crater attributes. Must include 'final_diameter', 'longitude', and 'latitude' keys. Any additional key value pairs will be added as attributes to each crater.
+        interval_number : int, optional
+            The interval number to save, by default 0.
+        layer_name : str, optional
+            The name of the layer in the GeoPackage file, by default "craters".
+        crater_vector_format : str, optional
+            The format of the output file. This will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default "gpkg". Other drivers may require additional kwargs.
+        **kwargs : Any
+            Additional keyword arguments to pass to geopandas.to_file.
+        """
+        import geopandas as gpd
+        import pandas as pd
+        from pyproj import Geod
+        from shapely.geometry import GeometryCollection, LineString, Polygon
+        from shapely.ops import split, transform
+
+        def _geodesic_ellipse_polygon(
+            lon: float,
+            lat: float,
+            a: float,
+            b: float,
+            az_deg: float = 0.0,
+            n: int = 150,
+            R_pole: FloatLike = 1.0,
+            R_equator: FloatLike = 1.0,
+        ) -> Polygon:
+            """
+            Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
+
+            Parameters
+            ----------
+            lon : float
+                Longitude of the ellipse center in degrees.
+            lat : float
+                Latitude of the ellipse center in degrees.
+            a : float
+                Semi-major axis in meters.
+            b : float
+                Semi-minor axis in meters.
+            az_deg : float, optional
+                Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
+            n : int, optional
+                Number of points to use for the polygon, by default 150.
+            R_pole : FloatLike, optional
+                Planetary polar radius in units of meters, by default 1.0.
+            R_equator : FloatLike, optional
+                Planetary equatorial radius in units of meters, by default 1.0.
+
+            Returns
+            -------
+            Returns a Shapely Polygon in lon/lat degrees.
+            """
+            geod = Geod(a=R_pole, b=R_equator)
+            theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+
+            # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
+            ct = np.cos(np.deg2rad(theta))
+            st = np.sin(np.deg2rad(theta))
+            r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+
+            # Bearings (from east, CCW) rotated by azimuth
+            bearings = theta + az_deg % 360.0
+
+            # Forward geodesic for each bearing/distance
+            poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+            # Correct for potential antimeridian crossing
+            if np.ptp(poly_lon) > 180.0:
+                center_sign = np.sign(lon)
+                poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
+                poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+                merdian_lon = 180.0 * center_sign
+                meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
+                poly = split(poly, meridian)
+
+                def lon_flip(lon, lat):
+                    lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
+                    return lon, lat
+
+                new_geoms = []
+                for p in poly.geoms:
+                    if np.abs(p.centroid.x) > 180.0:
+                        p = transform(lon_flip, p)
+                    new_geoms.append(p)
+                poly = GeometryCollection(new_geoms)
+
+            else:
+                poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+
+            return poly
+
+        out_dir = self.output_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
+        output_filename = out_dir / f"craters{interval_number:06d}.{crater_vector_format}"
+
+        if "final_diameter" not in crater_data or "longitude" not in crater_data or "latitude" not in crater_data:
+            raise ValueError("crater_data must contain 'final_diameter', 'longitude', and 'latitude' keys.")
+
+        diameter = np.atleast_1d(crater_data["final_diameter"])
+        longitude = np.atleast_1d(crater_data["longitude"])
+        latitude = np.atleast_1d(crater_data["latitude"])
+
+        attrs_df = pd.DataFrame({k: np.asarray(v) for k, v in crater_data.items()})
+
+        # Check for length consistency
+        if len(diameter) != len(longitude) or len(diameter) != len(latitude):
+            raise ValueError("The diameter, latitude, and longitude, arguments must have the same length")
+
+        # Validate non-negative values
+        if np.any(diameter < 0):
+            raise ValueError("All values in 'diameter' must be non-negative")
+
+        geoms = []
+        surface = self.surface
+
+        for lon, lat, diam in zip(longitude, latitude, diameter, strict=False):
+            lon = float(lon)
+            lat = float(lat)
+            radius = float(diam) / 2.0
+            poly = _geodesic_ellipse_polygon(lon, lat, a=radius, b=radius, R_pole=surface.radius, R_equator=surface.radius)
+            geoms.append(poly)
+
+        gdf = gpd.GeoDataFrame(attrs_df, geometry=geoms, crs=surface.crs)
+        gdf.to_file(output_filename, layer=layer_name, **kwargs)
+
         return
 
 

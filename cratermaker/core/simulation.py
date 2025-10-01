@@ -24,7 +24,6 @@ from ..constants import (
     FloatLike,
     PairOfFloats,
 )
-from ..utils import export
 from ..utils.general_utils import _set_properties, format_large_units, parameter
 from .base import CratermakerBase, _convert_for_yaml
 from .crater import Crater
@@ -277,6 +276,8 @@ class Simulation(CratermakerBase):
         ninterval : int, optional
             Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output
             in equal cumulative number intervals and vice versa.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
 
         Notes
         -----
@@ -341,7 +342,7 @@ class Simulation(CratermakerBase):
         self.current_age = age
         self.elapsed_time = 0.0
         self.elapsed_n1 = 0.0
-        self.save()
+        self.save(**kwargs)
         for i in tqdm(
             range(ninterval),
             total=ninterval,
@@ -399,7 +400,7 @@ class Simulation(CratermakerBase):
             ).item()
             self.current_age = current_age_end
 
-            self.save()
+            self.save(**kwargs)
 
         return
 
@@ -567,6 +568,11 @@ class Simulation(CratermakerBase):
     def save(self, **kwargs: Any) -> None:
         """
         Save the current simulation state to a file.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Additional keyword argumments to pass to the component save methods.
         """
         time_variables = {
             "current_age": self.current_age,
@@ -581,7 +587,7 @@ class Simulation(CratermakerBase):
         )
 
         if self.morphology.docounting:
-            self.counting.dump_crater_lists(interval_number=self.interval_number)
+            self.counting.save(interval_number=self.interval_number, **kwargs)
 
         self.to_config(**kwargs)
 
