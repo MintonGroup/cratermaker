@@ -452,16 +452,21 @@ class Counting(ComponentBase):
 
         if self.vector_format == "shp":
             attrs = {shp_key_fix(k): v for k, v in attrs.items()}
+            format_has_layers = False
+        else:
+            format_has_layers = True
         attrs_df = pd.DataFrame({k: np.asarray(v) for k, v in attrs.items()})
 
         gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
-        if self.vector_format == "shp":
-            output_file = out_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
-        else:
-            output_file = out_dir / f"craters{interval_number:06d}.{self.vector_format}"
-        print(f"Saving vector file: '{output_file}'...")
         try:
-            gdf.to_file(output_file, layer=layer_name)
+            if format_has_layers:
+                output_file = out_dir / f"craters{interval_number:06d}.{self.vector_format}"
+                print(f"Saving {layer_name} layer to vector file: '{output_file}'...")
+                gdf.to_file(output_file, layer=layer_name)
+            else:
+                output_file = out_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
+                print(f"Saving to vector file: '{output_file}'...")
+                gdf.to_file(output_file)
         except Exception as e:
             raise RuntimeError(f"Error saving {output_file}: {e}") from e
 
