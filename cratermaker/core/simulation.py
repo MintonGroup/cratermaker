@@ -660,7 +660,6 @@ class Simulation(CratermakerBase):
 
     def reset(self):
         crater_dir = self.counting.output_dir
-        # delete crater_dir using Pathlib
         if crater_dir.exists():
             shutil.rmtree(crater_dir)
 
