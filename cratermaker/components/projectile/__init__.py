@@ -573,4 +573,4 @@ class Projectile(ComponentBase):
         return "\n".join(lines)
 
 
-import_components(__name__, __path__, ignore_private=True)
+import_components(__name__, __path__)

@@ -652,4 +652,4 @@ class CraterQueueManager:
         return len(self._queue) == 0
 
 
-import_components(__name__, __path__, ignore_private=True)
+import_components(__name__, __path__)

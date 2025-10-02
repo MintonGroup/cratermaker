@@ -394,4 +394,4 @@ class Target(ComponentBase):
         return target
 
 
-import_components(__name__, __path__, ignore_private=True)
+import_components(__name__, __path__)

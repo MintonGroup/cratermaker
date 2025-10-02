@@ -487,4 +487,4 @@ class Counting(ComponentBase):
         return
 
 
-import_components(__name__, __path__, ignore_private=True)
+import_components(__name__, __path__)
