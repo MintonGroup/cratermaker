@@ -12,6 +12,7 @@ import uxarray as uxr
 from cratermaker.constants import FloatLike
 from cratermaker.core.crater import Crater
 from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
@@ -37,7 +38,9 @@ class Counting(ComponentBase):
     Parameters
     ----------
     surface : Surface | LocalSurface
-        The surface or local surface view to be counted. 
+        The surface or local surface view to be counted.
+    vector_format: str | None, optional
+        The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file). Other drivers may require additional kwargs.
     **kwargs : Any
         Additional keyword arguments.
     """
@@ -45,19 +48,24 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
+        vector_format: str | None = None,
         **kwargs: Any,
     ):
+        object.__setattr__(self, "_emplaced", [])
+        object.__setattr__(self, "_observed", {})
+        object.__setattr__(self, "_vector_format", None)
         self.surface = surface
         rng = kwargs.pop("rng", surface.rng)
         simdir = kwargs.pop("simdir", surface.simdir)
         super().__init__(rng=rng, simdir=simdir, **kwargs)
-        object.__setattr__(self, "_true_crater_list", [])
+        self.vector_format = vector_format
 
     @classmethod
     def maker(
         cls,
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
+        vector_format: str | None = None,
         **kwargs: Any,
     ) -> Counting:
         """
@@ -69,6 +77,8 @@ class Counting(ComponentBase):
             The name of the counting model to initialize. If None, the default model is used.
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
+        vector_format: str | None, optional
+            The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file). Other drivers may require additional kwargs.
         **kwargs : Any
             Additional keyword arguments.
 
@@ -93,6 +103,7 @@ class Counting(ComponentBase):
         counting = super().maker(
             component=counting,
             surface=surface,
+            vector_format=vector_format,
             **kwargs,
         )
 
@@ -100,7 +111,9 @@ class Counting(ComponentBase):
 
     def __str__(self) -> str:
         base = super().__str__()
-        return f"{base}\nSurface: {self.surface}\n"
+        if self.vector_format is not None:
+            base += f"\nOutput vector format: {self.vector_format}"
+        return f"{base}\nSurface: {self.surface.name}"
 
     def reset(self):
         """
@@ -117,6 +130,7 @@ class Counting(ComponentBase):
         )
 
         self.surface._uxds[_TALLY_NAME] = uxda
+        self._emplaced = []
         self._observed = {}
         return
 
@@ -138,7 +152,7 @@ class Counting(ComponentBase):
         if _TALLY_NAME not in self.surface.uxds:
             self.reset()
 
-        self.true_crater_list.append(crater)
+        self.emplaced.append(crater)
         self.observed[crater.id] = crater
         region_radius = _RIM_BUFFER_FACTOR * crater.final_radius
         # Tag a region just outside crater rim with the id
@@ -212,11 +226,11 @@ class Counting(ComponentBase):
         return self._observed
 
     @property
-    def true_crater_list(self):
+    def emplaced(self):
         """
         The list of craters that have been emplaced in the simulation.
         """
-        return self._true_crater_list
+        return self._emplaced
 
     @property
     def output_dir(self) -> Path | None:
@@ -227,55 +241,57 @@ class Counting(ComponentBase):
             self._output_dir = self.simdir / self.__class__._CRATER_DIR
         return self._output_dir
 
-    def save(self, interval_number: int = 0, save_vector: bool = True, **kwargs: Any) -> None:
+    def save(self, interval_number: int = 0, **kwargs: Any) -> None:
         """
-        Dump the crater lists to a file and reset the true crater list.
+        Dump the crater lists to a file and reset the emplaced crater list.
 
         Parameters
         ----------
         interval_number : int, default=0
             The interval number for the output file naming.
-        save_vector: bool, default=True
-            If True, export the crater data to a vector file using geopandas. See `save_vector` for more details.
         **kwargs : Any
             Additional keyword arguments to pass to the save_vector function.
         """
         crater_dir = self.output_dir
         crater_dir.mkdir(parents=True, exist_ok=True)
-        truefilename = crater_dir / f"true_crater_list{interval_number:06d}.csv"
+        emplaced_filename = crater_dir / f"emplaced_craters{interval_number:06d}.csv"
+        observed_filename = crater_dir / f"observed_craters{interval_number:06d}.csv"
 
-        # Convert current crater list to dicts, splitting location into longitude/latitude
-        new_data = []
-        for c in self.true_crater_list:
-            d = asdict(c)
-            if "location" in d:
-                lon, lat = d.pop("location")
-                d["longitude"] = lon
-                d["latitude"] = lat
-            new_data.append(d)
+        def _convert_and_merge(craters: dict[int, Crater] | list[Crater], filename: Path | str, layer_name: str) -> None:
+            new_data = []
+            if isinstance(craters, dict):
+                craters = craters.values()
+            for c in craters:
+                d = asdict(c)
+                if "location" in d:
+                    lon, lat = d.pop("location")
+                    d["longitude"] = lon
+                    d["latitude"] = lat
+                new_data.append(d)
 
-        # If the file already exists, read it and merge
-        if truefilename.exists():
-            with truefilename.open("r", newline="") as f:
-                reader = csv.DictReader(f)
+            # If the file already exists, read it and merge
+            if filename.exists():
+                with filename.open("r", newline="") as f:
+                    reader = csv.DictReader(f)
                 existing_data = list(reader)
-            combined_data = existing_data + new_data
-            # Sort by final_diameter descending
-            combined_data = sorted(combined_data, key=lambda d: -float(d["final_diameter"]))
-        else:
-            combined_data = new_data
+                combined_data = existing_data + new_data
+                # Sort by final_diameter descending
+                combined_data = sorted(combined_data, key=lambda d: -float(d["final_diameter"]))
+            else:
+                combined_data = new_data
 
-        # Write merged data back to file
-        if combined_data:
-            with truefilename.open("w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
-                writer.writeheader()
-                writer.writerows(combined_data)
-            if save_vector:
-                combined_data = {k: np.array([d[k] for d in combined_data]) for k in combined_data[0]}
-                self.save_vector(combined_data, interval_number, layer_name="True Craters", **kwargs)
+            # Write merged data back to file
+            if combined_data:
+                with filename.open("w", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
+                    writer.writeheader()
+                    writer.writerows(combined_data)
+                if self.vector_format is not None:
+                    self.save_vector(combined_data, interval_number, layer_name=layer_name, **kwargs)
 
-        self._true_crater_list = []
+        _convert_and_merge(self.emplaced, emplaced_filename, "emplaced_craters")
+        _convert_and_merge(self.observed, observed_filename, "observed_craters")
+        self._emplaced = []
         return
 
     def save_vector(
@@ -283,7 +299,6 @@ class Counting(ComponentBase):
         crater_data: dict,
         interval_number: int = 0,
         layer_name: str = "craters",
-        crater_vector_format: str = "gpkg",
         **kwargs,
     ) -> None:
         """
@@ -291,14 +306,13 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
-        crater_data : dict
+        crater_list : dict
             Dictionary containing crater attributes. Must include 'final_diameter', 'longitude', and 'latitude' keys. Any additional key value pairs will be added as attributes to each crater.
         interval_number : int, optional
             The interval number to save, by default 0.
         layer_name : str, optional
             The name of the layer in the GeoPackage file, by default "craters".
-        crater_vector_format : str, optional
-            The format of the output file. This will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default "gpkg". Other drivers may require additional kwargs.
+
         **kwargs : Any
             Additional keyword arguments that are ignored.
         """
@@ -385,38 +399,86 @@ class Counting(ComponentBase):
 
         out_dir = self.output_dir
         out_dir.mkdir(parents=True, exist_ok=True)
-        output_filename = out_dir / f"craters{interval_number:06d}.{crater_vector_format}"
 
-        if "final_diameter" not in crater_data or "longitude" not in crater_data or "latitude" not in crater_data:
+        if "final_diameter" not in crater_data[0] or "longitude" not in crater_data[0] or "latitude" not in crater_data[0]:
             raise ValueError("crater_data must contain 'final_diameter', 'longitude', and 'latitude' keys.")
 
-        diameter = np.atleast_1d(crater_data["final_diameter"])
-        longitude = np.atleast_1d(crater_data["longitude"])
-        latitude = np.atleast_1d(crater_data["latitude"])
-
-        attrs_df = pd.DataFrame({k: np.asarray(v) for k, v in crater_data.items()})
-
-        # Check for length consistency
-        if len(diameter) != len(longitude) or len(diameter) != len(latitude):
-            raise ValueError("The diameter, latitude, and longitude, arguments must have the same length")
-
-        # Validate non-negative values
-        if np.any(diameter < 0):
-            raise ValueError("All values in 'diameter' must be non-negative")
-
         geoms = []
+        attrs = {}
         surface = self.surface
 
-        for lon, lat, diam in zip(longitude, latitude, diameter, strict=False):
-            lon = float(lon)
-            lat = float(lat)
-            radius = float(diam) / 2.0
+        def add_attrs(crater: dict, attrs: dict) -> dict:
+            for k, v in crater.items():
+                if k in attrs:
+                    attrs[k].append(v)
+                else:
+                    attrs[k] = [v]
+            return attrs
+
+        def shp_key_fix(key: str) -> str:
+            """
+            ESRI Shapefile format limits field names to 10 characters, so this function substitues longer names with shorter alternatives, truncates the results, and sets them to upper case.
+            """
+            alt_names = {
+                "projectile_": "proj",
+                "morphology_": "morph",
+                "diameter": "diam",
+                "longitude": "lon",
+                "latitude": "lat",
+                "density": "dens",
+                "velocity": "vel",
+                "direction": "dir",
+                "location": "loc",
+                "angle": "ang",
+                "transient_": "tr",
+            }
+            for long, short in alt_names.items():
+                if long in key:
+                    key = key.replace(long, short)
+            return key[:10].upper()
+
+        for crater in crater_data:
+            lon = float(crater["longitude"])
+            lat = float(crater["latitude"])
+            radius = float(crater["final_diameter"]) / 2.0
             poly = _geodesic_ellipse_polygon(lon, lat, a=radius, b=radius, R_pole=surface.radius, R_equator=surface.radius)
-            geoms.append(poly)
+            if isinstance(poly, GeometryCollection):
+                for p in poly.geoms:
+                    geoms.append(p)
+                    attrs = add_attrs(crater, attrs)
+            else:
+                geoms.append(poly)
+                attrs = add_attrs(crater, attrs)
 
-        gdf = gpd.GeoDataFrame(attrs_df, geometry=geoms, crs=surface.crs)
-        gdf.to_file(output_filename, layer=layer_name)
+        if self.vector_format == "shp":
+            attrs = {shp_key_fix(k): v for k, v in attrs.items()}
+        attrs_df = pd.DataFrame({k: np.asarray(v) for k, v in attrs.items()})
 
+        gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
+        if self.vector_format == "shp":
+            output_file = out_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
+        else:
+            output_file = out_dir / f"craters{interval_number:06d}.{self.vector_format}"
+        print(f"Saving vector file: '{output_file}'...")
+        try:
+            gdf.to_file(output_file, layer=layer_name)
+        except Exception as e:
+            raise RuntimeError(f"Error saving {output_file}: {e}") from e
+
+        return
+
+    @parameter
+    def vector_format(self) -> str | None:
+        return self._vector_format
+
+    @vector_format.setter
+    def vector_format(self, value) -> None:
+        """
+        The file extension for the vector representation of the craters that will be generated when the save method is called.
+        """
+        if not isinstance(value, (str | None)):
+            raise TypeError("vector_format must be a str or None")
+        self._vector_format = value
         return
 
 

@@ -156,7 +156,7 @@ class Projectile(ComponentBase):
             params = f"\nVelocity: {format_large_units(self.velocity, quantity='velocity')}"
             params += f"\nAngle: {self.angle:.1f} degrees"
             params += f"\nDirection: {self.direction:.1f} degrees"
-        return f"{base}\nSample from distributions: {self.sample}\n{params}\nDensity: {self.density:.1f} kg/m³\n"
+        return f"{base}\nSample from distributions: {self.sample}{params}\nDensity: {self.density:.1f} kg/m³\n"
 
     def _copy(self, deep: bool = True, memo: dict[int, Any] | None = None) -> Self:
         import copy

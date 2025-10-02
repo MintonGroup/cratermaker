@@ -25,10 +25,7 @@ from cratermaker.constants import (
     FloatLike,
 )
 from cratermaker.utils.component_utils import ComponentBase, import_components
-from cratermaker.utils.general_utils import (
-    format_large_units,
-    validate_and_normalize_location,
-)
+from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 if TYPE_CHECKING:
@@ -62,7 +59,9 @@ class Surface(ComponentBase):
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
     simdir : str | Path
-        The main project simulation directory. Defaults to the current working directory if None.
+        The main project simulation directory. Defaults to the current working directory if None.        
+    raster_format : str, optional
+        If set, the save method will raster representation of the surface mesh in addition to the data files. Default is None (no additional raster is saved). Current valid options are `vtp` (or, equivalently, `vtk`), `tiff`, and `gpkg`.
     **kwargs : Any
         Additional keyword arguments.
     """
@@ -73,6 +72,7 @@ class Surface(ComponentBase):
         self,
         target: Target | str | None = None,
         simdir: str | Path | None = None,
+        raster_format: str | None = None,
         **kwargs,
     ):
         from cratermaker.components.target import Target
@@ -105,6 +105,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_node_z", None)
         object.__setattr__(self, "_smallest_length", None)
         object.__setattr__(self, "_crs", None)
+        object.__setattr__(self, "_raster_format", None)
 
         super().__init__(simdir=simdir, **kwargs)
 
@@ -124,15 +125,19 @@ class Surface(ComponentBase):
         }
 
         self.target = Target.maker(target, **kwargs)
+        self.raster_format = raster_format
 
         return
 
     def __str__(self) -> str:
         base = super().__str__()
+        if self.raster_format is not None:
+            base += f"\nOutput raster format: {self.raster_format}"
+
         return (
             f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}\n"
             f"Number of faces: {self.n_face}\n"
-            f"Number of nodes: {self.n_node}"
+            f"Number of nodes: {self.n_node}\n"
         )
 
     @classmethod
@@ -143,6 +148,7 @@ class Surface(ComponentBase):
         reset: bool = False,
         regrid: bool = False,
         simdir: str | Path | None = None,
+        raster_format: str | None = None,
         **kwargs,
     ) -> Surface:
         """
@@ -160,6 +166,8 @@ class Surface(ComponentBase):
             Flag to indicate whether to regrid the surface. Default is False.
         simdir : str | Path
             The main project simulation directory. Defaults to the current working directory if None.
+        raster_format : str, optional
+            If set, the save method will raster representation of the surface mesh in addition to the data files. Default is None (no additional raster is saved). Current valid options are `vtp` (or, equivalently, `vtk`), `tiff`, and `gpkg`.
         **kwargs : Any
             Additional keyword arguments.
 
@@ -177,6 +185,7 @@ class Surface(ComponentBase):
             reset=reset,
             regrid=regrid,
             simdir=simdir,
+            raster_format=raster_format,
             **kwargs,
         )
         return surface
@@ -568,7 +577,6 @@ class Surface(ComponentBase):
         combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
-        save_raster: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -582,8 +590,7 @@ class Surface(ComponentBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        save_raster : bool, optional
-            If True, save a raster file of the surface mesh in addition to the data files. Default is True. By default the raster will be saved in VTK format. See `save_raster` for more options.
+
         **kwargs : Any
             Additional keyword arguments to pass to the export function.
         """
@@ -609,40 +616,18 @@ class Surface(ComponentBase):
 
         self._save_data(ds, interval_number, combine_data_files)
 
-        if save_raster:
-            self.save_raster(interval_number=interval_number, time_variables=time_variables, **kwargs)
+        if self.raster_format is not None:
+            save_geometry = interval_number == 0
+            if self.raster_format == "vtp" or format == "vtk":
+                self.to_vtk(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
+            elif self.raster_format == "gpkg":
+                self.to_gpkg(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
+            elif self.raster_format == "tiff":
+                self.to_geotiff(interval_number=interval_number, **kwargs)
+            else:
+                raise ValueError(f"Unsupported export format: {format}")
 
         return
-
-    def save_raster(
-        self,
-        surface_raster_format: str = "vtp",
-        interval_number: int = 0,
-        save_geometry: bool | None = None,
-        **kwargs,
-    ) -> None:
-        """
-        Export the surface mesh to a file in the specified format.
-
-        Parameters
-        ----------
-        surface_raster_format : str, optional
-            The format to save the surface mesh. Options are "vtp" (VTK PolyData), "gpkg" (GeoPackage), or "tiff" (GeoTIFF). Default is "vtp".
-        interval_number : int, optional
-            Interval number to append to the data file name. Default is 0.
-        save_geometry : bool, optional
-            If True, save the surface geometry (node and face coordinates) to a separate file. Default is True for the first interval (interval_number=0) and False for subsequent intervals.
-        """
-        if save_geometry is None:
-            save_geometry = interval_number == 0
-        if surface_raster_format == "vtp" or format == "vtk":
-            self.to_vtk(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
-        elif surface_raster_format == "gpkg":
-            self.to_gpkg(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
-        elif surface_raster_format == "tiff":
-            self.to_geotiff(interval_number=interval_number, **kwargs)
-        else:
-            raise ValueError(f"Unsupported export format: {format}")
 
     def to_vtk(
         self,
@@ -888,6 +873,8 @@ class Surface(ComponentBase):
         projection = ccrs.PlateCarree()
 
         for var in variables:
+            output_file = out_dir / f"{var}{interval_number:06d}.tiff"
+            print(f"Saving raster file: '{output_file}'...")
             gdf = ds[var].to_geodataframe(engine="geopandas")
 
             # Ensure CRS is set
@@ -916,7 +903,6 @@ class Surface(ComponentBase):
             fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
             ax.set_extent([minx, maxx, miny, maxy], crs=projection)
 
-            print(f"Rasterizing variable '{var}' to GeoTIFF...")
             raster = ds[var].to_raster(ax=ax)
 
             # transform = rio.transform.from_origin(minx, miny, deg_per_pix, deg_per_pix)
@@ -933,7 +919,6 @@ class Surface(ComponentBase):
             }
             if nodata is not None:
                 profile["nodata"] = nodata
-            output_file = out_dir / f"{var}{interval_number:06d}.tiff"
             with rio.open(output_file, "w", **profile) as dst:
                 dst.write(raster, 1)
 
@@ -2043,6 +2028,16 @@ class Surface(ComponentBase):
         if self._output_dir is None:
             self._output_dir = self.simdir / self.__class__._SURFACE_DIR
         return self._output_dir
+
+    @parameter
+    def raster_format(self) -> str | None:
+        return self._raster_format
+
+    @raster_format.setter
+    def raster_format(self, value: str | None) -> None:
+        if not isinstance(value, (str | None)):
+            raise TypeError("raster_format must be a string or None")
+        self._raster_format = value
 
 
 class LocalSurface:
