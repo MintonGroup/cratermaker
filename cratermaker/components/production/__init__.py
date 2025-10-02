@@ -11,8 +11,8 @@ from scipy.optimize import root_scalar
 
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
+from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils import montecarlo_utils as mc
-from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import parameter
 
 
@@ -294,7 +294,7 @@ class Production(ComponentBase):
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
         """
-        Return the age in My for a given number density of craters and diameter
+        Return the age in My for a given number density of craters and diameter.
 
         Parameters
         ----------
@@ -367,7 +367,7 @@ class Production(ComponentBase):
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
         """
-        Return the diameter for a given number density of craters and age
+        Return the diameter for a given number density of craters and age.
 
         Parameters
         ----------
@@ -450,9 +450,9 @@ class Production(ComponentBase):
         cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
     ) -> tuple[FloatLike | ArrayLike, FloatLike | ArrayLike]:
         """
-        Validates the diameter and cumulative_number arguments. Both arguments can be either
-        scalar or array-like, but they must be both scalars or both arrays of the same length.
-        Values must be non-negative.
+        Validates the diameter and cumulative_number arguments.
+
+        Both arguments can be either scalar or array-like, but they must be both scalars or both arrays of the same length.  Values must be non-negative.
 
         Parameters
         ----------
@@ -499,8 +499,9 @@ class Production(ComponentBase):
 
     def _validate_sample_args(self, **kwargs: dict) -> dict:
         """
-        Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
-        It will also convert age arguments to diameter_number and vice versa.
+        Validate all the input arguments to the sample method.
+
+        This function will raise a ValueError if any of the arguments are invalid.  It will also convert age arguments to diameter_number and vice versa.
 
         Parameters
         ----------
@@ -740,10 +741,9 @@ class Production(ComponentBase):
     @parameter
     def generator_type(self):
         """
-        The type of generator to use. This can be either "crater" or "projectile".
-        This determines the nature of the production function, differentiating between
-        'crater' and 'projectile' types, which affect the calculations and interpretations
-        of the production function.
+        The type of generator to use.
+
+        This can be either "crater" or "projectile".  This determines the nature of the production function, differentiating between 'crater' and 'projectile' types, which affect the calculations and interpretations of the production function.
         """
         return self._generator_type
 

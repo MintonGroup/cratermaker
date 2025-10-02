@@ -6,7 +6,7 @@ import numpy as np
 from astropy.constants import G
 
 from cratermaker.constants import FloatLike
-from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils.general_utils import (
     _create_catalogue,
     _set_properties,

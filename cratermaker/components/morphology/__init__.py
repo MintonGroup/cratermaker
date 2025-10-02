@@ -11,8 +11,8 @@ from scipy.integrate import quad
 from tqdm import tqdm
 
 from cratermaker.constants import FloatLike
+from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.core.crater import Crater
-from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:

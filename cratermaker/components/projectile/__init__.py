@@ -26,8 +26,8 @@ import numpy as np
 from numpy.random import Generator
 
 from cratermaker.constants import FloatLike
+from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils import montecarlo_utils as mc
-from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import (
     format_large_units,
     parameter,

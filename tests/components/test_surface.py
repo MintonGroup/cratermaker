@@ -377,11 +377,11 @@ class TestSurface(unittest.TestCase):
 
     def test_export_vtk(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel)
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, raster_format="vtk")
             # Test with default parameters
             default_out_dir = surface.output_dir
             expected_files = [f"{surface._SURFACE_FILE_PREFIX}{0:06d}.vtp", f"{surface._GRID_FILE_PREFIX}.vtp"]
-            surface.export("vtp")
+            surface.save()
             self.assertTrue(Path(default_out_dir).is_dir())
             for f in expected_files:
                 self.assertTrue(Path(default_out_dir / f).exists())

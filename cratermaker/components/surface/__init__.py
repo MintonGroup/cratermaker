@@ -24,7 +24,7 @@ from cratermaker.constants import (
     _VSMALL,
     FloatLike,
 )
-from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
@@ -618,14 +618,14 @@ class Surface(ComponentBase):
 
         if self.raster_format is not None:
             save_geometry = interval_number == 0
-            if self.raster_format == "vtp" or format == "vtk":
+            if self.raster_format == "vtp" or self.raster_format == "vtk":
                 self.to_vtk(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
             elif self.raster_format == "gpkg":
                 self.to_gpkg(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
             elif self.raster_format == "tiff":
                 self.to_geotiff(interval_number=interval_number, **kwargs)
             else:
-                raise ValueError(f"Unsupported export format: {format}")
+                raise ValueError(f"Unsupported raster format: {self.raster_format}")
 
         return
 
