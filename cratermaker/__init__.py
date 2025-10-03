@@ -19,18 +19,9 @@ from .components.target import Target
 from .core.crater import Crater
 from .core.simulation import Simulation
 
-__all__ = [
-    "Counting",
-    "Crater",
-    "Morphology",
-    "Production",
-    "Projectile",
-    "Scaling",
-    "Surface",
-    "Target",
-    "Simulation",
-    "__version__",
-]
+_COMPONENT_NAMES = ["counting", "morphology", "production", "projectile", "scaling", "surface", "target"]
+
+__all__ = ["Crater", "Simulation", "__version__", "_COMPONENT_NAMES"] + [n.capitalize() for n in _COMPONENT_NAMES]
 
 
 # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims
