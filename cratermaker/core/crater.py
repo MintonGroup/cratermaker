@@ -155,7 +155,7 @@ class Crater:
         age : float, optional
             The age of the crater in Myr.
         simdir : str | Path
-            The main project simulation directory. Defaults to the current working directory if None.
+            The main project simulation directory. Default is the current working directory if None.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional

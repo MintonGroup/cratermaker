@@ -35,14 +35,14 @@ if TYPE_CHECKING:
 
 surface_lock = threading.Lock()
 
+_SURFACE_DIR = "surface_data"
+_SURFACE_FILE_PREFIX = "surface"
+_GRID_FILE_PREFIX = "grid"
+_SURFACE_FILE_EXTENSION = "nc"
+
 
 class Surface(ComponentBase):
     _registry: dict[str, type[Surface]] = {}
-
-    _SURFACE_DIR = "surface_data"
-    _SURFACE_FILE_PREFIX = "surface"
-    _GRID_FILE_PREFIX = "grid"
-    _SURFACE_FILE_EXTENSION = "nc"
 
     """
     Used for handling surface-related data and operations in the cratermaker project.
@@ -59,7 +59,7 @@ class Surface(ComponentBase):
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
     simdir : str | Path
-        The main project simulation directory. Defaults to the current working directory if None.        
+        The main project simulation directory. Default is the current working directory if None.
     raster_format : str, optional
         If set, the save method will raster representation of the surface mesh in addition to the data files. Default is None (no additional raster is saved). Current valid options are `vtp` (or, equivalently, `vtk`), `tiff`, and `gpkg`.
     **kwargs : Any
@@ -108,6 +108,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_raster_format", None)
 
         super().__init__(simdir=simdir, **kwargs)
+        self._output_file_pattern += [f"{_SURFACE_FILE_PREFIX}*.{_SURFACE_FILE_EXTENSION}"]
 
         self._data_variable_init = {
             "node_elevation": {
@@ -146,6 +147,7 @@ class Surface(ComponentBase):
         surface: str | Surface | None = None,
         target: Target | str | None = None,
         reset: bool = False,
+        ask_overwrite: bool = True,
         regrid: bool = False,
         simdir: str | Path | None = None,
         raster_format: str | None = None,
@@ -164,8 +166,10 @@ class Surface(ComponentBase):
             Flag to indicate whether to reset the surface. Default is True.
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before deleting files. Default is True.
         simdir : str | Path
-            The main project simulation directory. Defaults to the current working directory if None.
+            The main project simulation directory. Default is the current working directory if None.
         raster_format : str, optional
             If set, the save method will raster representation of the surface mesh in addition to the data files. Default is None (no additional raster is saved). Current valid options are `vtp` (or, equivalently, `vtk`), `tiff`, and `gpkg`.
         **kwargs : Any
@@ -184,16 +188,26 @@ class Surface(ComponentBase):
             target=target,
             reset=reset,
             regrid=regrid,
+            ask_overwrite=ask_overwrite,
             simdir=simdir,
             raster_format=raster_format,
             **kwargs,
         )
         return surface
 
-    def reset(self, **kwargs: Any) -> None:
+    def reset(self, ask_overwrite: bool = True, **kwargs: Any) -> None:
         """
         Reset the surface to its initial state.
+
+        Parameters
+        ----------
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before deleting files. Default is True.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
         """
+        super().reset(ask_overwrite=ask_overwrite, **kwargs)
+
         # Remove all old data from the dataset
         varlist = list(self.uxds.data_vars)
         for name in varlist:
@@ -1155,34 +1169,29 @@ class Surface(ComponentBase):
 
         return position + elevation[:, np.newaxis] * runit
 
-    def _load_from_files(self, reset: bool = False, **kwargs: Any) -> None:
+    def _load_from_files(self, reset: bool = False, ask_overwrite: bool = True, **kwargs: Any) -> None:
         """
         Load the grid and data files into the surface object.
 
-        This function loads the grid file and data files from the specified directory. If the grid file does not exist, it will attempt to create a new grid.
-        If the data files do not exist, it will create an empty dataset. If reset is True, it will delete all data files except the grid file.
+        This function loads the grid file and data files from the specified directory. If the grid file does not exist, it will attempt to create a new grid.  If the data files do not exist, it will create an empty dataset. If reset is True, it will delete all data files except the grid file.
 
         Parameters
         ----------
         reset : bool, optional
             Flag to indicate whether to reset the surface. Default is False.
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before deleting files. Default is True.
         """
         # Get the names of all data files in the data directory that are not the grid file
         regrid = self._regrid_if_needed(**kwargs)
         reset = reset or regrid
 
-        data_file_list = list(self.output_dir.glob(f"*.{self.__class__._SURFACE_FILE_EXTENSION}"))
+        data_file_list = list(self.output_dir.glob(f"{_SURFACE_FILE_PREFIX}*.{_SURFACE_FILE_EXTENSION}"))
         if self.grid_file in data_file_list:
             data_file_list.remove(self.grid_file)
 
         # if data_file_list is empty, set reset to True
         reset = reset or not data_file_list
-
-        # If reset is True, delete all data files except the grid file
-        if reset:
-            for f in data_file_list:
-                f.unlink()
-            data_file_list = []
 
         try:
             with xr.open_dataset(self.grid_file) as uxgrid:
@@ -1198,7 +1207,7 @@ class Surface(ComponentBase):
             raise RuntimeError("Error loading grid and data files") from e
 
         if reset:
-            self.reset(**kwargs)
+            self.reset(ask_overwrite=ask_overwrite, **kwargs)
 
         return
 
@@ -1305,9 +1314,9 @@ class Surface(ComponentBase):
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             if combine_data_files:
-                filename = f"{self.__class__._SURFACE_FILE_PREFIX}.{self.__class__._SURFACE_FILE_EXTENSION}"
+                filename = f"{_SURFACE_FILE_PREFIX}.{_SURFACE_FILE_EXTENSION}"
             else:
-                filename = f"{self.__class__._SURFACE_FILE_PREFIX}{interval_number:06d}.{self.__class__._SURFACE_FILE_EXTENSION}"
+                filename = f"{_SURFACE_FILE_PREFIX}{interval_number:06d}.{_SURFACE_FILE_EXTENSION}"
 
             data_file = self.output_dir / filename
             if data_file.exists():
@@ -1476,7 +1485,7 @@ class Surface(ComponentBase):
         """
         Path to the grid file.
         """
-        return self.output_dir / f"{self.__class__._GRID_FILE_PREFIX}.{self.__class__._SURFACE_FILE_EXTENSION}"
+        return self.output_dir / f"{_GRID_FILE_PREFIX}.{_SURFACE_FILE_EXTENSION}"
 
     @property
     def target(self):
@@ -2026,7 +2035,7 @@ class Surface(ComponentBase):
         The output directory for the surface. If None, the surface does not have an output directory set.
         """
         if self._output_dir is None:
-            self._output_dir = self.simdir / self.__class__._SURFACE_DIR
+            self._output_dir = self.simdir / _SURFACE_DIR
         return self._output_dir
 
     @parameter
@@ -2038,6 +2047,8 @@ class Surface(ComponentBase):
         if not isinstance(value, (str | None)):
             raise TypeError("raster_format must be a string or None")
         self._raster_format = value
+        if value:
+            self._output_file_pattern.append(f"*.{value}")
 
 
 class LocalSurface:

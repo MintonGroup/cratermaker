@@ -22,10 +22,10 @@ class PowerLawProduction(Production):
         The type of generator to use. This can be either "crater" or "projectile". Default is "crater".
     N1_coef : float, optional
         The coefficient for the power law production function at 1 m diameter per 1 My.
-        Defaults to 7.9.e-3 (lunar craters) or 2.2e-8 (lunar projectiles) based on fits to the NPF on the Moon.
+        Default is 7.9.e-3 (lunar craters) or 2.2e-8 (lunar projectiles) based on fits to the NPF on the Moon.
     slope : float, optional
         The slope of the power law production function.
-        Defaults to -3.33 (lunar craters) or -2.26 (lunar projectiles) based on fits to the NPF on the Moon.
+        Default is -3.33 (lunar craters) or -2.26 (lunar projectiles) based on fits to the NPF on the Moon.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional

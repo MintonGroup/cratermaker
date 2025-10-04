@@ -30,8 +30,6 @@ _RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater taggin region is exte
 class Counting(ComponentBase):
     _registry: dict[str, Counting] = {}
 
-    _CRATER_DIR = "crater_data"
-
     """
     Base class for all crater counting models. It defines the interface for tallying the observable craters on a surface.
 
@@ -39,6 +37,10 @@ class Counting(ComponentBase):
     ----------
     surface : Surface | LocalSurface
         The surface or local surface view to be counted.
+    reset : bool, optional
+        Flag to indicate whether to reset the count and delete any old output files. Default is True.
+    ask_overwrite : bool, optional
+        If True, prompt the user for confirmation before deleting files. Default is True.
     vector_format: str | None, optional
         The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file). Other drivers may require additional kwargs.
     **kwargs : Any
@@ -48,6 +50,8 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
+        reset: bool = True,
+        ask_overwrite: bool = True,
         vector_format: str | None = None,
         **kwargs: Any,
     ):
@@ -58,6 +62,7 @@ class Counting(ComponentBase):
         rng = kwargs.pop("rng", surface.rng)
         simdir = kwargs.pop("simdir", surface.simdir)
         super().__init__(rng=rng, simdir=simdir, **kwargs)
+        self._output_file_pattern += ["*.csv"]
         self.vector_format = vector_format
 
     @classmethod
@@ -115,9 +120,16 @@ class Counting(ComponentBase):
             base += f"\nOutput vector format: {self.vector_format}"
         return f"{base}\nSurface: {self.surface.name}"
 
-    def reset(self):
+    def reset(self, ask_overwrite: bool = True, **kwargs: Any) -> None:
         """
-        Remove all craters count records from the surface.
+        Remove all craters count records from the surface and delete any output files.
+
+        Parameters
+        ----------
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before deleting files. Default is True.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
         """
         dims = ("n_face", "layer")
         data = np.zeros((self.surface.n_face, self.n_layer), dtype=np.uint32)
@@ -132,6 +144,7 @@ class Counting(ComponentBase):
         self.surface._uxds[_TALLY_NAME] = uxda
         self._emplaced = []
         self._observed = {}
+        super().reset(ask_overwrite=ask_overwrite, **kwargs)
         return
 
     def add(self, crater: Crater, region: LocalSurface | None = None):
@@ -238,7 +251,7 @@ class Counting(ComponentBase):
         The output directory for the surface. If None, the surface does not have an output directory set.
         """
         if self._output_dir is None:
-            self._output_dir = self.simdir / self.__class__._CRATER_DIR
+            self._output_dir = self.simdir / "crater_data"
         return self._output_dir
 
     def save(self, interval_number: int = 0, **kwargs: Any) -> None:
@@ -484,6 +497,8 @@ class Counting(ComponentBase):
         if not isinstance(value, (str | None)):
             raise TypeError("vector_format must be a str or None")
         self._vector_format = value
+        if value:
+            self._output_file_pattern.append(f"*.{value}")
         return
 
 

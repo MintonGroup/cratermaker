@@ -51,15 +51,17 @@ class Simulation(CratermakerBase):
     projectile : str, optional
         The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise.
     simdir : str | Path
-        The main project simulation directory. Defaults to the current working directory if None.
+        The main project simulation directory. Default is the current working directory if None.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
         The rng_rng_seed for the RNG. If None, a new RNG is created.
     rng_state : dict, optional
         The state of the random number generator. If None, a new state is created.
-    resume_old : bool, optional
-        Flag to indicate whether to resume from an old simulation. If True, the simulation will attempt to load the previous state from the config file.
+    reset : bool, optional
+        Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file.
+    ask_overwrite : bool, optional
+        If True, the user will be prompted before overwriting any existing files. Default is True.
     **kwargs : Any
         Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scaling,
         morphology, or production function constructors. Refer to the documentation of each component module for details.
@@ -79,7 +81,8 @@ class Simulation(CratermakerBase):
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
-        resume_old: bool = False,
+        reset: bool = True,
+        ask_overwrite: bool = True,
         **kwargs: Any,
     ):
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
@@ -100,10 +103,11 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
+        object.__setattr__(self, "_ask_overwrite", None)
 
         if self.config_file.exists():
             config_file = self.config_file
-            if not resume_old:
+            if reset:
                 config_file = None
 
         else:
@@ -125,6 +129,7 @@ class Simulation(CratermakerBase):
             surface=surface,
             counting=counting,
             config_file=config_file,
+            ask_overwrite=ask_overwrite,
         )
 
         for component in _COMPONENT_NAMES:
@@ -156,14 +161,16 @@ class Simulation(CratermakerBase):
             self.scaling,
             target=self.target,
             projectile=self.projectile,
+            ask_overwrite=self.ask_overwrite,
             **scaling_config,
         )
 
         surface_config = {**surface_config, **kwargs}
-        surface_config["reset"] = not resume_old
         self.surface = Surface.maker(
             self.surface,
             target=self.target,
+            reset=reset,
+            ask_overwrite=ask_overwrite,
             **surface_config,
         )
 
@@ -171,6 +178,7 @@ class Simulation(CratermakerBase):
         self.counting = Counting.maker(
             self.counting,
             surface=self.surface,
+            reset=reset,
             **counting_config,
         )
 
@@ -184,9 +192,6 @@ class Simulation(CratermakerBase):
         )
         if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
             self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, **surface_config)
-
-        if not resume_old:
-            self.reset()
 
         self._craterlist = []
         self._crater = None
@@ -658,10 +663,10 @@ class Simulation(CratermakerBase):
 
         return sim_config
 
-    def reset(self):
-        crater_dir = self.counting.output_dir
-        if crater_dir.exists():
-            shutil.rmtree(crater_dir)
+    def reset(self, ask_overwrite: bool = True) -> None:
+        for component in _COMPONENT_NAMES:
+            getattr(self, component).reset(ask_overwrite=ask_overwrite)
+        return
 
     def update_elevation(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -1155,3 +1160,16 @@ class Simulation(CratermakerBase):
         The path to the configuration file for the simulation.
         """
         return self.simdir / _CONFIG_FILE_NAME
+
+    @parameter
+    def ask_overwrite(self):
+        """
+        Flag to indicate whether the user should be prompted to overwrite any old files or not.
+        """
+        return self._ask_overwrite
+
+    @ask_overwrite.setter
+    def ask_overwrite(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("ask_overwrite must be a bool")
+        self._ask_overwrite = value

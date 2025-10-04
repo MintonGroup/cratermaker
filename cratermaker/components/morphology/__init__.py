@@ -32,11 +32,11 @@ class Morphology(ComponentBase):
     production : str or Production, optional
         The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
     dosubpixel_degradation : bool, optional
-        If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
+        If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
     doslope_collapse : bool, optional
-        If True, slope collapse will be performed during the emplacement of craters. Defaults to True.
+        If True, slope collapse will be performed during the emplacement of craters. Default is True.
     docounting : bool, optional
-        If True, counting will be performed during the emplacement of craters. Defaults to True.
+        If True, counting will be performed during the emplacement of craters. Default is True.
     **kwargs : Any
 
     """
@@ -95,9 +95,9 @@ class Morphology(ComponentBase):
         surface : str or Surface, optional
             The name of a Surface object, or an instance of Surface, to be associated the morphology model.
         dosubpixel_degradation : bool, optional
-            If True, subpixel degradation will be performed during the emplacement of craters. Defaults to True.
+            If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         doslope_collapse : bool, optional
-            If True, slope collapse will be performed during the emplacement of craters. Defaults to True.
+            If True, slope collapse will be performed during the emplacement of craters. Default is True.
         **kwargs : Any
             Additional keyword arguments that are required for the specific morphology model being created.
 
