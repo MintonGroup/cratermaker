@@ -629,12 +629,10 @@ class Surface(ComponentBase):
             save_geometry = interval_number == 0
             if self.raster_format == "vtp" or self.raster_format == "vtk":
                 self.to_vtk(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
-            elif self.raster_format == "gpkg":
-                self.to_gpkg(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
             elif self.raster_format == "tiff":
                 self.to_geotiff(interval_number=interval_number, **kwargs)
             else:
-                raise ValueError(f"Unsupported raster format: {self.raster_format}")
+                raise ValueError(f"Unsupported raster format: {self.raster_format}. Only `vtp` and `tiff` are currently supported.")
 
         return
 
@@ -816,13 +814,11 @@ class Surface(ComponentBase):
         **kwargs : Any
             Additional keyword arguments (not used).
         """
-        out_dir = self.output_dir
-        out_dir.mkdir(parents=True, exist_ok=True)
-
         if save_geometry:
-            gdf = self.uxgrid.to_geodataframe(engine="geopandas").set_crs(self.csrs).to_file()
+            filename = self.output_dir / f"{_GRID_FILE_PREFIX}.gpkg"
+            gdf = self.uxgrid.to_geodataframe(engine="geopandas").set_crs(self.crs).to_file(filename, layer="grid", driver="GPKG")
 
-        gpkg_path = out_dir / f"self{interval_number:06d}.gpkg"
+        gpkg_path = self.output_dir / f"surface{interval_number:06d}.gpkg"
 
         # load data and select the face-based variables
         ds = self.uxds.load()
@@ -832,14 +828,13 @@ class Surface(ComponentBase):
 
         # Export each face-associated variable as its own layer in the GeoPackage file
         for var in variables:
-            gdf = ds[var].to_geodataframe(engine="geopandas").set_crs(self.crs)
-
-            if var not in gdf.columns:
-                value_col = var if var in gdf.columns else ("value" if "value" in gdf.columns else None)
-                if value_col is not None and value_col != var:
-                    gdf[var] = gdf[value_col]
-
-            gdf.to_file(gpkg_path, layer=var, driver="GPKG")
+            if len(ds[var].dims) == 1:
+                gdf = ds[var].to_geodataframe(engine="geopandas").set_crs(self.crs)
+                gdf.to_file(gpkg_path, layer=var, driver="GPKG")
+            elif "layer" in ds[var].dims:
+                for layer in range(ds.layer.size):
+                    gdf = ds[var].isel(layer=layer).to_geodataframe(engine="geopandas").set_crs(self.crs)
+                    gdf.to_file(gpkg_path, layer=f"{var}_{layer:03d}", driver="GPKG")
 
         return
 
@@ -2023,15 +2018,6 @@ class Surface(ComponentBase):
                 # Fallback to PROJ dict with spherical radius
                 self._crs = CRS.from_user_input({"proj": "longlat", "R": radius, "no_defs": True})
         return self._crs
-
-    @property
-    def output_dir(self) -> Path | None:
-        """
-        The output directory for the surface. If None, the surface does not have an output directory set.
-        """
-        if self._output_dir is None:
-            self._output_dir = self.simdir / _OUTPUT_DIR_NAME
-        return self._output_dir
 
     @parameter
     def raster_format(self) -> str | None:

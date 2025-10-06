@@ -245,19 +245,6 @@ class Counting(ComponentBase):
         """
         return self._emplaced
 
-    @property
-    def output_dir(self) -> Path | None:
-        """
-        The output directory for the surface. If None, the surface does not have an output directory set.
-        """
-        if self._output_dir is None:
-            try:
-                self._output_dir = self.simdir / _OUTPUT_DIR_NAME
-                self._output_dir.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                raise RuntimeError(f"Error creating output directory: {e}") from e
-        return self._output_dir
-
     def save(self, interval_number: int = 0, **kwargs: Any) -> None:
         """
         Dump the crater lists to a file and reset the emplaced crater list.

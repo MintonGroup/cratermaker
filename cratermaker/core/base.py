@@ -13,6 +13,7 @@ import numpy as np
 from numpy.random import BitGenerator, Generator, RandomState, SeedSequence
 from numpy.typing import ArrayLike
 
+from cratermaker.constants import _OUTPUT_DIR_NAME
 from cratermaker.utils.general_utils import parameter
 
 
@@ -105,6 +106,19 @@ class CratermakerBase:
             self._simdir = value
         elif isinstance(value, (str | None)):
             self._simdir = _simdir_init(value)
+
+    @property
+    def output_dir(self) -> Path | None:
+        """
+        The output directory for the surface. If None, the surface does not have an output directory set.
+        """
+        if self._output_dir is None:
+            try:
+                self._output_dir = self.simdir / _OUTPUT_DIR_NAME
+                self._output_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                raise RuntimeError(f"Error creating output directory: {e}") from e
+        return self._output_dir
 
     @parameter
     def rng_seed(self):
@@ -260,18 +274,6 @@ class ComponentBase(CratermakerBase, ABC):
     def available(cls) -> list[str]:
         """Return list of all registered catalogue names."""
         return list(cls._registry.keys())
-
-    @property
-    def output_dir(self) -> Path | None:
-        """
-        Return the output directory for this component, if it has one.
-
-        Returns
-        -------
-        Path or None
-            The output directory for this component, or None if it does not have one.
-        """
-        return self._output_dir
 
     @property
     def output_file_pattern(self) -> list[str]:
