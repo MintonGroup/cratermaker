@@ -103,11 +103,8 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_largest_projectile", None)
         object.__setattr__(self, "_ask_overwrite", None)
 
-        if self.config_file.exists():
+        if not reset and self.config_file.exists():
             config_file = self.config_file
-            if reset:
-                config_file = None
-
         else:
             config_file = None
 
