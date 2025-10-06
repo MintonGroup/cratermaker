@@ -652,14 +652,14 @@ class Simulation(CratermakerBase):
 
         return sim_config
 
-    def reset(self, ask_overwrite: bool = True, skip_component: str | list[str] | None = None) -> None:
+    def reset(self, ask_overwrite: bool | None = None, skip_component: str | list[str] | None = None) -> None:
         """
         Reset the simulation by clearing all data and files associated with it.
 
         Parameters
         ----------
         ask_overwrite : bool, optional
-            If True, the user will be prompted before overwriting any existing files. Default is True.
+            If True, the user will be prompted before overwriting any existing files. Default is what is set during initialization, which is True unless specified otherwise.
         skip_component : str or list of str, optional
             List of component names to skip during the reset process. Default is an empty list, which means all components will be reset.
         """
@@ -669,6 +669,8 @@ class Simulation(CratermakerBase):
             skip_component = [skip_component]
         elif not isinstance(skip_component, list) or not all(isinstance(c, str) for c in skip_component):
             raise TypeError("skip_component must be a string or a list of strings")
+        if ask_overwrite is None:
+            ask_overwrite = self.ask_overwrite
 
         if ask_overwrite:
             files_to_remove = []
