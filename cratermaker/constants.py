@@ -15,7 +15,7 @@ _COMPONENT_NAMES = [
     "projectile",
     "surface",
 ]
-
+_OUTPUT_DIR_NAME = "output"
 # This is a factor used to determine the smallest length scale in the grid
 _SMALLFAC = 1.0e-5
 _VSMALL = 10 * np.finfo(np.float64).tiny

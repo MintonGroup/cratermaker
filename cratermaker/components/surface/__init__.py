@@ -19,11 +19,7 @@ from pyproj import CRS
 from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
-from cratermaker.constants import (
-    _SMALLFAC,
-    _VSMALL,
-    FloatLike,
-)
+from cratermaker.constants import _OUTPUT_DIR_NAME, _SMALLFAC, _VSMALL, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
@@ -35,7 +31,6 @@ if TYPE_CHECKING:
 
 surface_lock = threading.Lock()
 
-_SURFACE_DIR = "surface_data"
 _SURFACE_FILE_PREFIX = "surface"
 _GRID_FILE_PREFIX = "grid"
 _SURFACE_FILE_EXTENSION = "nc"
@@ -2035,7 +2030,7 @@ class Surface(ComponentBase):
         The output directory for the surface. If None, the surface does not have an output directory set.
         """
         if self._output_dir is None:
-            self._output_dir = self.simdir / _SURFACE_DIR
+            self._output_dir = self.simdir / _OUTPUT_DIR_NAME
         return self._output_dir
 
     @parameter

@@ -93,8 +93,6 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_projectile", projectile)
         object.__setattr__(self, "_surface", surface)
         object.__setattr__(self, "_counting", counting)
-        object.__setattr__(self, "_craterlist", None)
-        object.__setattr__(self, "_crater", None)
         object.__setattr__(self, "_interval_number", None)
         object.__setattr__(self, "_elapsed_time", None)
         object.__setattr__(self, "_current_age", None)
@@ -170,7 +168,7 @@ class Simulation(CratermakerBase):
             self.surface,
             target=self.target,
             reset=reset,
-            ask_overwrite=ask_overwrite,
+            ask_overwrite=self.ask_overwrite,
             **surface_config,
         )
 
@@ -178,7 +176,6 @@ class Simulation(CratermakerBase):
         self.counting = Counting.maker(
             self.counting,
             surface=self.surface,
-            reset=reset,
             **counting_config,
         )
 
@@ -193,16 +190,8 @@ class Simulation(CratermakerBase):
         if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
             self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, **surface_config)
 
-        self._craterlist = []
-        self._crater = None
-        self._interval_number = 0
-        self._elapsed_time = 0.0
-        self._current_age = 0.0
-        self._elapsed_n1 = 0.0
-        self._smallest_crater = 0.0  # The smallest crater will be determined by the smallest face area
-        self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
-        self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
-        self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
+        if self.reset:
+            self.reset(ask_overwrite=ask_overwrite, skip_component=["surface"])
         self.to_config()
 
         return
@@ -663,9 +652,50 @@ class Simulation(CratermakerBase):
 
         return sim_config
 
-    def reset(self, ask_overwrite: bool = True) -> None:
+    def reset(self, ask_overwrite: bool = True, skip_component: str | list[str] | None = None) -> None:
+        """
+        Reset the simulation by clearing all data and files associated with it.
+
+        Parameters
+        ----------
+        ask_overwrite : bool, optional
+            If True, the user will be prompted before overwriting any existing files. Default is True.
+        skip_component : str or list of str, optional
+            List of component names to skip during the reset process. Default is an empty list, which means all components will be reset.
+        """
+        if skip_component is None:
+            skip_component = []
+        elif isinstance(skip_component, str):
+            skip_component = [skip_component]
+        elif not isinstance(skip_component, list) or not all(isinstance(c, str) for c in skip_component):
+            raise TypeError("skip_component must be a string or a list of strings")
+
+        if ask_overwrite:
+            files_to_remove = []
+            for component in _COMPONENT_NAMES:
+                if component not in skip_component and hasattr(self, component):
+                    files_to_remove += getattr(self, component).has_output()
+            if len(files_to_remove) > 0:
+                print("The following files will be deleted:")
+                for f in files_to_remove:
+                    print(f"  {f}")
+                print("To disable this message, pass `ask_overwrite=False` to this function.")
+                response = input(f"Are you sure you want to delete {len(files_to_remove)} files? [y/N]: ")
+                if response.lower() != "y":
+                    raise RuntimeError("User aborted the reset operation.")
         for component in _COMPONENT_NAMES:
-            getattr(self, component).reset(ask_overwrite=ask_overwrite)
+            if component not in skip_component and hasattr(self, component):
+                getattr(self, component).reset(ask_overwrite=False)
+
+        self._interval_number = 0
+        self._elapsed_time = 0.0
+        self._current_age = 0.0
+        self._elapsed_n1 = 0.0
+        self._smallest_crater = 0.0  # The smallest crater will be determined by the smallest face area
+        self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
+        self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
+        self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
+
         return
 
     def update_elevation(self, *args: Any, **kwargs: Any) -> None:

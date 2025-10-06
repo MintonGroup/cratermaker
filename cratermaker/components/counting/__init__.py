@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import uxarray as uxr
 
-from cratermaker.constants import FloatLike
+from cratermaker.constants import _OUTPUT_DIR_NAME, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.core.crater import Crater
 from cratermaker.utils.general_utils import parameter
@@ -251,7 +251,11 @@ class Counting(ComponentBase):
         The output directory for the surface. If None, the surface does not have an output directory set.
         """
         if self._output_dir is None:
-            self._output_dir = self.simdir / "crater_data"
+            try:
+                self._output_dir = self.simdir / _OUTPUT_DIR_NAME
+                self._output_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                raise RuntimeError(f"Error creating output directory: {e}") from e
         return self._output_dir
 
     def save(self, interval_number: int = 0, **kwargs: Any) -> None:
@@ -285,8 +289,7 @@ class Counting(ComponentBase):
             # If the file already exists, read it and merge
             if filename.exists():
                 with filename.open("r", newline="") as f:
-                    reader = csv.DictReader(f)
-                existing_data = list(reader)
+                    existing_data = list(csv.DictReader(f))
                 combined_data = existing_data + new_data
                 # Sort by final_diameter descending
                 combined_data = sorted(combined_data, key=lambda d: -float(d["final_diameter"]))
@@ -410,9 +413,6 @@ class Counting(ComponentBase):
 
             return poly
 
-        out_dir = self.output_dir
-        out_dir.mkdir(parents=True, exist_ok=True)
-
         if "final_diameter" not in crater_data[0] or "longitude" not in crater_data[0] or "latitude" not in crater_data[0]:
             raise ValueError("crater_data must contain 'final_diameter', 'longitude', and 'latitude' keys.")
 
@@ -473,11 +473,11 @@ class Counting(ComponentBase):
         gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
         try:
             if format_has_layers:
-                output_file = out_dir / f"craters{interval_number:06d}.{self.vector_format}"
+                output_file = self.output_dir / f"craters{interval_number:06d}.{self.vector_format}"
                 print(f"Saving {layer_name} layer to vector file: '{output_file}'...")
                 gdf.to_file(output_file, layer=layer_name)
             else:
-                output_file = out_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
+                output_file = self.output_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
                 print(f"Saving to vector file: '{output_file}'...")
                 gdf.to_file(output_file)
         except Exception as e:

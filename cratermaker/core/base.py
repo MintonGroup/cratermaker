@@ -288,7 +288,7 @@ class ComponentBase(CratermakerBase, ABC):
         """
         return self._output_file_pattern
 
-    def has_output(self) -> bool:
+    def has_output(self, **kwargs: Any) -> bool:
         """
         Check if the component has any output files in its output directory.
 
@@ -325,6 +325,9 @@ class ComponentBase(CratermakerBase, ABC):
         files_to_remove = self.has_output()
         if files_to_remove:
             if ask_overwrite:
+                print(f"The following files will be deleted in {self.output_dir}:")
+                for f in files_to_remove:
+                    print(f"  {f}")
                 print("To disable this message, pass `ask_overwrite=False` to this function.")
                 response = input(f"Are you sure you want to delete {len(files_to_remove)} files in {self.output_dir}? [y/N]: ")
                 if response.lower() != "y":
