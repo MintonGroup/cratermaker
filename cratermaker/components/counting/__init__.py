@@ -6,9 +6,15 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import geopandas as gpd
 import numpy as np
+import pandas as pd
+import shapely
 import uxarray as uxr
 import xarray as xr
+from pyproj import Geod
+from shapely.geometry import GeometryCollection, LineString, Polygon
+from shapely.ops import split, transform
 
 from cratermaker.constants import FloatLike
 from cratermaker.core.base import ComponentBase, import_components
@@ -257,7 +263,7 @@ class Counting(ComponentBase):
             An xarray Dataset containing the crater data.
         """
         if len(craters) == 0:
-            return
+            return xr.Dataset()
         new_data = []
         if isinstance(craters, dict):
             craters = craters.values()
@@ -290,8 +296,8 @@ class Counting(ComponentBase):
         observed_filename = crater_dir / f"observed_craters{interval_number:06d}.{_COUNTING_FILE_EXTENSION}"
 
         def _convert_and_merge(craters: dict[int, Crater] | list[Crater], filename: Path | str, layer_name: str) -> None:
-            if len(craters) == 0:
-                return
+            # if len(craters) == 0:
+            #     return
 
             # Convert into an xarray dataset
             dsnew = self.to_xarray(craters)
@@ -306,13 +312,92 @@ class Counting(ComponentBase):
             # Write merged data back to file
             if combined_data:
                 combined_data.to_netcdf(filename)
-                if self.vector_format is not None:
-                    self.make_vector_file(combined_data, interval_number, layer_name=layer_name, **kwargs)
+            if self.vector_format is not None:
+                self.make_vector_file(combined_data, interval_number, layer_name=layer_name, **kwargs)
 
         _convert_and_merge(self.emplaced, emplaced_filename, "emplaced_craters")
         _convert_and_merge(self.observed, observed_filename, "observed_craters")
         self._emplaced = []
         return
+
+    @staticmethod
+    def geodesic_ellipse_polygon(
+        lon: float,
+        lat: float,
+        a: float,
+        b: float,
+        az_deg: float = 0.0,
+        n: int = 150,
+        R_pole: FloatLike = 1.0,
+        R_equator: FloatLike = 1.0,
+        split_antimeridian: bool = True,
+    ) -> Polygon:
+        """
+        Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
+
+        Parameters
+        ----------
+        lon : float
+            Longitude of the ellipse center in degrees.
+        lat : float
+            Latitude of the ellipse center in degrees.
+        a : float
+            Semi-major axis in meters.
+        b : float
+            Semi-minor axis in meters.
+        az_deg : float, optional
+            Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
+        n : int, optional
+            Number of points to use for the polygon, by default 150.
+        R_pole : FloatLike, optional
+            Planetary polar radius in units of meters, by default 1.0.
+        R_equator : FloatLike, optional
+            Planetary equatorial radius in units of meters, by default 1.0.
+        split_antimeridian : bool, optional
+            If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
+
+        Returns
+        -------
+        Returns a Shapely Polygon in lon/lat degrees.
+        """
+        geod = Geod(a=R_pole, b=R_equator)
+        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+
+        # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
+        ct = np.cos(np.deg2rad(theta))
+        st = np.sin(np.deg2rad(theta))
+        r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+
+        # Bearings (from east, CCW) rotated by azimuth
+        bearings = theta + az_deg % 360.0
+
+        # Forward geodesic for each bearing/distance
+        poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+        # Correct for potential antimeridian crossing
+        if split_antimeridian and np.ptp(poly_lon) > 180.0:
+            center_sign = np.sign(lon)
+            poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
+            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+            merdian_lon = 180.0 * center_sign
+            meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
+            poly = split(poly, meridian)
+
+            def lon_flip(lon, lat):
+                lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
+                return lon, lat
+
+            new_geoms = []
+            for p in poly.geoms:
+                if np.abs(p.centroid.x) > 180.0:
+                    p = transform(lon_flip, p)
+                new_geoms.append(p)
+            poly = GeometryCollection(new_geoms)
+
+        else:
+            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+
+        return poly
 
     def make_vector_file(
         self,
@@ -323,6 +408,8 @@ class Counting(ComponentBase):
     ) -> None:
         """
         Export the crater data to a vector file and stores it in the default export directory.
+
+        Notes: In order for the crater and surface to be synced up when saving to VTK/VTP format, the initial conditions (no craters) must be saved. Otherwise, saving to file only occurs if there are craters in the crater_data.
 
         Parameters
         ----------
@@ -336,97 +423,41 @@ class Counting(ComponentBase):
         **kwargs : Any
             Additional keyword arguments that are ignored.
         """
-        import geopandas as gpd
-        import pandas as pd
-        from pyproj import Geod
-        from shapely.geometry import GeometryCollection, LineString, Polygon
-        from shapely.ops import split, transform
+        from vtk import (
+            vtkCellArray,
+            vtkPoints,
+            vtkPolyData,
+            vtkPolyLine,
+            vtkXMLPolyDataWriter,
+        )
 
-        def _geodesic_ellipse_polygon(
-            lon: float,
-            lat: float,
-            a: float,
-            b: float,
-            az_deg: float = 0.0,
-            n: int = 150,
-            R_pole: FloatLike = 1.0,
-            R_equator: FloatLike = 1.0,
-        ) -> Polygon:
-            """
-            Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
+        def lonlat_to_xyz_transformer(R):
+            def _f(lon_deg, lat_deg, z=None):
+                lon = np.deg2rad(lon_deg)
+                lat = np.deg2rad(lat_deg)
+                X = R * np.cos(lat) * np.cos(lon)
+                Y = R * np.cos(lat) * np.sin(lon)
+                Z = R * np.sin(lat)
+                return X, Y, Z
 
-            Parameters
-            ----------
-            lon : float
-                Longitude of the ellipse center in degrees.
-            lat : float
-                Latitude of the ellipse center in degrees.
-            a : float
-                Semi-major axis in meters.
-            b : float
-                Semi-minor axis in meters.
-            az_deg : float, optional
-                Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
-            n : int, optional
-                Number of points to use for the polygon, by default 150.
-            R_pole : FloatLike, optional
-                Planetary polar radius in units of meters, by default 1.0.
-            R_equator : FloatLike, optional
-                Planetary equatorial radius in units of meters, by default 1.0.
+            return _f
 
-            Returns
-            -------
-            Returns a Shapely Polygon in lon/lat degrees.
-            """
-            geod = Geod(a=R_pole, b=R_equator)
-            theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+        def polygon_xyz_coords(geom, R):
+            """Yield Nx3 arrays for each exterior ring (drop closing vertex)."""
+            g3d = transform(lonlat_to_xyz_transformer(R), geom)
 
-            # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
-            ct = np.cos(np.deg2rad(theta))
-            st = np.sin(np.deg2rad(theta))
-            r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+            def _rings(g):
+                if g.geom_type == "Polygon":
+                    yield np.asarray(g.exterior.coords)[:-1]  # (N, 3)
+                    for i in g.interiors:
+                        yield np.asarray(i.coords)[:-1]
+                elif g.geom_type in ("MultiPolygon", "GeometryCollection"):
+                    for sub in g.geoms:
+                        yield from _rings(sub)
+                else:
+                    yield np.asarray(g.coords)
 
-            # Bearings (from east, CCW) rotated by azimuth
-            bearings = theta + az_deg % 360.0
-
-            # Forward geodesic for each bearing/distance
-            poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
-
-            # Correct for potential antimeridian crossing
-            if np.ptp(poly_lon) > 180.0:
-                center_sign = np.sign(lon)
-                poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
-                poly = Polygon(zip(poly_lon, poly_lat, strict=False))
-                merdian_lon = 180.0 * center_sign
-                meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
-                poly = split(poly, meridian)
-
-                def lon_flip(lon, lat):
-                    lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
-                    return lon, lat
-
-                new_geoms = []
-                for p in poly.geoms:
-                    if np.abs(p.centroid.x) > 180.0:
-                        p = transform(lon_flip, p)
-                    new_geoms.append(p)
-                poly = GeometryCollection(new_geoms)
-
-            else:
-                poly = Polygon(zip(poly_lon, poly_lat, strict=False))
-
-            return poly
-
-        if len(crater_data) == 0:
-            return
-
-        if isinstance(crater_data, (dict | list)):
-            crater_data = self.to_xarray(crater_data)
-
-        if "final_diameter" not in crater_data or "longitude" not in crater_data or "latitude" not in crater_data:
-            raise ValueError("crater_data must contain 'final_diameter', 'longitude', and 'latitude' variables.")
-
-        surface = self.surface
+            yield from _rings(g3d)
 
         def shp_key_fix(key: str) -> str:
             """
@@ -450,41 +481,94 @@ class Counting(ComponentBase):
                     key = key.replace(long, short)
             return key[:10].upper()
 
-        geoms = []
-        attrs = []
-        for id in crater_data.id:
-            crater = crater_data.sel(id=[id])
-            lon = float(crater["longitude"])
-            lat = float(crater["latitude"])
-            radius = float(crater["final_diameter"]) / 2.0
-            poly = _geodesic_ellipse_polygon(lon, lat, a=radius, b=radius, R_pole=surface.radius, R_equator=surface.radius)
-            if isinstance(poly, GeometryCollection):
-                for p in poly.geoms:
-                    geoms.append(p)
-                    attrs.append(crater.to_dataframe())
-            else:
-                geoms.append(poly)
-                attrs.append(crater.to_dataframe())
+        if isinstance(crater_data, (dict | list)):
+            crater_data = self.to_xarray(crater_data)
 
-        attrs_df = pd.concat(attrs, ignore_index=True)
         if self.vector_format == "shp":
-            attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
             format_has_layers = False
+            split_antimeridian = True
+        elif self.vector_format == "vtp" or self.vector_format == "vtk":
+            format_has_layers = False
+            split_antimeridian = False
         else:
             format_has_layers = True
+            split_antimeridian = True
 
-        gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
-        try:
-            if format_has_layers:
-                output_file = self.output_dir / f"craters{interval_number:06d}.{self.vector_format}"
-                print(f"Saving {layer_name} layer to vector file: '{output_file}'...")
-                gdf.to_file(output_file, layer=layer_name)
-            else:
-                output_file = self.output_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
-                print(f"Saving to vector file: '{output_file}'...")
-                gdf.to_file(output_file)
-        except Exception as e:
-            raise RuntimeError(f"Error saving {output_file}: {e}") from e
+        surface = self.surface
+
+        geoms = []
+        attrs = []
+        if "final_diameter" in crater_data and "longitude" in crater_data and "latitude" in crater_data:
+            for id in crater_data.id:
+                crater = crater_data.sel(id=[id])
+                lon = float(crater["longitude"])
+                lat = float(crater["latitude"])
+                radius = float(crater["final_diameter"]) / 2.0
+                poly = self.geodesic_ellipse_polygon(
+                    lon,
+                    lat,
+                    a=radius,
+                    b=radius,
+                    R_pole=surface.radius,
+                    R_equator=surface.radius,
+                    split_antimeridian=split_antimeridian,
+                )
+                if isinstance(poly, GeometryCollection):
+                    for p in poly.geoms:
+                        geoms.append(p)
+                        attrs.append(crater.to_dataframe())
+                else:
+                    geoms.append(poly)
+                    attrs.append(crater.to_dataframe())
+
+        if self.vector_format == "vtp" or self.vector_format == "vtk":
+            output_file = self.output_dir / f"{layer_name}{interval_number:06d}.vtp"
+
+            points = vtkPoints()
+            lines = vtkCellArray()
+            point_id = 0  # Keep track of the point ID across all circles
+            for poly in geoms:
+                for ring_xyz in polygon_xyz_coords(poly, surface.radius):
+                    x, y, z = ring_xyz.T  # each is (N,)
+                    for i in range(len(x)):
+                        points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))
+                    polyline = vtkPolyLine()
+                    polyline.GetPointIds().SetNumberOfIds(len(x))
+                    for i in range(len(x)):
+                        polyline.GetPointIds().SetId(i, point_id + i)
+                    point_id += len(x)
+                    lines.InsertNextCell(polyline)
+
+            # Create a poly_data object and add points and lines to it
+            poly_data = vtkPolyData()
+            poly_data.SetPoints(points)
+            poly_data.SetLines(lines)
+
+            # Write the poly_data to a VTK file
+            writer = vtkXMLPolyDataWriter()
+            writer.SetFileName(output_file)
+            writer.SetInputData(poly_data)
+
+            # Optional: set the data mode to binary to save disk space
+            writer.SetDataModeToBinary()
+            writer.Write()
+        elif len(geoms) > 0:
+            attrs_df = pd.concat(attrs, ignore_index=True)
+            if self.vector_format == "shp":
+                attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
+
+            gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
+            try:
+                if format_has_layers:
+                    output_file = self.output_dir / f"craters{interval_number:06d}.{self.vector_format}"
+                    print(f"Saving {layer_name} layer to vector file: '{output_file}'...")
+                    gdf.to_file(output_file, layer=layer_name)
+                else:
+                    output_file = self.output_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
+                    print(f"Saving to vector file: '{output_file}'...")
+                    gdf.to_file(output_file)
+            except Exception as e:
+                raise RuntimeError(f"Error saving {output_file}: {e}") from e
 
         return
 
