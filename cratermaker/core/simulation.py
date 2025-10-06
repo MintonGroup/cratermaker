@@ -59,7 +59,7 @@ class Simulation(CratermakerBase):
     rng_state : dict, optional
         The state of the random number generator. If None, a new state is created.
     reset : bool, optional
-        Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file.
+        Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is True.
     ask_overwrite : bool, optional
         If True, the user will be prompted before overwriting any existing files. Default is True.
     **kwargs : Any
@@ -163,12 +163,11 @@ class Simulation(CratermakerBase):
             **scaling_config,
         )
 
-        surface_config = {**surface_config, **kwargs}
+        surface_config = {**surface_config, **kwargs, "ask_overwrite": self.ask_overwrite}
         self.surface = Surface.maker(
             self.surface,
             target=self.target,
             reset=reset,
-            ask_overwrite=self.ask_overwrite,
             **surface_config,
         )
 

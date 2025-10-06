@@ -668,7 +668,7 @@ class Surface(ComponentBase):
         out_dir.mkdir(parents=True, exist_ok=True)
 
         output_dir = self.output_dir
-        data_file_list = list(output_dir.glob(f"*.{self._SURFACE_FILE_EXTENSION}"))
+        data_file_list = list(output_dir.glob(f"*.{_SURFACE_FILE_EXTENSION}"))
         if self.grid_file in data_file_list:
             data_file_list.remove(self.grid_file)
 
@@ -741,7 +741,7 @@ class Surface(ComponentBase):
             normals_filter.Update()
             poly_data_with_normals = normals_filter.GetOutput()
 
-            output_filename = out_dir / f"{self._GRID_FILE_PREFIX}.{_VTK_FILE_EXTENSION}"
+            output_filename = out_dir / f"{_GRID_FILE_PREFIX}.{_VTK_FILE_EXTENSION}"
             writer.SetFileName(output_filename)
             writer.SetInputData(poly_data_with_normals)
             writer.Write()
@@ -791,7 +791,7 @@ class Surface(ComponentBase):
         warp.SetInputData(poly_data_with_normals)
         warp.Update()
         warped_output = warp.GetOutput()
-        output_filename = out_dir / f"{self._SURFACE_FILE_PREFIX}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
+        output_filename = out_dir / f"{_SURFACE_FILE_PREFIX}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
         writer.SetFileName(output_filename)
         writer.SetInputData(warped_output)
         writer.Write()
