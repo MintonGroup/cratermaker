@@ -9,7 +9,7 @@ from cratermaker._cratermaker import counting_functions
 from numpy.typing import NDArray
 from scipy import fft
 
-from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, _TALLY_NAME, Counting
+from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, _TALLY_ID, Counting
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.core.crater import Crater
 
@@ -54,9 +54,9 @@ class Minton2019Counting(Counting):
         """
         if region is None:
             region = self.surface
-            id_array = self.surface.uxds[_TALLY_NAME].data
+            id_array = self.surface.uxds[_TALLY_ID].data
         elif isinstance(region, LocalSurface):
-            id_array = self.surface.uxds[_TALLY_NAME].data[region.face_indices, :]
+            id_array = self.surface.uxds[_TALLY_ID].data[region.face_indices, :]
         else:
             raise TypeError(f"Expected a LocalSurface, but got {type(region).__name__}.")
 

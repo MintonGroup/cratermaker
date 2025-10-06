@@ -19,7 +19,7 @@ from pyproj import CRS
 from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
-from cratermaker.constants import _OUTPUT_DIR_NAME, _SMALLFAC, _VSMALL, FloatLike
+from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face

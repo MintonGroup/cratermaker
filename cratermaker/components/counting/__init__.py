@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import uxarray as uxr
+import xarray as xr
 
-from cratermaker.constants import _OUTPUT_DIR_NAME, FloatLike
+from cratermaker.constants import FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.core.crater import Crater
 from cratermaker.utils.general_utils import parameter
@@ -17,8 +18,9 @@ from cratermaker.utils.general_utils import parameter
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
-_TALLY_NAME = "crater_id"
+_TALLY_ID = "id"
 _TALLY_LONG_NAME = "Unique crater identification number"
+_COUNTING_FILE_EXTENSION = "nc"
 
 _N_LAYER = (
     8  # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
@@ -50,8 +52,6 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
-        reset: bool = True,
-        ask_overwrite: bool = True,
         vector_format: str | None = None,
         **kwargs: Any,
     ):
@@ -62,7 +62,7 @@ class Counting(ComponentBase):
         rng = kwargs.pop("rng", surface.rng)
         simdir = kwargs.pop("simdir", surface.simdir)
         super().__init__(rng=rng, simdir=simdir, **kwargs)
-        self._output_file_pattern += ["*.csv"]
+        self._output_file_pattern += [f"*craters*.{_COUNTING_FILE_EXTENSION}"]
         self.vector_format = vector_format
 
     @classmethod
@@ -137,11 +137,11 @@ class Counting(ComponentBase):
             data=data,
             dims=dims,
             attrs={"long_name": _TALLY_LONG_NAME},
-            name=_TALLY_NAME,
+            name=_TALLY_ID,
             uxgrid=self.surface.uxgrid,
         )
 
-        self.surface._uxds[_TALLY_NAME] = uxda
+        self.surface._uxds[_TALLY_ID] = uxda
         self._emplaced = []
         self._observed = {}
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
@@ -162,7 +162,7 @@ class Counting(ComponentBase):
 
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if _TALLY_NAME not in self.surface.uxds:
+        if _TALLY_ID not in self.surface.uxds:
             self.reset()
 
         self.emplaced.append(crater)
@@ -179,26 +179,26 @@ class Counting(ComponentBase):
         if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
             insert_layer = -1
             for i in reversed(range(self.n_layer)):
-                if np.any(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[count_region.face_indices] > 0):
+                if np.any(self.surface.uxds[_TALLY_ID].isel(layer=i).data[count_region.face_indices] > 0):
                     # Gather the unique id values for the current layer
-                    unique_ids = np.unique(self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, i])
+                    unique_ids = np.unique(self.surface.uxds[_TALLY_ID].data[count_region.face_indices, i])
                     removes = [
                         id for id, v in self.observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter
                     ]
 
                     # For every id that appears in the removes list, set it to 0 in the data array
                     if removes:
-                        data = self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :]
+                        data = self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :]
                         for remove in removes:
                             data[data == remove] = 0
-                        self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :] = data
-                if insert_layer == -1 and np.all(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[count_region.face_indices] == 0):
+                        self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :] = data
+                if insert_layer == -1 and np.all(self.surface.uxds[_TALLY_ID].isel(layer=i).data[count_region.face_indices] == 0):
                     insert_layer = i
             if insert_layer == -1:
                 raise ValueError("Crater counting layers are full")
-            data = self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :]
+            data = self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :]
             data[:, insert_layer] = crater.id
-            self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :] = data
+            self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :] = data
 
         return
 
@@ -230,20 +230,48 @@ class Counting(ComponentBase):
     @property
     def observed(self) -> dict[int, Crater]:
         """
-        List of observed craters on the surface.
-
-        Returns
-        -------
-            A dict with the crater id as the key and the Crater object as the values
+        Dictionary of observed craters on the surface keyed to the crater id.
         """
         return self._observed
 
     @property
-    def emplaced(self):
+    def emplaced(self) -> list[Crater]:
         """
-        The list of craters that have been emplaced in the simulation.
+        List of craters that have been emplaced in the simulation in the current interval in chronological order.
         """
         return self._emplaced
+
+    @staticmethod
+    def to_xarray(craters: dict[int, Crater] | list[Crater]) -> xr.Dataset:
+        """
+        Convert a list or dictionary of Crater objects to an xarray Dataset.
+
+        Parameters
+        ----------
+        craters : dict[int, Crater] | list[Crater]
+            A dictionary or list of Crater objects to convert.
+
+        Returns
+        -------
+        xr.Dataset
+            An xarray Dataset containing the crater data.
+        """
+        if len(craters) == 0:
+            return
+        new_data = []
+        if isinstance(craters, dict):
+            craters = craters.values()
+        for c in craters:
+            d = asdict(c)
+            if "location" in d:
+                lon, lat = d.pop("location")
+                d["longitude"] = lon
+                d["latitude"] = lat
+            d = xr.Dataset(data_vars=d).set_coords(_TALLY_ID).expand_dims(dim=_TALLY_ID)
+            d[_TALLY_ID].attrs["long_name"] = _TALLY_LONG_NAME
+            new_data.append(d)
+
+        return xr.concat(new_data, dim=_TALLY_ID)
 
     def save(self, interval_number: int = 0, **kwargs: Any) -> None:
         """
@@ -254,52 +282,41 @@ class Counting(ComponentBase):
         interval_number : int, default=0
             The interval number for the output file naming.
         **kwargs : Any
-            Additional keyword arguments to pass to the save_vector function.
+            Additional keyword arguments to pass to the make_vector_file function.
         """
         crater_dir = self.output_dir
         crater_dir.mkdir(parents=True, exist_ok=True)
-        emplaced_filename = crater_dir / f"emplaced_craters{interval_number:06d}.csv"
-        observed_filename = crater_dir / f"observed_craters{interval_number:06d}.csv"
+        emplaced_filename = crater_dir / f"emplaced_craters{interval_number:06d}.{_COUNTING_FILE_EXTENSION}"
+        observed_filename = crater_dir / f"observed_craters{interval_number:06d}.{_COUNTING_FILE_EXTENSION}"
 
         def _convert_and_merge(craters: dict[int, Crater] | list[Crater], filename: Path | str, layer_name: str) -> None:
-            new_data = []
-            if isinstance(craters, dict):
-                craters = craters.values()
-            for c in craters:
-                d = asdict(c)
-                if "location" in d:
-                    lon, lat = d.pop("location")
-                    d["longitude"] = lon
-                    d["latitude"] = lat
-                new_data.append(d)
+            if len(craters) == 0:
+                return
+
+            # Convert into an xarray dataset
+            dsnew = self.to_xarray(craters)
 
             # If the file already exists, read it and merge
             if filename.exists():
-                with filename.open("r", newline="") as f:
-                    existing_data = list(csv.DictReader(f))
-                combined_data = existing_data + new_data
-                # Sort by final_diameter descending
-                combined_data = sorted(combined_data, key=lambda d: -float(d["final_diameter"]))
+                with xr.open_dataset(filename) as ds:
+                    combined_data = xr.concat([ds, dsnew])
             else:
-                combined_data = new_data
+                combined_data = dsnew
 
             # Write merged data back to file
             if combined_data:
-                with filename.open("w", newline="") as f:
-                    writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
-                    writer.writeheader()
-                    writer.writerows(combined_data)
+                combined_data.to_netcdf(filename)
                 if self.vector_format is not None:
-                    self.save_vector(combined_data, interval_number, layer_name=layer_name, **kwargs)
+                    self.make_vector_file(combined_data, interval_number, layer_name=layer_name, **kwargs)
 
         _convert_and_merge(self.emplaced, emplaced_filename, "emplaced_craters")
         _convert_and_merge(self.observed, observed_filename, "observed_craters")
         self._emplaced = []
         return
 
-    def save_vector(
+    def make_vector_file(
         self,
-        crater_data: dict,
+        crater_data: xr.Dataset | dict[int, Crater] | list[Crater],
         interval_number: int = 0,
         layer_name: str = "craters",
         **kwargs,
@@ -309,7 +326,7 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
-        crater_list : dict
+        crater_data : dict
             Dictionary containing crater attributes. Must include 'final_diameter', 'longitude', and 'latitude' keys. Any additional key value pairs will be added as attributes to each crater.
         interval_number : int, optional
             The interval number to save, by default 0.
@@ -400,20 +417,16 @@ class Counting(ComponentBase):
 
             return poly
 
-        if "final_diameter" not in crater_data[0] or "longitude" not in crater_data[0] or "latitude" not in crater_data[0]:
-            raise ValueError("crater_data must contain 'final_diameter', 'longitude', and 'latitude' keys.")
+        if len(crater_data) == 0:
+            return
 
-        geoms = []
-        attrs = {}
+        if isinstance(crater_data, (dict | list)):
+            crater_data = self.to_xarray(crater_data)
+
+        if "final_diameter" not in crater_data or "longitude" not in crater_data or "latitude" not in crater_data:
+            raise ValueError("crater_data must contain 'final_diameter', 'longitude', and 'latitude' variables.")
+
         surface = self.surface
-
-        def add_attrs(crater: dict, attrs: dict) -> dict:
-            for k, v in crater.items():
-                if k in attrs:
-                    attrs[k].append(v)
-                else:
-                    attrs[k] = [v]
-            return attrs
 
         def shp_key_fix(key: str) -> str:
             """
@@ -437,7 +450,10 @@ class Counting(ComponentBase):
                     key = key.replace(long, short)
             return key[:10].upper()
 
-        for crater in crater_data:
+        geoms = []
+        attrs = []
+        for id in crater_data.id:
+            crater = crater_data.sel(id=[id])
             lon = float(crater["longitude"])
             lat = float(crater["latitude"])
             radius = float(crater["final_diameter"]) / 2.0
@@ -445,17 +461,17 @@ class Counting(ComponentBase):
             if isinstance(poly, GeometryCollection):
                 for p in poly.geoms:
                     geoms.append(p)
-                    attrs = add_attrs(crater, attrs)
+                    attrs.append(crater.to_dataframe())
             else:
                 geoms.append(poly)
-                attrs = add_attrs(crater, attrs)
+                attrs.append(crater.to_dataframe())
 
+        attrs_df = pd.concat(attrs, ignore_index=True)
         if self.vector_format == "shp":
-            attrs = {shp_key_fix(k): v for k, v in attrs.items()}
+            attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
             format_has_layers = False
         else:
             format_has_layers = True
-        attrs_df = pd.DataFrame({k: np.asarray(v) for k, v in attrs.items()})
 
         gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
         try:
@@ -485,7 +501,7 @@ class Counting(ComponentBase):
             raise TypeError("vector_format must be a str or None")
         self._vector_format = value
         if value:
-            self._output_file_pattern.append(f"*.{value}")
+            self._output_file_pattern.append(f"*craters*.{value}")
         return
 
 
