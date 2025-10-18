@@ -150,12 +150,12 @@ class CometProjectiles(Projectile):
         -------
         float
         """
-
         if self.target.name in self.__class__._catalogue:
             pmv = float(self.__class__._catalogue[self.target.name])
         else:
             warn(
-                f"Target {self.target.name} not found in known targets. Known targets include {list(self.__class__._catalogue.keys())}. Defaulting to KBO."
+                f"Target {self.target.name} not found in known targets. Known targets include {list(self.__class__._catalogue.keys())}. Defaulting to KBO.",
+                stacklevel=2,
             )
             pmv = float(self.__class__._catalogue["KBO"])
         return pmv

@@ -36,7 +36,8 @@ dependencies = [
     'datashader>=0.17.0',
     'geoviews>=1.14.0',
     'PyYAML>=6',
-    'astropy>=6'
+    'astropy>=6',
+    'rasterio'
 ]
 
 [project.optional-dependencies]
@@ -45,28 +46,6 @@ aarch64 = ["vtk==9.5.0rc3"]
 
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
-
-[project.entry-points."cratermaker.components.scaling"]
-montecarlo = "cratermaker.components.scaling.montecarlo:MontecarloScaling"
-ctem = "cratermaker.components.scaling.ctem:CTEMScaling"
-
-[project.entry-points."cratermaker.components.production"]
-powerlaw = "cratermaker.components.production.powerlaw:PowerLawProduction"
-neukum = "cratermaker.components.production.neukum:NeukumProduction"
-
-[project.entry-points."cratermaker.components.morphology"]
-simplemoon = "cratermaker.components.morphology.simplemoon:SimpleMoon"
-du2025 = "cratermaker.components.morphology.du2025:Du2025"
-
-[project.entry-points."cratermaker.components.surface"]
-arbitrary_resolution = "cratermaker.components.surface.arbitrary_resolution:ArbitraryResolutionSurface"
-icosphere = "cratermaker.components.surface.icosphere:IcosphereSurface"
-hireslocal = "cratermaker.components.surface.hireslocal:HiResLocalSurface"
-
-[project.entry-points."cratermaker.components.projectile"]
-asteroids = "cratermaker.components.projectile.asteroids:AsteroidProjectiles"
-comets = "cratermaker.components.projectile.comets:CometProjectiles"
-generic = "cratermaker.components.projectile.generic:GenericProjectiles"
 
 [build-system]
 requires = [
@@ -134,6 +113,10 @@ ignore = [
     "E501",
     "F401",
     "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
+    "SIM108", # Don't suggest if else block instead of expression, as it can reduce readability
+    "N802", # Allow uppercase functions 
+    "N803", # Allow uppercase arguments 
+    "N806", # Allow uppercase variable names
 ]
 
 [tool.ruff.lint.flake8-bugbear]

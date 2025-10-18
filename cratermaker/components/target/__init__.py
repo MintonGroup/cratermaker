@@ -6,7 +6,7 @@ import numpy as np
 from astropy.constants import G
 
 from cratermaker.constants import FloatLike
-from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils.general_utils import (
     _create_catalogue,
     _set_properties,
@@ -142,10 +142,7 @@ class Target(ComponentBase):
             transition_scale_type=transition_scale_type,
             **kwargs,
         )
-        arg_check = sum(
-            x is None
-            for x in [self.name, self.diameter, self.mass, self.transition_scale_type]
-        )
+        arg_check = sum(x is None for x in [self.name, self.diameter, self.mass, self.transition_scale_type])
         if arg_check > 0:
             raise ValueError("Invalid Target")
 
@@ -175,7 +172,7 @@ class Target(ComponentBase):
     def radius(self, value: FloatLike):
         if value is not None and value <= 0:
             raise ValueError("Radius must be positive")
-        setattr(self, "_radius", float(value))
+        self._radius = float(value)
 
     @property
     def diameter(self) -> float | None:
@@ -190,7 +187,7 @@ class Target(ComponentBase):
     def mass(self, value: FloatLike):
         if value is not None and value <= 0:
             raise ValueError("Mass must be positive")
-        setattr(self, "_mass", float(value))
+        self._mass = float(value)
 
     @property
     def name(self):
@@ -295,9 +292,7 @@ class Target(ComponentBase):
     def transition_scale_type(self, value):
         valid_types = ["silicate", "ice"]
         if value not in valid_types and value is not None:
-            raise ValueError(
-                f"Invalid transition_scale_type: {value}. Must be one of {valid_types} or None"
-            )
+            raise ValueError(f"Invalid transition_scale_type: {value}. Must be one of {valid_types} or None")
         self._transition_scale_type = value
 
     # The following are computed properties based on radius and mass
@@ -364,7 +359,6 @@ class Target(ComponentBase):
         - The `radius` and `diameter` parameters are mutually exclusive. Only one of them should be provided.
         - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
         """
-
         if target is None:
             try:
                 target = cls(
@@ -391,10 +385,8 @@ class Target(ComponentBase):
                     density=density,
                     **kwargs,
                 )
-            except KeyError:
-                raise ValueError(
-                    f"Target '{target}' not found in the catalogue. Please provide a valid target name."
-                )
+            except KeyError as e:
+                raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.") from e
         elif not isinstance(target, Target):
             raise TypeError("target must be a string or a Target object")
         target._component_name = target.name
@@ -402,4 +394,4 @@ class Target(ComponentBase):
         return target
 
 
-import_components(__name__, __path__, ignore_private=True)
+import_components(__name__, __path__)
