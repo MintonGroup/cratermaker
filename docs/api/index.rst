@@ -19,4 +19,5 @@ This section of the documentation provides a detailed reference for the core fun
     simulation
     surface
     target
+    counting
     utils
