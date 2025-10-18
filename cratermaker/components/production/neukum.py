@@ -19,7 +19,7 @@ class NeukumProduction(Production):
     ----------
     version : {"Moon", "Mars", "Projectile"}, optional
         The specific model to use for the production function. "Moon" and "Mars" are both crater production functions, and
-        "Projectile" is a projectile function. Defaults to "Moon".
+        "Projectile" is a projectile function. Default is "Moon".
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional

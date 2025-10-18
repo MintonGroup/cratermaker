@@ -1,20 +1,32 @@
 from __future__ import annotations
 
+import csv
 from abc import abstractmethod
+from dataclasses import asdict
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import geopandas as gpd
 import numpy as np
+import pandas as pd
+import shapely
 import uxarray as uxr
-from numpy.random import Generator
+import xarray as xr
+from pyproj import Geod
+from shapely.geometry import GeometryCollection, LineString, Polygon
+from shapely.ops import split, transform
 
+from cratermaker.constants import FloatLike
+from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.core.crater import Crater
-from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
-_TALLY_NAME = "crater_id"
+_TALLY_ID = "id"
 _TALLY_LONG_NAME = "Unique crater identification number"
+_COUNTING_FILE_EXTENSION = "nc"
 
 _N_LAYER = (
     8  # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
@@ -32,7 +44,13 @@ class Counting(ComponentBase):
     Parameters
     ----------
     surface : Surface | LocalSurface
-        The surface or local surface view to be counted. 
+        The surface or local surface view to be counted.
+    reset : bool, optional
+        Flag to indicate whether to reset the count and delete any old output files. Default is True.
+    ask_overwrite : bool, optional
+        If True, prompt the user for confirmation before deleting files. Default is True.
+    vector_format: str | None, optional
+        The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file). Other drivers may require additional kwargs.
     **kwargs : Any
         Additional keyword arguments.
     """
@@ -40,17 +58,25 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
+        vector_format: str | None = None,
         **kwargs: Any,
     ):
+        object.__setattr__(self, "_emplaced", [])
+        object.__setattr__(self, "_observed", {})
+        object.__setattr__(self, "_vector_format", None)
         self.surface = surface
         rng = kwargs.pop("rng", surface.rng)
-        super().__init__(rng=rng, **kwargs)
+        simdir = kwargs.pop("simdir", surface.simdir)
+        super().__init__(rng=rng, simdir=simdir, **kwargs)
+        self._output_file_pattern += [f"*craters*.{_COUNTING_FILE_EXTENSION}"]
+        self.vector_format = vector_format
 
     @classmethod
     def maker(
         cls,
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
+        vector_format: str | None = None,
         **kwargs: Any,
     ) -> Counting:
         """
@@ -62,6 +88,8 @@ class Counting(ComponentBase):
             The name of the counting model to initialize. If None, the default model is used.
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
+        vector_format: str | None, optional
+            The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file). Other drivers may require additional kwargs.
         **kwargs : Any
             Additional keyword arguments.
 
@@ -86,6 +114,7 @@ class Counting(ComponentBase):
         counting = super().maker(
             component=counting,
             surface=surface,
+            vector_format=vector_format,
             **kwargs,
         )
 
@@ -93,11 +122,20 @@ class Counting(ComponentBase):
 
     def __str__(self) -> str:
         base = super().__str__()
-        return f"{base}\nSurface: {self.surface}\n"
+        if self.vector_format is not None:
+            base += f"\nOutput vector format: {self.vector_format}"
+        return f"{base}\nSurface: {self.surface.name}"
 
-    def reset(self):
+    def reset(self, ask_overwrite: bool = True, **kwargs: Any) -> None:
         """
-        Remove all craters count records from the surface.
+        Remove all craters count records from the surface and delete any output files.
+
+        Parameters
+        ----------
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before deleting files. Default is True.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
         """
         dims = ("n_face", "layer")
         data = np.zeros((self.surface.n_face, self.n_layer), dtype=np.uint32)
@@ -105,12 +143,14 @@ class Counting(ComponentBase):
             data=data,
             dims=dims,
             attrs={"long_name": _TALLY_LONG_NAME},
-            name=_TALLY_NAME,
+            name=_TALLY_ID,
             uxgrid=self.surface.uxgrid,
         )
 
-        self.surface._uxds[_TALLY_NAME] = uxda
+        self.surface._uxds[_TALLY_ID] = uxda
+        self._emplaced = []
         self._observed = {}
+        super().reset(ask_overwrite=ask_overwrite, **kwargs)
         return
 
     def add(self, crater: Crater, region: LocalSurface | None = None):
@@ -128,9 +168,10 @@ class Counting(ComponentBase):
 
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if _TALLY_NAME not in self.surface.uxds:
+        if _TALLY_ID not in self.surface.uxds:
             self.reset()
 
+        self.emplaced.append(crater)
         self.observed[crater.id] = crater
         region_radius = _RIM_BUFFER_FACTOR * crater.final_radius
         # Tag a region just outside crater rim with the id
@@ -144,26 +185,26 @@ class Counting(ComponentBase):
         if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
             insert_layer = -1
             for i in reversed(range(self.n_layer)):
-                if np.any(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[count_region.face_indices] > 0):
+                if np.any(self.surface.uxds[_TALLY_ID].isel(layer=i).data[count_region.face_indices] > 0):
                     # Gather the unique id values for the current layer
-                    unique_ids = np.unique(self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, i])
+                    unique_ids = np.unique(self.surface.uxds[_TALLY_ID].data[count_region.face_indices, i])
                     removes = [
                         id for id, v in self.observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter
                     ]
 
                     # For every id that appears in the removes list, set it to 0 in the data array
                     if removes:
-                        data = self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :]
+                        data = self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :]
                         for remove in removes:
                             data[data == remove] = 0
-                        self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :] = data
-                if insert_layer == -1 and np.all(self.surface.uxds[_TALLY_NAME].isel(layer=i).data[count_region.face_indices] == 0):
+                        self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :] = data
+                if insert_layer == -1 and np.all(self.surface.uxds[_TALLY_ID].isel(layer=i).data[count_region.face_indices] == 0):
                     insert_layer = i
             if insert_layer == -1:
                 raise ValueError("Crater counting layers are full")
-            data = self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :]
+            data = self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :]
             data[:, insert_layer] = crater.id
-            self.surface.uxds[_TALLY_NAME].data[count_region.face_indices, :] = data
+            self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :] = data
 
         return
 
@@ -195,13 +236,357 @@ class Counting(ComponentBase):
     @property
     def observed(self) -> dict[int, Crater]:
         """
-        List of observed craters on the surface.
-
-        Returns
-        -------
-            A dict with the crater id as the key and the Crater object as the values
+        Dictionary of observed craters on the surface keyed to the crater id.
         """
         return self._observed
 
+    @property
+    def emplaced(self) -> list[Crater]:
+        """
+        List of craters that have been emplaced in the simulation in the current interval in chronological order.
+        """
+        return self._emplaced
 
-import_components(__name__, __path__, ignore_private=True)
+    @staticmethod
+    def to_xarray(craters: dict[int, Crater] | list[Crater]) -> xr.Dataset:
+        """
+        Convert a list or dictionary of Crater objects to an xarray Dataset.
+
+        Parameters
+        ----------
+        craters : dict[int, Crater] | list[Crater]
+            A dictionary or list of Crater objects to convert.
+
+        Returns
+        -------
+        xr.Dataset
+            An xarray Dataset containing the crater data.
+        """
+        if len(craters) == 0:
+            return xr.Dataset()
+        new_data = []
+        if isinstance(craters, dict):
+            craters = craters.values()
+        for c in craters:
+            d = asdict(c)
+            if "location" in d:
+                lon, lat = d.pop("location")
+                d["longitude"] = lon
+                d["latitude"] = lat
+            d = xr.Dataset(data_vars=d).set_coords(_TALLY_ID).expand_dims(dim=_TALLY_ID)
+            d[_TALLY_ID].attrs["long_name"] = _TALLY_LONG_NAME
+            new_data.append(d)
+
+        return xr.concat(new_data, dim=_TALLY_ID)
+
+    def save(self, interval_number: int = 0, **kwargs: Any) -> None:
+        """
+        Dump the crater lists to a file and reset the emplaced crater list.
+
+        Parameters
+        ----------
+        interval_number : int, default=0
+            The interval number for the output file naming.
+        **kwargs : Any
+            Additional keyword arguments to pass to the make_vector_file function.
+        """
+        crater_dir = self.output_dir
+        crater_dir.mkdir(parents=True, exist_ok=True)
+        emplaced_filename = crater_dir / f"emplaced_craters{interval_number:06d}.{_COUNTING_FILE_EXTENSION}"
+        observed_filename = crater_dir / f"observed_craters{interval_number:06d}.{_COUNTING_FILE_EXTENSION}"
+
+        def _convert_and_merge(craters: dict[int, Crater] | list[Crater], filename: Path | str, layer_name: str) -> None:
+            # if len(craters) == 0:
+            #     return
+
+            # Convert into an xarray dataset
+            dsnew = self.to_xarray(craters)
+
+            # If the file already exists, read it and merge
+            if filename.exists():
+                with xr.open_dataset(filename) as ds:
+                    combined_data = xr.concat([ds, dsnew])
+            else:
+                combined_data = dsnew
+
+            # Write merged data back to file
+            if combined_data:
+                combined_data.to_netcdf(filename)
+            if self.vector_format is not None:
+                self.make_vector_file(combined_data, interval_number, layer_name=layer_name, **kwargs)
+
+        _convert_and_merge(self.emplaced, emplaced_filename, "emplaced_craters")
+        _convert_and_merge(self.observed, observed_filename, "observed_craters")
+        self._emplaced = []
+        return
+
+    @staticmethod
+    def geodesic_ellipse_polygon(
+        lon: float,
+        lat: float,
+        a: float,
+        b: float,
+        az_deg: float = 0.0,
+        n: int = 150,
+        R_pole: FloatLike = 1.0,
+        R_equator: FloatLike = 1.0,
+        split_antimeridian: bool = True,
+    ) -> Polygon:
+        """
+        Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
+
+        Parameters
+        ----------
+        lon : float
+            Longitude of the ellipse center in degrees.
+        lat : float
+            Latitude of the ellipse center in degrees.
+        a : float
+            Semi-major axis in meters.
+        b : float
+            Semi-minor axis in meters.
+        az_deg : float, optional
+            Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
+        n : int, optional
+            Number of points to use for the polygon, by default 150.
+        R_pole : FloatLike, optional
+            Planetary polar radius in units of meters, by default 1.0.
+        R_equator : FloatLike, optional
+            Planetary equatorial radius in units of meters, by default 1.0.
+        split_antimeridian : bool, optional
+            If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
+
+        Returns
+        -------
+        Returns a Shapely Polygon in lon/lat degrees.
+        """
+        geod = Geod(a=R_pole, b=R_equator)
+        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+
+        # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
+        ct = np.cos(np.deg2rad(theta))
+        st = np.sin(np.deg2rad(theta))
+        r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+
+        # Bearings (from east, CCW) rotated by azimuth
+        bearings = theta + az_deg % 360.0
+
+        # Forward geodesic for each bearing/distance
+        poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+        # Correct for potential antimeridian crossing
+        if split_antimeridian and np.ptp(poly_lon) > 180.0:
+            center_sign = np.sign(lon)
+            poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
+            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+            merdian_lon = 180.0 * center_sign
+            meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
+            poly = split(poly, meridian)
+
+            def lon_flip(lon, lat):
+                lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
+                return lon, lat
+
+            new_geoms = []
+            for p in poly.geoms:
+                if np.abs(p.centroid.x) > 180.0:
+                    p = transform(lon_flip, p)
+                new_geoms.append(p)
+            poly = GeometryCollection(new_geoms)
+
+        else:
+            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+
+        return poly
+
+    def make_vector_file(
+        self,
+        crater_data: xr.Dataset | dict[int, Crater] | list[Crater],
+        interval_number: int = 0,
+        layer_name: str = "craters",
+        **kwargs,
+    ) -> None:
+        """
+        Export the crater data to a vector file and stores it in the default export directory.
+
+        Notes: In order for the crater and surface to be synced up when saving to VTK/VTP format, the initial conditions (no craters) must be saved. Otherwise, saving to file only occurs if there are craters in the crater_data.
+
+        Parameters
+        ----------
+        crater_data : dict
+            Dictionary containing crater attributes. Must include 'final_diameter', 'longitude', and 'latitude' keys. Any additional key value pairs will be added as attributes to each crater.
+        interval_number : int, optional
+            The interval number to save, by default 0.
+        layer_name : str, optional
+            The name of the layer in the GeoPackage file, by default "craters".
+
+        **kwargs : Any
+            Additional keyword arguments that are ignored.
+        """
+        from vtk import (
+            vtkCellArray,
+            vtkPoints,
+            vtkPolyData,
+            vtkPolyLine,
+            vtkXMLPolyDataWriter,
+        )
+
+        def lonlat_to_xyz_transformer(R):
+            def _f(lon_deg, lat_deg, z=None):
+                lon = np.deg2rad(lon_deg)
+                lat = np.deg2rad(lat_deg)
+                X = R * np.cos(lat) * np.cos(lon)
+                Y = R * np.cos(lat) * np.sin(lon)
+                Z = R * np.sin(lat)
+                return X, Y, Z
+
+            return _f
+
+        def polygon_xyz_coords(geom, R):
+            """Yield Nx3 arrays for each exterior ring (drop closing vertex)."""
+            g3d = transform(lonlat_to_xyz_transformer(R), geom)
+
+            def _rings(g):
+                if g.geom_type == "Polygon":
+                    yield np.asarray(g.exterior.coords)[:-1]  # (N, 3)
+                    for i in g.interiors:
+                        yield np.asarray(i.coords)[:-1]
+                elif g.geom_type in ("MultiPolygon", "GeometryCollection"):
+                    for sub in g.geoms:
+                        yield from _rings(sub)
+                else:
+                    yield np.asarray(g.coords)
+
+            yield from _rings(g3d)
+
+        def shp_key_fix(key: str) -> str:
+            """
+            ESRI Shapefile format limits field names to 10 characters, so this function substitues longer names with shorter alternatives, truncates the results, and sets them to upper case.
+            """
+            alt_names = {
+                "projectile_": "proj",
+                "morphology_": "morph",
+                "diameter": "diam",
+                "longitude": "lon",
+                "latitude": "lat",
+                "density": "dens",
+                "velocity": "vel",
+                "direction": "dir",
+                "location": "loc",
+                "angle": "ang",
+                "transient_": "tr",
+            }
+            for long, short in alt_names.items():
+                if long in key:
+                    key = key.replace(long, short)
+            return key[:10].upper()
+
+        if isinstance(crater_data, (dict | list)):
+            crater_data = self.to_xarray(crater_data)
+
+        if self.vector_format == "shp":
+            format_has_layers = False
+            split_antimeridian = True
+        elif self.vector_format == "vtp" or self.vector_format == "vtk":
+            format_has_layers = False
+            split_antimeridian = False
+        else:
+            format_has_layers = True
+            split_antimeridian = True
+
+        surface = self.surface
+
+        geoms = []
+        attrs = []
+        if "final_diameter" in crater_data and "longitude" in crater_data and "latitude" in crater_data:
+            for id in crater_data.id:
+                crater = crater_data.sel(id=[id])
+                lon = float(crater["longitude"])
+                lat = float(crater["latitude"])
+                radius = float(crater["final_diameter"]) / 2.0
+                poly = self.geodesic_ellipse_polygon(
+                    lon,
+                    lat,
+                    a=radius,
+                    b=radius,
+                    R_pole=surface.radius,
+                    R_equator=surface.radius,
+                    split_antimeridian=split_antimeridian,
+                )
+                if isinstance(poly, GeometryCollection):
+                    for p in poly.geoms:
+                        geoms.append(p)
+                        attrs.append(crater.to_dataframe())
+                else:
+                    geoms.append(poly)
+                    attrs.append(crater.to_dataframe())
+
+        if self.vector_format == "vtp" or self.vector_format == "vtk":
+            output_file = self.output_dir / f"{layer_name}{interval_number:06d}.vtp"
+
+            points = vtkPoints()
+            lines = vtkCellArray()
+            point_id = 0  # Keep track of the point ID across all circles
+            for poly in geoms:
+                for ring_xyz in polygon_xyz_coords(poly, surface.radius):
+                    x, y, z = ring_xyz.T  # each is (N,)
+                    for i in range(len(x)):
+                        points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))
+                    polyline = vtkPolyLine()
+                    polyline.GetPointIds().SetNumberOfIds(len(x))
+                    for i in range(len(x)):
+                        polyline.GetPointIds().SetId(i, point_id + i)
+                    point_id += len(x)
+                    lines.InsertNextCell(polyline)
+
+            # Create a poly_data object and add points and lines to it
+            poly_data = vtkPolyData()
+            poly_data.SetPoints(points)
+            poly_data.SetLines(lines)
+
+            # Write the poly_data to a VTK file
+            writer = vtkXMLPolyDataWriter()
+            writer.SetFileName(output_file)
+            writer.SetInputData(poly_data)
+
+            # Optional: set the data mode to binary to save disk space
+            writer.SetDataModeToBinary()
+            writer.Write()
+        elif len(geoms) > 0:
+            attrs_df = pd.concat(attrs, ignore_index=True)
+            if self.vector_format == "shp":
+                attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
+
+            gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
+            try:
+                if format_has_layers:
+                    output_file = self.output_dir / f"craters{interval_number:06d}.{self.vector_format}"
+                    print(f"Saving {layer_name} layer to vector file: '{output_file}'...")
+                    gdf.to_file(output_file, layer=layer_name)
+                else:
+                    output_file = self.output_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
+                    print(f"Saving to vector file: '{output_file}'...")
+                    gdf.to_file(output_file)
+            except Exception as e:
+                raise RuntimeError(f"Error saving {output_file}: {e}") from e
+
+        return
+
+    @parameter
+    def vector_format(self) -> str | None:
+        return self._vector_format
+
+    @vector_format.setter
+    def vector_format(self, value) -> None:
+        """
+        The file extension for the vector representation of the craters that will be generated when the save method is called.
+        """
+        if not isinstance(value, (str | None)):
+            raise TypeError("vector_format must be a str or None")
+        self._vector_format = value
+        if value:
+            self._output_file_pattern.append(f"*craters*.{value}")
+        return
+
+
+import_components(__name__, __path__)

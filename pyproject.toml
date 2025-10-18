@@ -47,31 +47,6 @@ aarch64 = ["vtk==9.5.0rc3"]
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
-[project.entry-points."cratermaker.components.scaling"]
-montecarlo = "cratermaker.components.scaling.montecarlo:MontecarloScaling"
-ctem = "cratermaker.components.scaling.ctem:CTEMScaling"
-
-[project.entry-points."cratermaker.components.production"]
-powerlaw = "cratermaker.components.production.powerlaw:PowerLawProduction"
-neukum = "cratermaker.components.production.neukum:NeukumProduction"
-
-[project.entry-points."cratermaker.components.morphology"]
-simplemoon = "cratermaker.components.morphology.simplemoon:SimpleMoon"
-du2025 = "cratermaker.components.morphology.du2025:Du2025"
-
-[project.entry-points."cratermaker.components.surface"]
-arbitrary_resolution = "cratermaker.components.surface.arbitrary_resolution:ArbitraryResolutionSurface"
-icosphere = "cratermaker.components.surface.icosphere:IcosphereSurface"
-hireslocal = "cratermaker.components.surface.hireslocal:HiResLocalSurface"
-
-[project.entry-points."cratermaker.components.projectile"]
-asteroids = "cratermaker.components.projectile.asteroids:AsteroidProjectiles"
-comets = "cratermaker.components.projectile.comets:CometProjectiles"
-generic = "cratermaker.components.projectile.generic:GenericProjectiles"
-
-[project.entry-points."cratermaker.components.counting"]
-minton2019 = "cratermaker.components.counting.minton2019:Minton2019Counting"
-
 [build-system]
 requires = [
     "maturin>=1.8,<2.0"

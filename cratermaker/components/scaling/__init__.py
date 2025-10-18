@@ -7,7 +7,7 @@ import numpy as np
 from numpy.random import Generator
 
 from cratermaker.constants import FloatLike
-from cratermaker.utils.component_utils import ComponentBase, import_components
+from cratermaker.core.base import ComponentBase, import_components
 
 if TYPE_CHECKING:
     from cratermaker.components.projectile import Projectile
@@ -180,4 +180,4 @@ class Scaling(ComponentBase):
         return self._component_name
 
 
-import_components(__name__, __path__, ignore_private=True)
+import_components(__name__, __path__)

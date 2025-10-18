@@ -38,9 +38,11 @@ class TestSimulation(unittest.TestCase):
             self.assertEqual(sim.target.name, "Moon")
 
     def test_simulation_save(self):
+        from cratermaker.components.surface import _SURFACE_FILE_EXTENSION, _SURFACE_FILE_PREFIX
+
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             # Test basic save operation
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
             sim.save()
 
             # Test that variables are saved correctly
@@ -55,10 +57,7 @@ class TestSimulation(unittest.TestCase):
             )
 
             sim.save()
-            filename = (
-                Path(sim.surface.output_dir)
-                / f"{sim.surface._SURFACE_FILE_PREFIX}{sim.interval_number:06d}.{sim.surface._SURFACE_FILE_EXTENSION}"
-            )
+            filename = Path(sim.surface.output_dir) / f"{_SURFACE_FILE_PREFIX}{sim.interval_number:06d}.{_SURFACE_FILE_EXTENSION}"
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
@@ -67,7 +66,7 @@ class TestSimulation(unittest.TestCase):
 
             # Test saving combined data
             sim.save(combine_data_files=True)
-            filename = Path(sim.surface.output_dir) / f"{sim.surface._SURFACE_FILE_PREFIX}.{sim.surface._SURFACE_FILE_EXTENSION}"
+            filename = Path(sim.surface.output_dir) / f"{_SURFACE_FILE_PREFIX}.{_SURFACE_FILE_EXTENSION}"
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
@@ -98,19 +97,21 @@ class TestSimulation(unittest.TestCase):
 
     def test_run(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, dosubpixel_degradation=True)
+            sim = cratermaker.Simulation(
+                simdir=simdir, gridlevel=self.gridlevel, dosubpixel_degradation=True, reset=True, ask_overwrite=False
+            )
             sim.run(age=1000)
 
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
             sim.run(age=1000, age_interval=100)
 
             # Test that the simulation doesn't fail when the age doesn't divide evenly by the age_interval
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
             sim.run(age=1010, age_interval=100)
 
     def test_invalid_run_args(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
 
             # Test case: Neither the age nor the diameter_number argument is provided
             with self.assertRaises(ValueError):
@@ -177,18 +178,18 @@ class TestSimulation(unittest.TestCase):
     def test_simulation_to_config(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             # First simulation: no target passed, should default to "Moon"
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
             self.assertIsInstance(sim.target, Target)
             self.assertEqual(sim.target.name, "Moon")
             del sim
 
             # Second simulation: override target with "Mars"
-            sim = cratermaker.Simulation(simdir=simdir, target="Mars", resume_old=True)
+            sim = cratermaker.Simulation(simdir=simdir, target="Mars", reset=False, ask_overwrite=False)
             self.assertEqual(sim.target.name, "Mars")
             del sim
 
             # Third simulation: no target passed, should read "Mars" from config
-            sim = cratermaker.Simulation(simdir=simdir, resume_old=True)
+            sim = cratermaker.Simulation(simdir=simdir, reset=False, ask_overwrite=False)
             self.assertEqual(sim.target.name, "Mars")
             del sim
         return

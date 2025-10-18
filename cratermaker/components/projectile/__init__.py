@@ -26,8 +26,8 @@ import numpy as np
 from numpy.random import Generator
 
 from cratermaker.constants import FloatLike
+from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils import montecarlo_utils as mc
-from cratermaker.utils.component_utils import ComponentBase, import_components
 from cratermaker.utils.general_utils import (
     format_large_units,
     parameter,
@@ -156,7 +156,7 @@ class Projectile(ComponentBase):
             params = f"\nVelocity: {format_large_units(self.velocity, quantity='velocity')}"
             params += f"\nAngle: {self.angle:.1f} degrees"
             params += f"\nDirection: {self.direction:.1f} degrees"
-        return f"{base}\nSample from distributions: {self.sample}\n{params}\nDensity: {self.density:.1f} kg/m³\n"
+        return f"{base}\nSample from distributions: {self.sample}{params}\nDensity: {self.density:.1f} kg/m³\n"
 
     def _copy(self, deep: bool = True, memo: dict[int, Any] | None = None) -> Self:
         import copy
@@ -573,4 +573,4 @@ class Projectile(ComponentBase):
         return "\n".join(lines)
 
 
-import_components(__name__, __path__, ignore_private=True)
+import_components(__name__, __path__)
