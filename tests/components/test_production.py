@@ -14,9 +14,7 @@ class TestProduction(unittest.TestCase):
             for age_orig in np.logspace(np.log10(4500), np.log10(0.1), num=10):
                 D = np.logspace(-1, 3, num=1000)
                 N = production.function(diameter=D, age=age_orig)
-                age_new = production.age_from_D_N(
-                    cumulative_number_density=N, diameter=D
-                )
+                age_new = production.age_from_D_N(cumulative_number_density=N, diameter=D)
                 np.testing.assert_array_almost_equal(age_orig, age_new, decimal=2)
 
     def test_production_N_age_to_D(self):
@@ -36,15 +34,11 @@ class TestProduction(unittest.TestCase):
             try:
                 production.sample(age=500.0, diameter_range=(10.0, 100.0), area=1e6)
             except ValueError as e:
-                self.fail(
-                    f"sample() raised ValueError unexpectedly with valid arguments! {e}"
-                )
+                self.fail(f"sample() raised ValueError unexpectedly with valid arguments! {e}")
 
             # Test providing both age and cumulative_number
             with self.assertRaises(ValueError):
-                production.sample(
-                    age=500, diameter_number=(100, 10), diameter_range=(10, 100)
-                )
+                production.sample(age=500, diameter_number=(100, 10), diameter_range=(10, 100))
 
             # Test providing both age_end and diameter_number_end
             with self.assertRaises(ValueError):
@@ -93,16 +87,12 @@ class TestProduction(unittest.TestCase):
 
             # Testing when a negative value is provided in diameter_number_end.
             with self.assertRaises(ValueError):
-                production.sample(
-                    diameter_number_end=(-100, 10), diameter_range=(10, 100)
-                )
+                production.sample(diameter_number_end=(-100, 10), diameter_range=(10, 100))
 
     def test_small_sample(self):
         neukum = Production.maker(production="neukum", version="Moon")
         # Test that the number of craters is zero when the age and area are ridiculously tiny
-        diameter, age = neukum.sample(
-            age=1e-6, diameter_range=(300e3, 1000e3), area=1e-6
-        )
+        diameter, age = neukum.sample(age=1e-6, diameter_range=(300e3, 1000e3), area=1e-6)
         self.assertEqual(diameter.size, 0)
         self.assertEqual(age.size, 0)
 

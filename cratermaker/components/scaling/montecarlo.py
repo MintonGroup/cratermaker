@@ -21,11 +21,9 @@ from cratermaker.utils.general_utils import (
 @Scaling.register("montecarlo")
 class MonteCarloScaling(Scaling):
     """
-    This is an operations class for computing the scaling relationships between projectiles and craters.  This class encapsulates the
-    logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size
-    and target properties. This implements the scaling laws similar to those in Richardson (2009) that were implemented in CTEM. However, unlike
-    in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws. We have also included
-    updated simple-to-complex transition diameter values from Schenk et al. (2021).
+    An operations class for computing the scaling relationships between projectiles and craters.
+
+    This class encapsulates the logic for converting between projectile properties and crater properties, as well as determining crater morphology based on size and target properties. This implements the scaling laws similar to those in Richardson (2009) that were implemented in CTEM. However, unlike in CTEM, we apply monte carlo methods to the scaling laws to account for the uncertainty in the scaling laws. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021).
 
     Parameters
     ----------
@@ -53,6 +51,7 @@ class MonteCarloScaling(Scaling):
         The state of the random number generator. If None, a new state is created.
     **kwargs : Any
         Additional keyword arguments.
+
     Notes
     -----
     - The `target` parameter is required and must be an instance of the `Target` class.
@@ -129,13 +128,9 @@ class MonteCarloScaling(Scaling):
         if self.projectile.density is None:
             self.projectile.density = self.target.density
 
-        arg_check = sum(
-            x is None for x in [self.target.density, self.K1, self.mu, self.Ybar]
-        )
+        arg_check = sum(x is None for x in [self.target.density, self.K1, self.mu, self.Ybar])
         if arg_check > 0:
-            raise ValueError(
-                "Scaling model is missing required parameters. Please check the material name and target properties."
-            )
+            raise ValueError("Scaling model is missing required parameters. Please check the material name and target properties.")
         # Initialize transition factors
         self.recompute()
         return
@@ -156,9 +151,7 @@ class MonteCarloScaling(Scaling):
             f"Monte Carlo Scaling: {self._montecarlo_scaling}"
         )
 
-    def _get_morphology_type(
-        self, final_diameter: FloatLike | None = None, **kwargs: Any
-    ) -> str:
+    def _get_morphology_type(self, final_diameter: FloatLike | None = None, **kwargs: Any) -> str:
         """
         Computes and the morphology type of a crater and returns a string corresponding to its type.
 
@@ -168,15 +161,11 @@ class MonteCarloScaling(Scaling):
             The diameter of the crater to compute.
 
         Returns
-        ----------
+        -------
         str
             The type of crater "simple", "complex", or "transitional"
         """
-        if (
-            not isinstance(final_diameter, FloatLike)
-            or final_diameter <= 0
-            or not np.isfinite(final_diameter)
-        ):
+        if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
             raise ValueError("final_diameter must be a positive finite number")
 
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular
@@ -190,16 +179,12 @@ class MonteCarloScaling(Scaling):
             if self._montecarlo_scaling:
                 # We'll uses the distance from the nominal transition diameter to set a probability of being either simple, complex, or transitional.
                 if final_diameter < self.transition_nominal:
-                    p = (self.transition_nominal - final_diameter) / (
-                        self.transition_nominal - transition_range[0]
-                    )
+                    p = (self.transition_nominal - final_diameter) / (self.transition_nominal - transition_range[0])
                     categories = ["simple", "transitional"]
                     prob = [p, 1.0 - p]
                     morphology_type = self.rng.choice(categories, p=prob).item()
                 else:
-                    p = (final_diameter - self.transition_nominal) / (
-                        transition_range[1] - self.transition_nominal
-                    )
+                    p = (final_diameter - self.transition_nominal) / (transition_range[1] - self.transition_nominal)
                     categories = ["complex", "transitional"]
                     prob = [p, 1.0 - p]
                     morphology_type = self.rng.choice(categories, p=prob).item()
@@ -233,11 +218,7 @@ class MonteCarloScaling(Scaling):
         float
             Returns the crater transient diameter in meters
         """
-        if (
-            not isinstance(final_diameter, FloatLike)
-            or final_diameter <= 0
-            or not np.isfinite(final_diameter)
-        ):
+        if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
             raise ValueError("final_diameter must be a positive finite number")
         if not morphology_type:
             morphology_type = self._get_morphology_type(final_diameter)
@@ -250,9 +231,7 @@ class MonteCarloScaling(Scaling):
         transient_diameter = float(transient_diameter)
         return transient_diameter, morphology_type
 
-    def transient_to_final(
-        self, transient_diameter: FloatLike, **kwargs: Any
-    ) -> tuple[float, str]:
+    def transient_to_final(self, transient_diameter: FloatLike, **kwargs: Any) -> tuple[float, str]:
         """
         Computes the final diameter of a crater based on its transient diameter and morphology type.
 
@@ -276,11 +255,7 @@ class MonteCarloScaling(Scaling):
             The morphology type of the crater
         """
         # validate that transient_diameter is number and that it is positive and finite
-        if (
-            not isinstance(transient_diameter, FloatLike)
-            or transient_diameter <= 0
-            or not np.isfinite(transient_diameter)
-        ):
+        if not isinstance(transient_diameter, FloatLike) or transient_diameter <= 0 or not np.isfinite(transient_diameter):
             raise ValueError("transient_diameter must be a positive finite number")
 
         # Invert the final -> transient functions for  each crater type
@@ -308,13 +283,9 @@ class MonteCarloScaling(Scaling):
             if morphology_type == "simple":
                 final_diameter = final_diameter_simple
             else:
-                final_diameter = (
-                    final_diameter_complex  # this includes transitional types as well
-                )
+                final_diameter = final_diameter_complex  # this includes transitional types as well
         else:
-            if (
-                "simple" in morphology_options
-            ):  # The disagreement is between simple/complex or simple/transitional
+            if "simple" in morphology_options:  # The disagreement is between simple/complex or simple/transitional
                 if morphology_options[0] == "simple":
                     sind = 0
                     cind = 1
@@ -327,9 +298,9 @@ class MonteCarloScaling(Scaling):
                     p = self.rng.random()
                 else:
                     p = 0.5
-                is_simple = p < abs(
-                    final_diameter_complex - self.transition_diameter
-                ) / abs(final_diameter_simple - final_diameter_complex)
+                is_simple = p < abs(final_diameter_complex - self.transition_diameter) / abs(
+                    final_diameter_simple - final_diameter_complex
+                )
                 if is_simple:
                     final_diameter = final_diameter_simple
                     morphology_type = morphology_options[sind]
@@ -347,9 +318,7 @@ class MonteCarloScaling(Scaling):
         morphology_type = morphology_type
         return final_diameter, morphology_type
 
-    def projectile_to_transient(
-        self, projectile_diameter: FloatLike, **kwargs: Any
-    ) -> float:
+    def projectile_to_transient(self, projectile_diameter: FloatLike, **kwargs: Any) -> float:
         """
         Calculate the transient diameter of a crater based on the properties of the projectile and target.
 
@@ -358,29 +327,19 @@ class MonteCarloScaling(Scaling):
         float
             The calculated transient diameter of the crater resulting from the impact.
         """
-        if (
-            not isinstance(projectile_diameter, FloatLike)
-            or projectile_diameter <= 0
-            or not np.isfinite(projectile_diameter)
-        ):
+        if not isinstance(projectile_diameter, FloatLike) or projectile_diameter <= 0 or not np.isfinite(projectile_diameter):
             raise ValueError("projectile_diameter must be a positive finite number")
 
         # Compute some auxiliary quantites
         projectile_radius = projectile_diameter / 2
-        projectile_mass = (
-            (4.0 / 3.0) * math.pi * (projectile_radius**3) * self.projectile.density
-        )
+        projectile_mass = (4.0 / 3.0) * math.pi * (projectile_radius**3) * self.projectile.density
 
         c1 = 1.0 + 0.5 * self.mu
         c2 = (-3 * self.mu) / (2.0 + self.mu)
 
         # Find dimensionless quantities
-        pitwo = (self.target.gravity * projectile_radius) / (
-            self.projectile.vertical_velocity**2
-        )
-        pithree = self.Ybar / (
-            self.target.density * (self.projectile.vertical_velocity**2)
-        )
+        pitwo = (self.target.gravity * projectile_radius) / (self.projectile.vertical_velocity**2)
+        pithree = self.Ybar / (self.target.density * (self.projectile.vertical_velocity**2))
         pifour = self.target.density / self.projectile.density
         pivol = self.K1 * ((pitwo * (pifour ** (-1.0 / 3.0))) + (pithree**c1)) ** c2
         pivolg = self.K1 * (pitwo * (pifour ** (-1.0 / 3.0))) ** c2
@@ -398,9 +357,7 @@ class MonteCarloScaling(Scaling):
 
         return transient_diameter
 
-    def transient_to_projectile(
-        self, transient_diameter: FloatLike, **kwargs: Any
-    ) -> float:
+    def transient_to_projectile(self, transient_diameter: FloatLike, **kwargs: Any) -> float:
         """
         Estimate the characteristics of the projectile that could have created a given crater.
 
@@ -419,11 +376,7 @@ class MonteCarloScaling(Scaling):
         Crater
             The computed projectile for the crater.
         """
-        if (
-            not isinstance(transient_diameter, FloatLike)
-            or transient_diameter <= 0
-            or not np.isfinite(transient_diameter)
-        ):
+        if not isinstance(transient_diameter, FloatLike) or transient_diameter <= 0 or not np.isfinite(transient_diameter):
             raise ValueError("transient_diameter must be a positive finite number")
 
         def root_func(projectile_diameter) -> float:
@@ -477,9 +430,7 @@ class MonteCarloScaling(Scaling):
         Computes and sets the internal attributes for transition factors between simple and complex craters.
         """
         # These terms are used to compute the ratio of the transient crater to simple crater size
-        simple_enlargement_mean = (
-            0.84  # See Melosh (1989) pg. 129 just following eq. 8.2.1
-        )
+        simple_enlargement_mean = 0.84  # See Melosh (1989) pg. 129 just following eq. 8.2.1
         simple_enlargement_std = 0.04  # Just using Pike (1980) fig. 9 the crater depth varies by about the same amount on either side of the transition so this is a reasonable assumption
 
         # These terms are used in the exponent in the final rim radius/ simple crater radius vs  final radius / transition radius relationship
@@ -503,18 +454,11 @@ class MonteCarloScaling(Scaling):
             return 10 ** self.rng.normal(mu, sigma)
 
         # The nominal value will be used for determining the range of the "transitional" morphology type
-        self._transition_nominal = 10 ** (
-            simple_complex_A * np.log10(self.target.gravity) + simple_complex_B
-        )
+        self._transition_nominal = 10 ** (simple_complex_A * np.log10(self.target.gravity) + simple_complex_B)
 
         # Draw from a truncated normal distribution for each component of the model
         if self._montecarlo_scaling:
-            simple_enlargement_factor = (
-                1.0
-                / mc.bounded_norm(
-                    simple_enlargement_mean, simple_enlargement_std, rng=self.rng
-                )[0]
-            )
+            simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std, rng=self.rng)[0]
             final_exp = mc.bounded_norm(final_exp_mean, final_exp_std, rng=self.rng)[0]
             transition_diameter = _sample_transition_diameter(
                 self.target.gravity,
@@ -619,7 +563,7 @@ class MonteCarloScaling(Scaling):
     @parameter
     def mu(self):
         """
-        mu crater scaling relationship term.
+        Mu crater scaling relationship term.
 
         Returns
         -------

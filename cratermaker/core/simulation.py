@@ -1,3 +1,4 @@
+import csv
 import shutil
 from contextlib import suppress
 from dataclasses import asdict
@@ -10,6 +11,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 
+from ..components.counting import Counting
 from ..components.morphology import Morphology
 from ..components.production import Production
 from ..components.projectile import Projectile
@@ -19,7 +21,6 @@ from ..components.target import Target
 from ..constants import (
     _COMPONENT_NAMES,
     _CONFIG_FILE_NAME,
-    _CRATER_DIR,
     FloatLike,
     PairOfFloats,
 )
@@ -50,15 +51,17 @@ class Simulation(CratermakerBase):
     projectile : str, optional
         The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise.
     simdir : str | Path
-        The main project simulation directory. Defaults to the current working directory if None.
+        The main project simulation directory. Default is the current working directory if None.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
         The rng_rng_seed for the RNG. If None, a new RNG is created.
     rng_state : dict, optional
         The state of the random number generator. If None, a new state is created.
-    resume_old : bool, optional
-        Flag to indicate whether to resume from an old simulation. If True, the simulation will attempt to load the previous state from the config file.
+    reset : bool, optional
+        Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is True.
+    ask_overwrite : bool, optional
+        If True, the user will be prompted before overwriting any existing files. Default is True.
     **kwargs : Any
         Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scaling,
         morphology, or production function constructors. Refer to the documentation of each component module for details.
@@ -73,11 +76,13 @@ class Simulation(CratermakerBase):
         morphology: Morphology | str | None = None,
         projectile: Projectile | str | None = None,
         surface: Surface | str | None = None,
+        counting: Counting | str | None = None,
         simdir: str | Path | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
-        resume_old: bool = False,
+        reset: bool = True,
+        ask_overwrite: bool = True,
         **kwargs: Any,
     ):
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
@@ -87,8 +92,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_morphology", morphology)
         object.__setattr__(self, "_projectile", projectile)
         object.__setattr__(self, "_surface", surface)
-        object.__setattr__(self, "_craterlist", None)
-        object.__setattr__(self, "_crater", None)
+        object.__setattr__(self, "_counting", counting)
         object.__setattr__(self, "_interval_number", None)
         object.__setattr__(self, "_elapsed_time", None)
         object.__setattr__(self, "_current_age", None)
@@ -97,13 +101,10 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
-        object.__setattr__(self, "_true_crater_list", [])
+        object.__setattr__(self, "_ask_overwrite", None)
 
-        if self.config_file.exists():
+        if not reset and self.config_file.exists():
             config_file = self.config_file
-            if not resume_old:
-                config_file = None
-
         else:
             config_file = None
 
@@ -121,7 +122,9 @@ class Simulation(CratermakerBase):
             morphology=morphology,
             projectile=projectile,
             surface=surface,
+            counting=counting,
             config_file=config_file,
+            ask_overwrite=ask_overwrite,
         )
 
         for component in _COMPONENT_NAMES:
@@ -135,10 +138,9 @@ class Simulation(CratermakerBase):
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
         projectile_config = unmatched.pop("projectile_config", {})
+        counting_config = unmatched.pop("counting_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
-        if not resume_old:
-            self.reset()
 
         target_config = {**target_config, **kwargs}
         self.target = Target.maker(self.target, **target_config)
@@ -154,15 +156,23 @@ class Simulation(CratermakerBase):
             self.scaling,
             target=self.target,
             projectile=self.projectile,
+            ask_overwrite=self.ask_overwrite,
             **scaling_config,
         )
 
-        surface_config = {**surface_config, **kwargs}
-        surface_config["reset"] = not resume_old
+        surface_config = {**surface_config, **kwargs, "ask_overwrite": self.ask_overwrite}
         self.surface = Surface.maker(
             self.surface,
             target=self.target,
+            reset=reset,
             **surface_config,
+        )
+
+        counting_config = {**counting_config, **kwargs}
+        self.counting = Counting.maker(
+            self.counting,
+            surface=self.surface,
+            **counting_config,
         )
 
         morphology_config = {**morphology_config, **kwargs}
@@ -170,21 +180,14 @@ class Simulation(CratermakerBase):
             self.morphology,
             surface=self.surface,
             production=self.production,
+            counting=self.counting,
             **morphology_config,
         )
         if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
             self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, **surface_config)
 
-        self._craterlist = []
-        self._crater = None
-        self._interval_number = 0
-        self._elapsed_time = 0.0
-        self._current_age = 0.0
-        self._elapsed_n1 = 0.0
-        self._smallest_crater = 0.0  # The smallest crater will be determined by the smallest face area
-        self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
-        self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
-        self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
+        if self.reset:
+            self.reset(ask_overwrite=ask_overwrite, skip_component=["surface"])
         self.to_config()
 
         return
@@ -195,12 +198,13 @@ class Simulation(CratermakerBase):
         """
         return (
             f"<Simulation>\n\n"
-            f"{self.target}\n\n"
+            f"{self.counting}\n\n"
+            f"{self.morphology}\n\n"
+            f"{self.production}\n\n"
             f"{self.projectile}\n\n"
             f"{self.scaling}\n\n"
-            f"{self.production}\n\n"
-            f"{self.morphology}\n\n"
             f"{self.surface}\n\n"
+            f"{self.target}\n\n"
             f"<Current state>\n"
             f"Current age : {format_large_units(self.current_age, quantity='time')}\n"
             f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
@@ -263,6 +267,8 @@ class Simulation(CratermakerBase):
         ninterval : int, optional
             Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output
             in equal cumulative number intervals and vice versa.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
 
         Notes
         -----
@@ -327,7 +333,7 @@ class Simulation(CratermakerBase):
         self.current_age = age
         self.elapsed_time = 0.0
         self.elapsed_n1 = 0.0
-        self.save()
+        self.save(**kwargs)
         for i in tqdm(
             range(ninterval),
             total=ninterval,
@@ -385,7 +391,7 @@ class Simulation(CratermakerBase):
             ).item()
             self.current_age = current_age_end
 
-            self.save()
+            self.save(**kwargs)
 
         return
 
@@ -489,7 +495,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def emplace(self, crater: Crater | list[Crater] | None = None, **kwargs: Any) -> None:
+    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> None:
         """
         Emplace one or more craters in the simulation.
 
@@ -499,7 +505,7 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
-        crater : Crater or list of Crater objects, optional
+        craters : Crater or list of Crater objects, optional
             The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
         **kwargs : Any
             Keyword arguments to pass to :class:`Crater.maker`.
@@ -533,27 +539,31 @@ class Simulation(CratermakerBase):
             sim.emplace(craters)
 
         """
-        if crater is None:
+        if craters is None:
             crater_args = {**kwargs, **vars(self.common_args)}
             # Add scaling=self.scaling to the kwargs if it is not already present
             if "scaling" not in crater_args:
                 crater_args["scaling"] = self.scaling
-            crater = Crater.maker(**crater_args)
-        elif isinstance(crater, list) and len(crater) > 0:
-            self._true_crater_list.extend(crater)
-            for c in crater:
+            craters = [Crater.maker(**crater_args)]
+        elif isinstance(craters, Crater):
+            craters = [craters]
+        if isinstance(craters, list) and len(craters) > 0:
+            for c in craters:
+                if not isinstance(c, Crater):
+                    raise TypeError(f"Expected Crater, got {type(c)}")
                 self._enqueue_crater(c)
             self._process_queue()
-            return
-        if isinstance(crater, Crater):
-            self._true_crater_list.append(crater)
-            self.morphology.emplace(crater, **kwargs)
 
         return
 
     def save(self, **kwargs: Any) -> None:
         """
         Save the current simulation state to a file.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Additional keyword argumments to pass to the component save methods.
         """
         time_variables = {
             "current_age": self.current_age,
@@ -567,53 +577,11 @@ class Simulation(CratermakerBase):
             **kwargs,
         )
 
-        self.dump_crater_lists()
+        if self.morphology.docounting:
+            self.counting.save(interval_number=self.interval_number, **kwargs)
 
         self.to_config(**kwargs)
 
-        return
-
-    def dump_crater_lists(self) -> None:
-        """
-        Dump the crater lists to a file and reset the true crater list.
-        """
-        crater_dir = self.simdir / _CRATER_DIR
-        crater_dir.mkdir(parents=True, exist_ok=True)
-        truefilename = crater_dir / f"true_crater_list{self.interval_number:06d}.csv"
-
-        # Convert current crater list to dicts, splitting location into longitude/latitude
-        new_data = []
-        for c in self._true_crater_list:
-            d = asdict(c)
-            if "location" in d:
-                lon, lat = d.pop("location")
-                d["longitude"] = lon
-                d["latitude"] = lat
-            new_data.append(d)
-
-        # If the file already exists, read it and merge
-        if truefilename.exists():
-            import csv
-
-            with truefilename.open("r", newline="") as f:
-                reader = csv.DictReader(f)
-                existing_data = list(reader)
-            combined_data = existing_data + new_data
-            # Sort by final_diameter descending
-            combined_data = sorted(combined_data, key=lambda d: -float(d["final_diameter"]))
-        else:
-            combined_data = new_data
-
-        # Write merged data back to file
-        if combined_data:
-            import csv
-
-            with truefilename.open("w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=combined_data[0].keys())
-                writer.writeheader()
-                writer.writerows(combined_data)
-
-        self._true_crater_list = []
         return
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
@@ -647,12 +615,14 @@ class Simulation(CratermakerBase):
         sim_config["surface_config"] = self.surface.to_config(remove_common_args=True)
         sim_config["projectile_config"] = self.projectile.to_config(remove_common_args=True)
         sim_config["morphology_config"] = self.morphology.to_config(remove_common_args=True)
+        sim_config["counting_config"] = self.counting.to_config(remove_common_args=True)
         sim_config["target"] = self.target.name
         sim_config["scaling"] = self.scaling._component_name
         sim_config["production"] = self.production._component_name
         sim_config["projectile"] = self.projectile._component_name
         sim_config["morphology"] = self.morphology._component_name
         sim_config["surface"] = self.surface._component_name
+        sim_config["counting"] = self.counting._component_name
 
         for config in [
             "target",
@@ -661,6 +631,7 @@ class Simulation(CratermakerBase):
             "projectile",
             "morphology",
             "surface",
+            "counting",
         ]:
             # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
             if config in sim_config and (sim_config[config] is None or sim_config[config] == {}):
@@ -677,11 +648,53 @@ class Simulation(CratermakerBase):
 
         return sim_config
 
-    def reset(self):
-        crater_dir = self.simdir / _CRATER_DIR
-        # delete crater_dir using Pathlib
-        if crater_dir.exists():
-            shutil.rmtree(crater_dir)
+    def reset(self, ask_overwrite: bool | None = None, skip_component: str | list[str] | None = None) -> None:
+        """
+        Reset the simulation by clearing all data and files associated with it.
+
+        Parameters
+        ----------
+        ask_overwrite : bool, optional
+            If True, the user will be prompted before overwriting any existing files. Default is what is set during initialization, which is True unless specified otherwise.
+        skip_component : str or list of str, optional
+            List of component names to skip during the reset process. Default is an empty list, which means all components will be reset.
+        """
+        if skip_component is None:
+            skip_component = []
+        elif isinstance(skip_component, str):
+            skip_component = [skip_component]
+        elif not isinstance(skip_component, list) or not all(isinstance(c, str) for c in skip_component):
+            raise TypeError("skip_component must be a string or a list of strings")
+        if ask_overwrite is None:
+            ask_overwrite = self.ask_overwrite
+
+        if ask_overwrite:
+            files_to_remove = []
+            for component in _COMPONENT_NAMES:
+                if component not in skip_component and hasattr(self, component):
+                    files_to_remove += getattr(self, component).has_output()
+            if len(files_to_remove) > 0:
+                print("The following files will be deleted:")
+                for f in files_to_remove:
+                    print(f"  {f}")
+                print("To disable this message, pass `ask_overwrite=False` to this function.")
+                response = input(f"Are you sure you want to delete {len(files_to_remove)} files? [y/N]: ")
+                if response.lower() != "y":
+                    raise RuntimeError("User aborted the reset operation.")
+        for component in _COMPONENT_NAMES:
+            if component not in skip_component and hasattr(self, component):
+                getattr(self, component).reset(ask_overwrite=False)
+
+        self._interval_number = 0
+        self._elapsed_time = 0.0
+        self._current_age = 0.0
+        self._elapsed_n1 = 0.0
+        self._smallest_crater = 0.0  # The smallest crater will be determined by the smallest face area
+        self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
+        self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
+        self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
+
+        return
 
     def update_elevation(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -694,7 +707,7 @@ class Simulation(CratermakerBase):
         """
         return self.surface.update_elevation(*args, **kwargs)
 
-    def _enqueue_crater(self, crater: Crater | None = None, **kwargs) -> None:
+    def _enqueue_crater(self, crater: Crater, **kwargs) -> None:
         """
         Add a crater to the queue for later emplacement.
 
@@ -1007,11 +1020,17 @@ class Simulation(CratermakerBase):
         self._projectile = value
 
     @property
-    def data_dir(self):
+    def counting(self):
         """
-        Directory where the data files are stored. Dynamically set based on `surface` attribute.
+        The crater counting model. Set during initialization.
         """
-        return self.surface.data_dir
+        return self._counting
+
+    @counting.setter
+    def counting(self, value):
+        if not isinstance(value, (Counting | str)):
+            raise TypeError("counting must be of Counting type or str")
+        self._counting = value
 
     @property
     def n_node(self):
@@ -1026,13 +1045,6 @@ class Simulation(CratermakerBase):
         Number of faces in the simulation mesh. Dynamically set based on `surface` attribute.
         """
         return self.surface.uxgrid.n_face
-
-    @property
-    def true_crater_list(self):
-        """
-        The list of craters that have been emplaced in the simulation.
-        """
-        return self._true_crater_list
 
     @parameter
     def interval_number(self):
@@ -1176,3 +1188,16 @@ class Simulation(CratermakerBase):
         The path to the configuration file for the simulation.
         """
         return self.simdir / _CONFIG_FILE_NAME
+
+    @parameter
+    def ask_overwrite(self):
+        """
+        Flag to indicate whether the user should be prompted to overwrite any old files or not.
+        """
+        return self._ask_overwrite
+
+    @ask_overwrite.setter
+    def ask_overwrite(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("ask_overwrite must be a bool")
+        self._ask_overwrite = value

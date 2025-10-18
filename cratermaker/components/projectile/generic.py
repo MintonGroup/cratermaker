@@ -25,8 +25,9 @@ class GenericProjectiles(Projectile):
         **kwargs: Any,
     ):
         """
-        An operations class for computing the projectile properties of a generic source population. The user is required to either set `mean_velocity` (if `sample==True`) or `velocity` (if `sample==False`).
-        If `sample==True`, the impact velocities, angles, and directions are sampled from distributions. If `sample==False`, the impact velocities are set to the mean velocity, and `angle` and `direction` can also be set, but will default to set 90 degrees (vertical impact) and 0 degrees (due North`).
+        An operations class for computing the projectile properties of a generic source population.
+
+        The user is required to either set `mean_velocity` (if `sample==True`) or `velocity` (if `sample==False`).  If `sample==True`, the impact velocities, angles, and directions are sampled from distributions. If `sample==False`, the impact velocities are set to the mean velocity, and `angle` and `direction` can also be set, but will default to set 90 degrees (vertical impact) and 0 degrees (due North`).
 
         Parameters
         ----------
@@ -55,7 +56,6 @@ class GenericProjectiles(Projectile):
         **kwargs : Any
             Additional keyword arguments.
         """
-
         # set the defaults
         density = 1000.0 if density is None else density
         angle = 90.0 if angle is None else angle

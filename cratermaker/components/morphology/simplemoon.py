@@ -5,11 +5,11 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 import numpy as np
+from cratermaker._cratermaker import simplemoon_functions as sm
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import root_scalar
 
-from cratermaker._cratermaker import simplemoon_functions as sm
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import FloatLike
@@ -96,7 +96,7 @@ class SimpleMoon(Morphology):
     rng : Generator, optional
         A random number generator instance. If not provided, the default numpy RNG will be used.
     dorays : bool, optional
-        A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket, default is True.
+        A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket, default is False.
     rng : numpy.random.Generator | None
         A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -111,7 +111,7 @@ class SimpleMoon(Morphology):
         self,
         surface: Surface | str | None = None,
         ejecta_truncation: FloatLike | None = None,
-        dorays: bool = True,
+        dorays: bool = False,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,

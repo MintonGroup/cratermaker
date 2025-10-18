@@ -8,7 +8,7 @@ from cratermaker.constants import FloatLike
 @Scaling.register("ctem")
 class CTEMScaling(MonteCarloScaling):
     """
-    This is an operations class for computing the scaling relationships between projectiles and craters.
+    An operations class for computing the scaling relationships between projectiles and craters.
 
     This class encapsulates the logic for converting between projectile properties and crater properties,
     as well as determining crater morphology based on size and target propertiesImplements the scaling laws described in Richardson (2009) that were implemented in CTEM.
@@ -79,13 +79,9 @@ class CTEMScaling(MonteCarloScaling):
         Computes and sets the internal attributes for transition factors between simple and complex craters.
         """
         # Constants from CTEM
-        CXEXPS = (
-            1 / 0.885 - 1.0
-        )  # Complex crater scaling explonent for silicate rock (Croft 1985)
+        CXEXPS = 1 / 0.885 - 1.0  # Complex crater scaling explonent for silicate rock (Croft 1985)
         SIMCOMKS = 16533.8  # Simple-to-complex transition scaling coefficient for silicate rock
-        SIMCOMPS = (
-            -1.0303
-        )  # Simple-to-complex transition scaling exponent for silicate rock
+        SIMCOMPS = -1.0303  # Simple-to-complex transition scaling exponent for silicate rock
         CXEXPI = 0.155  # Complex crater scaling exponent for ice
         SIMCOMKI = 3081.39  # Simple-to-complex transition scaling coefficient for ice
         SIMCOMPI = -1.22486  # Simple-to-complex transition scaling exponent for ice
@@ -109,9 +105,7 @@ class CTEMScaling(MonteCarloScaling):
             final_exp = CXEXPI
 
         # The nominal value will be used for determining the range of the "transitional" morphology type
-        self._transition_nominal = float(
-            simple_complex_fac * self.target.gravity**simple_complex_exp
-        )
+        self._transition_nominal = float(simple_complex_fac * self.target.gravity**simple_complex_exp)
 
         simple_enlargement_factor = 1.0 / simple_enlargement
         self._simple_enlargement_factor = float(simple_enlargement_factor)
