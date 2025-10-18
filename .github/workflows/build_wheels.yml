@@ -15,16 +15,16 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Get history and tags for SCM versioning to work
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: '>=3.10'
+          python-version: '3.13'
 
       - name: Set version
         shell: bash
@@ -54,13 +54,13 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: '>=3.10'
+          python-version: '3.13'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
           path: dist/
@@ -74,10 +74,6 @@ jobs:
             source .venv/Scripts/activate
           else
             source .venv/bin/activate
-          fi
-          # If on aarch64, install vtk RC version, as this is the first version with support for it
-          if [[ "$(uname -m)" == "aarch64" ]]; then
-            pip install --pre '.[aarch64]'
           fi
           PYTAG=$(python -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
           pip install --upgrade pip
