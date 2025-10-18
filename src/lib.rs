@@ -2,6 +2,7 @@
 
 pub mod simplemoon_functions;
 pub mod surface_functions;
+pub mod counting_functions;
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -35,6 +36,14 @@ mod cratermaker {
         use crate::surface_functions::{
             apply_diffusion, slope_collapse, calculate_bearing, interpolate_node_elevation_from_faces,
             turbulence_noise, calculate_distance, compute_slope, compute_edge_distances
+        };
+    }
+
+    #[pymodule]
+    mod counting_functions {
+        #[pymodule_export]
+        use crate::counting_functions::{
+            tally_m19
         };
     }
 }

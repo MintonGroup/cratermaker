@@ -82,7 +82,7 @@ class AsteroidProjectiles(Projectile):
 
     def __str__(self) -> str:
         base = super().__str__()
-        return f"{base}\nTarget: {self.target.name}\n"
+        return f"{base}Target: {self.target.name}\n"
 
     def _set_mean_velocity(self):
         """
@@ -92,12 +92,12 @@ class AsteroidProjectiles(Projectile):
         -------
         float
         """
-
         if self.target.name in self.__class__._catalogue:
             pmv = float(self.__class__._catalogue[self.target.name])
         else:
             warn(
-                f"Target {self.target.name} not found in known targets. Known targets include {list(self.__class__._catalogue.keys())}. Defaulting to the Moon."
+                f"Target {self.target.name} not found in known targets. Known targets include {list(self.__class__._catalogue.keys())}. Defaulting to the Moon.",
+                stacklevel=2,
             )
             pmv = float(self.__class__._catalogue["Moon"])
         return pmv
