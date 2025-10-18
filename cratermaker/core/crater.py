@@ -137,7 +137,7 @@ class Crater:
         projectile_mass : float, optional
             The mass of the projectile in kilograms.
         projectile_density : float, optional
-            The density of the projectile in kg/m^3. If not provided, the target's density is used.
+            The density of the projectile in kg/m^3. If not provided, it will be defined through the projectile population model provided.
         projectile_velocity : float, optional
             The total impact velocity of the projectile in m/s.
         projectile_mean_velocity : float, optional
