@@ -25,4 +25,4 @@ build:
       - pip install .
 
 conda:
-  environment: environments/cratermaker-docs.yml
+  environment: environments/cratermaker-dev.yml
