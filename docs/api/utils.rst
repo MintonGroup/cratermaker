@@ -28,29 +28,9 @@ General utilities
     :toctree: generated/
 
     general_utils.Parameter
-    general_utils.validate_and_normalize_location
     general_utils.normalize_coords
+    general_utils.validate_and_normalize_location
     general_utils.R_to_CSFD
+    general_utils.format_large_units
 
-.. _api-utils-export:
-
-Export functions
-----------------
-
-.. autosummary::
-    :toctree: generated/
-
-    export.to_vtk
-    export.make_circle_file
-
-.. _api-ComponentAPI:
-
-
-Component API utilities
------------------------
-
-.. autoclass:: cratermaker.utils.component_utils.ComponentBase
-   :members:
-   :undoc-members:
-   :no-index:
 
