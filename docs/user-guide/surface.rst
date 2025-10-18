@@ -124,7 +124,9 @@ Though it is limited to a few resolutions, the icosphere surface will have the m
     surface=Surface.maker()
     print(surface)
 
+
 This is equivalent to:
+
 
 .. ipython:: python
     :okwarning:
@@ -132,7 +134,12 @@ This is equivalent to:
     surface=Surface.maker(surface='icosphere', gridlevel=8, target='Moon')
     print(surface)
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
 
+    import shutil
+    shutil.rmtree(surface.simdir)
 
 Arbitrary Resolution 
 ~~~~~~~~~~~~~~~~~~~~
@@ -177,6 +184,13 @@ For instance, suppose we want to generate a high resolution local grid on the Mo
 
 .. ipython:: python
     :okwarning:
+    :suppress:
+
+    import shutil
+    shutil.rmtree(surface.simdir)
+
+.. ipython:: python
+    :okwarning:
 
     surface=Surface.maker("hireslocal", pix=10.0, local_radius=5e3, local_location=(0, 0), superdomain_scale_factor=10000)
     print(surface)
@@ -198,6 +212,13 @@ Extracting a local subsection of the surface
 Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that only contains the faces and nodes within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters.
 
 For instance, suppose we'd like to extract a 16 km radius region at the south pole of the Moon:
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    import shutil
+    shutil.rmtree(surface.simdir)
 
 .. ipython:: python
     :okwarning:
@@ -248,6 +269,13 @@ Extracting a local subset of the grid
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Suppose we wish to extract a 10 km radius local region of the surface of the Moon centered at 45° N latitude, 205° E longitude:
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    import shutil
+    shutil.rmtree(surface.simdir)
 
 .. ipython:: python
     :okwarning:
