@@ -88,6 +88,19 @@ class CratermakerBase:
         """
         return _to_config(self, remove_common_args=remove_common_args, **kwargs)
 
+    def reprocess(self, interval_range: ArrayLike = (-1), **kwargs: Any) -> None:
+        """
+        Reprocess the output from this component.
+
+        This is a placeholder method that can be overridden by subclasses to implement specific reprocessing logic.
+
+        Parameters
+        ----------
+        interval_range : ArrayLike, optional
+            The range of intervals to reprocess. Default is (-1), which indicates the last interval.
+        """
+        pass
+
     @parameter
     def simdir(self):
         """
