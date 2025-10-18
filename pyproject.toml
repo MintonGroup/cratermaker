@@ -37,11 +37,11 @@ dependencies = [
     'geoviews>=1.14.0',
     'PyYAML>=6',
     'astropy>=6',
-    'rasterio'
 ]
 
 [project.optional-dependencies]
 tests = ["pytest"]
+rasterio = ["rasterio"]
 
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
