@@ -1,8 +1,9 @@
 import unittest
-from cratermaker import Target, Scaling
+
+from cratermaker import Scaling, Target
+
 
 class TestScale(unittest.TestCase):
-   
     def test_scale_from_catalogue(self):
         # Test creating a scaling from the catalogue
         scaling = Scaling.maker(material="Soft Rock")
@@ -40,12 +41,13 @@ class TestScale(unittest.TestCase):
         with self.assertRaises(ValueError):
             Scaling.maker(material="Blorp", mu=0.1, Ybar=1e7, density=2000.0)
         return
-    
+
     def test_scale_override_catalogue(self):
         # Test overriding a property from the catalogue
         target = Target(name="Mars")
-        scaling = Scaling.maker(target=target,material="Sand")
-        self.assertEqual(scaling.material, "Sand")    
+        scaling = Scaling.maker(target=target, material="Sand")
+        self.assertEqual(scaling.material, "Sand")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

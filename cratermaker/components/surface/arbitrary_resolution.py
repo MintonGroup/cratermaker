@@ -22,11 +22,13 @@ class ArbitraryResolutionSurface(Surface):
     target : Target, optional
         The target body or name of a known target body for the impact simulation.
     reset : bool, optional
-        Flag to indicate whether to reset the surface. Default is True.
+        Flag to indicate whether to reset the surface. Default is False.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
+    ask_overwrite : bool, optional
+        If True, prompt the user for confirmation before deleting files. Default is True.
     simdir : str | Path
-        The main project simulation directory. Defaults to the current working directory if None.
+        The main project simulation directory. Default is the current working directory if None.
 
     Returns
     -------
@@ -40,12 +42,13 @@ class ArbitraryResolutionSurface(Surface):
         target: Target | str | None = None,
         reset: bool = False,
         regrid: bool = False,
+        ask_overwrite: bool = True,
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
         super().__init__(target=target, simdir=simdir, **kwargs)
         self.pix = pix
-        self._load_from_files(reset=reset, regrid=regrid, **kwargs)
+        self._load_from_files(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
 
     def __str__(self) -> str:
         base = super().__str__()

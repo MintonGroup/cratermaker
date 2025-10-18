@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+from pyproj import CRS
 from scipy.spatial.transform import Rotation
 
 from cratermaker.components.morphology import Morphology
@@ -40,11 +41,13 @@ class HiResLocalSurface(Surface):
         The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
         or extracted from the scaling model if it is provied
     reset : bool, optional
-        Flag to indicate whether to reset the surface. Default is True.
+        Flag to indicate whether to reset the surface. Default is False.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
+    ask_overwrite : bool, optional
+        If True, prompt the user for confirmation before deleting files. Default is True.
     simdir : str | Path
-        The main project simulation directory. Defaults to the current working directory if None.
+        The main project simulation directory. Default is the current working directory if None.
 
     Returns
     -------
@@ -61,6 +64,7 @@ class HiResLocalSurface(Surface):
         target: Target | str | None = None,
         reset: bool = False,
         regrid: bool = False,
+        ask_overwrite: bool = True,
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
@@ -74,7 +78,7 @@ class HiResLocalSurface(Surface):
         self.local_location = local_location
         if superdomain_scale_factor is not None:
             self.superdomain_scale_factor = superdomain_scale_factor
-            self._load_from_files(reset=reset, regrid=regrid, **kwargs)
+            self._load_from_files(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
 
         return
 
@@ -590,6 +594,13 @@ class HiResLocalSurface(Surface):
             self.local_location,
             self.superdomain_scale_factor,
         ]
+
+    @property
+    def crs(self) -> CRS:
+        """
+        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
+        """
+        return self.local.crs
 
 
 class LocalHiResLocalSurface(LocalSurface):

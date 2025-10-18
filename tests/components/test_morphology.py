@@ -37,7 +37,7 @@ class TestMorphology(unittest.TestCase):
 
     def test_form_crater_executes(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel)
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
             for model_name in morphology_models:
                 morphology = Morphology.maker(model_name, surface=surface)
                 morphology.emplace(self.dummy_crater)
@@ -87,9 +87,9 @@ class TestMorphology(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             for name, args in gridargs.items():
-                sim = Simulation(simdir=simdir, surface=name, **args)
+                sim = Simulation(simdir=simdir, surface=name, ask_overwrite=False, **args)
                 for final_diameter, delta in zip(final_diameter_list, delta_vals, strict=False):
-                    sim.surface.reset()
+                    sim.reset()
                     # verify that the surface is flat
                     self.assertAlmostEqual(
                         sim.surface.node_elevation.min(),

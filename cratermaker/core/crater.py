@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 from numpy.random import Generator
 
 from ..utils.general_utils import format_large_units
@@ -29,6 +30,7 @@ class Crater:
     location: tuple[float, float] | None = None
     morphology_type: str | None = None
     age: float | None = None
+    id: np.uint32 = None
 
     def __str__(self):
         if self.age is None:
@@ -50,16 +52,6 @@ class Crater:
         )
 
     @property
-    def _id(self):
-        """
-        The hash id of the crater. This is used as a unique identifier for the crater.
-        """
-        # Ensure deterministic field order by sorting keys (optional but safer)
-        data = asdict(self)
-        combined = ":".join(str(data[k]) for k in sorted(data))
-        return hashlib.sha256(combined.encode()).hexdigest()
-
-    @property
     def final_radius(self) -> float | None:
         """Final radius of the crater in meters."""
         return self.final_diameter / 2.0 if self.final_diameter is not None else None
@@ -67,40 +59,25 @@ class Crater:
     @property
     def transient_radius(self) -> float | None:
         """Transient radius of the crater in meters."""
-        return (
-            self.transient_diameter / 2.0
-            if self.transient_diameter is not None
-            else None
-        )
+        return self.transient_diameter / 2.0 if self.transient_diameter is not None else None
 
     @property
     def projectile_radius(self) -> float | None:
         """Projectile radius in meters."""
-        return (
-            self.projectile_diameter / 2.0
-            if self.projectile_diameter is not None
-            else None
-        )
+        return self.projectile_diameter / 2.0 if self.projectile_diameter is not None else None
 
     @property
     def projectile_mass(self) -> float | None:
         """Projectile mass in kilograms."""
         if self.projectile_density is not None and self.projectile_radius is not None:
-            return (
-                (4.0 / 3.0)
-                * math.pi
-                * self.projectile_radius**3
-                * self.projectile_density
-            )
+            return (4.0 / 3.0) * math.pi * self.projectile_radius**3 * self.projectile_density
         return None
 
     @property
     def projectile_vertical_velocity(self) -> float | None:
         """Projectile vertical velocity in m/s."""
         if self.projectile_velocity is not None and self.projectile_angle is not None:
-            return self.projectile_velocity * math.sin(
-                math.radians(self.projectile_angle)
-            )
+            return self.projectile_velocity * math.sin(math.radians(self.projectile_angle))
         return None
 
     @classmethod
@@ -160,7 +137,7 @@ class Crater:
         projectile_mass : float, optional
             The mass of the projectile in kilograms.
         projectile_density : float, optional
-            The density of the projectile in kg/m^3. If not provided, the target's density is used.
+            The density of the projectile in kg/m^3. If not provided, it will be defined through the projectile population model provided.
         projectile_velocity : float, optional
             The total impact velocity of the projectile in m/s.
         projectile_mean_velocity : float, optional
@@ -178,7 +155,7 @@ class Crater:
         age : float, optional
             The age of the crater in Myr.
         simdir : str | Path
-            The main project simulation directory. Defaults to the current working directory if None.
+            The main project simulation directory. Default is the current working directory if None.
         rng : numpy.random.Generator | None
             A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -205,6 +182,22 @@ class Crater:
         from ..components.projectile import Projectile
         from ..components.scaling import Scaling
         from ..components.target import Target
+
+        def _set_id(**kwargs: Any) -> np.uint32:
+            """
+            Sets the hash id of the crater based on input parameters.
+
+            This is used as a unique identifier for the crater. To reduce storage requirements, the id is a 32-bit unsigned integer derived from the hash of the input parameters. There is a very small chance of hash collisions, but this is acceptable for the purposes of crater identification.
+
+            Parameters
+            ----------
+            **kwargs : Any
+                Keyword arguments used to compute the unique identifier.
+
+            """
+            combined = "::".join(f"{k}:{kwargs[k]}" for k in kwargs)
+            hexid = hashlib.shake_128(combined.encode()).hexdigest(4)
+            return np.uint32(int(f"0x{hexid}", 16))
 
         # Validate that mutually exclusive arguments hve not been passed
         size_inputs = {
@@ -241,18 +234,10 @@ class Crater:
 
         n_velocity_inputs = sum(x is not None for x in velocity_inputs.values())
         if n_velocity_inputs > 2:
-            raise ValueError(
-                f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set."
-            )
+            raise ValueError(f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set.")
 
-        if projectile_mean_velocity is not None:
-            if (
-                projectile_velocity is not None
-                or projectile_vertical_velocity is not None
-            ):
-                raise ValueError(
-                    "projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity"
-                )
+        if projectile_mean_velocity is not None and (projectile_velocity is not None or projectile_vertical_velocity is not None):
+            raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
@@ -298,14 +283,10 @@ class Crater:
                     args[field] = old_parameters[field]
 
         if n_size_inputs != 1:
-            raise ValueError(
-                f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set."
-            )
+            raise ValueError(f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set.")
 
         # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
-        argproc = CratermakerBase(
-            simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state
-        )
+        argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
         if scaling is not None and isinstance(scaling, Scaling):
             if projectile is None:
                 projectile = scaling.projectile
@@ -390,7 +371,7 @@ class Crater:
         pm = (4.0 / 3.0) * math.pi * pr**3 * prho
 
         # Assemble final arguments
-        args = {
+        crater_args = {
             "final_diameter": float(fd) if fd is not None else None,
             "transient_diameter": float(td) if td is not None else None,
             "projectile_diameter": float(pd) if pd is not None else None,
@@ -402,4 +383,5 @@ class Crater:
             "morphology_type": str(mt) if mt is not None else None,
             "age": float(age) if age is not None else None,
         }
-        return cls(**args)
+        crater_args["id"] = _set_id(**crater_args)
+        return cls(**crater_args)

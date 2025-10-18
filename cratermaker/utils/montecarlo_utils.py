@@ -430,7 +430,7 @@ def bounded_norm(
     **kwargs: Any,
 ) -> FloatLike:
     """
-    Sample from a truncated normal distribution that is bounded by 1-sigma stdev
+    Sample from a truncated normal distribution that is bounded by 1-sigma stdev.
 
     Parameters
     ----------
