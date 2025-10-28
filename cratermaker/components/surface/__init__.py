@@ -56,7 +56,7 @@ class Surface(ComponentBase):
     simdir : str | Path
         The main project simulation directory. Default is the current working directory if None.
     raster_format : str, optional
-        If set, the save method will raster representation of the surface mesh in addition to the data files. Default is None (no additional raster is saved). Current valid options are `vtp` (or, equivalently, `vtk`), `tiff`, and `gpkg`.
+        If set, the save method will raster representation of the surface mesh in addition to the data files.  Current valid options are `vtp` (or, equivalently, `vtk`), `tiff`, `gpkg`, or None (no rasters are saved). Default is 'vtp'
     **kwargs : Any
         Additional keyword arguments.
     """
@@ -67,7 +67,7 @@ class Surface(ComponentBase):
         self,
         target: Target | str | None = None,
         simdir: str | Path | None = None,
-        raster_format: str | None = None,
+        raster_format: None | str = "vtp",
         **kwargs,
     ):
         from cratermaker.components.target import Target
@@ -145,7 +145,7 @@ class Surface(ComponentBase):
         ask_overwrite: bool = True,
         regrid: bool = False,
         simdir: str | Path | None = None,
-        raster_format: str | None = None,
+        raster_format: None | str = "vtp",
         **kwargs,
     ) -> Surface:
         """
@@ -166,7 +166,7 @@ class Surface(ComponentBase):
         simdir : str | Path
             The main project simulation directory. Default is the current working directory if None.
         raster_format : str, optional
-            If set, the save method will raster representation of the surface mesh in addition to the data files. Default is None (no additional raster is saved). Current valid options are `vtp` (or, equivalently, `vtk`), `tiff`, and `gpkg`.
+            If set, the save method will raster representation of the surface mesh in addition to the data files.  Current valid options are `vtp` (or, equivalently, `vtk`), `tiff`, `gpkg`, or None (no rasters are saved). Default is 'vtp'
         **kwargs : Any
             Additional keyword arguments.
 

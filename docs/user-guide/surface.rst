@@ -139,7 +139,7 @@ This is equivalent to:
     :suppress:
 
     import shutil
-    shutil.rmtree(surface.simdir)
+    shutil.rmtree(surface.output_dir)
 
 Arbitrary Resolution 
 ~~~~~~~~~~~~~~~~~~~~
@@ -187,7 +187,7 @@ For instance, suppose we want to generate a high resolution local grid on the Mo
     :suppress:
 
     import shutil
-    shutil.rmtree(surface.simdir)
+    shutil.rmtree(surface.output_dir)
 
 .. ipython:: python
     :okwarning:
@@ -218,7 +218,7 @@ For instance, suppose we'd like to extract a 16 km radius region at the south po
     :suppress:
 
     import shutil
-    shutil.rmtree(surface.simdir)
+    shutil.rmtree(surface.output_dir)
 
 .. ipython:: python
     :okwarning:
@@ -275,7 +275,7 @@ Suppose we wish to extract a 10 km radius local region of the surface of the Moo
     :suppress:
 
     import shutil
-    shutil.rmtree(surface.simdir)
+    shutil.rmtree(surface.output_dir)
 
 .. ipython:: python
     :okwarning:
