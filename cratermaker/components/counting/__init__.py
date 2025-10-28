@@ -50,7 +50,7 @@ class Counting(ComponentBase):
     ask_overwrite : bool, optional
         If True, prompt the user for confirmation before deleting files. Default is True.
     vector_format: str | None, optional
-        The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file). Other drivers may require additional kwargs.
+        The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector. The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file) or "vtp" ("vtk"). Other drivers may require additional kwargs. Default is "vtp"
     **kwargs : Any
         Additional keyword arguments.
     """
@@ -58,7 +58,7 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
-        vector_format: str | None = None,
+        vector_format: None | str = "vtp",
         **kwargs: Any,
     ):
         object.__setattr__(self, "_emplaced", [])
@@ -76,7 +76,7 @@ class Counting(ComponentBase):
         cls,
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
-        vector_format: str | None = None,
+        vector_format: None | str = "vtp",
         **kwargs: Any,
     ) -> Counting:
         """
@@ -89,7 +89,7 @@ class Counting(ComponentBase):
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
         vector_format: str | None, optional
-            The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file). Other drivers may require additional kwargs.
+            The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector. The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file) or "vtp" ("vtk"). Other drivers may require additional kwargs. Default is "vtp"
         **kwargs : Any
             Additional keyword arguments.
 
