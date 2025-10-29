@@ -641,10 +641,21 @@ class Surface(ComponentBase):
         interval_number: int = 0,
         time_variables: dict | None = None,
         save_geometry=True,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """
         Export the surface mesh to a VTK file and stores it in the default export directory.
+
+        Parameters
+        ----------
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        save_geometry : bool, optional
+            If True, saves the surface mesh geometry as a separate file. Default is True.
+        **kwargs : Any
+            Additional keyword arguments to pass to the export function.
         """
         from vtk import (
             VTK_POLYGON,
@@ -656,8 +667,6 @@ class Surface(ComponentBase):
         from vtkmodules.util.numpy_support import numpy_to_vtk
         from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
         from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
-
-        from cratermaker import Surface
 
         _VTK_FILE_EXTENSION = "vtp"
 

@@ -262,7 +262,9 @@ class HiResLocalSurface(Surface):
         **kwargs,
     ) -> None:
         """
-        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Save the surface data to the specified directory.
+
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
 
         Parameters
         ----------
