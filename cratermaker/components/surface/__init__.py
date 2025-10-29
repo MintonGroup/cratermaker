@@ -2542,9 +2542,19 @@ class LocalSurface:
 
         if self.location is None:
             projection = ccrs.PlateCarree()
+            deg_per_pix = 360.0 * self.pix / (2 * np.pi * self.radius)
+            minx, maxx = projection.x_limits
+            miny, maxy = projection.y_limits
+            width = int(np.ceil((maxx - minx) / deg_per_pix))
+            height = int(np.ceil((maxy - miny) / deg_per_pix))
         else:
-            # projection = ccrs.AzimuthalEquidistant(central_longitude=self.location[0], central_latitude=self.location[1])
-            projection = ccrs.PlateCarree()
+            projection = ccrs.AzimuthalEquidistant(central_longitude=self.location[0], central_latitude=self.location[1])
+            minx = -self.region_radius
+            maxx = self.region_radius
+            miny = -self.region_radius
+            maxy = self.region_radius
+            width = int(2 * self.region_radius / self.pix)
+            height = int(2 * self.region_radius / self.pix)
 
         for var in variables:
             output_file = out_dir / f"{var}{interval_number:06d}.tiff"
@@ -2557,18 +2567,6 @@ class LocalSurface:
 
             # Drop empty geometries
             gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notnull()].copy()
-
-            # Choose bounds
-            if bounds is None:
-                bounds = gdf.total_bounds
-            minx, miny, maxx, maxy = bounds
-            # projection.bounds = (minx, maxx, miny, maxy)
-
-            # degrees per pixel (same for lat/lon if you want square pixels)
-            deg_per_pix = 360.0 * self.pix / (2 * np.pi * self.radius)
-
-            width = int(np.ceil((maxx - minx) / deg_per_pix))
-            height = int(np.ceil((maxy - miny) / deg_per_pix))
 
             fig = plt.figure(figsize=(width, height), dpi=1)
 
