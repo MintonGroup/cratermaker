@@ -871,73 +871,9 @@ class Surface(ComponentBase):
         nodata : float | None, optional
             NoData value for the output raster; if None, no NoData value is set, by default np.nan.
         """
-        import matplotlib.pyplot as plt
-        import rasterio as rio
-        from cartopy import crs as ccrs
+        return self._full().to_geotiff(interval_number=interval_number, bounds=bounds, dtype=dtype, nodata=nodata, **kwargs)
 
-        out_dir = self.output_dir
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        ds = self.uxds.load()
-        variables = [v for v in ds.data_vars if len(ds[v].dims) == 1 and any(dim == "n_face" for dim in ds[v].dims)]
-        if not variables:
-            raise ValueError("No face-based variables found to export to GeoTiff.")
-
-        projection = ccrs.PlateCarree()
-
-        for var in variables:
-            output_file = out_dir / f"{var}{interval_number:06d}.tiff"
-            print(f"Saving raster file: '{output_file}'...")
-            gdf = ds[var].to_geodataframe(engine="geopandas")
-
-            # Ensure CRS is set
-            if getattr(gdf, "crs", None) is None:
-                gdf = gdf.set_crs(self.crs)
-
-            # Drop empty geometries
-            gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notnull()].copy()
-
-            # Choose bounds
-            if bounds is None:
-                minx, miny, maxx, maxy = gdf.total_bounds
-            else:
-                minx, miny, maxx, maxy = bounds
-
-            # degrees per pixel (same for lat/lon if you want square pixels)
-            deg_per_pix = 360.0 * self.pix / (2 * np.pi * self.radius)
-
-            width = int(np.ceil((maxx - minx) / deg_per_pix))
-            height = int(np.ceil((maxy - miny) / deg_per_pix))
-
-            fig = plt.figure(figsize=(width, height), dpi=1)
-
-            ax = fig.add_axes([0, 0, 1, 1], projection=projection)
-            ax.set_axis_off()
-            fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
-            ax.set_extent([minx, maxx, miny, maxy], crs=projection)
-
-            raster = ds[var].to_raster(ax=ax)
-
-            # transform = rio.transform.from_origin(minx, miny, deg_per_pix, deg_per_pix)
-            transform = rio.transform.from_bounds(minx, maxy, maxx, miny, width, height)
-
-            profile = {
-                "driver": "GTiff",
-                "height": height,
-                "width": width,
-                "count": 1,
-                "dtype": dtype,
-                "crs": gdf.crs,
-                "transform": transform,
-            }
-            if nodata is not None:
-                profile["nodata"] = nodata
-            with rio.open(output_file, "w", **profile) as dst:
-                dst.write(raster, 1)
-
-        return
-
-    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, projection=None, **kwargs: Any) -> None:
+    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
         """
         Plot a hillshade image of the surface.
 
@@ -949,107 +885,10 @@ class Surface(ComponentBase):
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
             If True, a scalebar will be added to the plot. Default is True.
-        projection : cartopy.crs.Projection, optional
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
-        import cartopy
-        import cartopy.crs as ccrs
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import LightSource
-        from scipy.interpolate import griddata
-
-        region = self.local
-        local_radius = self.local_radius
-        pix = self.pix
-
-        # Dynamically compute image resolution and dpi
-        extent_val = local_radius
-        resolution = int(2 * extent_val / pix)
-        dpi = resolution
-        x = np.linspace(-extent_val, extent_val, resolution)
-        y = np.linspace(-extent_val, extent_val, resolution)
-        grid_x, grid_y = np.meshgrid(x, y)
-
-        # Use polar coordinates from region
-        r = region.face_distance
-        theta = region.face_bearing
-        x_cart = r * np.cos(theta)
-        y_cart = r * np.sin(theta)
-
-        points = np.column_stack((x_cart, y_cart))
-        values = region.face_elevation
-        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
-
-        # Generate hillshade
-        azimuth = 300.0
-        solar_angle = 20.0
-        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
-        hillshade = ls.hillshade(grid_z, dx=pix, dy=pix, fraction=1.0)
-
-        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
-        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
-        ax.imshow(
-            hillshade,
-            interpolation="nearest",
-            cmap="gray",
-            vmin=0.0,
-            vmax=1.0,
-            aspect="equal",
-            extent=(-extent_val, extent_val, -extent_val, extent_val),
-        )
-        ax.axis("off")
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        fontsize_px = resolution * 0.03
-        fontsize = fontsize_px * 72 / dpi
-        # Add scale bar before saving/showing image
-        if scalebar:
-            # Determine max physical size for the scale bar
-            max_physical_size = extent_val / 2 / np.sqrt(2)
-
-            # Choose "nice" scale bar length
-            nice_values = np.array([100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
-            scale_length = nice_values[nice_values <= max_physical_size].max()
-            bar_height = extent_val * 0.01
-            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
-
-            # Position in lower right corner
-            x_start = extent_val - scale_length - extent_val * 0.1
-            y_start = -(extent_val - bar_height - extent_val * 0.1)
-
-            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
-            ax.add_patch(rect)
-            # Label above the scale bar
-            ax.text(
-                x_start + scale_length / 2,
-                y_start + 2 * bar_height,
-                scale_text,
-                color="black",
-                ha="center",
-                va="bottom",
-                fontsize=fontsize,
-                fontweight="bold",
-            )
-        if label:
-            x_start = -extent_val / np.sqrt(2.0)
-            y_start = extent_val * 0.85
-            # Label above the scale bar
-            ax.text(
-                x_start,
-                y_start,
-                label,
-                color="black",
-                ha="center",
-                va="bottom",
-                fontsize=fontsize,
-                fontweight="bold",
-            )
-        if imagefile:
-            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
-        else:
-            plt.show(**kwargs)
-        plt.close(fig)
-        return
+        return self._full().plot_hillshade(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
 
     @staticmethod
     def _sphere_function(coords, x_c, y_c, z_c, r):
@@ -2086,11 +1925,14 @@ class LocalSurface:
         object.__setattr__(self, "_face_bearing", None)
         object.__setattr__(self, "_node_bearing", None)
         object.__setattr__(self, "_edge_face_connectivity", None)
+        object.__setattr__(self, "_edge_node_connectivity", None)
         object.__setattr__(self, "_face_edge_connectivity", None)
         object.__setattr__(self, "_face_node_connectivity", None)
         object.__setattr__(self, "_face_face_connectivity", None)
         object.__setattr__(self, "_node_face_connectivity", None)
         object.__setattr__(self, "_crs", None)
+        object.__setattr__(self, "_uxds", None)
+        object.__setattr__(self, "_uxgrid", None)
 
         if location is not None:
             self._location = validate_and_normalize_location(location)
@@ -2655,6 +2497,202 @@ class LocalSurface:
 
         return self.surface._compute_elevation_to_cartesian(position, elevation)
 
+    def to_geotiff(
+        self,
+        interval_number: int = 0,
+        bounds: tuple[float, float, float, float] | None = None,
+        dtype: str = "float32",
+        nodata: float | None = np.nan,
+        **kwargs,
+    ) -> None:
+        """
+        Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
+
+        Parameters
+        ----------
+        surface : Surface
+            Source surface with an unstructured mesh and face-based data in UxArray.
+        interval_number : int, optional
+            Interval number to save, by default 0.
+        bounds : tuple[float, float, float, float] | None, optional
+            (minx, miny, maxx, maxy) bounds of the output raster in the self CRS; if None, use the full extent of the data, by default None.
+        dtype : str, optional
+            Data type for the output raster, by default "float32".
+        nodata : float | None, optional
+            NoData value for the output raster; if None, no NoData value is set, by default np.nan.
+        """
+        import matplotlib.pyplot as plt
+        import rasterio as rio
+        from cartopy import crs as ccrs
+
+        out_dir = self.surface.output_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        ds = self.uxds.load()
+        variables = [v for v in ds.data_vars if len(ds[v].dims) == 1 and any(dim == "n_face" for dim in ds[v].dims)]
+        if not variables:
+            raise ValueError("No face-based variables found to export to GeoTiff.")
+
+        projection = ccrs.PlateCarree()
+
+        for var in variables:
+            output_file = out_dir / f"{var}{interval_number:06d}.tiff"
+            print(f"Saving raster file: '{output_file}'...")
+            gdf = ds[var].to_geodataframe(engine="geopandas")
+
+            # Ensure CRS is set
+            if getattr(gdf, "crs", None) is None:
+                gdf = gdf.set_crs(self.crs)
+
+            # Drop empty geometries
+            gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notnull()].copy()
+
+            # Choose bounds
+            if bounds is None:
+                minx, miny, maxx, maxy = gdf.total_bounds
+            else:
+                minx, miny, maxx, maxy = bounds
+
+            # degrees per pixel (same for lat/lon if you want square pixels)
+            deg_per_pix = 360.0 * self.pix / (2 * np.pi * self.radius)
+
+            width = int(np.ceil((maxx - minx) / deg_per_pix))
+            height = int(np.ceil((maxy - miny) / deg_per_pix))
+
+            fig = plt.figure(figsize=(width, height), dpi=1)
+
+            ax = fig.add_axes([0, 0, 1, 1], projection=projection)
+            ax.set_axis_off()
+            fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+            ax.set_extent([minx, maxx, miny, maxy], crs=projection)
+
+            raster = ds[var].to_raster(ax=ax)
+
+            transform = rio.transform.from_bounds(minx, maxy, maxx, miny, width, height)
+
+            profile = {
+                "driver": "GTiff",
+                "height": height,
+                "width": width,
+                "count": 1,
+                "dtype": dtype,
+                "crs": gdf.crs,
+                "transform": transform,
+            }
+            if nodata is not None:
+                profile["nodata"] = nodata
+            with rio.open(output_file, "w", **profile) as dst:
+                dst.write(raster, 1)
+
+        return
+
+    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
+        """
+        Plot a hillshade image of the local region.
+
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LightSource
+        from scipy.interpolate import griddata
+
+        # Dynamically compute image resolution and dpi
+        extent_val = self.region_radius
+        resolution = int(2 * extent_val / self.pix)
+        dpi = resolution
+        x = np.linspace(-extent_val, extent_val, resolution)
+        y = np.linspace(-extent_val, extent_val, resolution)
+        grid_x, grid_y = np.meshgrid(x, y)
+
+        # Use polar coordinates from region
+        r = self.face_distance
+        theta = self.face_bearing
+        x_cart = r * np.cos(theta)
+        y_cart = r * np.sin(theta)
+
+        points = np.column_stack((x_cart, y_cart))
+        values = self.face_elevation
+        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
+
+        # Generate hillshade
+        azimuth = 300.0
+        solar_angle = 20.0
+        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+        hillshade = ls.hillshade(grid_z, dx=self.pix, dy=self.pix, fraction=1.0)
+
+        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
+        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
+        ax.imshow(
+            hillshade,
+            interpolation="nearest",
+            cmap="gray",
+            vmin=0.0,
+            vmax=1.0,
+            aspect="equal",
+            extent=(-extent_val, extent_val, -extent_val, extent_val),
+        )
+        ax.axis("off")
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        fontsize_px = resolution * 0.03
+        fontsize = fontsize_px * 72 / dpi
+        # Add scale bar before saving/showing image
+        if scalebar:
+            # Determine max physical size for the scale bar
+            max_physical_size = extent_val / 2 / np.sqrt(2)
+
+            # Choose "nice" scale bar length
+            nice_values = np.array([100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
+            scale_length = nice_values[nice_values <= max_physical_size].max()
+            bar_height = extent_val * 0.01
+            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
+
+            # Position in lower right corner
+            x_start = extent_val - scale_length - extent_val * 0.1
+            y_start = -(extent_val - bar_height - extent_val * 0.1)
+
+            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
+            ax.add_patch(rect)
+            # Label above the scale bar
+            ax.text(
+                x_start + scale_length / 2,
+                y_start + 2 * bar_height,
+                scale_text,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
+        if label:
+            x_start = -extent_val / np.sqrt(2.0)
+            y_start = extent_val * 0.85
+            # Label above the scale bar
+            ax.text(
+                x_start,
+                y_start,
+                label,
+                color="black",
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+                fontweight="bold",
+            )
+        if imagefile:
+            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
+        else:
+            plt.show(**kwargs)
+        plt.close(fig)
+        return
+
     def _calculate_distance(
         self,
         lon1: FloatLike,
@@ -3161,6 +3199,58 @@ class LocalSurface:
                 lon0, lat0 = self.location
                 self._crs = CRS.from_proj4(f"+proj=aeqd +lat_0={lat0} +lon_0={lon0} +R={self.surface.radius} +units=m +no_defs")
         return self._crs
+
+    @property
+    def uxgrid(self) -> uxr.Grid:
+        """
+        Return a uxr.Grid view of the local surface.
+        """
+        if self.uxds is not None:
+            return self.uxds.uxgrid
+
+    @property
+    def uxds(self) -> UxDataset:
+        """
+        Return a UxDataset view of the local surface.
+        """
+        if self._uxds is None:
+            grid_ds = xr.Dataset(
+                data_vars={
+                    "face_x": (("n_face",), self.face_x),
+                    "face_y": (("n_face",), self.face_y),
+                    "face_z": (("n_face",), self.face_z),
+                    "face_lat": (("n_face",), self.face_lat),
+                    "face_lon": (("n_face",), self.face_lon),
+                    "node_x": (("n_node",), self.node_x),
+                    "node_y": (("n_node",), self.node_y),
+                    "node_z": (("n_node",), self.node_z),
+                    "node_lat": (("n_node",), self.node_lat),
+                    "node_lon": (("n_node",), self.node_lon),
+                    "edge_face_distance": (("n_edge",), self.edge_face_distance),
+                    "edge_length": (("n_edge",), self.edge_length),
+                    "edge_face_connectivity": (("n_edge", "two"), self.edge_face_connectivity),
+                    "face_edge_connectivity": (("n_face", "n_max_face_edges"), self.face_edge_connectivity),
+                    "face_node_connectivity": (("n_face", "n_max_face_nodes"), self.face_node_connectivity),
+                    "face_face_connectivity": (("n_face", "n_max_face_faces"), self.face_face_connectivity),
+                    "node_face_connectivity": (("n_node", "n_max_node_faces"), self.node_face_connectivity),
+                    "edge_node_connectivity": (("n_edge", "two"), self.edge_node_connectivity),
+                },
+            )
+            grid_ds["grid_topology"] = self.surface.uxgrid._ds.grid_topology
+            uxgrid = uxr.Grid.from_dataset(grid_ds)
+            ds = xr.Dataset()
+            for var in self.surface.uxds.data_vars:
+                if self.surface.uxds[var].dims == ("n_face",):
+                    ds[var] = (("n_face",), self.surface.uxds[var].values[self.face_indices])
+                elif self.surface.uxds[var].dims == ("n_node",):
+                    ds[var] = (("n_node",), self.surface.uxds[var].values[self.node_indices])
+                elif self.surface.uxds[var].dims == ("n_edge",):
+                    ds[var] = (("n_edge",), self.surface.uxds[var].values[self.edge_indices])
+                elif "n_face" in self.surface.uxds[var].dims and len(self.surface.uxds[var].dims) == 2:
+                    dim2name = self.surface.uxds[var].dims[1]
+                    ds[var] = (("n_face", dim2name), self.surface.uxds[var].values[self.face_indices, :])
+            self._uxds = uxr.UxDataset.from_xarray(ds=ds, uxgrid=uxgrid)
+        return self._uxds
 
 
 import_components(__name__, __path__)
