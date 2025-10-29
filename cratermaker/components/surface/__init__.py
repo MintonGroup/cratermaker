@@ -264,6 +264,14 @@ class Surface(ComponentBase):
             edge_faces = self.edge_face_connectivity[edge_indices]
             edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
             face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
+
+            # Add in all edges and nodes that are attached to these buffer faces
+            edge_indices = np.unique(self.face_edge_connectivity[face_indices].ravel())
+            edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
+
+            node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
+            node_indices = node_indices[node_indices != INT_FILL_VALUE]
+
         else:  # This is the entire surface
             face_indices = slice(None)
             edge_indices = slice(None)
@@ -1931,8 +1939,6 @@ class LocalSurface:
         object.__setattr__(self, "_face_face_connectivity", None)
         object.__setattr__(self, "_node_face_connectivity", None)
         object.__setattr__(self, "_crs", None)
-        object.__setattr__(self, "_uxds", None)
-        object.__setattr__(self, "_uxgrid", None)
 
         if location is not None:
             self._location = validate_and_normalize_location(location)
@@ -2440,6 +2446,7 @@ class LocalSurface:
             edge_faces = self.surface.edge_face_connectivity[edge_indices]
             edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
             face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
+
         else:
             face_indices = self.face_indices
             edge_indices = self.edge_indices
@@ -2510,7 +2517,7 @@ class LocalSurface:
 
         Parameters
         ----------
-        surface : Surface
+        surface : LocalSurface
             Source surface with an unstructured mesh and face-based data in UxArray.
         interval_number : int, optional
             Interval number to save, by default 0.
@@ -2533,7 +2540,11 @@ class LocalSurface:
         if not variables:
             raise ValueError("No face-based variables found to export to GeoTiff.")
 
-        projection = ccrs.PlateCarree()
+        if self.location is None:
+            projection = ccrs.PlateCarree()
+        else:
+            # projection = ccrs.AzimuthalEquidistant(central_longitude=self.location[0], central_latitude=self.location[1])
+            projection = ccrs.PlateCarree()
 
         for var in variables:
             output_file = out_dir / f"{var}{interval_number:06d}.tiff"
@@ -2549,9 +2560,9 @@ class LocalSurface:
 
             # Choose bounds
             if bounds is None:
-                minx, miny, maxx, maxy = gdf.total_bounds
-            else:
-                minx, miny, maxx, maxy = bounds
+                bounds = gdf.total_bounds
+            minx, miny, maxx, maxy = bounds
+            # projection.bounds = (minx, maxx, miny, maxy)
 
             # degrees per pixel (same for lat/lon if you want square pixels)
             deg_per_pix = 360.0 * self.pix / (2 * np.pi * self.radius)
@@ -3203,54 +3214,88 @@ class LocalSurface:
     @property
     def uxgrid(self) -> uxr.Grid:
         """
-        Return a uxr.Grid view of the local surface.
+        Return a uxr.Grid representation of the local surface.
         """
-        if self.uxds is not None:
-            return self.uxds.uxgrid
+        grid_ds = xr.Dataset(
+            data_vars={
+                "face_x": (("n_face",), self.face_x),
+                "face_y": (("n_face",), self.face_y),
+                "face_z": (("n_face",), self.face_z),
+                "face_lat": (("n_face",), self.face_lat),
+                "face_lon": (("n_face",), self.face_lon),
+                "node_x": (("n_node",), self.node_x),
+                "node_y": (("n_node",), self.node_y),
+                "node_z": (("n_node",), self.node_z),
+                "node_lat": (("n_node",), self.node_lat),
+                "node_lon": (("n_node",), self.node_lon),
+                "edge_face_distance": (("n_edge",), self.edge_face_distance),
+                "edge_length": (("n_edge",), self.edge_length),
+                "edge_face_connectivity": (("n_edge", "two"), self.edge_face_connectivity),
+                "face_edge_connectivity": (("n_face", "n_max_face_edges"), self.face_edge_connectivity),
+                "face_node_connectivity": (("n_face", "n_max_face_nodes"), self.face_node_connectivity),
+                "face_face_connectivity": (("n_face", "n_max_face_faces"), self.face_face_connectivity),
+                "node_face_connectivity": (("n_node", "n_max_node_faces"), self.node_face_connectivity),
+                "edge_node_connectivity": (("n_edge", "two"), self.edge_node_connectivity),
+            },
+        )
+        grid_ds["grid_topology"] = self.surface.uxgrid._ds.grid_topology
+        return uxr.Grid.from_dataset(grid_ds)
 
     @property
     def uxds(self) -> UxDataset:
         """
-        Return a UxDataset view of the local surface.
+        Return a UxDataset representation of the local surface.
         """
-        if self._uxds is None:
-            grid_ds = xr.Dataset(
-                data_vars={
-                    "face_x": (("n_face",), self.face_x),
-                    "face_y": (("n_face",), self.face_y),
-                    "face_z": (("n_face",), self.face_z),
-                    "face_lat": (("n_face",), self.face_lat),
-                    "face_lon": (("n_face",), self.face_lon),
-                    "node_x": (("n_node",), self.node_x),
-                    "node_y": (("n_node",), self.node_y),
-                    "node_z": (("n_node",), self.node_z),
-                    "node_lat": (("n_node",), self.node_lat),
-                    "node_lon": (("n_node",), self.node_lon),
-                    "edge_face_distance": (("n_edge",), self.edge_face_distance),
-                    "edge_length": (("n_edge",), self.edge_length),
-                    "edge_face_connectivity": (("n_edge", "two"), self.edge_face_connectivity),
-                    "face_edge_connectivity": (("n_face", "n_max_face_edges"), self.face_edge_connectivity),
-                    "face_node_connectivity": (("n_face", "n_max_face_nodes"), self.face_node_connectivity),
-                    "face_face_connectivity": (("n_face", "n_max_face_faces"), self.face_face_connectivity),
-                    "node_face_connectivity": (("n_node", "n_max_node_faces"), self.node_face_connectivity),
-                    "edge_node_connectivity": (("n_edge", "two"), self.edge_node_connectivity),
-                },
-            )
-            grid_ds["grid_topology"] = self.surface.uxgrid._ds.grid_topology
-            uxgrid = uxr.Grid.from_dataset(grid_ds)
-            ds = xr.Dataset()
-            for var in self.surface.uxds.data_vars:
-                if self.surface.uxds[var].dims == ("n_face",):
-                    ds[var] = (("n_face",), self.surface.uxds[var].values[self.face_indices])
-                elif self.surface.uxds[var].dims == ("n_node",):
-                    ds[var] = (("n_node",), self.surface.uxds[var].values[self.node_indices])
-                elif self.surface.uxds[var].dims == ("n_edge",):
-                    ds[var] = (("n_edge",), self.surface.uxds[var].values[self.edge_indices])
-                elif "n_face" in self.surface.uxds[var].dims and len(self.surface.uxds[var].dims) == 2:
-                    dim2name = self.surface.uxds[var].dims[1]
-                    ds[var] = (("n_face", dim2name), self.surface.uxds[var].values[self.face_indices, :])
-            self._uxds = uxr.UxDataset.from_xarray(ds=ds, uxgrid=uxgrid)
-        return self._uxds
+        ds = xr.Dataset()
+        for var in self.surface.uxds.data_vars:
+            if self.surface.uxds[var].dims == ("n_face",):
+                ds[var] = (("n_face",), self.surface.uxds[var].values[self.face_indices])
+            elif self.surface.uxds[var].dims == ("n_node",):
+                ds[var] = (("n_node",), self.surface.uxds[var].values[self.node_indices])
+            elif self.surface.uxds[var].dims == ("n_edge",):
+                ds[var] = (("n_edge",), self.surface.uxds[var].values[self.edge_indices])
+            elif "n_face" in self.surface.uxds[var].dims and len(self.surface.uxds[var].dims) == 2:
+                dim2name = self.surface.uxds[var].dims[1]
+                ds[var] = (("n_face", dim2name), self.surface.uxds[var].values[self.face_indices, :])
+        if self.location is not None:
+            ds = ds.assign_attrs({"location": self.location})
+            ds["face_distance"] = xr.DataArray(data=self.face_distance, dims=("n_face",))
+            ds["face_bearing"] = xr.DataArray(data=self.face_distance, dims=("n_face",))
+            ds["node_distance"] = xr.DataArray(data=self.node_distance, dims=("n_node",))
+            ds["node_bearing"] = xr.DataArray(data=self.node_bearing, dims=("n_node",))
+        if isinstance(self.face_indices, slice):
+            data = np.arange(self.surface.n_face)[self.face_indices]
+        else:
+            data = self.face_indices
+        ds["face_indices"] = xr.DataArray(
+            data=data,
+            dims=("n_face",),
+        )
+        if isinstance(self.node_indices, slice):
+            data = np.arange(self.surface.n_node)[self.node_indices]
+        else:
+            data = self.node_indices
+        ds["node_indices"] = xr.DataArray(data=data, dims=("n_node",))
+        if isinstance(self.edge_indices, slice):
+            data = np.arange(self.surface.n_edge)[self.edge_indices]
+        else:
+            data = self.edge_indices
+        ds["edge_indices"] = xr.DataArray(data=data, dims=("n_edge",))
+        return uxr.UxDataset.from_xarray(ds=ds, uxgrid=self.uxgrid)
+
+    @property
+    def pix(self) -> float:
+        """
+        The effective pixel size of the base surface in meters.
+        """
+        return self.surface.pix
+
+    @property
+    def radius(self) -> float:
+        """
+        The radius of the target body in meters.
+        """
+        return self.surface.radius
 
 
 import_components(__name__, __path__)
