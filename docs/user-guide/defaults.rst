@@ -15,6 +15,17 @@ Because the ``Simulation`` class contains all other components, the defaults for
 
 .. ipython:: python
     :okwarning:
+    :suppress:
+
+    # Remove any existing output directory for a clean test
+    from pathlib import Path
+    out_dir = Path("output")
+    if out_dir.exists():
+        import shutil
+        shutil.rmtree(out_dir)
+
+.. ipython:: python
+    :okwarning:
     
     import cratermaker as cm
     sim = cm.Simulation()
