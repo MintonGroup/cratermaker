@@ -50,7 +50,7 @@ class Morphology(ComponentBase):
         counting: Counting | str | None = None,
         dosubpixel_degradation: bool = False,
         doslope_collapse: bool = True,
-        docounting: bool = True,
+        docounting: bool = False,
         **kwargs: Any,
     ) -> None:
         from cratermaker.components.counting import Counting

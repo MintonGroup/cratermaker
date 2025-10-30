@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import shapely
 import uxarray as uxr
 import xarray as xr
 from pyproj import Geod
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
 
 _TALLY_ID = "id"
 _TALLY_LONG_NAME = "Unique crater identification number"
-_COUNTING_FILE_EXTENSION = "nc"
 
 _N_LAYER = (
     8  # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
@@ -49,8 +47,6 @@ class Counting(ComponentBase):
         Flag to indicate whether to reset the count and delete any old output files. Default is True.
     ask_overwrite : bool, optional
         If True, prompt the user for confirmation before deleting files. Default is True.
-    vector_format: str | None, optional
-        The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector. The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file) or "vtp" ("vtk"). Other drivers may require additional kwargs. Default is "vtp"
     **kwargs : Any
         Additional keyword arguments.
     """
@@ -58,25 +54,26 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
-        vector_format: None | str = "vtp",
         **kwargs: Any,
     ):
-        object.__setattr__(self, "_emplaced", [])
-        object.__setattr__(self, "_observed", {})
-        object.__setattr__(self, "_vector_format", None)
         self.surface = surface
         rng = kwargs.pop("rng", surface.rng)
         simdir = kwargs.pop("simdir", surface.simdir)
         super().__init__(rng=rng, simdir=simdir, **kwargs)
-        self._output_file_pattern += [f"*craters*.{_COUNTING_FILE_EXTENSION}"]
-        self.vector_format = vector_format
+
+        object.__setattr__(self, "_emplaced", [])
+        object.__setattr__(self, "_observed", {})
+        object.__setattr__(self, "_output_dir_name", "craters")
+        object.__setattr__(self, "_output_file_prefix", "craters")
+        object.__setattr__(self, "_output_file_extension", "nc")
+
+        self._output_file_pattern += [f"*{self._output_file_prefix}*.{self._output_file_extension}"]
 
     @classmethod
     def maker(
         cls,
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
-        vector_format: None | str = "vtp",
         **kwargs: Any,
     ) -> Counting:
         """
@@ -88,8 +85,6 @@ class Counting(ComponentBase):
             The name of the counting model to initialize. If None, the default model is used.
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
-        vector_format: str | None, optional
-            The format of the output file used for the vector representation of the craters. By default, no vector output file is saved. If set, the value will be used as the file extension, and geopandas.to_file will attempt to infer the driver from this. By default, no additional vector. The recommended options are "gpkg" (GeoPackage) or "shp" (ESRI shape file) or "vtp" ("vtk"). Other drivers may require additional kwargs. Default is "vtp"
         **kwargs : Any
             Additional keyword arguments.
 
@@ -114,7 +109,6 @@ class Counting(ComponentBase):
         counting = super().maker(
             component=counting,
             surface=surface,
-            vector_format=vector_format,
             **kwargs,
         )
 
@@ -122,8 +116,6 @@ class Counting(ComponentBase):
 
     def __str__(self) -> str:
         base = super().__str__()
-        if self.vector_format is not None:
-            base += f"\nOutput vector format: {self.vector_format}"
         return f"{base}\nSurface: {self.surface.name}"
 
     def reset(self, ask_overwrite: bool = True, **kwargs: Any) -> None:
@@ -288,36 +280,58 @@ class Counting(ComponentBase):
         interval_number : int, default=0
             The interval number for the output file naming.
         **kwargs : Any
-            Additional keyword arguments to pass to the make_vector_file function.
+            Additional keyword arguments (ignored)
         """
-        crater_dir = self.output_dir
-        crater_dir.mkdir(parents=True, exist_ok=True)
-        emplaced_filename = crater_dir / f"emplaced_craters{interval_number:06d}.{_COUNTING_FILE_EXTENSION}"
-        observed_filename = crater_dir / f"observed_craters{interval_number:06d}.{_COUNTING_FILE_EXTENSION}"
+        emplaced_filename = (
+            self.output_dir / f"emplaced_{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
+        )
+        observed_filename = (
+            self.output_dir / f"observed_{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
+        )
 
         def _convert_and_merge(craters: dict[int, Crater] | list[Crater], filename: Path | str, layer_name: str) -> None:
-            # if len(craters) == 0:
-            #     return
-
             # Convert into an xarray dataset
             dsnew = self.to_xarray(craters)
 
             # If the file already exists, read it and merge
             if filename.exists():
                 with xr.open_dataset(filename) as ds:
-                    combined_data = xr.concat([ds, dsnew])
+                    combined_data = xr.concat([ds, dsnew], dim=_TALLY_ID)
             else:
                 combined_data = dsnew
 
             # Write merged data back to file
             if combined_data:
                 combined_data.to_netcdf(filename)
-            if self.vector_format is not None:
-                self.make_vector_file(combined_data, interval_number, layer_name=layer_name, **kwargs)
 
-        _convert_and_merge(self.emplaced, emplaced_filename, "emplaced_craters")
-        _convert_and_merge(self.observed, observed_filename, "observed_craters")
+        if self.emplaced:
+            _convert_and_merge(self.emplaced, emplaced_filename, "emplaced_craters")
+        if self.observed:
+            _convert_and_merge(self.observed, observed_filename, "observed_craters")
         self._emplaced = []
+        return
+
+    def export(self, interval_number: int = 0, format: str = "vtp", **kwargs: Any) -> None:
+        """
+        Dump the crater lists to a file and reset the emplaced crater list.
+
+        Parameters
+        ----------
+        interval_number : int, default=0
+            The interval number for the output file naming.
+        format : str, default='vtp'
+            The vector file format to save. Supported formats are 'vtp' (or 'vtk'), 'shp', 'gpkg'.
+        **kwargs : Any
+            Additional keyword arguments to pass to the make_vector_file function.
+        """
+        for crater_type in ["emplaced", "observed"]:
+            filename = (
+                self.output_dir / f"{crater_type}_{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
+            )
+            if filename.exists():
+                with xr.open_dataset(filename) as ds:
+                    self.make_vector_file(ds, interval_number, layer_name=f"{crater_type}_craters", format=format, **kwargs)
+
         return
 
     @staticmethod
@@ -404,6 +418,7 @@ class Counting(ComponentBase):
         crater_data: xr.Dataset | dict[int, Crater] | list[Crater],
         interval_number: int = 0,
         layer_name: str = "craters",
+        format: str = "vtp",
         **kwargs,
     ) -> None:
         """
@@ -419,7 +434,8 @@ class Counting(ComponentBase):
             The interval number to save, by default 0.
         layer_name : str, optional
             The name of the layer in the GeoPackage file, by default "craters".
-
+        format : str, optional
+            The vector file format to save. Supported formats are 'shp', 'gpkg', 'vtp', and 'vtk'. Default is 'vtp'.
         **kwargs : Any
             Additional keyword arguments that are ignored.
         """
@@ -484,10 +500,10 @@ class Counting(ComponentBase):
         if isinstance(crater_data, (dict | list)):
             crater_data = self.to_xarray(crater_data)
 
-        if self.vector_format == "shp":
+        if format == "shp":
             format_has_layers = False
             split_antimeridian = True
-        elif self.vector_format == "vtp" or self.vector_format == "vtk":
+        elif format == "vtp" or format == "vtk":
             format_has_layers = False
             split_antimeridian = False
         else:
@@ -521,7 +537,7 @@ class Counting(ComponentBase):
                     geoms.append(poly)
                     attrs.append(crater.to_dataframe())
 
-        if self.vector_format == "vtp" or self.vector_format == "vtk":
+        if format == "vtp" or format == "vtk":
             output_file = self.output_dir / f"{layer_name}{interval_number:06d}.vtp"
 
             points = vtkPoints()
@@ -554,38 +570,22 @@ class Counting(ComponentBase):
             writer.Write()
         elif len(geoms) > 0:
             attrs_df = pd.concat(attrs, ignore_index=True)
-            if self.vector_format == "shp":
+            if format == "shp":
                 attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
 
             gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
             try:
                 if format_has_layers:
-                    output_file = self.output_dir / f"craters{interval_number:06d}.{self.vector_format}"
+                    output_file = self.output_dir / f"craters{interval_number:06d}.{format}"
                     print(f"Saving {layer_name} layer to vector file: '{output_file}'...")
                     gdf.to_file(output_file, layer=layer_name)
                 else:
-                    output_file = self.output_dir / f"{layer_name}{interval_number:06d}.{self.vector_format}"
+                    output_file = self.output_dir / f"{layer_name}{interval_number:06d}.{format}"
                     print(f"Saving to vector file: '{output_file}'...")
                     gdf.to_file(output_file)
             except Exception as e:
                 raise RuntimeError(f"Error saving {output_file}: {e}") from e
 
-        return
-
-    @parameter
-    def vector_format(self) -> str | None:
-        return self._vector_format
-
-    @vector_format.setter
-    def vector_format(self, value) -> None:
-        """
-        The file extension for the vector representation of the craters that will be generated when the save method is called.
-        """
-        if not isinstance(value, (str | None)):
-            raise TypeError("vector_format must be a str or None")
-        self._vector_format = value
-        if value:
-            self._output_file_pattern.append(f"*craters*.{value}")
         return
 
 

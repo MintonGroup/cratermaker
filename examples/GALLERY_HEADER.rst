@@ -1,6 +1,13 @@
-.. _gal-simulation:
+.. currentmodule:: cratermaker
 
-Simuation Examples
-==================
+.. image:: ../_static/index_gallery.svg
+    :alt: Counting
+    :align: center
+    :width: 300px
 
-This section provides examples of how to use the :ref:`ug-simulation` component of Cratermaker.
+
+###############
+Example Gallery
+###############
+
+Below you will find a selection of examples that demonstrate how to use Cratermaker. The gallery is organized by the main components of Cratermaker. Each example is fully working and can be run directly.

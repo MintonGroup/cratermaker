@@ -164,6 +164,12 @@ class HiResLocalSurface(Surface):
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
+        super().save(
+            combine_data_files=combine_data_files,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            **kwargs,
+        )
         self.local.save(
             combine_data_files=combine_data_files,
             interval_number=interval_number,
@@ -479,13 +485,6 @@ class HiResLocalSurface(Surface):
             self.local_location,
             self.superdomain_scale_factor,
         ]
-
-    @property
-    def crs(self) -> CRS:
-        """
-        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
-        """
-        return self.local.crs
 
 
 class LocalHiResLocalSurface(LocalSurface):
