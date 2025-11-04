@@ -2,6 +2,35 @@
 
 What's New
 ==========
+.. _whats-new.2025.11.0-alpha:
+
+:release:`v2025.11.0-alpha`
+--------------------------
+
+
+- Major updates to documentation and GIS exporting tools. :pull:66 `David Minton`_
+
+
+
+.. _whats-new.2025.10.1-alpha:
+
+:release:`v2025.10.1-alpha`
+--------------------------
+
+
+- Minor updates to exporting tools.
+
+
+.. _whats-new.2025.10.0-alpha:
+
+:release:`v2025.10.0-alpha`
+--------------------------
+
+
+- Added crater user guide by :pull:55 `Dennise Valadez`_
+
+
+
 
 .. _whats-new.2025.4.1-alpha:
 
@@ -60,8 +89,10 @@ Contributors
 - `Austin Blevins`_
 - `Jun Du`_
 - `Dennise Valadez`_
+- `Elizabeth Norman`_
 
 .. _David Minton: https://github.com/profminton
 .. _Austin Blevins: https://github.com/austinblevins
 .. _Jun Du: https://github.com/jundu-dr-crater
 .. _Dennise Valadez: https://github.com/dennvee
+.. _Elizabeth Norman: https://github.com/enorman98
