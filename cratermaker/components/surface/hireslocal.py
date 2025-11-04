@@ -97,117 +97,6 @@ class HiResLocalSurface(Surface):
             f"Maximum effective pixel size: {pix_max}"
         )
 
-    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
-        """
-        Plot a hillshade image of the local region.
-
-        Parameters
-        ----------
-        imagefile : str | Path, optional
-            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
-        label : str | None, optional
-            A label for the plot. If None, no label will be added.
-        scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is True.
-        **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
-        """
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import LightSource
-        from scipy.interpolate import griddata
-
-        region = self.local
-        local_radius = self.local_radius
-        pix = self.pix
-
-        # Dynamically compute image resolution and dpi
-        extent_val = local_radius
-        resolution = int(2 * extent_val / pix)
-        dpi = resolution
-        x = np.linspace(-extent_val, extent_val, resolution)
-        y = np.linspace(-extent_val, extent_val, resolution)
-        grid_x, grid_y = np.meshgrid(x, y)
-
-        # Use polar coordinates from region
-        r = region.face_distance
-        theta = region.face_bearing
-        x_cart = r * np.cos(theta)
-        y_cart = r * np.sin(theta)
-
-        points = np.column_stack((x_cart, y_cart))
-        values = region.face_elevation
-        grid_z = griddata(points, values, (grid_x, grid_y), method="linear")
-
-        # Generate hillshade
-        azimuth = 300.0
-        solar_angle = 20.0
-        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
-        hillshade = ls.hillshade(grid_z, dx=pix, dy=pix, fraction=1.0)
-
-        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
-        fig, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False)
-        ax.imshow(
-            hillshade,
-            interpolation="nearest",
-            cmap="gray",
-            vmin=0.0,
-            vmax=1.0,
-            aspect="equal",
-            extent=(-extent_val, extent_val, -extent_val, extent_val),
-        )
-        ax.axis("off")
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        fontsize_px = resolution * 0.03
-        fontsize = fontsize_px * 72 / dpi
-        # Add scale bar before saving/showing image
-        if scalebar:
-            # Determine max physical size for the scale bar
-            max_physical_size = extent_val / 2 / np.sqrt(2)
-
-            # Choose "nice" scale bar length
-            nice_values = np.array([100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
-            scale_length = nice_values[nice_values <= max_physical_size].max()
-            bar_height = extent_val * 0.01
-            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
-
-            # Position in lower right corner
-            x_start = extent_val - scale_length - extent_val * 0.1
-            y_start = -(extent_val - bar_height - extent_val * 0.1)
-
-            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
-            ax.add_patch(rect)
-            # Label above the scale bar
-            ax.text(
-                x_start + scale_length / 2,
-                y_start + 2 * bar_height,
-                scale_text,
-                color="black",
-                ha="center",
-                va="bottom",
-                fontsize=fontsize,
-                fontweight="bold",
-            )
-        if label:
-            x_start = -extent_val / np.sqrt(2.0)
-            y_start = extent_val * 0.85
-            # Label above the scale bar
-            ax.text(
-                x_start,
-                y_start,
-                label,
-                color="black",
-                ha="center",
-                va="bottom",
-                fontsize=fontsize,
-                fontweight="bold",
-            )
-        if imagefile:
-            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=dpi, **kwargs)
-        else:
-            plt.show(**kwargs)
-        plt.close(fig)
-        return
-
     def superdomain_function(self, r):
         """
         Defines the superdomain scale factor based on the distance from the local boundary.
@@ -262,7 +151,9 @@ class HiResLocalSurface(Surface):
         **kwargs,
     ) -> None:
         """
-        Save the surface data to the specified directory. Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Save the surface data to the specified directory.
+
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
 
         Parameters
         ----------
@@ -273,18 +164,18 @@ class HiResLocalSurface(Surface):
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
-        super().save(
+        self.local.save(
             combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
             **kwargs,
         )
-        imgdir = Path(self.simdir) / "surface_images"
-        imgdir.mkdir(parents=True, exist_ok=True)
-        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
-        if time_variables:
-            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
-        self.plot_hillshade(imagefile=imagefile, **kwargs)
+        self.local.save(
+            combine_data_files=combine_data_files,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            **kwargs,
+        )
         return
 
     def _set_superdomain(
@@ -595,13 +486,6 @@ class HiResLocalSurface(Surface):
             self.superdomain_scale_factor,
         ]
 
-    @property
-    def crs(self) -> CRS:
-        """
-        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
-        """
-        return self.local.crs
-
 
 class LocalHiResLocalSurface(LocalSurface):
     """
@@ -743,6 +627,41 @@ class LocalHiResLocalSurface(LocalSurface):
             return None
 
         return LocalHiResLocalSurface(region)
+
+    def save(
+        self,
+        combine_data_files: bool = False,
+        interval_number: int = 0,
+        time_variables: dict | None = None,
+        **kwargs,
+    ) -> None:
+        """
+        Save the surface data to the specified directory.
+
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+
+        Parameters
+        ----------
+        combine_data_files : bool, optional
+            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        """
+        super().save(
+            combine_data_files=combine_data_files,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            **kwargs,
+        )
+        imgdir = Path(self.simdir) / "surface_images"
+        imgdir.mkdir(parents=True, exist_ok=True)
+        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
+        if time_variables:
+            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+        self.plot_hillshade(imagefile=imagefile, **kwargs)
+        return
 
     @property
     def local_overlap(self) -> LocalHiResLocalSurface | None:

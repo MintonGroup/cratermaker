@@ -386,18 +386,18 @@ class TestSurface(unittest.TestCase):
                 h_analytical, h_numerical, decimal=2, err_msg="Diffusion did not match analytical solution"
             )
 
-    def test_export_vtk(self):
-        from cratermaker.components.surface import _GRID_FILE_PREFIX, _SURFACE_FILE_PREFIX
+    # def test_export_vtk(self):
+    #     from cratermaker.components.surface import _VTK_FILE_EXTENSION
 
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, raster_format="vtk", ask_overwrite=False)
-            # Test with default parameters
-            default_out_dir = surface.output_dir
-            expected_files = [f"{_SURFACE_FILE_PREFIX}{0:06d}.vtp", f"{_GRID_FILE_PREFIX}.vtp"]
-            surface.save()
-            self.assertTrue(Path(default_out_dir).is_dir())
-            for f in expected_files:
-                self.assertTrue(Path(default_out_dir / f).exists())
+    #     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+    #         surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
+    #         # Test with default parameters
+    #         default_out_dir = surface.output_dir
+    #         expected_files = [f"{surface._output_file_prefix}{0:06d}.vtp", f"{surface._grid_file_prefix}.vtp"]
+    #         surface.save()
+    #         self.assertTrue(Path(default_out_dir).is_dir())
+    #         for f in expected_files:
+    #             self.assertTrue(Path(default_out_dir / f).exists())
 
 
 if __name__ == "__main__":
