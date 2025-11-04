@@ -164,7 +164,7 @@ class HiResLocalSurface(Surface):
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
-        super().save(
+        self.local.save(
             combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
