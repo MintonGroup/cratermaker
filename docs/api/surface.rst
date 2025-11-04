@@ -27,6 +27,12 @@ Available Surface Implementations
    :undoc-members:
    :no-index:
 
+
+.. autoclass:: cratermaker.components.surface.LocalSurface
+   :members:
+   :undoc-members:
+   :no-index:
+
 .. _api-IcosphereSurface:
 
 .. currentmodule:: cratermaker.components.surface.icosphere
@@ -81,6 +87,10 @@ Hi-res local grid
 See `Surface`_ for inherited methods and attributes.
 
 .. autoclass:: cratermaker.components.surface.hireslocal.HiResLocalSurface
+   :members:
+   :undoc-members:
+
+.. autoclass:: cratermaker.components.surface.hireslocal.LocalHiResLocalSurface
    :members:
    :undoc-members:
 

@@ -1,6 +1,6 @@
 .. currentmodule:: cratermaker
 
-.. image:: ../_static/synthetic_complex.png
+.. image:: ../_static/morphology_icon.svg
     :alt: Morphology
     :align: center
     :width: 300px
