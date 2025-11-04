@@ -1,7 +1,12 @@
 import datetime
 import inspect
 import os
+import re
 import sys
+from pathlib import Path
+
+import pyvista
+from pyvista.plotting.utilities.sphinx_gallery import DynamicScraper
 
 import cratermaker
 
@@ -15,6 +20,11 @@ release = version
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+
+# necessary when building the sphinx gallery
+pyvista.BUILDING_GALLERY = True
+pyvista.OFF_SCREEN = True
+os.environ["PYVISTA_BUILDING_GALLERY"] = "true"
 
 sys.path.insert(0, os.path.abspath("_exts"))
 extensions = [
@@ -35,6 +45,8 @@ extensions = [
     "sphinx_inline_tabs",
     "sphinx_gallery.gen_gallery",
     "cratermaker_autodoc",
+    "pyvista.ext.plot_directive",
+    "pyvista.ext.viewer_directive",
 ]
 
 extlinks = {
@@ -85,6 +97,7 @@ templates_path = ["_templates"]
 sphinx_gallery_conf = {
     "examples_dirs": "../examples",
     "gallery_dirs": "auto_examples",
+    "image_scrapers": (DynamicScraper(), "matplotlib"),
 }
 
 html_theme = "sphinx_book_theme"
@@ -101,21 +114,19 @@ html_context = {
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
-html_theme_options = dict(
-    # analytics_id=''  this is configured in rtfd.io
-    # canonical_url="",
-    repository_url="https://github.com/MintonGroup/cratermaker",
-    repository_branch="main",
-    navigation_with_keys=False,  # pydata/pydata-sphinx-theme#1492
-    path_to_docs="docs",
-    use_edit_page_button=True,
-    use_repository_button=True,
-    use_issues_button=True,
-    home_page_in_toc=False,
-    extra_footer="""<p>Development of Cratermaker was supported by NASA Lunar Data Analysis Program Grants <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC21K1719_8000">#80NSSC21K1719</a> and <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC25K7050_8000">#80NSSC25K7050</a><br>
+html_theme_options = {
+    "repository_url": "https://github.com/MintonGroup/cratermaker",
+    "repository_branch": "main",
+    "navigation_with_keys": False,  # pydata/pydata-sphinx-theme#1492
+    "path_to_docs": "docs",
+    "use_edit_page_button": True,
+    "use_repository_button": True,
+    "use_issues_button": True,
+    "home_page_in_toc": False,
+    "extra_footer": """<p>Development of Cratermaker was supported by NASA Lunar Data Analysis Program Grants <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC21K1719_8000">#80NSSC21K1719</a> and <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC25K7050_8000">#80NSSC25K7050</a><br>
     Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a></p>""",
-    icon_links=[],  # workaround for pydata/pydata-sphinx-theme#1220
-)
+    "icon_links": [],  # workaround for pydata/pydata-sphinx-theme#1220
+}
 
 
 # The name of an image file (relative to this directory) to place at the top
@@ -144,7 +155,7 @@ ogp_custom_meta_tags = [
 # based on numpy doc/source/conf.py
 def linkcode_resolve(domain, info):
     """
-    Determine the URL corresponding to Python object
+    Determine the URL corresponding to Python object.
     """
     if domain != "py":
         return None

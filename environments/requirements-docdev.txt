@@ -24,4 +24,4 @@ sphinxext-opengraph
 sphinx-gallery
 ipython
 ipykernel
-pyvista
+pyvista[all]

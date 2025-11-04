@@ -19,10 +19,11 @@ Because the ``Simulation`` class contains all other components, the defaults for
 
     # Remove any existing output directory for a clean test
     from pathlib import Path
-    out_dir = Path("output")
-    if out_dir.exists():
-        import shutil
-        shutil.rmtree(out_dir)
+    out_dirs = ["surface","craters","export"]
+    for d in out_dirs:
+        if Path(d).exists():
+            import shutil
+            shutil.rmtree(d)
 
 .. ipython:: python
     :okwarning:
