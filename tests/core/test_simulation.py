@@ -38,8 +38,6 @@ class TestSimulation(unittest.TestCase):
             self.assertEqual(sim.target.name, "Moon")
 
     def test_simulation_save(self):
-        from cratermaker.components.surface import _SURFACE_FILE_EXTENSION, _SURFACE_FILE_PREFIX
-
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             # Test basic save operation
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
@@ -57,7 +55,10 @@ class TestSimulation(unittest.TestCase):
             )
 
             sim.save()
-            filename = Path(sim.surface.output_dir) / f"{_SURFACE_FILE_PREFIX}{sim.interval_number:06d}.{_SURFACE_FILE_EXTENSION}"
+            filename = (
+                Path(sim.surface.output_dir)
+                / f"{sim.surface._output_file_prefix}{sim.interval_number:06d}.{sim.surface._output_file_extension}"
+            )
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)
@@ -66,7 +67,7 @@ class TestSimulation(unittest.TestCase):
 
             # Test saving combined data
             sim.save(combine_data_files=True)
-            filename = Path(sim.surface.output_dir) / f"{_SURFACE_FILE_PREFIX}.{_SURFACE_FILE_EXTENSION}"
+            filename = Path(sim.surface.output_dir) / f"{sim.surface._output_file_prefix}.{sim.surface._output_file_extension}"
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
                 ds = ds.isel(time=-1)

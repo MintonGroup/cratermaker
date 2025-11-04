@@ -1,6 +1,6 @@
 .. currentmodule:: cratermaker
 
-.. image:: ../_static/surface_grid.png
+.. image:: ../_static/surface_icon.svg
     :alt: Surface
     :align: center
     :width: 300px
@@ -139,7 +139,7 @@ This is equivalent to:
     :suppress:
 
     import shutil
-    shutil.rmtree(surface.simdir)
+    shutil.rmtree(surface.output_dir)
 
 Arbitrary Resolution 
 ~~~~~~~~~~~~~~~~~~~~
@@ -187,7 +187,7 @@ For instance, suppose we want to generate a high resolution local grid on the Mo
     :suppress:
 
     import shutil
-    shutil.rmtree(surface.simdir)
+    shutil.rmtree(surface.output_dir)
 
 .. ipython:: python
     :okwarning:
@@ -209,7 +209,7 @@ Extracting a local subsection of the surface
     :width: 400px
 
 
-Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that only contains the faces and nodes within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters.
+Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that contains the faces, nodes, and edges within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters. This will return a LocalSurface object that contains all faces within a specified radius, plus a buffer of surrounding faces. All nodes and edges associated with the faces inside the primary local region are included, but only nodes associated with the buffer faces are included, but not edges (see the diagram above). This is done to prevent array out of bounds issues when performing operations that require neighboring faces across included edges, as is done when computing topographic diffusion calculations.
 
 For instance, suppose we'd like to extract a 16 km radius region at the south pole of the Moon:
 
@@ -218,7 +218,7 @@ For instance, suppose we'd like to extract a 16 km radius region at the south po
     :suppress:
 
     import shutil
-    shutil.rmtree(surface.simdir)
+    shutil.rmtree(surface.output_dir)
 
 .. ipython:: python
     :okwarning:
@@ -275,7 +275,7 @@ Suppose we wish to extract a 10 km radius local region of the surface of the Moo
     :suppress:
 
     import shutil
-    shutil.rmtree(surface.simdir)
+    shutil.rmtree(surface.output_dir)
 
 .. ipython:: python
     :okwarning:

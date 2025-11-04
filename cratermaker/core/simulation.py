@@ -565,15 +565,9 @@ class Simulation(CratermakerBase):
         **kwargs : Any
             Additional keyword argumments to pass to the component save methods.
         """
-        time_variables = {
-            "current_age": self.current_age,
-            "elapsed_time": self.elapsed_time,
-            "elapsed_n1": self.elapsed_n1,
-        }
-
         self.surface.save(
             interval_number=self.interval_number,
-            time_variables=time_variables,
+            time_variables=self.time_variables,
             **kwargs,
         )
 
@@ -582,6 +576,35 @@ class Simulation(CratermakerBase):
 
         self.to_config(**kwargs)
 
+        return
+
+    def export(self, format: str = "vtp", interval_number: int = -1, **kwargs: Any) -> None:
+        """
+        Export component output to a specified file format.
+
+        Parameters
+        ----------
+        format : str, optional
+            The file format to export to. Default is "vtp". Other formats include "gpkg".
+        interval_number : int, optional
+            The interval number to export. Default is -1, which exports the latest interval.
+        """
+        if interval_number == -1:
+            interval_number = self.interval_number
+        save_geometry = interval_number == 0
+
+        if format.lower() in ["vtk", "vtp"]:
+            self.surface.to_vtk(
+                interval_number=interval_number,
+                time_variables=self.time_variables,
+                save_geometry=save_geometry,
+                **kwargs,
+            )
+        elif format.lower() in ["gpkg"]:
+            self.surface.to_gpkg(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
+
+        if self.morphology.docounting:
+            self.counting.export(interval_number=interval_number, format=format.lower(), **kwargs)
         return
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
@@ -1201,3 +1224,22 @@ class Simulation(CratermakerBase):
         if not isinstance(value, bool):
             raise TypeError("ask_overwrite must be a bool")
         self._ask_overwrite = value
+
+    @property
+    def time_variables(self) -> dict[str, float]:
+        """
+        A dictionary of time-related variables for the simulation.
+
+        Returns
+        -------
+        dict[str, float]
+            A dictionary containing the following keys:
+            - "current_age": The current age in My relative to the present.
+            - "elapsed_time": The elapsed time in My since the start of the simulation.
+            - "elapsed_n1": The elapsed number of craters larger than 1 km in diameter.
+        """
+        return {
+            "current_age": self.current_age,
+            "elapsed_time": self.elapsed_time,
+            "elapsed_n1": self.elapsed_n1,
+        }

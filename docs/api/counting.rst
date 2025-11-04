@@ -1,4 +1,4 @@
-.. _api-countin:
+.. _api-counting:
 
 ########
 Counting
