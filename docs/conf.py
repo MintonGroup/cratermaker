@@ -97,7 +97,9 @@ templates_path = ["_templates"]
 sphinx_gallery_conf = {
     "examples_dirs": "../examples",
     "gallery_dirs": "auto_examples",
+    "filename_pattern": r"\.py",  # Allows all Python files to be found, not just ones that begin with `plot_`
     "image_scrapers": (DynamicScraper(), "matplotlib"),
+    "parallel": True,
 }
 
 html_theme = "sphinx_book_theme"

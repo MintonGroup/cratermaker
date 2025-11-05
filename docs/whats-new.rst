@@ -2,20 +2,27 @@
 
 What's New
 ==========
+
+.. _whats-new.2025.11.1-alpha:
+
+:release:`v2025.11.1-alpha`
+---------------------------
+
+- Minor fix that allows example scripts to show interactive output in the Sphinx Gallery.
+
 .. _whats-new.2025.11.0-alpha:
 
 :release:`v2025.11.0-alpha`
---------------------------
+---------------------------
 
 
 - Major updates to documentation and GIS exporting tools. :pull:66 `David Minton`_
 
 
-
 .. _whats-new.2025.10.1-alpha:
 
 :release:`v2025.10.1-alpha`
---------------------------
+---------------------------
 
 
 - Minor updates to exporting tools.
@@ -24,7 +31,7 @@ What's New
 .. _whats-new.2025.10.0-alpha:
 
 :release:`v2025.10.0-alpha`
---------------------------
+---------------------------
 
 
 - Added crater user guide by :pull:55 `Dennise Valadez`_
