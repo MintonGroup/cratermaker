@@ -72,6 +72,7 @@ class HiResLocalSurface(Surface):
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
+        self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
 
         self.pix = pix
         self.local_radius = local_radius
@@ -164,7 +165,7 @@ class HiResLocalSurface(Surface):
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
-        self.local.save(
+        self._full().save(
             combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
@@ -174,6 +175,41 @@ class HiResLocalSurface(Surface):
             combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
+            **kwargs,
+        )
+        return
+
+    def export(
+        self, format: str, interval_number: int = 0, time_variables: dict | None = None, save_geometry=True, **kwargs: Any
+    ) -> None:
+        """
+        Export the surface data to the specified format.
+
+        Parameters
+        ----------
+        format : str
+            The format to export the surface data. Options are "vtk" and "gpkg".
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        save_geometry : bool, optional
+            If True, saves the surface mesh geometry as a separate file. Default is True.
+        **kwargs : Any
+            Additional keyword arguments to pass to the export function.
+        """
+        self._full().export(
+            format=format,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            save_geometry=save_geometry,
+            **kwargs,
+        )
+        self.local.export(
+            format=format,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            save_geometry=save_geometry,
             **kwargs,
         )
         return

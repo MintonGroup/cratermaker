@@ -184,9 +184,9 @@ class Simulation(CratermakerBase):
             **morphology_config,
         )
         if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
-            self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, **surface_config)
+            self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, reset=reset, **surface_config)
 
-        if self.reset:
+        if reset:
             self.reset(ask_overwrite=ask_overwrite, skip_component=["surface"])
         self.to_config()
 
@@ -593,15 +593,9 @@ class Simulation(CratermakerBase):
             interval_number = self.interval_number
         save_geometry = interval_number == 0
 
-        if format.lower() in ["vtk", "vtp"]:
-            self.surface.to_vtk(
-                interval_number=interval_number,
-                time_variables=self.time_variables,
-                save_geometry=save_geometry,
-                **kwargs,
-            )
-        elif format.lower() in ["gpkg"]:
-            self.surface.to_gpkg(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
+        self.surface.export(
+            format=format, interval_number=interval_number, time_variables=self.time_variables, save_geometry=save_geometry
+        )
 
         if self.morphology.docounting:
             self.counting.export(interval_number=interval_number, format=format.lower(), **kwargs)

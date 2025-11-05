@@ -606,6 +606,33 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
+    def export(
+        self, format: str, interval_number: int = 0, time_variables: dict | None = None, save_geometry=True, **kwargs: Any
+    ) -> None:
+        """
+        Export the surface data to the specified format.
+
+        Parameters
+        ----------
+        format : str
+            The format to export the surface data. Options are "vtk" and "gpkg".
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        save_geometry : bool, optional
+            If True, saves the surface mesh geometry as a separate file. Default is True.
+        **kwargs : Any
+            Additional keyword arguments to pass to the export function.
+        """
+        return self._full().export(
+            format=format,
+            interval_number=interval_number,
+            time_variables=time_variables,
+            save_geometry=save_geometry,
+            **kwargs,
+        )
+
     def to_vtk(
         self,
         interval_number: int = 0,
@@ -2285,10 +2312,44 @@ class LocalSurface(CratermakerBase):
 
         return self.surface._compute_elevation_to_cartesian(position, elevation)
 
+    def export(
+        self,
+        format: str = "vtp",
+        interval_number: int = 0,
+        time_variables: dict | None = None,
+        save_geometry: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Export the surface view data to a specified file format and stores it in the default export directory.
+
+        Parameters
+        ----------
+        format : str, optional
+            The file format to export the data to. Supported formats are 'vtk', 'vtp and 'gpkg'. Default is 'vtp'.
+        interval_number : int, optional
+            The interval number to save, by default 0.
+        time_variables : dict, optional
+            A dictionary of time-dependent variables to include in the export. The keys are the variable names
+        save_geometry : bool, optional
+            Whether to save the grid geometry to a separate file, by default True.
+        **kwargs : Any
+            Additional keyword arguments (ignored).
+        """
+        if format.lower() in ["vtk", "vtp"]:
+            self.to_vtk(
+                interval_number=interval_number,
+                time_variables=time_variables,
+                save_geometry=save_geometry,
+                **kwargs,
+            )
+        elif format.lower() in ["gpkg"]:
+            self.to_gpkg(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
+        return
+
     def to_gpkg(
         self,
         interval_number: int = 0,
-        save_geometry=True,
         reset: bool = True,
         **kwargs,
     ) -> None:
@@ -2299,8 +2360,6 @@ class LocalSurface(CratermakerBase):
         ----------
         interval_number : int, optional
             The interval number to save, by default 0.
-        save_geometry : bool, optional
-            Whether to save the grid geometry to a separate GeoPackage file, by default True.
         reset : bool, optional
             Whether or not to erase any existing data in the output directory before saving, by default True.
         **kwargs : Any
