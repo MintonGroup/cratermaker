@@ -105,7 +105,6 @@ jobs:
             source .venv/bin/activate
           fi
           PYTAG=$(python -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
-          pip install --upgrade pip
           pip install dist/*${PYTAG}-${PYTAG}-*.whl
           pip install pytest
           pytest
