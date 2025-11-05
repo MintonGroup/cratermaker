@@ -113,7 +113,7 @@ For this example, we are going to use :func:`Production.age_from_D_N` to plot th
 More Production examples
 ------------------------
 
-See more examples at  :ref:`gal-production`
+See more examples at  :ref:`gal-production_and_montecarlo`
 
 .. toctree::
    :maxdepth: 2

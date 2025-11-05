@@ -46,7 +46,7 @@ class Counting(ComponentBase):
     reset : bool, optional
         Flag to indicate whether to reset the count and delete any old output files. Default is True.
     ask_overwrite : bool, optional
-        If True, prompt the user for confirmation before deleting files. Default is True.
+        If True, prompt the user for confirmation before deleting files. Default is False.
     **kwargs : Any
         Additional keyword arguments.
     """
@@ -54,12 +54,14 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
+        reset: bool = True,
+        ask_overwrite: bool = False,
         **kwargs: Any,
     ):
         self.surface = surface
         rng = kwargs.pop("rng", surface.rng)
         simdir = kwargs.pop("simdir", surface.simdir)
-        super().__init__(rng=rng, simdir=simdir, **kwargs)
+        super().__init__(rng=rng, simdir=simdir, reset=reset, ask_overwrite=ask_overwrite, **kwargs)
 
         object.__setattr__(self, "_emplaced", [])
         object.__setattr__(self, "_observed", {})
@@ -74,6 +76,8 @@ class Counting(ComponentBase):
         cls,
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
+        reset: bool = True,
+        ask_overwrite: bool = False,
         **kwargs: Any,
     ) -> Counting:
         """
@@ -85,6 +89,10 @@ class Counting(ComponentBase):
             The name of the counting model to initialize. If None, the default model is used.
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
+        reset : bool, optional
+            Flag to indicate whether to reset the count and delete any old output files. Default is True
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             Additional keyword arguments.
 
@@ -109,6 +117,8 @@ class Counting(ComponentBase):
         counting = super().maker(
             component=counting,
             surface=surface,
+            reset=reset,
+            ask_overwrite=ask_overwrite,
             **kwargs,
         )
 
@@ -118,14 +128,14 @@ class Counting(ComponentBase):
         base = super().__str__()
         return f"{base}\nSurface: {self.surface.name}"
 
-    def reset(self, ask_overwrite: bool = True, **kwargs: Any) -> None:
+    def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
         """
         Remove all craters count records from the surface and delete any output files.
 
         Parameters
         ----------
         ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is True.
+            If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             Additional keyword arguments for subclasses.
         """

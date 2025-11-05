@@ -37,8 +37,6 @@ What's New
 - Added crater user guide by :pull:55 `Dennise Valadez`_
 
 
-
-
 .. _whats-new.2025.4.1-alpha:
 
 :release:`v2025.4.1-alpha`

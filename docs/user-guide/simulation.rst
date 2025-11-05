@@ -58,4 +58,4 @@ More detailed component examples are provided in the Gallery section.
 .. seealso::
 
     - :ref:`api-simulation` for the API reference
-    - :ref:`gal-simulation` for simulation visualizations
+    - :ref:`gal-simulation` for example simulations, including visualizations

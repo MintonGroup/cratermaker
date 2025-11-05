@@ -44,7 +44,7 @@ You can enqueue multiple craters using :meth:`emplace`. Craters are emplaced in 
 More Morphology Examples
 ------------------------
 
-See more advanced usage examples in the gallery: :ref:`gal-morphology`
+See more advanced usage examples in the gallery: :ref:`gal-topography`
 
 .. toctree::
    :maxdepth: 2

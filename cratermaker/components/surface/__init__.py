@@ -135,7 +135,7 @@ class Surface(ComponentBase):
         surface: str | Surface | None = None,
         target: Target | str | None = None,
         reset: bool = False,
-        ask_overwrite: bool = True,
+        ask_overwrite: bool = False,
         regrid: bool = False,
         simdir: str | Path | None = None,
         **kwargs,
@@ -154,7 +154,7 @@ class Surface(ComponentBase):
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
         ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is True.
+            If True, prompt the user for confirmation before deleting files. Default is False.
         simdir : str | Path
             The main project simulation directory. Default is the current working directory if None.
         **kwargs : Any
@@ -179,14 +179,14 @@ class Surface(ComponentBase):
         )
         return surface
 
-    def reset(self, ask_overwrite: bool = True, **kwargs: Any) -> None:
+    def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
         """
         Reset the surface to its initial state.
 
         Parameters
         ----------
         ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is True.
+            If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             Additional keyword arguments for subclasses.
         """

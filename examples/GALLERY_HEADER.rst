@@ -1,7 +1,7 @@
 .. currentmodule:: cratermaker
 
 .. image:: ../_static/index_gallery.svg
-    :alt: Counting
+    :alt: Examples
     :align: center
     :width: 300px
 

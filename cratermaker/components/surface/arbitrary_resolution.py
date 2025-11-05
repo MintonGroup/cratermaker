@@ -26,7 +26,7 @@ class ArbitraryResolutionSurface(Surface):
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
     ask_overwrite : bool, optional
-        If True, prompt the user for confirmation before deleting files. Default is True.
+        If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
         The main project simulation directory. Default is the current working directory if None.
 
@@ -42,7 +42,7 @@ class ArbitraryResolutionSurface(Surface):
         target: Target | str | None = None,
         reset: bool = False,
         regrid: bool = False,
-        ask_overwrite: bool = True,
+        ask_overwrite: bool = False,
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
