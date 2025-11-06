@@ -19,7 +19,7 @@ import cratermaker as cm
 sim = cm.Simulation(
     target="Mars",
     surface="hireslocal",
-    local_location=(0, 0),  # Equator and Prime Meridian
+    local_location=(0, 0),
     pix=100.0,
     local_radius=20.0e3,
     ask_overwrite=False,
