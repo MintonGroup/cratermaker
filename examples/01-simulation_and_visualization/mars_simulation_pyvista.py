@@ -23,7 +23,7 @@ sim = cm.Simulation(
     pix=100.0,
     local_radius=20.0e3,
     ask_overwrite=False,
-    rng_seed=86186233407,  # This will ensure we get the same crater population each time we run the example
+    rng_seed=86186233406,  # This will ensure we get the same crater population each time we run the example
 )
 sim.run(age=2000)
 
