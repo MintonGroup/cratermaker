@@ -146,7 +146,6 @@ class HiResLocalSurface(Surface):
 
     def save(
         self,
-        combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
         **kwargs,
@@ -158,21 +157,17 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        combine_data_files : bool, optional
-            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
         interval_number : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
         self._full().save(
-            combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
             **kwargs,
         )
         self.local.save(
-            combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
             **kwargs,
@@ -180,36 +175,35 @@ class HiResLocalSurface(Surface):
         return
 
     def export(
-        self, format: str, interval_number: int = 0, time_variables: dict | None = None, save_geometry=True, **kwargs: Any
+        self,
+        driver: str = "GPKG",
+        interval_number: int | None = None,
+        superdomain: bool = False,
+        **kwargs: Any,
     ) -> None:
         """
         Export the surface data to the specified format.
 
         Parameters
         ----------
-        format : str
-            The format to export the surface data. Options are "vtk" and "gpkg".
+        driver : str, optional
+            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
         interval_number : int, optional
-            Interval number to append to the data file name. Default is 0.
-        time_variables : dict, optional
-            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        save_geometry : bool, optional
-            If True, saves the surface mesh geometry as a separate file. Default is True.
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        superdomain : bool, optional
+            If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
         **kwargs : Any
             Additional keyword arguments to pass to the export function.
         """
-        self._full().export(
-            format=format,
-            interval_number=interval_number,
-            time_variables=time_variables,
-            save_geometry=save_geometry,
-            **kwargs,
-        )
+        if superdomain:
+            self._full().export(
+                driver=driver,
+                interval_number=interval_number,
+                **kwargs,
+            )
         self.local.export(
-            format=format,
+            driver=driver,
             interval_number=interval_number,
-            time_variables=time_variables,
-            save_geometry=save_geometry,
             **kwargs,
         )
         return
@@ -666,7 +660,6 @@ class LocalHiResLocalSurface(LocalSurface):
 
     def save(
         self,
-        combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
         **kwargs,
@@ -678,15 +671,12 @@ class LocalHiResLocalSurface(LocalSurface):
 
         Parameters
         ----------
-        combine_data_files : bool, optional
-            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
         interval_number : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
         super().save(
-            combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
             **kwargs,

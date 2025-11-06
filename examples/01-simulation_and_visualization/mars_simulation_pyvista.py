@@ -27,7 +27,7 @@ sim = cm.Simulation(
 )
 sim.run(age=2000)
 
-sim.export(format="vtp")
+sim.export(driver="VTK")
 mesh = pv.read(sim.surface.output_dir / "local_surface000001.vtp")
 plotter = pv.Plotter()
 plotter.add_mesh(mesh, scalars="face_elevation", cmap="pink", show_edges=False)

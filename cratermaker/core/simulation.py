@@ -578,27 +578,32 @@ class Simulation(CratermakerBase):
 
         return
 
-    def export(self, format: str = "vtp", interval_number: int = -1, **kwargs: Any) -> None:
+    def export(
+        self,
+        driver: str = "GPKG",
+        interval_number: int | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Export component output to a specified file format.
 
         Parameters
         ----------
-        format : str, optional
-            The file format to export to. Default is "vtp". Other formats include "gpkg".
+        driver : str, optional
+            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.). This is overridden if either the filename or file_extension parameters are provided. Default is 'GPKG'.
         interval_number : int, optional
-            The interval number to export. Default is -1, which exports the latest interval.
+            The interval number to export. If None, all intervals will be exported. Default is None.
+        **kwargs : Any
+            Additional keyword arguments to pass to the GeoPandas to_file method.
         """
-        if interval_number == -1:
-            interval_number = self.interval_number
-        save_geometry = interval_number == 0
-
         self.surface.export(
-            format=format, interval_number=interval_number, time_variables=self.time_variables, save_geometry=save_geometry
+            driver=driver,
+            interval_number=interval_number,
+            **kwargs,
         )
 
         if self.morphology.docounting:
-            self.counting.export(interval_number=interval_number, format=format.lower(), **kwargs)
+            self.counting.export(interval_number=interval_number, driver=driver, **kwargs)
         return
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:

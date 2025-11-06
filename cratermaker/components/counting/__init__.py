@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 from abc import abstractmethod
 from dataclasses import asdict
 from pathlib import Path
@@ -18,7 +17,6 @@ from shapely.ops import split, transform
 from cratermaker.constants import FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.core.crater import Crater
-from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
@@ -321,7 +319,7 @@ class Counting(ComponentBase):
         self._emplaced = []
         return
 
-    def export(self, interval_number: int = 0, format: str = "vtp", **kwargs: Any) -> None:
+    def export(self, interval_number: int = 0, driver: str = "GPKG", **kwargs: Any) -> None:
         """
         Dump the crater lists to a file and reset the emplaced crater list.
 
@@ -329,20 +327,20 @@ class Counting(ComponentBase):
         ----------
         interval_number : int, default=0
             The interval number for the output file naming.
-        format : str, default='vtp'
-            The vector file format to save. Supported formats are 'vtp' (or 'vtk'), 'shp', 'gpkg'.
+        driver : str, default='GPKG'
+            The vector file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', etc.
         **kwargs : Any
             Additional keyword arguments to pass to the make_vector_file function.
         """
-        for crater_type in ["emplaced", "observed"]:
-            filename = (
-                self.output_dir / f"{crater_type}_{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
-            )
-            if filename.exists():
-                with xr.open_dataset(filename) as ds:
-                    self.make_vector_file(ds, interval_number, layer_name=f"{crater_type}_craters", format=format, **kwargs)
-
-        return
+        # for crater_type in ["emplaced", "observed"]:
+        #     filename = (
+        #         self.output_dir / f"{crater_type}_{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
+        #     )
+        #     if filename.exists():
+        #         with xr.open_dataset(filename) as ds:
+        #             self.make_vector_file(ds, interval_number, layer_name=f"{crater_type}_craters", format=format, **kwargs)
+        pass
+        # return
 
     @staticmethod
     def geodesic_ellipse_polygon(
@@ -423,12 +421,12 @@ class Counting(ComponentBase):
 
         return poly
 
-    def make_vector_file(
+    def to_vector_file(
         self,
         crater_data: xr.Dataset | dict[int, Crater] | list[Crater],
-        interval_number: int = 0,
+        driver: str = "GPKG",
+        interval_number: int | None = None,
         layer_name: str = "craters",
-        format: str = "vtp",
         **kwargs,
     ) -> None:
         """
@@ -441,11 +439,9 @@ class Counting(ComponentBase):
         crater_data : dict
             Dictionary containing crater attributes. Must include 'final_diameter', 'longitude', and 'latitude' keys. Any additional key value pairs will be added as attributes to each crater.
         interval_number : int, optional
-            The interval number to save, by default 0.
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         layer_name : str, optional
             The name of the layer in the GeoPackage file, by default "craters".
-        format : str, optional
-            The vector file format to save. Supported formats are 'shp', 'gpkg', 'vtp', and 'vtk'. Default is 'vtp'.
         **kwargs : Any
             Additional keyword arguments that are ignored.
         """
