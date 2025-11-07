@@ -3351,14 +3351,18 @@ class LocalSurface(CratermakerBase):
         interval_numbers.sort()
 
         # map the requested interval_number to the index of interval_numbers
-        if interval_number is not None and interval_number >= 0:
-            if interval_number in interval_numbers:
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_index = interval_number
+            elif interval_number in interval_numbers:
                 interval_index = interval_numbers.index(interval_number)
             else:
                 raise ValueError(f"Interval number {interval_number} not found in data files.")
 
         # if data_file_list is empty, set reset to True
         reset = reset or not data_file_list
+        if not self.grid_file.exists():
+            raise FileNotFoundError(f"Grid file {self.grid_file} does not exist.")
 
         try:
             with xr.open_dataset(self.grid_file) as uxgrid:
