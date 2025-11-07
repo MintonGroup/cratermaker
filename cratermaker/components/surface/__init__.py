@@ -2379,9 +2379,55 @@ class LocalSurface(CratermakerBase):
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
 
-        def _write_array(da, filename, layer_name, driver, **kwargs):
-            gdf = da.to_geodataframe(engine="geopandas").set_crs(self.surface.crs).to_crs(self.crs)
+        def _write_dataset(uxds, filename, layer_name, driver, **kwargs):
+            if (
+                self.location is None
+            ):  # Exclude periodic elements for global surfaces. For some reason, UxArray gets the windings wrong when using the split argument, so we have to exclude instead.
+                gdfargs = {"engine": "geopandas", "periodic_elements": "exclude"}
+            else:
+                gdfargs = {"engine": "geopandas", "periodic_elements": "ignore"}
+
+            # Convert to GeoDataFrame and set the CRS correctly for the type of surface
+            gdf = uxds.uxgrid.to_geodataframe(**gdfargs).set_crs(self.surface.crs).to_crs(self.crs)
+            variables = [v for v in uxds.data_vars if any(dim == "n_face" for dim in uxds[v].dims)]
+            if not variables:
+                raise ValueError("No face-based variables found to export to file.")
+
+            # Shapefile can't store the crater id layers, so we remove variables with the pattern "idXX"
+            if driver == "ESRI Shapefile":
+                variables = [var for var in variables if not var.startswith("id")]
+
+            for var in variables:
+                if len(uxdsi[var].dims) == 1:
+                    gds = uxdsi[var].to_geodataframe(**gdfargs)
+                    gdf[var] = gds[var]
+                elif "layer" in uxdsi[var].dims:
+                    for layer in range(uxdsi.layer.size):
+                        gds = uxdsi[var].isel(layer=layer).to_geodataframe(**gdfargs)
+                        gdf[f"{var}{layer:02d}"] = gds[var]
+
+            # Rename columns if exporting to Shapefile to comply with field name length limits
+            if driver == "ESRI Shapefile":
+                gdf = gdf.rename(columns={col: shp_key_fix(col) for col in gdf.columns})
+
+            print(f"Exporting to {filename} using driver {driver}")
             gdf.to_file(filename, layer=layer_name, driver=driver, **kwargs)
+            return
+
+        def shp_key_fix(key: str) -> str:
+            """
+            ESRI Shapefile format limits field names to 10 characters, so this function substitues longer names with shorter alternatives, truncates the results, and sets them to upper case.
+            """
+            alt_names = {
+                "face_elevation": "faceelev",
+                "face_distance": "facedis",
+                "face_bearing": "facebearng",
+                "face_indices": "faceindx",
+            }
+            for long, short in alt_names.items():
+                if long in key:
+                    key = key.replace(long, short)
+            return key[:10].upper()
 
         # Map of OGR drivers to file extensions
         driver_to_extension_map = {
@@ -2431,10 +2477,6 @@ class LocalSurface(CratermakerBase):
                 interval_number = interval_numbers[interval_number]
             interval_numbers = [interval_number]
 
-        variables = [v for v in uxds.data_vars if any(dim == "n_face" for dim in uxds[v].dims)]
-        if not variables:
-            raise ValueError("No face-based variables found to export to file.")
-
         if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
             old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
             for f in old_vector_files:
@@ -2443,19 +2485,7 @@ class LocalSurface(CratermakerBase):
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxdsi = uxds.sel(time=time).load()
             filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
-
-            for var in variables:
-                if len(uxdsi[var].dims) == 1:
-                    _write_array(uxdsi[var], filename=filename, layer_name="face_data", driver=driver)
-                elif "layer" in uxdsi[var].dims:
-                    for layer in range(uxdsi.layer.size):
-                        _write_array(
-                            uxdsi[var].isel(layer=layer).rename(f"{var}{layer:02d}"),
-                            filename,
-                            layer_name="face_data",
-                            driver=driver,
-                            **kwargs,
-                        )
+            _write_dataset(uxdsi, filename=filename, layer_name="face_data", driver=driver, **kwargs)
 
         return
 
@@ -2501,6 +2531,7 @@ class LocalSurface(CratermakerBase):
 
             writer.SetFileName(output_filename)
             writer.SetInputData(poly_data_with_normals)
+            print(f"Exporting to {output_filename}")
             writer.Write()
             return
 
