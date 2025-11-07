@@ -430,15 +430,6 @@ class TestSurface(unittest.TestCase):
             },
         ]
 
-        hireslocal_extra_args_list = [
-            {"superdomain": True},
-            {"superdomain": True},
-            {"superdomain": True},
-            {"superdomain": True},
-            {"superdomain": True},
-            {"superdomain": True},
-        ]
-
         # Expected output files:
         expected_file_list = [
             [f"surface{i:06d}.gpkg" for i in save_intervals],
@@ -471,7 +462,6 @@ class TestSurface(unittest.TestCase):
             for i, export_args in enumerate(export_args_list):
                 expected_files = expected_file_list[i].copy()
                 if surface_name == "hireslocal":
-                    export_args.update(hireslocal_extra_args_list[i])
                     expected_files += hireslocal_extra_files_list[i]
                 with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
                     # for simdir in ["."]:
@@ -483,7 +473,10 @@ class TestSurface(unittest.TestCase):
                     surface = Surface.maker(surface=surface_name, simdir=simdir, **gridargs[surface_name])
                     for interval_number in save_intervals:
                         surface.save(interval_number=interval_number)
-                    surface.export(**export_args)
+                    if surface_name == "hireslocal":
+                        surface.export(**export_args, superdomain=True)
+                    else:
+                        surface.export(**export_args)
                     for file in expected_files:
                         output_file = surface.output_dir / file
                         if not output_file.exists():
