@@ -389,18 +389,18 @@ class TestSurface(unittest.TestCase):
     def test_export(self):
         gridargs = {
             "icosphere": {
-                "gridlevel": 6,
+                "gridlevel": self.gridlevel,
             },
-            "arbitrary_resolution": {"pix": 50e3},
+            "arbitrary_resolution": {"pix": self.pix},
             "hireslocal": {
-                "pix": 1e3,
+                "pix": self.pix,
                 "local_location": (0, 0),
-                "local_radius": 10e3,
+                "local_radius": self.pix * 2,
                 "superdomain_scale_factor": 100,
             },
         }
         # Test a non-continguous set of save intervals
-        save_intervals = [1, 2, 4]
+        save_intervals = [0, 1, 2, 4]
 
         # Export argument test cases
         export_args_list = [
@@ -416,9 +416,24 @@ class TestSurface(unittest.TestCase):
                 "driver": "ESRI Shapefile",
                 "interval_number": None,
             },
+            {
+                "driver": "VTK",
+                "interval_number": 0,
+            },
+            {
+                "driver": "VTK",
+                "interval_number": 4,
+            },
+            {
+                "driver": "VTK",
+                "interval_number": -1,
+            },
         ]
 
         hireslocal_extra_args_list = [
+            {"superdomain": True},
+            {"superdomain": True},
+            {"superdomain": True},
             {"superdomain": True},
             {"superdomain": True},
             {"superdomain": True},
@@ -433,6 +448,9 @@ class TestSurface(unittest.TestCase):
             + [f"surface{i:06d}.dbf" for i in save_intervals]
             + [f"surface{i:06d}.cpg" for i in save_intervals]
             + [f"surface{i:06d}.prj" for i in save_intervals],
+            [f"surface{export_args_list[3]['interval_number']:06d}.vtp"] + ["grid.vtp"],
+            [f"surface{export_args_list[4]['interval_number']:06d}.vtp"] + ["grid.vtp"],
+            [f"surface{save_intervals[-1]:06d}.vtp"] + ["grid.vtp"],
         ]
 
         hireslocal_extra_files_list = [
@@ -443,6 +461,9 @@ class TestSurface(unittest.TestCase):
             + [f"local_surface{i:06d}.dbf" for i in save_intervals]
             + [f"local_surface{i:06d}.cpg" for i in save_intervals]
             + [f"local_surface{i:06d}.prj" for i in save_intervals],
+            [f"local_surface{export_args_list[3]['interval_number']:06d}.vtp"] + ["local_grid.vtp"],
+            [f"local_surface{export_args_list[4]['interval_number']:06d}.vtp"] + ["local_grid.vtp"],
+            [f"local_surface{save_intervals[-1]:06d}.vtp"] + ["local_grid.vtp"],
         ]
 
         # for surface_name in surfacetypes:
@@ -454,7 +475,6 @@ class TestSurface(unittest.TestCase):
                     expected_files += hireslocal_extra_files_list[i]
                 with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
                     # for simdir in ["."]:
-                    # delete the existing folder contents inside Path(simdir) / "surface"
                     surface_dir = Path(simdir) / "surface"
                     if surface_dir.exists():
                         for f in surface_dir.iterdir():
@@ -466,7 +486,8 @@ class TestSurface(unittest.TestCase):
                     surface.export(**export_args)
                     for file in expected_files:
                         output_file = surface.output_dir / file
-                        self.assertTrue(output_file.exists(), f"Expected output file not created: {output_file}")
+                        if not output_file.exists():
+                            raise FileNotFoundError(f"Expected output file not created: {output_file}")
 
 
 if __name__ == "__main__":

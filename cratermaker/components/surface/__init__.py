@@ -2425,6 +2425,12 @@ class LocalSurface(CratermakerBase):
 
         # load data and select the face-based variables
         uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
+
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_number = interval_numbers[interval_number]
+            interval_numbers = [interval_number]
+
         variables = [v for v in uxds.data_vars if any(dim == "n_face" for dim in uxds[v].dims)]
         if not variables:
             raise ValueError("No face-based variables found to export to file.")
@@ -2433,9 +2439,6 @@ class LocalSurface(CratermakerBase):
             old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
             for f in old_vector_files:
                 f.unlink()
-
-        if interval_number is not None:
-            interval_numbers = [interval_number]
 
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxdsi = uxds.sel(time=time).load()
@@ -2511,14 +2514,16 @@ class LocalSurface(CratermakerBase):
         save_geometry = not grid_filename.exists()
 
         uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_number = interval_numbers[interval_number]
+            interval_numbers = [interval_number]
 
         node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
         node_normals = node_xyz / self.radius
         vtk_point_normals = numpy_to_vtk(node_normals.astype(np.float32), deep=True)
         vtk_point_normals.SetNumberOfComponents(3)
         vtk_point_normals.SetName("Normals")
-        if interval_number is not None:
-            interval_numbers = [interval_number]
 
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxdsi = uxds.sel(time=time).load()
