@@ -387,17 +387,86 @@ class TestSurface(unittest.TestCase):
             )
 
     def test_export(self):
-        from cratermaker.components.surface import _VTK_FILE_EXTENSION
+        gridargs = {
+            "icosphere": {
+                "gridlevel": 6,
+            },
+            "arbitrary_resolution": {"pix": 50e3},
+            "hireslocal": {
+                "pix": 1e3,
+                "local_location": (0, 0),
+                "local_radius": 10e3,
+                "superdomain_scale_factor": 100,
+            },
+        }
+        # Test a non-continguous set of save intervals
+        save_intervals = [1, 2, 4]
 
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
-            # Test with default parameters
-            default_out_dir = surface.output_dir
-            expected_files = [f"{surface._output_file_prefix}{0:06d}.vtp", f"{surface._grid_file_prefix}.vtp"]
-            surface.save()
-            self.assertTrue(Path(default_out_dir).is_dir())
-            for f in expected_files:
-                self.assertTrue(Path(default_out_dir / f).exists())
+        # Export argument test cases
+        export_args_list = [
+            {
+                "driver": "GPKG",
+                "interval_number": None,
+            },
+            {
+                "driver": "VTK",
+                "interval_number": None,
+            },
+            {
+                "driver": "ESRI Shapefile",
+                "interval_number": None,
+            },
+        ]
+
+        hireslocal_extra_args_list = [
+            {"superdomain": True},
+            {"superdomain": True},
+            {"superdomain": True},
+        ]
+
+        # Expected output files:
+        expected_file_list = [
+            [f"surface{i:06d}.gpkg" for i in save_intervals],
+            [f"surface{i:06d}.vtp" for i in save_intervals] + ["grid.vtp"],
+            [f"surface{i:06d}.shp" for i in save_intervals]
+            + [f"surface{i:06d}.shx" for i in save_intervals]
+            + [f"surface{i:06d}.dbf" for i in save_intervals]
+            + [f"surface{i:06d}.cpg" for i in save_intervals]
+            + [f"surface{i:06d}.prj" for i in save_intervals],
+        ]
+
+        hireslocal_extra_files_list = [
+            [f"local_surface{i:06d}.gpkg" for i in save_intervals],
+            [f"local_surface{i:06d}.vtp" for i in save_intervals] + ["local_grid.vtp"],
+            [f"local_surface{i:06d}.shp" for i in save_intervals]
+            + [f"local_surface{i:06d}.shx" for i in save_intervals]
+            + [f"local_surface{i:06d}.dbf" for i in save_intervals]
+            + [f"local_surface{i:06d}.cpg" for i in save_intervals]
+            + [f"local_surface{i:06d}.prj" for i in save_intervals],
+        ]
+
+        # for surface_name in surfacetypes:
+        for surface_name in surfacetypes:
+            for i, export_args in enumerate(export_args_list):
+                expected_files = expected_file_list[i].copy()
+                if surface_name == "hireslocal":
+                    export_args.update(hireslocal_extra_args_list[i])
+                    expected_files += hireslocal_extra_files_list[i]
+                with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                    # for simdir in ["."]:
+                    # delete the existing folder contents inside Path(simdir) / "surface"
+                    surface_dir = Path(simdir) / "surface"
+                    if surface_dir.exists():
+                        for f in surface_dir.iterdir():
+                            f.unlink()
+
+                    surface = Surface.maker(surface=surface_name, simdir=simdir, **gridargs[surface_name])
+                    for interval_number in save_intervals:
+                        surface.save(interval_number=interval_number)
+                    surface.export(**export_args)
+                    for file in expected_files:
+                        output_file = surface.output_dir / file
+                        self.assertTrue(output_file.exists(), f"Expected output file not created: {output_file}")
 
 
 if __name__ == "__main__":

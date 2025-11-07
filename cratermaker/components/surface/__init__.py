@@ -834,7 +834,10 @@ class Surface(ComponentBase):
         regrid = self._regrid_if_needed(**kwargs)
         reset = reset or regrid
         # Read in only the last saved data file
-        self._uxds, _ = self.read_file(interval_number=-1, reset=reset, **kwargs)
+        uxds, _ = self.read_file(interval_number=-1, reset=reset, **kwargs)
+        if "time" in uxds.dims:
+            uxds = uxds.isel(time=-1)
+        object.__setattr__(self, "_uxds", uxds)
 
         if reset:
             self.reset(ask_overwrite=ask_overwrite, **kwargs)
@@ -853,13 +856,29 @@ class Surface(ComponentBase):
         grid_file : Path
             The path to the grid file.
         """
+        import uxarray.conventions.ugrid as ugrid
+
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            uxgrid.to_xarray().to_netcdf(temp_file.name)
+            ds = uxgrid.to_xarray()
+
+            # There is some issue that is causing a mismatch between the data variables and the grid_topology attributes that is causing problems when reading the file back in under some circumstances, such as deleting the grid file and reinitializing the surface. To get around this, we will check that all of the attributes are correct before writing the file.
+            ugrid_names = ugrid.CONNECTIVITY_NAMES + ugrid.DIM_NAMES
+            for name in ugrid_names:
+                if name in ds.grid_topology.attrs and name not in ds:
+                    del ds.grid_topology.attrs[name]
+            if "edge_dimension" in ds.grid_topology.attrs and "n_edge" not in ds:
+                del ds.grid_topology.attrs["edge_dimension"]
+            if "face_coordinates" in ds.grid_topology.attrs:
+                face_coords = ds.grid_topology.attrs["face_coordinates"].split()
+                for coord in face_coords:
+                    if coord not in ds:
+                        del ds.grid_topology.attrs["face_coordinates"]
+                        break
+
+            ds.to_netcdf(temp_file.name)
             temp_file.flush()
             os.fsync(temp_file.fileno())
-
-        # Replace the original file only if writing succeeded
-        shutil.move(temp_file.name, grid_file)
+            shutil.move(temp_file.name, grid_file)
 
         return
 
@@ -911,8 +930,9 @@ class Surface(ComponentBase):
                     uxgrid = uxr.Grid.from_dataset(ds)
                     old_id = uxgrid.attrs.get("_id")
                     regrid = old_id != self._id
-            except Exception:
+            except Exception as e:
                 # Failed to open an old file for whatever reason, so we'll need to regrid
+                print(f"Failed to read existing grid file, will create a new grid {e}")
                 regrid = True
 
         if regrid:
