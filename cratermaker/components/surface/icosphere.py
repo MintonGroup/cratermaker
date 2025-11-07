@@ -97,7 +97,7 @@ class IcosphereSurface(Surface):
     @gridlevel.setter
     def gridlevel(self, value: int) -> None:
         if value < 0:
-            raise ValueError("Grid level must be a non-negative integer.")
+            raise ValueError("The value of gridlevel must be a non-negative integer.")
         self._gridlevel = int(value)
 
     @property
