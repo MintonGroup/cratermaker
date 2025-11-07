@@ -858,6 +858,8 @@ class Surface(ComponentBase):
         """
         import uxarray.conventions.ugrid as ugrid
 
+        grid_file.unlink(missing_ok=True)
+
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             ds = uxgrid.to_xarray()
 
@@ -2681,6 +2683,7 @@ class LocalSurface(CratermakerBase):
                 ds = ds.drop_vars(drop_vars)
 
         filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")
+        filename.unlink(missing_ok=True)
 
         self.surface._save_data(ds, interval_number=interval_number, filename=filename, output_dir=self.surface.output_dir)
 
