@@ -28,7 +28,7 @@ We can then open up the mesh in PyVista for visualization
     import cratermaker as cm
     sim = cm.Simulation()
     sim.emplace(final_diameter=500e3, location=(45,60))
-    sim.export(format="vtp")
+    sim.export(driver="VTK")
 
     import pyvista as pv
     mesh = pv.read("surface/surface000000.vtp")
