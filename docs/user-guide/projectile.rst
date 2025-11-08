@@ -57,7 +57,7 @@ In this case, the user specifies the projectile velocity, impact angle, trajecto
 More Projectile examples
 ------------------------
 
-See more examples at  :ref:`gal-projectile`
+See more examples at  :ref:`gal-projectiles_and_scaling`
 
 .. toctree::
    :maxdepth: 2
