@@ -596,6 +596,7 @@ class Simulation(CratermakerBase):
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
+        self.save()
         self.surface.export(
             driver=driver,
             interval_number=interval_number,

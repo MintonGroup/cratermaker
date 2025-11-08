@@ -3,6 +3,13 @@
 What's New
 ==========
 
+.. _whats-new.2025.11.3-alpha:
+
+:release:`v2025.11.3-alpha`
+---------------------------
+
+- Ensure that the Simulation is saved before the components are exported.
+
 .. _whats-new.2025.11.2-alpha:
 
 :release:`v2025.11.2-alpha`
