@@ -255,7 +255,7 @@ class TestSurface(unittest.TestCase):
     def test_generate_grid(self):
         gridargs = {
             "icosphere": {
-                "level": self.gridlevel,
+                "gridlevel": self.gridlevel,
             },
             "arbitrary_resolution": {
                 "pix": self.pix,
@@ -386,18 +386,101 @@ class TestSurface(unittest.TestCase):
                 h_analytical, h_numerical, decimal=2, err_msg="Diffusion did not match analytical solution"
             )
 
-    # def test_export_vtk(self):
-    #     from cratermaker.components.surface import _VTK_FILE_EXTENSION
+    def test_export(self):
+        gridargs = {
+            "icosphere": {
+                "gridlevel": self.gridlevel,
+            },
+            "arbitrary_resolution": {"pix": self.pix},
+            "hireslocal": {
+                "pix": self.pix,
+                "local_location": (0, 0),
+                "local_radius": self.pix * 2,
+                "superdomain_scale_factor": 100,
+            },
+        }
+        # Test a non-continguous set of save intervals
+        save_intervals = [0, 1, 2, 4]
 
-    #     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-    #         surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
-    #         # Test with default parameters
-    #         default_out_dir = surface.output_dir
-    #         expected_files = [f"{surface._output_file_prefix}{0:06d}.vtp", f"{surface._grid_file_prefix}.vtp"]
-    #         surface.save()
-    #         self.assertTrue(Path(default_out_dir).is_dir())
-    #         for f in expected_files:
-    #             self.assertTrue(Path(default_out_dir / f).exists())
+        # Export argument test cases
+        export_args_list = [
+            {
+                "driver": "GPKG",
+                "interval_number": None,
+            },
+            {
+                "driver": "VTK",
+                "interval_number": None,
+            },
+            {
+                "driver": "ESRI Shapefile",
+                "interval_number": None,
+            },
+            {
+                "driver": "VTK",
+                "interval_number": 0,
+            },
+            {
+                "driver": "VTK",
+                "interval_number": 4,
+            },
+            {
+                "driver": "VTK",
+                "interval_number": -1,
+            },
+        ]
+
+        # Expected output files:
+        expected_file_list = [
+            [f"surface{i:06d}.gpkg" for i in save_intervals],
+            [f"surface{i:06d}.vtp" for i in save_intervals] + ["grid.vtp"],
+            [f"surface{i:06d}.shp" for i in save_intervals]
+            + [f"surface{i:06d}.shx" for i in save_intervals]
+            + [f"surface{i:06d}.dbf" for i in save_intervals]
+            + [f"surface{i:06d}.cpg" for i in save_intervals]
+            + [f"surface{i:06d}.prj" for i in save_intervals],
+            [f"surface{export_args_list[3]['interval_number']:06d}.vtp"] + ["grid.vtp"],
+            [f"surface{export_args_list[4]['interval_number']:06d}.vtp"] + ["grid.vtp"],
+            [f"surface{save_intervals[-1]:06d}.vtp"] + ["grid.vtp"],
+        ]
+
+        hireslocal_extra_files_list = [
+            [f"local_surface{i:06d}.gpkg" for i in save_intervals],
+            [f"local_surface{i:06d}.vtp" for i in save_intervals] + ["local_grid.vtp"],
+            [f"local_surface{i:06d}.shp" for i in save_intervals]
+            + [f"local_surface{i:06d}.shx" for i in save_intervals]
+            + [f"local_surface{i:06d}.dbf" for i in save_intervals]
+            + [f"local_surface{i:06d}.cpg" for i in save_intervals]
+            + [f"local_surface{i:06d}.prj" for i in save_intervals],
+            [f"local_surface{export_args_list[3]['interval_number']:06d}.vtp"] + ["local_grid.vtp"],
+            [f"local_surface{export_args_list[4]['interval_number']:06d}.vtp"] + ["local_grid.vtp"],
+            [f"local_surface{save_intervals[-1]:06d}.vtp"] + ["local_grid.vtp"],
+        ]
+
+        # for surface_name in surfacetypes:
+        for surface_name in surfacetypes:
+            for i, export_args in enumerate(export_args_list):
+                expected_files = expected_file_list[i].copy()
+                if surface_name == "hireslocal":
+                    expected_files += hireslocal_extra_files_list[i]
+                with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                    # for simdir in ["."]:
+                    surface_dir = Path(simdir) / "surface"
+                    if surface_dir.exists():
+                        for f in surface_dir.iterdir():
+                            f.unlink()
+
+                    surface = Surface.maker(surface=surface_name, simdir=simdir, **gridargs[surface_name])
+                    for interval_number in save_intervals:
+                        surface.save(interval_number=interval_number)
+                    if surface_name == "hireslocal":
+                        surface.export(**export_args, superdomain=True)
+                    else:
+                        surface.export(**export_args)
+                    for file in expected_files:
+                        output_file = surface.output_dir / file
+                        if not output_file.exists():
+                            raise FileNotFoundError(f"Expected output file not created: {output_file}")
 
 
 if __name__ == "__main__":
