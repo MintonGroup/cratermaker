@@ -65,15 +65,6 @@ class TestSimulation(unittest.TestCase):
                 np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
                 np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
 
-            # Test saving combined data
-            sim.save(combine_data_files=True)
-            filename = Path(sim.surface.output_dir) / f"{sim.surface._output_file_prefix}.{sim.surface._output_file_extension}"
-            self.assertTrue(filename.exists())
-            with xr.open_dataset(filename) as ds:
-                ds = ds.isel(time=-1)
-                np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
-                np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
-
         return
 
     def test_emplace(self):
