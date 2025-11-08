@@ -2707,10 +2707,16 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
+        # Check if rasterio is installed, and if not, just return without plotting
+        try:
+            from rasterio.features import rasterize
+            from rasterio.transform import Affine, from_bounds
+        except ImportError:
+            warnings.warn("rasterio is not installed. Cannot plot hillshade.", stacklevel=2)
+            return
+
         import matplotlib.pyplot as plt
         from matplotlib.colors import LightSource
-        from rasterio.features import rasterize
-        from rasterio.transform import Affine, from_bounds
 
         face_elevation = self.uxds["face_elevation"].load()
         if self.location is None:
