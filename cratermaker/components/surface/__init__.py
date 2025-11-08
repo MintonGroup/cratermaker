@@ -880,7 +880,9 @@ class Surface(ComponentBase):
             ds.to_netcdf(temp_file.name)
             temp_file.flush()
             os.fsync(temp_file.fileno())
-            shutil.move(temp_file.name, grid_file)
+
+        # Replace the original file only if writing succeeded
+        shutil.move(temp_file.name, grid_file)
 
         return
 
