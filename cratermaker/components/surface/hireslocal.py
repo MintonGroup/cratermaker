@@ -41,11 +41,11 @@ class HiResLocalSurface(Surface):
         The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
         or extracted from the scaling model if it is provied
     reset : bool, optional
-        Flag to indicate whether to reset the surface. Default is False.
+        Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
     ask_overwrite : bool, optional
-        If True, prompt the user for confirmation before deleting files. Default is True.
+        If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
         The main project simulation directory. Default is the current working directory if None.
 
@@ -62,9 +62,9 @@ class HiResLocalSurface(Surface):
         local_location: PairOfFloats,
         superdomain_scale_factor: FloatLike | None = None,
         target: Target | str | None = None,
-        reset: bool = False,
+        reset: bool = True,
         regrid: bool = False,
-        ask_overwrite: bool = True,
+        ask_overwrite: bool = False,
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
@@ -72,6 +72,7 @@ class HiResLocalSurface(Surface):
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
+        self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
 
         self.pix = pix
         self.local_radius = local_radius
@@ -145,7 +146,6 @@ class HiResLocalSurface(Surface):
 
     def save(
         self,
-        combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
         **kwargs,
@@ -157,23 +157,53 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        combine_data_files : bool, optional
-            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
         interval_number : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
-        self.local.save(
-            combine_data_files=combine_data_files,
+        self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
             **kwargs,
         )
         self.local.save(
-            combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
+            **kwargs,
+        )
+        return
+
+    def export(
+        self,
+        driver: str = "GPKG",
+        interval_number: int | None = None,
+        superdomain: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Export the surface data to the specified format.
+
+        Parameters
+        ----------
+        driver : str, optional
+            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        superdomain : bool, optional
+            If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
+        **kwargs : Any
+            Additional keyword arguments to pass to the export function.
+        """
+        if superdomain:
+            self._full().export(
+                driver=driver,
+                interval_number=interval_number,
+                **kwargs,
+            )
+        self.local.export(
+            driver=driver,
+            interval_number=interval_number,
             **kwargs,
         )
         return
@@ -536,6 +566,7 @@ class LocalHiResLocalSurface(LocalSurface):
             edge_indices=edge_indices,
             location=location,
             region_radius=region_radius,
+            reset=False,
             **kwargs,
         )
         return
@@ -630,7 +661,6 @@ class LocalHiResLocalSurface(LocalSurface):
 
     def save(
         self,
-        combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
         **kwargs,
@@ -642,15 +672,12 @@ class LocalHiResLocalSurface(LocalSurface):
 
         Parameters
         ----------
-        combine_data_files : bool, optional
-            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
         interval_number : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         """
         super().save(
-            combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
             **kwargs,

@@ -25,3 +25,4 @@ sphinx-gallery
 ipython
 ipykernel
 pyvista[all]
+rasterio

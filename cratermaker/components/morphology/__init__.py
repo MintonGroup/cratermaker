@@ -298,7 +298,7 @@ class Morphology(ComponentBase):
         apply the accumulated degradation effects.
         """
         if not hasattr(self, "_Kdiff"):
-            raise RuntimeError("Kdiff has not been initialized. Call compute_subpixel_degradation first.")
+            return
 
         self.surface.apply_diffusion(self._Kdiff)
         self._Kdiff = np.zeros_like(self.surface.face_elevation)

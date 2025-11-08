@@ -124,20 +124,21 @@ class CratermakerBase:
         else:
             return []
 
-    def reset(self, ask_overwrite: bool = True, files_to_remove: list[Path | str] | None = None, **kwargs: Any) -> None:
+    def reset(self, ask_overwrite: bool = False, files_to_remove: list[Path | str] | None = None, **kwargs: Any) -> None:
         """
         Reset the component by removing its output files.
 
         Parameters
         ----------
         ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is True.
+            If True, prompt the user for confirmation before deleting files. Default is False.
         files_to_remove : list[Path | str], optional
             If set, this is the list of files that will be removed. If not set, then the removed files will be determined using the component's output_dir and output_file_pattern attributes.
         **kwargs : Any
             Additional keyword arguments for subclasses.
         """
-        files_to_remove = self.has_output()
+        if files_to_remove is None:
+            files_to_remove = self.has_output()
         if files_to_remove:
             if ask_overwrite:
                 print(f"The following files will be deleted in {self.output_dir}:")
