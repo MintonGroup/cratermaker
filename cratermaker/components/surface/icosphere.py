@@ -21,7 +21,7 @@ class IcosphereSurface(Surface):
     target : Target, optional
         The target body or name of a known target body for the impact simulation.
     reset : bool, optional
-        Flag to indicate whether to reset the surface. Default is False.
+        Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
     ask_overwrite : bool, optional
@@ -51,7 +51,7 @@ class IcosphereSurface(Surface):
         self,
         gridlevel: int = 8,
         target: Target | str | None = None,
-        reset: bool = False,
+        reset: bool = True,
         regrid: bool = False,
         ask_overwrite: bool = False,
         simdir: str | Path | None = None,

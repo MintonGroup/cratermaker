@@ -41,7 +41,7 @@ class HiResLocalSurface(Surface):
         The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
         or extracted from the scaling model if it is provied
     reset : bool, optional
-        Flag to indicate whether to reset the surface. Default is False.
+        Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
     ask_overwrite : bool, optional
@@ -62,7 +62,7 @@ class HiResLocalSurface(Surface):
         local_location: PairOfFloats,
         superdomain_scale_factor: FloatLike | None = None,
         target: Target | str | None = None,
-        reset: bool = False,
+        reset: bool = True,
         regrid: bool = False,
         ask_overwrite: bool = False,
         simdir: str | Path | None = None,
@@ -566,6 +566,7 @@ class LocalHiResLocalSurface(LocalSurface):
             edge_indices=edge_indices,
             location=location,
             region_radius=region_radius,
+            reset=False,
             **kwargs,
         )
         return

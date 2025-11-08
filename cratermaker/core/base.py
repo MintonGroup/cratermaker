@@ -137,7 +137,8 @@ class CratermakerBase:
         **kwargs : Any
             Additional keyword arguments for subclasses.
         """
-        files_to_remove = self.has_output()
+        if files_to_remove is None:
+            files_to_remove = self.has_output()
         if files_to_remove:
             if ask_overwrite:
                 print(f"The following files will be deleted in {self.output_dir}:")

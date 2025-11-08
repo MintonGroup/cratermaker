@@ -134,7 +134,7 @@ class Surface(ComponentBase):
         cls: Surface,
         surface: str | Surface | None = None,
         target: Target | str | None = None,
-        reset: bool = False,
+        reset: bool = True,
         ask_overwrite: bool = False,
         regrid: bool = False,
         simdir: str | Path | None = None,
@@ -888,8 +888,6 @@ class Surface(ComponentBase):
         """
         Generate a tessellated mesh of a sphere of based on the particular Surface component that is being used.
         """
-        self.grid_file.unlink(missing_ok=True)
-
         points = self._generate_face_distribution(**kwargs)
 
         threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-6)
@@ -1713,6 +1711,8 @@ class LocalSurface(CratermakerBase):
         The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
     region_radius : FloatLike | None, optional
         The radius of the region to include in the view in meters. This is intended to be passed via the extract_region method of Surface.
+    reset : bool, optional
+        Flag to indicate whether to remove any existing data files in the output directory. Default is True.
     **kwargs : Any
         Additional keyword arguments passed to the CratermakerBase initializer.
     """
@@ -2683,7 +2683,7 @@ class LocalSurface(CratermakerBase):
                 ds = ds.drop_vars(drop_vars)
 
         filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")
-        filename.unlink(missing_ok=True)
+        (self.surface.output_dir / filename).unlink(missing_ok=True)
 
         self.surface._save_data(ds, interval_number=interval_number, filename=filename, output_dir=self.surface.output_dir)
 
