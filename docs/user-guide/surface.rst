@@ -370,5 +370,5 @@ This could be used to visualize the surface using a 3D plotting library, such as
 More Surface examples
 ---------------------
 
-See more examples at  :ref:`gal-surface`
+See more examples at  :ref:`gal-topography`
 

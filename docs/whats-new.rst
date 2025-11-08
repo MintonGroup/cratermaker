@@ -2,34 +2,13 @@
 
 What's New
 ==========
-.. _whats-new.2025.11.0-alpha:
 
-:release:`v2025.11.0-alpha`
---------------------------
+.. _whats-new.2025.11.2-alpha:
 
+:release:`v2025.11.2-alpha`
+---------------------------
 
-- Major updates to documentation and GIS exporting tools. :pull:66 `David Minton`_
-
-
-
-.. _whats-new.2025.10.1-alpha:
-
-:release:`v2025.10.1-alpha`
---------------------------
-
-
-- Minor updates to exporting tools.
-
-
-.. _whats-new.2025.10.0-alpha:
-
-:release:`v2025.10.0-alpha`
---------------------------
-
-
-- Added crater user guide by :pull:55 `Dennise Valadez`_
-
-
+- Added export methods to Surface, LocalSurface, and Simulation. Surface data can now be exported to VTK, GeoPackage, ESRI Shapefile, and more. :pull:67 `David Minton`_
 
 
 .. _whats-new.2025.11.1-alpha:
@@ -39,6 +18,37 @@ What's New
 
 - Minor fix that allows example scripts to show interactive output in the Sphinx Gallery.
 
+
+
+.. _whats-new.2025.11.0-alpha:
+
+:release:`v2025.11.0-alpha`
+--------------------------
+
+
+- Major updates to documentation and GIS exporting tools. :pull:66 `David Minton`_
+
+
+
+.. _whats-new.2025.10.1-alpha:
+
+:release:`v2025.10.1-alpha`
+--------------------------
+
+
+- Minor updates to exporting tools.
+
+
+.. _whats-new.2025.10.0-alpha:
+
+:release:`v2025.10.0-alpha`
+--------------------------
+
+
+- Added crater user guide by :pull:55 `Dennise Valadez`_
+
+
+
 .. _whats-new.2025.11.0-alpha:
 
 :release:`v2025.11.0-alpha`
@@ -64,8 +74,6 @@ What's New
 
 
 - Added crater user guide by :pull:55 `Dennise Valadez`_
-
-
 
 
 .. _whats-new.2025.4.1-alpha:

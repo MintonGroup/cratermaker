@@ -111,5 +111,5 @@ Because the scaling model is probabilistic, the results will vary slightly each 
 More Scaling examples
 ---------------------
 
-See more examples at  :ref:`gal-scaling`
+See more examples at  :ref:`gal-projectiles_and_scaling`
 

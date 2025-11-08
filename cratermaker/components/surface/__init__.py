@@ -134,8 +134,8 @@ class Surface(ComponentBase):
         cls: Surface,
         surface: str | Surface | None = None,
         target: Target | str | None = None,
-        reset: bool = False,
-        ask_overwrite: bool = True,
+        reset: bool = True,
+        ask_overwrite: bool = False,
         regrid: bool = False,
         simdir: str | Path | None = None,
         **kwargs,
@@ -154,7 +154,7 @@ class Surface(ComponentBase):
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
         ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is True.
+            If True, prompt the user for confirmation before deleting files. Default is False.
         simdir : str | Path
             The main project simulation directory. Default is the current working directory if None.
         **kwargs : Any
@@ -179,14 +179,14 @@ class Surface(ComponentBase):
         )
         return surface
 
-    def reset(self, ask_overwrite: bool = True, **kwargs: Any) -> None:
+    def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
         """
         Reset the surface to its initial state.
 
         Parameters
         ----------
         ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is True.
+            If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             Additional keyword arguments for subclasses.
         """
@@ -577,7 +577,6 @@ class Surface(ComponentBase):
 
     def save(
         self,
-        combine_data_files: bool = False,
         interval_number: int = 0,
         time_variables: dict | None = None,
         **kwargs,
@@ -589,8 +588,6 @@ class Surface(ComponentBase):
 
         Parameters
         ----------
-        combine_data_files : bool, optional
-            If True, combine all data variables into a single NetCDF file, otherwise each variable will be saved to its own NetCDF file. Default is False.
         interval_number : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
@@ -600,17 +597,55 @@ class Surface(ComponentBase):
             Additional keyword arguments to pass to the export function.
         """
         return self._full().save(
-            combine_data_files=combine_data_files,
             interval_number=interval_number,
             time_variables=time_variables,
             **kwargs,
         )
 
-    def to_vtk(
+    def export(self, driver: str = "GPKG", interval_number: int | None = None, **kwargs: Any) -> None:
+        """
+        Export the surface data to the specified format.
+
+        Parameters
+        ----------
+        driver : str, optional
+            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        **kwargs : Any
+            Additional keyword arguments to pass to the export function.
+        """
+        return self._full().export(
+            driver=driver,
+            interval_number=interval_number,
+            **kwargs,
+        )
+
+    def to_vector_file(
         self,
-        interval_number: int = 0,
-        time_variables: dict | None = None,
-        save_geometry=True,
+        driver: str = "GPKG",
+        interval_number: int | None = None,
+        **kwargs,
+    ) -> None:
+        """
+        Export the face-associated data from the surface view data to a vector file using GeoPandas.
+
+        See `geopandas.GeoDataFrame.to_file <https://geopandas.org/en/stable/docs/reference/api/geopandas.GeoDataFrame.to_file.html>`_ for more detailed information on the available parameters.
+
+        Parameters
+        ----------
+        driver : str, optional
+            The file format driver to use for exporting. Default is 'GPKG'.
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        **kwargs : Any
+            Additional keyword arguments to pass to the GeoPandas to_file method.
+        """
+        return self._full().to_vector_file(driver=driver, interval_number=interval_number, **kwargs)
+
+    def to_vtk_file(
+        self,
+        interval_number: int | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -619,40 +654,14 @@ class Surface(ComponentBase):
         Parameters
         ----------
         interval_number : int, optional
-            Interval number to append to the data file name. Default is 0.
-        time_variables : dict, optional
-            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        save_geometry : bool, optional
-            If True, saves the surface mesh geometry as a separate file. Default is True.
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         **kwargs : Any
-            Additional keyword arguments to pass to the export function.
+            Additional keyword arguments
         """
-        return self._full().to_vtk(
+        return self._full().to_vtk_file(
             interval_number=interval_number,
-            time_variables=time_variables,
-            save_geometry=save_geometry,
             **kwargs,
         )
-
-    def to_gpkg(
-        self,
-        interval_number: int = 0,
-        save_geometry=True,
-        **kwargs,
-    ) -> None:
-        """
-        Export the surface data to a GeoPackage file and stores it in the default export directory.
-
-        Parameters
-        ----------
-        interval_number : int, optional
-            The interval number to save, by default 0.
-        save_geometry : bool, optional
-            If True, saves the surface mesh geometry as a separate file, by default True.
-        **kwargs : Any
-            Additional keyword arguments (ignored).
-        """
-        return self._full().to_gpkg(interval_number=interval_number, save_geometry=save_geometry, **kwargs)
 
     def plot_hillshade(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
         """
@@ -788,6 +797,26 @@ class Surface(ComponentBase):
 
         return position + elevation[:, np.newaxis] * runit
 
+    def read_file(self, interval_number: int | None = None, reset: bool = False, **kwargs: Any) -> UxDataset:
+        """
+        Load the grid and data files into a UxDataset object.
+
+        Parameters
+        ----------
+        interval_number : int, optional
+            Interval number to read from the data files. Default is None (all saved intervals)
+        reset : bool, optional
+            Flag to indicate whether to reset the surface. If True it reads in the grid but creates an empty dataset. Default is False.
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        UxDataset
+            An initialized UxDataset object containing the grid and data.
+        """
+        return self._full().read_file(interval_number=interval_number, reset=reset, **kwargs)
+
     def _load_from_files(self, reset: bool = False, ask_overwrite: bool = True, **kwargs: Any) -> None:
         """
         Load the grid and data files into the surface object.
@@ -804,29 +833,56 @@ class Surface(ComponentBase):
         # Get the names of all data files in the data directory that are not the grid file
         regrid = self._regrid_if_needed(**kwargs)
         reset = reset or regrid
-
-        data_file_list = list(self.output_dir.glob(f"{self._output_file_prefix}*.{self._output_file_extension}"))
-        if self.grid_file in data_file_list:
-            data_file_list.remove(self.grid_file)
-
-        # if data_file_list is empty, set reset to True
-        reset = reset or not data_file_list
-
-        try:
-            with xr.open_dataset(self.grid_file) as uxgrid:
-                uxgrid.load()
-                if reset:  # Create an empty dataset
-                    self._uxds = uxr.UxDataset()
-                else:  # Read data from from existing datafiles
-                    with uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False) as ds:
-                        self._uxds = ds.isel(time=-1).load()
-                self._uxds.uxgrid = uxr.Grid.from_dataset(uxgrid)
-                self._uxgrid = uxgrid
-        except Exception as e:
-            raise RuntimeError("Error loading grid and data files") from e
+        # Read in only the last saved data file
+        uxds, _ = self.read_file(interval_number=-1, reset=reset, **kwargs)
+        if "time" in uxds.dims:
+            uxds = uxds.isel(time=-1)
+        object.__setattr__(self, "_uxds", uxds)
 
         if reset:
             self.reset(ask_overwrite=ask_overwrite, **kwargs)
+
+        return
+
+    @staticmethod
+    def _write_grid_file(uxgrid: uxr.Grid, grid_file) -> None:
+        """
+        Write the grid to a NetCDF file.
+
+        Parameters
+        ----------
+        uxgrid : uxr.Grid
+            The grid to write.
+        grid_file : Path
+            The path to the grid file.
+        """
+        import uxarray.conventions.ugrid as ugrid
+
+        grid_file.unlink(missing_ok=True)
+
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            ds = uxgrid.to_xarray()
+
+            # There is some issue that is causing a mismatch between the data variables and the grid_topology attributes that is causing problems when reading the file back in under some circumstances, such as deleting the grid file and reinitializing the surface. To get around this, we will check that all of the attributes are correct before writing the file.
+            ugrid_names = ugrid.CONNECTIVITY_NAMES + ugrid.DIM_NAMES
+            for name in ugrid_names:
+                if name in ds.grid_topology.attrs and name not in ds:
+                    del ds.grid_topology.attrs[name]
+            if "edge_dimension" in ds.grid_topology.attrs and "n_edge" not in ds:
+                del ds.grid_topology.attrs["edge_dimension"]
+            if "face_coordinates" in ds.grid_topology.attrs:
+                face_coords = ds.grid_topology.attrs["face_coordinates"].split()
+                for coord in face_coords:
+                    if coord not in ds:
+                        del ds.grid_topology.attrs["face_coordinates"]
+                        break
+
+            ds.to_netcdf(temp_file.name)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+
+        # Replace the original file only if writing succeeded
+        shutil.move(temp_file.name, grid_file)
 
         return
 
@@ -834,21 +890,12 @@ class Surface(ComponentBase):
         """
         Generate a tessellated mesh of a sphere of based on the particular Surface component that is being used.
         """
-        self.grid_file.unlink(missing_ok=True)
-
         points = self._generate_face_distribution(**kwargs)
 
         threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-6)
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
         uxgrid.attrs["_id"] = self._id
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            uxgrid.to_xarray().to_netcdf(temp_file.name)
-            temp_file.flush()
-            os.fsync(temp_file.fileno())
-
-        # Replace the original file only if writing succeeded
-        shutil.move(temp_file.name, self.grid_file)
-        self._uxgrid = uxgrid
+        self._write_grid_file(uxgrid, self.grid_file)
 
         regrid = self._regrid_if_needed(**kwargs)
         if regrid:
@@ -885,8 +932,9 @@ class Surface(ComponentBase):
                     uxgrid = uxr.Grid.from_dataset(ds)
                     old_id = uxgrid.attrs.get("_id")
                     regrid = old_id != self._id
-            except Exception:
+            except Exception as e:
                 # Failed to open an old file for whatever reason, so we'll need to regrid
+                print(f"Failed to read existing grid file, will create a new grid {e}")
                 regrid = True
 
         if regrid:
@@ -958,7 +1006,6 @@ class Surface(ComponentBase):
         isfacedata: bool = True,
         save_to_file: bool = False,
         interval_number: int = 0,
-        combine_data_files: bool = False,
         dtype=np.float64,
     ) -> None:
         """
@@ -980,8 +1027,6 @@ class Surface(ComponentBase):
             Specify whether the data should be saved to a file. Default is False.
         interval_number : int, optional, default 0
             The interval number to use when saving the data to the data file.
-        combine_data_files : bool, optional
-            If True, combine the current data with the existing data for previous intervals into one data file. Default is False.
         dtype : data-type, optional
             The data type of the data variable. Default is np.float64.
 
@@ -1026,10 +1071,7 @@ class Surface(ComponentBase):
         self._uxds[name] = uxda
 
         if save_to_file:
-            if combine_data_files:
-                filename = Path(f"{self._output_file_prefix}.{self._output_file_extension}")
-            else:
-                filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")
+            filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")
 
             self._save_data(uxda, interval_number=interval_number, filename=filename, output_dir=self.output_dir)
         return
@@ -1671,6 +1713,8 @@ class LocalSurface(CratermakerBase):
         The location of the center of the view in degrees. This is intended to be passed via the extract_region method of Surface.
     region_radius : FloatLike | None, optional
         The radius of the region to include in the view in meters. This is intended to be passed via the extract_region method of Surface.
+    reset : bool, optional
+        Flag to indicate whether to remove any existing data files in the output directory. Default is True.
     **kwargs : Any
         Additional keyword arguments passed to the CratermakerBase initializer.
     """
@@ -2285,48 +2329,368 @@ class LocalSurface(CratermakerBase):
 
         return self.surface._compute_elevation_to_cartesian(position, elevation)
 
-    def to_gpkg(
+    def export(
         self,
-        interval_number: int = 0,
-        save_geometry=True,
-        reset: bool = True,
+        driver: str = "GPKG",
+        interval_number: int | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Export the surface view data to a specified file format and stores it in the default export directory.
+
+        If the format is "VTK," the data will be exported using the :meth:`Surface.to_vtk` method. Otherwise, it will use the :meth:`Surface.to_vector_file` to export the data.
+
+        Parameters
+        ----------
+        driver : str, optional
+            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        **kwargs : Any
+            Additional keyword arguments to pass to the GeoPandas to_file method.
+        """
+        if driver.upper() in ["VTK", "VTP"]:
+            self.to_vtk_file(
+                interval_number=interval_number,
+                **kwargs,
+            )
+        else:
+            self.to_vector_file(
+                driver=driver,
+                interval_number=interval_number,
+                **kwargs,
+            )
+        return
+
+    def to_vector_file(
+        self,
+        driver: str = "GPKG",
+        interval_number: int | None = None,
         **kwargs,
     ) -> None:
         """
-        Export the surface view data to a GeoPackage file and stores it in the default export directory.
+        Export the face-associated data from the surface view data to a vector file using GeoPandas.
+
+        See `geopandas.GeoDataFrame.to_file <https://geopandas.org/en/stable/docs/reference/api/geopandas.GeoDataFrame.to_file.html>`_ for more detailed information on the available parameters.
+
+        Parameters
+        ----------
+        driver : str, optional
+            The file format driver to use for exporting. Default is 'GPKG'.
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        **kwargs : Any
+            Additional keyword arguments to pass to the GeoPandas to_file method.
+        """
+
+        def _write_dataset(uxds, filename, layer_name, driver, **kwargs):
+            if (
+                self.location is None
+            ):  # Exclude periodic elements for global surfaces. For some reason, UxArray gets the windings wrong when using the split argument, so we have to exclude instead.
+                gdfargs = {"engine": "geopandas", "periodic_elements": "exclude"}
+            else:
+                gdfargs = {"engine": "geopandas", "periodic_elements": "ignore"}
+
+            # Convert to GeoDataFrame and set the CRS correctly for the type of surface
+            gdf = uxds.uxgrid.to_geodataframe(**gdfargs).set_crs(self.surface.crs).to_crs(self.crs)
+            variables = [v for v in uxds.data_vars if any(dim == "n_face" for dim in uxds[v].dims)]
+            if not variables:
+                raise ValueError("No face-based variables found to export to file.")
+
+            # Shapefile can't store the crater id layers, so we remove variables with the pattern "idXX"
+            if driver == "ESRI Shapefile":
+                variables = [var for var in variables if not var.startswith("id")]
+
+            for var in variables:
+                if len(uxdsi[var].dims) == 1:
+                    gds = uxdsi[var].to_geodataframe(**gdfargs)
+                    gdf[var] = gds[var]
+                elif "layer" in uxdsi[var].dims:
+                    for layer in range(uxdsi.layer.size):
+                        gds = uxdsi[var].isel(layer=layer).to_geodataframe(**gdfargs)
+                        gdf[f"{var}{layer:02d}"] = gds[var]
+
+            # Rename columns if exporting to Shapefile to comply with field name length limits
+            if driver == "ESRI Shapefile":
+                gdf = gdf.rename(columns={col: shp_key_fix(col) for col in gdf.columns})
+
+            print(f"Exporting to {filename} using driver {driver}")
+            gdf.to_file(filename, layer=layer_name, driver=driver, **kwargs)
+            return
+
+        def shp_key_fix(key: str) -> str:
+            """
+            ESRI Shapefile format limits field names to 10 characters, so this function substitues longer names with shorter alternatives, truncates the results, and sets them to upper case.
+            """
+            alt_names = {
+                "face_elevation": "faceelev",
+                "face_distance": "facedis",
+                "face_bearing": "facebearng",
+                "face_indices": "faceindx",
+            }
+            for long, short in alt_names.items():
+                if long in key:
+                    key = key.replace(long, short)
+            return key[:10].upper()
+
+        # Map of OGR drivers to file extensions
+        driver_to_extension_map = {
+            "PCIDSK": "pix",
+            "PDS4": "xml",
+            "PDF": "pdf",
+            "MBTiles": "mbtiles",
+            "ESRI Shapefile": "shp",
+            "MapInfo File": "tab",
+            "S57": "000",
+            "DGN": "dgn",
+            "CSV": "csv",
+            "GML": "gml",
+            "GPX": "gpx",
+            "KML": "kml",
+            "GeoJSON": "json",
+            "GeoJSONSeq": "geojsonl",
+            "OGR_GMT": "gmt",
+            "GPKG": "gpkg",
+            "SQLite": "sqlite",
+            "WAsP": "map",
+            "OpenFileGDB": "gdb",
+            "DXF": "dxf",
+            "FlatGeobuf": "fgb",
+            "PGDUMP": "sql",
+            "GPSBabel": "mps",
+            "ODS": "ods",
+            "XLSX": "xlsx",
+            "JML": "jml",
+            "VDV": "txt",
+            "MVT": "mvt",
+            "PMTiles": "pmtiles",
+            "JSONFG": "json",
+            "MiraMonVector": "pol",
+        }
+
+        if driver in driver_to_extension_map:
+            file_extension = driver_to_extension_map[driver]
+        else:
+            raise ValueError("Cannot infer file extension from driver {driver}.")
+
+        # load data and select the face-based variables
+        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
+
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_number = interval_numbers[interval_number]
+            interval_numbers = [interval_number]
+
+        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
+            old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
+            for f in old_vector_files:
+                f.unlink()
+
+        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
+            uxdsi = uxds.sel(time=time).load()
+            filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
+            _write_dataset(uxdsi, filename=filename, layer_name="face_data", driver=driver, **kwargs)
+
+        return
+
+    def to_vtk_file(
+        self,
+        interval_number: int | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Export the regional mesh to a VTK file and store it in the default export directory.
 
         Parameters
         ----------
         interval_number : int, optional
-            The interval number to save, by default 0.
-        save_geometry : bool, optional
-            Whether to save the grid geometry to a separate GeoPackage file, by default True.
-        reset : bool, optional
-            Whether or not to erase any existing data in the output directory before saving, by default True.
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         **kwargs : Any
-            Additional keyword arguments (ignored).
+            Additional keyword arguments
         """
+        from vtk import (
+            VTK_POLYGON,
+            vtkPoints,
+            vtkUnstructuredGrid,
+            vtkXMLPolyDataWriter,
+        )
+        from vtkmodules.util.numpy_support import numpy_to_vtk
+        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
+        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
-        def _write_array(da, gpk_path, layer_name):
-            gdf = da.to_geodataframe(engine="geopandas").set_crs(self.surface.crs).to_crs(self.crs)
-            gdf.to_file(gpk_path, layer=layer_name, driver="GPKG")
+        def _write_current_grid(current_grid, vtk_point_normals, output_filename):
+            if output_filename.exists():
+                output_filename.unlink()
+            geom_filter = vtkGeometryFilter()
+            geom_filter.SetInputData(current_grid)
+            geom_filter.Update()
+            poly_data = geom_filter.GetOutput()
 
-        # load data and select the face-based variables
-        ds = self.uxds.load()
-        variables = [v for v in ds.data_vars if any(dim == "n_face" for dim in ds[v].dims)]
-        if not variables:
-            raise ValueError("No face-based variables found to export to GeoPackage.")
+            poly_data.GetPointData().SetNormals(vtk_point_normals)
+            normals_filter = vtkPolyDataNormals()
+            normals_filter.SetInputData(poly_data)
+            normals_filter.ComputeCellNormalsOn()
+            normals_filter.Update()
+            poly_data_with_normals = normals_filter.GetOutput()
 
-        # Export each face-associated variable as its own layer in the GeoPackage file
-        gpkg_path = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.gpkg"
-        if reset and gpkg_path.exists():
-            gpkg_path.unlink()
-        for var in variables:
-            if len(ds[var].dims) == 1:
-                _write_array(ds[var], gpkg_path, layer_name="face_data")
-            elif "layer" in ds[var].dims:
-                for layer in range(ds.layer.size):
-                    _write_array(ds[var].isel(layer=layer).rename(f"{var}{layer:02d}"), gpkg_path, layer_name="face_data")
+            writer.SetFileName(output_filename)
+            writer.SetInputData(poly_data_with_normals)
+            print(f"Exporting to {output_filename}")
+            writer.Write()
+            return
+
+        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
+            old_vtk_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{_VTK_FILE_EXTENSION}"))
+            for f in old_vtk_files:
+                f.unlink()
+
+        # Check if we need to save the geometry file
+        grid_filename = self.output_dir / f"{self._grid_file_prefix}.{_VTK_FILE_EXTENSION}"
+        save_geometry = not grid_filename.exists()
+
+        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_number = interval_numbers[interval_number]
+            interval_numbers = [interval_number]
+
+        node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
+        node_normals = node_xyz / self.radius
+        vtk_point_normals = numpy_to_vtk(node_normals.astype(np.float32), deep=True)
+        vtk_point_normals.SetNumberOfComponents(3)
+        vtk_point_normals.SetName("Normals")
+
+        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
+            uxdsi = uxds.sel(time=time).load()
+
+            # Warp the mesh according to node elevation
+            warped_xyz = node_xyz + uxdsi.node_elevation.data[:, None] * node_normals
+
+            node_x = warped_xyz[:, 0]
+            node_y = warped_xyz[:, 1]
+            node_z = warped_xyz[:, 2]
+
+            vtk_data = vtkUnstructuredGrid()
+            nodes = vtkPoints()
+            for i in range(self.n_node):
+                nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
+            vtk_data.SetPoints(nodes)
+            vtk_data.Allocate(self.n_face)
+            for i, n in enumerate(self.n_nodes_per_face):
+                point_ids = self.face_node_connectivity[i][0:n]
+                vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids)
+
+            writer = vtkXMLPolyDataWriter()
+            writer.SetDataModeToBinary()
+            writer.SetCompressorTypeToZLib()
+
+            if save_geometry:
+                # Saves the surface mesh and its geometry as a separate file
+                geometry_variables = [
+                    "node_x",
+                    "node_y",
+                    "node_z",
+                    "node_lon",
+                    "node_lat",
+                    "face_x",
+                    "face_y",
+                    "face_z",
+                    "face_lon",
+                    "face_lat",
+                    "face_area",
+                    "face_size",
+                ]
+                current_grid = vtkUnstructuredGrid()
+                current_grid.DeepCopy(vtk_data)
+
+                for v in geometry_variables:
+                    # extract the attribute v from the self object
+                    array = numpy_to_vtk(getattr(self, v), deep=True)
+                    array.SetName(v)
+                    n = getattr(self, v).size
+                    if n == self.n_face:
+                        current_grid.GetCellData().AddArray(array)
+                    elif n == self.n_node:
+                        current_grid.GetPointData().AddArray(array)
+
+                _write_current_grid(current_grid, vtk_point_normals, grid_filename)
+
+            current_grid = vtkUnstructuredGrid()
+            current_grid.DeepCopy(vtk_data)
+
+            for v in uxdsi.variables:
+                array = numpy_to_vtk(uxdsi[v].values, deep=True)
+                array.SetName(v)
+                if "n_face" in uxdsi[v].dims:
+                    current_grid.GetCellData().AddArray(array)
+                elif "n_node" in uxdsi[v].dims:
+                    current_grid.GetPointData().AddArray(array)
+                    if v == "node_elevation":
+                        current_grid.GetPointData().SetActiveScalars(v)
+                elif uxdsi[v].dims == ("time",) or uxdsi[v].size == 1:
+                    current_grid.GetFieldData().AddArray(array)
+
+            filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
+            _write_current_grid(current_grid, vtk_point_normals, filename)
+
+        return
+
+    def save(
+        self,
+        interval_number: int = 0,
+        time_variables: dict | None = None,
+        include_variables: list[str] | tuple[str, ...] | None = None,
+        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        **kwargs,
+    ) -> None:
+        """
+        Save the region surface data to the specified directory.
+
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+
+        Parameters
+        ----------
+        interval_number : int, optional
+            Interval number to append to the data file name. Default is 0.
+        time_variables : dict, optional
+            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        include_variables : list[str] or tuple[str, ...], optional
+            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
+        exclude_variables : list[str] or tuple[str, ...], optional
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+
+        **kwargs : Any
+            Additional keyword arguments to pass to the export function.
+        """
+        self.surface.output_dir.mkdir(parents=True, exist_ok=True)
+
+        if time_variables is None:
+            time_variables = {"elapsed_time": float(interval_number)}
+        else:
+            if not isinstance(time_variables, dict):
+                raise TypeError("time_variables must be a dictionary")
+
+        self.uxds.close()
+
+        ds = self.uxds.expand_dims(dim="time").assign_coords({"time": [interval_number]})
+        for k, v in time_variables.items():
+            ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time": [interval_number]})
+
+        if include_variables is not None:
+            keep_vars = [k for k in ds.data_vars if k in include_variables]
+            ds = ds[keep_vars]
+        elif exclude_variables is not None:
+            drop_vars = [k for k in ds.data_vars if k in exclude_variables]
+            if len(drop_vars) > 0:
+                ds = ds.drop_vars(drop_vars)
+
+        filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")
+        (self.surface.output_dir / filename).unlink(missing_ok=True)
+
+        self.surface._save_data(ds, interval_number=interval_number, filename=filename, output_dir=self.surface.output_dir)
+
+        if self.location is not None:  # Save the local grid if this is a local surface
+            self.surface._write_grid_file(self.uxgrid, self.grid_file)
 
         return
 
@@ -2345,11 +2709,16 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
+        # Check if rasterio is installed, and if not, just return without plotting
+        try:
+            from rasterio.features import rasterize
+            from rasterio.transform import Affine, from_bounds
+        except ImportError:
+            warnings.warn("rasterio is not installed. Cannot plot hillshade.", stacklevel=2)
+            return
+
         import matplotlib.pyplot as plt
-        import rasterio as rio
         from matplotlib.colors import LightSource
-        from rasterio.features import rasterize
-        from rasterio.transform import Affine, from_bounds
 
         face_elevation = self.uxds["face_elevation"].load()
         if self.location is None:
@@ -2459,235 +2828,6 @@ class LocalSurface(CratermakerBase):
         else:
             plt.show(**kwargs)
         plt.close(fig)
-        return
-
-    def to_vtk(
-        self,
-        interval_number: int = 0,
-        time_variables: dict | None = None,
-        save_geometry=True,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Export the regional mesh to a VTK file and store it in the default export directory.
-
-        Parameters
-        ----------
-        interval_number : int, optional
-            Interval number to append to the data file name. Default is 0.
-        time_variables : dict, optional
-            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        save_geometry : bool, optional
-            If True, saves the surface mesh geometry as a separate file. Default is True.
-        **kwargs : Any
-            Additional keyword arguments to pass to the export function.
-        """
-        from vtk import (
-            VTK_POLYGON,
-            vtkPoints,
-            vtkUnstructuredGrid,
-            vtkXMLPolyDataWriter,
-        )
-        from vtkmodules.util.numpy_support import numpy_to_vtk
-        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
-        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
-
-        # Create the output directory if it doesn't exist
-        output_dir = self.surface.output_dir
-        output_dir.mkdir(parents=True, exist_ok=True)
-        # print(f"VTK export to directory: '{output_dir}'")
-
-        data_file_list = list(output_dir.glob(f"*.{self._output_file_extension}"))
-        if self.surface.grid_file in data_file_list:
-            data_file_list.remove(self.surface.grid_file)
-
-        n_node = self.n_node
-        n_face = self.n_face
-
-        # Warp the mesh according to node elevation
-        node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
-        node_normals = node_xyz / self.radius
-
-        warped_xyz = node_xyz + self.node_elevation[:, None] * node_normals
-
-        node_x = warped_xyz[:, 0]
-        node_y = warped_xyz[:, 1]
-        node_z = warped_xyz[:, 2]
-        n_nodes_per_face = self.n_nodes_per_face
-        face_node_connectivity = self.face_node_connectivity
-
-        vtk_data = vtkUnstructuredGrid()
-        nodes = vtkPoints()
-        for i in range(n_node):
-            nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
-        vtk_data.SetPoints(nodes)
-        vtk_data.Allocate(n_face)
-        for i, n in enumerate(n_nodes_per_face):
-            point_ids = face_node_connectivity[i][0:n]
-            vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids)
-
-        writer = vtkXMLPolyDataWriter()
-        writer.SetDataModeToBinary()
-        writer.SetCompressorTypeToZLib()
-
-        vtk_point_normals = numpy_to_vtk(node_normals.astype(np.float32), deep=True)
-        vtk_point_normals.SetNumberOfComponents(3)
-        vtk_point_normals.SetName("Normals")
-
-        if save_geometry:
-            # Saves the surface mesh and its geometry as a separate file
-            # print("Saving surface geometry VTK file...")
-            geometry_variables = [
-                "node_x",
-                "node_y",
-                "node_z",
-                "node_lon",
-                "node_lat",
-                "face_x",
-                "face_y",
-                "face_z",
-                "face_lon",
-                "face_lat",
-                "face_area",
-                "face_size",
-            ]
-            current_grid = vtkUnstructuredGrid()
-            current_grid.DeepCopy(vtk_data)
-
-            for v in geometry_variables:
-                # extract the attribute v from the self object
-                array = numpy_to_vtk(getattr(self, v), deep=True)
-                array.SetName(v)
-                n = getattr(self, v).size
-                if n == self.n_face:
-                    current_grid.GetCellData().AddArray(array)
-                elif n == self.n_node:
-                    current_grid.GetPointData().AddArray(array)
-
-            geom_filter = vtkGeometryFilter()
-            geom_filter.SetInputData(current_grid)
-            geom_filter.Update()
-            poly_data = geom_filter.GetOutput()
-
-            poly_data.GetPointData().SetNormals(vtk_point_normals)
-            normals_filter = vtkPolyDataNormals()
-            normals_filter.SetInputData(poly_data)
-            normals_filter.ComputeCellNormalsOn()
-            normals_filter.Update()
-            poly_data_with_normals = normals_filter.GetOutput()
-
-            output_filename = output_dir / f"{self._grid_file_prefix}.{_VTK_FILE_EXTENSION}"
-            writer.SetFileName(output_filename)
-            writer.SetInputData(poly_data_with_normals)
-            writer.Write()
-            # print(f"Saved surface geometry VTK file: '{output_filename}'")
-
-        ds = self.uxds.load()
-        current_grid = vtkUnstructuredGrid()
-        current_grid.DeepCopy(vtk_data)
-
-        for v in ds.variables:
-            array = numpy_to_vtk(ds[v].values, deep=True)
-            array.SetName(v)
-            n = ds[v].size
-            if "n_face" in ds[v].dims:
-                current_grid.GetCellData().AddArray(array)
-            elif "n_node" in ds[v].dims:
-                current_grid.GetPointData().AddArray(array)
-                if v == "node_elevation":
-                    current_grid.GetPointData().SetActiveScalars(v)
-            elif n == 1:
-                current_grid.GetFieldData().AddArray(array)
-
-        if time_variables is None:
-            time_variables = {"elapsed_time": float(interval_number)}
-        else:
-            if not isinstance(time_variables, dict):
-                raise TypeError("time_variables must be a dictionary")
-
-        for k, v in time_variables.items():
-            array = numpy_to_vtk(np.array([v]), deep=True)
-            array.SetName(k)
-            current_grid.GetFieldData().AddArray(array)
-
-        geom_filter = vtkGeometryFilter()
-        geom_filter.SetInputData(current_grid)
-        geom_filter.Update()
-        poly_data = geom_filter.GetOutput()
-        poly_data.GetPointData().SetNormals(vtk_point_normals)
-
-        normals_filter = vtkPolyDataNormals()
-        normals_filter.SetInputData(poly_data)
-        normals_filter.ComputeCellNormalsOn()
-        normals_filter.Update()
-        poly_data_with_normals = normals_filter.GetOutput()
-
-        output_filename = output_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
-        writer.SetFileName(output_filename)
-        writer.SetInputData(poly_data_with_normals)
-        writer.Write()
-        # print(f"Saved surface geometry VTK file: '{output_filename}'")
-        return
-
-    def save(
-        self,
-        combine_data_files: bool = False,
-        interval_number: int = 0,
-        time_variables: dict | None = None,
-        include_variables: list[str] | tuple[str, ...] | None = None,
-        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
-        **kwargs,
-    ) -> None:
-        """
-        Save the region surface data to the specified directory.
-
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
-
-        Parameters
-        ----------
-        combine_data_files : bool, optional
-            If True, combine the current data with the existing data for previous intervals into one data file. Default is False.
-        interval_number : int, optional
-            Interval number to append to the data file name. Default is 0.
-        time_variables : dict, optional
-            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        include_variables : list[str] or tuple[str, ...], optional
-            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
-        exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
-
-        **kwargs : Any
-            Additional keyword arguments to pass to the export function.
-        """
-        self.surface.output_dir.mkdir(parents=True, exist_ok=True)
-
-        if time_variables is None:
-            time_variables = {"elapsed_time": float(interval_number)}
-        else:
-            if not isinstance(time_variables, dict):
-                raise TypeError("time_variables must be a dictionary")
-
-        self.uxds.close()
-
-        ds = self.uxds.expand_dims(dim="time").assign_coords({"time": [interval_number]})
-        for k, v in time_variables.items():
-            ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time": [interval_number]})
-
-        if include_variables is not None:
-            keep_vars = [k for k in ds.data_vars if k in include_variables]
-            ds = ds[keep_vars]
-        elif exclude_variables is not None:
-            drop_vars = [k for k in ds.data_vars if k in exclude_variables]
-            if len(drop_vars) > 0:
-                ds = ds.drop_vars(drop_vars)
-
-        if combine_data_files:
-            filename = Path(f"{self._output_file_prefix}.{self._output_file_extension}")
-        else:
-            filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")
-
-        self.surface._save_data(ds, interval_number=interval_number, filename=filename, output_dir=self.surface.output_dir)
-
         return
 
     def _calculate_distance(
@@ -3245,6 +3385,70 @@ class LocalSurface(CratermakerBase):
                 self._crs = CRS.from_wkt(wkt)
         return self._crs
 
+    def read_file(self, interval_number: int | None = None, reset: bool = False, **kwargs: Any) -> UxDataset:
+        """
+        Load the grid and data files into a UxDataset object.
+
+        Parameters
+        ----------
+        interval_number : int | None, optional
+            Interval number of data file to read. Default is None (all intervals are read)
+        reset : bool, optional
+            Flag to indicate whether to reset the surface. If True it reads in the grid but creates an empty dataset. Default is False.
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        UxDataset
+            An initialized UxDataset object containing the grid and data.
+        """
+        import re
+
+        data_file_list = list(self.output_dir.glob(f"{self._output_file_prefix}*.{self._output_file_extension}"))
+        if self.grid_file in data_file_list:
+            data_file_list.remove(self.grid_file)
+        interval_numbers = []
+        for data_file in data_file_list:
+            match = re.match(
+                rf"{re.escape(self._output_file_prefix)}(\d{{6}})\.{re.escape(self._output_file_extension)}$", data_file.name
+            )
+            if match:
+                interval_numbers.append(int(match.group(1)))
+        interval_numbers.sort()
+
+        # map the requested interval_number to the index of interval_numbers
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_index = interval_number
+            elif interval_number in interval_numbers:
+                interval_index = interval_numbers.index(interval_number)
+            else:
+                raise ValueError(f"Interval number {interval_number} not found in data files.")
+
+        # if data_file_list is empty, set reset to True
+        reset = reset or not data_file_list
+        if not self.grid_file.exists():
+            raise FileNotFoundError(f"Grid file {self.grid_file} does not exist.")
+
+        try:
+            with xr.open_dataset(self.grid_file) as uxgrid:
+                uxgrid.load()
+                if reset:  # Create an empty dataset
+                    uxds = uxr.UxDataset()
+                else:  # Read data from from existing datafiles
+                    with uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False) as ds:
+                        if interval_number is None:
+                            uxds = ds.load()
+                        else:
+                            uxds = ds.isel(time=[interval_index]).load()
+                uxds.uxgrid = uxr.Grid.from_dataset(uxgrid)
+        except Exception as e:
+            raise RuntimeError(
+                f"Error loading grid and data files. Check that the output file for interval_number={interval_number} exists."
+            ) from e
+        return uxds, interval_numbers
+
     @property
     def uxgrid(self) -> uxr.Grid:
         """
@@ -3316,6 +3520,13 @@ class LocalSurface(CratermakerBase):
             data = self.edge_indices
         ds["edge_indices"] = xr.DataArray(data=data, dims=("n_edge",))
         return uxr.UxDataset.from_xarray(ds=ds, uxgrid=self.uxgrid)
+
+    @property
+    def grid_file(self):
+        """
+        Path to the grid file.
+        """
+        return self.output_dir / f"{self._grid_file_prefix}.{self._output_file_extension}"
 
     @property
     def pix(self) -> float:
