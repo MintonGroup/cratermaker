@@ -4,10 +4,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
-from pyproj import CRS
-from scipy.spatial.transform import Rotation
-
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import LocalSurface, Surface
@@ -18,6 +14,8 @@ from cratermaker.utils.general_utils import (
     parameter,
     validate_and_normalize_location,
 )
+from numpy.typing import NDArray
+from scipy.spatial.transform import Rotation
 
 
 @Surface.register("hireslocal")
@@ -72,14 +70,18 @@ class HiResLocalSurface(Surface):
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
-        self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
+        self._output_file_pattern += [
+            f"local_{self._output_file_prefix}*.{self._output_file_extension}"
+        ]
 
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
         if superdomain_scale_factor is not None:
             self.superdomain_scale_factor = superdomain_scale_factor
-            self._load_from_files(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
+            self._load_from_files(
+                reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs
+            )
 
         return
 
@@ -118,10 +120,14 @@ class HiResLocalSurface(Surface):
         return np.where(
             r < self.local_radius,
             self.pix,
-            self.pix + self.superdomain_function_slope * (r - self.local_radius) ** self.superdomain_function_exponent,
+            self.pix
+            + self.superdomain_function_slope
+            * (r - self.local_radius) ** self.superdomain_function_exponent,
         )
 
-    def extract_region(self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike):
+    def extract_region(
+        self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike
+    ):
         """
         Extract a regional grid based on a given location and radius.
 
@@ -234,9 +240,8 @@ class HiResLocalSurface(Surface):
         **kwargs : Any
             Additional keyword arguments to pass to the scaling and morphology models.
         """
-        from scipy.optimize import curve_fit
-
         from cratermaker import Crater
+        from scipy.optimize import curve_fit
 
         antipode_distance = np.pi * self.target.radius
         projectile_velocity = scaling.projectile.mean_velocity * 10
@@ -278,7 +283,9 @@ class HiResLocalSurface(Surface):
             self._superdomain_function_exponent = 1.0
         self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
-        self._load_from_files(reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs)
+        self._load_from_files(
+            reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs
+        )
         return
 
     def _rotate_point_cloud(self, points):
@@ -394,8 +401,12 @@ class HiResLocalSurface(Surface):
             return points.tolist(), theta_next
 
         print(f"Center of local region: {self.local_location}")
-        print(f"Radius of local region: {format_large_units(self.local_radius, quantity='length')}")
-        print(f"Local region pixel size: {format_large_units(self.pix, quantity='length')}")
+        print(
+            f"Radius of local region: {format_large_units(self.local_radius, quantity='length')}"
+        )
+        print(
+            f"Local region pixel size: {format_large_units(self.pix, quantity='length')}"
+        )
 
         interior_points = []
         theta = 0.0
@@ -415,7 +426,9 @@ class HiResLocalSurface(Surface):
         points = np.array(points, dtype=np.float64)
         points = np.round(points, decimals=decimals)
         points = np.unique(points, axis=0)
-        points = self._rotate_point_cloud(points).T  # rotates from the north pole to local_location
+        points = self._rotate_point_cloud(
+            points
+        ).T  # rotates from the north pole to local_location
 
         return points
 
@@ -425,7 +438,9 @@ class HiResLocalSurface(Surface):
         Returns the local view of the surface.
         """
         if self._local is None:
-            self._local = self.extract_region(location=self.local_location, region_radius=self.local_radius)
+            self._local = self.extract_region(
+                location=self.local_location, region_radius=self.local_radius
+            )
         return self._local
 
     @parameter
@@ -437,7 +452,12 @@ class HiResLocalSurface(Surface):
 
     @pix.setter
     def pix(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+        if (
+            not isinstance(value, FloatLike)
+            or np.isnan(value)
+            or np.isinf(value)
+            or value <= 0
+        ):
             raise TypeError("pix must be a positive float")
         self._pix = value
 
@@ -450,12 +470,21 @@ class HiResLocalSurface(Surface):
 
     @local_radius.setter
     def local_radius(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+        if (
+            not isinstance(value, FloatLike)
+            or np.isnan(value)
+            or np.isinf(value)
+            or value <= 0
+        ):
             raise TypeError("local_radius must be a positive float")
         if value > np.pi * self.radius:
-            raise ValueError("local_radius must be less than pi * radius of the target body")
+            raise ValueError(
+                "local_radius must be less than pi * radius of the target body"
+            )
         if value < self.pix:
-            raise ValueError("local_radius must be greater than or equal to pix (the approximate face size in the local region")
+            raise ValueError(
+                "local_radius must be greater than or equal to pix (the approximate face size in the local region"
+            )
         self._local_radius = value
 
     @parameter
@@ -498,8 +527,15 @@ class HiResLocalSurface(Surface):
 
     @superdomain_scale_factor.setter
     def superdomain_scale_factor(self, value: FloatLike):
-        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
-            raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
+        if (
+            not isinstance(value, FloatLike)
+            or np.isnan(value)
+            or np.isinf(value)
+            or value < 1.0
+        ):
+            raise TypeError(
+                "superdomain_scale_factor must be a positive float greater than or equal to 1"
+            )
         self._superdomain_scale_factor = value
 
     @property
@@ -686,7 +722,9 @@ class LocalHiResLocalSurface(LocalSurface):
         imgdir.mkdir(parents=True, exist_ok=True)
         imagefile = imgdir / f"hillshade{interval_number:06d}.png"
         if time_variables:
-            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+            kwargs["label"] = (
+                f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+            )
         self.plot_hillshade(imagefile=imagefile, **kwargs)
         return
 
@@ -706,7 +744,9 @@ class LocalHiResLocalSurface(LocalSurface):
                 face_indices = self.face_indices
                 node_indices = self.node_indices
                 edge_indices = self.edge_indices
-            self._face_mask = np.isin(face_indices, self.surface.local.face_indices, kind="table")
+            self._face_mask = np.isin(
+                face_indices, self.surface.local.face_indices, kind="table"
+            )
             if not np.any(self._face_mask):
                 return None
             shared_faces = face_indices[self._face_mask]
@@ -717,12 +757,16 @@ class LocalHiResLocalSurface(LocalSurface):
                 self._node_mask = np.full(self.n_node, True, dtype=bool)
                 self._edge_mask = np.full(self.n_edge, True, dtype=bool)
             else:
-                self._node_mask = np.isin(node_indices, self.surface.local.node_indices, kind="table")
+                self._node_mask = np.isin(
+                    node_indices, self.surface.local.node_indices, kind="table"
+                )
                 if not np.any(self._node_mask):
                     return None
                 shared_nodes = node_indices[self._node_mask]
 
-                self._edge_mask = np.isin(edge_indices, self.surface.local.edge_indices, kind="table")
+                self._edge_mask = np.isin(
+                    edge_indices, self.surface.local.edge_indices, kind="table"
+                )
                 if not np.any(self._edge_mask):
                     return None
                 shared_edges = edge_indices[self._edge_mask]
