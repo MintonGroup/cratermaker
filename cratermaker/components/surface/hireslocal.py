@@ -243,6 +243,11 @@ class HiResLocalSurface(Surface):
         from cratermaker import Crater
         from scipy.optimize import curve_fit
 
+        scaling = Scaling.maker(scaling, target=self.target, **kwargs)
+        morphology = Morphology.maker(
+            morphology, surface=self, target=self.target, **kwargs
+        )
+
         antipode_distance = np.pi * self.target.radius
         projectile_velocity = scaling.projectile.mean_velocity * 10
 

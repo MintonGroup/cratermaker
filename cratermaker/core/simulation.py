@@ -14,6 +14,7 @@ from ..components.production import Production
 from ..components.projectile import Projectile
 from ..components.scaling import Scaling
 from ..components.surface import Surface
+from ..components.surface.hireslocal import HiResLocalSurface
 from ..components.target import Target
 from ..constants import (
     _COMPONENT_NAMES,
@@ -190,7 +191,10 @@ class Simulation(CratermakerBase):
             counting=self.counting,
             **morphology_config,
         )
-        if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
+        if (
+            issubclass(self.surface.__class__, HiResLocalSurface)
+            and self.surface.uxgrid is None
+        ):
             self.surface._set_superdomain(
                 scaling=self.scaling,
                 morphology=self.morphology,

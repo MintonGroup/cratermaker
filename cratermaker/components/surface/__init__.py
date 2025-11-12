@@ -2056,7 +2056,9 @@ class LocalSurface(CratermakerBase):
                 else:
                     raise_invalid_elevation_error()
         except Exception as e:
-            raise ValueError("new_elev must be None, a scalar, or an array") from e
+            raise ValueError(
+                "new_elev must be None, a scalar, or an array with the same number of elements as either the faces or nodes of the surface mesh."
+            ) from e
 
         if update_face:
             self.add_data(
