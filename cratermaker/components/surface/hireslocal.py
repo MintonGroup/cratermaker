@@ -722,7 +722,7 @@ class LocalHiResLocalSurface(LocalSurface):
         imagefile = imgdir / f"hillshade{interval_number:06d}.png"
         if time_variables:
             kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
-        self.plot_hillshade(imagefile=imagefile, **kwargs)
+        self.plot(imagefile=imagefile, **kwargs)
         return
 
     @property

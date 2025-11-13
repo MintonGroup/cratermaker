@@ -14,6 +14,7 @@ import numpy as np
 import uxarray as uxr
 import xarray as xr
 from cratermaker._cratermaker import surface_functions
+from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS
 from scipy.optimize import OptimizeWarning, curve_fit
@@ -678,7 +679,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def plot_hillshade(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
+    def plot(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
         """
         Plot a hillshade image of the surface.
 
@@ -693,7 +694,7 @@ class Surface(ComponentBase):
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
-        return self._full().plot_hillshade(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+        return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
 
     @staticmethod
     def _sphere_function(coords, x_c, y_c, z_c, r):
@@ -2798,18 +2799,36 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def plot_hillshade(self, imagefile=None, label=None, scalebar=False, **kwargs: Any) -> None:
+    def plot(
+        self,
+        style: str = "hillshade",
+        variable: str = "face_elevation",
+        imagefile=None,
+        label=None,
+        scalebar=False,
+        show=True,
+        ax: Axes | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Plot a hillshade image of the local region.
 
         Parameters
         ----------
+        style : str, optional
+            The style of the plot. Currently, only "hillshade" is supported. Default is "hillshade".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
             If True, a scalebar will be added to the plot. Default is True.
+        show : bool, optional
+            If True, the plot will be displayed. Default is True.
+        ax : matplotlib.axes.Axes, optional
+            An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
@@ -2818,16 +2837,18 @@ class LocalSurface(CratermakerBase):
             from rasterio.features import rasterize
             from rasterio.transform import Affine, from_bounds
         except ImportError:
-            warnings.warn("rasterio is not installed. Cannot plot hillshade.", stacklevel=2)
+            warnings.warn("rasterio is not installed. Cannot generate plot.", stacklevel=2)
             return
 
         import matplotlib.pyplot as plt
         from matplotlib.colors import LightSource
 
-        face_elevation = self.uxds["face_elevation"].load()
+        if variable not in self.uxds:
+            raise ValueError(f"Variable '{variable}' not found in the surface data.")
+        da = self.uxds[variable].load()
         if self.location is None:
             # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
-            gdf = face_elevation.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
+            gdf = da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
             xmin, xmax = -180.0, 180.0
             ymin, ymax = -90.0, 90.0
             deg_per_pix = 180.0 * self.pix / (np.pi * self.radius)
@@ -2838,11 +2859,7 @@ class LocalSurface(CratermakerBase):
             transform = from_bounds(xmin, ymin, xmax, ymax, W, H)
             scalebar = False
         else:
-            gdf = (
-                face_elevation.to_geodataframe(engine="geopandas", periodic_elements="ignore")
-                .set_crs(self.surface.crs)
-                .to_crs(self.crs)
-            )
+            gdf = da.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
             R = self.region_radius
             xmin, xmax = -R, R
             ymin, ymax = -R, R
@@ -2853,7 +2870,7 @@ class LocalSurface(CratermakerBase):
             # upper-left at (-R, +R); y increases downward in rasters
             transform = Affine.translation(-R, R) * Affine.scale(xres, -yres)
 
-        vals = gdf["face_elevation"].to_numpy()
+        vals = gdf[variable].to_numpy()
         geoms = gdf.geometry.values
         shapes = [
             (geom, float(val))
@@ -2870,20 +2887,30 @@ class LocalSurface(CratermakerBase):
             all_touched=True,
         )
 
-        # Generate hillshade
-        azimuth = 300.0
-        solar_angle = 20.0
-        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
-        hillshade = ls.hillshade(band, dx=self.pix, dy=self.pix, fraction=1.0)
+        if style == "hillshade":
+            # Generate hillshade
+            azimuth = 300.0
+            solar_angle = 20.0
+            ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+            cvals = ls.hillshade(band, dx=self.pix, dy=self.pix, fraction=1.0)
+            cmap = kwargs.pop("cmap", "gray")
+            vmin = 0.0
+            vmax = 1.0
+        elif style == "elevation":
+            cvals = band
+            cmap = kwargs.pop("cmap", "cividis")
+            vmin = np.nanmin(band)
+            vmax = np.nanmax(band)
 
         # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
-        fig, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
+        if ax is not None:
+            fig, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
         ax.imshow(
-            hillshade,
+            cvals,
             interpolation="nearest",
-            cmap="gray",
-            vmin=0.0,
-            vmax=1.0,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
             aspect="equal",
             extent=(xmin, xmax, ymin, ymax),
         )
@@ -2935,10 +2962,9 @@ class LocalSurface(CratermakerBase):
             )
         if imagefile:
             plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=W, **kwargs)
-        else:
+        elif show:
             plt.show(**kwargs)
-        plt.close(fig)
-        return
+        return ax
 
     def _calculate_distance(
         self,
