@@ -757,7 +757,7 @@ class DataSurface(HiResLocalSurface):
         else:
             with xr.open_dataset(self.output_dir / self._demfile) as ds:
                 self.local.update_elevation(ds.isel(time=0).face_elevation)
-                self.local.update_elevatio(ds.isel(time=0).node_elevation)
+                self.local.update_elevation(ds.isel(time=0).node_elevation)
 
         return
 
