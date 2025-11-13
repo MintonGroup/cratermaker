@@ -6,8 +6,11 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from cratermaker import Morphology, Scaling, Surface, Target
+from cratermaker.components.morphology import Morphology
+from cratermaker.components.scaling import Scaling
+from cratermaker.components.surface import Surface
 from cratermaker.components.surface.hireslocal import HiResLocalSurface
+from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import (
     format_large_units,
@@ -75,7 +78,7 @@ class DataSurface(HiResLocalSurface):
         object.__setattr__(self, "_local", None)
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
-        object.__setattr__(self, "_datadir", None)
+        object.__setattr__(self, "_demdir", None)
         object.__setattr__(
             self, "_dem_data", None
         )  # Temporary storage for DEM data during initialization. This will be cleared after the elevation points are set.
@@ -88,7 +91,7 @@ class DataSurface(HiResLocalSurface):
         if demdir is not None:
             self.demdir = demdir
         else:
-            self.demdir = self.simdir / "dem_data"
+            self.demdir = "dem_data"
 
         # Set the attributes directly to avoid triggering checks before the pix value is set
         self._local_radius = local_radius

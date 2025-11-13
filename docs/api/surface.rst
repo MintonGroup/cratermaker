@@ -21,6 +21,10 @@ Available Surface Implementations
 |                             |                        |                       pix=50, local_radius=1e3, |
 |                             |                        |                       local_location=(0,9))     |
 +-----------------------------+------------------------+-------------------------------------------------+
+| DataSurface                 | "datasurface"          | surface = Surface.maker("datasurface",           |
+|                             |                        |                       pix=50, local_radius=1e3, |
+|                             |                        |                       local_location=(0,9))     |
++-----------------------------+------------------------+-------------------------------------------------+
 
 .. autoclass:: cratermaker.components.surface.Surface
    :members:
