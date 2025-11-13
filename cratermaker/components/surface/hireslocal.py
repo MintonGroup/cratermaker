@@ -34,8 +34,8 @@ class HiResLocalSurface(Surface):
         The longitude and latitude of the location in degrees.
     superdomain_scale_factor : FloatLike, optional
         A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters
-        that are modeled outside the local region are those whose ejecta could just reach the boundary. If not provide, then it will
-        be computed based on a provided (or default) scaling and morphology model
+        that are modeled outside the local region are those whose ejecta could just reach the boundary. If a negative number is provided, then it will
+        be computed based on a provided (or default) scaling and morphology model. If None is provided, then the superdomain is not set and you must call set_superdomain manually. Default is -1.
     target : Target, optional
         The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
         or extracted from the scaling model if it is provied
@@ -77,7 +77,10 @@ class HiResLocalSurface(Surface):
         self.local_radius = local_radius
         self.local_location = local_location
         if superdomain_scale_factor is not None:
-            self.superdomain_scale_factor = superdomain_scale_factor
+            if superdomain_scale_factor < 0:
+                self.set_superdomain(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
+            else:
+                self.superdomain_scale_factor = superdomain_scale_factor
             self._load_from_files(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
 
         return
@@ -102,7 +105,7 @@ class HiResLocalSurface(Surface):
         Defines the superdomain scale factor based on the distance from the local boundary.
 
         This is set so that smallest craters that are modeled outside the local region are those whose ejecta could just reach the boundary.
-        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `_set_superdomain` method.
+        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `set_superdomain` method.
 
         Parameters
         ----------
@@ -207,7 +210,7 @@ class HiResLocalSurface(Surface):
         )
         return
 
-    def _set_superdomain(
+    def set_superdomain(
         self,
         scaling: Scaling | str | None = None,
         morphology: Morphology | str | None = None,

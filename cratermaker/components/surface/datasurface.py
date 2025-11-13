@@ -66,7 +66,7 @@ class DataSurface(HiResLocalSurface):
         self,
         local_radius: FloatLike,
         local_location: PairOfFloats,
-        superdomain_scale_factor: FloatLike | None = None,
+        superdomain_scale_factor: FloatLike | None = -1,
         target: Target | str | None = None,
         reset: bool = True,
         ask_overwrite: bool = False,
@@ -76,8 +76,6 @@ class DataSurface(HiResLocalSurface):
         **kwargs: Any,
     ):
         object.__setattr__(self, "_local", None)
-        object.__setattr__(self, "_superdomain_function_slope", None)
-        object.__setattr__(self, "_superdomain_function_exponent", None)
         object.__setattr__(self, "_demdir", None)
         object.__setattr__(
             self, "_dem_data", None
@@ -97,13 +95,19 @@ class DataSurface(HiResLocalSurface):
         self._local_radius = local_radius
         self._local_location = local_location
         self.pds_file_resolution = pds_file_resolution
-        self.pix = np.pi * self.target.radius / (180 * self.pds_file_resolution)
-        self.local_radius = local_radius
-        self.local_location = local_location
-
-        if superdomain_scale_factor is not None:
-            self.superdomain_scale_factor = superdomain_scale_factor
-            self._load_from_files(reset=reset, regrid=True, ask_overwrite=ask_overwrite, **kwargs)
+        pix = np.pi * self.target.radius / (180 * self.pds_file_resolution)
+        kwargs["regrid"] = True  # Force regrid
+        super().__init__(
+            pix=pix,
+            local_radius=local_radius,
+            local_location=local_location,
+            superdomain_scale_factor=superdomain_scale_factor,
+            target=self.target,
+            reset=reset,
+            ask_overwrite=ask_overwrite,
+            simdir=self.simdir,
+            **kwargs,
+        )
 
         return
 
@@ -174,12 +178,6 @@ class DataSurface(HiResLocalSurface):
         else:
             filename = f"ldem_{pds_file_resolution:d}"
 
-        # extension_list = ["_float.xml", "_float.lbl", "_float.img"]
-        # for ext in extension_list:
-        #     filename_full = self.demdir / f"{filename}{ext}"
-        #     if ext == extension_list[0]:
-        #         imgfilename = filename_full
-        #     url = f"{src_url}{filename}{ext}"
         url = f"{src_url}{filename}_float.xml"
         return url
 
@@ -723,7 +721,7 @@ class DataSurface(HiResLocalSurface):
 
         return points
 
-    def _set_superdomain(
+    def set_superdomain(
         self,
         scaling: Scaling | str | None = None,
         morphology: Morphology | str | None = None,
@@ -746,7 +744,8 @@ class DataSurface(HiResLocalSurface):
         **kwargs : Any
             Additional keyword arguments to pass to the scaling and morphology models.
         """
-        super()._set_superdomain(scaling=scaling, morphology=morphology, reset=reset, regrid=True, **kwargs)
+        kwargs["regrid"] = True  # Force regrid
+        super().set_superdomain(scaling=scaling, morphology=morphology, reset=reset, **kwargs)
         self._add_dem_elevation()
 
         return
