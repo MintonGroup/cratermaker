@@ -88,7 +88,7 @@ class DataSurface(HiResLocalSurface):
         if self.target.name != "Moon":
             raise ValueError("DataSurface currently only supports the Moon as a target.")
         self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
-        self._demfile = f"local_surface_dem.{self._output_file_extension}"
+        self._demfile = f"dem_data.{self._output_file_extension}"
 
         # Set the attributes directly to avoid triggering checks before the pix value is set
         self._local_radius = local_radius
@@ -752,9 +752,12 @@ class DataSurface(HiResLocalSurface):
             Additional keyword arguments for subclasses.
         """
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
-        with xr.open_dataset(self.output_dir / self._demfile) as ds:
-            self.local.update_elevation(ds["face_elevation"])
-            self.local.update_elevatio(ds["node_elevation"])
+        if self._dem_data is not None:
+            self._add_dem_elevation()
+        else:
+            with xr.open_dataset(self.output_dir / self._demfile) as ds:
+                self.local.update_elevation(ds.isel(time=0).face_elevation)
+                self.local.update_elevatio(ds.isel(time=0).node_elevation)
 
         return
 
@@ -774,13 +777,16 @@ class DataSurface(HiResLocalSurface):
         bool
             A boolean indicating whether the grid should be regenerated.
         """
-        if self._dem_data is not None:
-            self._add_dem_elevation()
-        regrid = regrid or not Path(self.output_dir / self._demfile).exists()
-        if not regrid:
-            with xr.open_dataset(self.output_dir / self._demfile) as ds:
-                if ds.n_faces != self.local.n_faces or ds.n_nodes != self.local.n_nodes:
-                    regrid = True
+        if not regrid and self._dem_data is None:
+            if self.uxgrid is not None and Path(self.output_dir / self._demfile).exists():
+                with xr.open_dataset(self.output_dir / self._demfile) as ds:
+                    if (
+                        "face_elevation" not in ds
+                        or "node_elevation" not in ds
+                        or len(ds.face_elevation) != self.local.n_face
+                        or len(ds.node_elevation) != self.local.n_node
+                    ):
+                        regrid = True
 
         return super()._regrid_if_needed(regrid=regrid, **kwargs)
 

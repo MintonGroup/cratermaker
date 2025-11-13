@@ -150,6 +150,10 @@ class HiResLocalSurface(Surface):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
+        include_variables: list[str] | tuple[str, ...] | None = None,
+        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        filename: str | None = None,
+        superdomain: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -163,15 +167,29 @@ class HiResLocalSurface(Surface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        include_variables : list[str] or tuple[str, ...], optional
+            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
+        exclude_variables : list[str] or tuple[str, ...], optional
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+        filename : str or Path, optional
+            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
+        superdomain : bool, optional
+            If True, save the full surface including the superdomain. If False, save only the local region. Default is False.
         """
-        self._full().save(
-            interval_number=interval_number,
-            time_variables=time_variables,
-            **kwargs,
-        )
+        if superdomain:
+            self._full().save(
+                interval_number=interval_number,
+                time_variables=time_variables,
+                include_variables=include_variables,
+                exclude_variables=exclude_variables,
+                filename=f"{superdomain}_{filename}" ** kwargs,
+            )
         self.local.save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=filename,
             **kwargs,
         )
         return
@@ -668,6 +686,9 @@ class LocalHiResLocalSurface(LocalSurface):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
+        include_variables: list[str] | tuple[str, ...] | None = None,
+        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        filename: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -681,10 +702,19 @@ class LocalHiResLocalSurface(LocalSurface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        include_variables : list[str] or tuple[str, ...], optional
+            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
+        exclude_variables : list[str] or tuple[str, ...], optional
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+        filename : str or Path, optional
+            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         """
         super().save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=filename,
             **kwargs,
         )
         imgdir = Path(self.simdir) / "surface_images"
