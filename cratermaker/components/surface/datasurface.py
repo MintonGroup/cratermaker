@@ -710,36 +710,6 @@ class DataSurface(HiResLocalSurface):
 
         return points
 
-    def set_superdomain(
-        self,
-        scaling: Scaling | str | None = None,
-        morphology: Morphology | str | None = None,
-        reset: bool = False,
-        regrid: bool = False,
-        **kwargs: Any,
-    ):
-        """
-        Set the superdomain scale factor based on the scaling and morphology models.
-
-        This sets the cell size at the antipode such that ejecta from a crater of that size just reaches the local region.
-
-        Parameters
-        ----------
-        scaling : Scaling | str | None, optional
-            The scaling model to use. If None, the default scaling model will be used.
-        morphology : Morphology | str | None, optional
-            The morphology model to use. If None, the default morphology model will be used.
-        reset : bool, optional
-            Flag to indicate whether to reset the surface. Default is False.
-        regrid : bool, optional
-            Flag to indicate whether to regrid the surface. Default is False.
-        **kwargs : Any
-            Additional keyword arguments to pass to the scaling and morphology models.
-        """
-        super().set_superdomain(scaling=scaling, morphology=morphology, reset=reset, regrid=regrid, **kwargs)
-
-        return
-
     def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
         """
         Reset the surface to its initial state.
@@ -777,8 +747,12 @@ class DataSurface(HiResLocalSurface):
         bool
             A boolean indicating whether the grid should be regenerated.
         """
+        # DEM data can come from one of two sources. If we are in the middle of building the surface as part of _generate_face_distribution, then the DEM data should be stored in the _dem_data attribute.
+        # If this is not set but we already have a grid generated and stored in the uxgrid attribute, then we need to check if a matching DEM file exists on disk. If neither of these sources are avaailable, then we need to regrid.
         if not regrid and self._dem_data is None:
-            if self.uxgrid is not None and Path(self.output_dir / self._demfile).exists():
+            if not (self.output_dir / self._demfile).exists():
+                regrid = True
+            elif self.uxgrid is not None:
                 with xr.open_dataset(self.output_dir / self._demfile) as ds:
                     if (
                         "face_elevation" not in ds

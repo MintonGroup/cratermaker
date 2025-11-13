@@ -2831,6 +2831,11 @@ class LocalSurface(CratermakerBase):
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
+
+        Returns
+        -------
+        matplotlib.image.AxesImage
+            The AxesImage object created by imshow.
         """
         # Check if rasterio is installed, and if not, just return without plotting
         try:
@@ -2905,7 +2910,7 @@ class LocalSurface(CratermakerBase):
         # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
         if ax is not None:
             fig, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
-        ax.imshow(
+        im = ax.imshow(
             cvals,
             interpolation="nearest",
             cmap=cmap,
@@ -2964,7 +2969,7 @@ class LocalSurface(CratermakerBase):
             plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=W, **kwargs)
         elif show:
             plt.show(**kwargs)
-        return ax
+        return im
 
     def _calculate_distance(
         self,
