@@ -122,64 +122,9 @@ class DataSurface(HiResLocalSurface):
 
         Returns
         -------
-        imgfilename : Path
-            Path to the downloaded or cached DEM file.
+        url: str
+            Link to the DEM file
         """
-
-        def _download(url: str, fname: str, chunk_size=1024):
-            """
-            Download a file from a URL and save it to a local path with progress indication.
-
-            Raises
-            ------
-                FileNotFoundError: if the URL does not exist (HTTP 4xx)
-                ConnectionError: for network/timeout errors
-                requests.HTTPError: for other HTTP error status codes
-            """
-            import requests
-            from tqdm import tqdm
-
-            print(f"Downloading {url} to {filename_full}")
-            if filename_full.exists():
-                # Check if the file matches the size reported by the server
-                head_resp = requests.head(url, timeout=30)
-                head_resp.raise_for_status()
-                total_size = int(head_resp.headers.get("content-length", 0))
-                if filename_full.stat().st_size == total_size:
-                    print(f"File {filename_full} already exists and is complete. Skipping download.")
-                    return
-                else:
-                    print(f"File {filename_full} exists but is incomplete. Re-downloading.")
-            try:
-                with requests.get(url, stream=True, timeout=30) as resp:
-                    try:
-                        resp.raise_for_status()
-                    except requests.HTTPError as e:
-                        # Map 4xx to a clearer FileNotFoundError for callers
-                        if 400 <= resp.status_code < 500:
-                            raise FileNotFoundError(f"URL not found or inaccessible: {url} (status {resp.status_code})") from e
-                        raise
-
-                    total = int(resp.headers.get("content-length", 0))
-                    with (
-                        Path.open(fname, "wb") as file,
-                        tqdm(
-                            desc=str(fname),
-                            total=total,
-                            unit="iB",
-                            unit_scale=True,
-                            unit_divisor=1024,
-                        ) as bar,
-                    ):
-                        for chunk in resp.iter_content(chunk_size=chunk_size):
-                            if not chunk:
-                                continue
-                            size = file.write(chunk)
-                            bar.update(size)
-            except requests.exceptions.RequestException as e:
-                # Timeout, DNS failure, connection refused, etc.
-                raise ConnectionError(f"Failed to download {url}: {e}") from e
-
         if pds_file_resolution not in self._valid_pds_file_resolutions:
             raise ValueError("Invalid resolution.")
 
@@ -217,16 +162,10 @@ class DataSurface(HiResLocalSurface):
             lonhi = int(lonlo + dlon)
 
             # Check to make sure the lo and hi values are in the right direction
-            if latdir.upper() == "N":
-                if latlo > lathi:
-                    tmp = latlo
-                    latlo = lathi
-                    lathi = tmp
-            elif latdir.upper() == "S":
-                if latlo < lathi:
-                    tmp = latlo
-                    latlo = lathi
-                    lathi = tmp
+            if (latdir.upper() == "N" and latlo > lathi) or (latdir.upper() == "S" and latlo < lathi):
+                tmp = latlo
+                latlo = lathi
+                lathi = tmp
 
             return f"{latlo:02d}{latdir.lower()}_{lathi:02d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
 
@@ -235,14 +174,14 @@ class DataSurface(HiResLocalSurface):
         else:
             filename = f"ldem_{pds_file_resolution:d}"
 
-        extension_list = ["_float.xml", "_float.lbl", "_float.img"]
-        for ext in extension_list:
-            filename_full = self.demdir / f"{filename}{ext}"
-            if ext == extension_list[0]:
-                imgfilename = filename_full
-            url = f"{src_url}{filename}{ext}"
-            _download(url, filename_full)
-        return imgfilename
+        # extension_list = ["_float.xml", "_float.lbl", "_float.img"]
+        # for ext in extension_list:
+        #     filename_full = self.demdir / f"{filename}{ext}"
+        #     if ext == extension_list[0]:
+        #         imgfilename = filename_full
+        #     url = f"{src_url}{filename}{ext}"
+        url = f"{src_url}{filename}_float.xml"
+        return url
 
     def _get_dem_data(
         self,
