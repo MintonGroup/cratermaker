@@ -229,6 +229,48 @@ class HiResLocalSurface(Surface):
         )
         return
 
+    def plot(self, imagefile=None, label=None, scalebar=True, superdomain: bool = False, **kwargs: Any) -> None:
+        """
+        Plot a hillshade image of the surface.
+
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
+        superdomain : bool, optional
+            If True, plot the full surface including the superdomain. If False, plot only the local region. Default is False.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if superdomain:
+            return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+        else:
+            return self.local.plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+
+    def show(self, engine: str = "pyvista", variable: str = "face_elevation", superdomain: bool = False, **kwargs) -> None:
+        """
+        Show the surface using an interactive 3D plot.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
+        superdomain : bool, optional
+            If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if superdomain:
+            return self._full().show(engine=engine, variable=variable, **kwargs)
+        else:
+            return self.local.show(engine=engine, variable=variable, **kwargs)
+
     def set_superdomain(
         self,
         scaling: Scaling | str | None = None,
