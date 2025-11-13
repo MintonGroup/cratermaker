@@ -19,6 +19,7 @@ from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS
 from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
+from vtk import vtkUnstructuredGrid
 
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
@@ -659,6 +660,24 @@ class Surface(ComponentBase):
         """
         return self._full().to_vector_file(driver=driver, interval_number=interval_number, **kwargs)
 
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+        """
+        Exports the surface to a VTK PolyData object.
+
+        Parameters
+        ----------
+        uxds : UxDataset, optional
+            The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        **kwargs : Any
+            Additional keyword arguments
+
+        Returns
+        -------
+        vtkUnstructuredGrid
+            The VTK PolyData object representing the regional mesh.
+        """
+        return self._full().to_vtk_mesh(uxds=uxds, **kwargs)
+
     def to_vtk_file(
         self,
         interval_number: int | None = None,
@@ -695,6 +714,21 @@ class Surface(ComponentBase):
             Additional keyword arguments to pass to the plotting function.
         """
         return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+
+    def show(self, engine: str = "pyvista", variable: str = "face_elevation", **kwargs) -> None:
+        """
+        Show the surface using an interactive 3D plot.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        return self._full().show(engine=engine, variable=variable, **kwargs)
 
     @staticmethod
     def _sphere_function(coords, x_c, y_c, z_c, r):
@@ -1775,6 +1809,15 @@ class Surface(ComponentBase):
             self._crs = self.get_crs(radius=self.radius, name=self.target.name)
         return self._crs
 
+    @property
+    def plot_dir(self) -> Path:
+        """
+        The directory to save plots to.
+        """
+        plotdir = self.simdir / "surface_images"
+        plotdir.mkdir(parents=True, exist_ok=True)
+        return plotdir
+
 
 class LocalSurface(CratermakerBase):
     """
@@ -2589,6 +2632,88 @@ class LocalSurface(CratermakerBase):
 
         return
 
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+        """
+        Exports the regional mesh to a VTK PolyData object.
+
+        Parameters
+        ----------
+        uxds : UxDataset, optional
+            The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        **kwargs : Any
+            Additional keyword arguments
+
+        Returns
+        -------
+        vtkUnstructuredGrid
+            The VTK PolyData object representing the regional mesh.
+        """
+        from vtk import (
+            VTK_POLYGON,
+            vtkPoints,
+        )
+        from vtkmodules.util.numpy_support import numpy_to_vtk
+        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
+        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
+
+        if uxds is None:
+            uxds = self.uxds
+
+        node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
+        node_normals = node_xyz / self.radius
+        vtk_point_normals = numpy_to_vtk(node_normals.astype(np.float32), deep=True)
+        vtk_point_normals.SetNumberOfComponents(3)
+        vtk_point_normals.SetName("Normals")
+
+        # Warp the mesh according to node elevation if it exists
+        if "node_elevation" in uxds:
+            warped_xyz = node_xyz + uxds.node_elevation.data[:, None] * node_normals
+        else:
+            warped_xyz = node_xyz
+
+        node_x = warped_xyz[:, 0]
+        node_y = warped_xyz[:, 1]
+        node_z = warped_xyz[:, 2]
+
+        vtk_data = vtkUnstructuredGrid()
+        nodes = vtkPoints()
+        for i in range(self.n_node):
+            nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
+        vtk_data.SetPoints(nodes)
+        vtk_data.Allocate(self.n_face)
+        for i, n in enumerate(self.n_nodes_per_face):
+            point_ids = self.face_node_connectivity[i][0:n]
+            vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids)
+
+        grid = vtkUnstructuredGrid()
+        grid.DeepCopy(vtk_data)
+
+        for v in uxds.variables:
+            array = numpy_to_vtk(uxds[v].values, deep=True)
+            array.SetName(v)
+            if "n_face" in uxds[v].dims:
+                grid.GetCellData().AddArray(array)
+            elif "n_node" in uxds[v].dims:
+                grid.GetPointData().AddArray(array)
+                if v == "node_elevation":
+                    grid.GetPointData().SetActiveScalars(v)
+            elif uxds[v].dims == ("time",) or uxds[v].size == 1:
+                grid.GetFieldData().AddArray(array)
+
+        geom_filter = vtkGeometryFilter()
+        geom_filter.SetInputData(grid)
+        geom_filter.Update()
+        poly_data = geom_filter.GetOutput()
+
+        poly_data.GetPointData().SetNormals(vtk_point_normals)
+        normals_filter = vtkPolyDataNormals()
+        normals_filter.SetInputData(poly_data)
+        normals_filter.ComputeCellNormalsOn()
+        normals_filter.Update()
+        mesh = normals_filter.GetOutput()
+
+        return mesh
+
     def to_vtk_file(
         self,
         interval_number: int | None = None,
@@ -2604,33 +2729,18 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             Additional keyword arguments
         """
-        from vtk import (
-            VTK_POLYGON,
-            vtkPoints,
-            vtkUnstructuredGrid,
-            vtkXMLPolyDataWriter,
-        )
-        from vtkmodules.util.numpy_support import numpy_to_vtk
-        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
-        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
-        def _write_current_grid(current_grid, vtk_point_normals, output_filename):
+        def _write_current_mesh(mesh, output_filename):
+            from vtk import vtkXMLPolyDataWriter
+
+            writer = vtkXMLPolyDataWriter()
+            writer.SetDataModeToBinary()
+            writer.SetCompressorTypeToZLib()
             if output_filename.exists():
                 output_filename.unlink()
-            geom_filter = vtkGeometryFilter()
-            geom_filter.SetInputData(current_grid)
-            geom_filter.Update()
-            poly_data = geom_filter.GetOutput()
-
-            poly_data.GetPointData().SetNormals(vtk_point_normals)
-            normals_filter = vtkPolyDataNormals()
-            normals_filter.SetInputData(poly_data)
-            normals_filter.ComputeCellNormalsOn()
-            normals_filter.Update()
-            poly_data_with_normals = normals_filter.GetOutput()
 
             writer.SetFileName(output_filename)
-            writer.SetInputData(poly_data_with_normals)
+            writer.SetInputData(mesh)
             print(f"Exporting to {output_filename}")
             writer.Write()
             return
@@ -2650,84 +2760,17 @@ class LocalSurface(CratermakerBase):
                 interval_number = interval_numbers[interval_number]
             interval_numbers = [interval_number]
 
-        node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
-        node_normals = node_xyz / self.radius
-        vtk_point_normals = numpy_to_vtk(node_normals.astype(np.float32), deep=True)
-        vtk_point_normals.SetNumberOfComponents(3)
-        vtk_point_normals.SetName("Normals")
-
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxdsi = uxds.sel(time=time).load()
 
-            # Warp the mesh according to node elevation
-            warped_xyz = node_xyz + uxdsi.node_elevation.data[:, None] * node_normals
-
-            node_x = warped_xyz[:, 0]
-            node_y = warped_xyz[:, 1]
-            node_z = warped_xyz[:, 2]
-
-            vtk_data = vtkUnstructuredGrid()
-            nodes = vtkPoints()
-            for i in range(self.n_node):
-                nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
-            vtk_data.SetPoints(nodes)
-            vtk_data.Allocate(self.n_face)
-            for i, n in enumerate(self.n_nodes_per_face):
-                point_ids = self.face_node_connectivity[i][0:n]
-                vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids)
-
-            writer = vtkXMLPolyDataWriter()
-            writer.SetDataModeToBinary()
-            writer.SetCompressorTypeToZLib()
-
             if save_geometry:
-                # Saves the surface mesh and its geometry as a separate file
-                geometry_variables = [
-                    "node_x",
-                    "node_y",
-                    "node_z",
-                    "node_lon",
-                    "node_lat",
-                    "face_x",
-                    "face_y",
-                    "face_z",
-                    "face_lon",
-                    "face_lat",
-                    "face_area",
-                    "face_size",
-                ]
-                current_grid = vtkUnstructuredGrid()
-                current_grid.DeepCopy(vtk_data)
+                grid = self.to_vtk(uxds=self.uxgrid.to_xarray())
+                _write_current_mesh(grid, grid_filename)
 
-                for v in geometry_variables:
-                    # extract the attribute v from the self object
-                    array = numpy_to_vtk(getattr(self, v), deep=True)
-                    array.SetName(v)
-                    n = getattr(self, v).size
-                    if n == self.n_face:
-                        current_grid.GetCellData().AddArray(array)
-                    elif n == self.n_node:
-                        current_grid.GetPointData().AddArray(array)
-
-                _write_current_grid(current_grid, vtk_point_normals, grid_filename)
-
-            current_grid = vtkUnstructuredGrid()
-            current_grid.DeepCopy(vtk_data)
-
-            for v in uxdsi.variables:
-                array = numpy_to_vtk(uxdsi[v].values, deep=True)
-                array.SetName(v)
-                if "n_face" in uxdsi[v].dims:
-                    current_grid.GetCellData().AddArray(array)
-                elif "n_node" in uxdsi[v].dims:
-                    current_grid.GetPointData().AddArray(array)
-                    if v == "node_elevation":
-                        current_grid.GetPointData().SetActiveScalars(v)
-                elif uxdsi[v].dims == ("time",) or uxdsi[v].size == 1:
-                    current_grid.GetFieldData().AddArray(array)
+            mesh = self.to_vtk(uxds=uxdsi)
 
             filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
-            _write_current_grid(current_grid, vtk_point_normals, filename)
+            _write_current_mesh(mesh, filename)
 
         return
 
@@ -2908,7 +2951,7 @@ class LocalSurface(CratermakerBase):
             vmax = np.nanmax(band)
 
         # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
-        if ax is not None:
+        if ax is None:
             fig, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
         im = ax.imshow(
             cvals,
@@ -2970,6 +3013,34 @@ class LocalSurface(CratermakerBase):
         elif show:
             plt.show(**kwargs)
         return im
+
+    def show(self, engine: str = "pyvista", variable: str = "face_elevation", **kwargs) -> None:
+        """
+        Show the local surface region using an interactive 3D plot.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if engine == "pyvista":
+            try:
+                import pyvista as pv
+            except ImportError:
+                warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
+                return
+            plotter = pv.Plotter()
+            mesh = self.to_vtk_mesh(self.uxds)
+            plotter.add_mesh(mesh, scalars=variable, show_edges=False, **kwargs)
+            plotter.show()
+        else:
+            raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
+
+        return
 
     def _calculate_distance(
         self,
@@ -3679,6 +3750,13 @@ class LocalSurface(CratermakerBase):
         The radius of the target body in meters.
         """
         return self.surface.radius
+
+    @property
+    def plot_dir(self) -> Path:
+        """
+        The directory to save plots to.
+        """
+        return self.surface.plot_dir
 
 
 import_components(__name__, __path__)

@@ -41,7 +41,7 @@ dependencies = [
 
 [project.optional-dependencies]
 tests = ["pytest"]
-rasterio = ["rasterio"]
+visualization = ["rasterio","pyvista"]
 
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'

@@ -618,6 +618,18 @@ class Simulation(CratermakerBase):
             self.counting.export(interval_number=interval_number, driver=driver, **kwargs)
         return
 
+    def show(self, **kwargs: Any) -> None:
+        """
+        Show the current state of the surface.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments to pass to the surface show method.
+        """
+        self.surface.show(**kwargs)
+        return
+
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """
         Converts values to types that can be used in yaml.safe_dump.

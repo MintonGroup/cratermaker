@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from warnings import warn
 
 import numpy as np
 from numpy.typing import NDArray
@@ -689,6 +690,7 @@ class LocalHiResLocalSurface(LocalSurface):
         include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
+        plot_style: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -708,6 +710,10 @@ class LocalHiResLocalSurface(LocalSurface):
             List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
+        plot_style : str, optional
+            The style of plot to generate. Set to None to skip generating a plot.
+        **kwargs : Any
+            Additional keyword arguments to pass to the save or plot functions.
         """
         super().save(
             interval_number=interval_number,
@@ -717,12 +723,14 @@ class LocalHiResLocalSurface(LocalSurface):
             filename=filename,
             **kwargs,
         )
-        imgdir = Path(self.simdir) / "surface_images"
-        imgdir.mkdir(parents=True, exist_ok=True)
-        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
-        if time_variables:
-            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
-        self.plot(imagefile=imagefile, **kwargs)
+        if plot_style is not None:
+            if plot_style not in ["hillshade", "elevation"]:
+                warn(f"Plot style '{plot_style}' not recognized. Using 'hillshade' or 'elevation' instead.", stacklevel=2)
+            else:
+                imagefile = self.plot_dir / f"{plot_style}{interval_number:06d}.png"
+            if time_variables and "label" not in kwargs:
+                kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+            self.plot(plot_style, imagefile=imagefile, **kwargs)
         return
 
     @property

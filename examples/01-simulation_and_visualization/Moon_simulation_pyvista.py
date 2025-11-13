@@ -26,10 +26,4 @@ import cratermaker as cm
 sim = cm.Simulation(target="Moon", gridlevel=6, ask_overwrite=False)
 
 sim.run(age=4310)
-sim.export(driver="VTK")
-# Load and visualize the resulting surface using Pyvista
-mesh = pv.read(sim.surface.output_dir / "surface000001.vtp")
-
-plotter = pv.Plotter()
-plotter.add_mesh(mesh, scalars="face_elevation", cmap="Greys_r", show_edges=False)
-plotter.show()
+sim.show(cmap="Greys_r")
