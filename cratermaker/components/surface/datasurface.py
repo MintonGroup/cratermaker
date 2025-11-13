@@ -757,8 +757,8 @@ class DataSurface(HiResLocalSurface):
                     if (
                         "face_elevation" not in ds
                         or "node_elevation" not in ds
-                        or len(ds.face_elevation) != self.local.n_face
-                        or len(ds.node_elevation) != self.local.n_node
+                        or ds.face_elevation.shape[-1] != self.local.n_face
+                        or ds.node_elevation.shape[-1] != self.local.n_node
                     ):
                         regrid = True
 
