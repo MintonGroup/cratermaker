@@ -147,10 +147,10 @@ class DataSurface(HiResLocalSurface):
             latdir = "n" if location[1] + boundary_offset[1] * dlat > 0 else "s"
             latval = np.abs(location[1] / dlat) + boundary_offset[1]
             if latdir == "n":
-                latlo = int(np.floor(latval - 1) * dlat)
+                latlo = int(np.ceil(latval - 1) * dlat)
                 lathi = int(latlo + dlat)
             else:
-                lathi = int(np.floor(latval + 1) * (dlat))
+                lathi = int(np.floor(latval + 1) * dlat)
                 latlo = int(lathi - dlat)
 
             lonval = np.abs(location[0] / dlon) + boundary_offset[0]
@@ -724,7 +724,7 @@ class DataSurface(HiResLocalSurface):
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
         if self._dem_data is not None:
             self._add_dem_elevation()
-        else:
+        elif (self.output_dir / self._demfile).exists():
             with xr.open_dataset(self.output_dir / self._demfile) as ds:
                 self.local.update_elevation(ds.isel(time=0).face_elevation)
                 self.local.update_elevation(ds.isel(time=0).node_elevation)
@@ -798,7 +798,9 @@ class DataSurface(HiResLocalSurface):
 
             approx_pix_size = local_size_deg / 1000.0
             diffs = [abs(approx_pix_size - (360.0 / res)) for res in self._valid_pds_file_resolutions]
-            self._pds_file_resolution = self._valid_pds_file_resolutions[np.argmin(diffs)]
-            print(f"Chosen PDS file resolution: {self._pds_file_resolution} pix/deg")
+            value = self._valid_pds_file_resolutions[np.argmin(diffs)]
+            print(f"Chosen PDS file resolution: {value} pix/deg")
         elif value not in self._valid_pds_file_resolutions:
             raise ValueError(f"Invalid pds_file_resolution {value}. Valid values are {self._valid_pds_file_resolutions}.")
+        self._pds_file_resolution = value
+        return
