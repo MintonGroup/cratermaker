@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import xarray as xr
 from numpy.typing import NDArray
 
 from cratermaker.components.morphology import Morphology
@@ -42,12 +43,12 @@ class DataSurface(HiResLocalSurface):
         or extracted from the scaling model if it is provied
     reset : bool, optional
         Flag to indicate whether to reset the surface. Default is True.
+    regrid : bool, optional
+        Flag to indicate whether to regrid the surface. Default is False.
     ask_overwrite : bool, optional
         If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
         The main project simulation directory. Default is the current working directory if None.
-    demdir : str | Path, optional
-        The directory to store DEM data files. Default is 'dem_data' inside 'simdir'.
     pds_file_resolution : int, optional
         The resolution of the DEM file to download from the PDS in meters per pixel. Valid values are [4,16,64,128,256,512]. If not provide, one will be chosen based on the local radius
     **kwargs : Any
@@ -69,34 +70,31 @@ class DataSurface(HiResLocalSurface):
         superdomain_scale_factor: FloatLike | None = -1,
         target: Target | str | None = None,
         reset: bool = True,
+        regrid: bool = False,
         ask_overwrite: bool = False,
         simdir: str | Path | None = None,
-        demdir: str | Path | None = None,
         pds_file_resolution: int | None = None,
         **kwargs: Any,
     ):
         object.__setattr__(self, "_local", None)
-        object.__setattr__(self, "_demdir", None)
+        object.__setattr__(self, "_demfile", None)
         object.__setattr__(
             self, "_dem_data", None
         )  # Temporary storage for DEM data during initialization. This will be cleared after the elevation points are set.
         object.__setattr__(self, "_valid_pds_file_resolutions", [4, 16, 64, 128, 256, 512])
         object.__setattr__(self, "_pds_file_resolution", None)
+
         super(HiResLocalSurface, self).__init__(target=target, simdir=simdir, **kwargs)
         if self.target.name != "Moon":
             raise ValueError("DataSurface currently only supports the Moon as a target.")
         self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
-        if demdir is not None:
-            self.demdir = demdir
-        else:
-            self.demdir = "dem_data"
+        self._demfile = f"local_surface_dem.{self._output_file_extension}"
 
         # Set the attributes directly to avoid triggering checks before the pix value is set
         self._local_radius = local_radius
         self._local_location = local_location
         self.pds_file_resolution = pds_file_resolution
         pix = np.pi * self.target.radius / (180 * self.pds_file_resolution)
-        kwargs["regrid"] = True  # Force regrid
         super().__init__(
             pix=pix,
             local_radius=local_radius,
@@ -104,6 +102,7 @@ class DataSurface(HiResLocalSurface):
             superdomain_scale_factor=superdomain_scale_factor,
             target=self.target,
             reset=reset,
+            regrid=regrid,
             ask_overwrite=ask_overwrite,
             simdir=self.simdir,
             **kwargs,
@@ -560,6 +559,7 @@ class DataSurface(HiResLocalSurface):
 
                 cm = memfile.open()
             else:
+                print(f"Opening DEM file: {filename}")
                 cm = rasterio.open(filename)
             with cm as src:
                 # Desired box size in meters
@@ -602,7 +602,6 @@ class DataSurface(HiResLocalSurface):
                         window = window_orig
 
                     if "KILOMETER" in src.units:
-                        print("Converting DEM from kilometers to meters.")
                         scale_factor = 1000.0
                     else:
                         scale_factor = 1.0
@@ -699,16 +698,6 @@ class DataSurface(HiResLocalSurface):
             new_points, theta = _exterior_distribution(theta)
             exterior_points.extend(new_points)
 
-            # if theta > (self.local_radius + 10 * self.pix) / self.radius:
-            #     import pyvista as pv
-
-            #     plotter = pv.Plotter()
-            #     plotter.add_points(interior_points, color="cyan")
-            #     plotter.add_points(
-            #         self._rotate_point_cloud(exterior_points),
-            #         color="black",
-            #     )
-            #     plotter.show()
         print(f"Generated {len(exterior_points)} points in the superdomain region.")
         exterior_points = self._rotate_point_cloud(exterior_points)
 
@@ -726,6 +715,7 @@ class DataSurface(HiResLocalSurface):
         scaling: Scaling | str | None = None,
         morphology: Morphology | str | None = None,
         reset: bool = False,
+        regrid: bool = False,
         **kwargs: Any,
     ):
         """
@@ -741,14 +731,58 @@ class DataSurface(HiResLocalSurface):
             The morphology model to use. If None, the default morphology model will be used.
         reset : bool, optional
             Flag to indicate whether to reset the surface. Default is False.
+        regrid : bool, optional
+            Flag to indicate whether to regrid the surface. Default is False.
         **kwargs : Any
             Additional keyword arguments to pass to the scaling and morphology models.
         """
-        kwargs["regrid"] = True  # Force regrid
-        super().set_superdomain(scaling=scaling, morphology=morphology, reset=reset, **kwargs)
-        self._add_dem_elevation()
+        super().set_superdomain(scaling=scaling, morphology=morphology, reset=reset, regrid=regrid, **kwargs)
 
         return
+
+    def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
+        """
+        Reset the surface to its initial state.
+
+        Parameters
+        ----------
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before deleting files. Default is False.
+        **kwargs : Any
+            Additional keyword arguments for subclasses.
+        """
+        super().reset(ask_overwrite=ask_overwrite, **kwargs)
+        with xr.open_dataset(self.output_dir / self._demfile) as ds:
+            self.local.update_elevation(ds["face_elevation"])
+            self.local.update_elevatio(ds["node_elevation"])
+
+        return
+
+    def _regrid_if_needed(self, regrid: bool = False, **kwargs: Any) -> bool:
+        """
+        Check if the existing grid matches the desired parameters determine if regridding is necessary.
+
+        This checks if the dem file exists and matches the current grid.
+
+        Parameters
+        ----------
+        regrid: bool, optional
+            Flag to force regridding even if the grid file exists. Default is False.
+
+        Returns
+        -------
+        bool
+            A boolean indicating whether the grid should be regenerated.
+        """
+        if self._dem_data is not None:
+            self._add_dem_elevation()
+        regrid = regrid or not Path(self.output_dir / self._demfile).exists()
+        if not regrid:
+            with xr.open_dataset(self.output_dir / self._demfile) as ds:
+                if ds.n_faces != self.local.n_faces or ds.n_nodes != self.local.n_nodes:
+                    regrid = True
+
+        return super()._regrid_if_needed(regrid=regrid, **kwargs)
 
     def _add_dem_elevation(self):
         """
@@ -764,6 +798,10 @@ class DataSurface(HiResLocalSurface):
 
         self.local.update_elevation(face_elevations)
         self.local.update_elevation(node_elevations)
+
+        # Now save the surface to a file that we can reload later if we want to avoid re-downloading the DEM data
+        self.local.save(filename=self._demfile)
+        self._dem_data = None  # Clear temporary DEM data storage
         return
 
     @parameter
@@ -784,21 +822,3 @@ class DataSurface(HiResLocalSurface):
             print(f"Chosen PDS file resolution: {self._pds_file_resolution} pix/deg")
         elif value not in self._valid_pds_file_resolutions:
             raise ValueError(f"Invalid pds_file_resolution {value}. Valid values are {self._valid_pds_file_resolutions}.")
-
-    @parameter
-    def demdir(self) -> Path | str:
-        """The path or url to the DEM data file to be used for the local region."""
-        return self._demdir
-
-    @demdir.setter
-    def demdir(self, value: Path | str):
-        if not isinstance(value, (Path, str)):
-            raise TypeError("demdir must be a Path or string.")
-        if isinstance(value, str):
-            value = Path(value)
-        if value.is_absolute():
-            self._demdir = value
-        else:
-            self._demdir = self.simdir / value
-        self._demdir.mkdir(parents=True, exist_ok=True)
-        return
