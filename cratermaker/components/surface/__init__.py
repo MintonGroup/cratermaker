@@ -1744,7 +1744,7 @@ class Surface(ComponentBase):
         name : str
             The name of the target body.
         location : tuple[float, float] | None, optional
-            The location of the center of the AEQD projection in degrees. If None, a global CRS is returned. Default is None.
+            The location of the center of the LAEA projection in degrees. If None, a global CRS is returned. Default is None.
         """
         if location is None:
             wkt = (
@@ -3550,10 +3550,10 @@ class LocalSurface(CratermakerBase):
     @property
     def crs(self) -> CRS:
         """
-        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
+        Return a local Azimuthal Equidistant (LAEA) CRS centered on `self.location` (in meters).
 
         If `self.location` is not set, fall back to the parent `Surface` geographic CRS.
-        The AEQD CRS uses the target body's spherical radius.
+        The LAEA CRS uses the target body's spherical radius.
         """
         if self._crs is None:
             self._crs = self.surface.get_crs(

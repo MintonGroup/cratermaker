@@ -618,6 +618,18 @@ class Simulation(CratermakerBase):
             self.counting.export(interval_number=interval_number, driver=driver, **kwargs)
         return
 
+    def plot(self, **kwargs: Any) -> None:
+        """
+        Plot the current state of the surface.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments to pass to the surface plot method.
+        """
+        self.surface.plot(**kwargs)
+        return
+
     def show(self, **kwargs: Any) -> None:
         """
         Show the current state of the surface.

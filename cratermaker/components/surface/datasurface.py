@@ -133,7 +133,9 @@ class DataSurface(HiResLocalSurface):
 
         src_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/"
 
-        def _get_pds_file_suffix(pds_file_rsolution, location, boundary_offset):
+        def _get_pds_file_suffix(pds_file_resolution, location, boundary_offset):
+            if location[0] < 0:
+                location = (location[0] + 360, location[1])
             if pds_file_resolution == 1024:
                 dlon = 30
                 dlat = 15
@@ -203,10 +205,6 @@ class DataSurface(HiResLocalSurface):
 
         # The high resolution DTM files need a slightly different location format
         location = self.local_location
-        if pds_file_resolution < 256 and self.local_location[0] > 180:
-            location = (self.local_location[0] - 360, self.local_location[1])
-        elif pds_file_resolution >= 256 and self.local_location[0] < 0:
-            location = (self.local_location[0] + 360, self.local_location[1])
 
         compute_boundary = pds_file_resolution >= 256
         filename = self._get_lola_dem_file_from_pds(pds_file_resolution, location)
@@ -270,29 +268,17 @@ class DataSurface(HiResLocalSurface):
         from rasterio.merge import merge
         from rasterio.vrt import WarpedVRT
         from rasterio.warp import Resampling
-        from rasterio.windows import from_bounds
+        from rasterio.windows import Window, from_bounds
 
-        _EXPANSION_BUFFER = 1.05
-        if region_radius is None:
-            region_radius = self.local_radius
-        box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
-        isboundary = False
-        boundary = [None, None]
-        dst_crs = self.get_crs(
-            radius=self.target.radius,
-            name=self.target.name,
-            location=location,
-        )
-
-        def _aeqd_window_bounds_in_src_crs(location, box_size_m, src_crs, dst_crs):
+        def _laea_window_bounds_in_src_crs(location, box_size_m, src_crs, dst_crs):
             """
-            Compute (minx, miny, maxx, maxy) in the *source* CRS that tightly enclose the AEQD square window centered at `location` with side length `box_size_m`.
+            Compute (minx, miny, maxx, maxy) in the *source* CRS that tightly enclose the LAEA square window centered at `location` with side length `box_size_m`.
 
             Works for both geographic (lon/lat in degrees) and projected (linear units) source CRSs.
             """
             from pyproj import Transformer
 
-            # Half the AEQD square (in meters, AEQD space)
+            # Half the LAEA square (in meters, LAEA space)
             half = 0.5 * box_size_m
             left_m, right_m = -half, half
             bottom_m, top_m = -half, half
@@ -377,7 +363,7 @@ class DataSurface(HiResLocalSurface):
                     dtype=float,
                 )
 
-                # Transform corners from AEQD (dst) -> source CRS
+                # Transform corners from LAEA (dst) -> source CRS
                 to_src = Transformer.from_crs(dst_crs, src_crs, always_xy=True)
                 x_c, y_c = to_src.transform(corners_dst[:, 0], corners_dst[:, 1])
                 x_c = np.asarray(x_c, dtype=float)
@@ -392,7 +378,7 @@ class DataSurface(HiResLocalSurface):
                 height = y_max - y_min
 
                 # Compute the expected side length in meters in source CRS near the center by
-                # transforming two small AEQD steps and measuring the differential scaling.
+                # transforming two small LAEA steps and measuring the differential scaling.
                 # Also compute the center in the source CRS for a safe fallback.
                 to_src_small = to_src  # reuse
                 # Small differential step (meters) to estimate local Jacobian scale
@@ -407,12 +393,12 @@ class DataSurface(HiResLocalSurface):
                 exp_height = 2.0 * sy * half
 
                 # Heuristic: if the transformed box is unreasonably elongated or orders of magnitude
-                # larger than the expected local mapping, fall back to a centered square around (0,0) in AEQD mapped to src.
+                # larger than the expected local mapping, fall back to a centered square around (0,0) in LAEA mapped to src.
                 bad_aspect = (height > 0 and (width / height > 10.0)) or (width == 0 and height > 0)
                 bad_scale = (width > 4.0 * max(exp_width, 1.0)) or (height > 4.0 * max(exp_height, 1.0))
 
                 if bad_aspect or bad_scale:
-                    # Fallback: construct a square in the source CRS centered at the mapped AEQD origin
+                    # Fallback: construct a square in the source CRS centered at the mapped LAEA origin
                     # with side lengths matching the local linearized scale.
                     cx, cy = x0_s, y0_s
                     x_min = cx - exp_width * 0.5
@@ -522,8 +508,22 @@ class DataSurface(HiResLocalSurface):
                         mem.close()
             return mosa_full, trans_full
 
+        _EXPANSION_BUFFER = 1.05
+        if region_radius is None:
+            region_radius = self.local_radius
+        box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
+        half_box_size = box_size / 2
+        isboundary = False
+        boundary = [None, None]
+        dst_crs = self.get_crs(
+            radius=self.target.radius,
+            name=self.target.name,
+            location=location,
+        )
+        is_tiled = filelist is not None
+
         with MemoryFile() as memfile:
-            if filelist is not None:
+            if is_tiled:
                 print(f"Merging files: {filelist}")
                 src_list = []
                 for filename in filelist:
@@ -531,7 +531,7 @@ class DataSurface(HiResLocalSurface):
                     src_list.append(src)
 
                 box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
-                bounds = _aeqd_window_bounds_in_src_crs(location, box_size, src_list[0].crs, dst_crs)
+                bounds = _laea_window_bounds_in_src_crs(location, box_size, src_list[0].crs, dst_crs)
 
                 # Ensure nodata is respected; if missing, use NaN and float32
                 nodata_val = src_list[0].nodata
@@ -559,25 +559,39 @@ class DataSurface(HiResLocalSurface):
 
                 cm = memfile.open()
             else:
+                # Use source resolution as a reasonable LAEA pixel size
+
                 print(f"Opening DEM file: {filename}")
                 cm = rasterio.open(filename)
+
             with cm as src:
-                # Desired box size in meters
-                half_box_size = (
-                    _EXPANSION_BUFFER * box_size / 2
-                )  # Make the box slightly larger than the desired size, as it will be truncated into a square of the correct size later
-                with WarpedVRT(src, crs=dst_crs, resampling=Resampling.cubic) as vrt:
-                    # Compute the window in the destination CRS
-                    x_min = -half_box_size
-                    x_max = half_box_size
-                    y_min = -half_box_size
-                    y_max = half_box_size
+                x_min = -half_box_size
+                x_max = half_box_size
+                y_min = -half_box_size
+                y_max = half_box_size
+                warpedvrt_args = {"resampling": Resampling.bilinear}
+                if not is_tiled:
+                    target_res = min(src.res)
 
-                    # Compute the window in pixel coordinates
+                    dst_width = int(np.ceil(2 * half_box_size / target_res))
+                    dst_height = dst_width
+                    dst_transform = Affine(
+                        target_res,
+                        0.0,
+                        -half_box_size,  # left edge at -half_box_size
+                        0.0,
+                        -target_res,
+                        half_box_size,  # top edge at +half_box_size
+                    )
+                    warpedvrt_args["transform"] = dst_transform
+                    warpedvrt_args["width"] = dst_width
+                    warpedvrt_args["height"] = dst_height
+
+                with WarpedVRT(src, crs=dst_crs, **warpedvrt_args) as vrt:
+                    # First check to see if we are crossing a boundary, and if so, we will return with information about which boundaries were crossed so that we can assemble tiles in the next pass.
                     window_orig = from_bounds(x_min, y_min, x_max, y_max, vrt.transform)
-
                     if compute_boundary:
-                        window = window_orig.intersection(rasterio.windows.Window(0, 0, vrt.width, vrt.height))
+                        window = window_orig.intersection(Window(0, 0, vrt.width, vrt.height))
                         if window != window_orig:
                             isboundary = True
                             boundary_offsets = []
@@ -597,9 +611,11 @@ class DataSurface(HiResLocalSurface):
                                     )
                                 )
                             return None, isboundary, boundary_offsets
-
                     else:
-                        window = window_orig
+                        if is_tiled:
+                            window = window_orig
+                        else:
+                            window = Window(0, 0, dst_width, dst_height)
 
                     if "KILOMETER" in src.units:
                         scale_factor = 1000.0
@@ -794,10 +810,13 @@ class DataSurface(HiResLocalSurface):
         if value is None:
             # Valid resolution in pixels per degree in lat or lon
             # Choose one of the valid resolutions that gets you approximately 1000 pixels across the diameter of the local region
-            local_size_deg = (2 * self.local_radius) / self.target.radius * (180.0 / np.pi)
+            if np.abs(self.local_location[1]) < 60:
+                lon_size_deg = 2 * (self.local_radius / self.target.radius) * (180.0 / np.pi)
+                lat_size_deg = lon_size_deg / np.cos(np.radians(self.local_location[1]))
+                n_deg = np.sqrt(lon_size_deg * lat_size_deg)
+                target_pix = 1000.0
 
-            approx_pix_size = local_size_deg / 1000.0
-            diffs = [abs(approx_pix_size - (360.0 / res)) for res in self._valid_pds_file_resolutions]
+                diffs = [abs(target_pix / n_deg - res) for res in self._valid_pds_file_resolutions]
             value = self._valid_pds_file_resolutions[np.argmin(diffs)]
             print(f"Chosen PDS file resolution: {value} pix/deg")
         elif value not in self._valid_pds_file_resolutions:
