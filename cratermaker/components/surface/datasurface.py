@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from warnings import warn
 
 import numpy as np
 import xarray as xr
@@ -76,6 +77,14 @@ class DataSurface(HiResLocalSurface):
         pds_file_resolution: int | None = None,
         **kwargs: Any,
     ):
+        try:
+            import rasterio
+        except ImportError:
+            warn(
+                "rasterio is not installed. This is required for 'datasurface.' On some platforms, you may need to install GDAL first before installing rasterio.",
+                stacklevel=2,
+            )
+            return
         object.__setattr__(self, "_local", None)
         object.__setattr__(self, "_demfile", None)
         object.__setattr__(
@@ -261,7 +270,11 @@ class DataSurface(HiResLocalSurface):
         boundary : list
             List indicating the directions of boundary overlap, if any.
         """
-        import rasterio
+        try:
+            import rasterio
+        except ImportError:
+            warn("rasterio is not installed. Cannot use this feature.", stacklevel=2)
+            return
         from affine import Affine
         from pyproj import Transformer
         from rasterio.io import MemoryFile
