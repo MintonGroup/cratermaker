@@ -2764,10 +2764,10 @@ class LocalSurface(CratermakerBase):
             uxdsi = uxds.sel(time=time).load()
 
             if save_geometry:
-                grid = self.to_vtk(uxds=self.uxgrid.to_xarray())
+                grid = self.to_vtk_mesh(uxds=self.uxgrid.to_xarray())
                 _write_current_mesh(grid, grid_filename)
 
-            mesh = self.to_vtk(uxds=uxdsi)
+            mesh = self.to_vtk_mesh(uxds=uxdsi)
 
             filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
             _write_current_mesh(mesh, filename)
@@ -2885,7 +2885,10 @@ class LocalSurface(CratermakerBase):
             from rasterio.features import rasterize
             from rasterio.transform import Affine, from_bounds
         except ImportError:
-            warnings.warn("rasterio is not installed. Cannot generate plot.", stacklevel=2)
+            warnings.warn(
+                "rasterio is not installed. Cannot generate plot. On some platforms, you may need to install GDAL first before installing rasterio.",
+                stacklevel=2,
+            )
             return
 
         import matplotlib.pyplot as plt
