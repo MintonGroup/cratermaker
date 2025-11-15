@@ -630,4 +630,17 @@ class DataSurface(HiResLocalSurface):
 
         self._dem_file_list = value
 
+        # Set the pixel size based on the provided files. We take the highest resolution (smallest pixel size) among the files.
+        try:
+            import rasterio
+        except ImportError:
+            warn("rasterio is not installed. Cannot use this feature.", stacklevel=2)
+            return
+
+        pixvals = []
+        for f in self._dem_file_list:
+            with rasterio.open(f) as src:
+                pixvals.append(src.res[0])
+        self._pix = min(pixvals)
+
         return
