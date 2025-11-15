@@ -583,6 +583,7 @@ class DataSurface(HiResLocalSurface):
                         or ds.face_elevation.shape[-1] != self.local.n_face
                         or ds.node_elevation.shape[-1] != self.local.n_node
                     ):
+                        print(f"DEM datafile {self._dem_output_file} does not match current grid. Regridding needed.")
                         regrid = True
 
         return super()._regrid_if_needed(regrid=regrid, **kwargs)
@@ -644,3 +645,10 @@ class DataSurface(HiResLocalSurface):
         self._pix = min(pixvals)
 
         return
+
+    @property
+    def _hashvars(self):
+        """
+        The variables used to generate the hash.
+        """
+        return super()._hashvars + [self._dem_file_list]

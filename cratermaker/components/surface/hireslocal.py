@@ -570,14 +570,7 @@ class HiResLocalSurface(Surface):
         """
         The variables used to generate the hash.
         """
-        return [
-            self._component_name,
-            self.radius,
-            self.pix,
-            self.local_radius,
-            self.local_location,
-            self.superdomain_scale_factor,
-        ]
+        return super()._hashvars + [self.pix, self.local_radius, self.local_location, self.superdomain_scale_factor]
 
 
 class LocalHiResLocalSurface(LocalSurface):

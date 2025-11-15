@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from cratermaker import Simulation, Surface, Target
 from cratermaker.components.surface.hireslocal import HiResLocalSurface
@@ -39,6 +40,10 @@ gridargs = {
 
 
 class TestSurface(unittest.TestCase):
+    @pytest.fixture(autouse=True)
+    def _pass_fixtures(self, capsys):
+        self.capsys = capsys
+
     def test_initialize_surface(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             # Initializing it first should run the mesh generator

@@ -928,12 +928,27 @@ class Surface(ComponentBase):
         uxgrid.attrs["_id"] = self._id
         self._write_grid_file(uxgrid, self.grid_file)
 
-        regrid = self._regrid_if_needed(**kwargs)
+        regrid = not self._is_same_grid()
         if regrid:
             raise ValueError("Grid file does not match the expected parameters.")
         self._compute_face_size(uxgrid)
 
         return
+
+    def _is_same_grid(self):
+        """
+        Check if the existing grid matches the one defined by the current parameters.
+        """
+        try:
+            with xr.open_dataset(self.grid_file) as ds:
+                ds.load()
+                uxgrid = uxr.Grid.from_dataset(ds)
+                old_id = uxgrid.attrs.get("_id")
+                return old_id == self._id
+        except Exception as e:
+            # Failed to open an old file for whatever reason, so we'll need to regrid
+            print(f"Failed to read existing grid file {self.grid_file}, will create a new grid {e}")
+            return False
 
     def _regrid_if_needed(self, regrid: bool = False, **kwargs: Any) -> bool:
         """
@@ -957,16 +972,7 @@ class Surface(ComponentBase):
         regrid = regrid or not Path(self.grid_file).exists()
 
         if not regrid:
-            try:
-                with xr.open_dataset(self.grid_file) as ds:
-                    ds.load()
-                    uxgrid = uxr.Grid.from_dataset(ds)
-                    old_id = uxgrid.attrs.get("_id")
-                    regrid = old_id != self._id
-            except Exception as e:
-                # Failed to open an old file for whatever reason, so we'll need to regrid
-                print(f"Failed to read existing grid file, will create a new grid {e}")
-                regrid = True
+            regrid = not self._is_same_grid()
 
         if regrid:
             print("Creating a new grid")
@@ -1153,7 +1159,7 @@ class Surface(ComponentBase):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self._radius]
+        return [self._component_name, self.target.name, self.radius]
 
     @property
     def _id(self):
