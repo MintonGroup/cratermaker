@@ -21,7 +21,7 @@ from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
-from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike
+from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import (
     format_large_units,
@@ -752,26 +752,20 @@ class Surface(ComponentBase):
         x, y, z = coords.T
         return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
 
-    def _calculate_distance(
+    def calculate_distance(
         self,
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: ArrayLike,
-        lat2: ArrayLike,
+        center_location: PairOfFloats,
+        locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
 
         Parameters
         ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike or ArrayLike
-            Longitude of the second point or array of points in radians.
-        lat2 : FloatLike or ArrayLike
-            Latitude of the second point or array of points in radians.
+        center_location : PairOfFloats
+            (lon, lat) location of the center point in degrees.
+        locations : FloatLike or ArrayLike
+            Array of (lon, lat) locations of the second point or array of points in degrees.
 
         Returns
         -------
@@ -782,40 +776,27 @@ class Surface(ComponentBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        # Validate that lon1 and lat1 are single points
-        if not np.isscalar(lon1):
-            if lon1.size != 1:
-                raise ValueError("lon1 must be a single point")
-            lon1 = lon1.item()
-        if not np.isscalar(lat1):
-            if lat1.size != 1:
-                raise ValueError("lat1 must be a single point")
-            lat1 = lat1.item()
-        if np.isscalar(lon2):
-            lon2 = np.array([lon2])
-        if np.isscalar(lat2):
-            lat2 = np.array([lat2])
+        center_location = np.radians(center_location)
+        locations = np.radians(locations)
 
-        return surface_functions.calculate_distance(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2, radius=self.radius)
+        return surface_functions.calculate_distance(
+            lon1=center_location[0], lat1=center_location[1], lon2=locations[:, 0], lat2=locations[:, 1], radius=self.radius
+        )
 
     @staticmethod
-    def _calculate_bearing(
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: FloatLike | ArrayLike,
-        lat2: FloatLike | ArrayLike,
+    def calculate_bearing(
+        center_location: PairOfFloats,
+        locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
         Calculate the initial bearing from one point to one or more other points in radians.
 
         Parameters
         ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike or ArrayLike
-            Longitude of the second point or array of points in radians.
+        center_location : PairOfFloats
+            Longitude and latitude of the first point in radians.
+        locations : ArrayLike
+            Longitude and latitude of the second point or array of points in radians.
         lat2 : FloatLike or ArrayLike
             Latitude of the second point or array of points in radians.
 
@@ -824,7 +805,7 @@ class Surface(ComponentBase):
         NDArray
             Initial bearing from the first point to the second point or points in radians.
         """
-        return LocalSurface._calculate_bearing(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2)
+        return LocalSurface.calculate_bearing(center_location=center_location, locations=locations)
 
     @staticmethod
     def _compute_elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
@@ -2199,15 +2180,9 @@ class LocalSurface(CratermakerBase):
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
         location = validate_and_normalize_location(location)
-        lon1 = np.deg2rad(location[0])
-        lat1 = np.deg2rad(location[1])
-        node_lon2 = np.deg2rad(self.node_lon)
-        node_lat2 = np.deg2rad(self.node_lat)
-        face_lon2 = np.deg2rad(self.face_lon)
-        face_lat2 = np.deg2rad(self.face_lat)
-        return self._calculate_distance(lon1, lat1, face_lon2, face_lat2), self._calculate_distance(
-            lon1, lat1, node_lon2, node_lat2
-        )
+        node_locations = np.vstack((self.node_lon, self.node_lat)).T
+        face_locations = np.vstack((self.face_lon, self.face_lat)).T
+        return self.calculate_distance(location, face_locations), self.calculate_distance(location, node_locations)
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -2235,15 +2210,15 @@ class LocalSurface(CratermakerBase):
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
         location = validate_and_normalize_location(location)
-        lon1 = np.deg2rad(location[0])
-        lat1 = np.deg2rad(location[1])
-        node_lon2 = np.deg2rad(self.node_lon)
-        node_lat2 = np.deg2rad(self.node_lat)
-        face_lon2 = np.deg2rad(self.face_lon)
-        face_lat2 = np.deg2rad(self.face_lat)
+        face_locations = np.vstack((self.face_lon, self.face_lat)).T
+        node_locations = np.vstack((self.node_lon, self.node_lat)).T
         return (
-            surface_functions.calculate_bearing(lon1, lat1, face_lon2, face_lat2),
-            surface_functions.calculate_bearing(lon1, lat1, node_lon2, node_lat2),
+            surface_functions.calculate_bearing(
+                lon1=location[0], lat1=location[1], lon2=face_locations[:, 0], lat2=face_locations[:, 1]
+            ),
+            surface_functions.calculate_bearing(
+                lon1=location[0], lat1=location[1], lon2=node_locations[:, 0], lat2=node_locations[:, 1]
+            ),
         )
 
     def interpolate_node_elevation_from_faces(self) -> None:
@@ -3045,26 +3020,21 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def _calculate_distance(
+    def calculate_distance(
         self,
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: FloatLike | ArrayLike,
-        lat2: FloatLike | ArrayLike,
+        center_location: PairOfFloats,
+        locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
 
         Parameters
         ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
+        center_location : PairOfFloats
+            Longitude and latitude of the first point in radians.
+        locations : ArrayLike
+            Longitude and latitude of the second point or array of points in radians.
         lon2 : FloatLike or ArrayLike
-            Longitude of the second point or array of points in radians.
-        lat2 : FloatLike or ArrayLike
-            Latitude of the second point or array of points in radians.
 
         Returns
         -------
@@ -3075,28 +3045,22 @@ class LocalSurface(CratermakerBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        return self.surface._calculate_distance(lon1, lat1, lon2, lat2)
+        return self.surface.calculate_distance(center_location, locations)
 
     @staticmethod
-    def _calculate_bearing(
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: FloatLike | ArrayLike,
-        lat2: FloatLike | ArrayLike,
+    def calculate_bearing(
+        center_location: PairOfFloats,
+        locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
         Calculate the initial bearing from one point to one or more other points in radians.
 
         Parameters
         ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike or ArrayLike
-            Longitude of the second point or array of points in radians.
-        lat2 : FloatLike or ArrayLike
-            Latitude of the second point or array of points in radians.
+        center_location : PairOfFloats
+            Longitude and latitude of the first point in radians.
+        locations : ArrayLike
+            Longitude and latitude of the second point or array of points in radians.
 
         Returns
         -------
@@ -3108,11 +3072,14 @@ class LocalSurface(CratermakerBase):
         This is intended to be used as a helper to calculate_face_and_node_bearings.
         """
         # Calculate differences in coordinates
-        dlon = np.mod(lon2 - lon1 + np.pi, 2 * np.pi) - np.pi
+        locations = np.radians(locations)
+        dlon = np.mod(locations[:, 0] - center_location[0] + np.pi, 2 * np.pi) - np.pi
 
         # Haversine formula calculations
-        x = np.sin(dlon) * np.cos(lat2)
-        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+        x = np.sin(dlon) * np.cos(locations[:, 1])
+        y = np.cos(center_location[1]) * np.sin(locations[:, 1]) - np.sin(center_location[1]) * np.cos(locations[:, 1]) * np.cos(
+            dlon
+        )
         initial_bearing = np.arctan2(x, y)
 
         # Normalize bearing to 0 to 2*pi

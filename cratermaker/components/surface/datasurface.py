@@ -29,9 +29,6 @@ class DataSurface(HiResLocalSurface):
 
     Parameters
     ----------
-    data_file : str | Path
-        The path or url to the DEM data file to be used for the local region
-    local_radius : FloatLike
         The radius of the local region in meters.
     local_location : PairOfFloats
         The longitude and latitude of the location in degrees.
@@ -50,8 +47,11 @@ class DataSurface(HiResLocalSurface):
         If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
         The main project simulation directory. Default is the current working directory if None.
-    pds_file_resolution : int, optional
-        The resolution of the DEM file to download from the PDS in meters per pixel. Valid values are [4,16,64,128,256,512]. If not provide, one will be chosen based on the local radius
+    pix : FloatLike | None, optional
+        The approximate face size inside the local region in meters. This will be used to determine the target resolution of the DEM data to be used. The actual resolution may be different based on the available DEM data. Note that if you provide a list of DEM files using the `dem_file_list` parameter, this value will be ignored. If None, is set, and no file(s) are provided, a default resolution that creates approximately 1e6 faces in the local region will be used.
+    local_radius : FloatLike
+    dem_file_list : list of str | Path, optional
+        A list of one or more DEM files or urls links to files to be used for the local region. If not provided, a set of files will be determined based on the location and radius of the region. It will chose a set of files that fully covers the local region with approximately approximately 1e6 faces.
     **kwargs : Any
 
     Returns
@@ -74,7 +74,8 @@ class DataSurface(HiResLocalSurface):
         regrid: bool = False,
         ask_overwrite: bool = False,
         simdir: str | Path | None = None,
-        pds_file_resolution: int | None = None,
+        pix: FloatLike | None = None,
+        dem_file_list: list[str] | list[Path] | None = None,
         **kwargs: Any,
     ):
         try:
@@ -86,26 +87,27 @@ class DataSurface(HiResLocalSurface):
             )
             return
         object.__setattr__(self, "_local", None)
-        object.__setattr__(self, "_demfile", None)
-        object.__setattr__(
-            self, "_dem_data", None
-        )  # Temporary storage for DEM data during initialization. This will be cleared after the elevation points are set.
-        object.__setattr__(self, "_valid_pds_file_resolutions", [4, 16, 64, 128, 256, 512])
-        object.__setattr__(self, "_pds_file_resolution", None)
+
+        # Temporary storage for DEM data during initialization. This will be cleared after the elevation points are set.
+        object.__setattr__(self, "_dem_data", None)
+
+        # The location of the saved DEM data that can be retrieved later
+        object.__setattr__(self, "_dem_output_file", None)
+        object.__setattr__(self, "_dem_file_list", None)
 
         super(HiResLocalSurface, self).__init__(target=target, simdir=simdir, **kwargs)
-        if self.target.name != "Moon":
-            raise ValueError("DataSurface currently only supports the Moon as a target.")
+        if dem_file_list is None and self.target.name != "Moon":
+            raise ValueError("DataSurface currently only supports the Moon as a target if 'dem_file_list' is not provided.")
         self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
-        self._demfile = f"dem_data.{self._output_file_extension}"
+        self._dem_output_file = f"dem_data.{self._output_file_extension}"
 
         # Set the attributes directly to avoid triggering checks before the pix value is set
         self._local_radius = local_radius
         self._local_location = local_location
-        self.pds_file_resolution = pds_file_resolution
-        pix = np.pi * self.target.radius / (180 * self.pds_file_resolution)
+        self._pix = pix
+        self.dem_file_list = dem_file_list
         super().__init__(
-            pix=pix,
+            pix=self.pix,
             local_radius=local_radius,
             local_location=local_location,
             superdomain_scale_factor=superdomain_scale_factor,
@@ -119,9 +121,56 @@ class DataSurface(HiResLocalSurface):
 
         return
 
-    def _get_lola_dem_file_from_pds(self, pds_file_resolution: int, location: PairOfFloats, boundary_offset=(0, 0)) -> Path:
+    def _get_lola_dem_file_list(self):
         """
-        Generate and download the appropriate LOLA DEM file for a given location and resolution.
+        Determine the set of LOLA DEM files needed to cover the local region if none are provided by the user.
+        """
+        lon_min, lon_max, lat_min, lat_max = self._get_location_extents()
+        if lat_max < 60 and lat_min > -60:  # Use cylindrical files only for mid-latitudes
+            target_pds_resolution = np.pi / 180.0 * self.target.radius / self.pix
+            return self._get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution)
+        else:
+            return self._get_lola_polar_files_from_pds(self.pix, latrange=(lat_min, lat_max))
+
+    def _get_location_extents(self):
+        """
+        Computes the longitude and latitude extents of the local region.
+
+        This is used to determine which DEM files are needed to cover the region.
+
+        Returns
+        -------
+        lon_min : float
+            Minimum longitude in degrees.
+        lon_max : float
+            Maximum longitude in degrees.
+        lat_min : float
+            Minimum latitude in degrees.
+        lat_max : float
+            Maximum latitude in degrees.
+        """
+        R = self.target.radius
+        lon0, lat0 = self.local_location
+        alpha_deg = np.degrees(self.local_radius / R)
+
+        lat_min = max(-90.0, lat0 - alpha_deg)
+        lat_max = min(90.0, lat0 + alpha_deg)
+
+        # If we hit a pole, longitudes span everything
+        if abs(lat0) + alpha_deg >= 90.0:
+            lon_min, lon_max = -180.0, 180.0
+        else:
+            half_lon_span = alpha_deg / np.cos(np.radians(lat0))
+            half_lon_span = min(half_lon_span, 180.0)
+
+            lon_min = lon0 - half_lon_span
+            lon_max = lon0 + half_lon_span
+        return float(lon_min), float(lon_max), float(lat_min), float(lat_max)
+
+    @staticmethod
+    def _get_lola_cylindrical_url_from_pds(pds_file_resolution: int, location: PairOfFloats, boundary_offset=(0, 0)) -> Path:
+        """
+        Retrieve the appropriate LOLA DEM file url for a given location and resolution from the PDS.
 
         Parameters
         ----------
@@ -136,24 +185,27 @@ class DataSurface(HiResLocalSurface):
         -------
         url: str
             Link to the DEM file
-        """
-        if pds_file_resolution not in self._valid_pds_file_resolutions:
-            raise ValueError("Invalid resolution.")
 
-        src_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/"
+        Notes
+        -----
+        This is meant to be used for mid-latitude regions on the Moon between -60 and 60 degrees latitude.
+        For resolutions of 128, 256, and 512 pix/deg, this will return the SLDEM2015 datasets.
+        """
+        lola_cylindrical_url = (
+            "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/"
+        )
+        sldem_global_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/global/float_img/"
+        sldem_tile_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/tiles/float_img/"
 
         def _get_pds_file_suffix(pds_file_resolution, location, boundary_offset):
             if location[0] < 0:
                 location = (location[0] + 360, location[1])
-            if pds_file_resolution == 1024:
-                dlon = 30
-                dlat = 15
-            elif pds_file_resolution == 512:
-                dlon = 90
-                dlat = 45
+            if pds_file_resolution == 512:
+                dlon = 45
+                dlat = 30
             elif pds_file_resolution == 256:
-                dlon = 180
-                dlat = 90
+                dlon = 120
+                dlat = 60
 
             latdir = "n" if location[1] + boundary_offset[1] * dlat > 0 else "s"
             latval = np.abs(location[1] / dlat) + boundary_offset[1]
@@ -181,94 +233,118 @@ class DataSurface(HiResLocalSurface):
                 latlo = lathi
                 lathi = tmp
 
-            return f"{latlo:02d}{latdir.lower()}_{lathi:02d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
+            if pds_file_resolution == 512:
+                return f"{latlo:02d}{latdir.lower()}_{lathi:02d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
+            elif pds_file_resolution == 256:
+                return f"{latlo:d}{latdir.lower()}_{lathi:d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
 
         if pds_file_resolution >= 256:
-            filename = f"ldem_{pds_file_resolution:d}_{_get_pds_file_suffix(pds_file_resolution, location, boundary_offset)}"
+            url = f"{sldem_tile_url}sldem2015_{pds_file_resolution:d}_{_get_pds_file_suffix(pds_file_resolution, location, boundary_offset)}_float.xml"
+        elif pds_file_resolution == 128:
+            url = f"{sldem_global_url}sldem2015_{pds_file_resolution:d}_60s_60n_000_360_float.xml"
         else:
-            filename = f"ldem_{pds_file_resolution:d}"
+            url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_float.xml"
 
-        url = f"{src_url}{filename}_float.xml"
         return url
+
+    def _get_lola_cylindrical_files_from_pds(self, resolution) -> list[str] | str:
+        """
+        Retrieve the appropriate cylindrically projected LOLA DEM file url or list of urls for a given location and resolution from the PDS.
+
+        This will determine which, if any, boundaries are crossed and will return a list of files to cover the entire local region.
+
+        Parameters
+        ----------
+        resolution : FloatLike
+            Requested resolution in degrees per pixel. The closest available resolution will be used.
+
+        """
+        try:
+            import rasterio
+        except ImportError:
+            warn("rasterio is not installed. Cannot use this feature.", stacklevel=2)
+            return
+
+        from affine import Affine
+        from pyproj import Transformer
+        from rasterio.io import MemoryFile
+        from rasterio.merge import merge
+        from rasterio.vrt import WarpedVRT
+        from rasterio.warp import Resampling
+        from rasterio.windows import Window, from_bounds
+
+        AVAILABLE_RESOLUTIONS = [4, 16, 64, 128, 256, 512]  #  pix / deg
+        diffs = [abs(resolution - res) for res in AVAILABLE_RESOLUTIONS]
+        pds_file_resolution = AVAILABLE_RESOLUTIONS[np.argmin(diffs)]
+
+        # First, retrive the file for the centerpoint:
+        filelist = [self._get_lola_cylindrical_url_from_pds(pds_file_resolution, self.local_location)]
+        if pds_file_resolution < 256:
+            return filelist  # These files cover the entire globe, no need to determine if boundaries are crossed
+
+        lon_min, lon_max, lat_min, lat_max = self._get_location_extents()
+        combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
+
+        for loc in combo:
+            f = self._get_lola_cylindrical_url_from_pds(pds_file_resolution, loc)
+            if f not in filelist:
+                filelist.append(f)
+
+        return filelist
+
+    def _get_lola_polar_files_from_pds(self, resolution, latrange: tuple[float, float]) -> list[str] | str:
+        """
+        Retrieve the appropriate polar projected LOLA DEM file url or list of urls for a given location and resolution from the PDS.
+
+        Parameters
+        ----------
+        resolution : FloatLike
+            Requested resolution in meters per pixel. The closest available resolution will be used.
+        latrange : tuple of float
+            The (min_lat, max_lat) in degrees of the local region.
+        """
+        import rasterio
+
+        src_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/float_img/"
+
+        AVAILABLE_RESOLUTIONS = [3000, 1000, 400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
+        MIN_LAT = [50, 50, 45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
+
+        if latrange[0] > 0:
+            pole = "n"
+            min_lat_index = 0  # in the northern hemisphere, the minimum latitude defines coverage
+        else:
+            pole = "s"
+            min_lat_index = 1  # in the southern hemisphere, the maximum latitude defines coverage
+        combo = [
+            (res, minlat)
+            for res, minlat in zip(AVAILABLE_RESOLUTIONS, MIN_LAT, strict=False)
+            if abs(latrange[min_lat_index]) >= minlat
+        ]
+        if len(combo) == 0:
+            raise ValueError("No available LOLA polar DEM files cover the requested latitude range.")
+
+        valid_resolutions, valid_min_lat = zip(*combo, strict=False)
+
+        diffs = [abs(resolution - res) for res in valid_resolutions]
+        pds_file_resolution = valid_resolutions[np.argmin(diffs)]
+        pds_lat_min = valid_min_lat[np.argmin(diffs)]
+        filename = f"ldem_{pds_lat_min:d}{pole}_{pds_file_resolution:d}m"
+        url = f"{src_url}{filename}_float.xml"
+
+        self._pix = pds_file_resolution
+        return [url]
 
     def _get_dem_data(
         self,
-        pds_file_resolution,
-    ):
-        """
-        Retrieve DEM data for a specified crater location and extent.
-
-        Parameters
-        ----------
-        pds_file_resolution : int
-            Resolution of the NAC file in meters per pixel.
-
-        Returns
-        -------
-        dem : dict
-            Dictionary containing x, y, z coordinates and elevation.
-        pix : float
-            Average pixel size in meters.
-        """
-        isboundary = False
-
-        # The high resolution DTM files need a slightly different location format
-        location = self.local_location
-
-        compute_boundary = pds_file_resolution >= 256
-        filename = self._get_lola_dem_file_from_pds(pds_file_resolution, location)
-
-        dem_data, isboundary, boundary_offsets = self._get_dem_from_file(
-            location=location,
-            filename=filename,
-            compute_boundary=compute_boundary,
-        )
-
-        # Handle the case where the DEM is split over multiple files across a boundary
-        if isboundary:
-            filelist = [filename]
-            for boundary_offset in boundary_offsets:
-                filelist.append(self._get_lola_dem_file_from_pds(pds_file_resolution, location, boundary_offset))
-            dem_data, _, _ = self._get_dem_from_file(
-                location=location,
-                filelist=filelist,
-                compute_boundary=False,
-            )
-        self._dem_data = dem_data
-        return
-
-    def _get_dem_from_file(
-        self,
-        location,
-        region_radius=None,
-        filename=None,
-        filelist=None,
-        compute_boundary=True,
     ):
         """
         Read and extract DEM data from one or more files for a specified region.
-
-        Parameters
-        ----------
-        location : tuple
-            (longitude, latitude) in degrees.
-        region_radius : float
-            Radius of the region to extract in meters.
-        filename : str, optional
-            A single DEM file to read.
-        filelist : list of str, optional
-            List of DEM files to merge and read from.
-        compute_boundary : bool, optional
-            Whether to check for boundary overlap in the DEM. This is needed if the DEM straddles the boundary between two or more files
 
         Returns
         -------
         dem : dict or None
             Dictionary with x, y, z coordinates and elevation, or None if boundary case.
-        isboundary : bool
-            Whether the DEM window required boundary adjustment.
-        boundary : list
-            List indicating the directions of boundary overlap, if any.
         """
         try:
             import rasterio
@@ -283,391 +359,109 @@ class DataSurface(HiResLocalSurface):
         from rasterio.warp import Resampling
         from rasterio.windows import Window, from_bounds
 
-        def _laea_window_bounds_in_src_crs(location, box_size_m, src_crs, dst_crs):
-            """
-            Compute (minx, miny, maxx, maxy) in the *source* CRS that tightly enclose the LAEA square window centered at `location` with side length `box_size_m`.
-
-            Works for both geographic (lon/lat in degrees) and projected (linear units) source CRSs.
-            """
-            from pyproj import Transformer
-
-            # Half the LAEA square (in meters, LAEA space)
-            half = 0.5 * box_size_m
-            left_m, right_m = -half, half
-            bottom_m, top_m = -half, half
-
-            # Sample the perimeter densely to capture extremal extents after inverse projection
-            N = 64
-            xs = np.concatenate(
-                [
-                    np.linspace(left_m, right_m, N),  # bottom edge x
-                    np.full(N, right_m),  # right edge x
-                    np.linspace(right_m, left_m, N),  # top edge x
-                    np.full(N, left_m),  # left edge x
-                ]
-            )
-            ys = np.concatenate(
-                [
-                    np.full(N, bottom_m),  # bottom edge y
-                    np.linspace(bottom_m, top_m, N),  # right edge y
-                    np.full(N, top_m),  # top edge y
-                    np.linspace(top_m, bottom_m, N),  # left edge y
-                ]
-            )
-
-            transformer = Transformer.from_crs(dst_crs, src_crs, always_xy=True)
-            u, v = transformer.transform(xs, ys)
-
-            # Determine whether the source CRS is geographic (degrees) or projected (linear)
-            try:
-                src_is_geographic = src_crs.is_geographic
-            except Exception:
-                # Fall back to assuming projected if CRS parsing fails
-                src_is_geographic = False
-
-            if src_is_geographic:
-                # Normalize longitudes to [0, 360) and compute minimal covering arc on the circle
-                lon_raw = np.asarray(u, dtype=float)
-                lat = np.asarray(v, dtype=float)
-
-                lon = np.mod(lon_raw, 360.0)
-                lon = np.where(lon < 0.0, lon + 360.0, lon)
-
-                # Sort and find the largest gap; the complement is the minimal arc covering all points
-                lon_sorted = np.sort(lon)
-                if lon_sorted.size == 0:
-                    # Fallback: degenerate case
-                    lon_min = lon_max = 0.0
-                else:
-                    diffs = np.diff(np.r_[lon_sorted, lon_sorted[0] + 360.0])
-                    j = int(np.argmax(diffs))
-                    # Minimal covering arc goes from next point after the largest gap to the point at the start of the gap
-                    start = lon_sorted[(j + 1) % lon_sorted.size]
-                    end = lon_sorted[j]
-                    lon_min, lon_max = (
-                        start,
-                        end,
-                    )  # Note: if start > end, this interval wraps 0°
-
-                lat_min = float(np.min(lat))
-                lat_max = float(np.max(lat))
-
-                # Tiny pads for safety in angular units
-                pad_lon = 1e-6 * max(1.0, (lon_max - lon_min) % 360.0)
-                pad_lat = 1e-6 * max(1.0, abs(lat_max - lat_min))
-
-                # Apply padding while keeping results in [0, 360)
-                left = (lon_min - pad_lon) % 360.0
-                right = (lon_max + pad_lon) % 360.0
-                bottom = lat_min - pad_lat
-                top = lat_max + pad_lat
-            else:
-                # Projected/linear units: use corner sampling and guard against seam/degenerate warps
-                from pyproj import Transformer
-
-                half = 0.5 * box_size_m
-                corners_dst = np.array(
-                    [
-                        [-half, -half],
-                        [half, -half],
-                        [half, half],
-                        [-half, half],
-                    ],
-                    dtype=float,
-                )
-
-                # Transform corners from LAEA (dst) -> source CRS
-                to_src = Transformer.from_crs(dst_crs, src_crs, always_xy=True)
-                x_c, y_c = to_src.transform(corners_dst[:, 0], corners_dst[:, 1])
-                x_c = np.asarray(x_c, dtype=float)
-                y_c = np.asarray(y_c, dtype=float)
-
-                x_min = float(np.min(x_c))
-                x_max = float(np.max(x_c))
-                y_min = float(np.min(y_c))
-                y_max = float(np.max(y_c))
-
-                width = x_max - x_min
-                height = y_max - y_min
-
-                # Compute the expected side length in meters in source CRS near the center by
-                # transforming two small LAEA steps and measuring the differential scaling.
-                # Also compute the center in the source CRS for a safe fallback.
-                to_src_small = to_src  # reuse
-                # Small differential step (meters) to estimate local Jacobian scale
-                d = min(1.0, half)
-                x0_s, y0_s = to_src_small.transform(0.0, 0.0)
-                x_dx, y_dx = to_src_small.transform(d, 0.0)
-                x_dy, y_dy = to_src_small.transform(0.0, d)
-                sx = max(1e-9, abs(x_dx - x0_s) / d)
-                sy = max(1e-9, abs(y_dy - y0_s) / d)
-                # Estimated expected box size mapped into source CRS
-                exp_width = 2.0 * sx * half
-                exp_height = 2.0 * sy * half
-
-                # Heuristic: if the transformed box is unreasonably elongated or orders of magnitude
-                # larger than the expected local mapping, fall back to a centered square around (0,0) in LAEA mapped to src.
-                bad_aspect = (height > 0 and (width / height > 10.0)) or (width == 0 and height > 0)
-                bad_scale = (width > 4.0 * max(exp_width, 1.0)) or (height > 4.0 * max(exp_height, 1.0))
-
-                if bad_aspect or bad_scale:
-                    # Fallback: construct a square in the source CRS centered at the mapped LAEA origin
-                    # with side lengths matching the local linearized scale.
-                    cx, cy = x0_s, y0_s
-                    x_min = cx - exp_width * 0.5
-                    x_max = cx + exp_width * 0.5
-                    y_min = cy - exp_height * 0.5
-                    y_max = cy + exp_height * 0.5
-
-                pad_x = 1e-6 * max(1.0, abs(x_max - x_min))
-                pad_y = 1e-6 * max(1.0, abs(y_max - y_min))
-                left, bottom, right, top = (
-                    x_min - pad_x,
-                    y_min - pad_y,
-                    x_max + pad_x,
-                    y_max + pad_y,
-                )
-
-            return left, bottom, right, top
-
-        def _merge_with_bounds_wrap(src_list, bounds, nodata_val=None, dtype=None):
-            """Merge sources within `bounds`, handling 0/360 wrap only for geographic CRSs.
-
-            If the source CRS is projected (linear units), perform a normal merge.
-            """
-            left, bottom, right, top = bounds
-
-            # Detect if the source CRS is geographic (lon/lat)
-            try:
-                src_is_geographic = src_list[0].crs.is_geographic
-            except Exception:
-                src_is_geographic = False
-
-            if not src_is_geographic:
-                # No wrap logic in projected CRSs
-                return merge(
-                    src_list,
-                    bounds=bounds,
-                    nodata=nodata_val,
-                    dtype=dtype,
-                    res=src_list[0].res,
-                )
-
-            # Geographic: handle potential 0..360 crossing
-            if left <= right:
-                return merge(
-                    src_list,
-                    bounds=bounds,
-                    nodata=nodata_val,
-                    dtype=dtype,
-                    res=src_list[0].res,
-                )
-
-            # Wrap case for 0..360 domain
-            bounds1 = (left, bottom, 360.0, top)
-            bounds2 = (0.0, bottom, right, top)
-
-            mosa_parts = []
-            trans_parts = []
-            for b in (bounds1, bounds2):
-                mosa, trans = merge(
-                    src_list,
-                    bounds=b,
-                    nodata=nodata_val,
-                    dtype=dtype,
-                    res=src_list[0].res,
-                )
-                mosa_parts.append(mosa)
-                trans_parts.append(trans)
-
-            # Write partials to in-memory datasets and merge again to obtain a single mosaic
-            mems = []
-            dsets = []
-            try:
-                base = src_list[0]
-                out_dtype = dtype or base.meta.get("dtype", mosa_parts[0].dtype.name)
-                for idx, (mosa, trans) in enumerate(zip(mosa_parts, trans_parts, strict=False)):
-                    # Shift the second chunk by +360° in x so both parts live in a continuous domain
-                    trans_to_use = trans
-                    if idx == 1:
-                        trans_to_use = Affine(trans.a, trans.b, trans.c + 360.0, trans.d, trans.e, trans.f)
-
-                    meta = base.meta.copy()
-                    meta.update(
-                        driver="GTiff",
-                        count=mosa.shape[0],
-                        height=mosa.shape[1],
-                        width=mosa.shape[2],
-                        transform=trans_to_use,
-                        crs=base.crs,
-                        dtype=out_dtype,
-                        nodata=nodata_val,
-                    )
-                    mem = MemoryFile()
-                    ds = mem.open(**meta)
-                    ds.write(mosa.astype(out_dtype, copy=False))
-                    mems.append(mem)
-                    dsets.append(ds)
-
-                mosa_full, trans_full = merge(dsets, nodata=nodata_val, dtype=out_dtype, res=base.res)
-            finally:
-                import contextlib
-
-                for ds in dsets:
-                    with contextlib.suppress(Exception):
-                        ds.close()
-                for mem in mems:
-                    with contextlib.suppress(Exception):
-                        mem.close()
-            return mosa_full, trans_full
+        if self.dem_file_list is None:
+            raise ValueError("No DEM files provided to extract data from.")
 
         _EXPANSION_BUFFER = 1.05
-        if region_radius is None:
-            region_radius = self.local_radius
+        _NODATA = -1.0e-9
+        region_radius = self.local_radius
         box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
         half_box_size = box_size / 2
-        isboundary = False
-        boundary = [None, None]
         dst_crs = self.get_crs(
             radius=self.target.radius,
             name=self.target.name,
-            location=location,
+            location=self.local_location,
         )
-        is_tiled = filelist is not None
+        src_list = []
+        print("Reading DEM files:")
+        try:
+            for f in self.dem_file_list:
+                print(f"  {f}")
+                src_list.append(rasterio.open(f))
+        except Exception as e:
+            raise RuntimeError(f"Error reading DEM file(s): {e}") from e
+        nodata_val = src_list[0].nodata
+        if nodata_val is None or np.isnan(nodata_val):
+            nodata_val = _NODATA
+        target_res = min(s.res[0] for s in src_list)
+        dst_width = int(np.ceil(2 * half_box_size / target_res))
+        dst_height = dst_width
+        dst_transform = Affine(target_res, 0.0, -half_box_size, 0.0, -target_res, half_box_size)
+        vrt_list = [
+            WarpedVRT(
+                src,
+                crs=dst_crs,
+                transform=dst_transform,
+                width=dst_width,
+                height=dst_height,
+                resampling=Resampling.bilinear,
+                dst_nodata=nodata_val,
+            )
+            for src in src_list
+        ]
+        # Ensure nodata is respected; if missing, use NaN and float32
+        mosaic, transform = merge(
+            vrt_list,
+            nodata=nodata_val,
+            dtype="float32" if np.isnan(nodata_val) else None,
+        )
 
-        with MemoryFile() as memfile:
-            if is_tiled:
-                print(f"Merging files: {filelist}")
-                src_list = []
-                for filename in filelist:
-                    src = rasterio.open(filename)
-                    src_list.append(src)
+        out_meta = src_list[0].meta.copy()
+        out_meta.update(
+            {
+                "driver": "GTiff",
+                "height": mosaic.shape[1],
+                "width": mosaic.shape[2],
+                "transform": transform,
+                "crs": dst_crs,
+            }
+        )
 
-                box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
-                bounds = _laea_window_bounds_in_src_crs(location, box_size, src_list[0].crs, dst_crs)
+        with MemoryFile() as memfile, memfile.open(**out_meta) as src:
+            src.units = src_list[0].units
+            src.write(mosaic)
 
-                # Ensure nodata is respected; if missing, use NaN and float32
-                nodata_val = src_list[0].nodata
-                if nodata_val is None:
-                    nodata_val = np.float32(np.nan)
-                    mosaic, transform = _merge_with_bounds_wrap(src_list, bounds, nodata_val=nodata_val, dtype="float32")
-                    mosaic = mosaic.astype("float32", copy=False)
-                else:
-                    mosaic, transform = _merge_with_bounds_wrap(src_list, bounds, nodata_val=nodata_val)
-
-                out_meta = src.meta.copy()
-                out_meta.update(
-                    {
-                        "driver": "GTiff",
-                        "height": mosaic.shape[1],
-                        "width": mosaic.shape[2],
-                        "transform": transform,
-                        "crs": src.crs,
-                        "nodata": nodata_val,
-                    }
-                )
-                with memfile.open(**out_meta) as dst:
-                    dst.units = src_list[0].units
-                    dst.write(mosaic)
-
-                cm = memfile.open()
+            window = Window(0, 0, src.width, src.height)
+            if "KILOMETER" in src.units:
+                scale_factor = 1000.0
             else:
-                # Use source resolution as a reasonable LAEA pixel size
+                scale_factor = 1.0
 
-                print(f"Opening DEM file: {filename}")
-                cm = rasterio.open(filename)
+            # Read the data within the window
+            elevation = src.read(1, window=window) * scale_factor
 
-            with cm as src:
-                x_min = -half_box_size
-                x_max = half_box_size
-                y_min = -half_box_size
-                y_max = half_box_size
-                warpedvrt_args = {"resampling": Resampling.bilinear}
-                if not is_tiled:
-                    target_res = min(src.res)
+            # Preserve the window grid and affine for later interpolation
+            window_transform = src.window_transform(window)
 
-                    dst_width = int(np.ceil(2 * half_box_size / target_res))
-                    dst_height = dst_width
-                    dst_transform = Affine(
-                        target_res,
-                        0.0,
-                        -half_box_size,  # left edge at -half_box_size
-                        0.0,
-                        -target_res,
-                        half_box_size,  # top edge at +half_box_size
-                    )
-                    warpedvrt_args["transform"] = dst_transform
-                    warpedvrt_args["width"] = dst_width
-                    warpedvrt_args["height"] = dst_height
+            # Generate row and column indices
+            rows, cols = np.indices(elevation.shape)
 
-                with WarpedVRT(src, crs=dst_crs, **warpedvrt_args) as vrt:
-                    # First check to see if we are crossing a boundary, and if so, we will return with information about which boundaries were crossed so that we can assemble tiles in the next pass.
-                    window_orig = from_bounds(x_min, y_min, x_max, y_max, vrt.transform)
-                    if compute_boundary:
-                        window = window_orig.intersection(Window(0, 0, vrt.width, vrt.height))
-                        if window != window_orig:
-                            isboundary = True
-                            boundary_offsets = []
-                            if window.col_off != window_orig.col_off:
-                                boundary_offsets.append((-1, 0))
-                            elif window.width != window_orig.width:
-                                boundary_offsets.append((1, 0))
-                            if window.row_off != window_orig.row_off:
-                                boundary_offsets.append((0, 1))
-                            elif window.height != window_orig.height:
-                                boundary_offsets.append((0, -1))
-                            if len(boundary_offsets) == 2:  # corner case
-                                boundary_offsets.append(
-                                    (
-                                        boundary_offsets[0][0] + boundary_offsets[1][0],
-                                        boundary_offsets[0][1] + boundary_offsets[1][1],
-                                    )
-                                )
-                            return None, isboundary, boundary_offsets
-                    else:
-                        if is_tiled:
-                            window = window_orig
-                        else:
-                            window = Window(0, 0, dst_width, dst_height)
+            # Compute the x and y coordinates of each pixel in the local CRS
+            x_coords, y_coords = rasterio.transform.xy(window_transform, rows, cols, offset="center")
+            x_coords = np.array(x_coords).flatten()
+            y_coords = np.array(y_coords).flatten()
+            elevation = elevation.flatten()
 
-                    if "KILOMETER" in src.units:
-                        scale_factor = 1000.0
-                    else:
-                        scale_factor = 1.0
-                    # Read the data within the window
-                    elevation = vrt.read(1, window=window) * scale_factor
+            # Handle nodata values
+            mask_nodata = (elevation != src.nodata) & ~np.isnan(elevation)
+            mean_elevation = np.mean(elevation[mask_nodata])
+            elevation[~mask_nodata] = mean_elevation
+            elevation = elevation.astype(np.float32)
 
-                    # Preserve the window grid and affine for later interpolation
-                    window_transform = vrt.window_transform(window)
+            transformer_to_geodetic = Transformer.from_crs(dst_crs, self.crs, always_xy=True)
 
-                    # Generate row and column indices
-                    rows, cols = np.indices(elevation.shape)
+            # Transform to longitude and latitude
+            longitudes, latitudes = transformer_to_geodetic.transform(x_coords, y_coords)
+            r_vals = self.calculate_distance(self.local_location, list(zip(longitudes, latitudes, strict=False)))
+            dem_data = {
+                "elevation": elevation,
+                "mask": r_vals <= region_radius + self.pix / 4,
+                "latitudes": latitudes,
+                "longitudes": longitudes,
+            }
 
-                    # Compute the x and y coordinates of each pixel in the local CRS
-                    x_coords, y_coords = rasterio.transform.xy(window_transform, rows, cols, offset="center")
-                    x_coords = np.array(x_coords).flatten()
-                    y_coords = np.array(y_coords).flatten()
-                    r_vals = np.sqrt(x_coords**2 + y_coords**2)
-                    elevation = elevation.flatten()
-
-                    # Handle nodata values
-                    mask_nodata = (elevation != vrt.nodata) & ~np.isnan(elevation)
-                    mean_elevation = np.mean(elevation[mask_nodata])
-                    elevation[~mask_nodata] = mean_elevation
-                    elevation = elevation.astype(np.float32)
-
-                    transformer_to_geodetic = Transformer.from_crs(dst_crs, self.crs, always_xy=True)
-
-                    # Transform to longitude and latitude
-                    longitudes, latitudes = transformer_to_geodetic.transform(x_coords, y_coords)
-                    dem_data = {
-                        "elevation": elevation,
-                        "mask": r_vals <= region_radius + self.pix / 4,
-                        "latitudes": latitudes,
-                        "longitudes": longitudes,
-                    }
-
-        return dem_data, isboundary, boundary
+        self._dem_data = dem_data
+        return
 
     def _generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """
@@ -680,7 +474,7 @@ class DataSurface(HiResLocalSurface):
         """
 
         def _interior_distribution():
-            self._get_dem_data(self.pds_file_resolution)
+            self._get_dem_data()
             mask = self._dem_data["mask"]
             longitudes = np.radians(self._dem_data["longitudes"][mask])
             latitudes = np.radians(self._dem_data["latitudes"][mask])
@@ -753,8 +547,8 @@ class DataSurface(HiResLocalSurface):
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
         if self._dem_data is not None:
             self._add_dem_elevation()
-        elif (self.output_dir / self._demfile).exists():
-            with xr.open_dataset(self.output_dir / self._demfile) as ds:
+        elif (self.output_dir / self._dem_output_file).exists():
+            with xr.open_dataset(self.output_dir / self._dem_output_file) as ds:
                 self.local.update_elevation(ds.isel(time=0).face_elevation)
                 self.local.update_elevation(ds.isel(time=0).node_elevation)
 
@@ -779,10 +573,10 @@ class DataSurface(HiResLocalSurface):
         # DEM data can come from one of two sources. If we are in the middle of building the surface as part of _generate_face_distribution, then the DEM data should be stored in the _dem_data attribute.
         # If this is not set but we already have a grid generated and stored in the uxgrid attribute, then we need to check if a matching DEM file exists on disk. If neither of these sources are avaailable, then we need to regrid.
         if not regrid and self._dem_data is None:
-            if not (self.output_dir / self._demfile).exists():
+            if not (self.output_dir / self._dem_output_file).exists():
                 regrid = True
             elif self.uxgrid is not None:
-                with xr.open_dataset(self.output_dir / self._demfile) as ds:
+                with xr.open_dataset(self.output_dir / self._dem_output_file) as ds:
                     if (
                         "face_elevation" not in ds
                         or "node_elevation" not in ds
@@ -809,30 +603,31 @@ class DataSurface(HiResLocalSurface):
         self.local.update_elevation(node_elevations)
 
         # Now save the surface to a file that we can reload later if we want to avoid re-downloading the DEM data
-        self.local.save(filename=self._demfile)
+        self.local.save(filename=self._dem_output_file)
         self._dem_data = None  # Clear temporary DEM data storage
         return
 
     @parameter
-    def pds_file_resolution(self) -> int | None:
-        """The resolution of the DEM file to download from the PDS in meters per pixel."""
-        return self._pds_file_resolution
+    def dem_file_list(self) -> int | None:
+        """
+        The list of files to use for the DEM data.
+        """
+        return self._dem_file_list
 
-    @pds_file_resolution.setter
-    def pds_file_resolution(self, value: int | None):
+    @dem_file_list.setter
+    def dem_file_list(self, value: int | None):
         if value is None:
-            # Valid resolution in pixels per degree in lat or lon
-            # Choose one of the valid resolutions that gets you approximately 1000 pixels across the diameter of the local region
-            if np.abs(self.local_location[1]) < 60:
-                lon_size_deg = 2 * (self.local_radius / self.target.radius) * (180.0 / np.pi)
-                lat_size_deg = lon_size_deg / np.cos(np.radians(self.local_location[1]))
-                n_deg = np.sqrt(lon_size_deg * lat_size_deg)
-                target_pix = 1000.0
+            if self._pix is None:
+                # Compute a reasonable default resolution based on the local radius
+                self._pix = np.sqrt(np.pi * self.local_radius**2 / 1e6)
+            self._dem_file_list = self._get_lola_dem_file_list()
+            return
+        if isinstance(value, list):
+            if not all(isinstance(f, (str, Path)) for f in value):
+                raise ValueError("All items in 'dem_file_list' must be strings or Path objects.")
+        elif not isinstance(value, (str, Path)):
+            raise TypeError("'dem_file_list' must be a list of strings or Path objects, or None.")
 
-                diffs = [abs(target_pix / n_deg - res) for res in self._valid_pds_file_resolutions]
-            value = self._valid_pds_file_resolutions[np.argmin(diffs)]
-            print(f"Chosen PDS file resolution: {value} pix/deg")
-        elif value not in self._valid_pds_file_resolutions:
-            raise ValueError(f"Invalid pds_file_resolution {value}. Valid values are {self._valid_pds_file_resolutions}.")
-        self._pds_file_resolution = value
+        self._dem_file_list = value
+
         return
