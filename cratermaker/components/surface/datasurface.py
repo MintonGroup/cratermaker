@@ -126,11 +126,13 @@ class DataSurface(HiResLocalSurface):
         Determine the set of LOLA DEM files needed to cover the local region if none are provided by the user.
         """
         lon_min, lon_max, lat_min, lat_max = self._get_location_extents()
-        if lat_max < 60 and lat_min > -60:  # Use cylindrical files only for mid-latitudes
-            target_pds_resolution = np.pi / 180.0 * self.target.radius / self.pix
-            return self._get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution)
-        else:
+        target_pds_resolution = np.pi / 180.0 * self.target.radius / self.pix
+        if target_pds_resolution > 10 and (
+            lat_min > 60 or lat_max < -60
+        ):  # Use polar files high latitude, high resolution regions.
             return self._get_lola_polar_files_from_pds(self.pix, latrange=(lat_min, lat_max))
+        else:  # Use cylindrical for all other cases
+            return self._get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution)
 
     def _get_location_extents(self):
         """
