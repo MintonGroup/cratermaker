@@ -154,7 +154,6 @@ class HiResLocalSurface(Surface):
         include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
-        superdomain: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -173,24 +172,22 @@ class HiResLocalSurface(Surface):
         exclude_variables : list[str] or tuple[str, ...], optional
             List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
         filename : str or Path, optional
-            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
-        superdomain : bool, optional
-            If True, save the full surface including the superdomain. If False, save only the local region. Default is False.
+            The filename to save the data to. If None, a default filename will be used based on the interval number. If provided, the file associated with the local surface will have 'local' prepended. Default is None.
         """
-        if superdomain:
-            self._full().save(
-                interval_number=interval_number,
-                time_variables=time_variables,
-                include_variables=include_variables,
-                exclude_variables=exclude_variables,
-                filename=f"{superdomain}_{filename}" ** kwargs,
-            )
-        self.local.save(
+        self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
             include_variables=include_variables,
             exclude_variables=exclude_variables,
             filename=filename,
+            **kwargs,
+        )
+        self.local.save(
+            interval_number=interval_number,
+            time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=f"local_{filename}" if filename else None,
             **kwargs,
         )
         return
