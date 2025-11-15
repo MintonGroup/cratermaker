@@ -19,6 +19,8 @@ from cratermaker.utils.general_utils import (
     parameter,
 )
 
+_DEFAULT_N_FACES_LOCAL = 1e6
+
 
 @Surface.register("datasurface")
 class DataSurface(HiResLocalSurface):
@@ -621,8 +623,8 @@ class DataSurface(HiResLocalSurface):
     def dem_file_list(self, value: int | None):
         if value is None:
             if self._pix is None:
-                # Compute a reasonable default resolution based on the local radius
-                self._pix = np.sqrt(np.pi * self.local_radius**2 / 1e6)
+                # Compute a reasonable default resolution that will contain approximately 1e6 faces based on the local radius
+                self._pix = np.sqrt(np.pi * self.local_radius**2 / _DEFAULT_N_FACES_LOCAL)
             self._dem_file_list = self._get_lola_dem_file_list()
             return
         if isinstance(value, list):
