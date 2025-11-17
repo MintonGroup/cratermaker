@@ -270,7 +270,6 @@ class DataSurface(HiResLocalSurface):
             return
 
         from affine import Affine
-        from pyproj import Transformer
         from rasterio.io import MemoryFile
         from rasterio.merge import merge
         from rasterio.vrt import WarpedVRT

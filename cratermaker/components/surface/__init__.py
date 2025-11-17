@@ -16,7 +16,7 @@ import xarray as xr
 from cratermaker._cratermaker import surface_functions
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
-from pyproj import CRS
+from pyproj import CRS, Transformer
 from scipy.optimize import OptimizeWarning, curve_fit
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
@@ -1864,6 +1864,8 @@ class LocalSurface(CratermakerBase):
         object.__setattr__(self, "_node_face_connectivity", None)
         object.__setattr__(self, "_crs", None)
         object.__setattr__(self, "_output_file_extension", "nc")
+        object.__setattr__(self, "_from_surface", None)
+        object.__setattr__(self, "_to_surface", None)
 
         self._output_dir_name = self.surface._output_dir_name
 
@@ -3733,6 +3735,33 @@ class LocalSurface(CratermakerBase):
         The directory to save plots to.
         """
         return self.surface.plot_dir
+
+    @property
+    def from_surface(self) -> Transformer:
+        """
+        A pyproj Transformer object to convert from the surface CRS to the local CRS.
+        """
+        if self._from_surface is None:
+            self._from_surface = Transformer.from_crs(
+                self.surface.crs,
+                self.crs,
+                always_xy=True,
+            )
+        return self._from_surface
+
+    @property
+    def to_surface(self) -> Transformer:
+        """
+        A pyproj Transformer object to convert from the local CRS to the surface CRS.
+
+        """
+        if self._to_surface is None:
+            self._to_surface = Transformer.from_crs(
+                self.crs,
+                self.surface.crs,
+                always_xy=True,
+            )
+        return self._to_surface
 
 
 import_components(__name__, __path__)
