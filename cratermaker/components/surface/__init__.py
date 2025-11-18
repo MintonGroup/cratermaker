@@ -1906,6 +1906,7 @@ class LocalSurface(CratermakerBase):
         isfacedata: bool = True,
         overwrite: bool = False,
         dtype=np.float64,
+        fill_value: float = 0.0,
     ) -> None:
         """
         Adds new data to the surface.
@@ -1926,6 +1927,8 @@ class LocalSurface(CratermakerBase):
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
         dtype : data-type, optional
             The data type of the data variable. Default is np.float64.
+        fill_value : float, optional
+            The fill value to use for new data variables. Default is 0.0.
 
         Returns
         -------
@@ -1951,7 +1954,7 @@ class LocalSurface(CratermakerBase):
         if name not in self.surface.uxds.data_vars:
             self.surface._add_new_data(
                 name,
-                data=0,
+                data=fill_value,
                 long_name=long_name,
                 units=units,
                 isfacedata=isfacedata,
