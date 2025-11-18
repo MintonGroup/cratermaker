@@ -35,7 +35,7 @@ ejecta_elevation = morphology.ejecta_profile(crater, r)
 dem = crater_elevation + ejecta_elevation
 
 
-def plot_hillshade(dem, pix):
+def plot(dem, pix):
     import matplotlib.pyplot as plt
     from matplotlib.colors import LightSource
 
@@ -65,4 +65,4 @@ def plot_hillshade(dem, pix):
     plt.show()
 
 
-plot_hillshade(dem, pix)
+plot(dem, pix)

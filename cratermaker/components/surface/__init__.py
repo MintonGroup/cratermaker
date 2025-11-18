@@ -14,7 +14,14 @@ import numpy as np
 import uxarray as uxr
 import xarray as xr
 from cratermaker._cratermaker import surface_functions
-from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike
+from matplotlib.axes import Axes
+from numpy.typing import ArrayLike, NDArray
+from pyproj import CRS, Transformer
+from scipy.optimize import OptimizeWarning, curve_fit
+from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
+from vtk import vtkUnstructuredGrid
+
+from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import (
     format_large_units,
@@ -22,10 +29,6 @@ from cratermaker.utils.general_utils import (
     validate_and_normalize_location,
 )
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
-from numpy.typing import ArrayLike, NDArray
-from pyproj import CRS
-from scipy.optimize import OptimizeWarning, curve_fit
-from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 
 if TYPE_CHECKING:
     from cratermaker.components.target import Target
@@ -102,9 +105,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_grid_file_prefix", "grid")
         object.__setattr__(self, "_output_file_extension", "nc")
 
-        self._output_file_pattern += [
-            f"{self._output_file_prefix}*.{self._output_file_extension}"
-        ]
+        self._output_file_pattern += [f"{self._output_file_prefix}*.{self._output_file_extension}"]
 
         self._data_variable_init = {
             "node_elevation": {
@@ -214,9 +215,7 @@ class Surface(ComponentBase):
 
         return
 
-    def extract_region(
-        self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike
-    ):
+    def extract_region(self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike):
         """
         Extract a regional grid based on a given location and radius.
 
@@ -259,9 +258,7 @@ class Surface(ComponentBase):
             node_faces = node_faces[node_faces != INT_FILL_VALUE]
             edge_faces = self.edge_face_connectivity[edge_indices]
             edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
-            face_indices = np.unique(
-                np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces))
-            )
+            face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
 
             # Add in all nodes that are attached to these buffer faces
             node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
@@ -346,9 +343,7 @@ class Surface(ComponentBase):
         -----
         When passing combined data, the first part of the array will be used for face elevation and the second part for node elevation.
         """
-        return self._full().update_elevation(
-            new_elevation=new_elevation, overwrite=overwrite, **kwargs
-        )
+        return self._full().update_elevation(new_elevation=new_elevation, overwrite=overwrite, **kwargs)
 
     def apply_diffusion(self, kdiff: FloatLike | NDArray) -> None:
         """
@@ -407,13 +402,9 @@ class Surface(ComponentBase):
         kwargs : Any
             Additional arguments to pass to the noise model.
         """
-        return self._full().apply_noise(
-            model=model, noise_width=noise_width, noise_height=noise_height, **kwargs
-        )
+        return self._full().apply_noise(model=model, noise_width=noise_width, noise_height=noise_height, **kwargs)
 
-    def calculate_face_and_node_distances(
-        self, location: tuple[float, float]
-    ) -> tuple[NDArray, NDArray]:
+    def calculate_face_and_node_distances(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
         Computes the distances from a given location to all faces and nodes.
 
@@ -431,9 +422,7 @@ class Surface(ComponentBase):
         """
         return self._full().calculate_face_and_node_distances(location)
 
-    def calculate_face_and_node_bearings(
-        self, location: tuple[float, float]
-    ) -> tuple[NDArray, NDArray]:
+    def calculate_face_and_node_bearings(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
         Computes the initial bearing from a given location to all faces and nodes.
 
@@ -551,9 +540,7 @@ class Surface(ComponentBase):
 
         self.node_elevation = node_elevation
 
-    def get_random_location_on_face(
-        self, face_index: int, **kwargs
-    ) -> float | tuple[float, float] | ArrayLike:
+    def get_random_location_on_face(self, face_index: int, **kwargs) -> float | tuple[float, float] | ArrayLike:
         """
         Generate a random coordinate within a given face of a the mesh.
 
@@ -576,9 +563,7 @@ class Surface(ComponentBase):
         -----
         This method is a wrapper for :func:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`.
         """
-        return get_random_location_on_face(
-            self.uxgrid, face_index, rng=self.rng, **kwargs
-        )
+        return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
 
     def elevation_to_cartesian(self, element="face") -> NDArray[np.float64]:
         """
@@ -600,6 +585,9 @@ class Surface(ComponentBase):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
+        include_variables: list[str] | tuple[str, ...] | None = None,
+        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        filename: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -613,19 +601,25 @@ class Surface(ComponentBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-
+        include_variables : list[str] or tuple[str, ...], optional
+            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
+        exclude_variables : list[str] or tuple[str, ...], optional
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+        filename : str or Path, optional
+            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         **kwargs : Any
             Additional keyword arguments to pass to the export function.
         """
         return self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=filename,
             **kwargs,
         )
 
-    def export(
-        self, driver: str = "GPKG", interval_number: int | None = None, **kwargs: Any
-    ) -> None:
+    def export(self, driver: str = "GPKG", interval_number: int | None = None, **kwargs: Any) -> None:
         """
         Export the surface data to the specified format.
 
@@ -664,9 +658,25 @@ class Surface(ComponentBase):
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
-        return self._full().to_vector_file(
-            driver=driver, interval_number=interval_number, **kwargs
-        )
+        return self._full().to_vector_file(driver=driver, interval_number=interval_number, **kwargs)
+
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+        """
+        Exports the surface to a VTK PolyData object.
+
+        Parameters
+        ----------
+        uxds : UxDataset, optional
+            The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        **kwargs : Any
+            Additional keyword arguments
+
+        Returns
+        -------
+        vtkUnstructuredGrid
+            The VTK PolyData object representing the regional mesh.
+        """
+        return self._full().to_vtk_mesh(uxds=uxds, **kwargs)
 
     def to_vtk_file(
         self,
@@ -688,9 +698,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def plot_hillshade(
-        self, imagefile=None, label=None, scalebar=True, **kwargs: Any
-    ) -> None:
+    def plot(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
         """
         Plot a hillshade image of the surface.
 
@@ -705,9 +713,22 @@ class Surface(ComponentBase):
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
-        return self._full().plot_hillshade(
-            imagefile=imagefile, label=label, scalebar=scalebar, **kwargs
-        )
+        return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+
+    def show(self, engine: str = "pyvista", variable: str = "face_elevation", **kwargs) -> None:
+        """
+        Show the surface using an interactive 3D plot.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        return self._full().show(engine=engine, variable=variable, **kwargs)
 
     @staticmethod
     def _sphere_function(coords, x_c, y_c, z_c, r):
@@ -731,26 +752,20 @@ class Surface(ComponentBase):
         x, y, z = coords.T
         return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
 
-    def _calculate_distance(
+    def calculate_distance(
         self,
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: ArrayLike,
-        lat2: ArrayLike,
+        center_location: PairOfFloats,
+        locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
 
         Parameters
         ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike or ArrayLike
-            Longitude of the second point or array of points in radians.
-        lat2 : FloatLike or ArrayLike
-            Latitude of the second point or array of points in radians.
+        center_location : PairOfFloats
+            (lon, lat) location of the center point in degrees.
+        locations : FloatLike or ArrayLike
+            Array of (lon, lat) locations of the second point or array of points in degrees.
 
         Returns
         -------
@@ -761,42 +776,27 @@ class Surface(ComponentBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        # Validate that lon1 and lat1 are single points
-        if not np.isscalar(lon1):
-            if lon1.size != 1:
-                raise ValueError("lon1 must be a single point")
-            lon1 = lon1.item()
-        if not np.isscalar(lat1):
-            if lat1.size != 1:
-                raise ValueError("lat1 must be a single point")
-            lat1 = lat1.item()
-        if np.isscalar(lon2):
-            lon2 = np.array([lon2])
-        if np.isscalar(lat2):
-            lat2 = np.array([lat2])
+        center_location = np.radians(center_location)
+        locations = np.radians(locations)
 
         return surface_functions.calculate_distance(
-            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2, radius=self.radius
+            lon1=center_location[0], lat1=center_location[1], lon2=locations[:, 0], lat2=locations[:, 1], radius=self.radius
         )
 
     @staticmethod
-    def _calculate_bearing(
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: FloatLike | ArrayLike,
-        lat2: FloatLike | ArrayLike,
+    def calculate_bearing(
+        center_location: PairOfFloats,
+        locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
         Calculate the initial bearing from one point to one or more other points in radians.
 
         Parameters
         ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike or ArrayLike
-            Longitude of the second point or array of points in radians.
+        center_location : PairOfFloats
+            Longitude and latitude of the first point in radians.
+        locations : ArrayLike
+            Longitude and latitude of the second point or array of points in radians.
         lat2 : FloatLike or ArrayLike
             Latitude of the second point or array of points in radians.
 
@@ -805,14 +805,10 @@ class Surface(ComponentBase):
         NDArray
             Initial bearing from the first point to the second point or points in radians.
         """
-        return LocalSurface._calculate_bearing(
-            lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2
-        )
+        return LocalSurface.calculate_bearing(center_location=center_location, locations=locations)
 
     @staticmethod
-    def _compute_elevation_to_cartesian(
-        position: NDArray, elevation: NDArray
-    ) -> NDArray:
+    def _compute_elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
         """
         Convert elevation values to Cartesian coordinates.
 
@@ -832,9 +828,7 @@ class Surface(ComponentBase):
 
         return position + elevation[:, np.newaxis] * runit
 
-    def read_file(
-        self, interval_number: int | None = None, reset: bool = False, **kwargs: Any
-    ) -> UxDataset:
+    def read_file(self, interval_number: int | None = None, reset: bool = False, **kwargs: Any) -> UxDataset:
         """
         Load the grid and data files into a UxDataset object.
 
@@ -852,13 +846,9 @@ class Surface(ComponentBase):
         UxDataset
             An initialized UxDataset object containing the grid and data.
         """
-        return self._full().read_file(
-            interval_number=interval_number, reset=reset, **kwargs
-        )
+        return self._full().read_file(interval_number=interval_number, reset=reset, **kwargs)
 
-    def _load_from_files(
-        self, reset: bool = False, ask_overwrite: bool = True, **kwargs: Any
-    ) -> None:
+    def _load_from_files(self, reset: bool = False, ask_overwrite: bool = True, **kwargs: Any) -> None:
         """
         Load the grid and data files into the surface object.
 
@@ -933,19 +923,32 @@ class Surface(ComponentBase):
         """
         points = self._generate_face_distribution(**kwargs)
 
-        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-6)
-        uxgrid = uxr.Grid.from_points(
-            points, method="spherical_voronoi", threshold=threshold
-        )
+        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-7)
+        uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
         uxgrid.attrs["_id"] = self._id
         self._write_grid_file(uxgrid, self.grid_file)
 
-        regrid = self._regrid_if_needed(**kwargs)
+        regrid = not self._is_same_grid()
         if regrid:
             raise ValueError("Grid file does not match the expected parameters.")
         self._compute_face_size(uxgrid)
 
         return
+
+    def _is_same_grid(self):
+        """
+        Check if the existing grid matches the one defined by the current parameters.
+        """
+        try:
+            with xr.open_dataset(self.grid_file) as ds:
+                ds.load()
+                uxgrid = uxr.Grid.from_dataset(ds)
+                old_id = uxgrid.attrs.get("_id")
+                return old_id == self._id
+        except Exception as e:
+            # Failed to open an old file for whatever reason, so we'll need to regrid
+            print(f"Failed to read existing grid file {self.grid_file}, will create a new grid {e}")
+            return False
 
     def _regrid_if_needed(self, regrid: bool = False, **kwargs: Any) -> bool:
         """
@@ -969,16 +972,7 @@ class Surface(ComponentBase):
         regrid = regrid or not Path(self.grid_file).exists()
 
         if not regrid:
-            try:
-                with xr.open_dataset(self.grid_file) as ds:
-                    ds.load()
-                    uxgrid = uxr.Grid.from_dataset(ds)
-                    old_id = uxgrid.attrs.get("_id")
-                    regrid = old_id != self._id
-            except Exception as e:
-                # Failed to open an old file for whatever reason, so we'll need to regrid
-                print(f"Failed to read existing grid file, will create a new grid {e}")
-                regrid = True
+            regrid = not self._is_same_grid()
 
         if regrid:
             print("Creating a new grid")
@@ -1112,9 +1106,7 @@ class Surface(ComponentBase):
             data = np.full(size, data, dtype=dtype)
         else:
             if data.size != size:
-                raise ValueError(
-                    "data must have the same size as the number of faces or nodes in the grid"
-                )
+                raise ValueError("data must have the same size as the number of faces or nodes in the grid")
         uxda = UxDataArray(
             data=data,
             dims=dims,
@@ -1126,9 +1118,7 @@ class Surface(ComponentBase):
         self._uxds[name] = uxda
 
         if save_to_file:
-            filename = Path(
-                f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
-            )
+            filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")
 
             self._save_data(
                 uxda,
@@ -1139,9 +1129,7 @@ class Surface(ComponentBase):
         return
 
     @abstractmethod
-    def _generate_face_distribution(
-        self, **kwargs: Any
-    ) -> tuple[NDArray, NDArray, NDArray]: ...
+    def _generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray, NDArray, NDArray]: ...
 
     def _compute_face_size(self, uxgrid: UxDataset | None = None) -> None:
         """
@@ -1171,7 +1159,7 @@ class Surface(ComponentBase):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self._radius]
+        return [self._component_name, self.target.name, self.radius]
 
     @property
     def _id(self):
@@ -1209,9 +1197,7 @@ class Surface(ComponentBase):
         """
         Path to the grid file.
         """
-        return (
-            self.output_dir / f"{self._grid_file_prefix}.{self._output_file_extension}"
-        )
+        return self.output_dir / f"{self._grid_file_prefix}.{self._output_file_extension}"
 
     @property
     def target(self):
@@ -1246,9 +1232,7 @@ class Surface(ComponentBase):
         """
         value = np.asarray(value, dtype=np.float64)
         if value.size != self.n_face:
-            raise ValueError(
-                f"Value must have size {self.n_face}, got {value.size} instead."
-            )
+            raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
         self.uxds["face_elevation"][:] = value
         return
 
@@ -1271,9 +1255,7 @@ class Surface(ComponentBase):
         """
         value = np.asarray(value, dtype=np.float64)
         if value.size != self.n_node:
-            raise ValueError(
-                f"Value must have size {self.n_node}, got {value.size} instead."
-            )
+            raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
         self.uxds["node_elevation"][:] = value
         return
 
@@ -1481,23 +1463,16 @@ class Surface(ComponentBase):
             bin_index = np.floor(np.log2(area / min_area)).astype(int)
             bins[bin_index].append(face_index)
 
-        self._face_bin_indices = [
-            np.array(bins[i]) for i in range(max_bin_index) if len(bins[i]) > 0
-        ]
+        self._face_bin_indices = [np.array(bins[i]) for i in range(max_bin_index) if len(bins[i]) > 0]
 
-        self._face_bin_area = [
-            np.sum(self.face_area[face_indices])
-            for face_indices in self.face_bin_indices
-        ]
+        self._face_bin_area = [np.sum(self.face_area[face_indices]) for face_indices in self.face_bin_indices]
 
         self._face_bin_argmin = [
-            int(face_indices[np.argmin(self.face_area[face_indices])])
-            for face_indices in self._face_bin_indices
+            int(face_indices[np.argmin(self.face_area[face_indices])]) for face_indices in self._face_bin_indices
         ]
 
         self._face_bin_argmax = [
-            int(face_indices[np.argmax(self.face_area[face_indices])])
-            for face_indices in self._face_bin_indices
+            int(face_indices[np.argmax(self.face_area[face_indices])]) for face_indices in self._face_bin_indices
         ]
         return
 
@@ -1554,9 +1529,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
-        return [
-            float(self.face_area[face_index]) for face_index in self.face_bin_argmin
-        ]
+        return [float(self.face_area[face_index]) for face_index in self.face_bin_argmin]
 
     @property
     def face_bin_max_areas(self) -> list[float]:
@@ -1566,9 +1539,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
-        return [
-            float(self.face_area[face_index]) for face_index in self.face_bin_argmax
-        ]
+        return [float(self.face_area[face_index]) for face_index in self.face_bin_argmax]
 
     @property
     def face_bin_min_sizes(self) -> list[float]:
@@ -1578,9 +1549,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
-        return [
-            float(self.face_size[face_index]) for face_index in self.face_bin_argmin
-        ]
+        return [float(self.face_size[face_index]) for face_index in self.face_bin_argmin]
 
     @property
     def face_bin_max_sizes(self) -> list[float]:
@@ -1590,9 +1559,7 @@ class Surface(ComponentBase):
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
-        return [
-            float(self.face_size[face_index]) for face_index in self.face_bin_argmax
-        ]
+        return [float(self.face_size[face_index]) for face_index in self.face_bin_argmax]
 
     @property
     def n_face(self) -> int:
@@ -1753,9 +1720,7 @@ class Surface(ComponentBase):
         return self._edge_tree
 
     @staticmethod
-    def get_crs(
-        radius: float, name: str, location: tuple[float, float] | None = None
-    ) -> CRS:
+    def get_crs(radius: float, name: str, location: tuple[float, float] | None = None) -> CRS:
         """
         Returns either a CRS for a global sphere or a local azimuthal equidistant projection centered at the given location if one is provided.
 
@@ -1766,7 +1731,7 @@ class Surface(ComponentBase):
         name : str
             The name of the target body.
         location : tuple[float, float] | None, optional
-            The location of the center of the AEQD projection in degrees. If None, a global CRS is returned. Default is None.
+            The location of the center of the LAEA projection in degrees. If None, a global CRS is returned. Default is None.
         """
         if location is None:
             wkt = (
@@ -1831,6 +1796,15 @@ class Surface(ComponentBase):
             self._crs = self.get_crs(radius=self.radius, name=self.target.name)
         return self._crs
 
+    @property
+    def plot_dir(self) -> Path:
+        """
+        The directory to save plots to.
+        """
+        plotdir = self.simdir / "surface_images"
+        plotdir.mkdir(parents=True, exist_ok=True)
+        return plotdir
+
 
 class LocalSurface(CratermakerBase):
     """
@@ -1890,30 +1864,22 @@ class LocalSurface(CratermakerBase):
         object.__setattr__(self, "_node_face_connectivity", None)
         object.__setattr__(self, "_crs", None)
         object.__setattr__(self, "_output_file_extension", "nc")
+        object.__setattr__(self, "_from_surface", None)
+        object.__setattr__(self, "_to_surface", None)
 
         self._output_dir_name = self.surface._output_dir_name
 
         if location is not None:  # This is a true LocalSurface object
             self._location = validate_and_normalize_location(location)
-            self._face_distance, self._node_distance = (
-                self.calculate_face_and_node_distances()
-            )
-            self._face_bearing, self._node_bearing = (
-                self.calculate_face_and_node_bearings()
-            )
+            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
+            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
             self._output_file_prefix = "local_surface"
             object.__setattr__(self, "_output_file_prefix", "local_surface")
             object.__setattr__(self, "_grid_file_prefix", "local_grid")
-            self._output_file_pattern += [
-                f"{self._output_file_prefix}*.{self._output_file_extension}"
-            ]
+            self._output_file_pattern += [f"{self._output_file_prefix}*.{self._output_file_extension}"]
         else:  # This is really a Surface object wearing a LocalSurface costume.
-            object.__setattr__(
-                self, "_output_file_prefix", self.surface._output_file_prefix
-            )
-            object.__setattr__(
-                self, "_grid_file_prefix", self.surface._grid_file_prefix
-            )
+            object.__setattr__(self, "_output_file_prefix", self.surface._output_file_prefix)
+            object.__setattr__(self, "_grid_file_prefix", self.surface._grid_file_prefix)
             self._output_file_pattern = self.surface._output_file_pattern
 
         return
@@ -1940,6 +1906,7 @@ class LocalSurface(CratermakerBase):
         isfacedata: bool = True,
         overwrite: bool = False,
         dtype=np.float64,
+        fill_value: float = 0.0,
     ) -> None:
         """
         Adds new data to the surface.
@@ -1960,6 +1927,8 @@ class LocalSurface(CratermakerBase):
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
         dtype : data-type, optional
             The data type of the data variable. Default is np.float64.
+        fill_value : float, optional
+            The fill value to use for new data variables. Default is 0.0.
 
         Returns
         -------
@@ -1980,14 +1949,12 @@ class LocalSurface(CratermakerBase):
             isfacedata = False
             indices = self.node_indices
         else:
-            raise ValueError(
-                "data must be a scalar or an array with the same size as the number of faces or nodes in the grid"
-            )
+            raise ValueError("data must be a scalar or an array with the same size as the number of faces or nodes in the grid")
 
         if name not in self.surface.uxds.data_vars:
             self.surface._add_new_data(
                 name,
-                data=0,
+                data=fill_value,
                 long_name=long_name,
                 units=units,
                 isfacedata=isfacedata,
@@ -2061,13 +2028,9 @@ class LocalSurface(CratermakerBase):
             ) from e
 
         if update_face:
-            self.add_data(
-                name="face_elevation", data=new_face_elev, overwrite=overwrite
-            )
+            self.add_data(name="face_elevation", data=new_face_elev, overwrite=overwrite)
         if update_node:
-            self.add_data(
-                name="node_elevation", data=new_node_elev, overwrite=overwrite
-            )
+            self.add_data(name="node_elevation", data=new_node_elev, overwrite=overwrite)
 
         return
 
@@ -2086,9 +2049,7 @@ class LocalSurface(CratermakerBase):
         if np.isscalar(kdiff):
             kdiff = np.full(self.n_face, kdiff)
         elif kdiff.size != self.n_face:
-            raise ValueError(
-                "kdiff must be a scalar or an array with the same size as the number of faces in the grid"
-            )
+            raise ValueError("kdiff must be a scalar or an array with the same size as the number of faces in the grid")
         if np.any(kdiff < 0.0):
             raise ValueError("kdiff must be greater than 0.0")
         kdiff = np.asarray(kdiff, dtype=np.float64)
@@ -2122,9 +2083,7 @@ class LocalSurface(CratermakerBase):
         try:
             critical_slope = np.tan(np.deg2rad(critical_slope_angle))
         except ValueError as e:
-            raise ValueError(
-                "critical_slope_angle must be between 0 and 90 degrees"
-            ) from e
+            raise ValueError("critical_slope_angle must be between 0 and 90 degrees") from e
 
         delta_face_elevation = surface_functions.slope_collapse(
             critical_slope=critical_slope,
@@ -2232,19 +2191,11 @@ class LocalSurface(CratermakerBase):
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
         location = validate_and_normalize_location(location)
-        lon1 = np.deg2rad(location[0])
-        lat1 = np.deg2rad(location[1])
-        node_lon2 = np.deg2rad(self.node_lon)
-        node_lat2 = np.deg2rad(self.node_lat)
-        face_lon2 = np.deg2rad(self.face_lon)
-        face_lat2 = np.deg2rad(self.face_lat)
-        return self._calculate_distance(
-            lon1, lat1, face_lon2, face_lat2
-        ), self._calculate_distance(lon1, lat1, node_lon2, node_lat2)
+        node_locations = np.vstack((self.node_lon, self.node_lat)).T
+        face_locations = np.vstack((self.face_lon, self.face_lat)).T
+        return self.calculate_distance(location, face_locations), self.calculate_distance(location, node_locations)
 
-    def calculate_face_and_node_bearings(
-        self, location: tuple[float, float] | None = None
-    ) -> tuple[NDArray, NDArray]:
+    def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
         Computes the initial bearing between nodes and faces and a given location.
 
@@ -2270,15 +2221,15 @@ class LocalSurface(CratermakerBase):
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
         location = validate_and_normalize_location(location)
-        lon1 = np.deg2rad(location[0])
-        lat1 = np.deg2rad(location[1])
-        node_lon2 = np.deg2rad(self.node_lon)
-        node_lat2 = np.deg2rad(self.node_lat)
-        face_lon2 = np.deg2rad(self.face_lon)
-        face_lat2 = np.deg2rad(self.face_lat)
+        face_locations = np.vstack((self.face_lon, self.face_lat)).T
+        node_locations = np.vstack((self.node_lon, self.node_lat)).T
         return (
-            surface_functions.calculate_bearing(lon1, lat1, face_lon2, face_lat2),
-            surface_functions.calculate_bearing(lon1, lat1, node_lon2, node_lat2),
+            surface_functions.calculate_bearing(
+                lon1=location[0], lat1=location[1], lon2=face_locations[:, 0], lat2=face_locations[:, 1]
+            ),
+            surface_functions.calculate_bearing(
+                lon1=location[0], lat1=location[1], lon2=node_locations[:, 0], lat2=node_locations[:, 1]
+            ),
         )
 
     def interpolate_node_elevation_from_faces(self) -> None:
@@ -2300,9 +2251,7 @@ class LocalSurface(CratermakerBase):
         self.update_elevation(node_elevation, overwrite=True)
         return
 
-    def get_reference_surface(
-        self, reference_radius: float, **kwargs: Any
-    ) -> NDArray[np.float64]:
+    def get_reference_surface(self, reference_radius: float, **kwargs: Any) -> NDArray[np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
 
@@ -2322,9 +2271,7 @@ class LocalSurface(CratermakerBase):
         def _find_reference_elevations(region_coords, region_elevation):
             # Perform the curve fitting to get the best fitting spherical cap for the reference surface
 
-            region_surf = self.surface._compute_elevation_to_cartesian(
-                region_coords, region_elevation
-            )
+            region_surf = self.surface._compute_elevation_to_cartesian(region_coords, region_elevation)
 
             # Initial guess for the sphere center and radius
             guess_radius = 1.0 + region_elevation.mean()
@@ -2354,10 +2301,7 @@ class LocalSurface(CratermakerBase):
                 + f_vec[:, 1] * reference_sphere_center[1]
                 + f_vec[:, 2] * reference_sphere_center[2]
             )
-            c = (
-                np.dot(reference_sphere_center, reference_sphere_center)
-                - reference_sphere_radius**2
-            )
+            c = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
             sqrt_term = b**2 - 4 * a * c
             valid = ~np.isnan(a) & (sqrt_term >= 0.0)
 
@@ -2378,9 +2322,7 @@ class LocalSurface(CratermakerBase):
         # Find cells within the crater radius
         faces_within_region = self.face_distance <= reference_radius
         nodes_within_region = self.node_distance <= reference_radius
-        points_within_region = np.concatenate(
-            [faces_within_region, nodes_within_region]
-        )
+        points_within_region = np.concatenate([faces_within_region, nodes_within_region])
 
         elevation = np.concatenate([self.face_elevation, self.node_elevation])
 
@@ -2402,9 +2344,7 @@ class LocalSurface(CratermakerBase):
         region_elevation = elevation[points_within_region] / self.surface.radius
 
         reference_elevation = elevation
-        reference_elevation[points_within_region] = _find_reference_elevations(
-            region_coords, region_elevation
-        )
+        reference_elevation[points_within_region] = _find_reference_elevations(region_coords, region_elevation)
 
         return reference_elevation
 
@@ -2424,29 +2364,21 @@ class LocalSurface(CratermakerBase):
 
         """
         if subregion_radius > self.region_radius:
-            raise ValueError(
-                "subregion_radius must be smaller than the original region radius"
-            )
+            raise ValueError("subregion_radius must be smaller than the original region radius")
 
         if subregion_radius < self.region_radius:
             if isinstance(self.face_indices, slice):
-                face_indices = np.arange(self.n_face)[self.face_indices][
-                    self.face_distance <= subregion_radius
-                ]
+                face_indices = np.arange(self.n_face)[self.face_indices][self.face_distance <= subregion_radius]
             else:
                 face_indices = self.face_indices[self.face_distance <= subregion_radius]
             if face_indices.size == 0:
                 return None
 
             # First select edges and nodes that are attached to these faces
-            edge_indices = np.unique(
-                self.surface.face_edge_connectivity[face_indices].ravel()
-            )
+            edge_indices = np.unique(self.surface.face_edge_connectivity[face_indices].ravel())
             edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
 
-            node_indices = np.unique(
-                self.surface.face_node_connectivity[face_indices].ravel()
-            )
+            node_indices = np.unique(self.surface.face_node_connectivity[face_indices].ravel())
             node_indices = node_indices[node_indices != INT_FILL_VALUE]
 
             # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
@@ -2457,9 +2389,7 @@ class LocalSurface(CratermakerBase):
             node_faces = node_faces[node_faces != INT_FILL_VALUE]
             edge_faces = self.surface.edge_face_connectivity[edge_indices]
             edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
-            face_indices = np.unique(
-                np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces))
-            )
+            face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
 
         else:
             face_indices = self.face_indices
@@ -2490,9 +2420,7 @@ class LocalSurface(CratermakerBase):
             The volume of the elevation points
         """
         if elevation.size != self.n_face:
-            raise ValueError(
-                "elevation must be an array with the same size as the number of faces in the grid"
-            )
+            raise ValueError("elevation must be an array with the same size as the number of faces in the grid")
         return np.sum(elevation * self.face_area)
 
     def elevation_to_cartesian(self, element="face") -> NDArray[np.float64]:
@@ -2583,16 +2511,8 @@ class LocalSurface(CratermakerBase):
                 gdfargs = {"engine": "geopandas", "periodic_elements": "ignore"}
 
             # Convert to GeoDataFrame and set the CRS correctly for the type of surface
-            gdf = (
-                uxds.uxgrid.to_geodataframe(**gdfargs)
-                .set_crs(self.surface.crs)
-                .to_crs(self.crs)
-            )
-            variables = [
-                v
-                for v in uxds.data_vars
-                if any(dim == "n_face" for dim in uxds[v].dims)
-            ]
+            gdf = uxds.uxgrid.to_geodataframe(**gdfargs).set_crs(self.surface.crs).to_crs(self.crs)
+            variables = [v for v in uxds.data_vars if any(dim == "n_face" for dim in uxds[v].dims)]
             if not variables:
                 raise ValueError("No face-based variables found to export to file.")
 
@@ -2673,32 +2593,21 @@ class LocalSurface(CratermakerBase):
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
         # load data and select the face-based variables
-        uxds, interval_numbers = self.read_file(
-            interval_number=interval_number, reset=False
-        )
+        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
 
         if interval_number is not None:
             if interval_number < 0:
                 interval_number = interval_numbers[interval_number]
             interval_numbers = [interval_number]
 
-        if (
-            interval_number is None
-        ):  # We are exporting all intervals, so we need to remove all old files
-            old_vector_files = list(
-                self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}")
-            )
+        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
+            old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
             for f in old_vector_files:
                 f.unlink()
 
-        for time, interval_number in zip(
-            uxds.time.values, interval_numbers, strict=False
-        ):
+        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxdsi = uxds.sel(time=time).load()
-            filename = (
-                self.output_dir
-                / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
-            )
+            filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
             _write_dataset(
                 uxdsi,
                 filename=filename,
@@ -2708,6 +2617,88 @@ class LocalSurface(CratermakerBase):
             )
 
         return
+
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+        """
+        Exports the regional mesh to a VTK PolyData object.
+
+        Parameters
+        ----------
+        uxds : UxDataset, optional
+            The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        **kwargs : Any
+            Additional keyword arguments
+
+        Returns
+        -------
+        vtkUnstructuredGrid
+            The VTK PolyData object representing the regional mesh.
+        """
+        from vtk import (
+            VTK_POLYGON,
+            vtkPoints,
+        )
+        from vtkmodules.util.numpy_support import numpy_to_vtk
+        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
+        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
+
+        if uxds is None:
+            uxds = self.uxds
+
+        node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
+        node_normals = node_xyz / self.radius
+        vtk_point_normals = numpy_to_vtk(node_normals.astype(np.float32), deep=True)
+        vtk_point_normals.SetNumberOfComponents(3)
+        vtk_point_normals.SetName("Normals")
+
+        # Warp the mesh according to node elevation if it exists
+        if "node_elevation" in uxds:
+            warped_xyz = node_xyz + uxds.node_elevation.data[:, None] * node_normals
+        else:
+            warped_xyz = node_xyz
+
+        node_x = warped_xyz[:, 0]
+        node_y = warped_xyz[:, 1]
+        node_z = warped_xyz[:, 2]
+
+        vtk_data = vtkUnstructuredGrid()
+        nodes = vtkPoints()
+        for i in range(self.n_node):
+            nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
+        vtk_data.SetPoints(nodes)
+        vtk_data.Allocate(self.n_face)
+        for i, n in enumerate(self.n_nodes_per_face):
+            point_ids = self.face_node_connectivity[i][0:n]
+            vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids)
+
+        grid = vtkUnstructuredGrid()
+        grid.DeepCopy(vtk_data)
+
+        for v in uxds.variables:
+            array = numpy_to_vtk(uxds[v].values, deep=True)
+            array.SetName(v)
+            if "n_face" in uxds[v].dims:
+                grid.GetCellData().AddArray(array)
+            elif "n_node" in uxds[v].dims:
+                grid.GetPointData().AddArray(array)
+                if v == "node_elevation":
+                    grid.GetPointData().SetActiveScalars(v)
+            elif uxds[v].dims == ("time",) or uxds[v].size == 1:
+                grid.GetFieldData().AddArray(array)
+
+        geom_filter = vtkGeometryFilter()
+        geom_filter.SetInputData(grid)
+        geom_filter.Update()
+        poly_data = geom_filter.GetOutput()
+
+        poly_data.GetPointData().SetNormals(vtk_point_normals)
+        normals_filter = vtkPolyDataNormals()
+        normals_filter.SetInputData(poly_data)
+        normals_filter.ComputeCellNormalsOn()
+        normals_filter.Update()
+        mesh = normals_filter.GetOutput()
+
+        return mesh
 
     def to_vtk_file(
         self,
@@ -2724,145 +2715,48 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             Additional keyword arguments
         """
-        from vtk import (
-            VTK_POLYGON,
-            vtkPoints,
-            vtkUnstructuredGrid,
-            vtkXMLPolyDataWriter,
-        )
-        from vtkmodules.util.numpy_support import numpy_to_vtk
-        from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
-        from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
-        def _write_current_grid(current_grid, vtk_point_normals, output_filename):
+        def _write_current_mesh(mesh, output_filename):
+            from vtk import vtkXMLPolyDataWriter
+
+            writer = vtkXMLPolyDataWriter()
+            writer.SetDataModeToBinary()
+            writer.SetCompressorTypeToZLib()
             if output_filename.exists():
                 output_filename.unlink()
-            geom_filter = vtkGeometryFilter()
-            geom_filter.SetInputData(current_grid)
-            geom_filter.Update()
-            poly_data = geom_filter.GetOutput()
-
-            poly_data.GetPointData().SetNormals(vtk_point_normals)
-            normals_filter = vtkPolyDataNormals()
-            normals_filter.SetInputData(poly_data)
-            normals_filter.ComputeCellNormalsOn()
-            normals_filter.Update()
-            poly_data_with_normals = normals_filter.GetOutput()
 
             writer.SetFileName(output_filename)
-            writer.SetInputData(poly_data_with_normals)
+            writer.SetInputData(mesh)
             print(f"Exporting to {output_filename}")
             writer.Write()
             return
 
-        if (
-            interval_number is None
-        ):  # We are exporting all intervals, so we need to remove all old files
-            old_vtk_files = list(
-                self.output_dir.glob(
-                    f"{self._output_file_prefix}*.{_VTK_FILE_EXTENSION}"
-                )
-            )
+        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
+            old_vtk_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{_VTK_FILE_EXTENSION}"))
             for f in old_vtk_files:
                 f.unlink()
 
         # Check if we need to save the geometry file
-        grid_filename = (
-            self.output_dir / f"{self._grid_file_prefix}.{_VTK_FILE_EXTENSION}"
-        )
+        grid_filename = self.output_dir / f"{self._grid_file_prefix}.{_VTK_FILE_EXTENSION}"
         save_geometry = not grid_filename.exists()
 
-        uxds, interval_numbers = self.read_file(
-            interval_number=interval_number, reset=False
-        )
+        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
         if interval_number is not None:
             if interval_number < 0:
                 interval_number = interval_numbers[interval_number]
             interval_numbers = [interval_number]
 
-        node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
-        node_normals = node_xyz / self.radius
-        vtk_point_normals = numpy_to_vtk(node_normals.astype(np.float32), deep=True)
-        vtk_point_normals.SetNumberOfComponents(3)
-        vtk_point_normals.SetName("Normals")
-
-        for time, interval_number in zip(
-            uxds.time.values, interval_numbers, strict=False
-        ):
+        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxdsi = uxds.sel(time=time).load()
 
-            # Warp the mesh according to node elevation
-            warped_xyz = node_xyz + uxdsi.node_elevation.data[:, None] * node_normals
-
-            node_x = warped_xyz[:, 0]
-            node_y = warped_xyz[:, 1]
-            node_z = warped_xyz[:, 2]
-
-            vtk_data = vtkUnstructuredGrid()
-            nodes = vtkPoints()
-            for i in range(self.n_node):
-                nodes.InsertNextPoint(node_x[i], node_y[i], node_z[i])
-            vtk_data.SetPoints(nodes)
-            vtk_data.Allocate(self.n_face)
-            for i, n in enumerate(self.n_nodes_per_face):
-                point_ids = self.face_node_connectivity[i][0:n]
-                vtk_data.InsertNextCell(VTK_POLYGON, n, point_ids)
-
-            writer = vtkXMLPolyDataWriter()
-            writer.SetDataModeToBinary()
-            writer.SetCompressorTypeToZLib()
-
             if save_geometry:
-                # Saves the surface mesh and its geometry as a separate file
-                geometry_variables = [
-                    "node_x",
-                    "node_y",
-                    "node_z",
-                    "node_lon",
-                    "node_lat",
-                    "face_x",
-                    "face_y",
-                    "face_z",
-                    "face_lon",
-                    "face_lat",
-                    "face_area",
-                    "face_size",
-                ]
-                current_grid = vtkUnstructuredGrid()
-                current_grid.DeepCopy(vtk_data)
+                grid = self.to_vtk_mesh(uxds=self.uxgrid.to_xarray())
+                _write_current_mesh(grid, grid_filename)
 
-                for v in geometry_variables:
-                    # extract the attribute v from the self object
-                    array = numpy_to_vtk(getattr(self, v), deep=True)
-                    array.SetName(v)
-                    n = getattr(self, v).size
-                    if n == self.n_face:
-                        current_grid.GetCellData().AddArray(array)
-                    elif n == self.n_node:
-                        current_grid.GetPointData().AddArray(array)
+            mesh = self.to_vtk_mesh(uxds=uxdsi)
 
-                _write_current_grid(current_grid, vtk_point_normals, grid_filename)
-
-            current_grid = vtkUnstructuredGrid()
-            current_grid.DeepCopy(vtk_data)
-
-            for v in uxdsi.variables:
-                array = numpy_to_vtk(uxdsi[v].values, deep=True)
-                array.SetName(v)
-                if "n_face" in uxdsi[v].dims:
-                    current_grid.GetCellData().AddArray(array)
-                elif "n_node" in uxdsi[v].dims:
-                    current_grid.GetPointData().AddArray(array)
-                    if v == "node_elevation":
-                        current_grid.GetPointData().SetActiveScalars(v)
-                elif uxdsi[v].dims == ("time",) or uxdsi[v].size == 1:
-                    current_grid.GetFieldData().AddArray(array)
-
-            filename = (
-                self.output_dir
-                / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
-            )
-            _write_current_grid(current_grid, vtk_point_normals, filename)
+            filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
+            _write_current_mesh(mesh, filename)
 
         return
 
@@ -2872,6 +2766,7 @@ class LocalSurface(CratermakerBase):
         time_variables: dict | None = None,
         include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        filename: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -2889,6 +2784,8 @@ class LocalSurface(CratermakerBase):
             List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
         exclude_variables : list[str] or tuple[str, ...], optional
             List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+        filename : str or Path, optional
+            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
 
         **kwargs : Any
             Additional keyword arguments to pass to the export function.
@@ -2903,13 +2800,9 @@ class LocalSurface(CratermakerBase):
 
         self.uxds.close()
 
-        ds = self.uxds.expand_dims(dim="time").assign_coords(
-            {"time": [interval_number]}
-        )
+        ds = self.uxds.expand_dims(dim="time").assign_coords({"time": [interval_number]})
         for k, v in time_variables.items():
-            ds[k] = xr.DataArray(
-                data=[v], name=k, dims=["time"], coords={"time": [interval_number]}
-            )
+            ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time": [interval_number]})
 
         if include_variables is not None:
             keep_vars = [k for k in ds.data_vars if k in include_variables]
@@ -2919,9 +2812,8 @@ class LocalSurface(CratermakerBase):
             if len(drop_vars) > 0:
                 ds = ds.drop_vars(drop_vars)
 
-        filename = Path(
-            f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
-        )
+        if filename is None:
+            filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")
         (self.surface.output_dir / filename).unlink(missing_ok=True)
 
         self.surface._save_data(
@@ -2936,22 +2828,43 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def plot_hillshade(
-        self, imagefile=None, label=None, scalebar=False, **kwargs: Any
+    def plot(
+        self,
+        style: str = "hillshade",
+        variable: str = "face_elevation",
+        imagefile=None,
+        label=None,
+        scalebar=False,
+        show=True,
+        ax: Axes | None = None,
+        **kwargs: Any,
     ) -> None:
         """
         Plot a hillshade image of the local region.
 
         Parameters
         ----------
+        style : str, optional
+            The style of the plot. Currently, only "hillshade" is supported. Default is "hillshade".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
             If True, a scalebar will be added to the plot. Default is True.
+        show : bool, optional
+            If True, the plot will be displayed. Default is True.
+        ax : matplotlib.axes.Axes, optional
+            An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
+
+        Returns
+        -------
+        matplotlib.image.AxesImage
+            The AxesImage object created by imshow.
         """
         # Check if rasterio is installed, and if not, just return without plotting
         try:
@@ -2959,19 +2872,21 @@ class LocalSurface(CratermakerBase):
             from rasterio.transform import Affine, from_bounds
         except ImportError:
             warnings.warn(
-                "rasterio is not installed. Cannot plot hillshade.", stacklevel=2
+                "rasterio is not installed. Cannot generate plot. On some platforms, you may need to install GDAL first before installing rasterio.",
+                stacklevel=2,
             )
             return
 
         import matplotlib.pyplot as plt
         from matplotlib.colors import LightSource
+        from scipy.ndimage import gaussian_filter
 
-        face_elevation = self.uxds["face_elevation"].load()
+        if variable not in self.uxds:
+            raise ValueError(f"Variable '{variable}' not found in the surface data.")
+        da = self.uxds[variable].load()
         if self.location is None:
             # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
-            gdf = face_elevation.to_geodataframe(
-                engine="geopandas", periodic_elements="exclude"
-            ).set_crs(self.crs)
+            gdf = da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
             xmin, xmax = -180.0, 180.0
             ymin, ymax = -90.0, 90.0
             deg_per_pix = 180.0 * self.pix / (np.pi * self.radius)
@@ -2982,13 +2897,7 @@ class LocalSurface(CratermakerBase):
             transform = from_bounds(xmin, ymin, xmax, ymax, W, H)
             scalebar = False
         else:
-            gdf = (
-                face_elevation.to_geodataframe(
-                    engine="geopandas", periodic_elements="ignore"
-                )
-                .set_crs(self.surface.crs)
-                .to_crs(self.crs)
-            )
+            gdf = da.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
             R = self.region_radius
             xmin, xmax = -R, R
             ymin, ymax = -R, R
@@ -2999,7 +2908,7 @@ class LocalSurface(CratermakerBase):
             # upper-left at (-R, +R); y increases downward in rasters
             transform = Affine.translation(-R, R) * Affine.scale(xres, -yres)
 
-        vals = gdf["face_elevation"].to_numpy()
+        vals = gdf[variable].to_numpy()
         geoms = gdf.geometry.values
         shapes = [
             (geom, float(val))
@@ -3016,20 +2925,33 @@ class LocalSurface(CratermakerBase):
             all_touched=True,
         )
 
-        # Generate hillshade
-        azimuth = 300.0
-        solar_angle = 20.0
-        ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
-        hillshade = ls.hillshade(band, dx=self.pix, dy=self.pix, fraction=1.0)
+        if style == "hillshade":
+            # Generate hillshade
+            azimuth = 300.0
+            solar_angle = 20.0
+            ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+            band = gaussian_filter(band, sigma=5, mode="constant", cval=np.nan)
+            cvals = ls.hillshade(band, dx=self.pix, dy=self.pix, fraction=1.0)
+            cmap = kwargs.pop("cmap", "gray")
+            vmin = 0.0
+            vmax = 1.0
+            interpolation = kwargs.pop("interpolation", "lanczos")
+        elif style == "elevation":
+            cvals = band
+            cmap = kwargs.pop("cmap", "cividis")
+            vmin = np.nanmin(band)
+            vmax = np.nanmax(band)
+            interpolation = kwargs.pop("interpolation", "bicubic")
 
         # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
-        fig, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
-        ax.imshow(
-            hillshade,
-            interpolation="nearest",
-            cmap="gray",
-            vmin=0.0,
-            vmax=1.0,
+        if ax is None:
+            _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
+        im = ax.imshow(
+            cvals,
+            interpolation=interpolation,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
             aspect="equal",
             extent=(xmin, xmax, ymin, ymax),
         )
@@ -3043,24 +2965,16 @@ class LocalSurface(CratermakerBase):
             max_physical_size = xmax / 2 / np.sqrt(2)
 
             # Choose "nice" scale bar length
-            nice_values = np.array(
-                [1, 10, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000]
-            )  # in meters
+            nice_values = np.array([1, 10, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
             scale_length = nice_values[nice_values <= max_physical_size].max()
             bar_height = ymax * 0.01
-            scale_text = (
-                f"{int(scale_length)} m"
-                if scale_length < 1000
-                else f"{int(scale_length / 1000)} km"
-            )
+            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
 
             # Position in lower right corner
             x_start = xmax - scale_length + xmin * 0.1
             y_start = -(ymax - bar_height + ymin * 0.1)
 
-            rect = plt.Rectangle(
-                (x_start, y_start), scale_length, bar_height, color="black"
-            )
+            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
             ax.add_patch(rect)
             # Label above the scale bar
             ax.text(
@@ -3089,31 +3003,53 @@ class LocalSurface(CratermakerBase):
             )
         if imagefile:
             plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=W, **kwargs)
-        else:
+        elif show:
             plt.show(**kwargs)
-        plt.close(fig)
+        return im
+
+    def show(self, engine: str = "pyvista", variable: str = "face_elevation", **kwargs) -> None:
+        """
+        Show the local surface region using an interactive 3D plot.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if engine == "pyvista":
+            try:
+                import pyvista as pv
+            except ImportError:
+                warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
+                return
+            plotter = pv.Plotter()
+            mesh = self.to_vtk_mesh(self.uxds)
+            plotter.add_mesh(mesh, scalars=variable, show_edges=False, **kwargs)
+            plotter.show()
+        else:
+            raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
+
         return
 
-    def _calculate_distance(
+    def calculate_distance(
         self,
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: FloatLike | ArrayLike,
-        lat2: FloatLike | ArrayLike,
+        center_location: PairOfFloats,
+        locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
 
         Parameters
         ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
+        center_location : PairOfFloats
+            Longitude and latitude of the first point in radians.
+        locations : ArrayLike
+            Longitude and latitude of the second point or array of points in radians.
         lon2 : FloatLike or ArrayLike
-            Longitude of the second point or array of points in radians.
-        lat2 : FloatLike or ArrayLike
-            Latitude of the second point or array of points in radians.
 
         Returns
         -------
@@ -3124,28 +3060,22 @@ class LocalSurface(CratermakerBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        return self.surface._calculate_distance(lon1, lat1, lon2, lat2)
+        return self.surface.calculate_distance(center_location, locations)
 
     @staticmethod
-    def _calculate_bearing(
-        lon1: FloatLike,
-        lat1: FloatLike,
-        lon2: FloatLike | ArrayLike,
-        lat2: FloatLike | ArrayLike,
+    def calculate_bearing(
+        center_location: PairOfFloats,
+        locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
         Calculate the initial bearing from one point to one or more other points in radians.
 
         Parameters
         ----------
-        lon1 : FloatLike
-            Longitude of the first point in radians.
-        lat1 : FloatLike
-            Latitude of the first point in radians.
-        lon2 : FloatLike or ArrayLike
-            Longitude of the second point or array of points in radians.
-        lat2 : FloatLike or ArrayLike
-            Latitude of the second point or array of points in radians.
+        center_location : PairOfFloats
+            Longitude and latitude of the first point in radians.
+        locations : ArrayLike
+            Longitude and latitude of the second point or array of points in radians.
 
         Returns
         -------
@@ -3157,11 +3087,14 @@ class LocalSurface(CratermakerBase):
         This is intended to be used as a helper to calculate_face_and_node_bearings.
         """
         # Calculate differences in coordinates
-        dlon = np.mod(lon2 - lon1 + np.pi, 2 * np.pi) - np.pi
+        locations = np.radians(locations)
+        dlon = np.mod(locations[:, 0] - center_location[0] + np.pi, 2 * np.pi) - np.pi
 
         # Haversine formula calculations
-        x = np.sin(dlon) * np.cos(lat2)
-        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+        x = np.sin(dlon) * np.cos(locations[:, 1])
+        y = np.cos(center_location[1]) * np.sin(locations[:, 1]) - np.sin(center_location[1]) * np.cos(locations[:, 1]) * np.cos(
+            dlon
+        )
         initial_bearing = np.arctan2(x, y)
 
         # Normalize bearing to 0 to 2*pi
@@ -3200,9 +3133,7 @@ class LocalSurface(CratermakerBase):
         np.ndarray
             A new 2D connectivity array of shape (len(row_indices), K) with local indices or fill_value where not applicable.
         """
-        if isinstance(row_indices, slice) and row_indices == slice(
-            None
-        ):  # This is a global slice. Just return the original array
+        if isinstance(row_indices, slice) and row_indices == slice(None):  # This is a global slice. Just return the original array
             return connectivity_array
         if isinstance(value_indices, slice):
             value_indices = np.arange(total_value_size)[value_indices]
@@ -3232,9 +3163,7 @@ class LocalSurface(CratermakerBase):
         """
         if self._n_edge is None:
             if isinstance(self._edge_indices, slice):
-                self._n_edge = int(
-                    self._surface._uxds.uxgrid.n_edge[self._edge_indices].size
-                )
+                self._n_edge = int(self._surface._uxds.uxgrid.n_edge[self._edge_indices].size)
             else:
                 self._n_edge = self._edge_indices.size
         return self._n_edge
@@ -3292,9 +3221,7 @@ class LocalSurface(CratermakerBase):
 
         """
         if value.size != self.n_face:
-            raise ValueError(
-                f"Value must have size {self.n_face}, got {value.size} instead."
-            )
+            raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
         self.surface.face_elevation[self.face_indices] = value
         return
 
@@ -3325,9 +3252,7 @@ class LocalSurface(CratermakerBase):
 
         """
         if value.size != self.n_node:
-            raise ValueError(
-                f"Value must have size {self.n_node}, got {value.size} instead."
-            )
+            raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
         self.surface.node_elevation[self.node_indices] = value
         return
 
@@ -3494,12 +3419,8 @@ class LocalSurface(CratermakerBase):
         The indices of the nodes in the view.
         """
         if self._node_indices is None:
-            self._node_indices = np.unique(
-                self.surface.face_node_connectivity[self.face_indices].ravel()
-            )
-            self._node_indices = self._node_indices[
-                self._node_indices != INT_FILL_VALUE
-            ]
+            self._node_indices = np.unique(self.surface.face_node_connectivity[self.face_indices].ravel())
+            self._node_indices = self._node_indices[self._node_indices != INT_FILL_VALUE]
 
         return self._node_indices
 
@@ -3509,12 +3430,8 @@ class LocalSurface(CratermakerBase):
         The indices of the edges in the view.
         """
         if self._edge_indices is None:
-            self._edge_indices = np.unique(
-                self.surface.face_edge_connectivity[self.face_indices].ravel()
-            )
-            self._edge_indices = self._edge_indices[
-                self._edge_indices != INT_FILL_VALUE
-            ]
+            self._edge_indices = np.unique(self.surface.face_edge_connectivity[self.face_indices].ravel())
+            self._edge_indices = self._edge_indices[self._edge_indices != INT_FILL_VALUE]
         return self._edge_indices
 
     @property
@@ -3618,10 +3535,10 @@ class LocalSurface(CratermakerBase):
     @property
     def crs(self) -> CRS:
         """
-        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
+        Return a local Azimuthal Equidistant (LAEA) CRS centered on `self.location` (in meters).
 
         If `self.location` is not set, fall back to the parent `Surface` geographic CRS.
-        The AEQD CRS uses the target body's spherical radius.
+        The LAEA CRS uses the target body's spherical radius.
         """
         if self._crs is None:
             self._crs = self.surface.get_crs(
@@ -3631,9 +3548,7 @@ class LocalSurface(CratermakerBase):
             )
         return self._crs
 
-    def read_file(
-        self, interval_number: int | None = None, reset: bool = False, **kwargs: Any
-    ) -> UxDataset:
+    def read_file(self, interval_number: int | None = None, reset: bool = False, **kwargs: Any) -> UxDataset:
         """
         Load the grid and data files into a UxDataset object.
 
@@ -3653,11 +3568,7 @@ class LocalSurface(CratermakerBase):
         """
         import re
 
-        data_file_list = list(
-            self.output_dir.glob(
-                f"{self._output_file_prefix}*.{self._output_file_extension}"
-            )
-        )
+        data_file_list = list(self.output_dir.glob(f"{self._output_file_prefix}*.{self._output_file_extension}"))
         if self.grid_file in data_file_list:
             data_file_list.remove(self.grid_file)
         interval_numbers = []
@@ -3677,9 +3588,7 @@ class LocalSurface(CratermakerBase):
             elif interval_number in interval_numbers:
                 interval_index = interval_numbers.index(interval_number)
             else:
-                raise ValueError(
-                    f"Interval number {interval_number} not found in data files."
-                )
+                raise ValueError(f"Interval number {interval_number} not found in data files.")
 
         # if data_file_list is empty, set reset to True
         reset = reset or not data_file_list
@@ -3692,9 +3601,7 @@ class LocalSurface(CratermakerBase):
                 if reset:  # Create an empty dataset
                     uxds = uxr.UxDataset()
                 else:  # Read data from from existing datafiles
-                    with uxr.open_mfdataset(
-                        uxgrid, data_file_list, use_dual=False
-                    ) as ds:
+                    with uxr.open_mfdataset(uxgrid, data_file_list, use_dual=False) as ds:
                         if interval_number is None:
                             uxds = ds.load()
                         else:
@@ -3776,10 +3683,7 @@ class LocalSurface(CratermakerBase):
                     ("n_edge",),
                     self.surface.uxds[var].values[self.edge_indices],
                 )
-            elif (
-                "n_face" in self.surface.uxds[var].dims
-                and len(self.surface.uxds[var].dims) == 2
-            ):
+            elif "n_face" in self.surface.uxds[var].dims and len(self.surface.uxds[var].dims) == 2:
                 dim2name = self.surface.uxds[var].dims[1]
                 ds[var] = (
                     ("n_face", dim2name),
@@ -3787,13 +3691,9 @@ class LocalSurface(CratermakerBase):
                 )
         if self.location is not None:
             ds = ds.assign_attrs({"location": self.location})
-            ds["face_distance"] = xr.DataArray(
-                data=self.face_distance, dims=("n_face",)
-            )
+            ds["face_distance"] = xr.DataArray(data=self.face_distance, dims=("n_face",))
             ds["face_bearing"] = xr.DataArray(data=self.face_distance, dims=("n_face",))
-            ds["node_distance"] = xr.DataArray(
-                data=self.node_distance, dims=("n_node",)
-            )
+            ds["node_distance"] = xr.DataArray(data=self.node_distance, dims=("n_node",))
             ds["node_bearing"] = xr.DataArray(data=self.node_bearing, dims=("n_node",))
         if isinstance(self.face_indices, slice):
             data = np.arange(self.surface.n_face)[self.face_indices]
@@ -3820,9 +3720,7 @@ class LocalSurface(CratermakerBase):
         """
         Path to the grid file.
         """
-        return (
-            self.output_dir / f"{self._grid_file_prefix}.{self._output_file_extension}"
-        )
+        return self.output_dir / f"{self._grid_file_prefix}.{self._output_file_extension}"
 
     @property
     def pix(self) -> float:
@@ -3837,6 +3735,40 @@ class LocalSurface(CratermakerBase):
         The radius of the target body in meters.
         """
         return self.surface.radius
+
+    @property
+    def plot_dir(self) -> Path:
+        """
+        The directory to save plots to.
+        """
+        return self.surface.plot_dir
+
+    @property
+    def from_surface(self) -> Transformer:
+        """
+        A pyproj Transformer object to convert from the surface CRS to the local CRS.
+        """
+        if self._from_surface is None:
+            self._from_surface = Transformer.from_crs(
+                self.surface.crs,
+                self.crs,
+                always_xy=True,
+            )
+        return self._from_surface
+
+    @property
+    def to_surface(self) -> Transformer:
+        """
+        A pyproj Transformer object to convert from the local CRS to the surface CRS.
+
+        """
+        if self._to_surface is None:
+            self._to_surface = Transformer.from_crs(
+                self.crs,
+                self.surface.crs,
+                always_xy=True,
+            )
+        return self._to_surface
 
 
 import_components(__name__, __path__)

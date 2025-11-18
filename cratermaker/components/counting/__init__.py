@@ -453,7 +453,7 @@ class Counting(ComponentBase):
             vtkXMLPolyDataWriter,
         )
 
-        def lonlat_to_xyz_transformer(R):
+        def lonlat_to_xyz(R):
             def _f(lon_deg, lat_deg, z=None):
                 lon = np.deg2rad(lon_deg)
                 lat = np.deg2rad(lat_deg)
@@ -466,7 +466,7 @@ class Counting(ComponentBase):
 
         def polygon_xyz_coords(geom, R):
             """Yield Nx3 arrays for each exterior ring (drop closing vertex)."""
-            g3d = transform(lonlat_to_xyz_transformer(R), geom)
+            g3d = transform(lonlat_to_xyz(R), geom)
 
             def _rings(g):
                 if g.geom_type == "Polygon":

@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from warnings import warn
 
 import numpy as np
+from numpy.typing import NDArray
+from scipy.spatial.transform import Rotation
+
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import LocalSurface, Surface
@@ -14,8 +18,6 @@ from cratermaker.utils.general_utils import (
     parameter,
     validate_and_normalize_location,
 )
-from numpy.typing import NDArray
-from scipy.spatial.transform import Rotation
 
 
 @Surface.register("hireslocal")
@@ -33,8 +35,8 @@ class HiResLocalSurface(Surface):
         The longitude and latitude of the location in degrees.
     superdomain_scale_factor : FloatLike, optional
         A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters
-        that are modeled outside the local region are those whose ejecta could just reach the boundary. If not provide, then it will
-        be computed based on a provided (or default) scaling and morphology model
+        that are modeled outside the local region are those whose ejecta could just reach the boundary. If a negative number is provided, then it will
+        be computed based on a provided (or default) scaling and morphology model. If None is provided, then the superdomain is not set and you must call set_superdomain manually. Default is -1.
     target : Target, optional
         The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
         or extracted from the scaling model if it is provied
@@ -70,18 +72,17 @@ class HiResLocalSurface(Surface):
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
-        self._output_file_pattern += [
-            f"local_{self._output_file_prefix}*.{self._output_file_extension}"
-        ]
+        self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
 
         self.pix = pix
         self.local_radius = local_radius
         self.local_location = local_location
         if superdomain_scale_factor is not None:
-            self.superdomain_scale_factor = superdomain_scale_factor
-            self._load_from_files(
-                reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs
-            )
+            if superdomain_scale_factor < 0:
+                self.set_superdomain(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
+            else:
+                self.superdomain_scale_factor = superdomain_scale_factor
+            self._load_from_files(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
 
         return
 
@@ -105,7 +106,7 @@ class HiResLocalSurface(Surface):
         Defines the superdomain scale factor based on the distance from the local boundary.
 
         This is set so that smallest craters that are modeled outside the local region are those whose ejecta could just reach the boundary.
-        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `_set_superdomain` method.
+        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `set_superdomain` method.
 
         Parameters
         ----------
@@ -120,14 +121,10 @@ class HiResLocalSurface(Surface):
         return np.where(
             r < self.local_radius,
             self.pix,
-            self.pix
-            + self.superdomain_function_slope
-            * (r - self.local_radius) ** self.superdomain_function_exponent,
+            self.pix + self.superdomain_function_slope * (r - self.local_radius) ** self.superdomain_function_exponent,
         )
 
-    def extract_region(
-        self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike
-    ):
+    def extract_region(self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike):
         """
         Extract a regional grid based on a given location and radius.
 
@@ -154,6 +151,9 @@ class HiResLocalSurface(Surface):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
+        include_variables: list[str] | tuple[str, ...] | None = None,
+        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        filename: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -167,15 +167,27 @@ class HiResLocalSurface(Surface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        include_variables : list[str] or tuple[str, ...], optional
+            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
+        exclude_variables : list[str] or tuple[str, ...], optional
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+        filename : str or Path, optional
+            The filename to save the data to. If None, a default filename will be used based on the interval number. If provided, the file associated with the local surface will have 'local' prepended. Default is None.
         """
         self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=filename,
             **kwargs,
         )
         self.local.save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=f"local_{filename}" if filename else None,
             **kwargs,
         )
         return
@@ -214,7 +226,49 @@ class HiResLocalSurface(Surface):
         )
         return
 
-    def _set_superdomain(
+    def plot(self, imagefile=None, label=None, scalebar=True, superdomain: bool = False, **kwargs: Any) -> None:
+        """
+        Plot a hillshade image of the surface.
+
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
+        superdomain : bool, optional
+            If True, plot the full surface including the superdomain. If False, plot only the local region. Default is False.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if superdomain:
+            return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+        else:
+            return self.local.plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+
+    def show(self, engine: str = "pyvista", variable: str = "face_elevation", superdomain: bool = False, **kwargs) -> None:
+        """
+        Show the surface using an interactive 3D plot.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
+        superdomain : bool, optional
+            If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if superdomain:
+            return self._full().show(engine=engine, variable=variable, **kwargs)
+        else:
+            return self.local.show(engine=engine, variable=variable, **kwargs)
+
+    def set_superdomain(
         self,
         scaling: Scaling | str | None = None,
         morphology: Morphology | str | None = None,
@@ -240,13 +294,12 @@ class HiResLocalSurface(Surface):
         **kwargs : Any
             Additional keyword arguments to pass to the scaling and morphology models.
         """
-        from cratermaker import Crater
         from scipy.optimize import curve_fit
 
+        from cratermaker import Crater
+
         scaling = Scaling.maker(scaling, target=self.target, **kwargs)
-        morphology = Morphology.maker(
-            morphology, surface=self, target=self.target, **kwargs
-        )
+        morphology = Morphology.maker(morphology, surface=self, target=self.target, **kwargs)
 
         antipode_distance = np.pi * self.target.radius
         projectile_velocity = scaling.projectile.mean_velocity * 10
@@ -288,9 +341,7 @@ class HiResLocalSurface(Surface):
             self._superdomain_function_exponent = 1.0
         self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
-        self._load_from_files(
-            reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs
-        )
+        self._load_from_files(reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs)
         return
 
     def _rotate_point_cloud(self, points):
@@ -406,12 +457,8 @@ class HiResLocalSurface(Surface):
             return points.tolist(), theta_next
 
         print(f"Center of local region: {self.local_location}")
-        print(
-            f"Radius of local region: {format_large_units(self.local_radius, quantity='length')}"
-        )
-        print(
-            f"Local region pixel size: {format_large_units(self.pix, quantity='length')}"
-        )
+        print(f"Radius of local region: {format_large_units(self.local_radius, quantity='length')}")
+        print(f"Local region pixel size: {format_large_units(self.pix, quantity='length')}")
 
         interior_points = []
         theta = 0.0
@@ -431,9 +478,7 @@ class HiResLocalSurface(Surface):
         points = np.array(points, dtype=np.float64)
         points = np.round(points, decimals=decimals)
         points = np.unique(points, axis=0)
-        points = self._rotate_point_cloud(
-            points
-        ).T  # rotates from the north pole to local_location
+        points = self._rotate_point_cloud(points).T  # rotates from the north pole to local_location
 
         return points
 
@@ -443,9 +488,7 @@ class HiResLocalSurface(Surface):
         Returns the local view of the surface.
         """
         if self._local is None:
-            self._local = self.extract_region(
-                location=self.local_location, region_radius=self.local_radius
-            )
+            self._local = self.extract_region(location=self.local_location, region_radius=self.local_radius)
         return self._local
 
     @parameter
@@ -457,12 +500,7 @@ class HiResLocalSurface(Surface):
 
     @pix.setter
     def pix(self, value: FloatLike):
-        if (
-            not isinstance(value, FloatLike)
-            or np.isnan(value)
-            or np.isinf(value)
-            or value <= 0
-        ):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
             raise TypeError("pix must be a positive float")
         self._pix = value
 
@@ -475,21 +513,12 @@ class HiResLocalSurface(Surface):
 
     @local_radius.setter
     def local_radius(self, value: FloatLike):
-        if (
-            not isinstance(value, FloatLike)
-            or np.isnan(value)
-            or np.isinf(value)
-            or value <= 0
-        ):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
             raise TypeError("local_radius must be a positive float")
         if value > np.pi * self.radius:
-            raise ValueError(
-                "local_radius must be less than pi * radius of the target body"
-            )
+            raise ValueError("local_radius must be less than pi * radius of the target body")
         if value < self.pix:
-            raise ValueError(
-                "local_radius must be greater than or equal to pix (the approximate face size in the local region"
-            )
+            raise ValueError("local_radius must be greater than or equal to pix (the approximate face size in the local region")
         self._local_radius = value
 
     @parameter
@@ -532,15 +561,8 @@ class HiResLocalSurface(Surface):
 
     @superdomain_scale_factor.setter
     def superdomain_scale_factor(self, value: FloatLike):
-        if (
-            not isinstance(value, FloatLike)
-            or np.isnan(value)
-            or np.isinf(value)
-            or value < 1.0
-        ):
-            raise TypeError(
-                "superdomain_scale_factor must be a positive float greater than or equal to 1"
-            )
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
+            raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
         self._superdomain_scale_factor = value
 
     @property
@@ -548,14 +570,7 @@ class HiResLocalSurface(Surface):
         """
         The variables used to generate the hash.
         """
-        return [
-            self._component_name,
-            self.radius,
-            self.pix,
-            self.local_radius,
-            self.local_location,
-            self.superdomain_scale_factor,
-        ]
+        return super()._hashvars + [self.pix, self.local_radius, self.local_location, self.superdomain_scale_factor]
 
 
 class LocalHiResLocalSurface(LocalSurface):
@@ -704,6 +719,10 @@ class LocalHiResLocalSurface(LocalSurface):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
+        include_variables: list[str] | tuple[str, ...] | None = None,
+        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        filename: str | None = None,
+        plot_style: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -717,20 +736,33 @@ class LocalHiResLocalSurface(LocalSurface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        include_variables : list[str] or tuple[str, ...], optional
+            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
+        exclude_variables : list[str] or tuple[str, ...], optional
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+        filename : str or Path, optional
+            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
+        plot_style : str, optional
+            The style of plot to generate. Set to None to skip generating a plot.
+        **kwargs : Any
+            Additional keyword arguments to pass to the save or plot functions.
         """
         super().save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=filename,
             **kwargs,
         )
-        imgdir = Path(self.simdir) / "surface_images"
-        imgdir.mkdir(parents=True, exist_ok=True)
-        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
-        if time_variables:
-            kwargs["label"] = (
-                f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
-            )
-        self.plot_hillshade(imagefile=imagefile, **kwargs)
+        if plot_style is not None:
+            if plot_style not in ["hillshade", "elevation"]:
+                warn(f"Plot style '{plot_style}' not recognized. Using 'hillshade' or 'elevation' instead.", stacklevel=2)
+            else:
+                imagefile = self.plot_dir / f"{plot_style}{interval_number:06d}.png"
+            if time_variables and "label" not in kwargs:
+                kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+            self.plot(plot_style, imagefile=imagefile, **kwargs)
         return
 
     @property
@@ -749,9 +781,7 @@ class LocalHiResLocalSurface(LocalSurface):
                 face_indices = self.face_indices
                 node_indices = self.node_indices
                 edge_indices = self.edge_indices
-            self._face_mask = np.isin(
-                face_indices, self.surface.local.face_indices, kind="table"
-            )
+            self._face_mask = np.isin(face_indices, self.surface.local.face_indices, kind="table")
             if not np.any(self._face_mask):
                 return None
             shared_faces = face_indices[self._face_mask]
@@ -762,16 +792,12 @@ class LocalHiResLocalSurface(LocalSurface):
                 self._node_mask = np.full(self.n_node, True, dtype=bool)
                 self._edge_mask = np.full(self.n_edge, True, dtype=bool)
             else:
-                self._node_mask = np.isin(
-                    node_indices, self.surface.local.node_indices, kind="table"
-                )
+                self._node_mask = np.isin(node_indices, self.surface.local.node_indices, kind="table")
                 if not np.any(self._node_mask):
                     return None
                 shared_nodes = node_indices[self._node_mask]
 
-                self._edge_mask = np.isin(
-                    edge_indices, self.surface.local.edge_indices, kind="table"
-                )
+                self._edge_mask = np.isin(edge_indices, self.surface.local.edge_indices, kind="table")
                 if not np.any(self._edge_mask):
                     return None
                 shared_edges = edge_indices[self._edge_mask]

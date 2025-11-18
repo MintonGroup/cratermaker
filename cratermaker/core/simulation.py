@@ -83,9 +83,7 @@ class Simulation(CratermakerBase):
         ask_overwrite: bool = True,
         **kwargs: Any,
     ):
-        super().__init__(
-            simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs
-        )
+        super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_target", target)
         object.__setattr__(self, "_scaling", scaling)
         object.__setattr__(self, "_production", production)
@@ -146,14 +144,10 @@ class Simulation(CratermakerBase):
         self.target = Target.maker(self.target, **target_config)
 
         production_config = {**production_config, **kwargs}
-        self.production = Production.maker(
-            self.production, target=self.target, **production_config
-        )
+        self.production = Production.maker(self.production, target=self.target, **production_config)
 
         projectile_config = {**projectile_config, **kwargs}
-        self.projectile = Projectile.maker(
-            self.projectile, target=self.target, **projectile_config
-        )
+        self.projectile = Projectile.maker(self.projectile, target=self.target, **projectile_config)
 
         scaling_config = {**scaling_config, **kwargs}
         self.scaling = Scaling.maker(
@@ -169,6 +163,10 @@ class Simulation(CratermakerBase):
             **kwargs,
             "ask_overwrite": self.ask_overwrite,
         }
+        if "superdomain_scale_factor" not in surface_config:
+            surface_config["superdomain_scale_factor"] = (
+                None  # This will trigger setting of the superdomain after the Morphology and Scaling models are set
+            )
         self.surface = Surface.maker(
             self.surface,
             target=self.target,
@@ -191,11 +189,8 @@ class Simulation(CratermakerBase):
             counting=self.counting,
             **morphology_config,
         )
-        if (
-            issubclass(self.surface.__class__, HiResLocalSurface)
-            and self.surface.uxgrid is None
-        ):
-            self.surface._set_superdomain(
+        if issubclass(self.surface.__class__, HiResLocalSurface) and self.surface.uxgrid is None:
+            self.surface.set_superdomain(
                 scaling=self.scaling,
                 morphology=self.morphology,
                 reset=reset,
@@ -244,11 +239,7 @@ class Simulation(CratermakerBase):
         if name not in self._user_defined:
             return
         # Avoid recursive calls during initialization or early access
-        if (
-            hasattr(self, "to_config")
-            and callable(getattr(self, "to_config", None))
-            and _convert_for_yaml(value) is not None
-        ):
+        if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)) and _convert_for_yaml(value) is not None:
             with suppress(Exception):
                 self.to_config()
 
@@ -386,9 +377,7 @@ class Simulation(CratermakerBase):
                     current_diameter_number[0],
                     current_diameter_number[1] / self.surface.area,
                 )
-                current_age = self.production.age_from_D_N(
-                    *current_diameter_number_density, validate_inputs=validate_inputs
-                )
+                current_age = self.production.age_from_D_N(*current_diameter_number_density, validate_inputs=validate_inputs)
                 if current_diameter_number_end[1] > 0:
                     current_diameter_number_density_end = (
                         current_diameter_number_end[0],
@@ -444,13 +433,9 @@ class Simulation(CratermakerBase):
         if not hasattr(self, "production"):
             raise RuntimeError("No production function defined for this simulation")
         elif not hasattr(self.production, "generator_type"):
-            raise RuntimeError(
-                "The production function is not properly defined. Missing 'generator_type' attribute"
-            )
+            raise RuntimeError("The production function is not properly defined. Missing 'generator_type' attribute")
         elif self.production.generator_type not in ["crater", "projectile"]:
-            raise RuntimeError(
-                f"Invalid production function type {self.production.generator_type}"
-            )
+            raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
 
         from_projectile = self.production.generator_type == "projectile"
         diam_key = "projectile_diameter" if from_projectile else "final_diameter"
@@ -468,14 +453,8 @@ class Simulation(CratermakerBase):
             total_bin_area = self.surface.face_bin_area[i]
             area_ratio = total_bin_area / self.surface.area
 
-            diam_min = self._get_smallest_diameter(
-                self.surface.face_bin_min_sizes[i], from_projectile=from_projectile
-            )
-            diameter_number_local = (
-                (diameter_number[0], diameter_number[1] * area_ratio)
-                if diameter_number is not None
-                else None
-            )
+            diam_min = self._get_smallest_diameter(self.surface.face_bin_min_sizes[i], from_projectile=from_projectile)
+            diameter_number_local = (diameter_number[0], diameter_number[1] * area_ratio) if diameter_number is not None else None
 
             if diameter_number_end is not None:
                 diameter_number_end_local = (
@@ -511,9 +490,7 @@ class Simulation(CratermakerBase):
             impact_diameters = np.asarray(impact_diameters)[sort_indices]
             impact_ages = np.asarray(impact_ages)[sort_indices]
             impact_locations = np.array(impact_locations)[sort_indices]
-            for diameter, location, age in zip(
-                impact_diameters, impact_locations, impact_ages, strict=False
-            ):
+            for diameter, location, age in zip(impact_diameters, impact_locations, impact_ages, strict=False):
                 diam_arg = {diam_key: diameter}
                 craterlist.append(
                     Crater.maker(
@@ -529,9 +506,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def emplace(
-        self, craters: list[Crater] | Crater | None = None, **kwargs: Any
-    ) -> None:
+    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> None:
         """
         Emplace one or more craters in the simulation.
 
@@ -640,9 +615,31 @@ class Simulation(CratermakerBase):
         )
 
         if self.morphology.docounting:
-            self.counting.export(
-                interval_number=interval_number, driver=driver, **kwargs
-            )
+            self.counting.export(interval_number=interval_number, driver=driver, **kwargs)
+        return
+
+    def plot(self, **kwargs: Any) -> None:
+        """
+        Plot the current state of the surface.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments to pass to the surface plot method.
+        """
+        self.surface.plot(**kwargs)
+        return
+
+    def show(self, **kwargs: Any) -> None:
+        """
+        Show the current state of the surface.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments to pass to the surface show method.
+        """
+        self.surface.show(**kwargs)
         return
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
@@ -672,16 +669,10 @@ class Simulation(CratermakerBase):
         sim_config = super().to_config(remove_common_args=False)
         sim_config["target_config"] = self.target.to_config(remove_common_args=True)
         sim_config["scaling_config"] = self.scaling.to_config(remove_common_args=True)
-        sim_config["production_config"] = self.production.to_config(
-            remove_common_args=True
-        )
+        sim_config["production_config"] = self.production.to_config(remove_common_args=True)
         sim_config["surface_config"] = self.surface.to_config(remove_common_args=True)
-        sim_config["projectile_config"] = self.projectile.to_config(
-            remove_common_args=True
-        )
-        sim_config["morphology_config"] = self.morphology.to_config(
-            remove_common_args=True
-        )
+        sim_config["projectile_config"] = self.projectile.to_config(remove_common_args=True)
+        sim_config["morphology_config"] = self.morphology.to_config(remove_common_args=True)
         sim_config["counting_config"] = self.counting.to_config(remove_common_args=True)
         sim_config["target"] = self.target.name
         sim_config["scaling"] = self.scaling._component_name
@@ -701,13 +692,10 @@ class Simulation(CratermakerBase):
             "counting",
         ]:
             # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
-            if config in sim_config and (
-                sim_config[config] is None or sim_config[config] == {}
-            ):
+            if config in sim_config and (sim_config[config] is None or sim_config[config] == {}):
                 sim_config.pop(config)
             if f"{config}_config" in sim_config and (
-                sim_config[f"{config}_config"] is None
-                or sim_config[f"{config}_config"] == {}
+                sim_config[f"{config}_config"] is None or sim_config[f"{config}_config"] == {}
             ):
                 sim_config.pop(f"{config}_config")
 
@@ -737,9 +725,7 @@ class Simulation(CratermakerBase):
             skip_component = []
         elif isinstance(skip_component, str):
             skip_component = [skip_component]
-        elif not isinstance(skip_component, list) or not all(
-            isinstance(c, str) for c in skip_component
-        ):
+        elif not isinstance(skip_component, list) or not all(isinstance(c, str) for c in skip_component):
             raise TypeError("skip_component must be a string or a list of strings")
         if ask_overwrite is None:
             ask_overwrite = self.ask_overwrite
@@ -753,12 +739,8 @@ class Simulation(CratermakerBase):
                 print("The following files will be deleted:")
                 for f in files_to_remove:
                     print(f"  {f}")
-                print(
-                    "To disable this message, pass `ask_overwrite=False` to this function."
-                )
-                response = input(
-                    f"Are you sure you want to delete {len(files_to_remove)} files? [y/N]: "
-                )
+                print("To disable this message, pass `ask_overwrite=False` to this function.")
+                response = input(f"Are you sure you want to delete {len(files_to_remove)} files? [y/N]: ")
                 if response.lower() != "y":
                     raise RuntimeError("User aborted the reset operation.")
         for component in _COMPONENT_NAMES:
@@ -774,18 +756,10 @@ class Simulation(CratermakerBase):
         self._elapsed_time = 0.0
         self._current_age = 0.0
         self._elapsed_n1 = 0.0
-        self._smallest_crater = (
-            0.0  # The smallest crater will be determined by the smallest face area
-        )
-        self._smallest_projectile = (
-            0.0  # The smallest crater will be determined by the smallest face area
-        )
-        self._largest_crater = (
-            np.inf
-        )  # The largest crater will be determined by the target body radius
-        self._largest_projectile = (
-            np.inf
-        )  # The largest projectile will be determined by the target body radius
+        self._smallest_crater = 0.0  # The smallest crater will be determined by the smallest face area
+        self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
+        self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
+        self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
 
         return
 
@@ -832,9 +806,7 @@ class Simulation(CratermakerBase):
         self.morphology._process_queue()
         return
 
-    def _get_smallest_diameter(
-        self, face_size: ArrayLike | None = None, from_projectile: bool = False
-    ) -> float:
+    def _get_smallest_diameter(self, face_size: ArrayLike | None = None, from_projectile: bool = False) -> float:
         """
         Get the smallest possible crater or projectile be formed on a face.
 
@@ -939,18 +911,14 @@ class Simulation(CratermakerBase):
         diameter_number_interval = kwargs.get("diameter_number_interval")
         ninterval = kwargs.pop("ninterval", None)
         if age_interval is not None and diameter_number_interval is not None:
-            raise ValueError(
-                "Cannot specify both ninterval and age_interval or diameter_number_interval"
-            )
+            raise ValueError("Cannot specify both ninterval and age_interval or diameter_number_interval")
         if ninterval is not None:
             if not isinstance(ninterval, int):
                 raise TypeError("ninterval must be an integer")
             if ninterval < 1:
                 raise ValueError("ninterval must be greater than zero")
             if age_interval is not None or diameter_number_interval is not None:
-                raise ValueError(
-                    "Cannot specify both ninterval and age_interval or diameter_number_interval"
-                )
+                raise ValueError("Cannot specify both ninterval and age_interval or diameter_number_interval")
 
         is_age_interval = age_interval is not None
 
@@ -967,14 +935,10 @@ class Simulation(CratermakerBase):
         if is_age_interval:
             age = kwargs.get("age", None)
             if age is None:
-                raise ValueError(
-                    "Something went wrong! age should be set by self.production_validate_sample_args"
-                )
+                raise ValueError("Something went wrong! age should be set by self.production_validate_sample_args")
             age_end = kwargs.get("age_end", None)
             if age_end is None:
-                raise ValueError(
-                    "Something went wrong! age_end should be set by self.production_validate_sample_args"
-                )
+                raise ValueError("Something went wrong! age_end should be set by self.production_validate_sample_args")
             if age_interval is None:
                 if ninterval is None:
                     ninterval = 1
@@ -991,14 +955,10 @@ class Simulation(CratermakerBase):
         else:
             diameter_number = kwargs.get("diameter_number", None)
             if diameter_number is None:
-                raise ValueError(
-                    "Something went wrong! diameter_number should be set by self.production_validate_sample_args"
-                )
+                raise ValueError("Something went wrong! diameter_number should be set by self.production_validate_sample_args")
             diameter_number_end = kwargs.get("diameter_number_end", None)
             if diameter_number_end is None:
-                raise ValueError(
-                    "Something went wrong! diameter_number_end should be set by self.production_validate_sample_args"
-                )
+                raise ValueError("Something went wrong! diameter_number_end should be set by self.production_validate_sample_args")
             if diameter_number_interval is None:
                 if ninterval is None:
                     ninterval = 1
@@ -1008,55 +968,33 @@ class Simulation(CratermakerBase):
                 )
             else:
                 if len(diameter_number_interval) != 2:
-                    raise ValueError(
-                        "The 'diameter_number_interval' must be a pair of values in the form (D,N)"
-                    )
+                    raise ValueError("The 'diameter_number_interval' must be a pair of values in the form (D,N)")
                 # Check to be sure that the diameter in the diameter_number_interval is the same as diameter_number.
                 # If not, we need to adjust the end diameter value it so that they match
-                diameter_number_interval = self.production._validate_csfd(
-                    *diameter_number_interval
-                )
+                diameter_number_interval = self.production._validate_csfd(*diameter_number_interval)
                 if diameter_number_interval[0] != diameter_number[0]:
                     area = kwargs.get("area", None)
                     if area is None:
-                        raise ValueError(
-                            "Something went wrong! area should be set by self.production_validate_sample_args"
-                        )
+                        raise ValueError("Something went wrong! area should be set by self.production_validate_sample_args")
                     diameter_number_density_interval = (
                         diameter_number_interval[0],
                         diameter_number_interval[1] / area,
                     )
-                    age_val = self.production.age_from_D_N(
-                        *diameter_number_density_interval
-                    )
+                    age_val = self.production.age_from_D_N(*diameter_number_density_interval)
                     diameter_number_density_interval = (
                         diameter_number[0],
-                        self.production.function(
-                            diameter=diameter_number[0], age=age_val
-                        ),
+                        self.production.function(diameter=diameter_number[0], age=age_val),
                     )
                     diameter_number_interval = (
                         diameter_number[0],
                         diameter_number_density_interval[1] * area,
                     )
 
-                if (
-                    diameter_number_interval[1]
-                    >= diameter_number[1] - diameter_number_end[1]
-                ):
-                    raise ValueError(
-                        "diameter_number_interval must be less than diameter_number - diameter_number_end"
-                    )
+                if diameter_number_interval[1] >= diameter_number[1] - diameter_number_end[1]:
+                    raise ValueError("diameter_number_interval must be less than diameter_number - diameter_number_end")
                 if diameter_number_interval[1] <= 0:
-                    raise ValueError(
-                        "diameter_number_interval must be greater than zero"
-                    )
-                ninterval = int(
-                    np.ceil(
-                        (diameter_number[1] - diameter_number_end[1])
-                        / diameter_number_interval[1]
-                    )
-                )
+                    raise ValueError("diameter_number_interval must be greater than zero")
+                ninterval = int(np.ceil((diameter_number[1] - diameter_number_end[1]) / diameter_number_interval[1]))
 
             kwargs["diameter_number_interval"] = diameter_number_interval
             kwargs["ninterval"] = ninterval
@@ -1094,9 +1032,7 @@ class Simulation(CratermakerBase):
     def surface(self, value):
         if not isinstance(value, (Surface | str | type)):
             if isinstance(value, type) and not issubclass(value, Surface):
-                raise TypeError(
-                    "surface must be an instance of Surface, a subclass of Surface, or str"
-                )
+                raise TypeError("surface must be an instance of Surface, a subclass of Surface, or str")
         self._surface = value
 
     @property
@@ -1244,9 +1180,7 @@ class Simulation(CratermakerBase):
         elif value < 0:
             raise ValueError("smallest_crater must be greater than or equal to zero")
         elif self._largest_crater is not None and value > self._largest_crater:
-            raise ValueError(
-                "smallest_crater must be less than or equal to largest_crater"
-            )
+            raise ValueError("smallest_crater must be less than or equal to largest_crater")
         self._smallest_crater = float(value)
 
     @parameter
@@ -1266,9 +1200,7 @@ class Simulation(CratermakerBase):
         elif value <= 0:
             raise ValueError("largest_crater must be greater than zero")
         elif self._smallest_crater is not None and value < self._smallest_crater:
-            raise ValueError(
-                "largest_crater must be greater than or equal to smallest_crater"
-            )
+            raise ValueError("largest_crater must be greater than or equal to smallest_crater")
         self._largest_crater = float(value)
 
     @parameter
@@ -1288,9 +1220,7 @@ class Simulation(CratermakerBase):
         elif value < 0:
             raise ValueError("smallest_projectile must be greater or equal to zero")
         elif self._largest_projectile is not None and value > self._largest_projectile:
-            raise ValueError(
-                "smallest_projectile must be less than or equal to largest_projectile"
-            )
+            raise ValueError("smallest_projectile must be less than or equal to largest_projectile")
         self._smallest_projectile = float(value)
 
     @parameter
@@ -1309,12 +1239,8 @@ class Simulation(CratermakerBase):
             raise TypeError("largest_projectile must be a scalar value")
         elif value <= 0:
             raise ValueError("largest_projectile must be greater than zero")
-        elif (
-            self._smallest_projectile is not None and value < self._smallest_projectile
-        ):
-            raise ValueError(
-                "largest_projectile must be greater than or equal to smallest_projectile"
-            )
+        elif self._smallest_projectile is not None and value < self._smallest_projectile:
+            raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
         self._largest_projectile = float(value)
 
     @property
