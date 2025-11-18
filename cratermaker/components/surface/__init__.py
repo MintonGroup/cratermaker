@@ -424,7 +424,7 @@ class Surface(ComponentBase):
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
-        Computes the initial bearing from a given location to all faces and nodes.
+        Computes the initial bearing (relative to North) from a given location to all faces and nodes.
 
         Parameters
         ----------
@@ -789,7 +789,7 @@ class Surface(ComponentBase):
         locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
-        Calculate the initial bearing from one point to one or more other points in radians.
+        Calculate the initial bearing relative to North from one point to one or more other points in radians.
 
         Parameters
         ----------
@@ -3273,14 +3273,14 @@ class LocalSurface(CratermakerBase):
     @property
     def face_bearing(self) -> NDArray:
         """
-        The initial bearing from the location to the faces.
+        The initial bearing from the location to the faces relative to North.
         """
         return self._face_bearing
 
     @property
     def node_bearing(self) -> NDArray:
         """
-        The initial bearing from the location to the nodes.
+        The initial bearing from the location to the nodes relative to North.
         """
         return self._node_bearing
 
