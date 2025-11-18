@@ -2876,6 +2876,7 @@ class LocalSurface(CratermakerBase):
 
         import matplotlib.pyplot as plt
         from matplotlib.colors import LightSource
+        from scipy.ndimage import gaussian_filter
 
         if variable not in self.uxds:
             raise ValueError(f"Variable '{variable}' not found in the surface data.")
@@ -2926,22 +2927,25 @@ class LocalSurface(CratermakerBase):
             azimuth = 300.0
             solar_angle = 20.0
             ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
+            band = gaussian_filter(band, sigma=5, mode="constant", cval=np.nan)
             cvals = ls.hillshade(band, dx=self.pix, dy=self.pix, fraction=1.0)
             cmap = kwargs.pop("cmap", "gray")
             vmin = 0.0
             vmax = 1.0
+            interpolation = kwargs.pop("interpolation", "lanczos")
         elif style == "elevation":
             cvals = band
             cmap = kwargs.pop("cmap", "cividis")
             vmin = np.nanmin(band)
             vmax = np.nanmax(band)
+            interpolation = kwargs.pop("interpolation", "bicubic")
 
         # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
         if ax is None:
-            fig, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
+            _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
         im = ax.imshow(
             cvals,
-            interpolation="nearest",
+            interpolation=interpolation,
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
