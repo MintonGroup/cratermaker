@@ -2088,6 +2088,8 @@ class LocalSurface(CratermakerBase):
         delta_face_elevation = surface_functions.slope_collapse(
             critical_slope=critical_slope,
             face_elevation=self.face_elevation,
+            face_lon=np.radians(self.face_lon),
+            face_lat=np.radians(self.face_lat),
             face_area=self.face_area,
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
@@ -2109,6 +2111,8 @@ class LocalSurface(CratermakerBase):
         """
         slope = surface_functions.compute_slope(
             face_elevation=self.face_elevation,
+            face_lon=np.radians(self.face_lon),
+            face_lat=np.radians(self.face_lat),
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
             edge_face_distance=self.edge_face_distance,
@@ -2447,6 +2451,28 @@ class LocalSurface(CratermakerBase):
             elevation = self.node_elevation
 
         return self.surface._compute_elevation_to_cartesian(position, elevation)
+
+    def compute_radial_gradient(self) -> NDArray[np.float64]:
+        """
+        Compute the radial gradient of the local surface elevation with respect to the local_location center.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The radial gradient of all faces in meters per meter.
+        """
+        radial_gradient = surface_functions.compute_radial_gradient(
+            face_elevation=self.face_elevation,
+            face_lon=np.radians(self.face_lon),
+            face_lat=np.radians(self.face_lat),
+            face_bearing=np.radians(self.face_bearing),
+            edge_face_connectivity=self.edge_face_connectivity,
+            face_edge_connectivity=self.face_edge_connectivity,
+            edge_face_distance=self.edge_face_distance,
+            edge_length=self.edge_length,
+        )
+
+        return radial_gradient
 
     def export(
         self,

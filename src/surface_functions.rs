@@ -278,21 +278,38 @@ pub fn apply_diffusion<'py>(
 ///
 /// For each neighbor, we take the vector (dx, dy) in the tangent plane and the elevation difference dh,
 /// and estimate the gradient using the Green-Gauss formula.
-/// Since we lack explicit (x, y) positions, we approximate dx, dy as unit vectors around the face.
-/// This provides a reasonable local coordinate system for gradient estimation.
+/// 
+/// # Arguments
+/// * `f` - Index of the face to compute the gradient for.
+/// * `face_elevation` - Elevation at each face (1D array).
+/// * `face_lon` - Longitude at each face in radians (1D array).
+/// * `face_lat` - Latitude at each face in radians (1D array).
+/// * `connected_edges` - Indices of the edges connected to face `f` (1D array).
+/// * `edge_face_connectivity` - Indices of the faces (global) that saddle each edge. (2D array of shape n_edge x 2).
+/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge).
+/// * `edge_length` - Lengths of each edge in meters (1D array of length n_edge).
+/// 
+/// # Returns
+/// A tuple representing the zonal and meridional components of the gradient vector at face `f`.
+/// 
 #[inline(always)]
-fn compute_gradient(
+fn compute_face_gradient(
     f: usize,
     face_elevation: &ndarray::Array1<f64>,
+    face_lon: &ndarray::Array1<f64>,
+    face_lat: &ndarray::Array1<f64>,
     connected_edges: &ndarray::ArrayView1<'_, i64>,
     edge_face_connectivity: &ndarray::ArrayView2<i64>,
     edge_face_distance: &ndarray::ArrayView1<f64>,
     edge_length: &ndarray::ArrayView1<f64>,
 ) -> (f64, f64) {
-    let mut dh_dx = 0.0;
-    let mut dh_dy = 0.0;
+    let mut dh_zonal = 0.0;
+    let mut dh_meridional = 0.0;
     let mut weight_sum = 0.0;
+    let lon_f = face_lon[f];
+    let lat_f = face_lat[f];
 
+    // This will gather up the distance to each neighboring edge ands its length for the flux calculation
     let mut neighbors = Vec::new();
     for &edge_id in connected_edges.iter() {
         if edge_id < 0 {
@@ -319,26 +336,97 @@ fn compute_gradient(
         return (0.0, 0.0);
     }
 
-    for (i, &(other, distance, length)) in neighbors.iter().enumerate() {
-        let angle = 2.0 * std::f64::consts::PI * (i as f64) / (n as f64);
-        let nx = angle.cos();
-        let ny = angle.sin();
+    // Loop over neighbors to compute gradient contributions
+    for (_i, &(other, distance, length)) in neighbors.iter().enumerate() {
+        let theta = compute_initial_bearing(
+            lon_f,
+            lat_f,
+            face_lon[other],
+            face_lat[other],
+        );  
+        let dir_zonal = theta.cos();
+        let dir_meridional = theta.sin();
         let dh = face_elevation[other] - face_elevation[f];
         let flux = dh * length / distance;
 
-        dh_dx += flux * nx;
-        dh_dy += flux * ny;
+        dh_zonal += flux * dir_zonal;
+        dh_meridional += flux * dir_meridional;
         weight_sum += length;
     }
 
     if weight_sum > 0.0 {
-        dh_dx /= weight_sum;
-        dh_dy /= weight_sum;
-        return (dh_dx, dh_dy);
+        dh_zonal /= weight_sum;
+        dh_meridional /= weight_sum;
+        return (dh_zonal, dh_meridional);
     }
 
     (0.0, 0.0)
 }
+
+/// Computes the gradient vector in a radial direction defined by the face bearing at a face using the Green-Gauss method.
+///
+///
+/// This function is designed to be parallel and returns a NumPy array of slopes
+/// corresponding to the provided face indices.
+///
+/// # Arguments
+/// * `py` - Python interpreter token.
+/// * `face_elevation` - Elevation at each face (1D array).
+/// * `face_bearing` - Bearing at each face in radians (1D array).
+/// * `face_area` - Area of each face (1D array).
+/// * `edge_face_connectivity` - Indices of the faces (global) that saddle each edge. (2D array of shape n_edge x 2).
+/// * 'face_edge_connectivity` - Indices of the edges that surround each face (2D array of shape n_face x n_max_edges).
+/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+///
+/// # Returns
+/// An arrays of radial gradient values same length as `face_indices`.
+#[pyfunction]
+pub fn compute_radial_gradient<'py>(
+    py: Python<'py>,
+    face_elevation: PyReadonlyArray1<'py, f64>,
+    face_lon: PyReadonlyArray1<'py, f64>,
+    face_lat: PyReadonlyArray1<'py, f64>,
+    face_bearing: PyReadonlyArray1<'py, f64>,
+    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
+    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_face_distance: PyReadonlyArray1<'py, f64>,
+    edge_length: PyReadonlyArray1<'py, f64>,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let face_elevation = face_elevation.as_array();
+    let face_bearing = face_bearing.as_array();
+    let face_lon = face_lon.as_array();
+    let face_lat = face_lat.as_array();
+    let edge_face_connectivity = edge_face_connectivity.as_array();
+    let face_edge_connectivity = face_edge_connectivity.as_array();
+    let edge_face_distance = edge_face_distance.as_array();
+    let edge_length = edge_length.as_array();
+    let n_face = face_elevation.len();
+
+    let face_elevation = face_elevation.to_owned();
+    let face_lon = face_lon.to_owned();
+    let face_lat = face_lat.to_owned();
+    let radgrad: Vec<f64> = (0..n_face).into_par_iter()
+        .map(|f| {
+            let connected_edges = face_edge_connectivity.row(f);
+            let (grad_zonal, grad_meridional) = compute_face_gradient(
+                f,
+                &face_elevation,
+                &face_lon,
+                &face_lat,
+                &connected_edges,
+                &edge_face_connectivity,
+                &edge_face_distance,
+                &edge_length,
+            );
+            grad_zonal * face_bearing[f].cos() + grad_meridional * face_bearing[f].sin()
+        })
+        .collect();
+    let radgrad = ndarray::Array1::from_vec(radgrad);
+
+    Ok(PyArray1::from_owned_array(py, radgrad))
+}
+
+
 
 
 /// Computes the slope squared at a face using the Green-Gauss method.
@@ -353,18 +441,22 @@ fn compute_gradient(
 /// Since we lack explicit (x, y) positions, we approximate dx, dy as unit vectors around the face.
 /// This provides a reasonable local coordinate system for gradient estimation.
 #[inline(always)]
-fn compute_slope_squared(
+fn compute_face_slope_squared(
     f: usize,
     face_elevation: &ndarray::Array1<f64>,
+    face_lon: &ndarray::Array1<f64>,
+    face_lat: &ndarray::Array1<f64>,
     connected_edges: &ndarray::ArrayView1<'_, i64>,
     edge_face_connectivity: &ndarray::ArrayView2<i64>,
     edge_face_distance: &ndarray::ArrayView1<f64>,
     edge_length: &ndarray::ArrayView1<f64>,
 ) -> f64 {
 
-    let (dh_dx, dh_dy) = compute_gradient(
+    let (dh_dx, dh_dy) = compute_face_gradient(
         f,
         face_elevation,
+        face_lon,
+        face_lat,
         connected_edges,
         edge_face_connectivity,
         edge_face_distance,
@@ -398,12 +490,16 @@ fn compute_slope_squared(
 pub fn compute_slope<'py>(
     py: Python<'py>,
     face_elevation: PyReadonlyArray1<'py, f64>,
+    face_lon: PyReadonlyArray1<'py, f64>,
+    face_lat: PyReadonlyArray1<'py, f64>,
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_edge_connectivity: PyReadonlyArray2<'py, i64>,
     edge_face_distance: PyReadonlyArray1<'py, f64>,
     edge_length: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let face_elevation = face_elevation.as_array();
+    let face_lon = face_lon.as_array();
+    let face_lat = face_lat.as_array();
     let edge_face_connectivity = edge_face_connectivity.as_array();
     let face_edge_connectivity = face_edge_connectivity.as_array();
     let edge_face_distance = edge_face_distance.as_array();
@@ -411,12 +507,16 @@ pub fn compute_slope<'py>(
     let n_face = face_elevation.len();
 
     let face_elevation = face_elevation.to_owned();
+    let face_lon = face_lon.to_owned();
+    let face_lat = face_lat.to_owned();
     let slope_vec: Vec<_> = (0..n_face).into_par_iter()
         .map(|f| {
             let connected_edges = face_edge_connectivity.row(f);
-            let slope_sq = compute_slope_squared(
+            let slope_sq = compute_face_slope_squared(
                 f,
                 &face_elevation,
+                &face_lon,
+                &face_lat,
                 &connected_edges,
                 &edge_face_connectivity,
                 &edge_face_distance,
@@ -454,6 +554,8 @@ pub fn slope_collapse<'py>(
     py: Python<'py>,
     critical_slope: f64,
     face_elevation: PyReadonlyArray1<'py, f64>,
+    face_lon: PyReadonlyArray1<'py, f64>,
+    face_lat: PyReadonlyArray1<'py, f64>,
     face_area: PyReadonlyArray1<'py, f64>,
     edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     face_edge_connectivity: PyReadonlyArray2<'py, i64>,
@@ -466,12 +568,16 @@ pub fn slope_collapse<'py>(
     let edge_face_distance = edge_face_distance.as_array();
     let edge_length = edge_length.as_array();
     let face_elevation_view = face_elevation.as_array();
+    let face_lon = face_lon.as_array();
+    let face_lat = face_lat.as_array();
     let n_face = face_edge_connectivity.nrows();
     let critical_slope_sq = critical_slope * critical_slope;
 
     // face_kappa_ones should be an array view
     let face_kappa = ndarray::Array1::<f64>::ones(n_face);
     let kappa_ref: &ndarray::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::Dim<[usize; 1]>> = &face_kappa.view();
+    let face_lon = face_lon.to_owned();
+    let face_lat = face_lat.to_owned();
 
     let diffmax = compute_dt_max(
         &edge_face_distance,
@@ -496,9 +602,11 @@ pub fn slope_collapse<'py>(
             .into_par_iter()
             .map(|f| {
                 let connected_edges = face_edge_connectivity.row(f);
-                let slope_sq = compute_slope_squared(
+                let slope_sq = compute_face_slope_squared(
                     f,
                     &face_elevation,
+                    &face_lon,
+                    &face_lat,
                     &connected_edges,
                     &edge_face_connectivity,
                     &edge_face_distance,

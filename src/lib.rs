@@ -35,7 +35,7 @@ mod cratermaker {
         #[pymodule_export]
         use crate::surface_functions::{
             apply_diffusion, slope_collapse, calculate_bearing, interpolate_node_elevation_from_faces,
-            turbulence_noise, calculate_distance, compute_slope, compute_edge_distances
+            turbulence_noise, calculate_distance, compute_slope, compute_edge_distances, compute_radial_gradient,
         };
     }
 
