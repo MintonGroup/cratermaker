@@ -269,8 +269,7 @@ pub fn apply_diffusion<'py>(
     Ok(PyArray1::from_owned_array(py, face_delta_elevation))
 }
 
-
-/// Computes the slope squared at a face using the Green-Gauss method.
+/// Computes the gradient vector (∂h/∂x, ∂h/∂y) at a face using the Green-Gauss method.
 ///
 /// For each face, this function estimates the gradient vector (∂h/∂x, ∂h/∂y)
 /// in the local tangent plane by summing contributions from all connected neighbors,
@@ -282,14 +281,14 @@ pub fn apply_diffusion<'py>(
 /// Since we lack explicit (x, y) positions, we approximate dx, dy as unit vectors around the face.
 /// This provides a reasonable local coordinate system for gradient estimation.
 #[inline(always)]
-fn compute_slope_squared(
+fn compute_gradient(
     f: usize,
     face_elevation: &ndarray::Array1<f64>,
     connected_edges: &ndarray::ArrayView1<'_, i64>,
     edge_face_connectivity: &ndarray::ArrayView2<i64>,
     edge_face_distance: &ndarray::ArrayView1<f64>,
     edge_length: &ndarray::ArrayView1<f64>,
-) -> f64 {
+) -> (f64, f64) {
     let mut dh_dx = 0.0;
     let mut dh_dy = 0.0;
     let mut weight_sum = 0.0;
@@ -317,7 +316,7 @@ fn compute_slope_squared(
 
     let n = neighbors.len();
     if n < 2 {
-        return 0.0;
+        return (0.0, 0.0);
     }
 
     for (i, &(other, distance, length)) in neighbors.iter().enumerate() {
@@ -335,10 +334,44 @@ fn compute_slope_squared(
     if weight_sum > 0.0 {
         dh_dx /= weight_sum;
         dh_dy /= weight_sum;
-        return dh_dx * dh_dx + dh_dy * dh_dy;
+        return (dh_dx, dh_dy);
     }
 
-    0.0
+    (0.0, 0.0)
+}
+
+
+/// Computes the slope squared at a face using the Green-Gauss method.
+///
+/// For each face, this function estimates the gradient vector (∂h/∂x, ∂h/∂y)
+/// in the local tangent plane by summing contributions from all connected neighbors,
+/// using the Green-Gauss theorem applied to the face's surrounding edges.
+/// Returns the squared magnitude of this gradient as the slope squared.
+///
+/// For each neighbor, we take the vector (dx, dy) in the tangent plane and the elevation difference dh,
+/// and estimate the gradient using the Green-Gauss formula.
+/// Since we lack explicit (x, y) positions, we approximate dx, dy as unit vectors around the face.
+/// This provides a reasonable local coordinate system for gradient estimation.
+#[inline(always)]
+fn compute_slope_squared(
+    f: usize,
+    face_elevation: &ndarray::Array1<f64>,
+    connected_edges: &ndarray::ArrayView1<'_, i64>,
+    edge_face_connectivity: &ndarray::ArrayView2<i64>,
+    edge_face_distance: &ndarray::ArrayView1<f64>,
+    edge_length: &ndarray::ArrayView1<f64>,
+) -> f64 {
+
+    let (dh_dx, dh_dy) = compute_gradient(
+        f,
+        face_elevation,
+        connected_edges,
+        edge_face_connectivity,
+        edge_face_distance,
+        edge_length,
+    ); 
+    return dh_dx * dh_dx + dh_dy * dh_dy;
+    
 }
 
 /// Computes the square root of the maximum squared slope at each face in a surface mesh.
