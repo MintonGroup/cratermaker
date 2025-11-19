@@ -295,7 +295,7 @@ pub fn apply_diffusion<'py>(
 #[inline(always)]
 fn compute_face_gradient(
     f: usize,
-    face_elevation: &ndarray::Array1<f64>,
+    variable: &ndarray::Array1<f64>,
     face_lon: &ndarray::Array1<f64>,
     face_lat: &ndarray::Array1<f64>,
     connected_edges: &ndarray::ArrayView1<'_, i64>,
@@ -344,10 +344,10 @@ fn compute_face_gradient(
             face_lon[other],
             face_lat[other],
         );  
-        let dir_zonal = theta.cos();
-        let dir_meridional = theta.sin();
-        let dh = face_elevation[other] - face_elevation[f];
-        let flux = dh * length / distance;
+        let dir_zonal = theta.sin();
+        let dir_meridional = theta.cos();
+        let dz = variable[other] - variable[f];
+        let flux = dz * length / distance;
 
         dh_zonal += flux * dir_zonal;
         dh_meridional += flux * dir_meridional;
@@ -420,7 +420,7 @@ pub fn compute_radial_gradient<'py>(
                 &edge_face_distance,
                 &edge_length,
             );
-            grad_zonal * face_bearing[f].cos() + grad_meridional * face_bearing[f].sin()
+            grad_meridional * face_bearing[f].cos() + grad_zonal * face_bearing[f].sin()
         })
         .collect();
     let radgrad = ndarray::Array1::from_vec(radgrad);
