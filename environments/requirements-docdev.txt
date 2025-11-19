@@ -1,6 +1,6 @@
-dask>=2025.03.0
-xarray>=2025.1.2
-uxarray>=2025.03.0
+dask>=2025.11.0
+xarray>=2025.11.0
+uxarray>=2025.10.0
 vtk>=9.5
 scipy
 matplotlib
@@ -10,7 +10,7 @@ trimesh
 datashader>=0.17.0
 geoviews>=1.14.0
 PyYAML>=6
-astropy>=6
+astropy>=7
 pytest
 pip>=24.2
 sphinx
