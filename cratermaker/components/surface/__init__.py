@@ -2452,9 +2452,9 @@ class LocalSurface(CratermakerBase):
 
         return self.surface._compute_elevation_to_cartesian(position, elevation)
 
-    def compute_radial_gradient(self) -> NDArray[np.float64]:
+    def compute_radial_gradient(self, variable) -> NDArray[np.float64]:
         """
-        Compute the radial gradient of the local surface elevation with respect to the local_location center.
+        Compute the radial gradient of the local surface variable with respect to the local_location center.
 
         Returns
         -------
@@ -2462,7 +2462,7 @@ class LocalSurface(CratermakerBase):
             The radial gradient of all faces in meters per meter.
         """
         radial_gradient = surface_functions.compute_radial_gradient(
-            face_elevation=self.face_elevation,
+            variable=variable,
             face_lon=np.radians(self.face_lon),
             face_lat=np.radians(self.face_lat),
             face_bearing=np.radians(self.face_bearing),

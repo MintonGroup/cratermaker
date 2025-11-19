@@ -371,7 +371,9 @@ fn compute_face_gradient(
 ///
 /// # Arguments
 /// * `py` - Python interpreter token.
-/// * `face_elevation` - Elevation at each face (1D array).
+/// * `variable` - The variable to compute the gradient for at each face (1D array).
+/// * `face_lon` - Longitude at each face in radians (1D array).
+/// * `face_lat` - Latitude at each face in radians (1D array).
 /// * `face_bearing` - Bearing at each face in radians (1D array).
 /// * `face_area` - Area of each face (1D array).
 /// * `edge_face_connectivity` - Indices of the faces (global) that saddle each edge. (2D array of shape n_edge x 2).
@@ -383,7 +385,7 @@ fn compute_face_gradient(
 #[pyfunction]
 pub fn compute_radial_gradient<'py>(
     py: Python<'py>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
+    variable: PyReadonlyArray1<'py, f64>,
     face_lon: PyReadonlyArray1<'py, f64>,
     face_lat: PyReadonlyArray1<'py, f64>,
     face_bearing: PyReadonlyArray1<'py, f64>,
@@ -392,7 +394,7 @@ pub fn compute_radial_gradient<'py>(
     edge_face_distance: PyReadonlyArray1<'py, f64>,
     edge_length: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_elevation = face_elevation.as_array();
+    let variable = variable.as_array();
     let face_bearing = face_bearing.as_array();
     let face_lon = face_lon.as_array();
     let face_lat = face_lat.as_array();
@@ -400,9 +402,9 @@ pub fn compute_radial_gradient<'py>(
     let face_edge_connectivity = face_edge_connectivity.as_array();
     let edge_face_distance = edge_face_distance.as_array();
     let edge_length = edge_length.as_array();
-    let n_face = face_elevation.len();
+    let n_face = variable.len();
 
-    let face_elevation = face_elevation.to_owned();
+    let variable = variable.to_owned();
     let face_lon = face_lon.to_owned();
     let face_lat = face_lat.to_owned();
     let radgrad: Vec<f64> = (0..n_face).into_par_iter()
@@ -410,7 +412,7 @@ pub fn compute_radial_gradient<'py>(
             let connected_edges = face_edge_connectivity.row(f);
             let (grad_zonal, grad_meridional) = compute_face_gradient(
                 f,
-                &face_elevation,
+                &variable,
                 &face_lon,
                 &face_lat,
                 &connected_edges,
