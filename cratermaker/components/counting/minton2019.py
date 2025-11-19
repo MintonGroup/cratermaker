@@ -62,5 +62,5 @@ class Minton2019Counting(Counting):
 
         observed_dict = {int(k): asdict(v) for k, v in self.observed.items()}
 
-        observed_ids = counting_functions.tally_m19(region.face_elevation, id_array, observed_dict)
+        observed_ids = counting_functions.tally(region.face_elevation, id_array, observed_dict)
         return

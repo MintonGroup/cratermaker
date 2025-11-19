@@ -1,14 +1,12 @@
-use pyo3::{prelude::*, types::PyDict, PyRef};
-use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2};
+use pyo3::{prelude::*}; 
+use numpy::{PyArray1, PyReadonlyArray2};
 
 #[pyfunction]
-pub fn tally_m19<'py>(
+pub fn tally<'py>(
     py: Python<'py>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
+    //face_elevation: PyReadonlyArray1<'py, f64>,
     id_array: PyReadonlyArray2<'py, u32>, 
-    observed: Py<PyDict>,
 ) -> PyResult<Bound<'py, PyArray1<u32>>> {
-    let face_elevation = face_elevation.as_array();
     let id_array = id_array.as_array();
     let mut id_vec = Vec::with_capacity(id_array.len());
     // for (key, value) in observed.as_ref(py).iter() {

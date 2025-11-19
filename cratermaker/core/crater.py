@@ -20,12 +20,13 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Crater:
-    final_diameter: float | None = None
+    semimajor_axis: float | None = None
+    semiminor_axis: float | None = None
+    orientation: float | None = None
     transient_diameter: float | None = None
     projectile_diameter: float | None = None
     projectile_velocity: float | None = None
     projectile_angle: float | None = None
-    projectile_direction: float | None = None
     projectile_density: float | None = None
     location: tuple[float, float] | None = None
     morphology_type: str | None = None
@@ -37,8 +38,12 @@ class Crater:
             agetext = "Not set"
         else:
             agetext = f"{format_large_units(self.age, quantity='time')}"
+        if self.semimajor_axis != self.semiminor_axis:
+            size_text = f"Elliptical size {format_large_units(self.semimajor_axis, quantity='length')} x {format_large_units(self.semiminor_axis, quantity='length')}\nMean Diameter: {format_large_units(self.diameter, quantity='length')}"
+        else:
+            size_text = f"Diameter: {format_large_units(self.diameter, quantity='length')}"
         return (
-            f"final_diameter: {format_large_units(self.final_diameter, quantity='length')}\n"
+            f"{size_text}\n"
             f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
             f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
             f"projectile_mass: {self.projectile_mass:.4e} kg\n"
@@ -52,9 +57,26 @@ class Crater:
         )
 
     @property
+    def diameter(self) -> float | None:
+        """Final diameter of the crater in meters."""
+        return self.radius * 2 if self.radius is not None else None
+
+    @property
+    def radius(self) -> float | None:
+        """Final radius of the crater in meters."""
+        if self.semimajor_axis is not None and self.semiminor_axis is not None:
+            return math.sqrt(self.semimajor_axis * self.semiminor_axis)
+        return None
+
+    @property
+    def final_diameter(self) -> float | None:
+        """Final diameter of the crater in meters."""
+        return self.diameter
+
+    @property
     def final_radius(self) -> float | None:
         """Final radius of the crater in meters."""
-        return self.final_diameter / 2.0 if self.final_diameter is not None else None
+        return self.radius
 
     @property
     def transient_radius(self) -> float | None:
@@ -80,6 +102,11 @@ class Crater:
             return self.projectile_velocity * math.sin(math.radians(self.projectile_angle))
         return None
 
+    @property
+    def projectile_direction(self) -> float | None:
+        """Projectile direction in degrees."""
+        return self.orientation
+
     @classmethod
     def maker(
         cls: type[Crater],
@@ -87,10 +114,15 @@ class Crater:
         scaling: str | Scaling | None = None,
         target: str | Target | None = None,
         projectile: str | Projectile | None = None,
+        diameter: float | None = None,
+        radius: float | None = None,
         final_diameter: float | None = None,
         final_radius: float | None = None,
         transient_diameter: float | None = None,
         transient_radius: float | None = None,
+        semimajor_axis: float | None = None,
+        semiminor_axis: float | None = None,
+        orientation: float | None = None,
         projectile_diameter: float | None = None,
         projectile_radius: float | None = None,
         projectile_mass: float | None = None,
@@ -122,14 +154,24 @@ class Crater:
             A string key or instance of a target model. If none provided, a default will be used.
         projectile : str or Projectile, optional
             A string key or instance of a projectile model. If none provided, a default will be used.
-        final_diameter : float, optional
+        diameter : float, optional
             The final diameter of the crater in meters.
-        final_radius : float, optional
+        final_diameter : float, optional
+            The final diameter of the crater in meters. This is an alias of "diameter"
+        radius : float, optional
             The final radius of the crater in meters.
+        final_radius : float, optional
+            The final radius of the crater in meters. This is an alias of "radius"
         transient_diameter : float, optional
             The transient diameter of the crater in meters.
         transient_radius : float, optional
             The transient radius of the crater in meters.
+        semimajor_axis : float, optional
+            The semimajor axis of the crater in meters. Same as radius if the crater is circular.
+        semiminor_axis : float, optional
+            The semiminor axis of the crater in meters. Same as radius if the crater is circular.
+        orientation : float, optional
+            The orientation of the crater in degrees if it is elliptical.
         projectile_diameter : float, optional
             The diameter of the projectile in meters.
         projectile_radius : float, optional
@@ -172,7 +214,7 @@ class Crater:
 
         Notes
         -----
-        - Exactly one of the following must be provided: `final_diameter`, `final_radius`, `transient_diameter`, `transient_radius`, `projectile_diameter`, `projectile_radius`, or `projectile_mass`.
+        - Exactly one of the following must be provided: `diameter`, `radius`, both of `semimajor_axis` and `semiminor_axis`, `transient_diameter`, `transient_radius`, `projectile_diameter`, `projectile_radius`, or `projectile_mass`.
         - Velocity may be specified in one of these ways:
         - `projectile_mean_velocity` alone (samples a velocity)
         - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`). the third is inferred.
@@ -199,37 +241,49 @@ class Crater:
             hexid = hashlib.shake_128(combined.encode()).hexdigest(4)
             return np.uint32(int(f"0x{hexid}", 16))
 
-        # Validate that mutually exclusive arguments hve not been passed
-        size_inputs = {
-            "final_diameter": final_diameter,
-            "final_radius": final_radius,
-            "transient_diameter": transient_diameter,
-            "transient_radius": transient_radius,
-            "projectile_diameter": projectile_diameter,
-            "projectile_radius": projectile_radius,
-            "projectile_mass": projectile_mass,
-        }
+        # Convert from the old API "final_diameter/final_radius" to "diameter/radius"
+        if final_diameter is not None:
+            diameter = final_diameter
+        if final_radius is not None:
+            radius = final_radius
+        if radius is not None and diameter is not None:
+            raise ValueError("Only one of diameter or radius may be set.")
+
+        if location is None:
+            location = projectile_location
+
+        # Validate ellipticity parameters
+        if semimajor_axis is not None or semiminor_axis is not None:
+            if semimajor_axis is None or semiminor_axis is None:  # We will assume circular if only one is set
+                radius = semimajor_axis if semiminor_axis is None else semiminor_axis
+                semimajor_axis = radius
+                semiminor_axis = radius
+            if diameter is not None or radius is not None:
+                raise ValueError(
+                    "diameter or radius cannot be used for elliptical craters; use semimajor_axis and semiminor_axis instead."
+                )
+
+        # Turn any circular crater arguments into elliptial ones
+        if semimajor_axis is None and semiminor_axis is None:
+            if radius is not None:
+                semimajor_axis = radius
+                semiminor_axis = radius
+            elif diameter is not None:
+                semimajor_axis = diameter / 2.0
+                semiminor_axis = diameter / 2.0
+
+        # For now, crater orientation and projectile direction are linked
+        if orientation is not None and projectile_direction is not None:
+            raise ValueError("Only one of orientation or projectile_direction may be set for elliptical craters.")
+        elif orientation is not None:
+            projectile_direction = orientation
+        elif projectile_direction is not None:
+            orientation = projectile_direction
 
         velocity_inputs = {
             "projectile_velocity": projectile_velocity,
             "projectile_vertical_velocity": projectile_vertical_velocity,
             "projectile_angle": projectile_angle,
-        }
-
-        if location is None:
-            location = projectile_location
-
-        args = {
-            "final_diameter": final_diameter,
-            "transient_diameter": transient_diameter,
-            "projectile_diameter": projectile_diameter,
-            "projectile_density": projectile_density,
-            "projectile_velocity": projectile_velocity,
-            "projectile_angle": projectile_angle,
-            "projectile_direction": projectile_direction,
-            "morphology_type": "Not Set",
-            "location": location,
-            "age": age,
         }
 
         n_velocity_inputs = sum(x is not None for x in velocity_inputs.values())
@@ -238,6 +292,30 @@ class Crater:
 
         if projectile_mean_velocity is not None and (projectile_velocity is not None or projectile_vertical_velocity is not None):
             raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
+
+        size_inputs = {
+            "semimajor_axis": semimajor_axis,
+            "transient_diameter": transient_diameter,
+            "transient_radius": transient_radius,
+            "projectile_diameter": projectile_diameter,
+            "projectile_radius": projectile_radius,
+            "projectile_mass": projectile_mass,
+        }
+
+        # Assemble initial arguments
+        args = {
+            "semimajor_axis": semimajor_axis,
+            "semiminor_axis": semiminor_axis,
+            "orientation": orientation,
+            "transient_diameter": transient_diameter,
+            "projectile_diameter": projectile_diameter,
+            "projectile_density": projectile_density,
+            "projectile_velocity": projectile_velocity,
+            "projectile_angle": projectile_angle,
+            "morphology_type": "Not Set",
+            "location": location,
+            "age": age,
+        }
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
@@ -251,9 +329,9 @@ class Crater:
                     old_parameters[field] = getattr(crater, field)
             if (
                 n_size_inputs == 0
-            ):  # The user has not passed any size parameters, so we will use the final diameter from the crater object
+            ):  # The user has not passed any size parameters, so we will use the size parameters from the crater object
                 for field in size_inputs:
-                    if field != "final_diameter":
+                    if field != "semimajor_axis" and field != "semiminor_axis" and field != "orientation":
                         old_parameters.pop(field, None)
                 n_size_inputs = 1  # Make sure we don't trigger the error below
             else:  # The user is passing a size parameter, so we cannot use any of the values from the crater object
@@ -299,7 +377,7 @@ class Crater:
             "velocity": args["projectile_velocity"],
             "density": args["projectile_density"],
             "angle": args["projectile_angle"],
-            "direction": args["projectile_direction"],
+            "direction": args["orientation"],
             "location": args["location"],
         }
         projectile = Projectile.maker(
@@ -334,8 +412,18 @@ class Crater:
             raise ValueError("Not enough information to infer a projectile velocity.")
 
         # --- Compute derived quantities ---
-        fd = args["final_diameter"]
-        fr = final_radius
+        fr = radius
+        fd = diameter
+        a = args["semimajor_axis"]
+        b = args["semiminor_axis"]
+        if a is not None and b is not None:
+            fr = math.sqrt(a * b)
+
+        if fr is not None:
+            fd = 2 * fr
+        elif fd is not None:
+            fr = fd / 2.0
+
         td = args["transient_diameter"]
         tr = transient_radius
         pd = args["projectile_diameter"]
@@ -356,9 +444,11 @@ class Crater:
         elif td is not None:
             fd, mt = scaling.transient_to_final(td)
             pd = scaling.transient_to_projectile(td)
+
         elif pd is not None:
             td = scaling.projectile_to_transient(pd)
             fd, mt = scaling.transient_to_final(td)
+
         elif pm is not None:
             pr = ((3.0 * pm) / (4.0 * math.pi * prho)) ** (1.0 / 3.0)
             pd = 2.0 * pr
@@ -370,15 +460,28 @@ class Crater:
         fr = fd / 2
         pm = (4.0 / 3.0) * math.pi * pr**3 * prho
 
+        if a is None:
+            a = fr
+        if b is None:
+            b = fr
+
+        if a < 0 or b < 0 or td < 0 or pd < 0:
+            raise ValueError("Crater and projectile sizes must be non-negative.")
+        if pv < 0:
+            raise ValueError("Projectile velocity must be non-negative.")
+        if prho < 0:
+            raise ValueError("Projectile density must be non-negative.")
+
         # Assemble final arguments
         crater_args = {
-            "final_diameter": float(fd) if fd is not None else None,
+            "semimajor_axis": float(a) if a is not None else None,
+            "semiminor_axis": float(b) if b is not None else None,
             "transient_diameter": float(td) if td is not None else None,
+            "orientation": float(pdir) if pdir is not None else None,
             "projectile_diameter": float(pd) if pd is not None else None,
             "projectile_density": float(prho) if prho is not None else None,
             "projectile_velocity": float(pv) if pv is not None else None,
             "projectile_angle": float(pang) if pang is not None else None,
-            "projectile_direction": float(pdir) if pdir is not None else None,
             "location": (float(location[0]), float(location[1])),
             "morphology_type": str(mt) if mt is not None else None,
             "age": float(age) if age is not None else None,

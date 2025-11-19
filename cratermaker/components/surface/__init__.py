@@ -424,7 +424,7 @@ class Surface(ComponentBase):
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
-        Computes the initial bearing from a given location to all faces and nodes.
+        Computes the initial bearing (relative to North) from a given location to all faces and nodes.
 
         Parameters
         ----------
@@ -789,7 +789,7 @@ class Surface(ComponentBase):
         locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
-        Calculate the initial bearing from one point to one or more other points in radians.
+        Calculate the initial bearing relative to North from one point to one or more other points in radians.
 
         Parameters
         ----------
@@ -2088,6 +2088,8 @@ class LocalSurface(CratermakerBase):
         delta_face_elevation = surface_functions.slope_collapse(
             critical_slope=critical_slope,
             face_elevation=self.face_elevation,
+            face_lon=np.radians(self.face_lon),
+            face_lat=np.radians(self.face_lat),
             face_area=self.face_area,
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
@@ -2109,6 +2111,8 @@ class LocalSurface(CratermakerBase):
         """
         slope = surface_functions.compute_slope(
             face_elevation=self.face_elevation,
+            face_lon=np.radians(self.face_lon),
+            face_lat=np.radians(self.face_lat),
             edge_face_connectivity=self.edge_face_connectivity,
             face_edge_connectivity=self.face_edge_connectivity,
             edge_face_distance=self.edge_face_distance,
@@ -2447,6 +2451,28 @@ class LocalSurface(CratermakerBase):
             elevation = self.node_elevation
 
         return self.surface._compute_elevation_to_cartesian(position, elevation)
+
+    def compute_radial_gradient(self, variable) -> NDArray[np.float64]:
+        """
+        Compute the radial gradient of the local surface variable with respect to the local_location center.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The radial gradient of all faces in meters per meter.
+        """
+        radial_gradient = surface_functions.compute_radial_gradient(
+            variable=variable,
+            face_lon=np.radians(self.face_lon),
+            face_lat=np.radians(self.face_lat),
+            face_bearing=np.radians(self.face_bearing),
+            edge_face_connectivity=self.edge_face_connectivity,
+            face_edge_connectivity=self.face_edge_connectivity,
+            edge_face_distance=self.edge_face_distance,
+            edge_length=self.edge_length,
+        )
+
+        return radial_gradient
 
     def export(
         self,
@@ -3273,14 +3299,14 @@ class LocalSurface(CratermakerBase):
     @property
     def face_bearing(self) -> NDArray:
         """
-        The initial bearing from the location to the faces.
+        The initial bearing from the location to the faces relative to North.
         """
         return self._face_bearing
 
     @property
     def node_bearing(self) -> NDArray:
         """
-        The initial bearing from the location to the nodes.
+        The initial bearing from the location to the nodes relative to North.
         """
         return self._node_bearing
 
