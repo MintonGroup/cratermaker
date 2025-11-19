@@ -28,7 +28,8 @@ _N_LAYER = (
     8  # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
 )
 _MIN_FACE_FOR_COUNTING = 5
-_RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater taggin region is extended beyond the final rim.
+_RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater tagging region is extended beyond the final rim.
+_EXTENT_RADIUS_RATIO = 2.0  # The factor by radius over which the local region that is extracted to evaluate the crater rim
 
 
 class Counting(ComponentBase):
@@ -205,6 +206,158 @@ class Counting(ComponentBase):
             data = self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :]
             data[:, insert_layer] = crater.id
             self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :] = data
+
+        return
+
+    def _fit_rim_one(self, crater, score_quantile=0.99, distmult=1.0, gradmult=1.0, curvmult=1.0, heightmult=1.0):
+        # def fit_ellipse(x, y, weights=None):
+        #     """
+
+        #     Fit the coefficients a,b,c,d,e,f, representing an ellipse described by the formula F(x,y) = ax^2 + bxy + cy^2 + dx + ey + f = 0 to the provided arrays of data points x=[x1, x2, ..., xn] and y=[y1, y2, ..., yn].
+
+        #     Based on the algorithm of Halir and Flusser, "Numerically stable direct least squares fitting of ellipses' with additional weighting of data points.
+
+        #     Adapted from: https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/ with added weighting.
+
+        #     Parameters
+        #     ----------
+        #     x : array_like
+        #         1D array of x-coordinates of data points.
+        #     y : array_like
+        #         1D array of y-coordinates of data points.
+        #     weights : array_like, optional
+        #         1D array of weights for each data point, by default None.
+        #     """
+        #     x = np.asarray(x, dtype=float)
+        #     y = np.asarray(y, dtype=float)
+
+        #     if weights is not None:
+        #         weights = np.asarray(weights, dtype=float)
+        #         if weights.shape != x.shape:
+        #             raise ValueError("weights must have same shape as x and y")
+
+        #     D1 = np.vstack([x**2, x * y, y**2]).T
+        #     D2 = np.vstack([x, y, np.ones(len(x))]).T
+
+        #     if weights is None:
+        #         WD1 = D1
+        #         WD2 = D2
+        #     else:
+        #         WD1 = weights[:, None] * D1
+        #         WD2 = weights[:, None] * D2
+
+        #     S1 = WD1.T @ WD1
+        #     S2 = WD1.T @ WD2
+        #     S3 = WD2.T @ WD2
+        #     T = -np.linalg.inv(S3) @ S2.T
+        #     M = S1 + S2 @ T
+        #     C = np.array(((0, 0, 2), (0, -1, 0), (2, 0, 0)), dtype=float)
+        #     M = np.linalg.inv(C) @ M
+        #     eigval, eigvec = np.linalg.eig(M)
+        #     con = 4 * eigvec[0] * eigvec[2] - eigvec[1] ** 2
+        #     ak = eigvec[:, np.nonzero(con > 0)[0]]
+        #     coeffs = np.concatenate((ak, T @ ak)).ravel()
+
+        #     # Compute goodness of fit via weighted RMS
+
+        #     delta = self._compute_geometric_distances_to_ellipse(x, y, coeffs)
+        #     if weights is None:
+        #         wrms = np.sqrt(np.sum(delta**2) / len(delta))
+        #     else:
+        #         wrms = np.sqrt(np.sum(weights * delta**2) / np.sum(weights))
+
+        #     return coeffs, wrms
+
+        # lon = crater_initial["lon"].item()
+        # lat = crater_initial["lat"].item()
+        # a = crater_initial["semimajor_axis"].item()
+        # b = crater_initial["semiminor_axis"].item()
+        # subregion = surface.extract_region(location=(lon, lat), region_radius=EXTENT_RADIUS_RATIO * np.sqrt(a * b))
+
+        # crater_fits = {
+        #     "initial": {
+        #         "poly": gpd.GeoSeries(
+        #             [
+        #                 geodesic_ellipse_polygon(
+        #                     lon=lon,
+        #                     lat=lat,
+        #                     a=a,
+        #                     b=b,
+        #                     n=100,
+        #                     R=surface.target.radius,
+        #                     split_antimeridian=False,
+        #                 )
+        #             ],
+        #             crs=surface.crs,
+        #         ).to_crs(subregion.crs),
+        #         "parameters": crater_initial.copy(),
+        #     },
+        # }
+
+        # subregion = score_rim(
+        #     subregion,
+        #     crater_initial,
+        #     quantile=score_quantile,
+        #     distmult=distmult,
+        #     gradmult=gradmult,
+        #     curvmult=curvmult,
+        #     heightmult=heightmult,
+        # )
+        # rimscore_data = subregion.uxds.rimscore.data
+        # rimscore_lon = subregion.face_lon[~np.isnan(rimscore_data)]
+        # rimscore_lat = subregion.face_lat[~np.isnan(rimscore_data)]
+        # rimscore_data = rimscore_data[~np.isnan(rimscore_data)]
+        # rimscore_x, rimscore_y = subregion.from_surface.transform(rimscore_lon, rimscore_lat)
+        # coeffs, wrms = fit_ellipse(rimscore_x, rimscore_y, weights=rimscore_data)
+        # x0, y0, a_fit, b_fit, e, phi = cart_to_pol(coeffs)
+        # orientation = (np.degrees(phi) + 90.0) % 90.0
+        # lon_fit, lat_fit = subregion.to_surface.transform(x0, y0)
+        # crater_fits["fit"] = {
+        #     "poly": gpd.GeoSeries(
+        #         [
+        #             geodesic_ellipse_polygon(
+        #                 lon=lon_fit,
+        #                 lat=lat_fit,
+        #                 a=a_fit,
+        #                 b=b_fit,
+        #                 orientation=orientation,
+        #                 n=100,
+        #                 R=surface.target.radius,
+        #                 split_antimeridian=False,
+        #             )
+        #         ],
+        #         crs=surface.crs,
+        #     ),
+        #     "parameters": crater_initial.copy(),
+        # }
+        # crater_fits["fit"]["parameters"]["lon"] = np.asarray(lon_fit)
+        # crater_fits["fit"]["parameters"]["lat"] = np.asarray(lat_fit)
+        # crater_fits["fit"]["parameters"]["semimajor_axis"] = np.asarray(a_fit)
+        # crater_fits["fit"]["parameters"]["semiminor_axis"] = np.asarray(b_fit)
+        # crater_fits["fit"]["parameters"]["orientation"] = np.asarray(orientation)
+        # crater_fits["fit"]["parameters"]["wrms"] = np.asarray(wrms)
+
+        # return surface, crater_fits
+        pass
+
+    def find_rim(self, crater: Crater) -> LocalSurface:
+        """
+        Find the rim region of a crater on the surface.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater for which to find the rim region.
+
+        Returns
+        -------
+        LocalSurface
+            A LocalSurface representing the rim region of the crater.
+        """
+        from cratermaker.components.surface import LocalSurface
+
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
 
         return
 
@@ -420,6 +573,117 @@ class Counting(ComponentBase):
             poly = Polygon(zip(poly_lon, poly_lat, strict=False))
 
         return poly
+
+    @staticmethod
+    def _compute_geometric_distances_to_ellipse(x, y, coeffs):
+        """
+        Compute the geometric distances from points (x, y) to the ellipse defined by the coefficients.
+
+        Parameters
+        ----------
+        x : array_like
+            1D array of x-coordinates of data points.
+        y : array_like
+            1D array of y-coordinates of data points.
+        coeffs : array_like
+            Coefficients [a, b, c, d, e, f] defining the ellipse.
+
+        Returns
+        -------
+        delta : array_like
+            1D array of geometric distances from each point to the ellipse.
+        """
+        a, b, c, d, e, f = coeffs
+        F = a * x**2 + b * x * y + c * y**2 + d * x + e * y + f
+
+        # gradient magnitude (to convert algebraic to geometric residual)
+        Fx = 2 * a * x + b * y + d
+        Fy = b * x + 2 * c * y + e
+        gradnorm = np.hypot(Fx, Fy)
+
+        # geometric distances
+        delta = F / gradnorm
+        return delta
+
+    @staticmethod
+    def cart_to_pol(coeffs):
+        """
+
+        Convert the cartesian conic coefficients, (a, b, c, d, e, f), to the ellipse parameters, where F(x, y) = ax^2 + bxy + cy^2 + dx + ey + f = 0.
+
+        The returned parameters are x0, y0, ap, bp, e, phi, where (x0, y0) is the ellipse centre; (ap, bp) are the semi-major and semi-minor axes, respectively; e is the eccentricity; and phi is the rotation of the semi- major axis from the x-axis.
+
+        Adapted from: https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/
+
+        """
+        # We use the formulas from https://mathworld.wolfram.com/Ellipse.html
+        # which assumes a cartesian form ax^2 + 2bxy + cy^2 + 2dx + 2fy + g = 0.
+        # Therefore, rename and scale b, d and f appropriately.
+        a = coeffs[0]
+        b = coeffs[1] / 2
+        c = coeffs[2]
+        d = coeffs[3] / 2
+        f = coeffs[4] / 2
+        g = coeffs[5]
+
+        den = b**2 - a * c
+        if den > 0:
+            raise ValueError("coeffs do not represent an ellipse: b^2 - 4ac must be negative!")
+
+        # The location of the ellipse centre.
+        x0, y0 = (c * d - b * f) / den, (a * f - b * d) / den
+
+        num = 2 * (a * f**2 + c * d**2 + g * b**2 - 2 * b * d * f - a * c * g)
+        fac = np.sqrt((a - c) ** 2 + 4 * b**2)
+        # The semi-major and semi-minor axis lengths (these are not sorted).
+        ap = np.sqrt(num / den / (fac - a - c))
+        bp = np.sqrt(num / den / (-fac - a - c))
+
+        # Sort the semi-major and semi-minor axis lengths but keep track of
+        # the original relative magnitudes of width and height.
+        width_gt_height = True
+        if ap < bp:
+            width_gt_height = False
+            ap, bp = bp, ap
+
+        # The eccentricity.
+        r = (bp / ap) ** 2
+        if r > 1:
+            r = 1 / r
+        e = np.sqrt(1 - r)
+
+        # The angle of anticlockwise rotation of the major-axis from x-axis.
+        if b == 0:
+            phi = 0 if a < c else np.pi / 2
+        else:
+            phi = np.arctan((2.0 * b) / (a - c)) / 2
+            if a > c:
+                phi += np.pi / 2
+        if not width_gt_height:
+            # Ensure that phi is the angle to rotate to the semi-major axis.
+            phi += np.pi / 2
+        phi = phi % np.pi
+
+        return x0, y0, ap, bp, e, phi
+
+    def pol_to_coeff(x0, y0, ap, bp, e, phi):
+        """
+        Convert from ellipse parameters to cartesian conic coefficients.
+        """
+        s2 = np.sin(phi) ** 2
+        c2 = np.cos(phi) ** 2
+        sc = np.sin(phi) * np.cos(phi)
+        a2 = ap**2
+        b2 = bp**2
+
+        a = a2 * s2 + b2 * c2
+        b = 2 * (b2 - a2) * sc
+        c = a2 * c2 + b2 * s2
+        d = -2 * a * x0 - b * y0
+        e = -b * x0 - 2 * c * y0
+        f = a * x0**2 + b * x0 * y0 + c * y0**2 - a2 * b2
+
+        return (a, b, c, d, e, f)
 
     def to_vector_file(
         self,
