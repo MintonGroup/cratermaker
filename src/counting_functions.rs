@@ -1,7 +1,10 @@
 use std::f64::consts::{FRAC_PI_2, PI};
+use std::result::Result;
 use pyo3::{prelude::*}; 
 use numpy::{PyArray1, PyReadonlyArray2, PyReadonlyArray1};
-use numpy::ndarray::Array1;
+use numpy::ndarray::{Array1,Array2,Axis,arr2};
+use ndarray_linalg::error::LinalgError;
+use ndarray_linalg::{Inverse, Eig};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 #[pyfunction]
@@ -180,8 +183,87 @@ fn geometric_distances(x: &Array1<f64>, y: &Array1<f64>, a: f64, b: f64, c: f64,
     result
 }
 
-// #[inline] 
-// fit_ellipse(x: &ndarray::Array1<f64>, y: &ndarray::Array1<f64>, weights: &ndarray::Array1<f64>) -> (f64, f64, f64, f64, f64, f64, f64) {
+#[inline] 
+fn fit_ellipse(
+    x: &Array1<f64>, 
+    y: &Array1<f64>, 
+    weights: &Array1<f64>
+) -> Result<(f64, f64, f64, f64, f64, f64, f64), LinalgError> {
+    assert_eq!(x.len(), y.len());
+    assert_eq!(x.len(), weights.len());
+    let n = x.len();
 
-//     (a, b, c, d, e, f, wrms)
-// }
+    // Step 1: D1, D2
+    let x2 = x.mapv(|v| v * v);
+    let y2 = y.mapv(|v| v * v);
+    let xy = x * y;
+
+    let mut D1 = Array2::<f64>::zeros((n, 3));
+    let mut D2 = Array2::<f64>::zeros((n, 3));
+    D1.column_mut(0).assign(&x2);
+    D1.column_mut(1).assign(&xy);
+    D1.column_mut(2).assign(&y2);
+    D2.column_mut(0).assign(x);
+    D2.column_mut(1).assign(y);
+    D2.column_mut(2).fill(1.0);
+
+    // Step 2: apply weights
+    let w_col = weights.view().insert_axis(Axis(1));
+    let WD1 = &w_col * &D1;
+    let WD2 = &w_col * &D2;
+
+    // Step 3: S1, S2, S3
+    let S1 = WD1.t().dot(&WD1);
+    let S2 = WD1.t().dot(&WD2);
+    let S3 = WD2.t().dot(&WD2);
+
+    // Step 4: T and M
+    let S3_inv = S3.inv()?;
+    let T = -S3_inv.dot(&S2.t());
+    let M_tmp = S1 + S2.dot(&T);
+
+    let C = arr2(&[
+        [0.0, 0.0, 2.0],
+        [0.0, -1.0, 0.0],
+        [2.0, 0.0, 0.0],
+    ]);
+    let C_inv = C.inv()?;
+    let M = C_inv.dot(&M_tmp);
+
+    // Step 5: eigen-decomposition
+    let (eigvals, eigvecs) = M.eig()?;
+    let eigvecs_re = eigvecs.mapv(|c| c.re);
+
+    let mut chosen_col = None;
+    for k in 0..3 {
+        let a = eigvecs_re[[0, k]];
+        let b = eigvecs_re[[1, k]];
+        let c = eigvecs_re[[2, k]];
+        let con = 4.0 * a * c - b * b;
+        if con > 0.0 {
+            chosen_col = Some(k);
+            break;
+        }
+    }
+    let k = chosen_col.expect("No valid ellipse eigenvector found");
+    let ak = eigvecs_re.column(k).to_owned();
+    let Tak = T.dot(&ak);
+
+    let a = ak[0];
+    let b = ak[1];
+    let c = ak[2];
+    let d = Tak[0];
+    let f = Tak[1];
+    let g = Tak[2];
+
+    // Step 6: weighted RMS
+    let delta = geometric_distances(x, y, a, b, c, d, f, g);
+    let delta2 = delta.mapv(|d| d * d);
+    let num = (&delta2 * weights).sum();
+    let den = weights.sum();
+    let wrms = (num / den).sqrt();
+
+    let (x0, y0, ap, bp, ep, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
+
+    Ok((x0, y0, ap, bp, ep, orientation, wrms))
+}
