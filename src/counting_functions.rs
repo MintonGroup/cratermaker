@@ -115,14 +115,14 @@ fn ellipse_coefficients_to_parameters(
     // compute the orientation with respect to the x-axis
     // if b is very close to zero, then phi is 0 if a < c otherwise it is pi/2
     let mut phi = if b.abs() < 1e-12 {
-        if a < c {
-            0.0
+            if a < c {
+                0.0
+            } else {
+                FRAC_PI_2
+            }
         } else {
-            FRAC_PI_2
-        }
-    } else {
-        0.5 * (2.0 * b).atan2(a - c)
-    }; 
+            0.5 * (2.0 * b).atan2(a - c)
+        }; 
     if a > c {
         phi += FRAC_PI_2;
     }
@@ -130,7 +130,7 @@ fn ellipse_coefficients_to_parameters(
     if !width_gt_height {
         phi += FRAC_PI_2;
     }
-    let orientation = phi + FRAC_PI_2 % PI;
+    let orientation = phi % PI;
     
 
     (x0, y0, ap, bp, ep, orientation)
@@ -266,4 +266,22 @@ fn fit_ellipse(
     let (x0, y0, ap, bp, ep, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
 
     Ok((x0, y0, ap, bp, ep, orientation, wrms))
+}
+
+#[pyfunction]
+pub fn fit_ellipse_one<'py>(
+    py: Python<'py>,
+    x: PyReadonlyArray1<'py, f64>,
+    y: PyReadonlyArray1<'py, f64>,
+    weights: PyReadonlyArray1<'py, f64>,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let x = x.as_array().to_owned();
+    let y = y.as_array().to_owned();
+    let weights = weights.as_array().to_owned();
+
+    let (x0, y0, a, b, e, orientation, wrms) = fit_ellipse(&x, &y, &weights)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Failed to fit ellipse: {}", e)))?;
+
+    let result = Array1::from_vec(vec![x0, y0, a, b, e, orientation, wrms]);
+    Ok(PyArray1::from_owned_array(py, result))
 }
