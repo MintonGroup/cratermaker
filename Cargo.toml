@@ -9,16 +9,13 @@ crate-type = [ "cdylib",]
 
 [dependencies]
 itertools = "0.14.0"
-numpy = "0.24.0"
-pyo3 = "0.24.0"
 rand = "0.9.1"
-rayon = "1.10.0"
 noise = "0.9.0"
 rand_chacha = "0.9.0"
-
-[dependencies.ndarray]
-version = "0.16.1"
-features = [ "rayon",]
+pyo3= {version = "0.27", features = ["extension-module"]}
+numpy = "0.27"
+ndarray-linalg = {version = "0.17", features = ["openblas-static"]}
+rayon = "1.11"
 
 [profile.release]
 codegen-units = 1

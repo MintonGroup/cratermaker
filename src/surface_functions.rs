@@ -1,9 +1,9 @@
 use std::f64::consts::PI;
 
-use ndarray::Zip;
 use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
-use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyArrayMethods};
 use pyo3::prelude::*;
+use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyArrayMethods};
+use numpy::ndarray::{Array1, ArrayView1, ArrayView2, ArrayBase, ViewRepr, Dim};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 /// Computes the positive modulus of `x` with respect to `m`.
@@ -54,15 +54,17 @@ pub fn calculate_distance<'py>(
 
     let lon2 = lon2.as_array();
     let lat2 = lat2.as_array();
-    let mut result = ndarray::Array1::<f64>::zeros(lon2.len());
+    let n = lon2.len();
 
-    Zip::from(&mut result)
-        .and(lon2)
-        .and(lat2)
+    let result_vec: Vec<f64> = (0..n)
         .into_par_iter()
-        .for_each(|(out, &lon2_i, &lat2_i)| {
-            *out = haversine_distance_scalar(lon1, lat1, lon2_i, lat2_i, radius);
-        });
+        .map(|i| {
+            let lon2_i = lon2[i];
+            let lat2_i = lat2[i];
+            haversine_distance_scalar(lon1, lat1, lon2_i, lat2_i, radius)
+        })
+        .collect();
+    let result = Array1::from_vec(result_vec);
 
     Ok(PyArray1::from_owned_array(py, result))
 }
@@ -103,19 +105,19 @@ pub fn calculate_bearing<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let lon2 = lon2.as_array();
     let lat2 = lat2.as_array();
-    let mut result = ndarray::Array1::<f64>::zeros(lon2.len());
+    let mut result = Array1::<f64>::zeros(lon2.len());
 
-    Zip::from(&mut result)
-        .and(lon2)
-        .and(lat2)
+    let result_vec: Vec<f64> = (0..lon2.len())
         .into_par_iter()
-        .for_each(|(out, &lon2, &lat2)| {
-            let initial_bearing = compute_initial_bearing(lon1, lat1, lon2, lat2);
-
+        .map(|i| {
+            let lon2_i = lon2[i];
+            let lat2_i = lat2[i];
+            let initial_bearing = compute_initial_bearing(lon1, lat1, lon2_i, lat2_i);
             // Normalize bearing to 0 to 2*pi
-            *out = (initial_bearing + 2.0 * PI) % (2.0 * PI);
-        });
-
+            (initial_bearing + 2.0 * PI) % (2.0 * PI)
+        })
+        .collect();
+    result.assign(&Array1::from_vec(result_vec));
     Ok(PyArray1::from_owned_array(py, result))
 }
 
@@ -124,14 +126,14 @@ pub fn calculate_bearing<'py>(
 /// This method loops over all edges and accumulates inverse dt estimates for each face.
 /// The final dt is the minimum over all faces of the reciprocal flux sum.
 fn compute_dt_max(
-    edge_face_distance: &ndarray::ArrayView1<'_, f64>,
-    edge_face_connectivity: &ndarray::ArrayView2<'_, i64>,
-    face_kappa: &ndarray::ArrayView1<'_, f64>,
-    face_area: &ndarray::ArrayView1<'_, f64>,
-    edge_length: &ndarray::ArrayView1<'_, f64>,
+    edge_face_distance: &ArrayView1<'_, f64>,
+    edge_face_connectivity: &ArrayView2<'_, i64>,
+    face_kappa: &ArrayView1<'_, f64>,
+    face_area: &ArrayView1<'_, f64>,
+    edge_length: &ArrayView1<'_, f64>,
 ) -> f64 {
     let n_face = face_kappa.len();
-    let mut inverse_dt_sum = ndarray::Array1::<f64>::zeros(n_face);
+    let mut inverse_dt_sum = Array1::<f64>::zeros(n_face);
 
     for (e, faces) in edge_face_connectivity.outer_iter().enumerate() {
         let distance = edge_face_distance[e];
@@ -218,7 +220,7 @@ pub fn apply_diffusion<'py>(
     );
 
     if !dt_max.is_finite() || dt_max <= 0.0 {
-        let result = ndarray::Array1::<f64>::zeros(n_face);
+        let result = Array1::<f64>::zeros(n_face);
         return Ok(PyArray1::from_owned_array(py, result));
     }
 
@@ -226,11 +228,11 @@ pub fn apply_diffusion<'py>(
     let dt = 1.0 / nloops as f64;
     let fac = dt / 2.0;
 
-    let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(n_face);
+    let mut face_delta_elevation = Array1::<f64>::zeros(n_face);
 
     for _ in 0..nloops {
         // Initialize dhdt as zeros with length n_face
-        let mut dhdt = ndarray::Array1::<f64>::zeros(n_face);
+        let mut dhdt = Array1::<f64>::zeros(n_face);
 
         // Loop over edges, accumulate flux contributions to each face
         for (e, faces) in edge_face_connectivity.outer_iter().enumerate() {
@@ -295,13 +297,13 @@ pub fn apply_diffusion<'py>(
 #[inline(always)]
 fn compute_face_gradient(
     f: usize,
-    variable: &ndarray::Array1<f64>,
-    face_lon: &ndarray::Array1<f64>,
-    face_lat: &ndarray::Array1<f64>,
-    connected_edges: &ndarray::ArrayView1<'_, i64>,
-    edge_face_connectivity: &ndarray::ArrayView2<i64>,
-    edge_face_distance: &ndarray::ArrayView1<f64>,
-    edge_length: &ndarray::ArrayView1<f64>,
+    variable: &Array1<f64>,
+    face_lon: &Array1<f64>,
+    face_lat: &Array1<f64>,
+    connected_edges: &ArrayView1<'_, i64>,
+    edge_face_connectivity: &ArrayView2<i64>,
+    edge_face_distance: &ArrayView1<f64>,
+    edge_length: &ArrayView1<f64>,
 ) -> (f64, f64) {
     let mut dh_zonal = 0.0;
     let mut dh_meridional = 0.0;
@@ -423,7 +425,7 @@ pub fn compute_radial_gradient<'py>(
             grad_meridional * face_bearing[f].cos() + grad_zonal * face_bearing[f].sin()
         })
         .collect();
-    let radgrad = ndarray::Array1::from_vec(radgrad);
+    let radgrad = Array1::from_vec(radgrad);
 
     Ok(PyArray1::from_owned_array(py, radgrad))
 }
@@ -445,13 +447,13 @@ pub fn compute_radial_gradient<'py>(
 #[inline(always)]
 fn compute_face_slope_squared(
     f: usize,
-    face_elevation: &ndarray::Array1<f64>,
-    face_lon: &ndarray::Array1<f64>,
-    face_lat: &ndarray::Array1<f64>,
-    connected_edges: &ndarray::ArrayView1<'_, i64>,
-    edge_face_connectivity: &ndarray::ArrayView2<i64>,
-    edge_face_distance: &ndarray::ArrayView1<f64>,
-    edge_length: &ndarray::ArrayView1<f64>,
+    face_elevation: &Array1<f64>,
+    face_lon: &Array1<f64>,
+    face_lat: &Array1<f64>,
+    connected_edges: &ArrayView1<'_, i64>,
+    edge_face_connectivity: &ArrayView2<i64>,
+    edge_face_distance: &ArrayView1<f64>,
+    edge_length: &ArrayView1<f64>,
 ) -> f64 {
 
     let (dh_dx, dh_dy) = compute_face_gradient(
@@ -527,7 +529,7 @@ pub fn compute_slope<'py>(
             slope_sq.sqrt()
         })
         .collect();
-    let slope = ndarray::Array1::from_vec(slope_vec);
+    let slope = Array1::from_vec(slope_vec);
 
     Ok(PyArray1::from_owned_array(py, slope))
 }
@@ -576,8 +578,8 @@ pub fn slope_collapse<'py>(
     let critical_slope_sq = critical_slope * critical_slope;
 
     // face_kappa_ones should be an array view
-    let face_kappa = ndarray::Array1::<f64>::ones(n_face);
-    let kappa_ref: &ndarray::ArrayBase<ndarray::ViewRepr<&f64>, ndarray::Dim<[usize; 1]>> = &face_kappa.view();
+    let face_kappa = Array1::<f64>::ones(n_face);
+    let kappa_ref: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 1]>> = &face_kappa.view();
     let face_lon = face_lon.to_owned();
     let face_lat = face_lat.to_owned();
 
@@ -590,8 +592,8 @@ pub fn slope_collapse<'py>(
     );
     let looplimit = 1000 as usize;
 
-    let mut face_elevation = ndarray::Array1::<f64>::zeros(n_face);
-    let mut face_delta_elevation = ndarray::Array1::<f64>::zeros(n_face);
+    let mut face_elevation = Array1::<f64>::zeros(n_face);
+    let mut face_delta_elevation = Array1::<f64>::zeros(n_face);
 
     for _ in 0..looplimit {
         face_elevation.assign(&face_elevation_view);
@@ -677,7 +679,7 @@ pub fn interpolate_node_elevation_from_faces<'py>(
     let node_face_connectivity = node_face_connectivity.as_array();
 
     let n_nodes = node_face_connectivity.nrows();
-    let mut result = ndarray::Array1::<f64>::zeros(n_nodes);
+    let mut result = Array1::<f64>::zeros(n_nodes);
 
     for (node_id, row) in node_face_connectivity.outer_iter().enumerate() {
         let mut weighted_sum = 0.0;
@@ -740,7 +742,7 @@ pub fn turbulence_noise<'py>(
 
     // Get the maximum value in the x array as the scale
     let n_points = x.len();
-    let mut result = ndarray::Array1::<f64>::zeros(n_points);
+    let mut result = Array1::<f64>::zeros(n_points);
     let num_octaves = anchor.nrows();
 
     let mut norm = 0.5;
@@ -757,14 +759,19 @@ pub fn turbulence_noise<'py>(
         let scaled = ScalePoint::new(base).set_scale(spatial_fac);
         let noise_source = RotatePoint::new(scaled).set_angles(rot_x, rot_y, rot_z, 0.0);
 
-        Zip::from(&mut result)
-            .and(&x)
-            .and(&y)
-            .and(&z)
+
+        let noise_values: Vec<f64> = (0..n_points)
             .into_par_iter()
-            .for_each(|(r, &xv, &yv, &zv)| {
-                *r += noise_source.get([xv, yv, zv]) * noise_mag;
-            });
+            .map(|i| {
+                let xv = x[i];
+                let yv = y[i];
+                let zv = z[i];
+                noise_source.get([xv, yv, zv]) * noise_mag
+            })
+            .collect();
+        for (r, &val) in result.iter_mut().zip(noise_values.iter()) {
+            *r += val;
+        }
     }
 
     for val in result.iter_mut() {
@@ -798,26 +805,26 @@ pub fn compute_edge_distances<'py>(
     let lat = lat.as_array();
     let n_edge = edge_connectivity.nrows();
 
-    let mut edge_distances = ndarray::Array1::<f64>::zeros(n_edge);
-
-    Zip::from(&mut edge_distances)
-        .and(edge_connectivity.outer_iter())
+    let edge_distances_vec: Vec<f64> = (0..n_edge)
         .into_par_iter()
-        .for_each(|(out, other)| {
+        .map(|e| {
+            let other = edge_connectivity.row(e);
             let o1 = other[0];
             let o2 = other[1];
             if o1 < 0 || o2 < 0 {
-                *out = 0.0;
+                0.0
             } else {
-                let o1 = o1 as usize;
-                let o2 = o2 as usize;
-                *out = haversine_distance_scalar(
-                    lon[o1], lat[o1],
-                    lon[o2], lat[o2],
+                let o1u = o1 as usize;
+                let o2u = o2 as usize;
+                haversine_distance_scalar(
+                    lon[o1u], lat[o1u],
+                    lon[o2u], lat[o2u],
                     radius,
-                );
+                )
             }
-        });
+        })
+        .collect();
+    let edge_distances = Array1::from_vec(edge_distances_vec);
 
     Ok(PyArray1::from_owned_array(py, edge_distances))
 }

@@ -1,6 +1,6 @@
 use itertools::Itertools;
-use ndarray::ArrayView1;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
+use numpy::ndarray::ArrayView1;
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rand::prelude::*;
 use rand::SeedableRng;
