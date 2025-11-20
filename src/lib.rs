@@ -43,7 +43,7 @@ mod cratermaker {
     mod counting_functions {
         #[pymodule_export]
         use crate::counting_functions::{
-            tally
+            tally, radial_distance_to_ellipse,
         };
     }
 }
