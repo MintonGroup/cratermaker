@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 import numpy as np
-from cratermaker._cratermaker import simplemoon_functions as sm
+from cratermaker._cratermaker import morphology_bindings as sm
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import root_scalar

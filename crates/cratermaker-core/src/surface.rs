@@ -1,176 +1,8 @@
 use std::f64::consts::PI;
-
 use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
-use pyo3::prelude::*;
-use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyArrayMethods};
-use numpy::ndarray::{Array1, ArrayView1, ArrayView2, ArrayBase, ViewRepr, Dim};
+use numpy::ndarray::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-
-/// Computes the positive modulus of `x` with respect to `m`.
-/// Ensures the result is always in the range `[0, m)`.
-#[inline]
-fn positive_mod(x: f64, m: f64) -> f64 {
-    ((x % m) + m) % m
-}
-
-/// Computes the Haversine distance between two points on a sphere given their longitude and latitude in radians.
-///
-/// # Arguments
-/// * `lon1`, `lat1` - Coordinates of the first point in radians.
-/// * `lon2`, `lat2` - Coordinates of the second point in radians.
-/// * `radius` - Radius of the sphere in meters.
-///
-/// # Returns
-/// Distance in meters between the two points along the surface of the sphere.
-#[inline]
-fn haversine_distance_scalar(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius: f64) -> f64 {
-    let dlon = lon2 - lon1;
-    let dlat = lat2 - lat1;
-    let a = (dlat / 2.0).sin().powi(2)
-        + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
-    let c = 2.0 * a.sqrt().asin();
-    radius * c
-}
-
-
-/// Computes the Haversine distance between a single point and an array of points on a sphere given their longitude and latitude in radians.
-///
-/// # Arguments
-/// * `lon1`, `lat1` - Coordinates of the first point in radians.
-/// * `lon2`, `lat2` - Array of coordinates of the second point in radians.
-/// * `radius` - Radius of the sphere in meters.
-///
-/// # Returns
-/// Distance in meters between the pairs of points along the surface of the sphere.
-#[pyfunction]
-pub fn calculate_distance<'py>(
-    py: Python<'py>,
-    lon1: f64,
-    lat1: f64,
-    lon2: PyReadonlyArray1<'py, f64>,
-    lat2: PyReadonlyArray1<'py, f64>,
-    radius: f64,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-
-    let lon2 = lon2.as_array();
-    let lat2 = lat2.as_array();
-    let n = lon2.len();
-
-    let result_vec: Vec<f64> = (0..n)
-        .into_par_iter()
-        .map(|i| {
-            let lon2_i = lon2[i];
-            let lat2_i = lat2[i];
-            haversine_distance_scalar(lon1, lat1, lon2_i, lat2_i, radius)
-        })
-        .collect();
-    let result = Array1::from_vec(result_vec);
-
-    Ok(PyArray1::from_owned_array(py, result))
-}
-
-
-/// Computes the initial bearing (forward azimuth) from point 1 to point 2 on a sphere.
-#[inline]
-fn compute_initial_bearing(lon1: f64, lat1: f64, lon2: f64, lat2: f64) -> f64 {
-    let dlon = positive_mod(lon2 - lon1 + PI, 2.0 * PI) - PI;
-    let x = dlon.sin() * lat2.cos();
-    let y = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * dlon.cos();
-    x.atan2(y)
-}
-
-/// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
-///
-/// The bearing is calculated on a spherical surface using great-circle paths and returned in radians,
-/// normalized to the range [0, 2π).
-///
-/// # Arguments
-///
-/// * `py` - Python GIL token.
-/// * `lon1` - Longitude of the reference point, in radians.
-/// * `lat1` - Latitude of the reference point, in radians.
-/// * `lon2` - Longitudes of destination points, in radians.
-/// * `lat2` - Latitudes of destination points, in radians.
-///
-/// # Returns
-///
-/// * A NumPy array of initial bearing angles (radians), one for each (lon2, lat2) pair.
-#[pyfunction]
-pub fn calculate_bearing<'py>(
-    py: Python<'py>,
-    lon1: f64,
-    lat1: f64,
-    lon2: PyReadonlyArray1<'py, f64>,
-    lat2: PyReadonlyArray1<'py, f64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let lon2 = lon2.as_array();
-    let lat2 = lat2.as_array();
-    let mut result = Array1::<f64>::zeros(lon2.len());
-
-    let result_vec: Vec<f64> = (0..lon2.len())
-        .into_par_iter()
-        .map(|i| {
-            let lon2_i = lon2[i];
-            let lat2_i = lat2[i];
-            let initial_bearing = compute_initial_bearing(lon1, lat1, lon2_i, lat2_i);
-            // Normalize bearing to 0 to 2*pi
-            (initial_bearing + 2.0 * PI) % (2.0 * PI)
-        })
-        .collect();
-    result.assign(&Array1::from_vec(result_vec));
-    Ok(PyArray1::from_owned_array(py, result))
-}
-
-/// Computes a conservative explicit timestep for stability using per-face aggregated flux contributions.
-///
-/// This method loops over all edges and accumulates inverse dt estimates for each face.
-/// The final dt is the minimum over all faces of the reciprocal flux sum.
-fn compute_dt_max(
-    edge_face_distance: &ArrayView1<'_, f64>,
-    edge_face_connectivity: &ArrayView2<'_, i64>,
-    face_kappa: &ArrayView1<'_, f64>,
-    face_area: &ArrayView1<'_, f64>,
-    edge_length: &ArrayView1<'_, f64>,
-) -> f64 {
-    let n_face = face_kappa.len();
-    let mut inverse_dt_sum = Array1::<f64>::zeros(n_face);
-
-    for (e, faces) in edge_face_connectivity.outer_iter().enumerate() {
-        let distance = edge_face_distance[e];
-        if distance <= 0.0 {
-            continue;
-        }
-
-        let [f1, f2] = match <[i64; 2]>::try_from(faces.as_slice().unwrap()) {
-            Ok(pair) => pair,
-            Err(_) => continue,
-        };
-
-        let f1 = f1 as usize;
-        let f2 = f2 as usize;
-        if f1 >= n_face || f2 >= n_face {
-            continue;
-        }
-
-        let k1 = face_kappa[f1];
-        let k2 = face_kappa[f2];
-        let k_avg = 0.5 * (k1 + k2);
-        let length = edge_length[e];
-
-        if k_avg > 0.0 {
-            let contrib_f1 = 2.0 * k_avg * length / (distance * face_area[f1]);
-            let contrib_f2 = 2.0 * k_avg * length / (distance * face_area[f2]);
-            inverse_dt_sum[f1] += contrib_f1;
-            inverse_dt_sum[f2] += contrib_f2;
-        }
-    }
-
-    inverse_dt_sum
-        .iter()
-        .filter(|&&x| x > 0.0)
-        .map(|&x| 1.0 / x)
-        .fold(f64::INFINITY, f64::min)
-}
+use crate::ArrayResult;
 
 /// Applies one explicit diffusion update step over a surface mesh with variable diffusivity.
 ///
@@ -182,7 +14,6 @@ fn compute_dt_max(
 ///
 /// # Arguments
 ///
-/// * `py` - Python interpreter token.
 /// * `face_kappa` - Topographic diffusivity (1D array of length n_face)
 /// * `face_elevation` - Elevation value of the faces (1D array of length n_face)
 /// * `face_area` - Area of the faces (1D array of length n_face)
@@ -192,36 +23,26 @@ fn compute_dt_max(
 /// # Returns
 ///
 /// A NumPy array of shape (n_face,) giving the elevation change per face of the local mesh for this update step.
-#[pyfunction]
-pub fn apply_diffusion<'py>(
-    py: Python<'py>,
-    face_kappa: PyReadonlyArray1<'py, f64>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
-    face_area: PyReadonlyArray1<'py, f64>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distance: PyReadonlyArray1<'py, f64>,
-    edge_length: PyReadonlyArray1<'py, f64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_kappa = face_kappa.as_array();
-    let face_elevation = face_elevation.as_array();
-    let face_area = face_area.as_array();
-    let edge_face_connectivity = edge_face_connectivity.as_array();
-    let edge_face_distance = edge_face_distance.as_array();
-    let edge_length = edge_length.as_array();
-    let n_face = face_area.len();
-
+pub fn apply_diffusion(
+    face_kappa: ArrayView1<'_, f64>,
+    face_elevation: ArrayView1<'_,f64>,
+    face_area: ArrayView1<'_, f64>,
+    edge_face_connectivity: ArrayView2<'_, i64>,
+    edge_face_distance: ArrayView1<'_, f64>,
+    edge_length: ArrayView1<'_, f64>,
+) -> ArrayResult {
+    let n_face = face_elevation.len();
     // Compute initial dt von neumann stability condition
     let dt_max = compute_dt_max(
-        &edge_face_distance,
-        &edge_face_connectivity,
-        &face_kappa,
-        &face_area,
-        &edge_length,
+        edge_face_distance,
+        edge_face_connectivity,
+        face_kappa,
+        face_area,
+        edge_length,
     );
 
     if !dt_max.is_finite() || dt_max <= 0.0 {
-        let result = Array1::<f64>::zeros(n_face);
-        return Ok(PyArray1::from_owned_array(py, result));
+        return Ok(Array1::<f64>::zeros(n_face));
     }
 
     let nloops = (1.0 / dt_max).ceil() as usize;
@@ -268,8 +89,62 @@ pub fn apply_diffusion<'py>(
         }
     }
 
-    Ok(PyArray1::from_owned_array(py, face_delta_elevation))
+    Ok(face_delta_elevation)
 }
+
+
+
+/// Computes a conservative explicit timestep for stability using per-face aggregated flux contributions.
+///
+/// This method loops over all edges and accumulates inverse dt estimates for each face.
+/// The final dt is the minimum over all faces of the reciprocal flux sum.
+fn compute_dt_max(
+    edge_face_distance: ArrayView1<'_, f64>,
+    edge_face_connectivity: ArrayView2<'_, i64>,
+    face_kappa: ArrayView1<'_, f64>,
+    face_area: ArrayView1<'_, f64>,
+    edge_length: ArrayView1<'_, f64>,
+) -> f64 {
+    let n_face = face_kappa.len();
+    let mut inverse_dt_sum = Array1::<f64>::zeros(n_face);
+
+    for (e, faces) in edge_face_connectivity.outer_iter().enumerate() {
+        let distance = edge_face_distance[e];
+        if distance <= 0.0 {
+            continue;
+        }
+
+        let [f1, f2] = match <[i64; 2]>::try_from(faces.as_slice().unwrap()) {
+            Ok(pair) => pair,
+            Err(_) => continue,
+        };
+
+        let f1 = f1 as usize;
+        let f2 = f2 as usize;
+        if f1 >= n_face || f2 >= n_face {
+            continue;
+        }
+
+        let k1 = face_kappa[f1];
+        let k2 = face_kappa[f2];
+        let k_avg = 0.5 * (k1 + k2);
+        let length = edge_length[e];
+
+        if k_avg > 0.0 {
+            let contrib_f1 = 2.0 * k_avg * length / (distance * face_area[f1]);
+            let contrib_f2 = 2.0 * k_avg * length / (distance * face_area[f2]);
+            inverse_dt_sum[f1] += contrib_f1;
+            inverse_dt_sum[f2] += contrib_f2;
+        }
+    }
+
+    inverse_dt_sum
+        .iter()
+        .filter(|&&x| x > 0.0)
+        .map(|&x| 1.0 / x)
+        .fold(f64::INFINITY, f64::min)
+}
+
 
 /// Computes the gradient vector (∂h/∂x, ∂h/∂y) at a face using the Green-Gauss method.
 ///
@@ -295,15 +170,15 @@ pub fn apply_diffusion<'py>(
 /// A tuple representing the zonal and meridional components of the gradient vector at face `f`.
 /// 
 #[inline(always)]
-fn compute_face_gradient(
+fn compute_one_face_gradient(
     f: usize,
-    variable: &Array1<f64>,
-    face_lon: &Array1<f64>,
-    face_lat: &Array1<f64>,
-    connected_edges: &ArrayView1<'_, i64>,
-    edge_face_connectivity: &ArrayView2<i64>,
-    edge_face_distance: &ArrayView1<f64>,
-    edge_length: &ArrayView1<f64>,
+    variable: ArrayView1<'_,f64>,
+    face_lon: ArrayView1<'_,f64>,
+    face_lat: ArrayView1<'_,f64>,
+    connected_edges: ArrayView1<'_,i64>,
+    edge_face_connectivity: ArrayView2<'_,i64>,
+    edge_face_distance: ArrayView1<'_,f64>,
+    edge_length: ArrayView1<'_,f64>,
 ) -> (f64, f64) {
     let mut dh_zonal = 0.0;
     let mut dh_meridional = 0.0;
@@ -340,7 +215,7 @@ fn compute_face_gradient(
 
     // Loop over neighbors to compute gradient contributions
     for (_i, &(other, distance, length)) in neighbors.iter().enumerate() {
-        let theta = compute_initial_bearing(
+        let theta = compute_one_bearing(
             lon_f,
             lat_f,
             face_lon[other],
@@ -365,6 +240,7 @@ fn compute_face_gradient(
     (0.0, 0.0)
 }
 
+
 /// Computes the gradient vector in a radial direction defined by the face bearing at a face using the Green-Gauss method.
 ///
 ///
@@ -372,7 +248,6 @@ fn compute_face_gradient(
 /// corresponding to the provided face indices.
 ///
 /// # Arguments
-/// * `py` - Python interpreter token.
 /// * `variable` - The variable to compute the gradient for at each face (1D array).
 /// * `face_lon` - Longitude at each face in radians (1D array).
 /// * `face_lat` - Latitude at each face in radians (1D array).
@@ -384,52 +259,34 @@ fn compute_face_gradient(
 ///
 /// # Returns
 /// An arrays of radial gradient values same length as `face_indices`.
-#[pyfunction]
-pub fn compute_radial_gradient<'py>(
-    py: Python<'py>,
-    variable: PyReadonlyArray1<'py, f64>,
-    face_lon: PyReadonlyArray1<'py, f64>,
-    face_lat: PyReadonlyArray1<'py, f64>,
-    face_bearing: PyReadonlyArray1<'py, f64>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distance: PyReadonlyArray1<'py, f64>,
-    edge_length: PyReadonlyArray1<'py, f64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let variable = variable.as_array();
-    let face_bearing = face_bearing.as_array();
-    let face_lon = face_lon.as_array();
-    let face_lat = face_lat.as_array();
-    let edge_face_connectivity = edge_face_connectivity.as_array();
-    let face_edge_connectivity = face_edge_connectivity.as_array();
-    let edge_face_distance = edge_face_distance.as_array();
-    let edge_length = edge_length.as_array();
-    let n_face = variable.len();
-
-    let variable = variable.to_owned();
-    let face_lon = face_lon.to_owned();
-    let face_lat = face_lat.to_owned();
-    let radgrad: Vec<f64> = (0..n_face).into_par_iter()
+pub fn compute_radial_gradient(
+    variable: ArrayView1<'_,f64>,
+    face_lon: ArrayView1<'_,f64>,
+    face_lat: ArrayView1<'_,f64>,
+    face_bearing: ArrayView1<'_,f64>,
+    face_edge_connectivity: ArrayView2<'_, i64>,
+    edge_face_connectivity: ArrayView2<'_,i64>,
+    edge_face_distance: ArrayView1<'_,f64>,
+    edge_length: ArrayView1<'_,f64>,
+) -> ArrayResult {
+    let radgrad: Vec<f64> = (0..variable.len()).into_par_iter()
         .map(|f| {
-            let connected_edges = face_edge_connectivity.row(f);
-            let (grad_zonal, grad_meridional) = compute_face_gradient(
+            let connected_edges: ArrayView1<'_, i64> = face_edge_connectivity.row(f);
+            let (grad_zonal, grad_meridional) = compute_one_face_gradient(
                 f,
-                &variable,
-                &face_lon,
-                &face_lat,
-                &connected_edges,
-                &edge_face_connectivity,
-                &edge_face_distance,
-                &edge_length,
+                variable,
+                face_lon,
+                face_lat,
+                connected_edges,
+                edge_face_connectivity,
+                edge_face_distance,
+                edge_length,
             );
             grad_meridional * face_bearing[f].cos() + grad_zonal * face_bearing[f].sin()
         })
         .collect();
-    let radgrad = Array1::from_vec(radgrad);
-
-    Ok(PyArray1::from_owned_array(py, radgrad))
+    Ok(Array1::from_vec(radgrad))
 }
-
 
 
 
@@ -447,16 +304,16 @@ pub fn compute_radial_gradient<'py>(
 #[inline(always)]
 fn compute_face_slope_squared(
     f: usize,
-    face_elevation: &Array1<f64>,
-    face_lon: &Array1<f64>,
-    face_lat: &Array1<f64>,
-    connected_edges: &ArrayView1<'_, i64>,
-    edge_face_connectivity: &ArrayView2<i64>,
-    edge_face_distance: &ArrayView1<f64>,
-    edge_length: &ArrayView1<f64>,
+    face_elevation: ArrayView1<'_,f64>,
+    face_lon: ArrayView1<'_,f64>,
+    face_lat: ArrayView1<f64>,
+    connected_edges: ArrayView1<'_, i64>,
+    edge_face_connectivity: ArrayView2<'_,i64>,
+    edge_face_distance: ArrayView1<'_,f64>,
+    edge_length: ArrayView1<'_, f64>,
 ) -> f64 {
 
-    let (dh_dx, dh_dy) = compute_face_gradient(
+    let (dh_dx, dh_dy) = compute_one_face_gradient(
         f,
         face_elevation,
         face_lon,
@@ -481,7 +338,6 @@ fn compute_face_slope_squared(
 /// corresponding to the provided face indices.
 ///
 /// # Arguments
-/// * `py` - Python interpreter token.
 /// * `face_elevation` - Elevation at each face (1D array).
 /// * `face_area` - Area of each face (1D array).
 /// * `edge_face_connectivity` - Indices of the faces (global) that saddle each edge. (2D array of shape n_edge x 2).
@@ -490,48 +346,34 @@ fn compute_face_slope_squared(
 ///
 /// # Returns
 /// A NumPy array of slope values (1D array), same length as `face_indices`.
-#[pyfunction]
-pub fn compute_slope<'py>(
-    py: Python<'py>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
-    face_lon: PyReadonlyArray1<'py, f64>,
-    face_lat: PyReadonlyArray1<'py, f64>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distance: PyReadonlyArray1<'py, f64>,
-    edge_length: PyReadonlyArray1<'py, f64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_elevation = face_elevation.as_array();
-    let face_lon = face_lon.as_array();
-    let face_lat = face_lat.as_array();
-    let edge_face_connectivity = edge_face_connectivity.as_array();
-    let face_edge_connectivity = face_edge_connectivity.as_array();
-    let edge_face_distance = edge_face_distance.as_array();
-    let edge_length = edge_length.as_array();
-    let n_face = face_elevation.len();
+pub fn compute_slope(
+    face_elevation: ArrayView1<'_,f64>,
+    face_lon: ArrayView1<'_, f64>,
+    face_lat: ArrayView1<'_, f64>,
+    edge_face_connectivity: ArrayView2<'_, i64>,
+    face_edge_connectivity: ArrayView2<'_, i64>,
+    edge_face_distance: ArrayView1<'_, f64>,
+    edge_length: ArrayView1<'_, f64>,
+) -> ArrayResult {
 
-    let face_elevation = face_elevation.to_owned();
-    let face_lon = face_lon.to_owned();
-    let face_lat = face_lat.to_owned();
+    let n_face = face_elevation.len();
     let slope_vec: Vec<_> = (0..n_face).into_par_iter()
         .map(|f| {
             let connected_edges = face_edge_connectivity.row(f);
             let slope_sq = compute_face_slope_squared(
                 f,
-                &face_elevation,
-                &face_lon,
-                &face_lat,
-                &connected_edges,
-                &edge_face_connectivity,
-                &edge_face_distance,
-                &edge_length,
+                face_elevation,
+                face_lon,
+                face_lat,
+                connected_edges,
+                edge_face_connectivity,
+                edge_face_distance,
+                edge_length,
             );
             slope_sq.sqrt()
         })
         .collect();
-    let slope = Array1::from_vec(slope_vec);
-
-    Ok(PyArray1::from_owned_array(py, slope))
+    Ok(Array1::from_vec(slope_vec))
 }
 
 
@@ -542,64 +384,51 @@ pub fn compute_slope<'py>(
 ///
 /// # Arguments
 ///
-/// * `py` - Python interpreter token.
 /// * `critical_slope` - Maximum allowable slope (e.g., 0.7 for ~35 degrees).
 /// * `face_elevation` - Elevation at each face (1D array).
+/// * `face_lon` - Longitude at each face in radians (1D array).
+/// * `face_lat` - Latitude at each face in radians (1D array).
 /// * `face_area` - Area of each face (1D array).
 /// * `edge_face_connectivity` - Indices of the faces that saddle each edge. (2D array of shape n_edge x 2).
 /// * 'face_edge_connectivity` - Indices of the edges that surround each face (2D array of shape n_face x n_max_edges).
 /// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+/// * `edge_length` - Length of each edge in meters (1D array of length n_edge)
 ///
 /// # Returns
 ///
 /// A NumPy array of `face_kappa` values.
-#[pyfunction]
-pub fn slope_collapse<'py>(
-    py: Python<'py>,
+pub fn slope_collapse(
     critical_slope: f64,
-    face_elevation: PyReadonlyArray1<'py, f64>,
-    face_lon: PyReadonlyArray1<'py, f64>,
-    face_lat: PyReadonlyArray1<'py, f64>,
-    face_area: PyReadonlyArray1<'py, f64>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distance: PyReadonlyArray1<'py, f64>,
-    edge_length: PyReadonlyArray1<'py, f64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_area = face_area.as_array();
-    let edge_face_connectivity = edge_face_connectivity.as_array();
-    let face_edge_connectivity = face_edge_connectivity.as_array();
-    let edge_face_distance = edge_face_distance.as_array();
-    let edge_length = edge_length.as_array();
-    let face_elevation_view = face_elevation.as_array();
-    let face_lon = face_lon.as_array();
-    let face_lat = face_lat.as_array();
+    face_elevation: ArrayView1<'_,f64>,
+    face_lon: ArrayView1<'_, f64>,
+    face_lat: ArrayView1<'_, f64>,
+    face_area: ArrayView1<'_, f64>,
+    edge_face_connectivity: ArrayView2<'_, i64>,
+    face_edge_connectivity: ArrayView2<'_, i64>,
+    edge_face_distance: ArrayView1<'_, f64>,
+    edge_length: ArrayView1<'_, f64>,
+) -> ArrayResult {
     let n_face = face_edge_connectivity.nrows();
     let critical_slope_sq = critical_slope * critical_slope;
 
     // face_kappa_ones should be an array view
-    let face_kappa = Array1::<f64>::ones(n_face);
-    let kappa_ref: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 1]>> = &face_kappa.view();
-    let face_lon = face_lon.to_owned();
-    let face_lat = face_lat.to_owned();
+    let face_kappa_ones = Array1::<f64>::ones(n_face);
 
     let diffmax = compute_dt_max(
-        &edge_face_distance,
-        &edge_face_connectivity,
-        &kappa_ref,
-        &face_area,
-        &edge_length,
+        edge_face_distance,
+        edge_face_connectivity,
+        face_kappa_ones.view(),
+        face_area,
+        edge_length,
     );
     let looplimit = 1000 as usize;
 
-    let mut face_elevation = Array1::<f64>::zeros(n_face);
+    let mut new_face_elevation = face_elevation.to_owned();
     let mut face_delta_elevation = Array1::<f64>::zeros(n_face);
 
     for _ in 0..looplimit {
-        face_elevation.assign(&face_elevation_view);
-        for f in 0..n_face {
-            face_elevation[f] += face_delta_elevation[f];
-        }
+        new_face_elevation.assign(&face_elevation);
+        new_face_elevation += &face_delta_elevation;
 
         // Compute (slope_sq, kappa) for each face in parallel
         let slope_kappa: Vec<_> = (0..n_face)
@@ -608,13 +437,13 @@ pub fn slope_collapse<'py>(
                 let connected_edges = face_edge_connectivity.row(f);
                 let slope_sq = compute_face_slope_squared(
                     f,
-                    &face_elevation,
-                    &face_lon,
-                    &face_lat,
-                    &connected_edges,
-                    &edge_face_connectivity,
-                    &edge_face_distance,
-                    &edge_length,
+                    new_face_elevation.view(),
+                    face_lon,
+                    face_lat,
+                    connected_edges,
+                    edge_face_connectivity,
+                    edge_face_distance,
+                    edge_length,
                 );
                 let kappa = if slope_sq > critical_slope_sq {
                     diffmax * (1.0 + slope_sq / critical_slope_sq) * 10.0
@@ -625,41 +454,30 @@ pub fn slope_collapse<'py>(
             })
             .collect();
 
-        let face_kappa: Vec<f64> = slope_kappa.into_iter().collect();
+        let face_kappa=  Array1::from_vec(slope_kappa);
 
         let n_active = face_kappa.iter().filter(|&&k| k > 0.0).count();
         if n_active == 0 {
             break;
         }
 
-        // Cast all of the arrays to the correct types for the Python bindings so that they can be passed to the apply_diffusion function
-        let py_kappa = PyArray1::from_slice(py, &face_kappa).readonly();
-        let py_face_elevation = PyArray1::from_array(py, &face_elevation).readonly();
-        let py_face_area = PyArray1::from_array(py, &face_area).readonly();
-        let py_edge_face_connectivity = PyArray2::from_array(py, &edge_face_connectivity).readonly();
-        let py_edge_face_distance = PyArray1::from_array(py, &edge_face_distance).readonly();
-        let py_edge_lengths = PyArray1::from_array(py, &edge_length).readonly();
-
         let delta = apply_diffusion(
-            py,
-            py_kappa,
-            py_face_elevation,
-            py_face_area,
-            py_edge_face_connectivity,
-            py_edge_face_distance,
-            py_edge_lengths,
+            face_kappa.view(),
+            new_face_elevation.view(),
+            face_area,
+            edge_face_connectivity,
+            edge_face_distance,
+            edge_length,
         )?;
-        let delta_array = unsafe { delta.as_array() };
-        face_delta_elevation += &delta_array;
+        face_delta_elevation += &delta;
     }
-    Ok(PyArray1::from_owned_array(py, face_delta_elevation))
+    Ok(face_delta_elevation)
 }
 
 /// Computes node elevations as area-weighted averages of adjacent face elevations.
 ///
 /// # Arguments
 ///
-/// * `py` - Python interpreter token.
 /// * `face_area` - Area of each face (1D array).
 /// * `face_elevation` - Elevation at each face (1D array).
 /// * `node_face_connectivity` - For each node, indices of connected faces (2D array).
@@ -667,16 +485,11 @@ pub fn slope_collapse<'py>(
 /// # Returns
 ///
 /// A NumPy array of node elevations (1D array).
-#[pyfunction]
-pub fn interpolate_node_elevation_from_faces<'py>(
-    py: Python<'py>,
-    face_area: PyReadonlyArray1<'py, f64>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
-    node_face_connectivity: PyReadonlyArray2<'py, i64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_area = face_area.as_array();
-    let face_elevation = face_elevation.as_array();
-    let node_face_connectivity = node_face_connectivity.as_array();
+pub fn interpolate_node_elevation_from_faces(
+    face_elevation: ArrayView1<'_, f64>,
+    face_area: ArrayView1<'_, f64>,
+    node_face_connectivity: ArrayView2<'_, i64>,
+) -> ArrayResult {
 
     let n_nodes = node_face_connectivity.nrows();
     let mut result = Array1::<f64>::zeros(n_nodes);
@@ -699,7 +512,7 @@ pub fn interpolate_node_elevation_from_faces<'py>(
         }
     }
 
-    Ok(PyArray1::from_owned_array(py, result))
+    Ok(result)
 }
 
 /// Computes 3D turbulence noise using multi-octave rotated simplex noise.
@@ -711,7 +524,6 @@ pub fn interpolate_node_elevation_from_faces<'py>(
 /// The result is normalized and scaled by `noise_height`.
 ///
 /// # Arguments
-/// * `py` - Python interpreter token.
 /// * `x`, `y`, `z` - 1D arrays of the same length giving 3D positions.
 /// * `noise_height` - Final amplitude scaling factor.
 /// * `noise_width` - Base spatial scale (inverse frequency) of noise.
@@ -722,23 +534,17 @@ pub fn interpolate_node_elevation_from_faces<'py>(
 ///
 /// # Returns
 /// A 1D NumPy array of noise values, one per input coordinate triplet.
-#[pyfunction]
-pub fn turbulence_noise<'py>(
-    py: Python<'py>,
-    x: PyReadonlyArray1<'py, f64>,
-    y: PyReadonlyArray1<'py, f64>,
-    z: PyReadonlyArray1<'py, f64>,
+pub fn turbulence_noise(
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    z: ArrayView1<'_, f64>,
     noise_height: f64,
     noise_width: f64,
     freq: f64,
     pers: f64,
-    anchor: PyReadonlyArray2<'py, f64>,
+    anchor: ArrayView2<'_, f64>,
     seed: u32,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let x = x.as_array();
-    let y = y.as_array();
-    let z = z.as_array();
-    let anchor = anchor.as_array();
+) -> ArrayResult {
 
     // Get the maximum value in the x array as the scale
     let n_points = x.len();
@@ -778,7 +584,7 @@ pub fn turbulence_noise<'py>(
         *val *= noise_height / norm;
     }
 
-    Ok(PyArray1::from_owned_array(py, result))
+    Ok(result)
 }
 
 /// Constructs the edge-other distances for a surface mesh
@@ -786,25 +592,19 @@ pub fn turbulence_noise<'py>(
 /// This will compute the haversine distance between the coordinates of the two components (faces, nodes, etc) that are associated with each edge.
 ///
 /// # Arguments
-/// * `py` - Python interpreter token.
 /// * `edge_connectivity` - Indices of the elements associated each edge. (2D array of shape n_edge x 2).
+/// * `lon1`, `lat1` - Coordinates of the reference point in radians.
 ///
 /// # Returns
 /// A 1D NumPy array of edge-other distances in meters, one for each edge.
-#[pyfunction]
-pub fn compute_edge_distances<'py>(
-    py: Python<'py>,
-    edge_connectivity: PyReadonlyArray2<'py, i64>,
-    lon: PyReadonlyArray1<'py, f64>,
-    lat: PyReadonlyArray1<'py, f64>,
+pub fn compute_edge_distances(
+    edge_connectivity: ArrayView2<'_, i64>,
+    lon: ArrayView1<'_, f64>,
+    lat: ArrayView1<'_, f64>,
     radius: f64,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
+) -> ArrayResult {
 
-    let edge_connectivity = edge_connectivity.as_array();
-    let lon = lon.as_array();
-    let lat = lat.as_array();
     let n_edge = edge_connectivity.nrows();
-
     let edge_distances_vec: Vec<f64> = (0..n_edge)
         .into_par_iter()
         .map(|e| {
@@ -816,7 +616,7 @@ pub fn compute_edge_distances<'py>(
             } else {
                 let o1u = o1 as usize;
                 let o2u = o2 as usize;
-                haversine_distance_scalar(
+                compute_one_distance(
                     lon[o1u], lat[o1u],
                     lon[o2u], lat[o2u],
                     radius,
@@ -824,7 +624,113 @@ pub fn compute_edge_distances<'py>(
             }
         })
         .collect();
-    let edge_distances = Array1::from_vec(edge_distances_vec);
+    Ok(Array1::from_vec(edge_distances_vec))
+}
 
-    Ok(PyArray1::from_owned_array(py, edge_distances))
+
+/// Computes the Haversine distance between a single point and an array of points on a sphere given their longitude and latitude in radians.
+///
+/// # Arguments
+/// * `lon1`, `lat1` - Coordinates of the first point in radians.
+/// * `lon2`, `lat2` - Array of coordinates of the second point in radians.
+/// * `radius` - Radius of the sphere in meters.
+///
+/// # Returns
+/// Distance in meters between the pairs of points along the surface of the sphere.
+pub fn compute_distances(
+    lon1: f64,
+    lat1: f64,
+    lon2: ArrayView1<'_, f64>,
+    lat2: ArrayView1<'_, f64>,
+    radius: f64,
+) -> ArrayResult {
+
+    let n = lon2.len();
+
+    let result_vec: Vec<f64> = (0..n)
+        .into_par_iter()
+        .map(|i| {
+            let lon2_i = lon2[i];
+            let lat2_i = lat2[i];
+            compute_one_distance(lon1, lat1, lon2_i, lat2_i, radius)
+        })
+        .collect();
+
+    Ok(Array1::from_vec(result_vec))
+}
+
+
+/// Computes the Haversine distance between two points on a sphere given their longitude and latitude in radians.
+///
+/// # Arguments
+/// * `lon1`, `lat1` - Coordinates of the first point in radians.
+/// * `lon2`, `lat2` - Coordinates of the second point in radians.
+/// * `radius` - Radius of the sphere in meters.
+///
+/// # Returns
+/// Distance in meters between the two points along the surface of the sphere.
+#[inline]
+fn compute_one_distance(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius: f64) -> f64 {
+    let dlon = lon2 - lon1;
+    let dlat = lat2 - lat1;
+    let a = (dlat / 2.0).sin().powi(2)
+        + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
+    let c = 2.0 * a.sqrt().asin();
+    radius * c
+}
+
+
+/// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
+///
+/// The bearing is calculated on a spherical surface using great-circle paths and returned in radians,
+/// normalized to the range [0, 2π).
+///
+/// # Arguments
+///
+/// * `lon1` - Longitude of the reference point, in radians.
+/// * `lat1` - Latitude of the reference point, in radians.
+/// * `lon2` - Longitudes of destination points, in radians.
+/// * `lat2` - Latitudes of destination points, in radians.
+///
+/// # Returns
+///
+/// * A NumPy array of initial bearing angles (radians), one for each (lon2, lat2) pair.
+pub fn compute_bearings(
+    lon1: f64,
+    lat1: f64,
+    lon2: ArrayView1<'_, f64>,
+    lat2: ArrayView1<'_, f64>,
+) -> ArrayResult {
+    let n = lon2.len();
+    let result_vec: Vec<f64> = (0..n)
+        .into_par_iter()
+        .map(|i| {
+            let lon2_i = lon2[i];
+            let lat2_i = lat2[i];
+            let initial_bearing = compute_one_bearing(lon1, lat1, lon2_i, lat2_i);
+            // Normalize bearing to 0 to 2*pi
+            (initial_bearing + 2.0 * PI) % (2.0 * PI)
+        })
+        .collect();
+    Ok(Array1::from_vec(result_vec))
+}
+
+/// Computes the initial bearing (forward azimuth) from point 1 to point 2 on a sphere.
+#[inline]
+fn compute_one_bearing(lon1: f64, lat1: f64, lon2: f64, lat2: f64) -> f64 {
+    let dlon = positive_mod(lon2 - lon1 + PI, 2.0 * PI) - PI;
+    let x = dlon.sin() * lat2.cos();
+    let y = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * dlon.cos();
+    x.atan2(y)
+}
+
+
+
+
+
+/// Computes the positive modulus of `x` with respect to `m`.
+/// Ensures the result is always in the range `[0, m)`.
+#[inline]
+fn positive_mod(x: f64, m: f64) -> f64 {
+    ((x % m) + m) % m
 }

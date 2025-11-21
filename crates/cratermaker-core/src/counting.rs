@@ -1,56 +1,22 @@
 use std::f64::consts::{FRAC_PI_2, PI};
-use std::result::Result;
-use pyo3::{prelude::*}; 
-use numpy::{PyArray1, PyReadonlyArray2, PyReadonlyArray1};
-use numpy::ndarray::{Array1,Array2,Axis,arr2};
+use numpy::ndarray::prelude::*; 
 use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{Inverse, Eig};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::prelude::*;
+use crate::ArrayResult;
 
-#[pyfunction]
-pub fn tally<'py>(
-    py: Python<'py>,
-    //face_elevation: PyReadonlyArray1<'py, f64>,
-    id_array: PyReadonlyArray2<'py, u32>, 
-) -> PyResult<Bound<'py, PyArray1<u32>>> {
-    let id_array = id_array.as_array();
-    let mut id_vec = Vec::with_capacity(id_array.len());
-    // for (key, value) in observed.as_ref(py).iter() {
-    //     let id: u32 = key.extract()?;
-    //     let crater: &PyDict = value.downcast::<PyDict>()?;
-
-    //     let final_diameter: Option<f64> = crater.get_item("final_diameter").and_then(|v| v.extract().ok());
-    //     let location: Option<(f64, f64)> = crater.get_item("location").and_then(|v| v.extract().ok());
-
-    // }
-
-
-    for id in id_array.iter() {
-        id_vec.push(*id);
-    }
-    let id_array_flat = PyArray1::from_vec(py, id_vec);
-    Ok(id_array_flat)
-}
-
-#[pyfunction]
-pub fn radial_distance_to_ellipse<'py>(
-    py: Python<'py>,
-    x: PyReadonlyArray1<'py, f64>,
-    y: PyReadonlyArray1<'py, f64>,
+pub fn radial_distance_to_ellipse(
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
     a: f64, 
     b: f64,
     orientation: f64, 
     x0: f64, 
     y0:f64
-)-> PyResult<Bound<'py, PyArray1<f64>>> {
-    // Placeholder implementation
+) -> ArrayResult {
     let phi = orientation - FRAC_PI_2;
-    let x = x.as_array();
-    let y = y.as_array();
-    //let mut result = ndarray::Array1::<f64>::zeros(x.len());
 
-    let n = x.len();
-    let result_vec: Vec<f64> = (0..n)
+    let result_vec: Vec<f64> = (0..x.len())
         .into_par_iter()
         .map(|i| {
             let xi = x[i];
@@ -66,9 +32,7 @@ pub fn radial_distance_to_ellipse<'py>(
         })
         .collect();
 
-    let result = Array1::from(result_vec);
-
-    Ok(PyArray1::from_owned_array(py, result))
+    Ok(Array1::from(result_vec))
 }
 
 #[inline]
@@ -156,7 +120,16 @@ fn ellipse_parameters_to_coefficients(x0: f64, y0: f64, a: f64, b: f64, orientat
 }
 
 #[inline]
-fn geometric_distances(x: &Array1<f64>, y: &Array1<f64>, a: f64, b: f64, c: f64, d: f64, e: f64, f: f64) -> Array1<f64> {
+fn geometric_distances(
+    x: ArrayView1<'_,f64>, 
+    y: ArrayView1<'_,f64>, 
+    a: f64, 
+    b: f64, 
+    c: f64, 
+    d: f64, 
+    e: f64, 
+    f: f64
+) -> Array1<f64> {
     let (x0, y0, a, b, e, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, e, f);
 
     let n = x.len();
@@ -183,11 +156,45 @@ fn geometric_distances(x: &Array1<f64>, y: &Array1<f64>, a: f64, b: f64, c: f64,
     result
 }
 
+#[inline]
+fn _score_rim(
+    x: ArrayView1<'_, f64>, 
+    y: ArrayView1<'_, f64>, 
+    face_elevation: ArrayView1<'_,f64>,   
+    face_lon: ArrayView1<'_,f64>,
+    face_lat: ArrayView1<'_,f64>,
+    face_bearing: ArrayView1<'_,f64>,
+    face_edge_connectivity: ArrayView2<'_, i64>,
+    edge_face_connectivity: ArrayView2<'_,i64>,
+    edge_face_distance: ArrayView1<'_,f64>,
+    edge_length: ArrayView1<'_,f64>,
+    x0: f64, 
+    y0: f64, 
+    ap: f64,
+    bp: f64,
+    orientation: f64
+) ->Array1<f64> { 
+    let mut score = Array1::<f64>::zeros(x.len());
+    let MIN_POINTS_FOR_FIT = 100;
+
+    let radial_gradient = crate::surface::compute_radial_gradient(
+        face_elevation,
+        face_lon,
+        face_lat,
+        face_bearing,
+        face_edge_connectivity,
+        edge_face_connectivity,
+        edge_face_distance,
+        edge_length,
+    ); 
+    score
+}
+
 #[inline] 
-fn fit_ellipse(
-    x: &Array1<f64>, 
-    y: &Array1<f64>, 
-    weights: &Array1<f64>
+pub fn fit_one_ellipse(
+    x: ArrayView1<'_,f64>, 
+    y: ArrayView1<'_,f64>, 
+    weights: ArrayView1<'_,f64>
 ) -> Result<(f64, f64, f64, f64, f64, f64, f64), LinalgError> {
     assert_eq!(x.len(), y.len());
     assert_eq!(x.len(), weights.len());
@@ -196,42 +203,42 @@ fn fit_ellipse(
     // Step 1: D1, D2
     let x2 = x.mapv(|v| v * v);
     let y2 = y.mapv(|v| v * v);
-    let xy = x * y;
+    let xy = &x * &y;
 
-    let mut D1 = Array2::<f64>::zeros((n, 3));
-    let mut D2 = Array2::<f64>::zeros((n, 3));
-    D1.column_mut(0).assign(&x2);
-    D1.column_mut(1).assign(&xy);
-    D1.column_mut(2).assign(&y2);
-    D2.column_mut(0).assign(x);
-    D2.column_mut(1).assign(y);
-    D2.column_mut(2).fill(1.0);
+    let mut d1 = Array2::<f64>::zeros((n, 3));
+    let mut d2 = Array2::<f64>::zeros((n, 3));
+    d1.column_mut(0).assign(&x2);
+    d1.column_mut(1).assign(&xy);
+    d1.column_mut(2).assign(&y2);
+    d2.column_mut(0).assign(&x);
+    d2.column_mut(1).assign(&y);
+    d2.column_mut(2).fill(1.0);
 
     // Step 2: apply weights
     let w_col = weights.view().insert_axis(Axis(1));
-    let WD1 = &w_col * &D1;
-    let WD2 = &w_col * &D2;
+    let wd1 = &w_col * &d1;
+    let wd2 = &w_col * &d2;
 
     // Step 3: S1, S2, S3
-    let S1 = WD1.t().dot(&WD1);
-    let S2 = WD1.t().dot(&WD2);
-    let S3 = WD2.t().dot(&WD2);
+    let s1 = wd1.t().dot(&wd1);
+    let s2 = wd1.t().dot(&wd2);
+    let s3 = wd2.t().dot(&wd2);
 
     // Step 4: T and M
-    let S3_inv = S3.inv()?;
-    let T = -S3_inv.dot(&S2.t());
-    let M_tmp = S1 + S2.dot(&T);
+    let s3_inv = s3.inv()?;
+    let t = -s3_inv.dot(&s2.t());
+    let m_tmp = s1 + s2.dot(&t);
 
-    let C = arr2(&[
+    let c = arr2(&[
         [0.0, 0.0, 2.0],
         [0.0, -1.0, 0.0],
         [2.0, 0.0, 0.0],
     ]);
-    let C_inv = C.inv()?;
-    let M = C_inv.dot(&M_tmp);
+    let c_inv = c.inv()?;
+    let m = c_inv.dot(&m_tmp);
 
     // Step 5: eigen-decomposition
-    let (eigvals, eigvecs) = M.eig()?;
+    let (_eigvals, eigvecs) = m.eig()?;
     let eigvecs_re = eigvecs.mapv(|c| c.re);
 
     let mut chosen_col = None;
@@ -247,19 +254,19 @@ fn fit_ellipse(
     }
     let k = chosen_col.expect("No valid ellipse eigenvector found");
     let ak = eigvecs_re.column(k).to_owned();
-    let Tak = T.dot(&ak);
+    let transposed_ak = t.dot(&ak);
 
     let a = ak[0];
     let b = ak[1];
     let c = ak[2];
-    let d = Tak[0];
-    let f = Tak[1];
-    let g = Tak[2];
+    let d = transposed_ak[0];
+    let f = transposed_ak[1];
+    let g = transposed_ak[2];
 
     // Step 6: weighted RMS
     let delta = geometric_distances(x, y, a, b, c, d, f, g);
     let delta2 = delta.mapv(|d| d * d);
-    let num = (&delta2 * weights).sum();
+    let num = (&delta2 * &weights).sum();
     let den = weights.sum();
     let wrms = (num / den).sqrt();
 
@@ -268,20 +275,3 @@ fn fit_ellipse(
     Ok((x0, y0, ap, bp, ep, orientation, wrms))
 }
 
-#[pyfunction]
-pub fn fit_ellipse_one<'py>(
-    py: Python<'py>,
-    x: PyReadonlyArray1<'py, f64>,
-    y: PyReadonlyArray1<'py, f64>,
-    weights: PyReadonlyArray1<'py, f64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let x = x.as_array().to_owned();
-    let y = y.as_array().to_owned();
-    let weights = weights.as_array().to_owned();
-
-    let (x0, y0, a, b, e, orientation, wrms) = fit_ellipse(&x, &y, &weights)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Failed to fit ellipse: {}", e)))?;
-
-    let result = Array1::from_vec(vec![x0, y0, a, b, e, orientation, wrms]);
-    Ok(PyArray1::from_owned_array(py, result))
-}

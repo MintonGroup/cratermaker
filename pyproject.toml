@@ -70,6 +70,7 @@ build-backend = "maturin"
 python-source = "."
 include = ["cratermaker/_version.py", "cratermaker/**/*.py", "pyproject.toml", "Cargo.toml"]
 features = ["pyo3/extension-module"]
+manifest-path = "crates/cratermaker-py/Cargo.toml"
 module-name = "cratermaker._cratermaker"
 
 [tool.ruff]

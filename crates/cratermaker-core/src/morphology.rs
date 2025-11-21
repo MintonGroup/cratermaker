@@ -1,42 +1,109 @@
 use itertools::Itertools;
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
-use numpy::ndarray::ArrayView1;
-use pyo3::{exceptions::PyValueError, prelude::*};
+use numpy::ndarray::prelude::*;
 use rand::prelude::*;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-
+use crate::ArrayResult;
 use std::f64::{
     self,
     consts::{PI, SQRT_2},
 };
 
-use crate::{EJPROFILE, RIMDROP, VSMALL};
 
+const RIMDROP: f64 = 4.20; // The exponent for the uplifted rim dropoff.
+const EJPROFILE: f64 = 3.0; // The exponent for the ejecta profile
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
 const FRAYREDUCTION: f64 = 0.90;
 
-/// Defines crater dimensions for surface modification computations.
+/// Computes a crater profile elevation array from input radial distances and reference elevations.
 ///
-/// Used to parameterize the final crater size in meters.
-#[derive(FromPyObject)]
-pub struct Crater {
-    pub final_diameter: f64,
+/// This function applies `profile_function` to each radial distance in the input array.
+/// The coefficients c0, c1, c2, and c3 are calulated based on the crater dimensions and are based
+/// on the polynomial crater profile model described in Fassett and Thomson (2014).
+///
+/// # Arguments
+///
+/// * `r_array` - 1D array of radial distances from crater center (in meters).
+/// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
+/// * `diameter` - Total diameter of the crater (in meters).
+/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters).
+/// * `floor_diameter` - Diameter of the crater floor (in meters).
+/// * `rim_height` - Height of the crater rim above mean surface level (in meters).
+/// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
+///
+/// # Returns
+///
+/// * A NumPy array of modified elevations based on the crater model.
+///
+/// # Errors
+///
+/// Returns a `PyValueError` if the input arrays have mismatched lengths.
+pub fn crater_profile(
+    radial_distances: ArrayView1<'_, f64>,
+    reference_elevations: ArrayView1<'_, f64>,
+    diameter: f64,
+    floor_depth: f64,
+    floor_diameter: f64,
+    rim_height: f64,
+    ejrim: f64,
+) -> ArrayResult {
+    assert_eq!(radial_distances.len(), reference_elevations.len());
+    const A: f64 = 4.0 / 11.0;
+    const B: f64 = -32.0 / 187.0;
+    
+    // Calculate the floor radius relative to the final crater radius
+    let flrad = floor_diameter / diameter;
+    let radius = diameter / 2.0;
+
+    // Use polynomial crater profile similar to that of Fassett and Thomson (2014), but the parameters are set by the crater dimensions
+    let c1 = (-floor_depth - rim_height)
+        / (flrad - 1.0 + A * (flrad.powi(2) - 1.0) + B * (flrad.powi(3) - 1.0));
+    let c0 = rim_height - c1 * (1.0 + A + B);
+    let c2 = A * c1;
+    let c3 = B * c1;
+
+    let ninc = radial_distances.iter().filter(|&&x| x <= radius).count();
+    let meanref = if ninc == 0 {
+        *radial_distances
+            .iter()
+            .zip(reference_elevations)
+            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
+            .unwrap()
+            .1
+    } else {
+        radial_distances
+            .iter()
+            .zip(reference_elevations)
+            .filter(|(&r, _)| r <= radius)
+            .map(|(_, &e)| e)
+            .sum::<f64>()
+            / ninc as f64
+    };
+    let min_elevation = meanref - floor_depth;
+
+    Ok(Array1::from_iter(
+        reference_elevations
+            .iter()
+            .zip(radial_distances)
+            .map(|(&elevation, &radial_distance)| {
+                let r = radial_distance / radius;
+                (
+                    crater_profile_function(r, elevation, c0, c1, c2, c3, rim_height, ejrim),
+                    radial_distance,
+                )
+            })
+            .map(|(elevation, radial_distance)| {
+                if radial_distance <= radius {
+                    elevation.max(min_elevation)
+                } else {
+                    elevation
+                }
+            }),
+    ))
 }
 
-/// Morphological parameters for generating and modifying lunar surface craters.
-///
-/// Includes floor geometry, rim height, and whether to apply ray modulation.
-#[derive(FromPyObject)]
-pub struct SimpleMoonMorphology {
-    pub floor_depth: f64,
-    pub floor_diameter: f64,
-    pub rim_height: f64,
-    pub ejrim: f64,
-    pub crater: Crater,
-}
 
 /// Calculates the elevation of a crater as a function of distance from the center.
 ///
@@ -80,102 +147,34 @@ fn crater_profile_function(
     }
 }
 
-/// Computes a crater profile elevation array from input radial distances and reference elevations.
+
+/// Computes only the radial ejecta profile without ray modulation.
 ///
-/// This function applies `profile_function` to each radial distance in the input array.
-/// The coefficients c0, c1, c2, and c3 are calulated based on the crater dimensions and are based
-/// on the polynomial crater profile model described in Fassett and Thomson (2014).
+/// This is a simple power-law decay of ejecta intensity with radial distance.
 ///
 /// # Arguments
 ///
-/// * `py` - Python GIL token.
-/// * `r_array` - 1D array of radial distances from crater center (in meters).
-/// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
-/// * `diameter` - Total diameter of the crater (in meters).
-/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters).
-/// * `floor_diameter` - Diameter of the crater floor (in meters).
-/// * `rim_height` - Height of the crater rim above mean surface level (in meters).
-/// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
+/// * `radial_distance` - 1D array of radial distances from crater center.
+/// * `crater_diameter` - Diameter of the crater (meters).
+/// * `ejrim` - Profile scaling factor.
 ///
 /// # Returns
 ///
-/// * A NumPy array of modified elevations based on the crater model.
-///
-/// # Errors
-///
-/// Returns a `PyValueError` if the input arrays have mismatched lengths.
-#[pyfunction]
-pub fn crater_profile<'py>(
-    py: Python<'py>,
-    r_array: PyReadonlyArray1<'py, f64>,
-    reference_elevation_array: PyReadonlyArray1<'py, f64>,
-    diameter: f64,
-    floor_depth: f64,
-    floor_diameter: f64,
-    rim_height: f64,
+/// * A NumPy array of ejecta profile values.
+pub fn ejecta_profile(
+    radial_distance: ArrayView1<'_, f64>,
+    crater_diameter: f64,
     ejrim: f64,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let radial_distances = r_array.as_array();
-    let reference_elevations = reference_elevation_array.as_array();
-    if radial_distances.len() != reference_elevations.len() {
-        return Err(PyValueError::new_err(
-            "input arrays must have the same length",
-        ));
-    }
-    const A: f64 = 4.0 / 11.0;
-    const B: f64 = -32.0 / 187.0;
-    
-    // Calculate the floor radius relative to the final crater radius
-    let flrad = floor_diameter / diameter;
-    let radius = diameter / 2.0;
-
-    // Use polynomial crater profile similar to that of Fassett and Thomson (2014), but the parameters are set by the crater dimensions
-    let c1 = (-floor_depth - rim_height)
-        / (flrad - 1.0 + A * (flrad.powi(2) - 1.0) + B * (flrad.powi(3) - 1.0));
-    let c0 = rim_height - c1 * (1.0 + A + B);
-    let c2 = A * c1;
-    let c3 = B * c1;
-
-    let ninc = radial_distances.iter().filter(|&&x| x <= radius).count();
-    let meanref = if ninc == 0 {
-        *radial_distances
+) -> ArrayResult {
+    Ok(Array1::from_vec(
+        radial_distance
             .iter()
-            .zip(reference_elevations)
-            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
-            .unwrap()
-            .1
-    } else {
-        radial_distances
-            .iter()
-            .zip(reference_elevations)
-            .filter(|(&r, _)| r <= radius)
-            .map(|(_, &e)| e)
-            .sum::<f64>()
-            / ninc as f64
-    };
-    let min_elevation = meanref - floor_depth;
-
-    Ok(PyArray1::from_iter(
-        py,
-        reference_elevations
-            .iter()
-            .zip(radial_distances)
-            .map(|(&elevation, &radial_distance)| {
-                let r = radial_distance / radius;
-                (
-                    crater_profile_function(r, elevation, c0, c1, c2, c3, rim_height, ejrim),
-                    radial_distance,
-                )
-            })
-            .map(|(elevation, radial_distance)| {
-                if radial_distance <= radius {
-                    elevation.max(min_elevation)
-                } else {
-                    elevation
-                }
-            }),
+            .map(|&r| ejecta_profile_function(r, crater_diameter / 2.0, ejrim))
+            .collect(),
     ))
 }
+
+
 
 /// Computes the ejecta profile scaling at a given radial distance.
 ///
@@ -199,37 +198,6 @@ pub fn ejecta_profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) ->
     } else {
         0.0
     }
-}
-
-/// Computes only the radial ejecta profile without ray modulation.
-///
-/// This is a simple power-law decay of ejecta intensity with radial distance.
-///
-/// # Arguments
-///
-/// * `py` - Python GIL token.
-/// * `radial_distance` - 1D array of radial distances from crater center.
-/// * `crater_diameter` - Diameter of the crater (meters).
-/// * `ejrim` - Profile scaling factor.
-///
-/// # Returns
-///
-/// * A NumPy array of ejecta profile values.
-#[pyfunction]
-pub fn ejecta_profile<'py>(
-    py: Python<'py>,
-    radial_distance: PyReadonlyArray1<'py, f64>,
-    crater_diameter: f64,
-    ejrim: f64,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    Ok(PyArray1::from_vec(
-        py,
-        radial_distance
-            .as_array()
-            .iter()
-            .map(|&r| ejecta_profile_function(r, crater_diameter / 2.0, ejrim))
-            .collect(),
-    ))
 }
 
 /// Computes the ray intensity contribution for a single ejecta point.
@@ -291,16 +259,14 @@ fn ray_intensity_point(
 /// # Returns
 ///
 /// * A vector of normalized ray-modulated intensity values.
-pub fn ray_intensity_internal<'py>(
-    radial_distance: ArrayView1<'py, f64>,
-    initial_bearing: ArrayView1<'py, f64>,
+pub fn ray_intensity(
+    radial_distances: ArrayView1<'_, f64>,
+    initial_bearings: ArrayView1<'_, f64>,
     crater_diameter: f64,
     seed: u64,
-) -> PyResult<Vec<f64>> {
-    if radial_distance.len() != initial_bearing.len() {
-        return Err(PyValueError::new_err(
-            "initial_bearing and radial_distance arrays must be the same size.",
-        ));
+) -> ArrayResult {
+    if radial_distances.len() != initial_bearings.len() {
+        return Err("radial_distances and reference_elevations must have same length".into());
     }
     let crater_radius = crater_diameter / 2.0;
     let rmax = 100.0;
@@ -316,12 +282,12 @@ pub fn ray_intensity_internal<'py>(
 
     let random_numbers: Vec<f64> = rng.random_iter().take(NPATT as usize).collect_vec();
 
-    let mut intensity: Vec<f64> = (0..radial_distance.len())
+    let mut intensity: Vec<f64> = (0..radial_distances.len())
         .into_par_iter()
         .map(|i| {
             ray_intensity_point(
-                radial_distance[i],
-                initial_bearing[i],
+                radial_distances[i],
+                initial_bearings[i],
                 crater_radius,
                 rmin,
                 rmax,
@@ -332,51 +298,24 @@ pub fn ray_intensity_internal<'py>(
         .collect();
     let max_val = intensity
         .iter()
-        .zip(radial_distance.iter())
+        .zip(radial_distances.iter())
         .filter_map(|(&val, &r)| if r >= crater_radius { Some(val) } else { None })
         .fold(f64::MIN, |a, b| a.max(b));
     intensity = intensity
         .into_iter()
-        .zip(radial_distance)
-        .map(|(intensity, &radial_distance)| {
-            if radial_distance >= crater_radius {
+        .zip(radial_distances.iter())
+        .map(|(intensity, &r)| {
+            if r >= crater_radius {
                 intensity / max_val
             } else {
                 intensity
             }
         })
         .collect_vec();
-    Ok(intensity)
+    Ok(Array1::from_vec(intensity))
 }
 
-/// Python wrapper for computing ray-modulated ejecta intensity field.
-///
-/// # Arguments
-///
-/// * `py` - Python GIL token.
-/// * `radial_distance` - 1D array of radial distances from crater center.
-/// * `initial_bearing` - 1D array of bearing angles (radians).
-/// * `crater_diameter` - Crater diameter (meters).
-///
-/// # Returns
-///
-/// * A NumPy array of ray-modulated intensity values.
-#[pyfunction]
-pub fn ray_intensity<'py>(
-    py: Python<'py>,
-    radial_distance: PyReadonlyArray1<'py, f64>,
-    initial_bearing: PyReadonlyArray1<'py, f64>,
-    crater_diameter: f64,
-    seed: u64,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let intensity = ray_intensity_internal(
-        radial_distance.as_array(),
-        initial_bearing.as_array(),
-        crater_diameter,
-        seed,
-    )?;
-    Ok(intensity.into_pyarray(py))
-}
+
 
 /// Computes the intensity contribution of all rays for a single radial/angular location.
 ///
@@ -465,7 +404,7 @@ fn ejecta_ray_func(theta: f64, thetar: f64, r: f64, n: i32, w: f64) -> f64 {
     let b = thetar;
     let dtheta = f64::min(2.0 * PI - (theta - b).abs(), (theta - b).abs());
     let logval = -dtheta.powi(2) / (2.0 * c.powi(2));
-    if logval < VSMALL.ln() {
+    if logval < crate::VSMALL.ln() {
         0.0
     } else {
         let a = (2.0 * PI).sqrt() / (n as f64 * c * (PI / (2.0 * SQRT_2 * c)).erf());

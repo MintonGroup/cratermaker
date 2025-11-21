@@ -1,27 +1,6 @@
-[package]
-name = "cratermaker"
-version = "2025.10.1-a22+gb24916a7"
-edition = "2021"
-
-[lib]
-name = "cratermaker"
-crate-type = [ "cdylib",]
-
-[dependencies]
-itertools = "0.14.0"
-rand = "0.9.1"
-noise = "0.9.0"
-rand_chacha = "0.9.0"
-pyo3= {version = "0.27", features = ["extension-module"]}
-numpy = "0.27"
-ndarray-linalg = {version = "0.17", features = ["openblas-static"]}
-rayon = "1.11"
-
-[profile.release]
-codegen-units = 1
-lto = "fat"
-opt-level = 3
-
-[target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
-version = "0.6"
-features = [ "disable_initial_exec_tls",]
+[workspace]
+resolver = "3"
+members = [
+    "crates/cratermaker-core",
+    "crates/cratermaker-py",
+]

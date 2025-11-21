@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from cratermaker._cratermaker import counting_functions
+from cratermaker._cratermaker import counting_bindings
 from numpy.typing import NDArray
 from scipy import fft
 
@@ -62,5 +62,5 @@ class Minton2019Counting(Counting):
 
         observed_dict = {int(k): asdict(v) for k, v in self.observed.items()}
 
-        observed_ids = counting_functions.tally(region.face_elevation, id_array, observed_dict)
+        observed_ids = counting_bindings.tally(region.face_elevation, id_array, observed_dict)
         return

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import uxarray as uxr
 import xarray as xr
-from cratermaker._cratermaker import surface_functions
+from cratermaker._cratermaker import surface_bindings
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
@@ -752,7 +752,7 @@ class Surface(ComponentBase):
         x, y, z = coords.T
         return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
 
-    def calculate_distance(
+    def compute_distances(
         self,
         center_location: PairOfFloats,
         locations: ArrayLike,
@@ -779,12 +779,12 @@ class Surface(ComponentBase):
         center_location = np.radians(center_location)
         locations = np.radians(locations)
 
-        return surface_functions.calculate_distance(
+        return surface_bindings.compute_distances(
             lon1=center_location[0], lat1=center_location[1], lon2=locations[:, 0], lat2=locations[:, 1], radius=self.radius
         )
 
     @staticmethod
-    def calculate_bearing(
+    def compute_bearings(
         center_location: PairOfFloats,
         locations: ArrayLike,
     ) -> NDArray[np.float64]:
@@ -805,7 +805,7 @@ class Surface(ComponentBase):
         NDArray
             Initial bearing from the first point to the second point or points in radians.
         """
-        return LocalSurface.calculate_bearing(center_location=center_location, locations=locations)
+        return LocalSurface.compute_bearings(center_location=center_location, locations=locations)
 
     @staticmethod
     def _compute_elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
@@ -1604,7 +1604,7 @@ class Surface(ComponentBase):
         Distances between the centers of the faces that saddle each edge in meters.
         """
         if self._edge_face_distance is None:
-            self._edge_face_distance = surface_functions.compute_edge_distances(
+            self._edge_face_distance = surface_bindings.compute_edge_distances(
                 self.edge_face_connectivity, self.face_lon, self.face_lat, self.radius
             )
         return self._edge_face_distance
@@ -1619,7 +1619,7 @@ class Surface(ComponentBase):
         This is computed as the distance between the nodes that define the edge
         """
         if self._edge_lengths is None:
-            self._edge_lengths = surface_functions.compute_edge_distances(
+            self._edge_lengths = surface_bindings.compute_edge_distances(
                 self.edge_node_connectivity, self.node_lon, self.node_lat, self.radius
             )
         return self._edge_lengths
@@ -2058,7 +2058,7 @@ class LocalSurface(CratermakerBase):
         if abs(kdiffmax) < _VSMALL:
             return
 
-        delta_face_elevation = surface_functions.apply_diffusion(
+        delta_face_elevation = surface_bindings.apply_diffusion(
             face_kappa=kdiff,
             face_elevation=self.face_elevation,
             face_area=self.face_area,
@@ -2085,7 +2085,7 @@ class LocalSurface(CratermakerBase):
         except ValueError as e:
             raise ValueError("critical_slope_angle must be between 0 and 90 degrees") from e
 
-        delta_face_elevation = surface_functions.slope_collapse(
+        delta_face_elevation = surface_bindings.slope_collapse(
             critical_slope=critical_slope,
             face_elevation=self.face_elevation,
             face_lon=np.radians(self.face_lon),
@@ -2109,7 +2109,7 @@ class LocalSurface(CratermakerBase):
         NDArray[np.float64]
             The slope of all faces in degrees.
         """
-        slope = surface_functions.compute_slope(
+        slope = surface_bindings.compute_slope(
             face_elevation=self.face_elevation,
             face_lon=np.radians(self.face_lon),
             face_lat=np.radians(self.face_lat),
@@ -2148,7 +2148,7 @@ class LocalSurface(CratermakerBase):
         z = np.concatenate([self.face_z, self.node_z]) / self.surface.radius
 
         if model == "turbulence":
-            noise = surface_functions.turbulence_noise(
+            noise = surface_bindings.turbulence_noise(
                 x=x,
                 y=y,
                 z=z,
@@ -2197,7 +2197,7 @@ class LocalSurface(CratermakerBase):
         location = validate_and_normalize_location(location)
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.calculate_distance(location, face_locations), self.calculate_distance(location, node_locations)
+        return self.compute_distances(location, face_locations), self.compute_distances(location, node_locations)
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -2228,10 +2228,10 @@ class LocalSurface(CratermakerBase):
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         return (
-            surface_functions.calculate_bearing(
+            surface_bindings.compute_bearings(
                 lon1=location[0], lat1=location[1], lon2=face_locations[:, 0], lat2=face_locations[:, 1]
             ),
-            surface_functions.calculate_bearing(
+            surface_bindings.compute_bearings(
                 lon1=location[0], lat1=location[1], lon2=node_locations[:, 0], lat2=node_locations[:, 1]
             ),
         )
@@ -2247,9 +2247,9 @@ class LocalSurface(CratermakerBase):
         -------
         None
         """
-        node_elevation = surface_functions.interpolate_node_elevation_from_faces(
-            face_area=self.face_area,
+        node_elevation = surface_bindings.interpolate_node_elevation_from_faces(
             face_elevation=self.face_elevation,
+            face_area=self.face_area,
             node_face_connectivity=self.node_face_connectivity,
         )
         self.update_elevation(node_elevation, overwrite=True)
@@ -2461,7 +2461,7 @@ class LocalSurface(CratermakerBase):
         NDArray[np.float64]
             The radial gradient of all faces in meters per meter.
         """
-        radial_gradient = surface_functions.compute_radial_gradient(
+        radial_gradient = surface_bindings.compute_radial_gradient(
             variable=variable,
             face_lon=np.radians(self.face_lon),
             face_lat=np.radians(self.face_lat),
@@ -3061,7 +3061,7 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def calculate_distance(
+    def compute_distances(
         self,
         center_location: PairOfFloats,
         locations: ArrayLike,
@@ -3086,10 +3086,10 @@ class LocalSurface(CratermakerBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        return self.surface.calculate_distance(center_location, locations)
+        return self.surface.compute_distances(center_location, locations)
 
     @staticmethod
-    def calculate_bearing(
+    def compute_bearings(
         center_location: PairOfFloats,
         locations: ArrayLike,
     ) -> NDArray[np.float64]:
