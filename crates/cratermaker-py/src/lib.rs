@@ -23,7 +23,8 @@ mod cratermaker {
         use crate::counting_bindings::{
             tally, 
             radial_distance_to_ellipse, 
-            fit_one_ellipse
+            fit_one_ellipse,
+            score_rim
         };
     }
 

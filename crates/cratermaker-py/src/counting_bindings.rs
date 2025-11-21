@@ -76,3 +76,63 @@ pub fn tally<'py>(
     let id_array_flat = PyArray1::from_vec(py, id_vec);
     Ok(id_array_flat)
 }
+#[pyfunction]
+pub fn score_rim<'py>(
+    py: Python<'py>,
+    x: PyReadonlyArray1<'py, f64>, 
+    y: PyReadonlyArray1<'py, f64>, 
+    face_elevation: PyReadonlyArray1<'py,f64>,   
+    face_lon: PyReadonlyArray1<'py,f64>,
+    face_lat: PyReadonlyArray1<'py,f64>,
+    face_bearing: PyReadonlyArray1<'py,f64>,
+    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_face_connectivity: PyReadonlyArray2<'py,i64>,
+    edge_face_distance: PyReadonlyArray1<'py,f64>,
+    edge_length: PyReadonlyArray1<'py,f64>,
+    x0: f64, 
+    y0: f64, 
+    ap: f64,
+    bp: f64,
+    orientation: f64,
+    quantile: f64,
+    distmult: f64,
+    gradmult: f64,
+    curvmult: f64,
+    heightmult: f64,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let x_v = x.as_array();
+    let y_v = y.as_array();
+    let face_elevation_v = face_elevation.as_array();
+    let face_lon_v = face_lon.as_array();
+    let face_lat_v = face_lat.as_array();
+    let face_bearing_v = face_bearing.as_array();
+    let face_edge_connectivity_v = face_edge_connectivity.as_array();
+    let edge_face_connectivity_v = edge_face_connectivity.as_array();
+    let edge_face_distance_v = edge_face_distance.as_array();
+    let edge_length_v = edge_length.as_array();
+
+    let result = cratermaker_core::counting::score_rim(
+            x_v,
+            y_v,
+            face_elevation_v,
+            face_lon_v,
+            face_lat_v,
+            face_bearing_v,
+            face_edge_connectivity_v,
+            edge_face_connectivity_v,
+            edge_face_distance_v,
+            edge_length_v,
+            x0,
+            y0,
+            ap,
+            bp,
+            orientation,
+            quantile,
+            distmult,
+            gradmult,
+            curvmult,
+            heightmult
+        )
+        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray1::from_owned_array(py, result))
+}
