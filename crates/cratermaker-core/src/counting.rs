@@ -372,9 +372,8 @@ pub fn score_rim(
     heightmult: f64,
 ) ->ArrayResult { 
     let n = x.len();
-    let mut score = Array1::<f64>::zeros(x.len());
-    let MIN_POINTS_FOR_FIT = 100;
-    let EXTENT_RADIUS_CUTOFF = 1.5;
+    const MIN_POINTS_FOR_FIT: usize = 100;
+    const EXTENT_RADIUS_CUTOFF: f64 = 1.5;
 
 
     let radial_gradient = crate::surface::compute_radial_gradient(
