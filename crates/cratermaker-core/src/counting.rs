@@ -115,7 +115,6 @@ pub fn radial_distance_to_ellipse(
 /// * `x0`, `y0` - Center of the ellipse.
 /// * `ap` - Semi-major axis length.
 /// * `bp` - Semi-minor axis length.
-/// * `ep` - Eccentricity of the ellipse.
 /// * `orientation` - Orientation angle of the ellipse in radians,
 ///   wrapped into `[0, π)`.
 ///
@@ -130,7 +129,7 @@ fn ellipse_coefficients_to_parameters(
     c: f64,
     d: f64,
     f: f64,
-    g: f64) -> (f64, f64, f64, f64, f64, f64) {
+    g: f64) -> (f64, f64, f64, f64, f64) {
 
     // We use the formulas from https://mathworld.wolfram.com/Ellipse.html which assumes a cartesian form ax^2 + 2bxy + cy^2 + 2dx + 2fy + g = 0.  
     // Therefore, B, D and F must be scaled.
@@ -156,16 +155,8 @@ fn ellipse_coefficients_to_parameters(
         (bp, ap, false)
     };
 
-    // Now compute eccentricity
-    let mut r = (b / a).powi(2);
-    if r > 1.0 {
-        r = 1.0 / r;
-    }
-    let ep = (1.0 - r).sqrt();
 
-
-    // compute the orientation with respect to the x-axis
-    // if b is very close to zero, then phi is 0 if a < c otherwise it is pi/2
+    // compute the orientation with respect to the x-axis and deal with special cases
     let mut phi = if b.abs() < 1e-12 {
             if a < c {
                 0.0
@@ -185,7 +176,7 @@ fn ellipse_coefficients_to_parameters(
     let orientation = phi % PI;
     
 
-    (x0, y0, ap, bp, ep, orientation)
+    (x0, y0, ap, bp, orientation)
 }
 
 /// Converts ellipse geometric parameters back to conic coefficients.
@@ -283,7 +274,7 @@ fn geometric_distances(
     e: f64, 
     f: f64
 ) -> Array1<f64> {
-    let (x0, y0, a, b, e, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, e, f);
+    let (x0, y0, a, b, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, e, f);
 
     let n = x.len();
     let result_vec: Vec<f64> = (0..n)
@@ -663,14 +654,13 @@ fn nanquantile(arr: &Array1<f64>, q: f64) -> Option<f64> {
 ///
 /// On success, returns:
 ///
-/// `(x0, y0, ap, bp, ep, orientation, wrms)`
+/// `(x0, y0, ap, bp, orientation, wrms)`
 ///
 /// where:
 ///
 /// * `x0`, `y0` - Center of the fitted ellipse.
 /// * `ap` - Semi-major axis length.
 /// * `bp` - Semi-minor axis length.
-/// * `ep` - Eccentricity of the ellipse.
 /// * `orientation` - Orientation angle in radians.
 /// * `wrms` - Weighted root-mean-square geometric distance of the points
 ///   to the fitted ellipse.
@@ -695,7 +685,7 @@ pub fn fit_one_ellipse(
     x: ArrayView1<'_,f64>, 
     y: ArrayView1<'_,f64>, 
     weights: ArrayView1<'_,f64>
-) -> Result<(f64, f64, f64, f64, f64, f64, f64), LinalgError> {
+) -> Result<(f64, f64, f64, f64, f64, f64), LinalgError> {
     assert_eq!(x.len(), y.len());
     assert_eq!(x.len(), weights.len());
     let n = x.len();
@@ -770,8 +760,8 @@ pub fn fit_one_ellipse(
     let den = weights.sum();
     let wrms = (num / den).sqrt();
 
-    let (x0, y0, ap, bp, ep, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
+    let (x0, y0, ap, bp, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
 
-    Ok((x0, y0, ap, bp, ep, orientation, wrms))
+    Ok((x0, y0, ap, bp, orientation, wrms))
 }
 

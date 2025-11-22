@@ -41,14 +41,14 @@ pub fn fit_one_ellipse<'py>(
     let y_v = y.as_array();
     let weights_v = weights.as_array();
 
-    let (x0, y0, a, b, e, orientation, wrms) = cratermaker_core::counting::fit_one_ellipse(
+    let (x0, y0, a, b, orientation, wrms) = cratermaker_core::counting::fit_one_ellipse(
             x_v, 
             y_v, 
             weights_v
         )
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Failed to fit ellipse: {}", e)))?;
 
-    let result = Array1::from_vec(vec![x0, y0, a, b, e, orientation, wrms]);
+    let result = Array1::from_vec(vec![x0, y0, a, b, orientation, wrms]);
     Ok(PyArray1::from_owned_array(py, result))
 }
 
