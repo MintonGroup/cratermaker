@@ -1260,6 +1260,15 @@ class Surface(ComponentBase):
         return
 
     @property
+    def pix(self) -> float:
+        """
+        The effective pixel size of the mesh.
+        """
+        if self._pix is None:
+            self._pix = self.pix_mean
+        return self._pix
+
+    @property
     def pix_mean(self) -> float:
         """
         The mean pixel size of the mesh.
@@ -1866,6 +1875,8 @@ class LocalSurface(CratermakerBase):
         object.__setattr__(self, "_output_file_extension", "nc")
         object.__setattr__(self, "_from_surface", None)
         object.__setattr__(self, "_to_surface", None)
+        object.__setattr__(self, "_face_proj_x", None)
+        object.__setattr__(self, "_face_proj_y", None)
 
         self._output_dir_name = self.surface._output_dir_name
 
@@ -3795,6 +3806,24 @@ class LocalSurface(CratermakerBase):
                 always_xy=True,
             )
         return self._to_surface
+
+    @property
+    def face_proj_x(self) -> NDArray:
+        """
+        The projected x coordinates of the faces in the local CRS.
+        """
+        if self._face_proj_x is None:
+            self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
+        return self._face_proj_x
+
+    @property
+    def face_proj_y(self) -> NDArray:
+        """
+        The projected y coordinates of the faces in the local CRS.
+        """
+        if self._face_proj_y is None:
+            self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
+        return self._face_proj_y
 
 
 import_components(__name__, __path__)

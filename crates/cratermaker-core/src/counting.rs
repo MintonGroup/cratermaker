@@ -5,6 +5,54 @@ use ndarray_linalg::{Inverse, Eig};
 use rayon::prelude::*;
 use crate::ArrayResult;
 
+
+
+pub fn fit_rim(
+    x: ArrayView1<'_, f64>, 
+    y: ArrayView1<'_, f64>, 
+    face_elevation: ArrayView1<'_,f64>,   
+    face_lon: ArrayView1<'_,f64>,
+    face_lat: ArrayView1<'_,f64>,
+    face_bearing: ArrayView1<'_,f64>,
+    face_edge_connectivity: ArrayView2<'_, i64>,
+    edge_face_connectivity: ArrayView2<'_,i64>,
+    edge_face_distance: ArrayView1<'_,f64>,
+    edge_length: ArrayView1<'_,f64>,
+    x0: f64, 
+    y0: f64, 
+    ap: f64,
+    bp: f64,
+    orientation: f64,
+    quantile: f64,
+    distmult: f64,
+    gradmult: f64,
+    curvmult: f64,
+    heightmult: f64,
+) ->ArrayResult { 
+    score_rim(
+        x, 
+        y, 
+        face_elevation,   
+        face_lon,
+        face_lat,
+        face_bearing,
+        face_edge_connectivity,
+        edge_face_connectivity,
+        edge_face_distance,
+        edge_length,
+        x0, 
+        y0, 
+        ap,
+        bp,
+        orientation,
+        quantile,
+        distmult,
+        gradmult,
+        curvmult,
+        heightmult,
+    )
+}
+
 /// Computes the signed radial distance from points to an ellipse.
 ///
 /// For each input point `(x[i], y[i])`, this function:
@@ -577,47 +625,6 @@ pub fn score_rim(
     Ok(rimscore)
 }
 
-fn nanmax(arr: &Array1<f64>) -> Option<f64> {
-    arr.iter()
-        .filter(|v| !v.is_nan())
-        .copied()
-        .fold(None, |acc, x| {
-            Some(match acc {
-                Some(m) => m.max(x),
-                None => x,
-            })
-        })
-}
-
-fn nanmin(arr: &Array1<f64>) -> Option<f64> {
-    arr.iter()
-        .filter(|v| !v.is_nan())
-        .copied()
-        .fold(None, |acc, x| {
-            Some(match acc {
-                Some(m) => m.min(x),
-                None => x,
-            })
-        })
-}
-
-fn nanquantile(arr: &Array1<f64>, q: f64) -> Option<f64> {
-    let mut vals: Vec<f64> = arr
-        .iter()
-        .copied()
-        .filter(|v| !v.is_nan())
-        .collect();
-
-    if vals.is_empty() {
-        return None;
-    }
-
-    vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let q_clamped = q.clamp(0.0, 1.0);
-    let idx = ((vals.len() - 1) as f64 * q_clamped).floor() as usize;
-    Some(vals[idx.min(vals.len() - 1)])
-}
-
 /// Fits a single weighted ellipse to 2D points using direct least squares.
 ///
 /// This function implements a **numerically stable, weighted** variant of the
@@ -765,3 +772,45 @@ pub fn fit_one_ellipse(
     Ok((x0, y0, ap, bp, orientation, wrms))
 }
 
+
+// Helper functions to reproduce numpy.nanmax, nanmin, nanquantile behavior
+fn nanmax(arr: &Array1<f64>) -> Option<f64> {
+    arr.iter()
+        .filter(|v| !v.is_nan())
+        .copied()
+        .fold(None, |acc, x| {
+            Some(match acc {
+                Some(m) => m.max(x),
+                None => x,
+            })
+        })
+}
+
+fn nanmin(arr: &Array1<f64>) -> Option<f64> {
+    arr.iter()
+        .filter(|v| !v.is_nan())
+        .copied()
+        .fold(None, |acc, x| {
+            Some(match acc {
+                Some(m) => m.min(x),
+                None => x,
+            })
+        })
+}
+
+fn nanquantile(arr: &Array1<f64>, q: f64) -> Option<f64> {
+    let mut vals: Vec<f64> = arr
+        .iter()
+        .copied()
+        .filter(|v| !v.is_nan())
+        .collect();
+
+    if vals.is_empty() {
+        return None;
+    }
+
+    vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let q_clamped = q.clamp(0.0, 1.0);
+    let idx = ((vals.len() - 1) as f64 * q_clamped).floor() as usize;
+    Some(vals[idx.min(vals.len() - 1)])
+}

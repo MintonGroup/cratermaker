@@ -2,6 +2,88 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
 
+// Mirrors the LocalSurface struct in cratermaker-core and provides read-only access to its fields from Python.
+pub struct LocalSurface<'py> {
+    pub n_face:         usize,
+    pub pix:            f64,
+    pub face_area:      PyReadonlyArray1<'py, f64>,
+    pub face_elevation: PyReadonlyArray1<'py, f64>,
+    pub face_indices:   PyReadonlyArray1<'py, i64>,
+    pub face_lon:       PyReadonlyArray1<'py, f64>,
+    pub face_lat:       PyReadonlyArray1<'py, f64>,
+    pub face_x:         PyReadonlyArray1<'py, f64>,
+    pub face_y:         PyReadonlyArray1<'py, f64>,
+    pub face_z:         PyReadonlyArray1<'py, f64>,
+    pub face_proj_x:    PyReadonlyArray1<'py, f64>,
+    pub face_proj_y:    PyReadonlyArray1<'py, f64>,
+    pub face_distance:  PyReadonlyArray1<'py, f64>,
+    pub face_bearing:   PyReadonlyArray1<'py, f64>,
+
+    pub n_node:         usize,
+    pub node_elevation: PyReadonlyArray1<'py, f64>,
+    pub node_indices:   PyReadonlyArray1<'py, i64>,
+    pub node_lon:       PyReadonlyArray1<'py, f64>,
+    pub node_lat:       PyReadonlyArray1<'py, f64>,
+    pub node_x:         PyReadonlyArray1<'py, f64>,
+    pub node_y:         PyReadonlyArray1<'py, f64>,
+    pub node_z:         PyReadonlyArray1<'py, f64>,
+
+    pub n_edge:                 usize,
+    pub edge_indices:           PyReadonlyArray1<'py, i64>,
+    pub edge_lengths:           PyReadonlyArray1<'py, f64>,
+
+    pub face_edge_connectivity: PyReadonlyArray2<'py, i64>,
+    pub face_node_connectivity: PyReadonlyArray2<'py, i64>,
+    pub face_face_connectivity: PyReadonlyArray2<'py, i64>,
+    pub node_face_connectivity: PyReadonlyArray2<'py, i64>,
+    pub edge_face_connectivity: PyReadonlyArray2<'py, i64>,
+    pub edge_node_connectivity: PyReadonlyArray2<'py, i64>,
+    pub edge_face_distance:     PyReadonlyArray1<'py, f64>,
+}
+impl<'py> LocalSurface<'py> {
+    /// Build from a Python LocalSurface object
+    pub fn from_local_surface(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            n_face: obj.getattr("n_face")?.extract()?,
+            pix:    obj.getattr("pix")?.extract()?,
+            face_area:      obj.getattr("face_area")?.extract()?,
+            face_elevation: obj.getattr("face_elevation")?.extract()?,
+            face_indices:   obj.getattr("face_indices")?.extract()?,
+            face_lon:       obj.getattr("face_lon")?.extract()?,
+            face_lat:       obj.getattr("face_lat")?.extract()?,
+            face_x: obj.getattr("face_x")?.extract()?,  
+            face_y: obj.getattr("face_y")?.extract()?,
+            face_z: obj.getattr("face_z")?.extract()?,
+            face_proj_x:    obj.getattr("face_proj_x")?.extract()?,
+            face_proj_y:    obj.getattr("face_proj_y")?.extract()?,
+            face_distance:  obj.getattr("face_distance")?.extract()?,
+            face_bearing:   obj.getattr("face_bearing")?.extract()?,
+
+            n_node: obj.getattr("n_node")?.extract()?,
+            node_elevation: obj.getattr("node_elevation")?.extract()?,
+            node_indices:   obj.getattr("node_indices")?.extract()?,
+            node_lon:       obj.getattr("node_lon")?.extract()?,
+            node_lat:       obj.getattr("node_lat")?.extract()?,
+            node_x: obj.getattr("node_x")?.extract()?,
+            node_y: obj.getattr("node_y")?.extract()?,
+            node_z: obj.getattr("node_z")?.extract()?,
+
+            n_edge: obj.getattr("n_edge")?.extract()?,
+            edge_indices:           obj.getattr("edge_indices")?.extract()?,
+            edge_lengths:           obj.getattr("edge_lengths")?.extract()?,
+
+            face_edge_connectivity: obj.getattr("face_edge_connectivity")?.extract()?,
+            face_node_connectivity: obj.getattr("face_node_connectivity")?.extract()?,
+            face_face_connectivity: obj.getattr("face_face_connectivity")?.extract()?,
+            node_face_connectivity: obj.getattr("node_face_connectivity")?.extract()?,
+            edge_face_connectivity: obj.getattr("edge_face_connectivity")?.extract()?,
+            edge_node_connectivity: obj.getattr("edge_node_connectivity")?.extract()?,
+            edge_face_distance:     obj.getattr("edge_face_distance")?.extract()?,
+        })
+    }
+}
+
+
 /// Computes the Haversine distance between a single point and an array of points on a sphere given their longitude and latitude in radians.
 ///
 /// # Arguments
