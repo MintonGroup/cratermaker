@@ -28,9 +28,9 @@ pub struct LocalSurface<'py> {
     pub node_y:         PyReadonlyArray1<'py, f64>,
     pub node_z:         PyReadonlyArray1<'py, f64>,
 
-    pub n_edge:                 usize,
-    pub edge_indices:           PyReadonlyArray1<'py, i64>,
-    pub edge_lengths:           PyReadonlyArray1<'py, f64>,
+    pub n_edge:       usize,
+    pub edge_indices: PyReadonlyArray1<'py, i64>,
+    pub edge_length:  PyReadonlyArray1<'py, f64>,
 
     pub face_edge_connectivity: PyReadonlyArray2<'py, i64>,
     pub face_node_connectivity: PyReadonlyArray2<'py, i64>,
@@ -44,33 +44,33 @@ impl<'py> LocalSurface<'py> {
     /// Build from a Python LocalSurface object
     pub fn from_local_surface(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            n_face: obj.getattr("n_face")?.extract()?,
-            pix:    obj.getattr("pix")?.extract()?,
+            n_face:         obj.getattr("n_face")?.extract()?,
+            pix:            obj.getattr("pix")?.extract()?,
             face_area:      obj.getattr("face_area")?.extract()?,
             face_elevation: obj.getattr("face_elevation")?.extract()?,
             face_indices:   obj.getattr("face_indices")?.extract()?,
             face_lon:       obj.getattr("face_lon")?.extract()?,
             face_lat:       obj.getattr("face_lat")?.extract()?,
-            face_x: obj.getattr("face_x")?.extract()?,  
-            face_y: obj.getattr("face_y")?.extract()?,
-            face_z: obj.getattr("face_z")?.extract()?,
+            face_x:         obj.getattr("face_x")?.extract()?,  
+            face_y:         obj.getattr("face_y")?.extract()?,
+            face_z:         obj.getattr("face_z")?.extract()?,
             face_proj_x:    obj.getattr("face_proj_x")?.extract()?,
             face_proj_y:    obj.getattr("face_proj_y")?.extract()?,
             face_distance:  obj.getattr("face_distance")?.extract()?,
             face_bearing:   obj.getattr("face_bearing")?.extract()?,
 
-            n_node: obj.getattr("n_node")?.extract()?,
+            n_node:         obj.getattr("n_node")?.extract()?,
             node_elevation: obj.getattr("node_elevation")?.extract()?,
             node_indices:   obj.getattr("node_indices")?.extract()?,
             node_lon:       obj.getattr("node_lon")?.extract()?,
             node_lat:       obj.getattr("node_lat")?.extract()?,
-            node_x: obj.getattr("node_x")?.extract()?,
-            node_y: obj.getattr("node_y")?.extract()?,
-            node_z: obj.getattr("node_z")?.extract()?,
+            node_x:         obj.getattr("node_x")?.extract()?,
+            node_y:         obj.getattr("node_y")?.extract()?,
+            node_z:         obj.getattr("node_z")?.extract()?,
 
-            n_edge: obj.getattr("n_edge")?.extract()?,
-            edge_indices:           obj.getattr("edge_indices")?.extract()?,
-            edge_lengths:           obj.getattr("edge_lengths")?.extract()?,
+            n_edge:        obj.getattr("n_edge")?.extract()?,
+            edge_indices:  obj.getattr("edge_indices")?.extract()?,
+            edge_length:   obj.getattr("edge_length")?.extract()?,
 
             face_edge_connectivity: obj.getattr("face_edge_connectivity")?.extract()?,
             face_node_connectivity: obj.getattr("face_node_connectivity")?.extract()?,
@@ -81,75 +81,46 @@ impl<'py> LocalSurface<'py> {
             edge_face_distance:     obj.getattr("edge_face_distance")?.extract()?,
         })
     }
-}
+    /// Convert to cratermaker-core LocalSurface with array views
+    pub fn as_views(&self) -> cratermaker_core::surface::LocalSurface<'_> {
+        cratermaker_core::surface::LocalSurface {
+            n_face:                 self.n_face,
+            pix:                    self.pix,
+            face_area:              self.face_area.as_array(),
+            face_elevation:         self.face_elevation.as_array(),
+            face_indices:           self.face_indices.as_array(),
+            face_lon:               self.face_lon.as_array(),
+            face_lat:               self.face_lat.as_array(),
+            face_x:                 self.face_x.as_array(),
+            face_y:                 self.face_y.as_array(),
+            face_z:                 self.face_z.as_array(),
+            face_proj_x:            self.face_proj_x.as_array(),
+            face_proj_y:            self.face_proj_y.as_array(),
+            face_distance:          self.face_distance.as_array(),
+            face_bearing:           self.face_bearing.as_array(),
 
+            n_node:                 self.n_node,
+            node_elevation:         self.node_elevation.as_array(),
+            node_indices:           self.node_indices.as_array(),
+            node_lon:               self.node_lon.as_array(),
+            node_lat:               self.node_lat.as_array(),
+            node_x:                 self.node_x.as_array(),
+            node_y:                 self.node_y.as_array(),
+            node_z:                 self.node_z.as_array(),
 
-/// Computes the Haversine distance between a single point and an array of points on a sphere given their longitude and latitude in radians.
-///
-/// # Arguments
-/// * `lon1`, `lat1` - Coordinates of the first point in radians.
-/// * `lon2`, `lat2` - Array of coordinates of the second point in radians.
-/// * `radius` - Radius of the sphere in meters.
-///
-/// # Returns
-/// Distance in meters between the pairs of points along the surface of the sphere.
-#[pyfunction]
-pub fn compute_distances<'py>(
-    py: Python<'py>,
-    lon1: f64,
-    lat1: f64,
-    lon2: PyReadonlyArray1<'py, f64>,
-    lat2: PyReadonlyArray1<'py, f64>,
-    radius: f64,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let lon2_v = lon2.as_array();
-    let lat2_v = lat2.as_array();
-    let result =  cratermaker_core::surface::compute_distances(
-            lon1,
-            lat1,
-            lon2_v,
-            lat2_v,
-            radius
-        )
-        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    Ok(PyArray1::from_owned_array(py, result))
-}
+            n_edge:                 self.n_edge,
+            edge_indices:           self.edge_indices.as_array(),
+            edge_length:            self.edge_length.as_array(),
 
-
-/// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
-///
-/// The bearing is calculated on a spherical surface using great-circle paths and returned in radians,
-/// normalized to the range [0, 2π).
-///
-/// # Arguments
-///
-/// * `py` - Python GIL token.
-/// * `lon1` - Longitude of the reference point, in radians.
-/// * `lat1` - Latitude of the reference point, in radians.
-/// * `lon2` - Longitudes of destination points, in radians.
-/// * `lat2` - Latitudes of destination points, in radians.
-///
-/// # Returns
-///
-/// * A NumPy array of initial bearing angles (radians), one for each (lon2, lat2) pair.
-#[pyfunction]
-pub fn compute_bearings<'py>(
-    py: Python<'py>,
-    lon1: f64,
-    lat1: f64,
-    lon2: PyReadonlyArray1<'py, f64>,
-    lat2: PyReadonlyArray1<'py, f64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let lon2_v = lon2.as_array();
-    let lat2_v = lat2.as_array();
-    let result =  cratermaker_core::surface::compute_bearings(
-            lon1,
-            lat1,
-            lon2_v,
-            lat2_v,
-        )
-        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    Ok(PyArray1::from_owned_array(py, result))
+            face_edge_connectivity: self.face_edge_connectivity.as_array(),
+            face_node_connectivity: self.face_node_connectivity.as_array(),
+            face_face_connectivity: self.face_face_connectivity.as_array(),
+            node_face_connectivity: self.node_face_connectivity.as_array(),
+            edge_face_connectivity: self.edge_face_connectivity.as_array(),
+            edge_node_connectivity: self.edge_node_connectivity.as_array(),
+            edge_face_distance:     self.edge_face_distance.as_array(),
+        }
+    }
 }
 
 
@@ -164,11 +135,7 @@ pub fn compute_bearings<'py>(
 /// # Arguments
 ///
 /// * `py` - Python interpreter token.
-/// * `face_kappa` - Topographic diffusivity (1D array of length n_face)
-/// * `face_elevation` - Elevation value of the faces (1D array of length n_face)
-/// * `face_area` - Area of the faces (1D array of length n_face)
-/// * `edge_face_connectivity` - Indices of the faces saddle each edge. (2D array of shape n_edge x 2).
-/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+/// * `region` - A LocalSurface object representing the local mesh region.
 ///
 /// # Returns
 ///
@@ -176,26 +143,17 @@ pub fn compute_bearings<'py>(
 #[pyfunction]
 pub fn apply_diffusion<'py>(
     py: Python<'py>,
+    region: Bound<'py, PyAny>,
     face_kappa: PyReadonlyArray1<'py, f64>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
-    face_area: PyReadonlyArray1<'py, f64>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distance: PyReadonlyArray1<'py, f64>,
-    edge_length: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
     let face_kappa_v = face_kappa.as_array();
-    let face_elevation_v = face_elevation.as_array();
-    let face_area_v = face_area.as_array();
-    let edge_face_connectivity_v = edge_face_connectivity.as_array();
-    let edge_face_distance_v = edge_face_distance.as_array();
-    let edge_length_v = edge_length.as_array();
+    let face_elevation_v = region_py.face_elevation.as_array();
     let result =  cratermaker_core::surface::apply_diffusion(
             face_kappa_v,
             face_elevation_v,
-            face_area_v,
-            edge_face_connectivity_v,
-            edge_face_distance_v,
-            edge_length_v,
+            &region_v
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
@@ -211,13 +169,7 @@ pub fn apply_diffusion<'py>(
 /// # Arguments
 /// * `py` - Python interpreter token.
 /// * `variable` - The variable to compute the gradient for at each face (1D array).
-/// * `face_lon` - Longitude at each face in radians (1D array).
-/// * `face_lat` - Latitude at each face in radians (1D array).
-/// * `face_bearing` - Bearing at each face in radians (1D array).
-/// * `face_area` - Area of each face (1D array).
-/// * `edge_face_connectivity` - Indices of the faces (global) that saddle each edge. (2D array of shape n_edge x 2).
-/// * 'face_edge_connectivity` - Indices of the edges that surround each face (2D array of shape n_face x n_max_edges).
-/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+/// * `region` - A LocalSurface object representing the local mesh region.
 ///
 /// # Returns
 /// An arrays of radial gradient values same length as `face_indices`.
@@ -225,31 +177,14 @@ pub fn apply_diffusion<'py>(
 pub fn compute_radial_gradient<'py>(
     py: Python<'py>,
     variable: PyReadonlyArray1<'py, f64>,
-    face_lon: PyReadonlyArray1<'py, f64>,
-    face_lat: PyReadonlyArray1<'py, f64>,
-    face_bearing: PyReadonlyArray1<'py, f64>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distance: PyReadonlyArray1<'py, f64>,
-    edge_length: PyReadonlyArray1<'py, f64>,
+    region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let variable_v = variable.as_array();
-    let face_bearing_v = face_bearing.as_array();
-    let face_lon_v = face_lon.as_array();
-    let face_lat_v = face_lat.as_array();
-    let edge_face_connectivity_v = edge_face_connectivity.as_array();
-    let face_edge_connectivity_v = face_edge_connectivity.as_array();
-    let edge_face_distance_v = edge_face_distance.as_array();
-    let edge_length_v = edge_length.as_array();
+    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
     let result =  cratermaker_core::surface::compute_radial_gradient(
             variable_v,
-            face_lon_v,
-            face_lat_v,
-            face_bearing_v,
-            face_edge_connectivity_v,
-            edge_face_connectivity_v,
-            edge_face_distance_v,
-            edge_length_v,
+            &region_v,
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
@@ -268,40 +203,19 @@ pub fn compute_radial_gradient<'py>(
 ///
 /// # Arguments
 /// * `py` - Python interpreter token.
-/// * `face_elevation` - Elevation at each face (1D array).
-/// * `face_area` - Area of each face (1D array).
-/// * `edge_face_connectivity` - Indices of the faces (global) that saddle each edge. (2D array of shape n_edge x 2).
-/// * 'face_edge_connectivity` - Indices of the edges that surround each face (2D array of shape n_face x n_max_edges).
-/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+/// * `region` - A LocalSurface object representing the local mesh region.
 ///
 /// # Returns
 /// A NumPy array of slope values (1D array), same length as `face_indices`.
 #[pyfunction]
 pub fn compute_slope<'py>(
     py: Python<'py>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
-    face_lon: PyReadonlyArray1<'py, f64>,
-    face_lat: PyReadonlyArray1<'py, f64>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distance: PyReadonlyArray1<'py, f64>,
-    edge_length: PyReadonlyArray1<'py, f64>,
+    region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_elevation = face_elevation.as_array();
-    let face_lon = face_lon.as_array();
-    let face_lat = face_lat.as_array();
-    let edge_face_connectivity = edge_face_connectivity.as_array();
-    let face_edge_connectivity = face_edge_connectivity.as_array();
-    let edge_face_distance = edge_face_distance.as_array();
-    let edge_length = edge_length.as_array();
+    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
     let result = cratermaker_core::surface::compute_slope(
-            face_elevation,
-            face_lon,
-            face_lat,
-            edge_face_connectivity,
-            face_edge_connectivity,
-            edge_face_distance,
-            edge_length
+            &region_v
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
@@ -317,11 +231,7 @@ pub fn compute_slope<'py>(
 ///
 /// * `py` - Python interpreter token.
 /// * `critical_slope` - Maximum allowable slope (e.g., 0.7 for ~35 degrees).
-/// * `face_elevation` - Elevation at each face (1D array).
-/// * `face_area` - Area of each face (1D array).
-/// * `edge_face_connectivity` - Indices of the faces that saddle each edge. (2D array of shape n_edge x 2).
-/// * 'face_edge_connectivity` - Indices of the edges that surround each face (2D array of shape n_face x n_max_edges).
-/// * `edge_face_distance` - Distances between the centers of the faces that saddle each edge in meters (1D array of length n_edge). 
+/// * `region` - A LocalSurface object representing the local mesh region.
 ///
 /// # Returns
 ///
@@ -330,33 +240,13 @@ pub fn compute_slope<'py>(
 pub fn slope_collapse<'py>(
     py: Python<'py>,
     critical_slope: f64,
-    face_elevation: PyReadonlyArray1<'py, f64>,
-    face_lon: PyReadonlyArray1<'py, f64>,
-    face_lat: PyReadonlyArray1<'py, f64>,
-    face_area: PyReadonlyArray1<'py, f64>,
-    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
-    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_distance: PyReadonlyArray1<'py, f64>,
-    edge_length: PyReadonlyArray1<'py, f64>,
+    region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_elevation_v = face_elevation.as_array();
-    let face_lon_v = face_lon.as_array();
-    let face_lat_v = face_lat.as_array();
-    let face_area_v = face_area.as_array();
-    let edge_face_connectivity_v = edge_face_connectivity.as_array();
-    let face_edge_connectivity_v = face_edge_connectivity.as_array();
-    let edge_face_distance_v = edge_face_distance.as_array();
-    let edge_length_v = edge_length.as_array();
+    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
     let result = cratermaker_core::surface::slope_collapse(
             critical_slope,
-            face_elevation_v,
-            face_lon_v,
-            face_lat_v,
-            face_area_v,
-            edge_face_connectivity_v,
-            face_edge_connectivity_v,
-            edge_face_distance_v,
-            edge_length_v
+            region_v,
             )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
@@ -368,9 +258,7 @@ pub fn slope_collapse<'py>(
 /// # Arguments
 ///
 /// * `py` - Python interpreter token.
-/// * `face_area` - Area of each face (1D array).
-/// * `face_elevation` - Elevation at each face (1D array).
-/// * `node_face_connectivity` - For each node, indices of connected faces (2D array).
+/// * `region` - A LocalSurface object representing the local mesh region.
 ///
 /// # Returns
 ///
@@ -378,17 +266,12 @@ pub fn slope_collapse<'py>(
 #[pyfunction]
 pub fn interpolate_node_elevation_from_faces<'py>(
     py: Python<'py>,
-    face_area: PyReadonlyArray1<'py, f64>,
-    face_elevation: PyReadonlyArray1<'py, f64>,
-    node_face_connectivity: PyReadonlyArray2<'py, i64>,
+    region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let face_area_v = face_area.as_array();
-    let face_elevation_v = face_elevation.as_array();
-    let node_face_connectivity_v = node_face_connectivity.as_array();
+    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
     let result = cratermaker_core::surface::interpolate_node_elevation_from_faces(
-            face_elevation_v, 
-            face_area_v, 
-            node_face_connectivity_v
+            region_v
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
@@ -475,6 +358,75 @@ pub fn compute_edge_distances<'py>(
             lon_v,
             lat_v,
             radius,
+        )
+        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray1::from_owned_array(py, result))
+}
+
+
+/// Computes the Haversine distance between a single point and an array of points on a sphere given their longitude and latitude in radians.
+///
+/// # Arguments
+/// * `lon1`, `lat1` - Coordinates of the first point in radians.
+/// * `lon2`, `lat2` - Array of coordinates of the second point in radians.
+/// * `radius` - Radius of the sphere in meters.
+///
+/// # Returns
+/// Distance in meters between the pairs of points along the surface of the sphere.
+#[pyfunction]
+pub fn compute_distances<'py>(
+    py: Python<'py>,
+    lon1: f64,
+    lat1: f64,
+    lon2: PyReadonlyArray1<'py, f64>,
+    lat2: PyReadonlyArray1<'py, f64>,
+    radius: f64,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let lon2_v = lon2.as_array();
+    let lat2_v = lat2.as_array();
+    let result =  cratermaker_core::surface::compute_distances(
+            lon1,
+            lat1,
+            lon2_v,
+            lat2_v,
+            radius
+        )
+        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray1::from_owned_array(py, result))
+}
+
+
+/// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
+///
+/// The bearing is calculated on a spherical surface using great-circle paths and returned in radians,
+/// normalized to the range [0, 2π).
+///
+/// # Arguments
+///
+/// * `py` - Python GIL token.
+/// * `lon1` - Longitude of the reference point, in radians.
+/// * `lat1` - Latitude of the reference point, in radians.
+/// * `lon2` - Longitudes of destination points, in radians.
+/// * `lat2` - Latitudes of destination points, in radians.
+///
+/// # Returns
+///
+/// * A NumPy array of initial bearing angles (radians), one for each (lon2, lat2) pair.
+#[pyfunction]
+pub fn compute_bearings<'py>(
+    py: Python<'py>,
+    lon1: f64,
+    lat1: f64,
+    lon2: PyReadonlyArray1<'py, f64>,
+    lat2: PyReadonlyArray1<'py, f64>,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let lon2_v = lon2.as_array();
+    let lat2_v = lat2.as_array();
+    let result =  cratermaker_core::surface::compute_bearings(
+            lon1,
+            lat1,
+            lon2_v,
+            lat2_v,
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))

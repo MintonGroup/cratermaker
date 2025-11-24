@@ -2,6 +2,18 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 use numpy::ndarray::prelude::*;
 use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
+use crater::cratermaker_py::surface::LocalSurface;
+
+pub struct Ellipse {
+    pub x0: f64,
+    pub y0: f64,
+    pub ap: f64,
+    pub bp: f64,
+    pub ep: f64,
+    pub orientation: f64,
+    pub coeff: [f64; 6],
+}
+
 
 #[pyfunction]
 pub fn radial_distance_to_ellipse<'py>(
@@ -79,16 +91,7 @@ pub fn tally<'py>(
 #[pyfunction]
 pub fn score_rim<'py>(
     py: Python<'py>,
-    x: PyReadonlyArray1<'py, f64>, 
-    y: PyReadonlyArray1<'py, f64>, 
-    face_elevation: PyReadonlyArray1<'py,f64>,   
-    face_lon: PyReadonlyArray1<'py,f64>,
-    face_lat: PyReadonlyArray1<'py,f64>,
-    face_bearing: PyReadonlyArray1<'py,f64>,
-    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
-    edge_face_connectivity: PyReadonlyArray2<'py,i64>,
-    edge_face_distance: PyReadonlyArray1<'py,f64>,
-    edge_length: PyReadonlyArray1<'py,f64>,
+    region: Bound<'py, PyAny>,
     x0: f64, 
     y0: f64, 
     ap: f64,
@@ -100,28 +103,10 @@ pub fn score_rim<'py>(
     curvmult: f64,
     heightmult: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let x_v = x.as_array();
-    let y_v = y.as_array();
-    let face_elevation_v = face_elevation.as_array();
-    let face_lon_v = face_lon.as_array();
-    let face_lat_v = face_lat.as_array();
-    let face_bearing_v = face_bearing.as_array();
-    let face_edge_connectivity_v = face_edge_connectivity.as_array();
-    let edge_face_connectivity_v = edge_face_connectivity.as_array();
-    let edge_face_distance_v = edge_face_distance.as_array();
-    let edge_length_v = edge_length.as_array();
-
+    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
     let result = cratermaker_core::counting::score_rim(
-            x_v,
-            y_v,
-            face_elevation_v,
-            face_lon_v,
-            face_lat_v,
-            face_bearing_v,
-            face_edge_connectivity_v,
-            edge_face_connectivity_v,
-            edge_face_distance_v,
-            edge_length_v,
+            region_v,
             x0,
             y0,
             ap,

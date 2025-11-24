@@ -2069,14 +2069,7 @@ class LocalSurface(CratermakerBase):
         if abs(kdiffmax) < _VSMALL:
             return
 
-        delta_face_elevation = surface_bindings.apply_diffusion(
-            face_kappa=kdiff,
-            face_elevation=self.face_elevation,
-            face_area=self.face_area,
-            edge_face_connectivity=self.edge_face_connectivity,
-            edge_face_distance=self.edge_face_distance,
-            edge_length=self.edge_length,
-        )
+        delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", delta_face_elevation)
         self.interpolate_node_elevation_from_faces()
@@ -2096,17 +2089,7 @@ class LocalSurface(CratermakerBase):
         except ValueError as e:
             raise ValueError("critical_slope_angle must be between 0 and 90 degrees") from e
 
-        delta_face_elevation = surface_bindings.slope_collapse(
-            critical_slope=critical_slope,
-            face_elevation=self.face_elevation,
-            face_lon=np.radians(self.face_lon),
-            face_lat=np.radians(self.face_lat),
-            face_area=self.face_area,
-            edge_face_connectivity=self.edge_face_connectivity,
-            face_edge_connectivity=self.face_edge_connectivity,
-            edge_face_distance=self.edge_face_distance,
-            edge_length=self.edge_length,
-        )
+        delta_face_elevation = surface_bindings.slope_collapse(critical_slope=critical_slope, region=self)
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", delta_face_elevation)
         self.interpolate_node_elevation_from_faces()
