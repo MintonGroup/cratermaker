@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 use numpy::ndarray::prelude::*;
 use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
-use crater::cratermaker_py::surface::LocalSurface;
+use crate::cratermaker_py::surface::LocalSurface;
 
 pub struct Ellipse {
     pub x0: f64,
