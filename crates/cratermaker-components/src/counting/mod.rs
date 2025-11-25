@@ -9,26 +9,23 @@ use crate::crater::Crater;
 
 pub fn fit_rim(
     region: &LocalSurfaceView<'_>,
-    x0: f64, 
-    y0: f64, 
     crater: &Crater,
-    quantile: f64,
-    distmult: f64,
-    gradmult: f64,
-    curvmult: f64,
-    heightmult: f64,
-) ->ArrayResult { 
-    score_rim(
-        region, 
-        x0,
-        y0,
-        crater,
-        quantile,
-        distmult,
-        gradmult,
-        curvmult,
-        heightmult,
-    )
+    tol: f64,
+    nloops: f64,
+    score_quantile: f64,
+) ->Result<(f64, f64, f64, f64, f64), LinalgError> { 
+    // score_rim(
+    //     region, 
+    //     x0,
+    //     y0,
+    //     crater,
+    //     quantile,
+    //     distmult,
+    //     gradmult,
+    //     curvmult,
+    //     heightmult,
+    // )
+    Ok((0.0, 0.0, 0.0, 0.0, 0.0))
 }
 
 /// Computes the signed radial distance from points to an ellipse.

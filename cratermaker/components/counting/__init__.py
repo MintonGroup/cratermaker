@@ -10,12 +10,11 @@ import numpy as np
 import pandas as pd
 import uxarray as uxr
 import xarray as xr
-from pyproj import Geod
-from shapely.geometry import GeometryCollection, LineString, Polygon
-from shapely.ops import split, transform
+from shapely.geometry import GeometryCollection
+from shapely.ops import , transform
 
 from cratermaker.components.crater import Crater
-from cratermaker.constants import FloatLike
+from cratermaker._cratermaker import counting_bindings
 from cratermaker.core.base import ComponentBase, import_components
 
 if TYPE_CHECKING:
@@ -212,45 +211,7 @@ class Counting(ComponentBase):
     def _fit_rim_one(self, crater, score_quantile=0.99, distmult=1.0, gradmult=1.0, curvmult=1.0, heightmult=1.0):
         pass
 
-    # def score_rim(
-    #     self,
-    #     subregion,
-    #     crater,
-    #     quantile,
-    #     distmult=1.0,
-    #     gradmult=1.0,
-    #     curvmult=1.0,
-    #     heightmult=1.0,
-    # ):
-    #     x0 = 0.0
-    #     y0 = 0.0
-
-    #     x0, y0 = subregion.from_surface.transform(crater.location[0], crater.location[1])
-
-    #     rimscore = counting_bindings.score_rim(
-    #         subregion,
-    #         x0,
-    #         y0,
-    #         crater,
-    #         quantile,
-    #         distmult,
-    #         gradmult,
-    #         curvmult,
-    #         heightmult,
-    #     )
-
-    #     subregion.add_data(
-    #         name="rimscore",
-    #         data=rimscore,
-    #         long_name="Rim Score",
-    #         units="1",
-    #         overwrite=True,
-    #         fill_value=np.nan,
-    #     )
-
-    #     return subregion
-
-    def find_rim(self, crater: Crater) -> LocalSurface:
+    def fit_rim(self, crater: Crater, tol=0.001, nloops=10, score_quantile=0.95) -> Crater:
         """
         Find the rim region of a crater on the surface.
 
@@ -261,16 +222,23 @@ class Counting(ComponentBase):
 
         Returns
         -------
-        LocalSurface
-            A LocalSurface representing the rim region of the crater.
+        Crater
+            A new Crater object with updated rim parameters.
         """
-        from cratermaker.components.surface import LocalSurface
-
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
         # Extract a local region aroundt he crater
-        subregion = self.surface.extract_region(location=crater.location, region_radius=_EXTENT_RADIUS_RATIO * crater.radius)
+        region = self.surface.extract_region(location=crater.location, region_radius=_EXTENT_RADIUS_RATIO * crater.radius)
+        crater_fit = _counting_bindings.fit_rim(region, crater, tol, nloops, score_quantile)
+
+        # a = crater.semimajor_axis
+        # b = crater.semiminor_axis
+        # orientation = crater.orientation
+        # location = crater.location
+        # for _ in range(nloops):
+
+        # x0, y0 = subregion.from_surface.transform(crater.location[0], crater.location[1])
 
         return
 

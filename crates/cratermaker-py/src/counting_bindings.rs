@@ -80,3 +80,27 @@ pub fn score_rim<'py>(
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
 }
+
+
+#[pyfunction]
+pub fn fit_rim<'py>(
+    py: Python<'py>,
+    region: Bound<'py, PyAny>,
+    crater: Crater, 
+    tol: f64,
+    nloops: usize,
+    score_quantile: f64,
+) -> PyResult<(f64, f64, f64, f64, f64)> {
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
+    let (a, b, orientation, lon, lat) = cratermaker_components::counting::fit_rim(
+            &region_v,
+            &crater,
+            tol,
+            nloops,
+            score_quantile
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+    Ok((a, b, orientation, lon, lat))
+}
