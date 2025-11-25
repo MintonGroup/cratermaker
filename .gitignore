@@ -29,6 +29,15 @@ cratermaker/_version.py
 !crates/**/Cargo.toml 
 !crates/cratermaker-components/
 !crates/cratermaker-components/src/
+!crates/cratermaker-components/src/crater/
+!crates/cratermaker-components/src/morphology/
+!crates/cratermaker-components/src/production/
+!crates/cratermaker-components/src/projectile/
+!crates/cratermaker-components/src/scaling/
+!crates/cratermaker-components/src/surface/
+!crates/cratermaker-components/src/target/
+!crates/cratermaker-components/src/counting/
+
 !crates/cratermaker-py/
 !crates/cratermaker-py/src/
 !pytest.ini
