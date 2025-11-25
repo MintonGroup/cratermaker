@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from numpy.random import Generator
 
-from ..utils.general_utils import format_large_units
-from .base import CratermakerBase
+from cratermaker.core.base import CratermakerBase
+from cratermaker.utils.general_utils import format_large_units
 
 if TYPE_CHECKING:
-    from ..components.projectile import Projectile
-    from ..components.scaling import Scaling
-    from ..components.target import Target
+    from cratermaker.components.projectile import Projectile
+    from cratermaker.components.scaling import Scaling
+    from cratermaker.components.target import Target
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,9 +221,9 @@ class Crater:
         - `projectile` is mutually exclusive with velocity-related inputs; if provided, it overrides velocity, angle, direction, and density unless explicitly set.
         - The `scaling`, and `rng` models are required for scaling and density inference, but are not stored in the returned Crater object.
         """
-        from ..components.projectile import Projectile
-        from ..components.scaling import Scaling
-        from ..components.target import Target
+        from cratermaker.components.projectile import Projectile
+        from cratermaker.components.scaling import Scaling
+        from cratermaker.components.target import Target
 
         def _set_id(**kwargs: Any) -> np.uint32:
             """

@@ -11,6 +11,7 @@
 !cratermaker/core/
 !cratermaker/models/
 !cratermaker/components/
+!cratermaker/components/crater/
 !cratermaker/components/morphology/
 !cratermaker/components/production/
 !cratermaker/components/projectile/

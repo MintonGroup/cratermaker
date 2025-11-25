@@ -14,9 +14,9 @@ from pyproj import Geod
 from shapely.geometry import GeometryCollection, LineString, Polygon
 from shapely.ops import split, transform
 
+from cratermaker.components.crater import Crater
 from cratermaker.constants import FloatLike
 from cratermaker.core.base import ComponentBase, import_components
-from cratermaker.core.crater import Crater
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface

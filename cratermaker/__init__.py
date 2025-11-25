@@ -10,13 +10,13 @@ import warnings
 
 from ._version import version as __version__
 from .components.counting import Counting
+from .components.crater import Crater
 from .components.morphology import Morphology
 from .components.production import Production
 from .components.projectile import Projectile
 from .components.scaling import Scaling
 from .components.surface import Surface
 from .components.target import Target
-from .core.crater import Crater
 from .core.simulation import Simulation
 
 _COMPONENT_NAMES = ["counting", "morphology", "production", "projectile", "scaling", "surface", "target"]
