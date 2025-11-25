@@ -2,18 +2,7 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 use numpy::ndarray::prelude::*;
 use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
-use crate::cratermaker_py::surface::LocalSurface;
-
-pub struct Ellipse {
-    pub x0: f64,
-    pub y0: f64,
-    pub ap: f64,
-    pub bp: f64,
-    pub ep: f64,
-    pub orientation: f64,
-    pub coeff: [f64; 6],
-}
-
+use crate::surface_bindings::PyReadonlyLocalSurface;
 
 #[pyfunction]
 pub fn radial_distance_to_ellipse<'py>(
@@ -103,10 +92,10 @@ pub fn score_rim<'py>(
     curvmult: f64,
     heightmult: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_core::counting::score_rim(
-            region_v,
+            &region_v,
             x0,
             y0,
             ap,

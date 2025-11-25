@@ -1,9 +1,10 @@
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
+use pyo3::prelude::*;
+use pyo3::types::PySlice;
+use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
 
-// Mirrors the LocalSurface struct in cratermaker-core and provides read-only access to its fields from Python.
-pub struct LocalSurface<'py> {
+// Mirrors the PyReadonlyLocalSurface struct in cratermaker-core and provides read-only access to its fields from Python.
+pub struct PyReadonlyLocalSurface<'py> {
     pub n_face:         usize,
     pub pix:            f64,
     pub face_area:      PyReadonlyArray1<'py, f64>,
@@ -40,15 +41,60 @@ pub struct LocalSurface<'py> {
     pub edge_node_connectivity: PyReadonlyArray2<'py, i64>,
     pub edge_face_distance:     PyReadonlyArray1<'py, f64>,
 }
-impl<'py> LocalSurface<'py> {
-    /// Build from a Python LocalSurface object
+
+fn ensure_index_array<'py>(
+    py: Python<'py>,
+    indices_obj: &Bound<'py, PyAny>,
+    length: usize,
+) -> PyResult<PyReadonlyArray1<'py, i64>> {
+    if indices_obj.is_instance_of::<PySlice>() {
+        let slice: &Bound<'py, PySlice> = indices_obj.cast()?;
+        let indices = slice.indices(length as isize)?;
+        let start = indices.start;
+        let stop = indices.stop;
+        let step = indices.step;
+
+        let mut vals = Vec::new();
+        let mut i = start;
+        if step > 0 {
+            while i < stop {
+                vals.push(i as i64);
+                i += step;
+            }
+        } else if step < 0 {
+            while i > stop {
+                vals.push(i as i64);
+                i += step;
+            }
+        }
+
+        let arr = PyArray1::from_vec(py, vals);
+        Ok(arr.readonly())
+    } else {
+        indices_obj.extract::<PyReadonlyArray1<'py, i64>>()
+            .map_err(|e| PyErr::new::<PyValueError, _>(format!("Failed to extract index array: {}", e)))
+    }
+}
+
+impl<'py> PyReadonlyLocalSurface<'py> {
+    /// Build from a Python PyReadonlyLocalSurface object
     pub fn from_local_surface(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let py = obj.py();
+
+        let n_face: usize = obj.getattr("n_face")?.extract()?;
+        let n_node: usize = obj.getattr("n_node")?.extract()?;
+        let n_edge: usize = obj.getattr("n_edge")?.extract()?;
+
+        let face_indices_obj = obj.getattr("face_indices")?;
+        let node_indices_obj = obj.getattr("node_indices")?;
+        let edge_indices_obj = obj.getattr("edge_indices")?;
+
         Ok(Self {
-            n_face:         obj.getattr("n_face")?.extract()?,
+            n_face,
             pix:            obj.getattr("pix")?.extract()?,
             face_area:      obj.getattr("face_area")?.extract()?,
             face_elevation: obj.getattr("face_elevation")?.extract()?,
-            face_indices:   obj.getattr("face_indices")?.extract()?,
+            face_indices:   ensure_index_array(py, &face_indices_obj, n_face)?,
             face_lon:       obj.getattr("face_lon")?.extract()?,
             face_lat:       obj.getattr("face_lat")?.extract()?,
             face_x:         obj.getattr("face_x")?.extract()?,  
@@ -59,18 +105,18 @@ impl<'py> LocalSurface<'py> {
             face_distance:  obj.getattr("face_distance")?.extract()?,
             face_bearing:   obj.getattr("face_bearing")?.extract()?,
 
-            n_node:         obj.getattr("n_node")?.extract()?,
+            n_node,
             node_elevation: obj.getattr("node_elevation")?.extract()?,
-            node_indices:   obj.getattr("node_indices")?.extract()?,
+            node_indices:   ensure_index_array(py, &node_indices_obj, n_node)?,
             node_lon:       obj.getattr("node_lon")?.extract()?,
             node_lat:       obj.getattr("node_lat")?.extract()?,
             node_x:         obj.getattr("node_x")?.extract()?,
             node_y:         obj.getattr("node_y")?.extract()?,
             node_z:         obj.getattr("node_z")?.extract()?,
 
-            n_edge:        obj.getattr("n_edge")?.extract()?,
-            edge_indices:  obj.getattr("edge_indices")?.extract()?,
-            edge_length:   obj.getattr("edge_length")?.extract()?,
+            n_edge,
+            edge_indices:   ensure_index_array(py, &edge_indices_obj, n_edge)?,
+            edge_length:    obj.getattr("edge_length")?.extract()?,
 
             face_edge_connectivity: obj.getattr("face_edge_connectivity")?.extract()?,
             face_node_connectivity: obj.getattr("face_node_connectivity")?.extract()?,
@@ -81,9 +127,9 @@ impl<'py> LocalSurface<'py> {
             edge_face_distance:     obj.getattr("edge_face_distance")?.extract()?,
         })
     }
-    /// Convert to cratermaker-core LocalSurface with array views
-    pub fn as_views(&self) -> cratermaker_core::surface::LocalSurface<'_> {
-        cratermaker_core::surface::LocalSurface {
+    /// Convert to cratermaker-core PyReadonlyLocalSurface with array views
+    pub fn as_views(&self) -> cratermaker_core::surface::LocalSurfaceView<'_> {
+        cratermaker_core::surface::LocalSurfaceView {
             n_face:                 self.n_face,
             pix:                    self.pix,
             face_area:              self.face_area.as_array(),
@@ -135,7 +181,7 @@ impl<'py> LocalSurface<'py> {
 /// # Arguments
 ///
 /// * `py` - Python interpreter token.
-/// * `region` - A LocalSurface object representing the local mesh region.
+/// * `region` - A PyReadonlyLocalSurface object representing the local mesh region.
 ///
 /// # Returns
 ///
@@ -143,16 +189,17 @@ impl<'py> LocalSurface<'py> {
 #[pyfunction]
 pub fn apply_diffusion<'py>(
     py: Python<'py>,
-    region: Bound<'py, PyAny>,
     face_kappa: PyReadonlyArray1<'py, f64>,
+    face_variable: PyReadonlyArray1<'py, f64>,
+    region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
     let face_kappa_v = face_kappa.as_array();
-    let face_elevation_v = region_py.face_elevation.as_array();
+    let face_variable_v = face_variable.as_array();
     let result =  cratermaker_core::surface::apply_diffusion(
             face_kappa_v,
-            face_elevation_v,
+            face_variable_v,
             &region_v
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
@@ -169,7 +216,7 @@ pub fn apply_diffusion<'py>(
 /// # Arguments
 /// * `py` - Python interpreter token.
 /// * `variable` - The variable to compute the gradient for at each face (1D array).
-/// * `region` - A LocalSurface object representing the local mesh region.
+/// * `region` - A PyReadonlyLocalSurface object representing the local mesh region.
 ///
 /// # Returns
 /// An arrays of radial gradient values same length as `face_indices`.
@@ -180,7 +227,7 @@ pub fn compute_radial_gradient<'py>(
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let variable_v = variable.as_array();
-    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
     let result =  cratermaker_core::surface::compute_radial_gradient(
             variable_v,
@@ -203,7 +250,7 @@ pub fn compute_radial_gradient<'py>(
 ///
 /// # Arguments
 /// * `py` - Python interpreter token.
-/// * `region` - A LocalSurface object representing the local mesh region.
+/// * `region` - A PyReadonlyLocalSurface object representing the local mesh region.
 ///
 /// # Returns
 /// A NumPy array of slope values (1D array), same length as `face_indices`.
@@ -212,7 +259,7 @@ pub fn compute_slope<'py>(
     py: Python<'py>,
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_core::surface::compute_slope(
             &region_v
@@ -231,7 +278,7 @@ pub fn compute_slope<'py>(
 ///
 /// * `py` - Python interpreter token.
 /// * `critical_slope` - Maximum allowable slope (e.g., 0.7 for ~35 degrees).
-/// * `region` - A LocalSurface object representing the local mesh region.
+/// * `region` - A PyReadonlyLocalSurface object representing the local mesh region.
 ///
 /// # Returns
 ///
@@ -242,11 +289,11 @@ pub fn slope_collapse<'py>(
     critical_slope: f64,
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_core::surface::slope_collapse(
             critical_slope,
-            region_v,
+            &region_v,
             )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
@@ -258,7 +305,7 @@ pub fn slope_collapse<'py>(
 /// # Arguments
 ///
 /// * `py` - Python interpreter token.
-/// * `region` - A LocalSurface object representing the local mesh region.
+/// * `region` - A PyReadonlyLocalSurface object representing the local mesh region.
 ///
 /// # Returns
 ///
@@ -268,10 +315,10 @@ pub fn interpolate_node_elevation_from_faces<'py>(
     py: Python<'py>,
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = LocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_core::surface::interpolate_node_elevation_from_faces(
-            region_v
+            &region_v
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))

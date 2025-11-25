@@ -4,8 +4,8 @@ use numpy::ndarray::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::ArrayResult;
 
-/// LocalSurface represents a local region of a surface mesh with various attributes accessible as array views.
-pub struct LocalSurface<'a> {
+/// Represents a local region of a surface mesh with various attributes accessible as array views.
+pub struct LocalSurfaceView<'a> {
     pub n_face:         usize,
     pub pix:            f64,
     pub face_area:      ArrayView1<'a, f64>,
@@ -55,7 +55,7 @@ pub struct LocalSurface<'a> {
 ///
 /// * `face_kappa` - Topographic diffusivity (1D array of length n_face)
 /// * `face_variable` - The variable to diffuse at each face (1D array of length n_face). Typically it will be region.face_elevation
-/// * `region` - A LocalSurface object representing the local mesh region.
+/// * `region` - A LocalSurfaceView object representing the local mesh region.
 ///
 /// # Returns
 ///
@@ -64,7 +64,7 @@ pub struct LocalSurface<'a> {
 pub fn apply_diffusion(
     face_kappa: ArrayView1<'_, f64>,
     face_variable: ArrayView1<'_, f64>,
-    region: &LocalSurface<'_>,
+    region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
     // Compute initial dt von neumann stability condition
     let dt_max = compute_dt_max(
@@ -141,7 +141,7 @@ pub fn apply_diffusion(
 /// 
 pub fn compute_radial_gradient(
     variable: ArrayView1<'_,f64>,
-    region: &LocalSurface<'_>,
+    region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
     let radgrad: Vec<f64> = (0..region.n_face).into_par_iter()
         .map(|f| {
@@ -181,7 +181,7 @@ pub fn compute_radial_gradient(
 fn compute_face_slope_squared(
     f: usize,
     face_elevation: ArrayView1<'_,f64>,
-    region: &LocalSurface<'_>,
+    region: &LocalSurfaceView<'_>,
 ) -> f64 {
 
     let (dh_dx, dh_dy) = compute_one_face_gradient(
@@ -216,7 +216,7 @@ fn compute_face_slope_squared(
 fn compute_one_face_gradient(
     f: usize,
     variable: ArrayView1<'_,f64>,
-    region: &LocalSurface<'_>,
+    region: &LocalSurfaceView<'_>,
 ) -> (f64, f64) {
     let connected_edges: ArrayView1<'_, i64> = region.face_edge_connectivity.row(f);
     let mut dh_zonal = 0.0;
@@ -297,7 +297,7 @@ fn compute_one_face_gradient(
 /// A NumPy array of slope values (1D array), same length as `face_indices`.
 /// 
 pub fn compute_slope(
-    region: &LocalSurface<'_>,
+    region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
 
     let n_face = region.n_face;
@@ -331,7 +331,7 @@ pub fn compute_slope(
 /// 
 pub fn slope_collapse(
     critical_slope: f64,
-    region: &LocalSurface<'_>,
+    region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
     let n_face = region.n_face;
     let critical_slope_sq = critical_slope * critical_slope;
@@ -391,14 +391,14 @@ pub fn slope_collapse(
 ///
 /// # Arguments
 ///
-/// * `region` - A LocalSurface object representing the local mesh region.
+/// * `region` - A LocalSurfaceView object representing the local mesh region.
 ///
 /// # Returns
 ///
 /// A NumPy array of node elevations (1D array).
 /// 
 pub fn interpolate_node_elevation_from_faces(
-    region: &LocalSurface<'_>,
+    region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
 
     let mut result = Array1::<f64>::zeros(region.n_node);
@@ -652,14 +652,14 @@ fn positive_mod(x: f64, m: f64) -> f64 {
 /// 
 /// # Arguments
 /// * `face_kappa` - Topographic diffusivity (1D array of length n_face)
-/// * `region` - A LocalSurface object representing the local mesh region.
+/// * `region` - A LocalSurfaceView object representing the local mesh region.
 /// 
 /// # Returns
 /// A single f64 value giving the maximum stable timestep for the diffusion operation.
 /// 
 fn compute_dt_max(
     face_kappa: ArrayView1<'_, f64>,
-    region: &LocalSurface<'_>,
+    region: &LocalSurfaceView<'_>,
 ) -> f64 {
     let mut inverse_dt_sum = Array1::<f64>::zeros(region.n_face);
 

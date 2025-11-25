@@ -4,20 +4,10 @@ use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{Inverse, Eig};
 use rayon::prelude::*;
 use crate::ArrayResult;
-
-
+use crate::surface::LocalSurfaceView;
 
 pub fn fit_rim(
-    x: ArrayView1<'_, f64>, 
-    y: ArrayView1<'_, f64>, 
-    face_elevation: ArrayView1<'_,f64>,   
-    face_lon: ArrayView1<'_,f64>,
-    face_lat: ArrayView1<'_,f64>,
-    face_bearing: ArrayView1<'_,f64>,
-    face_edge_connectivity: ArrayView2<'_, i64>,
-    edge_face_connectivity: ArrayView2<'_,i64>,
-    edge_face_distance: ArrayView1<'_,f64>,
-    edge_length: ArrayView1<'_,f64>,
+    region: &LocalSurfaceView<'_>,
     x0: f64, 
     y0: f64, 
     ap: f64,
@@ -30,18 +20,9 @@ pub fn fit_rim(
     heightmult: f64,
 ) ->ArrayResult { 
     score_rim(
-        x, 
-        y, 
-        face_elevation,   
-        face_lon,
-        face_lat,
-        face_bearing,
-        face_edge_connectivity,
-        edge_face_connectivity,
-        edge_face_distance,
-        edge_length,
-        x0, 
-        y0, 
+        region, 
+        x0,
+        y0,
         ap,
         bp,
         orientation,
@@ -389,16 +370,7 @@ fn geometric_distances(
 /// violate internal assumptions.
 #[inline]
 pub fn score_rim(
-    x: ArrayView1<'_, f64>, 
-    y: ArrayView1<'_, f64>, 
-    face_elevation: ArrayView1<'_,f64>,   
-    face_lon: ArrayView1<'_,f64>,
-    face_lat: ArrayView1<'_,f64>,
-    face_bearing: ArrayView1<'_,f64>,
-    face_edge_connectivity: ArrayView2<'_, i64>,
-    edge_face_connectivity: ArrayView2<'_,i64>,
-    edge_face_distance: ArrayView1<'_,f64>,
-    edge_length: ArrayView1<'_,f64>,
+    region: &LocalSurfaceView<'_>,
     x0: f64, 
     y0: f64, 
     ap: f64,
@@ -410,39 +382,25 @@ pub fn score_rim(
     curvmult: f64,
     heightmult: f64,
 ) ->ArrayResult { 
-    let n = x.len();
+    let n = region.n_face;
     const MIN_POINTS_FOR_FIT: usize = 100;
     const EXTENT_RADIUS_CUTOFF: f64 = 1.5;
 
 
     let radial_gradient = crate::surface::compute_radial_gradient(
-        face_elevation,
-        face_lon,
-        face_lat,
-        face_bearing,
-        face_edge_connectivity,
-        edge_face_connectivity,
-        edge_face_distance,
-        edge_length,
+        region.face_elevation.view(),
+        region,
     )?; 
     let radial_curvature = crate::surface::compute_radial_gradient(
         radial_gradient.view(),
-        face_lon,
-        face_lat,
-        face_bearing,
-        face_edge_connectivity,
-        edge_face_connectivity,
-        edge_face_distance,
-        edge_length,
+        region,
     )?;
-    let distances = radial_distance_to_ellipse(x, y, ap, bp, orientation, x0, y0)?; // Array1<f64>
+    let distances = radial_distance_to_ellipse(region.face_proj_x, region.face_proj_y, ap, bp, orientation, x0, y0)?; // Array1<f64>
 
     // 3) Region mask based on radial distance from origin
-    let r2 = &x * &x + &y * &y;
-    let r = r2.mapv(|v| v.sqrt());
 
     let max_distance = EXTENT_RADIUS_CUTOFF * ap.max(bp);
-    let mask_region: Array1<bool> = r.mapv(|ri| ri > max_distance);
+    let mask_region: Array1<bool> = region.face_distance.mapv(|ri| ri > max_distance);
 
     // 4) Distance score: closer to ellipse = higher score
     let scale = (ap * bp).sqrt();
@@ -466,7 +424,7 @@ pub fn score_rim(
     }
 
     // 5) Height score: high elevations (relative to mean) score high
-    let mut heightscore = face_elevation.to_owned();
+    let mut heightscore = region.face_elevation.to_owned();
     // mean (no NaNs assumed here; if you may have NaNs, add filtering)
     let mean = heightscore.sum() / (heightscore.len() as f64);
     heightscore.map_inplace(|v| *v -= mean);

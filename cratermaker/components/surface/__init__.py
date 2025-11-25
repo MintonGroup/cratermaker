@@ -517,28 +517,7 @@ class Surface(ComponentBase):
         -------
         None
         """
-        face_elevation = self.face_elevation
-        face_area = self.face_area
-        node_face_conn = self.node_face_connectivity
-
-        node_elevation = np.zeros(self.n_node, dtype=np.float64)
-
-        for node_id in range(self.n_node):
-            connected_faces = node_face_conn[node_id]
-            valid = connected_faces != INT_FILL_VALUE
-            faces = connected_faces[valid]
-
-            if faces.size == 0:
-                continue
-
-            areas = face_area[faces]
-            elevations = face_elevation[faces]
-
-            total_area = np.sum(areas)
-            if total_area > 0:
-                node_elevation[node_id] = np.sum(elevations * areas) / total_area
-
-        self.node_elevation = node_elevation
+        return self._full().interpolate_node_elevation_from_faces()
 
     def get_random_location_on_face(self, face_index: int, **kwargs) -> float | tuple[float, float] | ArrayLike:
         """
@@ -2241,11 +2220,7 @@ class LocalSurface(CratermakerBase):
         -------
         None
         """
-        node_elevation = surface_bindings.interpolate_node_elevation_from_faces(
-            face_elevation=self.face_elevation,
-            face_area=self.face_area,
-            node_face_connectivity=self.node_face_connectivity,
-        )
+        node_elevation = surface_bindings.interpolate_node_elevation_from_faces(self)
         self.update_elevation(node_elevation, overwrite=True)
         return
 
@@ -3183,7 +3158,10 @@ class LocalSurface(CratermakerBase):
         """
         if self._n_edge is None:
             if isinstance(self._edge_indices, slice):
-                self._n_edge = int(self._surface._uxds.uxgrid.n_edge[self._edge_indices].size)
+                if np.isscalar(self._surface._uxds.uxgrid.n_edge):
+                    self._n_edge = int(self._surface._uxds.uxgrid.n_edge)
+                else:
+                    self._n_edge = int(self._surface._uxds.uxgrid.n_edge[self._edge_indices].size)
             else:
                 self._n_edge = self._edge_indices.size
         return self._n_edge
@@ -3195,7 +3173,10 @@ class LocalSurface(CratermakerBase):
         """
         if self._n_face is None:
             if isinstance(self.face_indices, slice):
-                self._n_face = int(self.surface.face_elevation[self.face_indices].size)
+                if np.isscalar(self.surface.face_elevation.size):
+                    self._n_face = int(self.surface.face_elevation.size)
+                else:
+                    self._n_face = int(self.surface.face_elevation[self.face_indices].size)
             elif isinstance(self.face_indices, np.ndarray):
                 self._n_face = int(self.face_indices.size)
 
@@ -3208,7 +3189,10 @@ class LocalSurface(CratermakerBase):
         """
         if self._n_node is None:
             if isinstance(self.node_indices, slice):
-                self._n_node = int(self.surface.node_elevation[self.node_indices].size)
+                if np.isscalar(self.surface.node_elevation.size):
+                    self._n_node = int(self.surface.node_elevation.size)
+                else:
+                    self._n_node = int(self.surface.node_elevation[self.node_indices].size)
             elif isinstance(self.node_indices, np.ndarray):
                 self._n_node = int(self.node_indices.size)
 
