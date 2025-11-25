@@ -3,7 +3,7 @@ use numpy::ndarray::prelude::*;
 use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{Inverse, Eig};
 use rayon::prelude::*;
-use crate::{ArrayResult, crater};
+use crate::ArrayResult;
 use crate::surface::LocalSurfaceView;
 use crate::crater::Crater;
 
@@ -322,8 +322,7 @@ fn geometric_distances(
         })
         .collect();
 
-    let result = Array1::from(result_vec);
-    result
+    Array1::from(result_vec)
 }
 
 /// Computes a per-point “rim score” for a candidate crater rim ellipse.
@@ -394,7 +393,6 @@ pub fn score_rim(
     let proj_y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
     let ap = crater.semimajor_axis;
     let bp = crater.semiminor_axis;
-    let orientation = crater.orientation.to_radians(); 
     let distances = radial_distance_to_crater_rim(proj_x, proj_y, crater, x0, y0)?; 
 
     // 3) Region mask based on radial distance from origin
@@ -403,7 +401,7 @@ pub fn score_rim(
     let mask_region: Array1<bool> = region.face_distance.as_ref().ok_or("face_distance required")?.mapv(|ri| ri > max_distance);
 
     // 4) Distance score: closer to ellipse = higher score
-    let scale = (ap * bp).sqrt();
+    let scale = crater.diameter;
     let mut distscore = distances.mapv(|d| {
         let nd = (d / scale).powi(2);
         1.0 / (nd + 0.1)
@@ -534,7 +532,7 @@ pub fn score_rim(
         }
     }
 
-    let mut num_high = high_scores.iter().filter(|&&b| b).count();
+    let num_high = high_scores.iter().filter(|&&b| b).count();
     let num_valid = rimscore.iter().filter(|v| !v.is_nan()).count();
 
     if num_high < MIN_POINTS_FOR_FIT {
@@ -550,7 +548,7 @@ pub fn score_rim(
                 .copied()
                 .filter(|v| !v.is_nan())
                 .collect();
-            vals.sort_by(|a, b| b.partial_cmp(a).unwrap()); // descending
+            vals.sort_by(|a, b| b.partial_cmp(a).unwrap()); // descending order
             let threshold = vals[MIN_POINTS_FOR_FIT - 1];
 
             for i in 0..n {
@@ -558,7 +556,6 @@ pub fn score_rim(
                 high_scores[i] = !v.is_nan() && v >= threshold;
             }
         }
-        num_high = high_scores.iter().filter(|&&b| b).count();
     }
 
     // Keep only high-score points, others -> NaN
