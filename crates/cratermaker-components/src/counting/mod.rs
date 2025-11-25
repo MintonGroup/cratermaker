@@ -556,9 +556,10 @@ pub fn score_rim(
             // No valid points in this sector; treat as invalid
             rimscore[i] = f64::NAN;
         }
+
     }
 
-    // 9) Apply quantile threshold to keep only highest scores
+    // Apply quantile threshold to keep only highest scores
     let mut high_scores = Array1::<bool>::from_elem(n, false);
     if let Some(qv) = nanquantile(&rimscore, quantile) {
         for i in 0..n {
@@ -572,8 +573,8 @@ pub fn score_rim(
     let num_high = high_scores.iter().filter(|&&b| b).count();
     let num_valid = rimscore.iter().filter(|v| !v.is_nan()).count();
 
-    if num_high < MIN_POINTS_FOR_FIT {
-        if num_valid < MIN_POINTS_FOR_FIT {
+    if num_high < MIN_POINTS_FOR_FIT * N_SECTORS {
+        if num_valid < MIN_POINTS_FOR_FIT * N_SECTORS {
             // use all valid points
             for i in 0..n {
                 high_scores[i] = !rimscore[i].is_nan();
@@ -586,7 +587,7 @@ pub fn score_rim(
                 .filter(|v| !v.is_nan())
                 .collect();
             vals.sort_by(|a, b| b.partial_cmp(a).unwrap()); // descending order
-            let threshold = vals[MIN_POINTS_FOR_FIT - 1];
+            let threshold = vals[MIN_POINTS_FOR_FIT * N_SECTORS - 1];
 
             for i in 0..n {
                 let v = rimscore[i];

@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use numpy::{PyReadonlyArray2,PyArray1};
+use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
 use crate::surface_bindings::PyReadonlyLocalSurface;
 use cratermaker_components::crater::Crater;
 
@@ -29,6 +29,28 @@ pub fn tally<'py>(
     let id_array_flat = PyArray1::from_vec(py, id_vec);
     Ok(id_array_flat)
 }
+
+#[pyfunction]
+pub fn fit_one_ellipse<'py>(
+    _py: Python<'py>,
+    x: PyReadonlyArray1<'_,f64>, 
+    y: PyReadonlyArray1<'_,f64>, 
+    weights: PyReadonlyArray1<'_,f64>
+) -> PyResult<(f64, f64, f64, f64, f64, f64)> {
+    let x_v = x.as_array();
+    let y_v = y.as_array();
+    let weights_v = weights.as_array();
+    let (x0, y0, ap, bp, orientation, wrms) = cratermaker_components::counting::fit_one_ellipse(
+            x_v,
+            y_v,
+            weights_v,
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+    Ok((x0, y0, ap, bp, orientation, wrms))
+}
+
+
 #[pyfunction]
 pub fn score_rim<'py>(
     py: Python<'py>,

@@ -23,7 +23,8 @@ mod cratermaker {
         #[pymodule_export]
         use crate::counting_bindings::{
             tally, 
-            score_rim
+            score_rim,
+            fit_one_ellipse
         };
     }
 
