@@ -1,6 +1,7 @@
 pub mod morphology_bindings;
 pub mod surface_bindings;
 pub mod counting_bindings;
+pub mod crater_bindings;
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -16,6 +17,10 @@ use pyo3::prelude::*;
 #[pyo3(name = "_cratermaker")]
 mod cratermaker {
     use super::*;
+
+    #[pymodule]
+    mod crater_bindings {
+    }
 
     #[pymodule]
     mod counting_bindings {
@@ -53,6 +58,7 @@ mod cratermaker {
             compute_radial_gradient,
         };
     }
+
 
 
 }

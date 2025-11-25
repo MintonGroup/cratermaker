@@ -3,15 +3,14 @@ use pyo3::exceptions::PyValueError;
 use numpy::ndarray::prelude::*;
 use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
 use crate::surface_bindings::PyReadonlyLocalSurface;
+use crate::crater_bindings::Crater;
 
 #[pyfunction]
 pub fn radial_distance_to_ellipse<'py>(
     py: Python<'py>,
     x: PyReadonlyArray1<'py, f64>,
     y: PyReadonlyArray1<'py, f64>,
-    a: f64, 
-    b: f64,
-    orientation: f64, 
+    crater: Crater,
     x0: f64, 
     y0:f64
 )-> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -20,9 +19,9 @@ pub fn radial_distance_to_ellipse<'py>(
     let result = cratermaker_components::counting::radial_distance_to_ellipse(
             &x_v,
             &y_v,
-            a,
-            b,
-            orientation,
+            crater.semimajor_axis,
+            crater.semiminor_axis,
+            crater.orientation,
             x0,
             y0
         )
@@ -82,10 +81,8 @@ pub fn score_rim<'py>(
     py: Python<'py>,
     region: Bound<'py, PyAny>,
     x0: f64, 
-    y0: f64, 
-    ap: f64,
-    bp: f64,
-    orientation: f64,
+    y0: f64,
+    crater: Crater, 
     quantile: f64,
     distmult: f64,
     gradmult: f64,
@@ -98,9 +95,9 @@ pub fn score_rim<'py>(
             &region_v,
             x0,
             y0,
-            ap,
-            bp,
-            orientation,
+            crater.semimajor_axis,
+            crater.semiminor_axis,
+            crater.orientation,
             quantile,
             distmult,
             gradmult,

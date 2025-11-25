@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Crater:
+    id: np.uint32 = None
     semimajor_axis: float | None = None
     semiminor_axis: float | None = None
     orientation: float | None = None
@@ -31,7 +32,6 @@ class Crater:
     location: tuple[float, float] | None = None
     morphology_type: str | None = None
     age: float | None = None
-    id: np.uint32 = None
 
     def __str__(self):
         if self.age is None:
