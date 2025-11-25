@@ -342,18 +342,14 @@ fn geometric_distances(
 ///
 /// # Arguments
 ///
-/// * `x`, `y` - Sample points in crater-centered coordinates.
-/// * `face_elevation` - Elevation at each face of the surface mesh.
-/// * `face_lon`, `face_lat` - Face longitudes and latitudes (radians).
-/// * `face_bearing` - Local bearing angles used for radial gradient
-///   projection (radians).
-/// * `face_edge_connectivity` - Indices of edges surrounding each face.
-/// * `edge_face_connectivity` - Indices of faces adjacent to each edge.
-/// * `edge_face_distance` - Distance between adjacent faces across each edge.
-/// * `edge_length` - Edge lengths.
+/// * `region` - A view of the local surface region containing the crater.`
 /// * `x0`, `y0` - Candidate ellipse center in crater-centered coordinates.
-/// * `ap`, `bp` - Semi-major and semi-minor axes of the candidate ellipse.
-/// * `orientation` - Orientation of the candidate ellipse (radians).
+/// *  `crater` - Candidate crater ellipse parameters.
+/// * `quantile` - Quantile threshold for selecting high-scoring points.
+/// * `distmult` - Weighting factor for distance-based score component.
+/// * `gradmult` - Weighting factor for gradient-based score component.
+/// * `curvmult` - Weighting factor for curvature-based score component.
+/// * `heightmult` - Weighting factor for height-based score component.
 ///
 /// # Returns
 ///
@@ -377,9 +373,10 @@ pub fn score_rim(
     heightmult: f64,
 ) ->ArrayResult { 
     let n = region.n_face;
-    const MIN_POINTS_FOR_FIT: usize = 100;
-    const EXTENT_RADIUS_CUTOFF: f64 = 1.5;
-
+    const MIN_POINTS_FOR_FIT: usize = 10; // It will try to use at least this many points per sector in the fit
+    const EXTENT_RADIUS_CUTOFF: f64 = 1.5; // Max radial extent as a multiple of crater semi-major axis
+    const N_SECTORS: usize = 36; // Number of bearing sectors for scoring
+    let sector_width = 2.0 * PI / N_SECTORS as f64;
 
     let radial_gradient = crate::surface::compute_radial_gradient(
         region.face_elevation.view(),
@@ -395,12 +392,11 @@ pub fn score_rim(
     let bp = crater.semiminor_axis;
     let distances = radial_distance_to_crater_rim(proj_x, proj_y, crater, x0, y0)?; 
 
-    // 3) Region mask based on radial distance from origin
-
+    // Region mask based on radial distance from origin
     let max_distance = EXTENT_RADIUS_CUTOFF * ap.max(bp);
     let mask_region: Array1<bool> = region.face_distance.as_ref().ok_or("face_distance required")?.mapv(|ri| ri > max_distance);
 
-    // 4) Distance score: closer to ellipse = higher score
+    // Distance score: closer to current best fit for rim = higher score
     let scale = crater.diameter;
     let mut distscore = distances.mapv(|d| {
         let nd = (d / scale).powi(2);
@@ -421,7 +417,7 @@ pub fn score_rim(
         }
     }
 
-    // 5) Height score: high elevations (relative to mean) score high
+    // Height score: high elevations (relative to mean) score high
     let mut heightscore = region.face_elevation.to_owned();
     // mean (no NaNs assumed here; if you may have NaNs, add filtering)
     let mean = heightscore.sum() / (heightscore.len() as f64);
@@ -446,7 +442,7 @@ pub fn score_rim(
         }
     }
 
-    // 6) Gradient score: low absolute gradient scores high
+    // Gradient score: low absolute gradient scores high (i.e., rim is at a local gradient extremum)
     let mut gradscore = radial_gradient.mapv(|g| g.abs() + 1e-16);
     for (val, &mask) in gradscore.iter_mut().zip(mask_region.iter()) {
         if mask {
@@ -468,9 +464,9 @@ pub fn score_rim(
         }
     }
 
-    // 7) Curvature score:
-    //    high positive curvature -> low score,
-    //    high negative curvature -> high score
+    // Curvature score:
+    //    high positive curvature -> low score (i.e., valleys are bad)
+    //    high negative curvature -> high score (i.e., ridges are good)
     let mut curvscore = radial_curvature.to_owned();
     for (val, &mask) in curvscore.iter_mut().zip(mask_region.iter()) {
         if mask {
@@ -496,7 +492,7 @@ pub fn score_rim(
         }
     }
 
-    // 8) Combine into rimscore and normalize
+    // Combine into rimscore 
     let mut rimscore = Array1::<f64>::zeros(n);
     for i in 0..n {
         let d = distscore[i];
@@ -511,13 +507,54 @@ pub fn score_rim(
                 distmult * d + gradmult * g + curvmult * c + heightmult * h;
         }
     }
-    if let Some(max_r) = nanmax(&rimscore) {
-        if max_r > 0.0 {
-            rimscore.map_inplace(|v| {
-                if !v.is_nan() {
-                    *v /= max_r;
-                }
-            });
+    // Bin into bearing sectors:
+    let bearing = region.face_bearing.as_ref().ok_or("face_bearing required")?; 
+    // First pass: compute max rimscore per sector (ignoring NaNs)
+    let mut sector_max = [f64::NEG_INFINITY; N_SECTORS];
+
+    for i in 0..n {
+        let v = rimscore[i];
+        if v.is_nan() {
+            continue;
+        }
+
+        let b = bearing[i];
+        // bearings should already be in [0, 2π), but we clamp just in case
+        let mut idx = (b / sector_width).floor() as isize;
+        if idx < 0 {
+            idx = 0;
+        } else if idx >= N_SECTORS as isize {
+            idx = N_SECTORS as isize - 1;
+        }
+        let idx = idx as usize;
+
+        if v > sector_max[idx] {
+            sector_max[idx] = v;
+        }
+    }
+
+    // Second pass: normalize each rimscore by its sector max
+    for i in 0..n {
+        let v = rimscore[i];
+        if v.is_nan() {
+            continue;
+        }
+
+        let b = bearing[i];
+        let mut idx = (b / sector_width).floor() as isize;
+        if idx < 0 {
+            idx = 0;
+        } else if idx >= N_SECTORS as isize {
+            idx = N_SECTORS as isize - 1;
+        }
+        let idx = idx as usize;
+
+        let max_v = sector_max[idx];
+        if max_v.is_finite() && max_v > 0.0 {
+            rimscore[i] = v / max_v;
+        } else {
+            // No valid points in this sector; treat as invalid
+            rimscore[i] = f64::NAN;
         }
     }
 
