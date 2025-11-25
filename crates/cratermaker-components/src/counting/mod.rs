@@ -11,7 +11,7 @@ pub fn fit_rim(
     region: &LocalSurfaceView<'_>,
     crater: &Crater,
     tol: f64,
-    nloops: f64,
+    nloops: usize,
     score_quantile: f64,
 ) ->Result<(f64, f64, f64, f64, f64), LinalgError> { 
     // score_rim(
