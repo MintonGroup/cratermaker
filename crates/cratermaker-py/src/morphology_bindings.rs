@@ -63,7 +63,7 @@ pub fn crater_profile<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances_v= radial_distances.as_array();
     let reference_elevations_v= reference_elevations.as_array();
-    let result =  cratermaker_core::morphology::crater_profile(
+    let result =  cratermaker_components::morphology::crater_profile(
                 radial_distances_v,
                 reference_elevations_v,
                 diameter,
@@ -99,7 +99,7 @@ pub fn ejecta_profile<'py>(
     ejrim: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distance_v = radial_distance.as_array();
-    let result =  cratermaker_core::morphology::ejecta_profile(
+    let result =  cratermaker_components::morphology::ejecta_profile(
                 radial_distance_v,
                 crater_diameter,
                 ejrim
@@ -131,7 +131,7 @@ pub fn ray_intensity<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distance_v = radial_distance.as_array();
     let initial_bearing_v = initial_bearing.as_array();
-    let result = cratermaker_core::morphology::ray_intensity(
+    let result = cratermaker_components::morphology::ray_intensity(
         radial_distance_v,
         initial_bearing_v,
         crater_diameter,

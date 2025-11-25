@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/cratermaker-core",
+    "crates/cratermaker-components",
     "crates/cratermaker-py",
 ]

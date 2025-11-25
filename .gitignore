@@ -27,8 +27,8 @@ cratermaker/_version.py
 !crates/
 !crates/**/*.rs
 !crates/**/Cargo.toml 
-!crates/cratermaker-core/
-!crates/cratermaker-core/src/
+!crates/cratermaker-components/
+!crates/cratermaker-components/src/
 !crates/cratermaker-py/
 !crates/cratermaker-py/src/
 !pytest.ini

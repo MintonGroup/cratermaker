@@ -1,5 +1,5 @@
 [package]
-name = "cratermaker-core"
+name = "cratermaker-components"
 version = "2025.10.1-a22+gb24916a7"
 edition = "2021"
 

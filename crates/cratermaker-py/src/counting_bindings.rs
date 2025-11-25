@@ -17,7 +17,7 @@ pub fn radial_distance_to_ellipse<'py>(
 )-> PyResult<Bound<'py, PyArray1<f64>>> {
     let x_v = x.as_array();
     let y_v = y.as_array();
-    let result = cratermaker_core::counting::radial_distance_to_ellipse(
+    let result = cratermaker_components::counting::radial_distance_to_ellipse(
             &x_v,
             &y_v,
             a,
@@ -42,7 +42,7 @@ pub fn fit_one_ellipse<'py>(
     let y_v = y.as_array();
     let weights_v = weights.as_array();
 
-    let (x0, y0, a, b, orientation, wrms) = cratermaker_core::counting::fit_one_ellipse(
+    let (x0, y0, a, b, orientation, wrms) = cratermaker_components::counting::fit_one_ellipse(
             x_v, 
             y_v, 
             weights_v
@@ -94,7 +94,7 @@ pub fn score_rim<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
-    let result = cratermaker_core::counting::score_rim(
+    let result = cratermaker_components::counting::score_rim(
             &region_v,
             x0,
             y0,

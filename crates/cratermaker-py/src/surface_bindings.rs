@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use pyo3::types::PySlice;
 use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
 
-// Mirrors the PyReadonlyLocalSurface struct in cratermaker-core and provides read-only access to its fields from Python.
+// Mirrors the PyReadonlyLocalSurface struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyReadonlyLocalSurface<'py> {
     pub n_face:         usize,
     pub pix:            f64,
@@ -140,9 +140,9 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             face_bearing:   obj.getattr("face_bearing")?.extract()?,
         })
     }
-    /// Convert to cratermaker-core PyReadonlyLocalSurface with array views
-    pub fn as_views(&self) -> cratermaker_core::surface::LocalSurfaceView<'_> {
-        cratermaker_core::surface::LocalSurfaceView {
+    /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
+    pub fn as_views(&self) -> cratermaker_components::surface::LocalSurfaceView<'_> {
+        cratermaker_components::surface::LocalSurfaceView {
             n_face:                 self.n_face,
             pix:                    self.pix,
             face_area:              self.face_area.as_array(),
@@ -215,7 +215,7 @@ pub fn apply_diffusion<'py>(
     let face_kappa_v = face_kappa.as_array();
     let face_variable_v = face_variable.as_array();
 
-    let result = cratermaker_core::surface::apply_diffusion(
+    let result = cratermaker_components::surface::apply_diffusion(
             face_kappa_v,
             face_variable_v,
             &region_v
@@ -248,7 +248,7 @@ pub fn compute_radial_gradient<'py>(
     let variable_v = variable.as_array();
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
-    let result =  cratermaker_core::surface::compute_radial_gradient(
+    let result =  cratermaker_components::surface::compute_radial_gradient(
             variable_v,
             &region_v,
         )
@@ -280,7 +280,7 @@ pub fn compute_slope<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
-    let result = cratermaker_core::surface::compute_slope(
+    let result = cratermaker_components::surface::compute_slope(
             &region_v
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
@@ -310,7 +310,7 @@ pub fn slope_collapse<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
-    let result = cratermaker_core::surface::slope_collapse(
+    let result = cratermaker_components::surface::slope_collapse(
             critical_slope,
             &region_v,
             )
@@ -336,7 +336,7 @@ pub fn interpolate_node_elevation_from_faces<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
-    let result = cratermaker_core::surface::interpolate_node_elevation_from_faces(
+    let result = cratermaker_components::surface::interpolate_node_elevation_from_faces(
             &region_v
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
@@ -381,7 +381,7 @@ pub fn turbulence_noise<'py>(
     let y_v = y.as_array();
     let z_v = z.as_array();
     let anchor_v = anchor.as_array();
-    let result = cratermaker_core::surface::turbulence_noise(
+    let result = cratermaker_components::surface::turbulence_noise(
             x_v,
             y_v,
             z_v,
@@ -419,7 +419,7 @@ pub fn compute_edge_distances<'py>(
     let edge_connectivity_v = edge_connectivity.as_array();
     let lon_v = lon.as_array();
     let lat_v = lat.as_array();
-    let result = cratermaker_core::surface::compute_edge_distances(
+    let result = cratermaker_components::surface::compute_edge_distances(
             edge_connectivity_v,
             lon_v,
             lat_v,
@@ -450,7 +450,7 @@ pub fn compute_distances<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let lon2_v = lon2.as_array();
     let lat2_v = lat2.as_array();
-    let result =  cratermaker_core::surface::compute_distances(
+    let result =  cratermaker_components::surface::compute_distances(
             lon1,
             lat1,
             lon2_v,
@@ -488,7 +488,7 @@ pub fn compute_bearings<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let lon2_v = lon2.as_array();
     let lat2_v = lat2.as_array();
-    let result =  cratermaker_core::surface::compute_bearings(
+    let result =  cratermaker_components::surface::compute_bearings(
             lon1,
             lat1,
             lon2_v,

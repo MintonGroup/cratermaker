@@ -10,7 +10,7 @@ crate-type = [ "cdylib",]
 [dependencies]
 pyo3= {version = "0.27", features = ["extension-module"]}
 numpy = "0.27"
-cratermaker-core = { path = "../cratermaker-core" }
+cratermaker-components = { path = "../cratermaker-components" }
 
 [profile.release]
 codegen-units = 1
