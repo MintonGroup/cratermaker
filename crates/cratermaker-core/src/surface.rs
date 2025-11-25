@@ -16,10 +16,6 @@ pub struct LocalSurfaceView<'a> {
     pub face_x:         ArrayView1<'a, f64>,
     pub face_y:         ArrayView1<'a, f64>,
     pub face_z:         ArrayView1<'a, f64>,
-    pub face_proj_x:    ArrayView1<'a, f64>,
-    pub face_proj_y:    ArrayView1<'a, f64>,
-    pub face_distance:  ArrayView1<'a, f64>,
-    pub face_bearing:   ArrayView1<'a, f64>,
 
     pub n_node:         usize,
     pub node_elevation: ArrayView1<'a, f64>,
@@ -41,6 +37,12 @@ pub struct LocalSurfaceView<'a> {
     pub edge_face_connectivity: ArrayView2<'a, i64>,
     pub edge_node_connectivity: ArrayView2<'a, i64>,
     pub edge_face_distance:     ArrayView1<'a, f64>,
+
+    // The following are optional, as they will not be present if the LocalSurfaceView represents a global Surface object
+    pub face_proj_x:    Option<ArrayView1<'a, f64>>,
+    pub face_proj_y:    Option<ArrayView1<'a, f64>>,
+    pub face_distance:  Option<ArrayView1<'a, f64>>,
+    pub face_bearing:   Option<ArrayView1<'a, f64>>,
 }
 
 /// Applies one explicit diffusion update step over a surface mesh with variable diffusivity.
@@ -72,15 +74,16 @@ pub fn apply_diffusion(
         region
     );
 
+    let mut face_delta = Array1::<f64>::zeros(region.n_face);
+
     if !dt_max.is_finite() || dt_max <= 0.0 {
-        return Ok(Array1::<f64>::zeros(region.n_face));
+        return Ok(face_delta);
     }
 
     let nloops = (1.0 / dt_max).ceil() as usize;
     let dt = 1.0 / nloops as f64;
     let fac = dt / 2.0;
 
-    let mut face_delta = Array1::<f64>::zeros(region.n_face);
 
     for _ in 0..nloops {
         // Initialize dhdt as zeros with length n_face
@@ -88,24 +91,17 @@ pub fn apply_diffusion(
 
         // Loop over edges, accumulate flux contributions to each face
         for (e, faces) in region.edge_face_connectivity.outer_iter().enumerate() {
-            let [f1, f2] = match <[i64; 2]>::try_from(faces.as_slice().unwrap()) {
-                Ok(pair) => pair,
-                Err(_) => continue, 
+
+            let (f1, f2) = match extract_edge_faces(faces, e, region.n_face, "apply_diffusion") {
+                Some(pair) => pair,
+                None => continue,
             };
-            let f1 = f1 as usize;
-            let f2 = f2 as usize;
+
             let distance = region.edge_face_distance[e];
             let length = region.edge_length[e];
 
-            if distance <= 0.0 || f1 >= region.n_face || f2 >= region.n_face {
-                continue;
-            }
-            if f1 == f2 {
-                panic!("Edge {e} has identical face indices: {f1}");
-            }
-            if region.face_area[f1] == 0.0 || region.face_area[f2] == 0.0 {
-                panic!("Zero area at f1={} or f2={} on edge {}", f1, f2, e);
-            }
+            debug_assert!(distance > 0.0, "non-positive distance at edge {}", e);
+
 
             let h1 = face_variable[f1] + face_delta[f1];
             let h2 = face_variable[f2] + face_delta[f2];
@@ -143,6 +139,7 @@ pub fn compute_radial_gradient(
     variable: ArrayView1<'_,f64>,
     region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
+    let bearing = region.face_bearing.as_ref().ok_or("face_bearing required")?;
     let radgrad: Vec<f64> = (0..region.n_face).into_par_iter()
         .map(|f| {
             let (grad_zonal, grad_meridional) = compute_one_face_gradient(
@@ -150,7 +147,7 @@ pub fn compute_radial_gradient(
                 variable,
                 region
             );
-            grad_meridional * region.face_bearing[f].cos() + grad_zonal * region.face_bearing[f].sin()
+            grad_meridional * bearing[f].cos() + grad_zonal * bearing[f].sin()
         })
         .collect();
     Ok(Array1::from_vec(radgrad))
@@ -232,12 +229,12 @@ fn compute_one_face_gradient(
             continue;
         }
         let e = edge_id as usize;
-        let [f1, f2] = match <[i64; 2]>::try_from(region.edge_face_connectivity.row(e).as_slice().unwrap()) {
-            Ok(pair) => pair,
-            Err(_) => continue,
+
+        let (f1, f2) = match extract_edge_faces(region.edge_face_connectivity.row(e), e, region.n_face, "compute_one_face_gradient") {
+            Some(pair) => pair,
+            None => continue,
         };
-        let f1 = f1 as usize;
-        let f2 = f2 as usize;
+
         let other = if f == f1 { f2 } else if f == f2 { f1 } else { continue };
         let d = region.edge_face_distance[e];
         let l = region.edge_length[e];
@@ -669,16 +666,10 @@ fn compute_dt_max(
             continue;
         }
 
-        let [f1, f2] = match <[i64; 2]>::try_from(faces.as_slice().unwrap()) {
-            Ok(pair) => pair,
-            Err(_) => continue,
+        let (f1, f2) = match extract_edge_faces(faces, e, region.n_face, "compute_dt_max") {
+            Some(pair) => pair,
+            None => continue,
         };
-
-        let f1 = f1 as usize;
-        let f2 = f2 as usize;
-        if f1 >= region.n_face || f2 >= region.n_face {
-            continue;
-        }
 
         let k1 = face_kappa[f1];
         let k2 = face_kappa[f2];
@@ -697,4 +688,55 @@ fn compute_dt_max(
         .filter(|&&x| x > 0.0)
         .map(|&x| 1.0 / x)
         .fold(f64::INFINITY, f64::min)
+}
+
+
+use numpy::ndarray::ArrayView1; // you already have prelude, so this is just for clarity
+
+/// Safely extract a pair of face indices (f1, f2) from an edge-face row.
+///
+/// Returns `Some((f1, f2))` if:
+/// - the row is contiguous,
+/// - it has exactly two entries,
+/// - both are within `[0, n_face)`.
+/// Otherwise logs a message with `context` and returns `None`.
+fn extract_edge_faces(
+    row: ArrayView1<'_, i64>,
+    edge_id: usize,
+    n_face: usize,
+    context: &str,
+) -> Option<(usize, usize)> {
+    let slice = match row.as_slice() {
+        Some(s) => s,
+        None => {
+            eprintln!(
+                "{}: non-contiguous edge_face row at edge {}, skipping",
+                context, edge_id
+            );
+            return None;
+        }
+    };
+
+    let [f1_raw, f2_raw] = match <[i64; 2]>::try_from(slice) {
+        Ok(pair) => pair,
+        Err(_) => {
+            eprintln!(
+                "{}: invalid face pair at edge {}, slice = {:?}",
+                context, edge_id, slice
+            );
+            return None;
+        }
+    };
+
+    let f1 = f1_raw as usize;
+    let f2 = f2_raw as usize;
+    if f1 >= n_face || f2 >= n_face {
+        eprintln!(
+            "{}: face index out of range at edge {}, f1={}, f2={}, n_face={}",
+            context, edge_id, f1, f2, n_face
+        );
+        return None;
+    }
+
+    Some((f1, f2))
 }

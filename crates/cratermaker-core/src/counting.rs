@@ -75,8 +75,8 @@ pub fn fit_rim(
 /// return type allows future extensions to return descriptive errors
 /// (for example, if the input arrays have inconsistent lengths).
 pub fn radial_distance_to_ellipse(
-    x: ArrayView1<'_, f64>,
-    y: ArrayView1<'_, f64>,
+    x: &ArrayView1<'_, f64>,
+    y: &ArrayView1<'_, f64>,
     a: f64, 
     b: f64,
     orientation: f64, 
@@ -395,12 +395,14 @@ pub fn score_rim(
         radial_gradient.view(),
         region,
     )?;
-    let distances = radial_distance_to_ellipse(region.face_proj_x, region.face_proj_y, ap, bp, orientation, x0, y0)?; // Array1<f64>
+    let proj_x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
+    let proj_y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
+    let distances = radial_distance_to_ellipse(proj_x, proj_y, ap, bp, orientation, x0, y0)?; // Array1<f64>
 
     // 3) Region mask based on radial distance from origin
 
     let max_distance = EXTENT_RADIUS_CUTOFF * ap.max(bp);
-    let mask_region: Array1<bool> = region.face_distance.mapv(|ri| ri > max_distance);
+    let mask_region: Array1<bool> = region.face_distance.as_ref().ok_or("face_distance required")?.mapv(|ri| ri > max_distance);
 
     // 4) Distance score: closer to ellipse = higher score
     let scale = (ap * bp).sqrt();

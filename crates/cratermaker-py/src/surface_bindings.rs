@@ -15,10 +15,6 @@ pub struct PyReadonlyLocalSurface<'py> {
     pub face_x:         PyReadonlyArray1<'py, f64>,
     pub face_y:         PyReadonlyArray1<'py, f64>,
     pub face_z:         PyReadonlyArray1<'py, f64>,
-    pub face_proj_x:    PyReadonlyArray1<'py, f64>,
-    pub face_proj_y:    PyReadonlyArray1<'py, f64>,
-    pub face_distance:  PyReadonlyArray1<'py, f64>,
-    pub face_bearing:   PyReadonlyArray1<'py, f64>,
 
     pub n_node:         usize,
     pub node_elevation: PyReadonlyArray1<'py, f64>,
@@ -40,6 +36,13 @@ pub struct PyReadonlyLocalSurface<'py> {
     pub edge_face_connectivity: PyReadonlyArray2<'py, i64>,
     pub edge_node_connectivity: PyReadonlyArray2<'py, i64>,
     pub edge_face_distance:     PyReadonlyArray1<'py, f64>,
+
+    // The following are optional, as they will not be present if the LocalSurfaceView represents a global Surface object
+    pub face_proj_x:    Option<PyReadonlyArray1<'py, f64>>,
+    pub face_proj_y:    Option<PyReadonlyArray1<'py, f64>>,
+    pub face_distance:  Option<PyReadonlyArray1<'py, f64>>,
+    pub face_bearing:   Option<PyReadonlyArray1<'py, f64>>,
+
 }
 
 fn ensure_index_array<'py>(
@@ -47,6 +50,11 @@ fn ensure_index_array<'py>(
     indices_obj: &Bound<'py, PyAny>,
     length: usize,
 ) -> PyResult<PyReadonlyArray1<'py, i64>> {
+    if indices_obj.is_none() {
+        return Err(PyErr::new::<PyValueError, _>(
+            "LocalSurface indices field is None (expected slice or ndarray)",
+        ));
+    }
     if indices_obj.is_instance_of::<PySlice>() {
         let slice: &Bound<'py, PySlice> = indices_obj.cast()?;
         let indices = slice.indices(length as isize)?;
@@ -66,6 +74,10 @@ fn ensure_index_array<'py>(
                 vals.push(i as i64);
                 i += step;
             }
+        } else {
+            return Err(PyErr::new::<PyValueError, _>(
+                "LocalSurface indices slice is invalid (step cannot be zero)",
+            ));
         }
 
         let arr = PyArray1::from_vec(py, vals);
@@ -91,31 +103,27 @@ impl<'py> PyReadonlyLocalSurface<'py> {
 
         Ok(Self {
             n_face,
+            n_node,
+            n_edge,
+            face_indices:   ensure_index_array(py, &face_indices_obj, n_face)?,
+            node_indices:   ensure_index_array(py, &node_indices_obj, n_node)?,
+            edge_indices:   ensure_index_array(py, &edge_indices_obj, n_edge)?,
             pix:            obj.getattr("pix")?.extract()?,
             face_area:      obj.getattr("face_area")?.extract()?,
             face_elevation: obj.getattr("face_elevation")?.extract()?,
-            face_indices:   ensure_index_array(py, &face_indices_obj, n_face)?,
             face_lon:       obj.getattr("face_lon")?.extract()?,
             face_lat:       obj.getattr("face_lat")?.extract()?,
             face_x:         obj.getattr("face_x")?.extract()?,  
             face_y:         obj.getattr("face_y")?.extract()?,
             face_z:         obj.getattr("face_z")?.extract()?,
-            face_proj_x:    obj.getattr("face_proj_x")?.extract()?,
-            face_proj_y:    obj.getattr("face_proj_y")?.extract()?,
-            face_distance:  obj.getattr("face_distance")?.extract()?,
-            face_bearing:   obj.getattr("face_bearing")?.extract()?,
 
-            n_node,
             node_elevation: obj.getattr("node_elevation")?.extract()?,
-            node_indices:   ensure_index_array(py, &node_indices_obj, n_node)?,
             node_lon:       obj.getattr("node_lon")?.extract()?,
             node_lat:       obj.getattr("node_lat")?.extract()?,
             node_x:         obj.getattr("node_x")?.extract()?,
             node_y:         obj.getattr("node_y")?.extract()?,
             node_z:         obj.getattr("node_z")?.extract()?,
 
-            n_edge,
-            edge_indices:   ensure_index_array(py, &edge_indices_obj, n_edge)?,
             edge_length:    obj.getattr("edge_length")?.extract()?,
 
             face_edge_connectivity: obj.getattr("face_edge_connectivity")?.extract()?,
@@ -125,6 +133,11 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             edge_face_connectivity: obj.getattr("edge_face_connectivity")?.extract()?,
             edge_node_connectivity: obj.getattr("edge_node_connectivity")?.extract()?,
             edge_face_distance:     obj.getattr("edge_face_distance")?.extract()?,
+
+            face_proj_x:    obj.getattr("face_proj_x")?.extract()?,
+            face_proj_y:    obj.getattr("face_proj_y")?.extract()?,
+            face_distance:  obj.getattr("face_distance")?.extract()?,
+            face_bearing:   obj.getattr("face_bearing")?.extract()?,
         })
     }
     /// Convert to cratermaker-core PyReadonlyLocalSurface with array views
@@ -140,10 +153,6 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             face_x:                 self.face_x.as_array(),
             face_y:                 self.face_y.as_array(),
             face_z:                 self.face_z.as_array(),
-            face_proj_x:            self.face_proj_x.as_array(),
-            face_proj_y:            self.face_proj_y.as_array(),
-            face_distance:          self.face_distance.as_array(),
-            face_bearing:           self.face_bearing.as_array(),
 
             n_node:                 self.n_node,
             node_elevation:         self.node_elevation.as_array(),
@@ -165,6 +174,13 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             edge_face_connectivity: self.edge_face_connectivity.as_array(),
             edge_node_connectivity: self.edge_node_connectivity.as_array(),
             edge_face_distance:     self.edge_face_distance.as_array(),
+
+            // Optional fields that only exist when a LocalSurface represents a global Surface
+            face_proj_x:            self.face_proj_x.as_ref().map(|a| a.as_array()),
+            face_proj_y:            self.face_proj_y.as_ref().map(|a| a.as_array()),
+            face_distance:          self.face_distance.as_ref().map(|a| a.as_array()),
+            face_bearing:           self.face_bearing.as_ref().map(|a| a.as_array()),
+
         }
     }
 }
@@ -193,16 +209,19 @@ pub fn apply_diffusion<'py>(
     face_variable: PyReadonlyArray1<'py, f64>,
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
     let face_kappa_v = face_kappa.as_array();
     let face_variable_v = face_variable.as_array();
-    let result =  cratermaker_core::surface::apply_diffusion(
+
+    let result = cratermaker_core::surface::apply_diffusion(
             face_kappa_v,
             face_variable_v,
             &region_v
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+
     Ok(PyArray1::from_owned_array(py, result))
 }
 

@@ -18,8 +18,8 @@ pub fn radial_distance_to_ellipse<'py>(
     let x_v = x.as_array();
     let y_v = y.as_array();
     let result = cratermaker_core::counting::radial_distance_to_ellipse(
-            x_v,
-            y_v,
+            &x_v,
+            &y_v,
             a,
             b,
             orientation,

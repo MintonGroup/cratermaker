@@ -1866,6 +1866,7 @@ class LocalSurface(CratermakerBase):
             self._output_file_prefix = "local_surface"
             object.__setattr__(self, "_output_file_prefix", "local_surface")
             object.__setattr__(self, "_grid_file_prefix", "local_grid")
+            self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
             self._output_file_pattern += [f"{self._output_file_prefix}*.{self._output_file_extension}"]
         else:  # This is really a Surface object wearing a LocalSurface costume.
             object.__setattr__(self, "_output_file_prefix", self.surface._output_file_prefix)
@@ -3779,8 +3780,6 @@ class LocalSurface(CratermakerBase):
         """
         The projected x coordinates of the faces in the local CRS.
         """
-        if self._face_proj_x is None:
-            self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
         return self._face_proj_x
 
     @property
@@ -3788,8 +3787,6 @@ class LocalSurface(CratermakerBase):
         """
         The projected y coordinates of the faces in the local CRS.
         """
-        if self._face_proj_y is None:
-            self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
         return self._face_proj_y
 
 
