@@ -1,7 +1,6 @@
 pub mod morphology_bindings;
 pub mod surface_bindings;
 pub mod counting_bindings;
-pub mod crater_bindings;
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -18,17 +17,12 @@ use pyo3::prelude::*;
 mod cratermaker {
     use super::*;
 
-    #[pymodule]
-    mod crater_bindings {
-    }
 
     #[pymodule]
     mod counting_bindings {
         #[pymodule_export]
         use crate::counting_bindings::{
             tally, 
-            radial_distance_to_ellipse, 
-            fit_one_ellipse,
             score_rim
         };
     }

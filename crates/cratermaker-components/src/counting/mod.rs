@@ -3,16 +3,15 @@ use numpy::ndarray::prelude::*;
 use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{Inverse, Eig};
 use rayon::prelude::*;
-use crate::ArrayResult;
+use crate::{ArrayResult, crater};
 use crate::surface::LocalSurfaceView;
+use crate::crater::Crater;
 
 pub fn fit_rim(
     region: &LocalSurfaceView<'_>,
     x0: f64, 
     y0: f64, 
-    ap: f64,
-    bp: f64,
-    orientation: f64,
+    crater: &Crater,
     quantile: f64,
     distmult: f64,
     gradmult: f64,
@@ -23,9 +22,7 @@ pub fn fit_rim(
         region, 
         x0,
         y0,
-        ap,
-        bp,
-        orientation,
+        crater,
         quantile,
         distmult,
         gradmult,
@@ -74,16 +71,16 @@ pub fn fit_rim(
 /// Currently this function always returns `Ok(...)`. The `ArrayResult`
 /// return type allows future extensions to return descriptive errors
 /// (for example, if the input arrays have inconsistent lengths).
-pub fn radial_distance_to_ellipse(
+pub fn radial_distance_to_crater_rim(
     x: &ArrayView1<'_, f64>,
     y: &ArrayView1<'_, f64>,
-    a: f64, 
-    b: f64,
-    orientation: f64, 
+    crater: &Crater,
     x0: f64, 
     y0:f64
 ) -> ArrayResult {
-    let phi = orientation - FRAC_PI_2;
+    let phi = crater.orientation.to_radians() - FRAC_PI_2;
+    let a = crater.semimajor_axis;
+    let b = crater.semiminor_axis;
 
     let result_vec: Vec<f64> = (0..x.len())
         .into_par_iter()
@@ -373,9 +370,7 @@ pub fn score_rim(
     region: &LocalSurfaceView<'_>,
     x0: f64, 
     y0: f64, 
-    ap: f64,
-    bp: f64,
-    orientation: f64,
+    crater: &Crater,
     quantile: f64,
     distmult: f64,
     gradmult: f64,
@@ -397,7 +392,10 @@ pub fn score_rim(
     )?;
     let proj_x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
     let proj_y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
-    let distances = radial_distance_to_ellipse(proj_x, proj_y, ap, bp, orientation, x0, y0)?; // Array1<f64>
+    let ap = crater.semimajor_axis;
+    let bp = crater.semiminor_axis;
+    let orientation = crater.orientation.to_radians(); 
+    let distances = radial_distance_to_crater_rim(proj_x, proj_y, crater, x0, y0)?; 
 
     // 3) Region mask based on radial distance from origin
 
