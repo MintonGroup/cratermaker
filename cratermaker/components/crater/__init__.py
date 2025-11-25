@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from geopandas import GeoSeries
 from numpy.random import Generator
+from pyproj import Geod
+from shapely.geometry import GeometryCollection, LineString, Polygon
+from shapely.ops import split, transform
 
 from cratermaker.core.base import CratermakerBase
 from cratermaker.utils.general_utils import format_large_units
@@ -15,6 +19,7 @@ from cratermaker.utils.general_utils import format_large_units
 if TYPE_CHECKING:
     from cratermaker.components.projectile import Projectile
     from cratermaker.components.scaling import Scaling
+    from cratermaker.components.surface import Surface
     from cratermaker.components.target import Target
 
 
@@ -55,6 +60,74 @@ class Crater:
             f"morphology_type: {self.morphology_type}\n"
             f"age: {agetext}"
         )
+
+    def to_vector(
+        self,
+        n: int = 150,
+        surface: Surface | None = None,
+        split_antimeridian: bool = True,
+    ) -> GeoSeries:
+        """
+        Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by the crater's orientation.
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of points to use for the polygon, by default 150.
+        surface : Surface | None, optional
+            Surface object providing planetary radius and CRS.
+        split_antimeridian : bool, optional
+            If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
+
+        Returns
+        -------
+        A GeoSeries containing a Shapely Polygon in lon/lat degrees.
+        """
+        from cratermaker.components.surface import Surface
+
+        surface = Surface.maker(surface)
+        geod = Geod(a=surface.target.radius, b=surface.target.radius)
+        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+        a = self.semimajor_axis
+        b = self.semiminor_axis
+        lon, lat = self.location
+        phi = self.orientation - 90.0
+
+        # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
+        ct = np.cos(np.deg2rad(theta))
+        st = np.sin(np.deg2rad(theta))
+        r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+
+        # Bearings (from east, CCW) rotated by azimuth
+        bearings = theta + phi % 360.0
+
+        # Forward geodesic for each bearing/distance
+        poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+        # Correct for potential antimeridian crossing
+        if split_antimeridian and np.ptp(poly_lon) > 180.0:
+            center_sign = np.sign(lon)
+            poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
+            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+            merdian_lon = 180.0 * center_sign
+            meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
+            poly = split(poly, meridian)
+
+            def lon_flip(lon, lat):
+                lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
+                return lon, lat
+
+            new_geoms = []
+            for p in poly.geoms:
+                if np.abs(p.centroid.x) > 180.0:
+                    p = transform(lon_flip, p)
+                new_geoms.append(p)
+            poly = GeometryCollection(new_geoms)
+
+        else:
+            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+
+        return GeoSeries([poly], crs=surface.crs)
 
     @property
     def diameter(self) -> float | None:
