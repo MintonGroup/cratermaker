@@ -10,11 +10,11 @@ import numpy as np
 import pandas as pd
 import uxarray as uxr
 import xarray as xr
+from cratermaker._cratermaker import counting_bindings
 from shapely.geometry import GeometryCollection
-from shapely.ops import , transform
+from shapely.ops import transform
 
 from cratermaker.components.crater import Crater
-from cratermaker._cratermaker import counting_bindings
 from cratermaker.core.base import ComponentBase, import_components
 
 if TYPE_CHECKING:
@@ -230,7 +230,7 @@ class Counting(ComponentBase):
 
         # Extract a local region aroundt he crater
         region = self.surface.extract_region(location=crater.location, region_radius=_EXTENT_RADIUS_RATIO * crater.radius)
-        crater_fit = _counting_bindings.fit_rim(region, crater, tol, nloops, score_quantile)
+        crater_fit = counting_bindings.fit_rim(region, crater, tol, nloops, score_quantile)
 
         # a = crater.semimajor_axis
         # b = crater.semiminor_axis
@@ -241,6 +241,45 @@ class Counting(ComponentBase):
         # x0, y0 = subregion.from_surface.transform(crater.location[0], crater.location[1])
 
         return
+
+    def score_rim(self, crater: Crater, quantile=0.95, distmult=1.0, gradmult=1.0, curvmult=1.0, heightmult=1.0) -> None:
+        """
+        Score the rim region of a crater on the surface.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater for which to score the rim region.
+        quantile : float, optional
+            The quantile of rim scores to consider. Default is 0.95.
+        distmult : float, optional
+            Distance multiplier for scoring. Default is 1.0.
+        gradmult : float, optional
+            Gradient multiplier for scoring. Default is 1.0.
+        curvmult : float, optional
+            Curvature multiplier for scoring. Default is 1.0.
+        heightmult : float, optional
+            Height multiplier for scoring. Default is 1.0.
+
+        Returns
+        -------
+        Updates the attached surface object with the rim score for this crater.
+        """
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
+
+        # Extract a local region aroundt he crater
+        # region = self.surface.extract_region(location=crater.location, region_radius=_EXTENT_RADIUS_RATIO * crater.radius)
+        region = counting_bindings.score_rim(self.surface, crater, quantile, distmult, gradmult, curvmult, heightmult)
+        # region.add_data(
+        #     name="rimscore",
+        #     data=rimscore,
+        #     long_name="Rim Score",
+        #     units="dimensionless",
+        #     overwrite=True,
+        #     fill_value=np.nan,
+        # )
+        return region
 
     @abstractmethod
     def tally(self, region: LocalSurface | None = None) -> None: ...

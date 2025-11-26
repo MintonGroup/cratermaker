@@ -54,16 +54,19 @@ pub fn fit_one_ellipse<'py>(
 #[pyfunction]
 pub fn score_rim<'py>(
     py: Python<'py>,
-    region: Bound<'py, PyAny>,
-    x0: f64, 
-    y0: f64,
+    surface: &Bound<'py, PyAny>,
     crater: Crater, 
     quantile: f64,
     distmult: f64,
     gradmult: f64,
     curvmult: f64,
     heightmult: f64,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
+) -> PyResult<Bound<'py, PyAny>>  {
+    const _EXTENT_RADIUS_RATIO: f64 = 2.0;
+    let region = surface.call_method1("extract_region",(crater.location, _EXTENT_RADIUS_RATIO * crater.radius))?;
+    let transformer = region.getattr("from_surface").unwrap();
+    let x0y0 = transformer.call_method1("transform",(crater.location.0, crater.location.1))?;
+    let (x0, y0): (f64, f64) = x0y0.extract()?;
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_components::counting::score_rim(
@@ -78,13 +81,16 @@ pub fn score_rim<'py>(
             heightmult
         )
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    Ok(PyArray1::from_owned_array(py, result))
+
+    region.call_method1("add_data",("rimscore", PyArray1::from_owned_array(py, result.clone()), "Rim Score", "dimensionless", true, f64::NAN))?;
+
+    Ok(region)
 }
 
 
 #[pyfunction]
 pub fn fit_rim<'py>(
-    py: Python<'py>,
+    _py: Python<'py>,
     region: Bound<'py, PyAny>,
     crater: Crater, 
     tol: f64,
