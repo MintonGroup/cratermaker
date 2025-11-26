@@ -37,6 +37,10 @@ class Crater:
     location: tuple[float, float] | None = None
     morphology_type: str | None = None
     age: float | None = None
+    measured_semimajor_axis: float | None
+    measured_semiminor_axis: float | None
+    measured_orientation: float | None
+    measured_location: tuple[float, float] | None
 
     def __str__(self):
         if self.age is None:
@@ -47,6 +51,20 @@ class Crater:
             size_text = f"Elliptical size {format_large_units(self.semimajor_axis, quantity='length')} x {format_large_units(self.semiminor_axis, quantity='length')}\nMean Diameter: {format_large_units(self.diameter, quantity='length')}"
         else:
             size_text = f"Diameter: {format_large_units(self.diameter, quantity='length')}"
+        if self.measured_semimajor_axis is not None:
+            if self.measured_semimajor_axis != self.measured_semiminor_axis:
+                size_text += f"\nMeasured elliptical size {format_large_units(self.measured_semimajor_axis, quantity='length')} x {format_large_units(self.measured_semiminor_axis, quantity='length')}\nMeasured Mean Diameter: {format_large_units(self.measured_diameter, quantity='length')}"
+                size_text += f"\nMeasured orientation: {self.measured_orientation:.1f}°"
+                size_text += (
+                    f"\nMeasured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
+                )
+            else:
+                size_text += f"\nMeasured diameter: {format_large_units(self.measured_diameter, quantity='length')}"
+                size_text += f"\nMeasured orientation: {self.measured_orientation:.1f}°"
+                size_text += (
+                    f"\nMeasured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
+                )
+
         return (
             f"{size_text}\n"
             f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
@@ -61,7 +79,7 @@ class Crater:
             f"age: {agetext}"
         )
 
-    def to_vector(
+    def to_geoseries(
         self,
         n: int = 150,
         surface: Surface | None = None,
@@ -142,6 +160,18 @@ class Crater:
         return None
 
     @property
+    def measured_diameter(self) -> float | None:
+        """Final diameter of the crater in meters."""
+        return self.measured_radius * 2 if self.measured_radius is not None else None
+
+    @property
+    def measured_radius(self) -> float | None:
+        """Final radius of the crater in meters."""
+        if self.measured_semimajor_axis is not None and self.measured_semiminor_axis is not None:
+            return math.sqrt(self.measured_semimajor_axis * self.measured_semiminor_axis)
+        return None
+
+    @property
     def final_diameter(self) -> float | None:
         """Final diameter of the crater in meters."""
         return self.diameter
@@ -208,6 +238,12 @@ class Crater:
         projectile_location: tuple[float, float] | None = None,
         location: tuple[float, float] | None = None,
         age: float | None = None,
+        measured_semimajor_axis: float | None = None,
+        measured_semiminor_axis: float | None = None,
+        measured_orientation: float | None = None,
+        measured_diameter: float | None = None,
+        measured_radius: float | None = None,
+        measured_location: tuple[float, float] | None = None,
         simdir: str | Path | None = None,
         rng: Generator = None,
         rng_seed: str | int | None = None,
@@ -269,6 +305,18 @@ class Crater:
             The (longitude, latitude) location of the crater.
         age : float, optional
             The age of the crater in Myr.
+        measured_semimajor_axis : float, optional
+            The measured semimajor axis of the crater in meters.
+        measured_semiminor_axis : float, optional
+            The measured semiminor axis of the crater in meters.
+        measured_orientation : float, optional
+            The measured orientation of the crater in degrees.
+        measured_diameter : float, optional
+            The measured diameter of the crater in meters.
+        measured_radius : float, optional
+            The measured radius of the crater in meters.
+        measured_location : tuple of float, optional
+            The measured (longitude, latitude) location of the crater.
         simdir : str | Path
             The main project simulation directory. Default is the current working directory if None.
         rng : numpy.random.Generator | None
@@ -293,6 +341,7 @@ class Crater:
         - Any two of (`projectile_velocity`, `projectile_vertical_velocity`, `projectile_angle`). the third is inferred.
         - `projectile` is mutually exclusive with velocity-related inputs; if provided, it overrides velocity, angle, direction, and density unless explicitly set.
         - The `scaling`, and `rng` models are required for scaling and density inference, but are not stored in the returned Crater object.
+        - If providing measured properties, either both `measured_semimajor_axis` and `measured_semiminor_axis`, or one of `measured_diameter` or `measured_radius` must be provided.
         """
         from cratermaker.components.projectile import Projectile
         from cratermaker.components.scaling import Scaling
@@ -545,6 +594,36 @@ class Crater:
         if prho < 0:
             raise ValueError("Projectile density must be non-negative.")
 
+        if measured_radius is not None and measured_diameter is not None:
+            raise ValueError("Only one of measured_diameter or measured_radius may be set.")
+        elif measured_diameter is not None:
+            measured_radius = measured_diameter / 2.0
+
+        if measured_semimajor_axis is not None or measured_semiminor_axis is not None:
+            if measured_semimajor_axis is None or measured_semiminor_axis is None:
+                if measured_diameter is not None or measured_radius is not None:
+                    raise ValueError(
+                        "If providing measured properties for an elliptical crater, either both measured_semimajor_axis and measured_semiminor_axis, or one of measured_diameter or measured_radius must be provided."
+                    )
+                measured_radius = measured_semimajor_axis if measured_semiminor_axis is None else measured_semiminor_axis
+                measured_semimajor_axis = measured_radius
+                measured_semiminor_axis = measured_radius
+            if measured_diameter is not None or measured_radius is not None:
+                raise ValueError(
+                    "measured_diameter or measured_radius cannot be used for elliptical craters; use measured_semimajor_axis and measured_semiminor_axis instead."
+                )
+        elif measured_radius is not None:
+            measured_semimajor_axis = measured_radius
+            measured_semiminor_axis = measured_radius
+        else:
+            measured_semimajor_axis = a if a is not None else None
+            measured_semiminor_axis = b if b is not None else None
+
+        if measured_orientation is None:
+            measured_orientation = pdir if pdir is not None else None
+        if measured_location is None:
+            measured_location = (float(location[0]), float(location[1])) if location is not None else None
+
         # Assemble final arguments
         crater_args = {
             "semimajor_axis": float(a) if a is not None else None,
@@ -558,6 +637,12 @@ class Crater:
             "location": (float(location[0]), float(location[1])),
             "morphology_type": str(mt) if mt is not None else None,
             "age": float(age) if age is not None else None,
+            "measured_semimajor_axis": float(measured_semimajor_axis) if measured_semimajor_axis is not None else None,
+            "measured_semiminor_axis": float(measured_semiminor_axis) if measured_semiminor_axis is not None else None,
+            "measured_orientation": float(measured_orientation) if measured_orientation is not None else None,
+            "measuerd_location": (float(measured_location[0]), float(measured_location[1]))
+            if measured_location is not None
+            else None,
         }
         crater_args["id"] = _set_id(**crater_args)
         return cls(**crater_args)

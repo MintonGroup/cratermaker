@@ -9,23 +9,67 @@ use crate::crater::Crater;
 
 pub fn fit_rim(
     region: &LocalSurfaceView<'_>,
+    x0: f64,
+    y0: f64,
     crater: &Crater,
     tol: f64,
     nloops: usize,
     score_quantile: f64,
-) ->Result<(f64, f64, f64, f64, f64), LinalgError> { 
-    // score_rim(
-    //     region, 
-    //     x0,
-    //     y0,
-    //     crater,
-    //     quantile,
-    //     distmult,
-    //     gradmult,
-    //     curvmult,
-    //     heightmult,
-    // )
-    Ok((0.0, 0.0, 0.0, 0.0, 0.0))
+) ->Result<(f64, f64, f64), String> { 
+    let x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
+    let y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
+    let mut crater_fit = crater.clone();
+    let (rimscore, wrms) = (Array1::<f64>::zeros(x.len()), 0.0);
+    for i in 0..nloops {
+
+        // Update the multipliers depending on the iteration
+        let gradmult = 1.0 / (i as f64);
+        let curvmult = 5.0 / (i as f64);
+        let heightmult = (i - 1) as f64;
+        let distmult = i as f64;
+
+        // Score the rim using the current multipliers
+        let rimscore = score_rim(
+            region,
+            x0, 
+            y0, 
+            &crater_fit, 
+            score_quantile, 
+            distmult, 
+            gradmult, 
+            curvmult, 
+            heightmult
+        ).map_err(|e| e.to_string())?;
+
+        // Replace NaN weights with zero
+        let weights = rimscore.mapv(|w| {
+            if w.is_nan() || w < 0.0 {
+                0.0
+            } else {
+                w
+            }
+        });
+
+        // Fit an ellipse to the weighted points using fixed center fitter
+        let (a_fit, b_fit, orientation_fit, wrms) = fit_one_ellipse_fixed_center(
+            x.view(),
+            y.view(),
+            weights.view(),
+            x0,
+            y0,
+        ).map_err(|e| e.to_string())?;
+        let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.measured_semimajor_axis;
+        let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.measured_semiminor_axis;
+        let delta_orientation = (orientation_fit - crater_fit.measured_orientation).abs(); 
+        if delta_a < tol && delta_b < tol && delta_orientation < tol {
+            return Ok((a_fit, b_fit, orientation_fit));
+        }
+        crater_fit.measured_semimajor_axis = a_fit;
+        crater_fit.measured_semiminor_axis = b_fit;
+        crater_fit.measured_orientation = orientation_fit;
+
+    }
+    Ok((crater_fit.measured_semimajor_axis, crater_fit.measured_semiminor_axis, crater_fit.measured_orientation))
 }
 
 /// Computes the signed radial distance from points to an ellipse.
@@ -75,9 +119,9 @@ pub fn radial_distance_to_crater_rim(
     x0: f64, 
     y0:f64
 ) -> ArrayResult {
-    let phi = crater.orientation.to_radians() - FRAC_PI_2;
-    let a = crater.semimajor_axis;
-    let b = crater.semiminor_axis;
+    let phi = crater.measured_orientation.to_radians() - FRAC_PI_2;
+    let a = crater.measured_semimajor_axis;
+    let b = crater.measured_semiminor_axis;
 
     let result_vec: Vec<f64> = (0..x.len())
         .into_par_iter()
@@ -385,8 +429,8 @@ pub fn score_rim(
     )?;
     let proj_x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
     let proj_y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
-    let ap = crater.semimajor_axis;
-    let bp = crater.semiminor_axis;
+    let ap = crater.measured_semimajor_axis;
+    let bp = crater.measured_semiminor_axis;
     let distances = radial_distance_to_crater_rim(proj_x, proj_y, crater, x0, y0)?; 
 
     // Region mask based on radial distance from origin
@@ -394,7 +438,7 @@ pub fn score_rim(
     let mask_region: Array1<bool> = region.face_distance.as_ref().ok_or("face_distance required")?.mapv(|ri| ri > max_distance);
 
     // Distance score: closer to current best fit for rim = higher score
-    let scale = crater.diameter;
+    let scale = crater.measured_diameter;
     let mut distscore = distances.mapv(|d| {
         let nd = (d / scale).powi(2);
         1.0 / (nd + 0.1)
@@ -760,6 +804,178 @@ pub fn fit_one_ellipse(
     let (x0, y0, ap, bp, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
 
     Ok((x0, y0, ap, bp, orientation, wrms))
+}
+
+
+/// Fits a single weighted ellipse to 2D points with a fixed center.
+/// This function implements a numerically stable, weighted variant of the
+/// direct least-squares ellipse fitting algorithm of Halír and Flusser,
+/// with the additional constraint that the ellipse center is fixed
+/// at `(x0, y0)`.
+///
+/// The ellipse is represented in the general quadratic form
+/// `a x² + b x y + c y² + d x + e y + f
+///    
+/// subject to the constraint that the conic is an ellipse. The algorithm:
+/// 1. Constructs centered features `fa`, `fb`, `fc` based on the fixed center
+/// 2. Builds design matrices `D1` and `D2` from the centered features.
+/// 3. Applies per-point weights `w[i]`.
+/// 4. Computes scatter matrices `S1`, `S2`, `S3`.
+/// 5. Forms the reduced matrix `M` incorporating the ellipse constraint.
+/// 6. Solves the eigenproblem for `M` and selects the eigenvector that
+///    satisfies the ellipse condition `4ac - b² > 0`.
+/// 7. Recovers the full coefficient vector using the fixed center.
+/// 8. Computes the geometric parameters (semi-axes, orientation).
+/// 9. Computes the weighted RMS geometric distance from the points
+///    to the fitted ellipse.
+/// 
+/// # Arguments
+/// 
+/// * `x` - x-coordinates of sample points.
+/// * `y` - y-coordinates of sample points. Must have the same length as `x`.
+/// * `weights` - Non-negative weights for each point. Must have the same
+///   length as `x` and `y`. Points with larger weights influence the fit more.
+/// * `x0` - Fixed x-coordinate of the ellipse center.
+/// * `y0` - Fixed y-coordinate of the ellipse center.
+/// 
+/// # Returns
+/// 
+/// On success, returns:
+/// `(ap, bp, orientation, wrms)`
+/// where:
+/// * `ap` - Semi-major axis length.
+/// * `bp` - Semi-minor axis length.
+/// * `orientation` - Orientation angle in radians.
+/// * `wrms` - Weighted root-mean-square geometric distance of the points
+///   to the fitted ellipse.
+/// 
+/// # Errors
+/// 
+/// Returns `Err(LinalgError)` if:
+/// * One of the intermediate matrices (`S3`, `C`, etc.) is singular and
+///   cannot be inverted.
+/// * The eigen decomposition of `M` fails.
+/// 
+/// # Panics
+/// 
+/// * Panics if `x`, `y`, and `weights` do not all have the same length
+///   (enforced via `assert_eq!`).
+/// * Panics if no eigenvector satisfies the ellipse condition
+///   `4ac - b² > 0`, indicating that the data do not admit a valid
+///   ellipse under this formulation.
+#[inline]
+pub fn fit_one_ellipse_fixed_center(
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    weights: ArrayView1<'_, f64>,
+    x0: f64,
+    y0: f64,
+) -> Result<(f64, f64, f64, f64), LinalgError> {
+    assert_eq!(x.len(), y.len());
+    assert_eq!(x.len(), weights.len());
+    let n = x.len();
+
+    // 1) Build centered features fa, fb, fc
+    let fa = x.mapv(|xi| xi * xi - 2.0 * x0 * xi);
+    let fb = x.iter()
+        .zip(y.iter())
+        .map(|(&xi, &yi)| xi * yi - y0 * xi - x0 * yi)
+        .collect::<Array1<f64>>();
+    let fc = y.mapv(|yi| yi * yi - 2.0 * y0 * yi);
+
+    // 2) Design matrices: D1 = [fa, fb, fc], D2 = [1]
+    let mut d1 = Array2::<f64>::zeros((n, 3));
+    let mut d2 = Array2::<f64>::zeros((n, 1));
+    d1.column_mut(0).assign(&fa);
+    d1.column_mut(1).assign(&fb);
+    d1.column_mut(2).assign(&fc);
+    d2.column_mut(0).fill(1.0);
+
+    // 3) Apply weights
+    let w_col = weights.view().insert_axis(Axis(1));
+    let wd1 = &w_col * &d1; // n x 3
+    let wd2 = &w_col * &d2; // n x 1
+
+    // 4) Scatter matrices
+    let s1 = wd1.t().dot(&wd1); // 3x3
+    let s2 = wd1.t().dot(&wd2); // 3x1
+    let s3 = wd2.t().dot(&wd2); // 1x1
+
+    // 5) Eliminate g (constant term) via Schur complement
+    let s3_scalar = s3[[0, 0]];
+    if s3_scalar == 0.0 {
+        // all weights zero? bail out
+        eprintln!(
+            "fit_one_ellipse_fixed_center: all weights are zero (s3 = {})",
+            s3_scalar
+        );
+        return Err(LinalgError::NotStandardShape {
+            obj: "fit_one_ellipse_fixed_center: all weights are zero",
+            rows: weights.len() as i32,
+            cols: 1,
+        });
+    }
+
+
+    let s3_inv = 1.0 / s3_scalar;
+    let t = s2.t().mapv(|v| -s3_inv * v);     // t: Array2<f64>
+    let m_tmp = s1 + s2.dot(&t);     // 3x3
+
+    // 6) Ellipse constraint matrix, same as before
+    let c = arr2(&[
+        [0.0, 0.0, 2.0],
+        [0.0, -1.0, 0.0],
+        [2.0, 0.0, 0.0],
+    ]);
+    let c_inv = c.inv()?;
+    let m = c_inv.dot(&m_tmp);
+
+    // 7) Eigen-decomposition and ellipse selection
+    let (_eigvals, eigvecs) = m.eig()?;
+    let eigvecs_re = eigvecs.mapv(|c| c.re);
+
+    let mut chosen_col = None;
+    for k in 0..3 {
+        let a = eigvecs_re[[0, k]];
+        let b = eigvecs_re[[1, k]];
+        let c = eigvecs_re[[2, k]];
+        let con = 4.0 * a * c - b * b;
+        if con > 0.0 {
+            chosen_col = Some(k);
+            break;
+        }
+    }
+    let k = chosen_col.expect("No valid ellipse eigenvector found");
+    let q = eigvecs_re.column(k).to_owned(); // [a, b, c]
+
+    let a = q[0];
+    let b = q[1];
+    let c = q[2];
+
+    // 8) Recover g (constant term) using eliminated relation:
+    //    g = -S22^{-1} S21 q = - (1/s3) * (s2^T q)
+    let s21 = s2.t(); // 1x3
+    let s21_q = s21.dot(&q); // scalar
+    let g = -s3_inv * s2.t().dot(&q)[0];
+
+    // 9) Reconstruct d,e from fixed center
+    let d = -2.0 * a * x0 - b * y0;
+    let e = -b * x0 - 2.0 * c * y0;
+
+    // 10) Geometric parameters (we ignore x0_fit,y0_fit and trust the fixed center)
+    let (_x0_fit, _y0_fit, ap, bp, orientation) =
+        ellipse_coefficients_to_parameters(a, b, c, d, e, g);
+
+    // 11) Compute WRMS distance (you can keep using geometric_distances;
+    //     it will be very close to using the fixed center, since coefficients
+    //     are consistent with that center)
+    let delta = geometric_distances(x, y, a, b, c, d, e, g);
+    let delta2 = delta.mapv(|d| d * d);
+    let num = (&delta2 * &weights).sum();
+    let den = weights.sum();
+    let wrms = (num / den).sqrt();
+
+    Ok((ap, bp, orientation, wrms))
 }
 
 

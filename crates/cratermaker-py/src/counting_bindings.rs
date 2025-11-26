@@ -3,6 +3,7 @@ use pyo3::exceptions::PyValueError;
 use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
 use crate::surface_bindings::PyReadonlyLocalSurface;
 use cratermaker_components::crater::Crater;
+const _EXTENT_RADIUS_RATIO: f64 = 2.0;
 
 
 #[pyfunction]
@@ -62,7 +63,6 @@ pub fn score_rim<'py>(
     curvmult: f64,
     heightmult: f64,
 ) -> PyResult<Bound<'py, PyAny>>  {
-    const _EXTENT_RADIUS_RATIO: f64 = 2.0;
     let region = surface.call_method1("extract_region",(crater.location, _EXTENT_RADIUS_RATIO * crater.radius))?;
     let transformer = region.getattr("from_surface").unwrap();
     let x0y0 = transformer.call_method1("transform",(crater.location.0, crater.location.1))?;
@@ -91,16 +91,22 @@ pub fn score_rim<'py>(
 #[pyfunction]
 pub fn fit_rim<'py>(
     _py: Python<'py>,
-    region: Bound<'py, PyAny>,
+    surface: &Bound<'py, PyAny>,
     crater: Crater, 
     tol: f64,
     nloops: usize,
     score_quantile: f64,
-) -> PyResult<(f64, f64, f64, f64, f64)> {
+) -> PyResult<(f64, f64, f64)> {
+    let region = surface.call_method1("extract_region",(crater.location, _EXTENT_RADIUS_RATIO * crater.radius))?;
+    let transformer = region.getattr("from_surface").unwrap();
+    let x0y0 = transformer.call_method1("transform",(crater.location.0, crater.location.1))?;
+    let (x0, y0): (f64, f64) = x0y0.extract()?;
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
-    let (a, b, orientation, lon, lat) = cratermaker_components::counting::fit_rim(
+    let (a, b, orientation) = cratermaker_components::counting::fit_rim(
             &region_v,
+            x0,
+            y0,
             &crater,
             tol,
             nloops,
@@ -108,5 +114,5 @@ pub fn fit_rim<'py>(
         )
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-    Ok((a, b, orientation, lon, lat))
+    Ok((a, b, orientation))
 }

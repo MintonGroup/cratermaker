@@ -228,19 +228,16 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        # Extract a local region aroundt he crater
-        region = self.surface.extract_region(location=crater.location, region_radius=_EXTENT_RADIUS_RATIO * crater.radius)
-        crater_fit = counting_bindings.fit_rim(region, crater, tol, nloops, score_quantile)
+        a, b, orientation = counting_bindings.fit_rim(
+            self.surface,
+            crater,
+            tol,
+            nloops,
+            score_quantile,
+        )
+        crater_fit = Crater.maker(crater, measured_semimajor_axis=a, measured_semiminor_axis=b, measured_orientation=orientation)
 
-        # a = crater.semimajor_axis
-        # b = crater.semiminor_axis
-        # orientation = crater.orientation
-        # location = crater.location
-        # for _ in range(nloops):
-
-        # x0, y0 = subregion.from_surface.transform(crater.location[0], crater.location[1])
-
-        return
+        return crater_fit
 
     def score_rim(self, crater: Crater, quantile=0.95, distmult=1.0, gradmult=1.0, curvmult=1.0, heightmult=1.0) -> None:
         """
