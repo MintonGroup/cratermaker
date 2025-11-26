@@ -24,7 +24,8 @@ mod cratermaker {
         use crate::counting_bindings::{
             tally, 
             score_rim,
-            fit_one_ellipse
+            fit_one_ellipse,
+            fit_rim
         };
     }
 
