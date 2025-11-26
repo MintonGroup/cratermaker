@@ -37,10 +37,10 @@ class Crater:
     location: tuple[float, float] | None = None
     morphology_type: str | None = None
     age: float | None = None
-    measured_semimajor_axis: float | None
-    measured_semiminor_axis: float | None
-    measured_orientation: float | None
-    measured_location: tuple[float, float] | None
+    measured_semimajor_axis: float | None = None
+    measured_semiminor_axis: float | None = None
+    measured_orientation: float | None = None
+    measured_location: tuple[float, float] | None = None
 
     def __str__(self):
         if self.age is None:
@@ -640,7 +640,7 @@ class Crater:
             "measured_semimajor_axis": float(measured_semimajor_axis) if measured_semimajor_axis is not None else None,
             "measured_semiminor_axis": float(measured_semiminor_axis) if measured_semiminor_axis is not None else None,
             "measured_orientation": float(measured_orientation) if measured_orientation is not None else None,
-            "measuerd_location": (float(measured_location[0]), float(measured_location[1]))
+            "measured_location": (float(measured_location[0]), float(measured_location[1]))
             if measured_location is not None
             else None,
         }
