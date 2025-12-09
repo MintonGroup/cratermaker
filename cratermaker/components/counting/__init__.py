@@ -242,7 +242,7 @@ class Counting(ComponentBase):
             tol,
             nloops,
             score_quantile,
-            fit_center=fit_center,
+            fit_center,
         )
 
         crater_fit = Crater.maker(

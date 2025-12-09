@@ -61,8 +61,8 @@ pub fn fit_rim(
         // Score the rim using the current multipliers
         let rimscore = score_rim(
             region,
-            x0, 
-            y0, 
+            x0_fit, 
+            y0_fit, 
             &crater_fit, 
             score_quantile, 
             distmult, 
@@ -93,8 +93,8 @@ pub fn fit_rim(
                 x.view(),
                 y.view(),
                 weights.view(),
-                x0,
-                y0,
+                x0_fit,
+                y0_fit,
             ).map_err(|e| e.to_string())?;
         }
         let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.measured_semimajor_axis;
@@ -242,7 +242,7 @@ fn ellipse_coefficients_to_parameters(
     let b = b /2.0;
     let d = d / 2.0; 
     let f = f / 2.0;
-    let den = b*b - a * c;
+    let den = b*b - a*c;
     if den > 0.0 {
         panic!("The provided coefficients do not represent an ellipse.");
     }
