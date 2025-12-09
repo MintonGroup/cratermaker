@@ -7,6 +7,30 @@ use crate::ArrayResult;
 use crate::surface::LocalSurfaceView;
 use crate::crater::Crater;
 
+/// Fits a crater rim ellipse to a local surface region.
+/// This function performs an iterative fitting procedure to refine
+/// the parameters of a crater rim ellipse based on the local surface data.
+/// 
+/// # Arguments
+/// 
+/// * `region` - A view of the local surface region containing the crater.
+/// * `x0`, `y0` - Initial center of the crater ellipse in crater-centered coordinates.
+/// * `crater` - Initial crater parameters.
+/// * `tol` - Tolerance for convergence of the fitting algorithm.
+/// * `nloops` - Maximum number of iterations to perform.
+/// * `score_quantile` - Quantile of rim scores to consider.
+/// * `fit_center` - Whether to fit the crater center or keep it fixed.
+/// 
+/// # Returns
+/// 
+/// * On success, returns a tuple `(x0_fit, y0_fit, a_fit, b_fit, o_fit)`
+///  containing the fitted crater center coordinates, semi-major axis,
+/// semi-minor axis, and orientation angle.
+/// 
+/// # Errors
+/// 
+/// * Returns `Err(String)` if any error occurs during the fitting process.
+/// 
 pub fn fit_rim(
     region: &LocalSurfaceView<'_>,
     x0: f64,
@@ -15,17 +39,23 @@ pub fn fit_rim(
     tol: f64,
     nloops: usize,
     score_quantile: f64,
-) ->Result<(f64, f64, f64), String> { 
+    fit_center: bool,
+) ->Result<(f64, f64, f64, f64, f64), String> { 
     let x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
     let y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
     let mut crater_fit = crater.clone();
-    let (rimscore, wrms) = (Array1::<f64>::zeros(x.len()), 0.0);
+    let mut x0_fit = x0;
+    let mut y0_fit = y0;
+    let mut a_fit:f64 = 0.0;
+    let mut b_fit:f64 = 0.0;
+    let mut o_fit:f64 = 0.0;
+    let mut _wrms: f64 = 0.0;
     for i in 0..nloops {
 
         // Update the multipliers depending on the iteration
-        let gradmult = 1.0 / (i as f64);
-        let curvmult = 5.0 / (i as f64);
-        let heightmult = (i - 1) as f64;
+        let gradmult = 1.0 / ((i + 1) as f64);
+        let curvmult = 5.0 / ((i + 1) as f64);
+        let heightmult = (nloops - i) as f64;
         let distmult = i as f64;
 
         // Score the rim using the current multipliers
@@ -51,25 +81,34 @@ pub fn fit_rim(
         });
 
         // Fit an ellipse to the weighted points using fixed center fitter
-        let (a_fit, b_fit, orientation_fit, wrms) = fit_one_ellipse_fixed_center(
-            x.view(),
-            y.view(),
-            weights.view(),
-            x0,
-            y0,
-        ).map_err(|e| e.to_string())?;
+
+        if fit_center {
+            (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse(
+                x.view(),
+                y.view(),
+                weights.view()
+            ).map_err(|e| e.to_string())?;
+        } else {
+            (a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse_fixed_center(
+                x.view(),
+                y.view(),
+                weights.view(),
+                x0,
+                y0,
+            ).map_err(|e| e.to_string())?;
+        }
         let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.measured_semimajor_axis;
         let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.measured_semiminor_axis;
-        let delta_orientation = (orientation_fit - crater_fit.measured_orientation).abs(); 
+        let delta_orientation = (o_fit - crater_fit.measured_orientation).abs(); 
         if delta_a < tol && delta_b < tol && delta_orientation < tol {
-            return Ok((a_fit, b_fit, orientation_fit));
+            return Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit));
         }
         crater_fit.measured_semimajor_axis = a_fit;
         crater_fit.measured_semiminor_axis = b_fit;
-        crater_fit.measured_orientation = orientation_fit;
+        crater_fit.measured_orientation = o_fit;
 
     }
-    Ok((crater_fit.measured_semimajor_axis, crater_fit.measured_semiminor_axis, crater_fit.measured_orientation))
+    Ok((x0_fit, y0_fit, crater_fit.measured_semimajor_axis, crater_fit.measured_semiminor_axis, crater_fit.measured_orientation))
 }
 
 /// Computes the signed radial distance from points to an ellipse.

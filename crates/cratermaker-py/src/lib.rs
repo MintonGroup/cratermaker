@@ -25,6 +25,7 @@ mod cratermaker {
             tally, 
             score_rim,
             fit_one_ellipse,
+            fit_one_ellipse_fixed_center,
             fit_rim
         };
     }

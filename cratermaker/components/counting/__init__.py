@@ -211,7 +211,7 @@ class Counting(ComponentBase):
     def _fit_rim_one(self, crater, score_quantile=0.99, distmult=1.0, gradmult=1.0, curvmult=1.0, heightmult=1.0):
         pass
 
-    def fit_rim(self, crater: Crater, tol=0.001, nloops=10, score_quantile=0.95) -> Crater:
+    def fit_rim(self, crater: Crater, tol=0.001, nloops=10, score_quantile=0.95, fit_center=False) -> Crater:
         """
         Find the rim region of a crater on the surface.
 
@@ -219,6 +219,14 @@ class Counting(ComponentBase):
         ----------
         crater : Crater
             The crater for which to find the rim region.
+        tol : float, optional
+            The tolerance for the rim fitting algorithm. Default is 0.001.
+        nloops : int, optional
+            The number of iterations for the rim fitting algorithm. Default is 10.
+        score_quantile : float, optional
+            The quantile of rim scores to consider. Default is 0.95.
+        fit_center : bool, optional
+            If True, fit the crater center as well. Default is False.
 
         Returns
         -------
@@ -228,14 +236,22 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        a, b, orientation = counting_bindings.fit_rim(
+        location, ap, bp, orientation = counting_bindings.fit_rim(
             self.surface,
             crater,
             tol,
             nloops,
             score_quantile,
+            fit_center=fit_center,
         )
-        crater_fit = Crater.maker(crater, measured_semimajor_axis=a, measured_semiminor_axis=b, measured_orientation=orientation)
+
+        crater_fit = Crater.maker(
+            crater,
+            measured_semimajor_axis=ap,
+            measured_semiminor_axis=bp,
+            measured_orientation=orientation,
+            measured_location=location,
+        )
 
         return crater_fit
 
@@ -265,17 +281,8 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        # Extract a local region aroundt he crater
-        # region = self.surface.extract_region(location=crater.location, region_radius=_EXTENT_RADIUS_RATIO * crater.radius)
         region = counting_bindings.score_rim(self.surface, crater, quantile, distmult, gradmult, curvmult, heightmult)
-        # region.add_data(
-        #     name="rimscore",
-        #     data=rimscore,
-        #     long_name="Rim Score",
-        #     units="dimensionless",
-        #     overwrite=True,
-        #     fill_value=np.nan,
-        # )
+
         return region
 
     @abstractmethod

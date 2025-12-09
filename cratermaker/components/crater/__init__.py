@@ -84,6 +84,7 @@ class Crater:
         n: int = 150,
         surface: Surface | None = None,
         split_antimeridian: bool = True,
+        measured: bool = False,
     ) -> GeoSeries:
         """
         Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by the crater's orientation.
@@ -96,6 +97,8 @@ class Crater:
             Surface object providing planetary radius and CRS.
         split_antimeridian : bool, optional
             If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
+        measured : bool, optional
+            If True, use the current measured crater parameters instead of the initial ones, by default False.
 
         Returns
         -------
@@ -106,10 +109,16 @@ class Crater:
         surface = Surface.maker(surface)
         geod = Geod(a=surface.target.radius, b=surface.target.radius)
         theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
-        a = self.semimajor_axis
-        b = self.semiminor_axis
-        lon, lat = self.location
-        phi = self.orientation - 90.0
+        if measured:
+            a = self.measured_semimajor_axis
+            b = self.measured_semiminor_axis
+            lon, lat = self.measured_location
+            phi = self.measured_orientation - 90.0
+        else:
+            a = self.semimajor_axis
+            b = self.semiminor_axis
+            lon, lat = self.location
+            phi = self.orientation - 90.0
 
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))
@@ -347,6 +356,8 @@ class Crater:
         from cratermaker.components.scaling import Scaling
         from cratermaker.components.target import Target
 
+        make_copy = False
+
         def _set_id(**kwargs: Any) -> np.uint32:
             """
             Sets the hash id of the crater based on input parameters.
@@ -452,11 +463,10 @@ class Crater:
             if (
                 n_size_inputs == 0
             ):  # The user has not passed any size parameters, so we will use the size parameters from the crater object
-                for field in size_inputs:
-                    if field != "semimajor_axis" and field != "semiminor_axis" and field != "orientation":
-                        old_parameters.pop(field, None)
                 n_size_inputs = 1  # Make sure we don't trigger the error below
+                make_copy = True
             else:  # The user is passing a size parameter, so we cannot use any of the values from the crater object
+                make_copy = False
                 for field in size_inputs:
                     old_parameters.pop(field, None)
             if projectile_mean_velocity is None:
@@ -485,114 +495,127 @@ class Crater:
         if n_size_inputs != 1:
             raise ValueError(f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set.")
 
-        # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
-        argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
-        if scaling is not None and isinstance(scaling, Scaling):
-            if projectile is None:
-                projectile = scaling.projectile
-            if target is None:
-                target = scaling.target
+        if make_copy:
+            a = args["semimajor_axis"]
+            b = args["semiminor_axis"]
+            td = args["transient_diameter"]
+            pdir = args["orientation"]
+            pd = args["projectile_diameter"]
+            prho = args["projectile_density"]
+            pv = args["projectile_velocity"]
+            pang = args["projectile_angle"]
+            location = args["location"]
+            mt = crater.morphology_type
+            age = args["age"]
+        else:
+            # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
+            argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
+            if scaling is not None and isinstance(scaling, Scaling):
+                if projectile is None:
+                    projectile = scaling.projectile
+                if target is None:
+                    target = scaling.target
 
-        target = Target.maker(target, **vars(argproc.common_args), **kwargs)
+            target = Target.maker(target, **vars(argproc.common_args), **kwargs)
 
-        projectile_args = {
-            "velocity": args["projectile_velocity"],
-            "density": args["projectile_density"],
-            "angle": args["projectile_angle"],
-            "direction": args["orientation"],
-            "location": args["location"],
-        }
-        projectile = Projectile.maker(
-            projectile,
-            target=target,
-            **vars(argproc.common_args),
-            **kwargs,
-        ).new_projectile(
-            **projectile_args,
-        )
+            projectile_args = {
+                "velocity": args["projectile_velocity"],
+                "density": args["projectile_density"],
+                "angle": args["projectile_angle"],
+                "direction": args["orientation"],
+                "location": args["location"],
+            }
+            projectile = Projectile.maker(
+                projectile,
+                target=target,
+                **vars(argproc.common_args),
+                **kwargs,
+            ).new_projectile(
+                **projectile_args,
+            )
 
-        scaling = Scaling.maker(
-            scaling,
-            target=target,
-            projectile=projectile,
-            **vars(argproc.common_args),
-            **kwargs,
-        )
-        projectile = scaling.projectile
-        scaling.recompute()
-        target = scaling.target
-        pv = projectile.velocity
-        pvv = projectile.vertical_velocity
-        pang = projectile.angle
-        pdir = projectile.direction
-        prho = projectile.density
-        location = projectile.location
+            scaling = Scaling.maker(
+                scaling,
+                target=target,
+                projectile=projectile,
+                **vars(argproc.common_args),
+                **kwargs,
+            )
+            projectile = scaling.projectile
+            scaling.recompute()
+            target = scaling.target
+            pv = projectile.velocity
+            pvv = projectile.vertical_velocity
+            pang = projectile.angle
+            pdir = projectile.direction
+            prho = projectile.density
+            location = projectile.location
 
-        # --- Ensure velocity/angle are all set ---
-        n_set = sum(x is not None for x in [pv, pvv, pang])
-        if n_set != 3:
-            raise ValueError("Not enough information to infer a projectile velocity.")
+            # --- Ensure velocity/angle are all set ---
+            n_set = sum(x is not None for x in [pv, pvv, pang])
+            if n_set != 3:
+                raise ValueError("Not enough information to infer a projectile velocity.")
 
-        # --- Compute derived quantities ---
-        fr = radius
-        fd = diameter
-        a = args["semimajor_axis"]
-        b = args["semiminor_axis"]
-        if a is not None and b is not None:
-            fr = math.sqrt(a * b)
+            # --- Compute derived quantities ---
+            fr = radius
+            fd = diameter
+            a = args["semimajor_axis"]
+            b = args["semiminor_axis"]
+            if a is not None and b is not None:
+                fr = math.sqrt(a * b)
 
-        if fr is not None:
-            fd = 2 * fr
-        elif fd is not None:
-            fr = fd / 2.0
+            if fr is not None:
+                fd = 2 * fr
+            elif fd is not None:
+                fr = fd / 2.0
 
-        td = args["transient_diameter"]
-        tr = transient_radius
-        pd = args["projectile_diameter"]
-        pr = projectile_radius
-        pm = projectile_mass
-        mt = None
+            td = args["transient_diameter"]
+            tr = transient_radius
+            pd = args["projectile_diameter"]
+            pr = projectile_radius
+            pm = projectile_mass
+            mt = None
 
-        if pr is not None:
-            pd = 2 * pr
-        if fr is not None:
-            fd = 2 * fr
-        if tr is not None:
-            td = 2 * tr
+            if pr is not None:
+                pd = 2 * pr
+            if fr is not None:
+                fd = 2 * fr
+            if tr is not None:
+                td = 2 * tr
 
-        if fd is not None:
-            td, mt = scaling.final_to_transient(fd)
-            pd = scaling.transient_to_projectile(td)
-        elif td is not None:
-            fd, mt = scaling.transient_to_final(td)
-            pd = scaling.transient_to_projectile(td)
+            if fd is not None:
+                td, mt = scaling.final_to_transient(fd)
+                pd = scaling.transient_to_projectile(td)
+            elif td is not None:
+                fd, mt = scaling.transient_to_final(td)
+                pd = scaling.transient_to_projectile(td)
 
-        elif pd is not None:
-            td = scaling.projectile_to_transient(pd)
-            fd, mt = scaling.transient_to_final(td)
+            elif pd is not None:
+                td = scaling.projectile_to_transient(pd)
+                fd, mt = scaling.transient_to_final(td)
 
-        elif pm is not None:
-            pr = ((3.0 * pm) / (4.0 * math.pi * prho)) ** (1.0 / 3.0)
-            pd = 2.0 * pr
-            td = scaling.projectile_to_transient(pd)
-            fd, mt = scaling.transient_to_final(td)
+            elif pm is not None:
+                pr = ((3.0 * pm) / (4.0 * math.pi * prho)) ** (1.0 / 3.0)
+                pd = 2.0 * pr
+                td = scaling.projectile_to_transient(pd)
+                fd, mt = scaling.transient_to_final(td)
 
-        pr = pd / 2
-        tr = td / 2
-        fr = fd / 2
-        pm = (4.0 / 3.0) * math.pi * pr**3 * prho
+            pr = pd / 2
+            tr = td / 2
+            fr = fd / 2
+            pm = (4.0 / 3.0) * math.pi * pr**3 * prho
 
-        if a is None:
-            a = fr
-        if b is None:
-            b = fr
+            if a is None:
+                a = fr
+            if b is None:
+                b = fr
 
-        if a < 0 or b < 0 or td < 0 or pd < 0:
-            raise ValueError("Crater and projectile sizes must be non-negative.")
-        if pv < 0:
-            raise ValueError("Projectile velocity must be non-negative.")
-        if prho < 0:
-            raise ValueError("Projectile density must be non-negative.")
+            if a < 0 or b < 0 or td < 0 or pd < 0:
+                raise ValueError("Crater and projectile sizes must be non-negative.")
+            if pv < 0:
+                raise ValueError("Projectile velocity must be non-negative.")
+            if prho < 0:
+                raise ValueError("Projectile density must be non-negative.")
 
         if measured_radius is not None and measured_diameter is not None:
             raise ValueError("Only one of measured_diameter or measured_radius may be set.")
@@ -623,7 +646,6 @@ class Crater:
             measured_orientation = pdir if pdir is not None else None
         if measured_location is None:
             measured_location = (float(location[0]), float(location[1])) if location is not None else None
-
         # Assemble final arguments
         crater_args = {
             "semimajor_axis": float(a) if a is not None else None,
@@ -636,13 +658,14 @@ class Crater:
             "projectile_angle": float(pang) if pang is not None else None,
             "location": (float(location[0]), float(location[1])),
             "morphology_type": str(mt) if mt is not None else None,
-            "age": float(age) if age is not None else None,
-            "measured_semimajor_axis": float(measured_semimajor_axis) if measured_semimajor_axis is not None else None,
-            "measured_semiminor_axis": float(measured_semiminor_axis) if measured_semiminor_axis is not None else None,
-            "measured_orientation": float(measured_orientation) if measured_orientation is not None else None,
-            "measured_location": (float(measured_location[0]), float(measured_location[1]))
-            if measured_location is not None
-            else None,
         }
         crater_args["id"] = _set_id(**crater_args)
+
+        crater_args["age"] = float(age) if age is not None else None
+        crater_args["measured_semimajor_axis"] = float(measured_semimajor_axis) if measured_semimajor_axis is not None else None
+        crater_args["measured_semiminor_axis"] = float(measured_semiminor_axis) if measured_semiminor_axis is not None else None
+        crater_args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
+        crater_args["measured_location"] = (
+            (float(measured_location[0]), float(measured_location[1])) if measured_location is not None else None
+        )
         return cls(**crater_args)

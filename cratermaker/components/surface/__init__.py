@@ -286,6 +286,8 @@ class Surface(ComponentBase):
         units: str | None = None,
         isfacedata: bool = True,
         overwrite: bool = False,
+        fill_value: float = 0.0,
+        dtype=np.float64,
     ) -> None:
         """
         Adds new data to the surface.
@@ -306,7 +308,10 @@ class Surface(ComponentBase):
             Flag to indicate whether the data is face data or node data. This is only needed if `data` is a scalar, otherwise it is ignored
         overwrite : bool, optional, default False
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
-
+        fill_value : float, optional
+            The fill value to use for new data variables. Default is 0.0.
+        dtype : data-type, optional
+            The data type of the data variable. Default is np.float64.
 
         Returns
         -------
@@ -1896,8 +1901,8 @@ class LocalSurface(CratermakerBase):
         units: str | None = None,
         isfacedata: bool = True,
         overwrite: bool = False,
-        dtype=np.float64,
         fill_value: float = 0.0,
+        dtype=np.float64,
     ) -> None:
         """
         Adds new data to the surface.
@@ -1916,10 +1921,10 @@ class LocalSurface(CratermakerBase):
             Flag to indicate whether the data is face data or node data. This is only needed if `data` is a scalar, otherwise it is ignored
         overwrite : bool, optional, default False
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
-        dtype : data-type, optional
-            The data type of the data variable. Default is np.float64.
         fill_value : float, optional
             The fill value to use for new data variables. Default is 0.0.
+        dtype : data-type, optional
+            The data type of the data variable. Default is np.float64.
 
         Returns
         -------
