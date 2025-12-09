@@ -204,7 +204,7 @@ pub fn score_rim<'py>(
 /// 
 /// * Returns `Err(PyValueError)` if any error occurs during the fitting process.
 pub fn fit_rim<'py>(
-    _py: Python<'py>,
+    py: Python<'py>,
     surface: &Bound<'py, PyAny>,
     crater: Crater, 
     tol: f64,
@@ -218,7 +218,7 @@ pub fn fit_rim<'py>(
     let (x0, y0): (f64, f64) = x0y0.extract()?;
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
-    let (x0_fit, y0_fit, a_fit, b_fit, o_fit) = cratermaker_components::counting::fit_rim(
+    let (x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore) = cratermaker_components::counting::fit_rim(
             &region_v,
             x0,
             y0,
@@ -231,6 +231,6 @@ pub fn fit_rim<'py>(
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let transformer = region.getattr("to_surface").unwrap();
     let location_fit = transformer.call_method1("transform", (x0_fit, y0_fit))?;
-    
+    region.call_method1("add_data",("rimscore", PyArray1::from_owned_array(py, rimscore.clone()), "Rim Score", "dimensionless", true, true, f64::NAN))?; 
     Ok((location_fit, a_fit, b_fit, o_fit))
 }

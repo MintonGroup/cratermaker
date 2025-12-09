@@ -40,7 +40,7 @@ pub fn fit_rim(
     nloops: usize,
     score_quantile: f64,
     fit_center: bool,
-) ->Result<(f64, f64, f64, f64, f64), String> { 
+) ->Result<(f64, f64, f64, f64, f64, numpy::ndarray::Array1<f64>), String> { 
     let x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
     let y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
     let mut crater_fit = crater.clone();
@@ -50,6 +50,7 @@ pub fn fit_rim(
     let mut b_fit:f64 = 0.0;
     let mut o_fit:f64 = 0.0;
     let mut _wrms: f64 = 0.0;
+    let mut rimscore = numpy::ndarray::Array1::<f64>::zeros(x.len());
     for i in 0..nloops {
 
         // Update the multipliers depending on the iteration
@@ -59,7 +60,7 @@ pub fn fit_rim(
         let distmult = i as f64;
 
         // Score the rim using the current multipliers
-        let rimscore = score_rim(
+        rimscore = score_rim(
             region,
             x0_fit, 
             y0_fit, 
@@ -101,14 +102,14 @@ pub fn fit_rim(
         let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.measured_semiminor_axis;
         let delta_orientation = (o_fit - crater_fit.measured_orientation).abs(); 
         if delta_a < tol && delta_b < tol && delta_orientation < tol {
-            return Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit));
+            return Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore));
         }
         crater_fit.measured_semimajor_axis = a_fit;
         crater_fit.measured_semiminor_axis = b_fit;
         crater_fit.measured_orientation = o_fit;
 
     }
-    Ok((x0_fit, y0_fit, crater_fit.measured_semimajor_axis, crater_fit.measured_semiminor_axis, crater_fit.measured_orientation))
+    Ok((x0_fit, y0_fit, crater_fit.measured_semimajor_axis, crater_fit.measured_semiminor_axis, crater_fit.measured_orientation, rimscore))
 }
 
 /// Computes the signed radial distance from points to an ellipse.
@@ -424,7 +425,7 @@ fn geometric_distances(
 ///
 /// * `region` - A view of the local surface region containing the crater.`
 /// * `x0`, `y0` - Candidate ellipse center in crater-centered coordinates.
-/// *  `crater` - Candidate crater ellipse parameters.
+/// * `crater` - Candidate crater ellipse parameters.
 /// * `quantile` - Quantile threshold for selecting high-scoring points.
 /// * `distmult` - Weighting factor for distance-based score component.
 /// * `gradmult` - Weighting factor for gradient-based score component.
