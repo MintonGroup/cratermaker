@@ -56,8 +56,8 @@ pub fn fit_rim(
         // Update the multipliers depending on the iteration
         let gradmult = 1.0 / ((i + 1) as f64);
         let curvmult = 5.0 / ((i + 1) as f64);
-        let heightmult = (nloops - i) as f64;
-        let distmult = i as f64;
+        let heightmult = i as f64;
+        let distmult = (i + 1) as f64;
 
         // Score the rim using the current multipliers
         rimscore = score_rim(

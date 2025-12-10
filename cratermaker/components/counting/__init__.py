@@ -208,9 +208,6 @@ class Counting(ComponentBase):
 
         return
 
-    def _fit_rim_one(self, crater, score_quantile=0.99, distmult=1.0, gradmult=1.0, curvmult=1.0, heightmult=1.0):
-        pass
-
     def fit_rim(self, crater: Crater, tol=0.001, nloops=10, score_quantile=0.95, fit_center=False) -> Crater:
         """
         Find the rim region of a crater on the surface.
@@ -231,7 +228,7 @@ class Counting(ComponentBase):
         Returns
         -------
         Crater
-            A new Crater object with updated rim parameters.
+            A new Crater object with updated measured rim parameters.
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
