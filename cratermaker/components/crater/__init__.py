@@ -113,12 +113,12 @@ class Crater:
             a = self.measured_semimajor_axis
             b = self.measured_semiminor_axis
             lon, lat = self.measured_location
-            phi = self.measured_orientation - 90.0
+            phi = self.measured_orientation
         else:
             a = self.semimajor_axis
             b = self.semiminor_axis
             lon, lat = self.location
-            phi = self.orientation - 90.0
+            phi = self.orientation
 
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))
