@@ -242,8 +242,8 @@ class TestSurface(unittest.TestCase):
         center_location = (0, 0)  # Equator, prime meridian
         locations = [(90, 0)]  # 90 degrees East, equator
 
-        # The bearing from (0, 0) to (90, 0) should be 90 degrees in radians
-        expected_bearing = np.radians(90)
+        # The bearing from (0, 0) to (90, 0) should be 90 degrees
+        expected_bearing = 90.0
         calculated_bearing = Surface.compute_bearings(center_location, locations)
 
         # Compare the expected and calculated bearings

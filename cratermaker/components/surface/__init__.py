@@ -439,9 +439,9 @@ class Surface(ComponentBase):
         Returns
         -------
         NDArray
-            Array of initial bearings for each face in radians.
+            Array of initial bearings for each face in degrees.
         NDArray
-            Array of initial bearings for each node in radians.
+            Array of initial bearings for each node in degrees.
 
         Notes
         -----
@@ -2190,9 +2190,9 @@ class LocalSurface(CratermakerBase):
         Returns
         -------
         NDArray
-            Array of initial bearings for each face in radians.
+            Array of initial bearings for each face in degrees.
         NDArray
-            Array of initial bearings for each node in radians.
+            Array of initial bearings for each node in degrees.
         """
         if location is None:
             if self.location is None:
@@ -3087,21 +3087,13 @@ class LocalSurface(CratermakerBase):
         -----
         This is intended to be used as a helper to calculate_face_and_node_bearings.
         """
-        # Calculate differences in coordinates
-        locations = np.radians(locations)
-        dlon = np.mod(locations[:, 0] - center_location[0] + np.pi, 2 * np.pi) - np.pi
+        locations = np.asarray(locations, dtype=np.float64)
+        if locations.ndim == 1 and locations.size == 2:
+            locations = locations.reshape((1, 2))
 
-        # Haversine formula calculations
-        x = np.sin(dlon) * np.cos(locations[:, 1])
-        y = np.cos(center_location[1]) * np.sin(locations[:, 1]) - np.sin(center_location[1]) * np.cos(locations[:, 1]) * np.cos(
-            dlon
+        return surface_bindings.compute_bearings(
+            lon1=center_location[0], lat1=center_location[1], lon2=locations[:, 0], lat2=locations[:, 1]
         )
-        initial_bearing = np.arctan2(x, y)
-
-        # Normalize bearing to 0 to 2*pi
-        initial_bearing = (initial_bearing + 2 * np.pi) % (2 * np.pi)
-
-        return initial_bearing
 
     @staticmethod
     def _remap_connectivity_to_local(

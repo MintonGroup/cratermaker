@@ -1,4 +1,4 @@
-use std::f64::consts::{FRAC_PI_2, PI};
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use numpy::ndarray::prelude::*; 
 use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{Inverse, Eig};
@@ -25,7 +25,7 @@ use crate::crater::Crater;
 /// 
 /// * On success, returns a tuple `(x0_fit, y0_fit, a_fit, b_fit, o_fit)`
 ///  containing the fitted crater center coordinates, semi-major axis,
-/// semi-minor axis, and orientation angle.
+/// semi-minor axis, and orientation angle (in degrees).
 /// 
 /// # Errors
 /// 
@@ -46,18 +46,18 @@ pub fn fit_rim(
     let mut crater_fit = crater.clone();
     let mut x0_fit = x0;
     let mut y0_fit = y0;
-    let mut a_fit:f64 = 0.0;
-    let mut b_fit:f64 = 0.0;
-    let mut o_fit:f64 = 0.0;
+    let mut a_fit:f64;
+    let mut b_fit:f64;
+    let mut o_fit:f64;
     let mut _wrms: f64 = 0.0;
     let mut rimscore = numpy::ndarray::Array1::<f64>::zeros(x.len());
     for i in 0..nloops {
 
         // Update the multipliers depending on the iteration
-        let gradmult = 1.0 / ((i + 1) as f64);
-        let curvmult = 5.0 / ((i + 1) as f64);
-        let heightmult = i as f64;
-        let distmult = (i + 1) as f64;
+        let gradmult = 1.0 / (i as f64 + 1.0);
+        let curvmult = 1.0 / (i as f64 + 0.1);
+        let heightmult = (i + 1) as f64;
+        let distmult = i as f64;
 
         // Score the rim using the current multipliers
         rimscore = score_rim(
@@ -81,8 +81,7 @@ pub fn fit_rim(
             }
         });
 
-        // Fit an ellipse to the weighted points using fixed center fitter
-
+        // Fit an ellipse to the weighted points using either the floating or fixed center fitter, depending on user input
         if fit_center {
             (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse(
                 x.view(),
@@ -98,15 +97,19 @@ pub fn fit_rim(
                 y0_fit,
             ).map_err(|e| e.to_string())?;
         }
-        let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.measured_semimajor_axis;
-        let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.measured_semiminor_axis;
-        let delta_orientation = (o_fit - crater_fit.measured_orientation).abs(); 
-        if delta_a < tol && delta_b < tol && delta_orientation < tol {
+        let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.radius;
+        let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.radius;
+        let delta_position = ((x0_fit - crater.measured_location.0).powi(2) + (y0_fit - crater.measured_location.1).powi(2)).sqrt() / crater.radius;
+        println!("Iteration {}: a_fit: {}, b_fit: {}, x0_fit: {}, y0_fit: {}", i, a_fit, b_fit, x0_fit, y0_fit);
+        println!("Iteration {}: delta_a: {}, delta_b: {}, delta_position: {}", i, delta_a, delta_b, delta_position);
+        if delta_a < tol && delta_b < tol && delta_position < tol {
+            println!("Converged at iteration {}", i);
             return Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore));
         }
         crater_fit.measured_semimajor_axis = a_fit;
         crater_fit.measured_semiminor_axis = b_fit;
         crater_fit.measured_orientation = o_fit;
+        crater_fit.measured_location = (x0_fit, y0_fit);
 
     }
     Ok((x0_fit, y0_fit, crater_fit.measured_semimajor_axis, crater_fit.measured_semiminor_axis, crater_fit.measured_orientation, rimscore))
@@ -128,8 +131,8 @@ pub fn fit_rim(
 /// * Values **< 0** indicate points inside the ellipse.
 /// * Values **≈ 0** lie close to the ellipse boundary.
 ///
-/// The orientation is given in radians. Internally, the code uses
-/// `phi = orientation - π/2` to match the parameterization used when
+/// The orientation is given in degrees. Internally, the code uses
+/// `phi = orientation - 90` to match the parameterization used when
 /// computing the ellipse radius as a function of angle.
 ///
 /// # Arguments
@@ -138,7 +141,7 @@ pub fn fit_rim(
 /// * `y` - y-coordinates of sample points. Must have the same length as `x`.
 /// * `a` - Semi-major axis of the ellipse.
 /// * `b` - Semi-minor axis of the ellipse.
-/// * `orientation` - Orientation of the ellipse in radians (see above).
+/// * `orientation` - Orientation of the ellipse in degrees (see above).
 /// * `x0` - x-coordinate of the ellipse center.
 /// * `y0` - y-coordinate of the ellipse center.
 ///
@@ -159,7 +162,7 @@ pub fn radial_distance_to_crater_rim(
     x0: f64, 
     y0:f64
 ) -> ArrayResult {
-    let phi = crater.measured_orientation.to_radians() - FRAC_PI_2;
+    let phi = TAU - FRAC_PI_2 - crater.measured_orientation.to_radians();
     let a = crater.measured_semimajor_axis;
     let b = crater.measured_semiminor_axis;
 
@@ -253,13 +256,13 @@ fn ellipse_coefficients_to_parameters(
     let fac = ((a - c).powi(2) + 4.0 * b * b).sqrt();
 
     // Compute unsorted semi-major and semi-minor axes
-    let ap = (numerator / (den * (fac - (a + c)))) .sqrt();
-    let bp = (numerator / (den * (-fac - (a + c)))).sqrt();
+    let _ap = (numerator / (den * (fac - (a + c)))) .sqrt();
+    let _bp = (numerator / (den * (-fac - (a + c)))).sqrt();
     // Sort the semi-major and semiminor axis but keep track of orientation
-    let (_a, _b, width_gt_height) = if ap >= bp {
-        (ap, bp, true)
+    let (ap, bp, width_gt_height) = if _bp >= _ap {
+        (_bp, _ap, true)
     } else {
-        (bp, ap, false)
+        (_ap, _bp, false)
     };
 
 
@@ -273,10 +276,9 @@ fn ellipse_coefficients_to_parameters(
         } else {
             0.5 * (2.0 * b).atan2(a - c)
         }; 
-    if a > c {
+    if a.abs() > c.abs() {
         phi += FRAC_PI_2;
     }
-
     if !width_gt_height {
         phi += FRAC_PI_2;
     }
@@ -315,7 +317,7 @@ fn ellipse_coefficients_to_parameters(
 /// `a x² + b x y + c y² + d x + e y + f = 0`
 #[inline]
 fn ellipse_parameters_to_coefficients(x0: f64, y0: f64, a: f64, b: f64, orientation: f64) -> (f64, f64, f64, f64, f64, f64) {
-    let phi = orientation - FRAC_PI_2;
+    let phi = orientation; 
     let s2 = phi.sin().powi(2);
     let c2 = phi.cos().powi(2);
     let sc = phi.sin() * phi.cos();
@@ -392,7 +394,7 @@ fn geometric_distances(
             let dx = xi - x0;
             let dy = yi - y0;
             let theta = dy.atan2(dx);
-            let alpha = theta - orientation + FRAC_PI_2;
+            let alpha = theta - orientation; // + FRAC_PI_2;
             let ca = alpha.cos();
             let sa = alpha.sin();
             let capf = (a * b) / ((b * ca).powi(2) + (a * sa).powi(2)).sqrt();
@@ -457,7 +459,7 @@ pub fn score_rim(
     const MIN_POINTS_FOR_FIT: usize = 10; // It will try to use at least this many points per sector in the fit
     const EXTENT_RADIUS_CUTOFF: f64 = 1.5; // Max radial extent as a multiple of crater semi-major axis
     const N_SECTORS: usize = 36; // Number of bearing sectors for scoring
-    let sector_width = 2.0 * PI / N_SECTORS as f64;
+    let sector_width = 360.0 / N_SECTORS as f64;
 
     let radial_gradient = crate::surface::compute_radial_gradient(
         region.face_elevation.view(),
@@ -481,7 +483,7 @@ pub fn score_rim(
     let scale = crater.measured_diameter;
     let mut distscore = distances.mapv(|d| {
         let nd = (d / scale).powi(2);
-        1.0 / (nd + 0.1)
+        1.0 / (nd + 0.01)
     });
     for (val, &mask) in distscore.iter_mut().zip(mask_region.iter()) {
         if mask {
@@ -500,24 +502,12 @@ pub fn score_rim(
 
     // Height score: high elevations (relative to mean) score high
     let mut heightscore = region.face_elevation.to_owned();
-    // mean (no NaNs assumed here; if you may have NaNs, add filtering)
-    let mean = heightscore.sum() / (heightscore.len() as f64);
-    heightscore.map_inplace(|v| *v -= mean);
-    for (val, &mask) in heightscore.iter_mut().zip(mask_region.iter()) {
-        if mask {
-            *val = f64::NAN;
-        }
-    }
-    if let Some(max_abs) = heightscore
-        .iter()
-        .filter(|v| !v.is_nan())
-        .map(|v| v.abs())
-        .fold(None, |acc, x| Some(acc.map_or(x, |m: f64| m.max(x))))
-    {
-        if max_abs > 0.0 {
+    if let (Some(min_h), Some(max_h)) = (nanmin(&heightscore), nanmax(&heightscore)) {
+        let range = max_h - min_h;
+        if range > 0.0 {
             heightscore.map_inplace(|v| {
                 if !v.is_nan() {
-                    *v /= max_abs;
+                    *v = (*v - min_h) / range;
                 }
             });
         }
@@ -600,7 +590,7 @@ pub fn score_rim(
         }
 
         let b = bearing[i];
-        // bearings should already be in [0, 2π), but we clamp just in case
+        // bearings should already be in [0, 360), but we clamp just in case
         let mut idx = (b / sector_width).floor() as isize;
         if idx < 0 {
             idx = 0;
@@ -742,7 +732,7 @@ pub fn score_rim(
 /// * `x0`, `y0` - Center of the fitted ellipse.
 /// * `ap` - Semi-major axis length.
 /// * `bp` - Semi-minor axis length.
-/// * `orientation` - Orientation angle in radians.
+/// * `orientation` - Orientation angle in degrees.
 /// * `wrms` - Weighted root-mean-square geometric distance of the points
 ///   to the fitted ellipse.
 ///
@@ -841,7 +831,10 @@ pub fn fit_one_ellipse(
     let den = weights.sum();
     let wrms = (num / den).sqrt();
 
-    let (x0, y0, ap, bp, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
+    let (x0, y0, ap, bp, phi) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
+
+    // Convert back to the mapping convention for bearings (0)
+    let orientation = (TAU - phi).to_degrees() % 360.0;
 
     Ok((x0, y0, ap, bp, orientation, wrms))
 }
@@ -885,7 +878,7 @@ pub fn fit_one_ellipse(
 /// where:
 /// * `ap` - Semi-major axis length.
 /// * `bp` - Semi-minor axis length.
-/// * `orientation` - Orientation angle in radians.
+/// * `orientation` - Orientation angle in degrees.
 /// * `wrms` - Weighted root-mean-square geometric distance of the points
 ///   to the fitted ellipse.
 /// 
@@ -1003,7 +996,7 @@ pub fn fit_one_ellipse_fixed_center(
     let e = -b * x0 - 2.0 * c * y0;
 
     // 10) Geometric parameters (we ignore x0_fit,y0_fit and trust the fixed center)
-    let (_x0_fit, _y0_fit, ap, bp, orientation) =
+    let (_x0_fit, _y0_fit, ap, bp, phi) =
         ellipse_coefficients_to_parameters(a, b, c, d, e, g);
 
     // 11) Compute WRMS distance (you can keep using geometric_distances;
@@ -1014,6 +1007,7 @@ pub fn fit_one_ellipse_fixed_center(
     let num = (&delta2 * &weights).sum();
     let den = weights.sum();
     let wrms = (num / den).sqrt();
+    let orientation = (TAU - phi).to_degrees() % 360.0;
 
     Ok((ap, bp, orientation, wrms))
 }

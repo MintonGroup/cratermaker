@@ -32,7 +32,7 @@ xx, yy = np.meshgrid(x, y)
 
 # Convert Cartesian to polar coordinates
 r = np.sqrt(xx**2 + yy**2)
-theta = np.arctan2(yy, xx)
+theta = np.degrees(np.arctan2(yy, xx))
 
 # Compute ray intensity
 r_flat = r.ravel()

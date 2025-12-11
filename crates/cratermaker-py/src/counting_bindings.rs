@@ -3,7 +3,7 @@ use pyo3::exceptions::PyValueError;
 use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
 use crate::surface_bindings::PyReadonlyLocalSurface;
 use cratermaker_components::crater::Crater;
-const _EXTENT_RADIUS_RATIO: f64 = 2.0;
+const _EXTENT_RADIUS_RATIO: f64 = 2.5;
 
 
 #[pyfunction]
@@ -31,7 +31,6 @@ pub fn tally<'py>(
     Ok(id_array_flat)
 }
 
-#[pyfunction]
 /// Fit a single ellipse to the provided x, y coordinates and weights.
 /// 
 /// # Arguments
@@ -47,13 +46,14 @@ pub fn tally<'py>(
 ///  - `x0`, `y0`: Center of the fitted ellipse.
 /// - `ap`: Semi-major axis length.
 /// - `bp`: Semi-minor axis length.
-/// - `orientation`: Orientation angle of the ellipse in radians.
+/// - `orientation`: Orientation angle of the ellipse in degrees.
 /// - `wrms`: Weighted root mean square error of the fit.
 /// 
 /// # Errors
 /// 
 /// * Returns `Err(PyValueError)` if the fitting process fails.
 /// 
+#[pyfunction]
 pub fn fit_one_ellipse<'py>(
     _py: Python<'py>,
     x: PyReadonlyArray1<'_,f64>, 
@@ -74,7 +74,6 @@ pub fn fit_one_ellipse<'py>(
 }
 
 
-#[pyfunction]
 /// Fit a single ellipse to the provided x, y coordinates and weights with a fixed center.
 /// 
 /// # Arguments
@@ -91,13 +90,14 @@ pub fn fit_one_ellipse<'py>(
 /// * On success, returns a tuple `(ap, bp, orientation, wrms)` where:
 ///  - `ap`: Semi-major axis length.
 /// - `bp`: Semi-minor axis length.
-/// - `orientation`: Orientation angle of the ellipse in radians.
+/// - `orientation`: Orientation angle of the ellipse in degrees.
 /// - `wrms`: Weighted root mean square error of the fit.
 /// 
 /// # Errors
 /// 
 /// * Returns `Err(PyValueError)` if the fitting process fails.
 /// 
+#[pyfunction]
 pub fn fit_one_ellipse_fixed_center<'py>(
     _py: Python<'py>,
     x: PyReadonlyArray1<'_,f64>, 
@@ -122,7 +122,6 @@ pub fn fit_one_ellipse_fixed_center<'py>(
 }
 
 
-#[pyfunction]
 /// Score the rim of a crater on the provided surface.
 /// 
 /// # Arguments
@@ -144,6 +143,7 @@ pub fn fit_one_ellipse_fixed_center<'py>(
 /// 
 /// * Returns `Err(PyValueError)` if any error occurs during the scoring process.
 ///
+#[pyfunction]
 pub fn score_rim<'py>(
     py: Python<'py>,
     surface: &Bound<'py, PyAny>,
@@ -179,7 +179,6 @@ pub fn score_rim<'py>(
 }
 
 
-#[pyfunction]
 /// Fit the rim of a crater on the provided surface.
 /// 
 /// # Arguments
@@ -198,11 +197,12 @@ pub fn score_rim<'py>(
 /// - `location_fit`: Fitted location of the crater center.
 /// - `a_fit`: Fitted semi-major axis length.
 /// - `b_fit`: Fitted semi-minor axis length.
-/// - `o_fit`: Fitted orientation angle.
+/// - `o_fit`: Fitted orientation angle in degrees.
 /// 
 /// # Errors
 /// 
 /// * Returns `Err(PyValueError)` if any error occurs during the fitting process.
+#[pyfunction]
 pub fn fit_rim<'py>(
     py: Python<'py>,
     surface: &Bound<'py, PyAny>,

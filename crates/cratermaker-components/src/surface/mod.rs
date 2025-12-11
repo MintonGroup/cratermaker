@@ -1,4 +1,4 @@
-use std::f64::consts::PI;
+use std::f64::consts::{PI, TAU};
 use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
 use numpy::ndarray::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -141,6 +141,7 @@ pub fn compute_radial_gradient(
     region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
     let bearing = region.face_bearing.as_ref().ok_or("face_bearing required")?;
+    let bearing_rad = bearing.mapv(|b| b.to_radians());
     let radgrad: Vec<f64> = (0..region.n_face).into_par_iter()
         .map(|f| {
             let (grad_zonal, grad_meridional) = compute_one_face_gradient(
@@ -148,7 +149,7 @@ pub fn compute_radial_gradient(
                 variable,
                 region
             );
-            grad_meridional * bearing[f].cos() + grad_zonal * bearing[f].sin()
+            grad_meridional * bearing_rad[f].cos() + grad_zonal * bearing_rad[f].sin()
         })
         .collect();
     Ok(Array1::from_vec(radgrad))
@@ -604,7 +605,7 @@ fn compute_one_distance(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius: f64)
 ///
 /// # Returns
 ///
-/// * A NumPy array of initial bearing angles (radians), one for each (lon2, lat2) pair.
+/// * A NumPy array of initial bearing angles (degrees), one for each (lon2, lat2) pair.
 pub fn compute_bearings(
     lon1: f64,
     lat1: f64,
@@ -618,17 +619,17 @@ pub fn compute_bearings(
             let lon2_i = lon2[i];
             let lat2_i = lat2[i];
             let initial_bearing = compute_one_bearing(lon1, lat1, lon2_i, lat2_i);
-            // Normalize bearing to 0 to 2*pi
-            (initial_bearing + 2.0 * PI) % (2.0 * PI)
+            // Normalize bearing to 0 to 360 degrees
+            positive_mod(initial_bearing, TAU).to_degrees()
         })
         .collect();
     Ok(Array1::from_vec(result_vec))
 }
 
-/// Computes the initial bearing (forward azimuth) from point 1 to point 2 on a sphere.
+/// Computes the initial bearing (forward azimuth) from point 1 to point 2 on a sphere in radians.
 #[inline]
 fn compute_one_bearing(lon1: f64, lat1: f64, lon2: f64, lat2: f64) -> f64 {
-    let dlon = positive_mod(lon2 - lon1 + PI, 2.0 * PI) - PI;
+    let dlon = positive_mod(lon2 - lon1 + PI, TAU) - PI;
     let x = dlon.sin() * lat2.cos();
     let y = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * dlon.cos();
     x.atan2(y)

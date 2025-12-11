@@ -7,7 +7,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::ArrayResult;
 use std::f64::{
     self,
-    consts::{PI, SQRT_2},
+    consts::{PI, TAU, SQRT_2},
 };
 
 
@@ -209,7 +209,7 @@ pub fn ejecta_profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) ->
 /// * `crater_radius` - Radius of the crater (in meters).
 /// * `rmin` - Minimum normalized radial distance.
 /// * `rmax` - Maximum normalized radial distance.
-/// * `thetari` - Precomputed ray azimuth angles.
+/// * `thetari` - Precomputed ray azimuth angles (in degrees).
 /// * `random_numbers` - Set of random numbers used for pattern variation.
 ///
 /// # Returns
@@ -230,7 +230,7 @@ fn ray_intensity_point(
     let mut sum = 0.0;
     for j in 0..NPATT as usize {
         let rn = random_numbers[j];
-        let theta = (theta0 + rn * 2.0 * PI) % (2.0 * PI);
+        let theta = (theta0.to_radians() + rn * TAU) % TAU;
         let r_pattern = r / crater_radius - rn;
         sum += FRAYREDUCTION.powi(j as i32 - 1)
             * ray_intensity_func(
@@ -253,7 +253,7 @@ fn ray_intensity_point(
 /// # Arguments
 ///
 /// * `radial_distance` - 1D array of radial distances (meters).
-/// * `initial_bearing` - 1D array of initial bearing angles (radians).
+/// * `initial_bearing` - 1D array of initial bearing angles (degrees).
 /// * `crater_diameter` - Crater diameter (meters).
 ///
 /// # Returns
@@ -287,7 +287,7 @@ pub fn ray_intensity(
         .map(|i| {
             ray_intensity_point(
                 radial_distances[i],
-                initial_bearings[i],
+                initial_bearings[i].to_radians(),
                 crater_radius,
                 rmin,
                 rmax,
