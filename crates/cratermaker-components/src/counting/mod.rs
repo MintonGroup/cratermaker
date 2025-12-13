@@ -54,10 +54,10 @@ pub fn fit_rim(
     for i in 0..nloops {
 
         // Update the multipliers depending on the iteration
-        let gradmult = 1.0;//i as f64; //1.0 / (i as f64 + 1.0);
-        let curvmult = 1.0; //(i+1) as f64; //1.0 / (i as f64 + 0.1);
-        let heightmult = 1.0; //i as f64;
-        let distmult = 1.0;// i as f64;
+        let gradmult = 1.0;  // 1.0 (i as f64 + 1.0);
+        let curvmult = 1.0; //1.0 / (i as f64 + 0.1);
+        let heightmult = (i+1) as f64;
+        let distmult = (i+1) as f64 * 0.5;
 
         // Score the rim using the current multipliers
         rimscore = score_rim(
@@ -99,10 +99,9 @@ pub fn fit_rim(
         }
         let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.radius;
         let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.radius;
-        let delta_position = ((x0_fit - crater.measured_location.0).powi(2) + (y0_fit - crater.measured_location.1).powi(2)).sqrt() / crater.radius;
         println!("Iteration {}: a_fit: {}, b_fit: {}, x0_fit: {}, y0_fit: {}", i, a_fit, b_fit, x0_fit, y0_fit);
-        println!("Iteration {}: delta_a: {}, delta_b: {}, delta_position: {}", i, delta_a, delta_b, delta_position);
-        if delta_a < tol && delta_b < tol && delta_position < tol {
+        println!("Iteration {}: delta_a: {}, delta_b: {}", i, delta_a, delta_b);
+        if delta_a < tol && delta_b < tol {
             println!("Converged at iteration {}", i);
             return Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore));
         }
