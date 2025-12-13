@@ -25,7 +25,7 @@ use crate::crater::Crater;
 /// 
 /// * On success, returns a tuple `(x0_fit, y0_fit, a_fit, b_fit, o_fit)`
 ///  containing the fitted crater center coordinates, semi-major axis,
-/// semi-minor axis, and orientation angle (in degrees).
+/// semi-minor axis, and orientation angle (in radians).
 /// 
 /// # Errors
 /// 
@@ -46,18 +46,18 @@ pub fn fit_rim(
     let mut crater_fit = crater.clone();
     let mut x0_fit = x0;
     let mut y0_fit = y0;
-    let mut a_fit:f64;
-    let mut b_fit:f64;
-    let mut o_fit:f64;
+    let mut a_fit:f64 = crater.measured_semimajor_axis;
+    let mut b_fit:f64 = crater.measured_semiminor_axis;
+    let mut o_fit:f64 = crater.measured_orientation.to_radians();
     let mut _wrms: f64 = 0.0;
     let mut rimscore = numpy::ndarray::Array1::<f64>::zeros(x.len());
     for i in 0..nloops {
 
         // Update the multipliers depending on the iteration
-        let gradmult = 1.0 / (i as f64 + 1.0);
-        let curvmult = 1.0 / (i as f64 + 0.1);
-        let heightmult = (i + 1) as f64;
-        let distmult = i as f64;
+        let gradmult = 1.0;//i as f64; //1.0 / (i as f64 + 1.0);
+        let curvmult = 1.0; //(i+1) as f64; //1.0 / (i as f64 + 0.1);
+        let heightmult = 1.0; //i as f64;
+        let distmult = 1.0;// i as f64;
 
         // Score the rim using the current multipliers
         rimscore = score_rim(
@@ -108,11 +108,11 @@ pub fn fit_rim(
         }
         crater_fit.measured_semimajor_axis = a_fit;
         crater_fit.measured_semiminor_axis = b_fit;
-        crater_fit.measured_orientation = o_fit;
+        crater_fit.measured_orientation = o_fit.to_degrees();
         crater_fit.measured_location = (x0_fit, y0_fit);
 
     }
-    Ok((x0_fit, y0_fit, crater_fit.measured_semimajor_axis, crater_fit.measured_semiminor_axis, crater_fit.measured_orientation, rimscore))
+    Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore))
 }
 
 /// Computes the signed radial distance from points to an ellipse.
@@ -131,9 +131,7 @@ pub fn fit_rim(
 /// * Values **< 0** indicate points inside the ellipse.
 /// * Values **≈ 0** lie close to the ellipse boundary.
 ///
-/// The orientation is given in degrees. Internally, the code uses
-/// `phi = orientation - 90` to match the parameterization used when
-/// computing the ellipse radius as a function of angle.
+/// The orientation is given in radians. 
 ///
 /// # Arguments
 ///
@@ -141,7 +139,7 @@ pub fn fit_rim(
 /// * `y` - y-coordinates of sample points. Must have the same length as `x`.
 /// * `a` - Semi-major axis of the ellipse.
 /// * `b` - Semi-minor axis of the ellipse.
-/// * `orientation` - Orientation of the ellipse in degrees (see above).
+/// * `orientation` - Orientation of the ellipse in radians (see above).
 /// * `x0` - x-coordinate of the ellipse center.
 /// * `y0` - y-coordinate of the ellipse center.
 ///
@@ -579,6 +577,7 @@ pub fn score_rim(
         }
     }
     // Bin into bearing sectors:
+    let mut rimscore_sector_index = Array1::<usize>::from_elem(n, N_SECTORS);
     let bearing = region.face_bearing.as_ref().ok_or("face_bearing required")?; 
     // First pass: compute max rimscore per sector (ignoring NaNs)
     let mut sector_max = [f64::NEG_INFINITY; N_SECTORS];
@@ -598,6 +597,7 @@ pub fn score_rim(
             idx = N_SECTORS as isize - 1;
         }
         let idx = idx as usize;
+        rimscore_sector_index[i] = idx;
 
         if v > sector_max[idx] {
             sector_max[idx] = v;
@@ -611,17 +611,10 @@ pub fn score_rim(
             continue;
         }
 
-        let b = bearing[i];
-        let mut idx = (b / sector_width).floor() as isize;
-        if idx < 0 {
-            idx = 0;
-        } else if idx >= N_SECTORS as isize {
-            idx = N_SECTORS as isize - 1;
-        }
-        let idx = idx as usize;
+        let idx = rimscore_sector_index[i];
 
         let max_v = sector_max[idx];
-        if max_v.is_finite() && max_v > 0.0 {
+        if max_v.is_finite() && max_v > 0.0 && rimscore[i] > 0.0 {
             rimscore[i] = v / max_v;
         } else {
             // No valid points in this sector; treat as invalid
@@ -630,14 +623,25 @@ pub fn score_rim(
 
     }
 
-    // Apply quantile threshold to keep only highest scores
+    // Third pass: Apply quantile threshold to keep only highest scores in each sector
     let mut high_scores = Array1::<bool>::from_elem(n, false);
-    if let Some(qv) = nanquantile(&rimscore, quantile) {
-        for i in 0..n {
-            let v = rimscore[i];
-            if !v.is_nan() && v > qv {
-                high_scores[i] = true;
-            }
+    for sector in 0..N_SECTORS {
+        let sector_indices: Vec<usize> = (0..n)
+            .filter(|&i| rimscore_sector_index[i] == sector && !rimscore[i].is_nan())
+            .collect();
+        if sector_indices.is_empty() {
+            continue;
+        }
+        let mut sector_scores: Vec<f64> = sector_indices
+            .iter()
+            .map(|&i| rimscore[i])
+            .filter(|v| !v.is_nan())
+            .collect();
+        sector_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let threshold_idx = (quantile * sector_scores.len() as f64) as usize;
+        let threshold = sector_scores[threshold_idx];
+        for &i in sector_indices.iter() {
+            high_scores[i] = rimscore[i] >= threshold;
         }
     }
 
@@ -732,7 +736,7 @@ pub fn score_rim(
 /// * `x0`, `y0` - Center of the fitted ellipse.
 /// * `ap` - Semi-major axis length.
 /// * `bp` - Semi-minor axis length.
-/// * `orientation` - Orientation angle in degrees.
+/// * `orientation` - Orientation angle in radians.
 /// * `wrms` - Weighted root-mean-square geometric distance of the points
 ///   to the fitted ellipse.
 ///
@@ -834,7 +838,7 @@ pub fn fit_one_ellipse(
     let (x0, y0, ap, bp, phi) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
 
     // Convert back to the mapping convention for bearings (0)
-    let orientation = (TAU - phi).to_degrees() % 360.0;
+    let orientation = (TAU - phi) % TAU;
 
     Ok((x0, y0, ap, bp, orientation, wrms))
 }
@@ -878,7 +882,7 @@ pub fn fit_one_ellipse(
 /// where:
 /// * `ap` - Semi-major axis length.
 /// * `bp` - Semi-minor axis length.
-/// * `orientation` - Orientation angle in degrees.
+/// * `orientation` - Orientation angle in radians.
 /// * `wrms` - Weighted root-mean-square geometric distance of the points
 ///   to the fitted ellipse.
 /// 
@@ -1007,7 +1011,7 @@ pub fn fit_one_ellipse_fixed_center(
     let num = (&delta2 * &weights).sum();
     let den = weights.sum();
     let wrms = (num / den).sqrt();
-    let orientation = (TAU - phi).to_degrees() % 360.0;
+    let orientation = (TAU - phi) % TAU;
 
     Ok((ap, bp, orientation, wrms))
 }

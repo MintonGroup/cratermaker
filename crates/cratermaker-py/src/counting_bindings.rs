@@ -46,7 +46,7 @@ pub fn tally<'py>(
 ///  - `x0`, `y0`: Center of the fitted ellipse.
 /// - `ap`: Semi-major axis length.
 /// - `bp`: Semi-minor axis length.
-/// - `orientation`: Orientation angle of the ellipse in degrees.
+/// - `orientation`: Orientation angle of the ellipse in radians.
 /// - `wrms`: Weighted root mean square error of the fit.
 /// 
 /// # Errors
@@ -90,7 +90,7 @@ pub fn fit_one_ellipse<'py>(
 /// * On success, returns a tuple `(ap, bp, orientation, wrms)` where:
 ///  - `ap`: Semi-major axis length.
 /// - `bp`: Semi-minor axis length.
-/// - `orientation`: Orientation angle of the ellipse in degrees.
+/// - `orientation`: Orientation angle of the ellipse in radians.
 /// - `wrms`: Weighted root mean square error of the fit.
 /// 
 /// # Errors
@@ -158,8 +158,20 @@ pub fn score_rim<'py>(
     let transformer = region.getattr("from_surface").unwrap();
     let x0y0 = transformer.call_method1("transform",(crater.location.0, crater.location.1))?;
     let (x0, y0): (f64, f64) = x0y0.extract()?;
+
+    // Scoring is best if the surface is modified to remove any regional slope.
+    // Save the original face elevation so we can put it back at the end
+    let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
+    // Get the reference surface and subract it from the local surface
+    let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
+    let mut reference_elevation: Vec<f64> = region.
+                                        call_method1("get_reference_surface",(reference_radius,))?
+                                        .extract()?;
+    reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
+    region.call_method1("update_elevation", (reference_elevation,))?;
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
+
     let result = cratermaker_components::counting::score_rim(
             &region_v,
             x0,
@@ -174,6 +186,9 @@ pub fn score_rim<'py>(
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
 
     region.call_method1("add_data",("rimscore", PyArray1::from_owned_array(py, result.clone()), "Rim Score", "dimensionless", true, true, f64::NAN))?;
+
+    // Put the original face elevation back using overwrite=true
+    region.call_method1("update_elevation",(face_elevation,true))?;
 
     Ok(region)
 }
@@ -197,7 +212,7 @@ pub fn score_rim<'py>(
 /// - `location_fit`: Fitted location of the crater center.
 /// - `a_fit`: Fitted semi-major axis length.
 /// - `b_fit`: Fitted semi-minor axis length.
-/// - `o_fit`: Fitted orientation angle in degrees.
+/// - `o_fit`: Fitted orientation angle in radians.
 /// 
 /// # Errors
 /// 
@@ -229,6 +244,7 @@ pub fn fit_rim<'py>(
     region.call_method1("update_elevation", (reference_elevation,))?;
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
+
     let (x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore) = cratermaker_components::counting::fit_rim(
             &region_v,
             x0,
@@ -243,7 +259,9 @@ pub fn fit_rim<'py>(
     let transformer = region.getattr("to_surface").unwrap();
     let location_fit = transformer.call_method1("transform", (x0_fit, y0_fit))?;
     region.call_method1("add_data",("rimscore", PyArray1::from_owned_array(py, rimscore.clone()), "Rim Score", "dimensionless", true, true, f64::NAN))?; 
+
     // Put the original face elevation back using overwrite=true
     region.call_method1("update_elevation",(face_elevation,true))?;
+
     Ok((location_fit, a_fit, b_fit, o_fit))
 }

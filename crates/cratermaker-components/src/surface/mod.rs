@@ -619,8 +619,8 @@ pub fn compute_bearings(
             let lon2_i = lon2[i];
             let lat2_i = lat2[i];
             let initial_bearing = compute_one_bearing(lon1, lat1, lon2_i, lat2_i);
-            // Normalize bearing to 0 to 360 degrees
-            positive_mod(initial_bearing, TAU).to_degrees()
+            // Normalize bearing to 0 to 2*PI radians 
+            positive_mod(initial_bearing, TAU)
         })
         .collect();
     Ok(Array1::from_vec(result_vec))

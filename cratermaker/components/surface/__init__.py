@@ -773,21 +773,21 @@ class Surface(ComponentBase):
         locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
-        Calculate the initial bearing relative to North from one point to one or more other points in radians.
+        Calculate the initial bearing relative to North from one point to one or more other points in degrees.
 
         Parameters
         ----------
         center_location : PairOfFloats
-            Longitude and latitude of the first point in radians.
+            Longitude and latitude of the first point in degrees.
         locations : ArrayLike
-            Longitude and latitude of the second point or array of points in radians.
+            Longitude and latitude of the second point or array of points in degrees.
         lat2 : FloatLike or ArrayLike
-            Latitude of the second point or array of points in radians.
+            Latitude of the second point or array of points in degrees.
 
         Returns
         -------
         NDArray
-            Initial bearing from the first point to the second point or points in radians.
+            Initial bearing from the first point to the second point or points in degrees.
         """
         return LocalSurface.compute_bearings(center_location=center_location, locations=locations)
 
@@ -2204,16 +2204,21 @@ class LocalSurface(CratermakerBase):
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
         location = validate_and_normalize_location(location)
-        face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        node_locations = np.vstack((self.node_lon, self.node_lat)).T
-        return (
+        face_bearing, node_bearing = (
             surface_bindings.compute_bearings(
-                lon1=location[0], lat1=location[1], lon2=face_locations[:, 0], lat2=face_locations[:, 1]
+                lon1=np.radians(location[0]),
+                lat1=np.radians(location[1]),
+                lon2=np.radians(self.face_lon),
+                lat2=np.radians(self.face_lat),
             ),
             surface_bindings.compute_bearings(
-                lon1=location[0], lat1=location[1], lon2=node_locations[:, 0], lat2=node_locations[:, 1]
+                lon1=np.radians(location[0]),
+                lat1=np.radians(location[1]),
+                lon2=np.radians(self.node_lon),
+                lat2=np.radians(self.node_lat),
             ),
         )
+        return np.degrees(face_bearing), np.degrees(node_bearing)
 
     def interpolate_node_elevation_from_faces(self) -> None:
         """
@@ -3047,9 +3052,9 @@ class LocalSurface(CratermakerBase):
         Parameters
         ----------
         center_location : PairOfFloats
-            Longitude and latitude of the first point in radians.
+            Longitude and latitude of the first point in degrees.
         locations : ArrayLike
-            Longitude and latitude of the second point or array of points in radians.
+            Longitude and latitude of the second point or array of points in degrees.
         lon2 : FloatLike or ArrayLike
 
         Returns
@@ -3069,19 +3074,19 @@ class LocalSurface(CratermakerBase):
         locations: ArrayLike,
     ) -> NDArray[np.float64]:
         """
-        Calculate the initial bearing from one point to one or more other points in radians.
+        Calculate the initial bearing from one point to one or more other points in degrees.
 
         Parameters
         ----------
         center_location : PairOfFloats
-            Longitude and latitude of the first point in radians.
+            Longitude and latitude of the first point in degrees.
         locations : ArrayLike
-            Longitude and latitude of the second point or array of points in radians.
+            Longitude and latitude of the second point or array of points in degrees.
 
         Returns
         -------
         NDArray
-            Initial bearing from the first point to the second point or points in radians.
+            Initial bearing from the first point to the second point or points in degrees.
 
         Notes
         -----
@@ -3091,9 +3096,10 @@ class LocalSurface(CratermakerBase):
         if locations.ndim == 1 and locations.size == 2:
             locations = locations.reshape((1, 2))
 
-        return surface_bindings.compute_bearings(
-            lon1=center_location[0], lat1=center_location[1], lon2=locations[:, 0], lat2=locations[:, 1]
-        )
+        lon1, lat1 = np.radians(center_location)
+        lon2, lat2 = np.radians(locations[:, 0]), np.radians(locations[:, 1])
+        bearing = surface_bindings.compute_bearings(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2)
+        return np.degrees(bearing)
 
     @staticmethod
     def _remap_connectivity_to_local(
@@ -3694,7 +3700,7 @@ class LocalSurface(CratermakerBase):
         if self.location is not None:
             ds = ds.assign_attrs({"location": self.location})
             ds["face_distance"] = xr.DataArray(data=self.face_distance, dims=("n_face",))
-            ds["face_bearing"] = xr.DataArray(data=self.face_distance, dims=("n_face",))
+            ds["face_bearing"] = xr.DataArray(data=self.face_bearing, dims=("n_face",))
             ds["node_distance"] = xr.DataArray(data=self.node_distance, dims=("n_node",))
             ds["node_bearing"] = xr.DataArray(data=self.node_bearing, dims=("n_node",))
         if isinstance(self.face_indices, slice):

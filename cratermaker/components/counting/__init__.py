@@ -246,7 +246,7 @@ class Counting(ComponentBase):
             crater,
             measured_semimajor_axis=ap,
             measured_semiminor_axis=bp,
-            measured_orientation=orientation,
+            measured_orientation=np.degrees(orientation),
             measured_location=location,
         )
 
