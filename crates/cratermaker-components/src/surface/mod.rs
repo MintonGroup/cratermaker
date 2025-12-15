@@ -254,10 +254,10 @@ fn compute_one_face_gradient(
     // Loop over neighbors to compute gradient contributions
     for (_i, &(other, distance, length)) in neighbors.iter().enumerate() {
         let theta = compute_one_bearing(
-            lon_f,
-            lat_f,
-            region.face_lon[other],
-            region.face_lat[other],
+            lon_f.to_radians(),
+            lat_f.to_radians(),
+            region.face_lon[other].to_radians(),
+            region.face_lat[other].to_radians(),
         );  
         let dir_zonal = theta.sin();
         let dir_meridional = theta.cos();
