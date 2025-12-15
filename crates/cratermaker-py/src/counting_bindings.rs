@@ -154,9 +154,9 @@ pub fn score_rim<'py>(
     curvmult: f64,
     heightmult: f64,
 ) -> PyResult<Bound<'py, PyAny>>  {
-    let region = surface.call_method1("extract_region",(crater.location, _EXTENT_RADIUS_RATIO * crater.radius))?;
+    let region = surface.call_method1("extract_region",(crater.measured_location, _EXTENT_RADIUS_RATIO * crater.measured_radius))?;
     let transformer = region.getattr("from_surface").unwrap();
-    let x0y0 = transformer.call_method1("transform",(crater.location.0, crater.location.1))?;
+    let x0y0 = transformer.call_method1("transform",(crater.measured_location.0, crater.measured_location.1))?;
     let (x0, y0): (f64, f64) = x0y0.extract()?;
 
     // Scoring is best if the surface is modified to remove any regional slope.

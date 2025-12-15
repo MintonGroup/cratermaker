@@ -72,27 +72,18 @@ pub fn fit_rim(
             heightmult
         ).map_err(|e| e.to_string())?;
 
-        // Replace NaN weights with zero
-        let weights = rimscore.mapv(|w| {
-            if w.is_nan() || w < 0.0 {
-                0.0
-            } else {
-                w
-            }
-        });
-
         // Fit an ellipse to the weighted points using either the floating or fixed center fitter, depending on user input
         if fit_center {
             (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse(
                 x.view(),
                 y.view(),
-                weights.view()
+                rimscore.view()
             ).map_err(|e| e.to_string())?;
         } else {
             (a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse_fixed_center(
                 x.view(),
                 y.view(),
-                weights.view(),
+                rimscore.view(),
                 x0_fit,
                 y0_fit,
             ).map_err(|e| e.to_string())?;
@@ -453,7 +444,7 @@ pub fn score_rim(
     heightmult: f64,
 ) ->ArrayResult { 
     let n = region.n_face;
-    const MIN_POINTS_FOR_FIT: usize = 10; // It will try to use at least this many points per sector in the fit
+    const MIN_POINTS_FOR_FIT: usize = 3; // It will try to use at least this many points per sector in the fit
     const EXTENT_RADIUS_CUTOFF: f64 = 1.5; // Max radial extent as a multiple of crater semi-major axis
     const N_SECTORS: usize = 36; // Number of bearing sectors for scoring
     let sector_width = 360.0 / N_SECTORS as f64;
@@ -480,7 +471,7 @@ pub fn score_rim(
     let scale = crater.measured_diameter;
     let mut distscore = distances.mapv(|d| {
         let nd = (d / scale).powi(2);
-        1.0 / (nd + 0.01)
+        1.0 / (nd + 0.1)
     });
     for (val, &mask) in distscore.iter_mut().zip(mask_region.iter()) {
         if mask {
@@ -779,7 +770,8 @@ pub fn fit_one_ellipse(
     d2.column_mut(2).fill(1.0);
 
     // Step 2: apply weights
-    let w_col = weights.view().insert_axis(Axis(1));
+    let w_sqrt = weights.mapv(|w| if w > 0.0 { w.sqrt() } else { 0.0 });
+    let w_col = w_sqrt.view().insert_axis(Axis(1));
     let wd1 = &w_col * &d1;
     let wd2 = &w_col * &d2;
 
@@ -928,7 +920,8 @@ pub fn fit_one_ellipse_fixed_center(
     d2.column_mut(0).fill(1.0);
 
     // 3) Apply weights
-    let w_col = weights.view().insert_axis(Axis(1));
+    let w_sqrt = weights.mapv(|w| if w > 0.0 { w.sqrt() } else { 0.0 });
+    let w_col = w_sqrt.view().insert_axis(Axis(1));
     let wd1 = &w_col * &d1; // n x 3
     let wd2 = &w_col * &d2; // n x 1
 

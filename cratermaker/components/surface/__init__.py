@@ -1948,6 +1948,7 @@ class LocalSurface(CratermakerBase):
             raise ValueError("data must be a scalar or an array with the same size as the number of faces or nodes in the grid")
 
         if name not in self.surface.uxds.data_vars:
+            overwrite = True
             self.surface._add_new_data(
                 name,
                 data=fill_value,
@@ -2090,12 +2091,7 @@ class LocalSurface(CratermakerBase):
         """
         slope = surface_bindings.compute_slope(
             face_elevation=self.face_elevation,
-            face_lon=np.radians(self.face_lon),
-            face_lat=np.radians(self.face_lat),
-            edge_face_connectivity=self.edge_face_connectivity,
-            face_edge_connectivity=self.face_edge_connectivity,
-            edge_face_distance=self.edge_face_distance,
-            edge_length=self.edge_length,
+            region=self,
         )
 
         return np.rad2deg(np.arctan(slope))
@@ -2432,24 +2428,29 @@ class LocalSurface(CratermakerBase):
 
         return self.surface._compute_elevation_to_cartesian(position, elevation)
 
-    def compute_radial_gradient(self, variable) -> NDArray[np.float64]:
+    def compute_radial_gradient(self, variable: str | NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Compute the radial gradient of the local surface variable with respect to the local_location center.
+
+        Parameters
+        ----------
+        variable : str or NDArray[np.float64]
+            The variable to compute the radial gradient of. This can be a string (the name of a variable in the surface data) or an array of values the same size as the number of faces in the grid.
 
         Returns
         -------
         NDArray[np.float64]
             The radial gradient of all faces in meters per meter.
         """
+        if isinstance(variable, str):
+            if variable not in self.uxds:
+                raise ValueError(f"Variable {variable} not found in the surface data.")
+            variable = self.uxds[variable].data
+        elif variable.size != self.n_face:
+            raise ValueError("variable must be a string or an array with the same size as the number of faces in the grid")
         radial_gradient = surface_bindings.compute_radial_gradient(
             variable=variable,
-            face_lon=np.radians(self.face_lon),
-            face_lat=np.radians(self.face_lat),
-            face_bearing=np.radians(self.face_bearing),
-            edge_face_connectivity=self.edge_face_connectivity,
-            face_edge_connectivity=self.face_edge_connectivity,
-            edge_face_distance=self.edge_face_distance,
-            edge_length=self.edge_length,
+            region=self,
         )
 
         return radial_gradient
@@ -2836,7 +2837,7 @@ class LocalSurface(CratermakerBase):
 
     def plot(
         self,
-        style: str = "hillshade",
+        style: str = "elevation",
         variable: str = "face_elevation",
         imagefile=None,
         label=None,
