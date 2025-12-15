@@ -161,14 +161,14 @@ pub fn score_rim<'py>(
 
     // Scoring is best if the surface is modified to remove any regional slope.
     // Save the original face elevation so we can put it back at the end
-    let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
+    // let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
     // Get the reference surface and subract it from the local surface
-    let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
-    let mut reference_elevation: Vec<f64> = region.
-                                        call_method1("get_reference_surface",(reference_radius,))?
-                                        .extract()?;
-    reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
-    region.call_method1("update_elevation", (reference_elevation,))?;
+    // let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
+    // let mut reference_elevation: Vec<f64> = region.
+    //                                     call_method1("get_reference_surface",(reference_radius,))?
+    //                                     .extract()?;
+    // reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
+    // region.call_method1("update_elevation", (reference_elevation,))?;
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
@@ -188,7 +188,7 @@ pub fn score_rim<'py>(
     region.call_method1("add_data",("rimscore", PyArray1::from_owned_array(py, result.clone()), "Rim Score", "dimensionless", true, true, f64::NAN))?;
 
     // Put the original face elevation back using overwrite=true
-    region.call_method1("update_elevation",(face_elevation,true))?;
+    // region.call_method1("update_elevation",(face_elevation,true))?;
 
     Ok(region)
 }
@@ -227,41 +227,83 @@ pub fn fit_rim<'py>(
     score_quantile: f64,
     fit_center: bool,
 ) -> PyResult<(Bound<'py, PyAny>, f64, f64, f64)>  {
-    let region = surface.call_method1("extract_region",(crater.location, _EXTENT_RADIUS_RATIO * crater.radius))?;
-    let transformer = region.getattr("from_surface").unwrap();
-    let x0y0 = transformer.call_method1("transform",(crater.location.0, crater.location.1))?;
-    let (x0, y0): (f64, f64) = x0y0.extract()?;
+    let mut region: Bound<'_, PyAny>;
+    let mut location_fit: Bound<'_, PyAny>;
+    let mut crater_fit = crater.clone();
+    let mut x0_fit:f64;
+    let mut y0_fit:f64;
+    let mut a_fit:f64;
+    let mut b_fit:f64;
+    let mut o_fit:f64;
+    let mut rimscore: numpy::ndarray::Array1<f64>;
 
-    // Scoring is best if the surface is modified to remove any regional slope.
-    // Save the original face elevation so we can put it back at the end
-    let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
-    // Get the reference surface and subract it from the local surface
-    let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
-    let mut reference_elevation: Vec<f64> = region.
-                                        call_method1("get_reference_surface",(reference_radius,))?
-                                        .extract()?;
-    reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
-    region.call_method1("update_elevation", (reference_elevation,))?;
-    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
-    let region_v = region_py.as_views();
+    let mut i = 0;
+    loop {
 
-    let (x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore) = cratermaker_components::counting::fit_rim(
-            &region_v,
-            x0,
-            y0,
-            &crater,
-            tol,
-            nloops,
-            score_quantile,
-            fit_center
-        )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let transformer = region.getattr("to_surface").unwrap();
-    let location_fit = transformer.call_method1("transform", (x0_fit, y0_fit))?;
+        // Extract a region surrounding the current best fit location and best-fit radius
+        region = surface.call_method1("extract_region",(crater_fit.measured_location, _EXTENT_RADIUS_RATIO * crater_fit.measured_radius))?;
+        let transformer = region.getattr("from_surface").unwrap();
+        let x0y0 = transformer.call_method1("transform",(crater_fit.measured_location.0, crater_fit.measured_location.1))?;
+        let (x0, y0): (f64, f64) = x0y0.extract()?;
+
+        // Scoring is best if the surface is modified to remove any regional slope.
+        // Save the original face elevation so we can put it back at the end
+        //let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
+        // Get the reference surface and subract it from the local surface
+        //let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
+        //let mut reference_elevation: Vec<f64> = region.call_method1("get_reference_surface",(reference_radius,))?.extract()?;
+        //reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
+        //region.call_method1("update_elevation", (reference_elevation,))?;
+        let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+        let region_v = region_py.as_views();
+
+        // Update the multipliers depending on the iteration
+        let gradmult =  1.0 / (i as f64 + 1.0);
+        let curvmult = 1.0 / (i as f64 + 0.1);
+        let heightmult = (i+1) as f64;
+        let distmult = (i+1) as f64 * 0.5;
+
+        (x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore) = cratermaker_components::counting::fit_one_rim(
+                &region_v,
+                x0,
+                y0,
+                &crater_fit,
+                fit_center,
+                score_quantile, 
+                distmult, 
+                gradmult, 
+                curvmult, 
+                heightmult
+            )
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        // Put the original face elevation back using overwrite=true
+        //region.call_method1("update_elevation",(face_elevation,true))?;
+        let transformer = region.getattr("to_surface").unwrap();
+        location_fit = transformer.call_method1("transform", (x0_fit, y0_fit))?;
+
+        let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.radius;
+        let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.radius;
+        println!("Iteration {}: a_fit: {}, b_fit: {}, x0_fit: {}, y0_fit: {}", i, a_fit, b_fit, x0_fit, y0_fit);
+        println!("Iteration {}: delta_a: {}, delta_b: {}", i, delta_a, delta_b);
+        if delta_a < tol && delta_b < tol {
+            println!("Converged at iteration {}", i);
+            break;
+        }
+        i += 1;
+        if i >= nloops {
+            println!("Max iterations reached");
+            break;
+        }
+
+        crater_fit.measured_location = location_fit.extract()?;
+        crater_fit.measured_semimajor_axis = a_fit;
+        crater_fit.measured_semiminor_axis = b_fit;
+        crater_fit.measured_orientation = o_fit.to_degrees();
+
+    }
+
     region.call_method1("add_data",("rimscore", PyArray1::from_owned_array(py, rimscore.clone()), "Rim Score", "dimensionless", true, true, f64::NAN))?; 
 
-    // Put the original face elevation back using overwrite=true
-    region.call_method1("update_elevation",(face_elevation,true))?;
 
     Ok((location_fit, a_fit, b_fit, o_fit))
 }

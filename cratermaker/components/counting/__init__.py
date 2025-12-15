@@ -208,7 +208,7 @@ class Counting(ComponentBase):
 
         return
 
-    def fit_rim(self, crater: Crater, tol=0.001, nloops=10, score_quantile=0.95, fit_center=False) -> Crater:
+    def fit_rim(self, crater: Crater, tol=0.01, nloops=10, score_quantile=0.95, fit_center=False) -> Crater:
         """
         Find the rim region of a crater on the surface.
 

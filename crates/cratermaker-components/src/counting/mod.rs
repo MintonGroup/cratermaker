@@ -31,77 +31,58 @@ use crate::crater::Crater;
 /// 
 /// * Returns `Err(String)` if any error occurs during the fitting process.
 /// 
-pub fn fit_rim(
+pub fn fit_one_rim(
     region: &LocalSurfaceView<'_>,
     x0: f64,
     y0: f64,
     crater: &Crater,
-    tol: f64,
-    nloops: usize,
-    score_quantile: f64,
     fit_center: bool,
+    score_quantile: f64,
+    gradmult: f64,
+    curvmult: f64,
+    heightmult: f64,
+    distmult: f64,
 ) ->Result<(f64, f64, f64, f64, f64, numpy::ndarray::Array1<f64>), String> { 
     let x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
     let y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
-    let mut crater_fit = crater.clone();
     let mut x0_fit = x0;
     let mut y0_fit = y0;
-    let mut a_fit:f64 = crater.measured_semimajor_axis;
-    let mut b_fit:f64 = crater.measured_semiminor_axis;
-    let mut o_fit:f64 = crater.measured_orientation.to_radians();
-    let mut _wrms: f64 = 0.0;
-    let mut rimscore = numpy::ndarray::Array1::<f64>::zeros(x.len());
-    for i in 0..nloops {
+    let a_fit: f64;
+    let b_fit:f64;
+    let o_fit:f64;
+    let _wrms: f64;
 
-        // Update the multipliers depending on the iteration
-        let gradmult = 1.0;  // 1.0 (i as f64 + 1.0);
-        let curvmult = 1.0; //1.0 / (i as f64 + 0.1);
-        let heightmult = (i+1) as f64;
-        let distmult = (i+1) as f64 * 0.5;
+    // Score the rim using the current multipliers
+    let rimscore = score_rim(
+        region,
+        x0, 
+        y0, 
+        &crater, 
+        score_quantile, 
+        distmult, 
+        gradmult, 
+        curvmult, 
+        heightmult
+    ).map_err(|e| e.to_string())?;
 
-        // Score the rim using the current multipliers
-        rimscore = score_rim(
-            region,
-            x0_fit, 
-            y0_fit, 
-            &crater_fit, 
-            score_quantile, 
-            distmult, 
-            gradmult, 
-            curvmult, 
-            heightmult
+    // Fit an ellipse to the weighted points using either the floating or fixed center fitter, depending on user input
+    if fit_center {
+        (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse(
+            x.view(),
+            y.view(),
+            rimscore.view()
+        ).map_err(|e| e.to_string())?;
+    } else {
+        (a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse_fixed_center(
+            x.view(),
+            y.view(),
+            rimscore.view(),
+            x0,
+            y0,
         ).map_err(|e| e.to_string())?;
 
-        // Fit an ellipse to the weighted points using either the floating or fixed center fitter, depending on user input
-        if fit_center {
-            (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse(
-                x.view(),
-                y.view(),
-                rimscore.view()
-            ).map_err(|e| e.to_string())?;
-        } else {
-            (a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse_fixed_center(
-                x.view(),
-                y.view(),
-                rimscore.view(),
-                x0_fit,
-                y0_fit,
-            ).map_err(|e| e.to_string())?;
-        }
-        let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.radius;
-        let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.radius;
-        println!("Iteration {}: a_fit: {}, b_fit: {}, x0_fit: {}, y0_fit: {}", i, a_fit, b_fit, x0_fit, y0_fit);
-        println!("Iteration {}: delta_a: {}, delta_b: {}", i, delta_a, delta_b);
-        if delta_a < tol && delta_b < tol {
-            println!("Converged at iteration {}", i);
-            return Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore));
-        }
-        crater_fit.measured_semimajor_axis = a_fit;
-        crater_fit.measured_semiminor_axis = b_fit;
-        crater_fit.measured_orientation = o_fit.to_degrees();
-        crater_fit.measured_location = (x0_fit, y0_fit);
-
     }
+
     Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore))
 }
 
