@@ -278,15 +278,11 @@ pub fn fit_rim<'py>(
 
         let delta_a = (a_fit - crater_fit.measured_semimajor_axis).abs() / crater_fit.radius;
         let delta_b = (b_fit - crater_fit.measured_semiminor_axis).abs() / crater_fit.radius;
-        println!("Iteration {}: a_fit: {}, b_fit: {}, x0_fit: {}, y0_fit: {}", i, a_fit, b_fit, x0_fit, y0_fit);
-        println!("Iteration {}: delta_a: {}, delta_b: {}", i, delta_a, delta_b);
         if delta_a < tol && delta_b < tol {
-            println!("Converged at iteration {}", i);
             break;
         }
         i += 1;
         if i >= nloops {
-            println!("Max iterations reached");
             break;
         }
 

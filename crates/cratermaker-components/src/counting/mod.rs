@@ -282,24 +282,24 @@ fn ellipse_coefficients_to_parameters(
 /// A tuple `(a, b, c, d, e, f)` such that the ellipse is described by:
 ///
 /// `a x² + b x y + c y² + d x + e y + f = 0`
-#[inline]
-fn ellipse_parameters_to_coefficients(x0: f64, y0: f64, a: f64, b: f64, orientation: f64) -> (f64, f64, f64, f64, f64, f64) {
-    let phi = orientation; 
-    let s2 = phi.sin().powi(2);
-    let c2 = phi.cos().powi(2);
-    let sc = phi.sin() * phi.cos();
-    let a2 = a * a;
-    let b2 = b * b;
+// #[inline]
+// fn ellipse_parameters_to_coefficients(x0: f64, y0: f64, a: f64, b: f64, orientation: f64) -> (f64, f64, f64, f64, f64, f64) {
+//     let phi = orientation; 
+//     let s2 = phi.sin().powi(2);
+//     let c2 = phi.cos().powi(2);
+//     let sc = phi.sin() * phi.cos();
+//     let a2 = a * a;
+//     let b2 = b * b;
 
-    let a = a2 * s2 + b2 * c2;
-    let b = 2.0 * (b2 - a2) * sc;
-    let c = a2 * c2 + b2 * s2;
-    let d = -2.0 * a * x0 - b * y0;
-    let e = -b * x0 - 2.0 * c * y0;
-    let f = a * x0 * x0 + b * x0 * y0 + c * y0 * y0 - a2 * b2;
+//     let a = a2 * s2 + b2 * c2;
+//     let b = 2.0 * (b2 - a2) * sc;
+//     let c = a2 * c2 + b2 * s2;
+//     let d = -2.0 * a * x0 - b * y0;
+//     let e = -b * x0 - 2.0 * c * y0;
+//     let f = a * x0 * x0 + b * x0 * y0 + c * y0 * y0 - a2 * b2;
 
-    (a, b, c, d, e, f)
-}
+//     (a, b, c, d, e, f)
+// }
 
 
 /// Approximates geometric distances from points to an ellipse.
@@ -448,7 +448,7 @@ pub fn score_rim(
     let scale = crater.measured_diameter;
     let mut distscore = distances.mapv(|d| {
         let nd = (d / scale).powi(2);
-        1.0 / (nd + 0.1)
+        1.0 / (nd + 0.05)
     });
     for (v, &mask) in distscore.iter_mut().zip(mask_region.iter()) {
         if mask {
@@ -494,7 +494,7 @@ pub fn score_rim(
     }
     gradscore.map_inplace(|v| {
         if !v.is_nan() {
-            *v = (1.0 / *v).ln();
+            *v = 1.0 / *v;
         }
     });
 
@@ -983,8 +983,7 @@ pub fn fit_one_ellipse_fixed_center(
 
     // 8) Recover g (constant term) using eliminated relation:
     //    g = -S22^{-1} S21 q = - (1/s3) * (s2^T q)
-    let s21 = s2.t(); // 1x3
-    let s21_q = s21.dot(&q); // scalar
+    // let s21 = s2.t(); // 1x3
     let g = -s3_inv * s2.t().dot(&q)[0];
 
     // 9) Reconstruct d,e from fixed center
