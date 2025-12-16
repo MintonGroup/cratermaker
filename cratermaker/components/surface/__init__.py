@@ -1598,7 +1598,7 @@ class Surface(ComponentBase):
         """
         if self._edge_face_distance is None:
             self._edge_face_distance = surface_bindings.compute_edge_distances(
-                self.edge_face_connectivity, self.face_lon, self.face_lat, self.radius
+                self.edge_face_connectivity, np.radians(self.face_lon), np.radians(self.face_lat), self.radius
             )
         return self._edge_face_distance
 
@@ -1613,7 +1613,7 @@ class Surface(ComponentBase):
         """
         if self._edge_lengths is None:
             self._edge_lengths = surface_bindings.compute_edge_distances(
-                self.edge_node_connectivity, self.node_lon, self.node_lat, self.radius
+                self.edge_node_connectivity, np.radians(self.node_lon), np.radians(self.node_lat), self.radius
             )
         return self._edge_lengths
 

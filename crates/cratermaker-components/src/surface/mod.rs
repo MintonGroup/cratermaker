@@ -584,7 +584,8 @@ pub fn compute_distances(
 /// Distance in meters between the two points along the surface of the sphere.
 #[inline]
 fn compute_one_distance(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius: f64) -> f64 {
-    let dlon = lon2 - lon1;
+    // Make sure to deal with edge cases near the dateline
+    let dlon = positive_mod(lon2 - lon1 + PI, TAU) - PI;
     let dlat = lat2 - lat1;
     let a = (dlat / 2.0).sin().powi(2)
         + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
