@@ -254,7 +254,7 @@ pub fn fit_rim<'py>(
         let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
         let region_v = region_py.as_views();
 
-        // Update the multipliers depending on the iteration
+        // Update the multipliers depending on the iteration. The gradient and curvature multipliers are reduced while the hieght multiplier is increased as the fit is refined. 
         let gradmult =  1.0 / (i as f64 + 1.0);
         let curvmult = 1.0 / (i as f64 + 0.1);
         let heightmult = (i+1) as f64;
