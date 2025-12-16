@@ -3,7 +3,7 @@ use pyo3::exceptions::PyValueError;
 use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
 use crate::surface_bindings::PyReadonlyLocalSurface;
 use cratermaker_components::crater::Crater;
-const _EXTENT_RADIUS_RATIO: f64 = 2.5;
+const _EXTENT_RADIUS_RATIO: f64 = 3.0;
 
 
 #[pyfunction]
@@ -130,7 +130,6 @@ pub fn fit_one_ellipse_fixed_center<'py>(
 /// * `surface` - A reference to the surface object.
 /// * `crater` - The crater object containing location and radius.
 /// * `quantile` - The quantile value for scoring.
-/// * `distmult` - Distance multiplier for scoring.
 /// * `gradmult` - Gradient multiplier for scoring.
 /// * `curvmult` - Curvature multiplier for scoring.
 /// * `heightmult` - Height multiplier for scoring.
@@ -149,7 +148,6 @@ pub fn score_rim<'py>(
     surface: &Bound<'py, PyAny>,
     crater: Crater, 
     quantile: f64,
-    distmult: f64,
     gradmult: f64,
     curvmult: f64,
     heightmult: f64,
@@ -178,7 +176,6 @@ pub fn score_rim<'py>(
             y0,
             &crater,
             quantile,
-            distmult,
             gradmult,
             curvmult,
             heightmult
@@ -248,12 +245,12 @@ pub fn fit_rim<'py>(
 
         // Scoring is best if the surface is modified to remove any regional slope.
         // Save the original face elevation so we can put it back at the end
-        //let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
+        // let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
         // Get the reference surface and subract it from the local surface
-        //let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
-        //let mut reference_elevation: Vec<f64> = region.call_method1("get_reference_surface",(reference_radius,))?.extract()?;
-        //reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
-        //region.call_method1("update_elevation", (reference_elevation,))?;
+        // let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
+        // let mut reference_elevation: Vec<f64> = region.call_method1("get_reference_surface",(reference_radius,))?.extract()?;
+        // reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
+        // region.call_method1("update_elevation", (reference_elevation,))?;
         let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
         let region_v = region_py.as_views();
 
@@ -261,7 +258,6 @@ pub fn fit_rim<'py>(
         let gradmult =  1.0 / (i as f64 + 1.0);
         let curvmult = 1.0 / (i as f64 + 0.1);
         let heightmult = (i+1) as f64;
-        let distmult = (i+1) as f64 * 0.5;
 
         (x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore) = cratermaker_components::counting::fit_one_rim(
                 &region_v,
@@ -270,14 +266,13 @@ pub fn fit_rim<'py>(
                 &crater_fit,
                 fit_center,
                 score_quantile, 
-                distmult, 
                 gradmult, 
                 curvmult, 
                 heightmult
             )
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         // Put the original face elevation back using overwrite=true
-        //region.call_method1("update_elevation",(face_elevation,true))?;
+        // region.call_method1("update_elevation",(face_elevation,true))?;
         let transformer = region.getattr("to_surface").unwrap();
         location_fit = transformer.call_method1("transform", (x0_fit, y0_fit))?;
 

@@ -41,7 +41,6 @@ pub fn fit_one_rim(
     gradmult: f64,
     curvmult: f64,
     heightmult: f64,
-    distmult: f64,
 ) ->Result<(f64, f64, f64, f64, f64, numpy::ndarray::Array1<f64>), String> { 
     let x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
     let y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
@@ -59,7 +58,6 @@ pub fn fit_one_rim(
         y0, 
         &crater, 
         score_quantile, 
-        distmult, 
         gradmult, 
         curvmult, 
         heightmult
@@ -398,7 +396,6 @@ fn geometric_distances(
 /// * `x0`, `y0` - Candidate ellipse center in crater-centered coordinates.
 /// * `crater` - Candidate crater ellipse parameters.
 /// * `quantile` - Quantile threshold for selecting high-scoring points.
-/// * `distmult` - Weighting factor for distance-based score component.
 /// * `gradmult` - Weighting factor for gradient-based score component.
 /// * `curvmult` - Weighting factor for curvature-based score component.
 /// * `heightmult` - Weighting factor for height-based score component.
@@ -419,7 +416,6 @@ pub fn score_rim(
     y0: f64, 
     crater: &Crater,
     quantile: f64,
-    distmult: f64,
     gradmult: f64,
     curvmult: f64,
     heightmult: f64,
@@ -454,9 +450,9 @@ pub fn score_rim(
         let nd = (d / scale).powi(2);
         1.0 / (nd + 0.1)
     });
-    for (val, &mask) in distscore.iter_mut().zip(mask_region.iter()) {
+    for (v, &mask) in distscore.iter_mut().zip(mask_region.iter()) {
         if mask {
-            *val = f64::NAN;
+            *v = f64::NAN;
         }
     }
     if let Some(max_d) = nanmax(&distscore) {
@@ -482,11 +478,18 @@ pub fn score_rim(
         }
     }
 
+    // Weight the height score by the distance score
+    for (v, &dscore) in heightscore.iter_mut().zip(distscore.iter()) {
+        if !v.is_nan() {
+            *v *= dscore;
+        }
+    }
+
     // Gradient score: low absolute gradient scores high (i.e., rim is at a local gradient extremum)
     let mut gradscore = radial_gradient.mapv(|g| g.abs() + 1e-16);
-    for (val, &mask) in gradscore.iter_mut().zip(mask_region.iter()) {
+    for (v, &mask) in gradscore.iter_mut().zip(mask_region.iter()) {
         if mask {
-            *val = f64::NAN;
+            *v = f64::NAN;
         }
     }
     gradscore.map_inplace(|v| {
@@ -494,6 +497,15 @@ pub fn score_rim(
             *v = (1.0 / *v).ln();
         }
     });
+
+    // Weight the gradient score by the distance score
+    for (v, &dscore) in gradscore.iter_mut().zip(distscore.iter()) {
+        if !v.is_nan() {
+            *v *= dscore;
+        }
+    }
+
+
     if let Some(max_g) = nanmax(&gradscore) {
         if max_g > 0.0 {
             gradscore.map_inplace(|v| {
@@ -508,9 +520,9 @@ pub fn score_rim(
     //    high positive curvature -> low score (i.e., valleys are bad)
     //    high negative curvature -> high score (i.e., ridges are good)
     let mut curvscore = radial_curvature.to_owned();
-    for (val, &mask) in curvscore.iter_mut().zip(mask_region.iter()) {
+    for (v, &mask) in curvscore.iter_mut().zip(mask_region.iter()) {
         if mask {
-            *val = f64::NAN;
+            *v = f64::NAN;
         }
     }
     curvscore.map_inplace(|v| {
@@ -522,6 +534,14 @@ pub fn score_rim(
             }
         }
     });
+
+    // Weight the curvature score by the distance score
+    for (v, &dscore) in curvscore.iter_mut().zip(distscore.iter()) {
+        if !v.is_nan() {
+            *v *= dscore;
+        }
+    }
+
     if let Some(max_c) = nanmax(&curvscore) {
         if max_c > 0.0 {
             curvscore.map_inplace(|v| {
@@ -535,16 +555,15 @@ pub fn score_rim(
     // Combine into rimscore 
     let mut rimscore = Array1::<f64>::zeros(n);
     for i in 0..n {
-        let d = distscore[i];
         let g = gradscore[i];
         let c = curvscore[i];
         let h = heightscore[i];
 
-        if d.is_nan() || g.is_nan() || c.is_nan() || h.is_nan() {
+        if g.is_nan() || c.is_nan() || h.is_nan() {
             rimscore[i] = f64::NAN;
         } else {
             rimscore[i] =
-                distmult * d + gradmult * g + curvmult * c + heightmult * h;
+                gradmult * g + curvmult * c + heightmult * h;
         }
     }
     // Bin into bearing sectors:
@@ -1015,19 +1034,4 @@ fn nanmin(arr: &Array1<f64>) -> Option<f64> {
         })
 }
 
-fn nanquantile(arr: &Array1<f64>, q: f64) -> Option<f64> {
-    let mut vals: Vec<f64> = arr
-        .iter()
-        .copied()
-        .filter(|v| !v.is_nan())
-        .collect();
 
-    if vals.is_empty() {
-        return None;
-    }
-
-    vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let q_clamped = q.clamp(0.0, 1.0);
-    let idx = ((vals.len() - 1) as f64 * q_clamped).floor() as usize;
-    Some(vals[idx.min(vals.len() - 1)])
-}

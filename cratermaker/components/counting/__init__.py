@@ -252,7 +252,7 @@ class Counting(ComponentBase):
 
         return crater_fit
 
-    def score_rim(self, crater: Crater, quantile=0.95, distmult=1.0, gradmult=1.0, curvmult=1.0, heightmult=1.0) -> None:
+    def score_rim(self, crater: Crater, quantile=0.95, gradmult=1.0, curvmult=1.0, heightmult=1.0) -> None:
         """
         Score the rim region of a crater on the surface.
 
@@ -262,8 +262,6 @@ class Counting(ComponentBase):
             The crater for which to score the rim region.
         quantile : float, optional
             The quantile of rim scores to consider. Default is 0.95.
-        distmult : float, optional
-            Distance multiplier for scoring. Default is 1.0.
         gradmult : float, optional
             Gradient multiplier for scoring. Default is 1.0.
         curvmult : float, optional
@@ -278,7 +276,7 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        region = counting_bindings.score_rim(self.surface, crater, quantile, distmult, gradmult, curvmult, heightmult)
+        region = counting_bindings.score_rim(self.surface, crater, quantile, gradmult, curvmult, heightmult)
 
         return region
 

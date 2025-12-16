@@ -42,6 +42,8 @@ pub struct PyReadonlyLocalSurface<'py> {
     pub face_proj_y:    Option<PyReadonlyArray1<'py, f64>>,
     pub face_distance:  Option<PyReadonlyArray1<'py, f64>>,
     pub face_bearing:   Option<PyReadonlyArray1<'py, f64>>,
+    pub region_radius:  Option<f64>,
+    pub location:       Option<(f64, f64)>,
 
 }
 
@@ -138,6 +140,8 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             face_proj_y:    obj.getattr("face_proj_y")?.extract()?,
             face_distance:  obj.getattr("face_distance")?.extract()?,
             face_bearing:   obj.getattr("face_bearing")?.extract()?,
+            region_radius:   obj.getattr("region_radius")?.extract()?,
+            location:       obj.getattr("location")?.extract()?,
         })
     }
     /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
@@ -180,6 +184,8 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             face_proj_y:            self.face_proj_y.as_ref().map(|a| a.as_array()),
             face_distance:          self.face_distance.as_ref().map(|a| a.as_array()),
             face_bearing:           self.face_bearing.as_ref().map(|a| a.as_array()),
+            region_radius:          self.region_radius,
+            location:               self.location,
 
         }
     }
