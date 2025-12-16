@@ -10,13 +10,12 @@ import numpy as np
 import pandas as pd
 import uxarray as uxr
 import xarray as xr
-from pyproj import Geod
-from shapely.geometry import GeometryCollection, LineString, Polygon
-from shapely.ops import split, transform
+from cratermaker._cratermaker import counting_bindings
+from shapely.geometry import GeometryCollection
+from shapely.ops import transform
 
-from cratermaker.constants import FloatLike
+from cratermaker.components.crater import Crater
 from cratermaker.core.base import ComponentBase, import_components
-from cratermaker.core.crater import Crater
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
@@ -209,138 +208,7 @@ class Counting(ComponentBase):
 
         return
 
-    def _fit_rim_one(self, crater, score_quantile=0.99, distmult=1.0, gradmult=1.0, curvmult=1.0, heightmult=1.0):
-        # def fit_ellipse(x, y, weights=None):
-        #     """
-
-        #     Fit the coefficients a,b,c,d,e,f, representing an ellipse described by the formula F(x,y) = ax^2 + bxy + cy^2 + dx + ey + f = 0 to the provided arrays of data points x=[x1, x2, ..., xn] and y=[y1, y2, ..., yn].
-
-        #     Based on the algorithm of Halir and Flusser, "Numerically stable direct least squares fitting of ellipses' with additional weighting of data points.
-
-        #     Adapted from: https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/ with added weighting.
-
-        #     Parameters
-        #     ----------
-        #     x : array_like
-        #         1D array of x-coordinates of data points.
-        #     y : array_like
-        #         1D array of y-coordinates of data points.
-        #     weights : array_like, optional
-        #         1D array of weights for each data point, by default None.
-        #     """
-        #     x = np.asarray(x, dtype=float)
-        #     y = np.asarray(y, dtype=float)
-
-        #     if weights is not None:
-        #         weights = np.asarray(weights, dtype=float)
-        #         if weights.shape != x.shape:
-        #             raise ValueError("weights must have same shape as x and y")
-
-        #     D1 = np.vstack([x**2, x * y, y**2]).T
-        #     D2 = np.vstack([x, y, np.ones(len(x))]).T
-
-        #     if weights is None:
-        #         WD1 = D1
-        #         WD2 = D2
-        #     else:
-        #         WD1 = weights[:, None] * D1
-        #         WD2 = weights[:, None] * D2
-
-        #     S1 = WD1.T @ WD1
-        #     S2 = WD1.T @ WD2
-        #     S3 = WD2.T @ WD2
-        #     T = -np.linalg.inv(S3) @ S2.T
-        #     M = S1 + S2 @ T
-        #     C = np.array(((0, 0, 2), (0, -1, 0), (2, 0, 0)), dtype=float)
-        #     M = np.linalg.inv(C) @ M
-        #     eigval, eigvec = np.linalg.eig(M)
-        #     con = 4 * eigvec[0] * eigvec[2] - eigvec[1] ** 2
-        #     ak = eigvec[:, np.nonzero(con > 0)[0]]
-        #     coeffs = np.concatenate((ak, T @ ak)).ravel()
-
-        #     # Compute goodness of fit via weighted RMS
-
-        #     delta = self._compute_geometric_distances_to_ellipse(x, y, coeffs)
-        #     if weights is None:
-        #         wrms = np.sqrt(np.sum(delta**2) / len(delta))
-        #     else:
-        #         wrms = np.sqrt(np.sum(weights * delta**2) / np.sum(weights))
-
-        #     return coeffs, wrms
-
-        # lon = crater_initial["lon"].item()
-        # lat = crater_initial["lat"].item()
-        # a = crater_initial["semimajor_axis"].item()
-        # b = crater_initial["semiminor_axis"].item()
-        # subregion = surface.extract_region(location=(lon, lat), region_radius=EXTENT_RADIUS_RATIO * np.sqrt(a * b))
-
-        # crater_fits = {
-        #     "initial": {
-        #         "poly": gpd.GeoSeries(
-        #             [
-        #                 geodesic_ellipse_polygon(
-        #                     lon=lon,
-        #                     lat=lat,
-        #                     a=a,
-        #                     b=b,
-        #                     n=100,
-        #                     R=surface.target.radius,
-        #                     split_antimeridian=False,
-        #                 )
-        #             ],
-        #             crs=surface.crs,
-        #         ).to_crs(subregion.crs),
-        #         "parameters": crater_initial.copy(),
-        #     },
-        # }
-
-        # subregion = score_rim(
-        #     subregion,
-        #     crater_initial,
-        #     quantile=score_quantile,
-        #     distmult=distmult,
-        #     gradmult=gradmult,
-        #     curvmult=curvmult,
-        #     heightmult=heightmult,
-        # )
-        # rimscore_data = subregion.uxds.rimscore.data
-        # rimscore_lon = subregion.face_lon[~np.isnan(rimscore_data)]
-        # rimscore_lat = subregion.face_lat[~np.isnan(rimscore_data)]
-        # rimscore_data = rimscore_data[~np.isnan(rimscore_data)]
-        # rimscore_x, rimscore_y = subregion.from_surface.transform(rimscore_lon, rimscore_lat)
-        # coeffs, wrms = fit_ellipse(rimscore_x, rimscore_y, weights=rimscore_data)
-        # x0, y0, a_fit, b_fit, e, phi = cart_to_pol(coeffs)
-        # orientation = (np.degrees(phi) + 90.0) % 90.0
-        # lon_fit, lat_fit = subregion.to_surface.transform(x0, y0)
-        # crater_fits["fit"] = {
-        #     "poly": gpd.GeoSeries(
-        #         [
-        #             geodesic_ellipse_polygon(
-        #                 lon=lon_fit,
-        #                 lat=lat_fit,
-        #                 a=a_fit,
-        #                 b=b_fit,
-        #                 orientation=orientation,
-        #                 n=100,
-        #                 R=surface.target.radius,
-        #                 split_antimeridian=False,
-        #             )
-        #         ],
-        #         crs=surface.crs,
-        #     ),
-        #     "parameters": crater_initial.copy(),
-        # }
-        # crater_fits["fit"]["parameters"]["lon"] = np.asarray(lon_fit)
-        # crater_fits["fit"]["parameters"]["lat"] = np.asarray(lat_fit)
-        # crater_fits["fit"]["parameters"]["semimajor_axis"] = np.asarray(a_fit)
-        # crater_fits["fit"]["parameters"]["semiminor_axis"] = np.asarray(b_fit)
-        # crater_fits["fit"]["parameters"]["orientation"] = np.asarray(orientation)
-        # crater_fits["fit"]["parameters"]["wrms"] = np.asarray(wrms)
-
-        # return surface, crater_fits
-        pass
-
-    def find_rim(self, crater: Crater) -> LocalSurface:
+    def fit_rim(self, crater: Crater, tol=0.01, nloops=10, score_quantile=0.95, fit_center=False) -> Crater:
         """
         Find the rim region of a crater on the surface.
 
@@ -348,18 +216,69 @@ class Counting(ComponentBase):
         ----------
         crater : Crater
             The crater for which to find the rim region.
+        tol : float, optional
+            The tolerance for the rim fitting algorithm. Default is 0.001.
+        nloops : int, optional
+            The number of iterations for the rim fitting algorithm. Default is 10.
+        score_quantile : float, optional
+            The quantile of rim scores to consider. Default is 0.95.
+        fit_center : bool, optional
+            If True, fit the crater center as well. Default is False.
 
         Returns
         -------
-        LocalSurface
-            A LocalSurface representing the rim region of the crater.
+        Crater
+            A new Crater object with updated measured rim parameters.
         """
-        from cratermaker.components.surface import LocalSurface
-
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        return
+        location, ap, bp, orientation = counting_bindings.fit_rim(
+            self.surface,
+            crater,
+            tol,
+            nloops,
+            score_quantile,
+            fit_center,
+        )
+
+        crater_fit = Crater.maker(
+            crater,
+            measured_semimajor_axis=ap,
+            measured_semiminor_axis=bp,
+            measured_orientation=np.degrees(orientation),
+            measured_location=location,
+        )
+
+        return crater_fit
+
+    def score_rim(self, crater: Crater, quantile=0.95, gradmult=1.0, curvmult=1.0, heightmult=1.0) -> None:
+        """
+        Score the rim region of a crater on the surface.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater for which to score the rim region.
+        quantile : float, optional
+            The quantile of rim scores to consider. Default is 0.95.
+        gradmult : float, optional
+            Gradient multiplier for scoring. Default is 1.0.
+        curvmult : float, optional
+            Curvature multiplier for scoring. Default is 1.0.
+        heightmult : float, optional
+            Height multiplier for scoring. Default is 1.0.
+
+        Returns
+        -------
+        Updates the attached surface object with the rim score for this crater.
+        """
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
+
+        region = counting_bindings.score_rim(self.surface, crater, quantile, gradmult, curvmult, heightmult)
+
+        return region
 
     @abstractmethod
     def tally(self, region: LocalSurface | None = None) -> None: ...
@@ -494,85 +413,6 @@ class Counting(ComponentBase):
         #             self.make_vector_file(ds, interval_number, layer_name=f"{crater_type}_craters", format=format, **kwargs)
         pass
         # return
-
-    @staticmethod
-    def geodesic_ellipse_polygon(
-        lon: float,
-        lat: float,
-        a: float,
-        b: float,
-        az_deg: float = 0.0,
-        n: int = 150,
-        R_pole: FloatLike = 1.0,
-        R_equator: FloatLike = 1.0,
-        split_antimeridian: bool = True,
-    ) -> Polygon:
-        """
-        Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
-
-        Parameters
-        ----------
-        lon : float
-            Longitude of the ellipse center in degrees.
-        lat : float
-            Latitude of the ellipse center in degrees.
-        a : float
-            Semi-major axis in meters.
-        b : float
-            Semi-minor axis in meters.
-        az_deg : float, optional
-            Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
-        n : int, optional
-            Number of points to use for the polygon, by default 150.
-        R_pole : FloatLike, optional
-            Planetary polar radius in units of meters, by default 1.0.
-        R_equator : FloatLike, optional
-            Planetary equatorial radius in units of meters, by default 1.0.
-        split_antimeridian : bool, optional
-            If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
-
-        Returns
-        -------
-        Returns a Shapely Polygon in lon/lat degrees.
-        """
-        geod = Geod(a=R_pole, b=R_equator)
-        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
-
-        # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
-        ct = np.cos(np.deg2rad(theta))
-        st = np.sin(np.deg2rad(theta))
-        r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
-
-        # Bearings (from east, CCW) rotated by azimuth
-        bearings = theta + az_deg % 360.0
-
-        # Forward geodesic for each bearing/distance
-        poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
-
-        # Correct for potential antimeridian crossing
-        if split_antimeridian and np.ptp(poly_lon) > 180.0:
-            center_sign = np.sign(lon)
-            poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
-            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
-            merdian_lon = 180.0 * center_sign
-            meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
-            poly = split(poly, meridian)
-
-            def lon_flip(lon, lat):
-                lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
-                return lon, lat
-
-            new_geoms = []
-            for p in poly.geoms:
-                if np.abs(p.centroid.x) > 180.0:
-                    p = transform(lon_flip, p)
-                new_geoms.append(p)
-            poly = GeometryCollection(new_geoms)
-
-        else:
-            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
-
-        return poly
 
     @staticmethod
     def _compute_geometric_distances_to_ellipse(x, y, coeffs):

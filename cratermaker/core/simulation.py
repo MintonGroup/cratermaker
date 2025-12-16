@@ -8,23 +8,23 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 
-from ..components.counting import Counting
-from ..components.morphology import Morphology
-from ..components.production import Production
-from ..components.projectile import Projectile
-from ..components.scaling import Scaling
-from ..components.surface import Surface
-from ..components.surface.hireslocal import HiResLocalSurface
-from ..components.target import Target
-from ..constants import (
+from cratermaker.components.counting import Counting
+from cratermaker.components.crater import Crater
+from cratermaker.components.morphology import Morphology
+from cratermaker.components.production import Production
+from cratermaker.components.projectile import Projectile
+from cratermaker.components.scaling import Scaling
+from cratermaker.components.surface import Surface
+from cratermaker.components.surface.hireslocal import HiResLocalSurface
+from cratermaker.components.target import Target
+from cratermaker.constants import (
     _COMPONENT_NAMES,
     _CONFIG_FILE_NAME,
     FloatLike,
     PairOfFloats,
 )
-from ..utils.general_utils import _set_properties, format_large_units, parameter
-from .base import CratermakerBase, _convert_for_yaml
-from .crater import Crater
+from cratermaker.core.base import CratermakerBase, _convert_for_yaml
+from cratermaker.utils.general_utils import _set_properties, format_large_units, parameter
 
 
 class Simulation(CratermakerBase):

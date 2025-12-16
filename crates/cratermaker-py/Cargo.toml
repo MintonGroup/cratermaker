@@ -1,0 +1,22 @@
+[package]
+name = "cratermaker-py"
+version = "2025.10.1-a22+gb24916a7"
+edition = "2021"
+
+[lib]
+name = "_cratermaker"
+crate-type = [ "cdylib",]
+
+[dependencies]
+pyo3= {version = "0.27", features = ["extension-module"]}
+numpy = "0.27"
+cratermaker-components = { path = "../cratermaker-components" }
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
+version = "0.6"
+features = [ "disable_initial_exec_tls",]
