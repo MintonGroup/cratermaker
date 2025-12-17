@@ -448,6 +448,12 @@ class Crater:
             "morphology_type": "Not Set",
             "location": location,
             "age": age,
+            "measured_semimajor_axis": measured_semimajor_axis,
+            "measured_semiminor_axis": measured_semiminor_axis,
+            "measured_orientation": measured_orientation,
+            "measured_diameter": measured_diameter,
+            "measured_radius": measured_radius,
+            "measured_location": measured_location,
         }
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
@@ -507,6 +513,12 @@ class Crater:
             location = args["location"]
             mt = crater.morphology_type
             age = args["age"]
+            measured_semimajor_axis = args["measured_semimajor_axis"]
+            measured_semiminor_axis = args["measured_semiminor_axis"]
+            measured_orientation = args["measured_orientation"]
+            measured_diameter = args["measured_diameter"]
+            measured_radius = args["measured_radius"]
+            measured_location = args["measured_location"]
         else:
             # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
             argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
