@@ -157,16 +157,6 @@ pub fn score_rim<'py>(
     let x0y0 = transformer.call_method1("transform",(crater.measured_location.0, crater.measured_location.1))?;
     let (x0, y0): (f64, f64) = x0y0.extract()?;
 
-    // Scoring is best if the surface is modified to remove any regional slope.
-    // Save the original face elevation so we can put it back at the end
-    // let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
-    // Get the reference surface and subract it from the local surface
-    // let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
-    // let mut reference_elevation: Vec<f64> = region.
-    //                                     call_method1("get_reference_surface",(reference_radius,))?
-    //                                     .extract()?;
-    // reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
-    // region.call_method1("update_elevation", (reference_elevation,))?;
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
@@ -184,9 +174,6 @@ pub fn score_rim<'py>(
 
     region.call_method1("add_data",("rimscore", PyArray1::from_owned_array(py, result.clone()), "Rim Score", "dimensionless", true, true, f64::NAN))?;
 
-    // Put the original face elevation back using overwrite=true
-    // region.call_method1("update_elevation",(face_elevation,true))?;
-
     Ok(region)
 }
 
@@ -202,14 +189,15 @@ pub fn score_rim<'py>(
 /// * `nloops` - Maximum number of iterations to perform.
 /// * `score_quantile` - Quantile of rim scores to consider.
 /// * `fit_center` - Whether to fit the crater center or keep it fixed.
+/// * `fit_ellipse` - Whether to fit an ellipse to the rim. If False, it will fit a circle.
 /// 
 /// # Returns
 ///
 /// * On success, returns a tuple `(location_fit, a_fit, b_fit, o_fit)` where:
 /// - `location_fit`: Fitted location of the crater center.
 /// - `a_fit`: Fitted semi-major axis length.
-/// - `b_fit`: Fitted semi-minor axis length.
-/// - `o_fit`: Fitted orientation angle in radians.
+/// - `b_fit`: Fitted semi-minor axis length. (same as a_fit if fit_ellipse is False)
+/// - `o_fit`: Fitted orientation angle in radians. (0 if fit_ellipse is False)
 /// 
 /// # Errors
 /// 
@@ -223,6 +211,7 @@ pub fn fit_rim<'py>(
     nloops: usize,
     score_quantile: f64,
     fit_center: bool,
+    fit_ellipse: bool,
 ) -> PyResult<(Bound<'py, PyAny>, f64, f64, f64)>  {
     let mut region: Bound<'_, PyAny>;
     let mut location_fit: Bound<'_, PyAny>;
@@ -243,14 +232,6 @@ pub fn fit_rim<'py>(
         let x0y0 = transformer.call_method1("transform",(crater_fit.measured_location.0, crater_fit.measured_location.1))?;
         let (x0, y0): (f64, f64) = x0y0.extract()?;
 
-        // Scoring is best if the surface is modified to remove any regional slope.
-        // Save the original face elevation so we can put it back at the end
-        // let face_elevation: Vec<f64> = region.getattr("face_elevation")?.extract()?;
-        // Get the reference surface and subract it from the local surface
-        // let reference_radius: f64 = region.getattr("region_radius")?.extract()?;
-        // let mut reference_elevation: Vec<f64> = region.call_method1("get_reference_surface",(reference_radius,))?.extract()?;
-        // reference_elevation = reference_elevation.iter().map(|&v| -v).collect();
-        // region.call_method1("update_elevation", (reference_elevation,))?;
         let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
         let region_v = region_py.as_views();
 
@@ -265,6 +246,7 @@ pub fn fit_rim<'py>(
                 y0,
                 &crater_fit,
                 fit_center,
+                fit_ellipse,
                 score_quantile, 
                 gradmult, 
                 curvmult, 
@@ -272,7 +254,6 @@ pub fn fit_rim<'py>(
             )
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         // Put the original face elevation back using overwrite=true
-        // region.call_method1("update_elevation",(face_elevation,true))?;
         let transformer = region.getattr("to_surface").unwrap();
         location_fit = transformer.call_method1("transform", (x0_fit, y0_fit))?;
 

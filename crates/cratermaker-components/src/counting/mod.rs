@@ -16,10 +16,10 @@ use crate::crater::Crater;
 /// * `region` - A view of the local surface region containing the crater.
 /// * `x0`, `y0` - Initial center of the crater ellipse in crater-centered coordinates.
 /// * `crater` - Initial crater parameters.
-/// * `tol` - Tolerance for convergence of the fitting algorithm.
-/// * `nloops` - Maximum number of iterations to perform.
 /// * `score_quantile` - Quantile of rim scores to consider.
 /// * `fit_center` - Whether to fit the crater center or keep it fixed.
+/// * `fit_ellipse` - Whether to fit an ellipse. If false, a circle is fitted instead. 
+/// * `gradmult`, `curvmult`, `heightmult` - Multipliers for gradient, curvature, and height-based scoring.
 /// 
 /// # Returns
 /// 
@@ -37,6 +37,7 @@ pub fn fit_one_rim(
     y0: f64,
     crater: &Crater,
     fit_center: bool,
+    fit_ellipse: bool,
     score_quantile: f64,
     gradmult: f64,
     curvmult: f64,
@@ -64,21 +65,41 @@ pub fn fit_one_rim(
     ).map_err(|e| e.to_string())?;
 
     // Fit an ellipse to the weighted points using either the floating or fixed center fitter, depending on user input
-    if fit_center {
-        (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse(
-            x.view(),
-            y.view(),
-            rimscore.view()
-        ).map_err(|e| e.to_string())?;
-    } else {
-        (a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse_fixed_center(
-            x.view(),
-            y.view(),
-            rimscore.view(),
-            x0,
-            y0,
-        ).map_err(|e| e.to_string())?;
+    if fit_ellipse {
+        if fit_center {
+            (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse(
+                x.view(),
+                y.view(),
+                rimscore.view()
+            ).map_err(|e| e.to_string())?;
+        } else {
+            (a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse_fixed_center(
+                x.view(),
+                y.view(),
+                rimscore.view(),
+                x0,
+                y0,
+            ).map_err(|e| e.to_string())?;
 
+        }
+    } else {
+        if fit_center {
+            (x0_fit, y0_fit, a_fit, _wrms) = fit_one_circle(
+                x.view(),
+                y.view(),
+                rimscore.view()
+            ).map_err(|e| e.to_string())?;
+        } else {
+            (a_fit, _wrms) = fit_one_circle_fixed_center(
+                x.view(),
+                y.view(),
+                rimscore.view(),
+                x0,
+                y0,
+            ).map_err(|e| e.to_string())?;
+        }
+        b_fit = a_fit;
+        o_fit = 0.0;
     }
 
     Ok((x0_fit, y0_fit, a_fit, b_fit, o_fit, rimscore))
@@ -691,22 +712,21 @@ pub fn score_rim(
 /// > Halír, R. and Flusser, J. (1998).
 /// > “Numerically Stable Direct Least Squares Fitting of Ellipses.”
 ///
-/// The ellipse is represented in the general quadratic form
+/// The ellipse is represented in the general quadratic form:
 ///
 /// `a x² + b x y + c y² + d x + e y + f = 0`
 ///
 /// subject to the constraint that the conic is an ellipse. The algorithm:
 ///
 /// 1. Constructs design matrices `D1` and `D2` from `x` and `y`.
-/// 2. Applies per-point weights `w[i]`.
+/// 2. Applies per-point weights `w[i]` (via `sqrt(w)` row scaling).
 /// 3. Computes scatter matrices `S1`, `S2`, `S3`.
 /// 4. Forms the reduced matrix `M` incorporating the ellipse constraint.
 /// 5. Solves the eigenproblem for `M` and selects the eigenvector that
 ///    satisfies the ellipse condition `4ac - b² > 0`.
 /// 6. Recovers the full coefficient vector and the geometric parameters
-///    (center, semi-axes, eccentricity, orientation).
-/// 7. Computes the weighted RMS geometric distance from the points
-///    to the fitted ellipse.
+///    (center, semi-axes, orientation).
+/// 7. Computes the weighted RMS distance using the internal `geometric_distances` approximation.
 ///
 /// # Arguments
 ///
@@ -714,6 +734,7 @@ pub fn score_rim(
 /// * `y` - y-coordinates of sample points. Must have the same length as `x`.
 /// * `weights` - Non-negative weights for each point. Must have the same
 ///   length as `x` and `y`. Points with larger weights influence the fit more.
+///   Non-positive weights contribute zero influence.
 ///
 /// # Returns
 ///
@@ -726,25 +747,22 @@ pub fn score_rim(
 /// * `x0`, `y0` - Center of the fitted ellipse.
 /// * `ap` - Semi-major axis length.
 /// * `bp` - Semi-minor axis length.
-/// * `orientation` - Orientation angle in radians.
-/// * `wrms` - Weighted root-mean-square geometric distance of the points
-///   to the fitted ellipse.
+/// * `orientation` - Orientation angle in radians (wrapped to `[0, 2π)`).
+/// * `wrms` - Weighted root-mean-square of the (approximate) geometric distances.
 ///
 /// # Errors
 ///
 /// Returns `Err(LinalgError)` if:
 ///
-/// * One of the intermediate matrices (`S3`, `C`, etc.) is singular and
+/// * One of the intermediate matrices (`S3`, constraint matrices, etc.) is singular and
 ///   cannot be inverted.
 /// * The eigen decomposition of `M` fails.
 ///
 /// # Panics
 ///
-/// * Panics if `x`, `y`, and `weights` do not all have the same length
-///   (enforced via `assert_eq!`).
-/// * Panics if no eigenvector satisfies the ellipse condition
-///   `4ac - b² > 0`, indicating that the data do not admit a valid
-///   ellipse under this formulation.
+/// * Panics if `x`, `y`, and `weights` do not all have the same length.
+/// * Panics if no eigenvector satisfies the ellipse condition `4ac - b² > 0`, indicating
+///   that the data do not admit a valid ellipse under this formulation.
 #[inline] 
 pub fn fit_one_ellipse(
     x: ArrayView1<'_,f64>, 
@@ -836,61 +854,61 @@ pub fn fit_one_ellipse(
 
 
 /// Fits a single weighted ellipse to 2D points with a fixed center.
-/// This function implements a numerically stable, weighted variant of the
-/// direct least-squares ellipse fitting algorithm of Halír and Flusser,
-/// with the additional constraint that the ellipse center is fixed
-/// at `(x0, y0)`.
 ///
-/// The ellipse is represented in the general quadratic form
-/// `a x² + b x y + c y² + d x + e y + f
-///    
-/// subject to the constraint that the conic is an ellipse. The algorithm:
-/// 1. Constructs centered features `fa`, `fb`, `fc` based on the fixed center
-/// 2. Builds design matrices `D1` and `D2` from the centered features.
-/// 3. Applies per-point weights `w[i]`.
-/// 4. Computes scatter matrices `S1`, `S2`, `S3`.
-/// 5. Forms the reduced matrix `M` incorporating the ellipse constraint.
-/// 6. Solves the eigenproblem for `M` and selects the eigenvector that
-///    satisfies the ellipse condition `4ac - b² > 0`.
-/// 7. Recovers the full coefficient vector using the fixed center.
-/// 8. Computes the geometric parameters (semi-axes, orientation).
-/// 9. Computes the weighted RMS geometric distance from the points
-///    to the fitted ellipse.
-/// 
+/// This uses the same Halír–Flusser direct least-squares formulation as `fit_one_ellipse`,
+/// but enforces the center to be exactly `(x0, y0)` by reparameterizing the conic and
+/// eliminating the linear terms implied by the fixed center.
+///
+/// The ellipse is represented in the general quadratic form:
+///
+/// `a x² + b x y + c y² + d x + e y + g = 0`
+///
+/// with `d` and `e` determined by `a`, `b`, `c` and the fixed center.
+///
+/// The algorithm:
+///
+/// 1. Constructs centered features based on the fixed center.
+/// 2. Builds design matrices and applies weights via `sqrt(w)` row scaling.
+/// 3. Forms the reduced 3×3 eigenproblem for `[a, b, c]`.
+/// 4. Solves for the constant term `g` and reconstructs `d` and `e`.
+/// 5. Converts the conic to geometric parameters and computes WRMS using `geometric_distances`.
+///
 /// # Arguments
-/// 
+///
 /// * `x` - x-coordinates of sample points.
 /// * `y` - y-coordinates of sample points. Must have the same length as `x`.
 /// * `weights` - Non-negative weights for each point. Must have the same
 ///   length as `x` and `y`. Points with larger weights influence the fit more.
+///   Non-positive weights contribute zero influence.
 /// * `x0` - Fixed x-coordinate of the ellipse center.
 /// * `y0` - Fixed y-coordinate of the ellipse center.
-/// 
+///
 /// # Returns
-/// 
+///
 /// On success, returns:
+///
 /// `(ap, bp, orientation, wrms)`
+///
 /// where:
+///
 /// * `ap` - Semi-major axis length.
 /// * `bp` - Semi-minor axis length.
-/// * `orientation` - Orientation angle in radians.
-/// * `wrms` - Weighted root-mean-square geometric distance of the points
-///   to the fitted ellipse.
-/// 
+/// * `orientation` - Orientation angle in radians (wrapped to `[0, 2π)`).
+/// * `wrms` - Weighted root-mean-square of the (approximate) geometric distances.
+///
 /// # Errors
-/// 
+///
 /// Returns `Err(LinalgError)` if:
-/// * One of the intermediate matrices (`S3`, `C`, etc.) is singular and
-///   cannot be inverted.
-/// * The eigen decomposition of `M` fails.
-/// 
+///
+/// * The weighted normal-equation scalar for the eliminated constant term is zero
+///   (e.g., all weights are zero).
+/// * An intermediate matrix inversion fails.
+/// * The eigen decomposition fails.
+///
 /// # Panics
-/// 
-/// * Panics if `x`, `y`, and `weights` do not all have the same length
-///   (enforced via `assert_eq!`).
-/// * Panics if no eigenvector satisfies the ellipse condition
-///   `4ac - b² > 0`, indicating that the data do not admit a valid
-///   ellipse under this formulation.
+///
+/// * Panics if `x`, `y`, and `weights` do not all have the same length.
+/// * Panics if no eigenvector satisfies the ellipse condition `4ac - b² > 0`.
 #[inline]
 pub fn fit_one_ellipse_fixed_center(
     x: ArrayView1<'_, f64>,
@@ -1005,6 +1023,218 @@ pub fn fit_one_ellipse_fixed_center(
     let orientation = (TAU - phi) % TAU;
 
     Ok((ap, bp, orientation, wrms))
+}
+
+/// Fits a single weighted circle to 2D points using a weighted algebraic least squares fit.
+///
+/// The circle is represented in the algebraic form:
+///
+/// `x² + y² = 2*x0*x + 2*y0*y + c`, where `c = r² - x0² - y0²`.
+///
+/// This function solves a 3-parameter weighted linear least squares system for
+/// `p = [x0, y0, c]` using the normal equations:
+///
+/// `(Aᵀ W A) p = (Aᵀ W b)`
+///
+/// with `A = [2x, 2y, 1]` and `b = x² + y²`. Weights are applied via `sqrt(w)` row scaling.
+///
+/// After solving for `(x0, y0, c)`, the radius is recovered as:
+///
+/// `r = sqrt(c + x0² + y0²)`
+///
+/// The reported `wrms` is the weighted RMS of the **geometric** radial residuals
+/// `sqrt((x-x0)²+(y-y0)²) - r`.
+///
+/// # Arguments
+///
+/// * `x` - x-coordinates of sample points.
+/// * `y` - y-coordinates of sample points. Must have the same length as `x`.
+/// * `weights` - Non-negative weights for each point. Must have the same length as `x` and `y`.
+///   Points with larger weights influence the fit more. Non-positive weights contribute zero influence.
+///
+/// # Returns
+///
+/// On success, returns:
+///
+/// `(x0, y0, r, wrms)`
+///
+/// where:
+///
+/// * `x0`, `y0` - Center of the fitted circle.
+/// * `r` - Radius of the fitted circle.
+/// * `wrms` - Weighted root-mean-square geometric radial residual.
+///
+/// # Errors
+///
+/// Returns `Err(LinalgError)` if:
+///
+/// * All weights are zero.
+/// * The 3×3 normal-equation matrix is singular and cannot be inverted.
+///
+/// # Panics
+///
+/// Panics if `x`, `y`, and `weights` do not all have the same length.
+#[inline]
+pub fn fit_one_circle(
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    weights: ArrayView1<'_, f64>,
+) -> Result<(f64, f64, f64, f64), LinalgError> {
+    assert_eq!(x.len(), y.len());
+    assert_eq!(x.len(), weights.len());
+    let n = x.len();
+
+    // Guard against the all-zero weights case (ill-posed)
+    let wsum = weights.sum();
+    if wsum == 0.0 {
+        eprintln!("fit_one_circle: all weights are zero (wsum = {})", wsum);
+        return Err(LinalgError::NotStandardShape {
+            obj: "fit_one_circle: all weights are zero",
+            rows: n as i32,
+            cols: 3,
+        });
+    }
+
+    // Weighted algebraic circle fit.
+    // Model: x^2 + y^2 = 2*x0*x + 2*y0*y + c, where c = r^2 - x0^2 - y0^2.
+    // Solve (A^T W A) p = (A^T W b), with A = [2x, 2y, 1], p = [x0, y0, c], b = x^2 + y^2.
+
+    let x2 = x.mapv(|v| v * v);
+    let y2 = y.mapv(|v| v * v);
+    let bvec = &x2 + &y2; // n
+
+    let mut a_mat = Array2::<f64>::zeros((n, 3));
+    a_mat.column_mut(0).assign(&x.mapv(|v| 2.0 * v));
+    a_mat.column_mut(1).assign(&y.mapv(|v| 2.0 * v));
+    a_mat.column_mut(2).fill(1.0);
+
+    // Apply weights via sqrt(W) scaling (same pattern as ellipse fit)
+    let w_sqrt = weights.mapv(|w| if w > 0.0 { w.sqrt() } else { 0.0 });
+    let w_col = w_sqrt.view().insert_axis(Axis(1));
+    let wa = &w_col * &a_mat; // n x 3
+    let wb = &w_sqrt * &bvec; // n
+
+    // Normal equations
+    let ata = wa.t().dot(&wa); // 3x3
+    let atb = wa.t().dot(&wb); // 3
+
+    // Solve via explicit inverse (small 3x3)
+    let ata_inv = ata.inv()?;
+    let p = ata_inv.dot(&atb);
+
+    let x0 = p[0];
+    let y0 = p[1];
+    let c = p[2];
+
+    let r2 = c + x0 * x0 + y0 * y0;
+    let r = if r2 > 0.0 { r2.sqrt() } else { 0.0 };
+
+    // Weighted RMS geometric distance to the circle
+    let deltas: Vec<f64> = (0..n)
+        .into_par_iter()
+        .map(|i| {
+            let dx = x[i] - x0;
+            let dy = y[i] - y0;
+            (dx * dx + dy * dy).sqrt() - r
+        })
+        .collect();
+    let delta = Array1::from(deltas);
+    let delta2 = delta.mapv(|d| d * d);
+    let num = (&delta2 * &weights).sum();
+    let den = weights.sum();
+    let wrms = (num / den).sqrt();
+
+    Ok((x0, y0, r, wrms))
+}
+
+
+/// Fits a single weighted circle to 2D points with a fixed center.
+///
+/// With the center fixed at `(x0, y0)`, the only remaining parameter is the radius `r`.
+/// This function estimates `r` by minimizing the weighted geometric least squares objective:
+///
+/// `min_r Σ w_i (d_i - r)²`, where `d_i = sqrt((x_i-x0)² + (y_i-y0)²)`.
+///
+/// The minimizer is the weighted mean of the distances:
+///
+/// `r = (Σ w_i d_i) / (Σ w_i)`.
+///
+/// The reported `wrms` is the weighted RMS of the geometric radial residuals `(d_i - r)`.
+///
+/// # Arguments
+///
+/// * `x` - x-coordinates of sample points.
+/// * `y` - y-coordinates of sample points. Must have the same length as `x`.
+/// * `weights` - Non-negative weights for each point. Must have the same length as `x` and `y`.
+///   Points with larger weights influence the fit more. Non-positive weights contribute zero influence.
+/// * `x0`, `y0` - Fixed center of the circle.
+///
+/// # Returns
+///
+/// On success, returns:
+///
+/// `(r, wrms)`
+///
+/// where:
+///
+/// * `r` - Fitted radius.
+/// * `wrms` - Weighted root-mean-square geometric radial residual.
+///
+/// # Errors
+///
+/// Returns `Err(LinalgError)` if all weights are zero.
+///
+/// # Panics
+///
+/// Panics if `x`, `y`, and `weights` do not all have the same length.
+#[inline]
+pub fn fit_one_circle_fixed_center(
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    weights: ArrayView1<'_, f64>,
+    x0: f64,
+    y0: f64,
+) -> Result<(f64, f64), LinalgError> {
+    assert_eq!(x.len(), y.len());
+    assert_eq!(x.len(), weights.len());
+    let n = x.len();
+
+    // Guard against the all-zero weights case (ill-posed)
+    let wreal = weights.mapv(|w| if w > 0.0 { w } else { 0.0 });
+    let wsum = wreal.sum();
+    if wsum == 0.0 {
+        eprintln!(
+            "fit_one_circle_fixed_center: all weights are zero (wsum = {})",
+            wsum
+        );
+        return Err(LinalgError::NotStandardShape {
+            obj: "fit_one_circle_fixed_center: all weights are zero",
+            rows: n as i32,
+            cols: 1,
+        });
+    }
+
+    // Geometric distances from fixed center
+    let dists_vec: Vec<f64> = (0..n)
+        .into_par_iter()
+        .map(|i| {
+            let dx = x[i] - x0;
+            let dy = y[i] - y0;
+            (dx * dx + dy * dy).sqrt()
+        })
+        .collect();
+    let dists = Array1::from(dists_vec);
+
+    // Weighted least squares estimate for r:
+    // minimize sum_i w_i (d_i - r)^2  =>  r = (sum_i w_i d_i) / (sum_i w_i)
+    let r = (&dists * &wreal).sum() / wsum;
+
+    // Weighted RMS geometric residual
+    let delta = dists.mapv(|d| d - r);
+    let delta2 = delta.mapv(|d| d * d);
+    let wrms = ((&delta2 * &wreal).sum() / wsum).sqrt();
+
+    Ok((r, wrms))
 }
 
 
