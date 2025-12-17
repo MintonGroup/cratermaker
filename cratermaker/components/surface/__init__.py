@@ -2946,8 +2946,8 @@ class LocalSurface(CratermakerBase):
         elif style == "elevation":
             cvals = band
             cmap = kwargs.pop("cmap", "cividis")
-            vmin = np.nanmin(band)
-            vmax = np.nanmax(band)
+            vmin = kwargs.pop("vmin", np.nanmin(band))
+            vmax = kwargs.pop("vmax", np.nanmax(band))
             interpolation = kwargs.pop("interpolation", "bicubic")
 
         # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
