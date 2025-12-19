@@ -604,8 +604,8 @@ class DataSurface(HiResLocalSurface):
                     if (
                         "face_elevation" not in ds
                         or "node_elevation" not in ds
-                        or ds.face_elevation.shape[-1] != self.local.n_face
-                        or ds.node_elevation.shape[-1] != self.local.n_node
+                        or ds.face_elevation.shape[-1] != self.n_face
+                        or ds.node_elevation.shape[-1] != self.n_node
                     ):
                         print(f"DEM datafile {self._dem_output_file} does not match current grid. Regridding needed.")
                         regrid = True
