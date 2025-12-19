@@ -735,9 +735,8 @@ class DataSurface(HiResLocalSurface):
             if self._pix is None:
                 # Compute a reasonable default resolution that will contain approximately 1e6 faces based on the local radius
                 self._pix = np.sqrt(np.pi * self.local_radius**2 / _DEFAULT_N_FACES_LOCAL)
-            self._dem_file_list = self._get_lola_dem_file_list(pix=self._pix, lat_range=self._get_location_extents()[2:])
-            return
-        if isinstance(value, list):
+            value = self._get_lola_dem_file_list(pix=self._pix, lat_range=self._get_location_extents()[2:])
+        elif isinstance(value, list):
             if not all(isinstance(f, (str, Path)) for f in value):
                 raise ValueError("All items in 'dem_file_list' must be strings or Path objects.")
         elif not isinstance(value, (str, Path)):
