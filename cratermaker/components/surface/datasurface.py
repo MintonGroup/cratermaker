@@ -31,6 +31,7 @@ class DataSurface(HiResLocalSurface):
 
     Parameters
     ----------
+    local_radius : FloatLike
         The radius of the local region in meters.
     local_location : PairOfFloats
         The longitude and latitude of the location in degrees.
@@ -173,6 +174,7 @@ class DataSurface(HiResLocalSurface):
             Minimum latitude in degrees.
         lat_max : float
             Maximum latitude in degrees.
+
         """
         R = self.target.radius
         lon0, lat0 = self.local_location
@@ -215,6 +217,7 @@ class DataSurface(HiResLocalSurface):
         -----
         This is meant to be used for mid-latitude regions on the Moon between -60 and 60 degrees latitude.
         For resolutions of 128, 256, and 512 pix/deg, this will return the SLDEM2015 datasets.
+
         """
         lola_cylindrical_url = (
             "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/"
@@ -326,6 +329,7 @@ class DataSurface(HiResLocalSurface):
             Requested resolution in meters per pixel. The closest available resolution will be used.
         lat_range : tuple of float
             The (min_lat, max_lat) in degrees of the local region.
+
         """
         import rasterio
 
@@ -369,6 +373,7 @@ class DataSurface(HiResLocalSurface):
         -------
         dem : dict or None
             Dictionary with x, y, z coordinates and elevation, or None if boundary case.
+
         """
         try:
             import rasterio
@@ -495,6 +500,7 @@ class DataSurface(HiResLocalSurface):
         -------
         (3,n) ndarray of np.float64
             Array of points on a unit sphere.
+
         """
 
         def _interior_distribution():
@@ -567,6 +573,7 @@ class DataSurface(HiResLocalSurface):
             If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             Additional keyword arguments for subclasses.
+
         """
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
         if self._local_dem_data is not None:
@@ -727,6 +734,7 @@ class DataSurface(HiResLocalSurface):
     def dem_file_list(self) -> int | None:
         """
         The list of files to use for the DEM data in the high resolution local region.
+
         """
         return self._dem_file_list
 
@@ -764,6 +772,7 @@ class DataSurface(HiResLocalSurface):
     def superdomain_dem_file(self) -> int | None:
         """
         The list of files to use for the DEM data in the superdomain.
+
         """
         return self._superdomain_dem_file
 
@@ -788,5 +797,6 @@ class DataSurface(HiResLocalSurface):
     def _hashvars(self):
         """
         The variables used to generate the hash.
+
         """
         return super()._hashvars + [self._dem_file_list]

@@ -31,6 +31,14 @@ jobs:
         run: |
           python buildscripts/set_version.py
 
+      - name: Install OpenSSL (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name:  Install OpenSSL (macOS)
+        if: runner.os == 'macOS'
+        run: brew install openssl@3
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
