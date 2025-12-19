@@ -8,8 +8,8 @@ What's New
 :release:`v2025.12.0-alpha`
 ---------------------------
 
-- Added new DataSurface type that can initialize surface topography from DEM files. :pull:XX `David Minton`_
-- Added new Counting class for crater counting and rim fitting. :pull:XX `David Minton`_
+- Added new DataSurface type that can initialize surface topography from DEM files. :pull:68 `David Minton`_
+- Added new Counting class for crater counting and rim fitting. :pull:68 `David Minton`_
 
 
 .. _whats-new.2025.11.3-alpha:

@@ -62,7 +62,7 @@ def plot_fits(surface, crater=None, plot_score=False, imagefile=None):
     return
 
 
-# Lansberg B is a 9 km crater relatively fresh simple crater located at (28.14°W, 2.494°S).
+# Lansberg B is a 9 km crater relatively fresh simple crater located at (28.14°W, 2.493°S).
 # Start by creating a (slightly) incorrect Crater object representing our initial guess for Lansberg B.
 
 lansberg_b = Crater.maker(diameter=9.5e3, location=(-28.1, -2.45))
@@ -85,3 +85,4 @@ print(lansberg_b)
 plot_fits(surface=surface, crater=lansberg_b)
 
 # If you want to see the score that the rim finder used, just pass `plot_score=True` to the plotting function above
+plot_fits(surface=surface, crater=lansberg_b, plot_score=True)
