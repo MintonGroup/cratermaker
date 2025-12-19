@@ -15,7 +15,7 @@ Cratermaker's :ref:`Surface <api-surface>` component is used to represent target
 - :attr:`target`: The :ref:`Target <ug-target>` that the surface is associated with. The default target is "Moon."
 - :attr:`radius`: The radius of the target body in meters. This is a convenience attribute that retrieves the radius from the :ref:`Target <ug-target>` object.
 - :attr:`smallest_length`: The smallest length scale that the surface can resolve. This is used for determining minimum elevation changes, such as when ejecta deposits are added to the surface. It is set when the surface is created.
-- :attr:`gridtype`: The type of surface grid that is being used. This will be one of "icosphere", "arbitrary_resolution", or "hireslocal", depending on how it was created.
+- :attr:`gridtype`: The type of surface grid that is being used. This will be one of "icosphere," "arbitrary_resolution," "hireslocal," or "datasurface," depending on how it was created.
 - :attr:`data_dir`: The directory where the surface data files are stored. 
 - :attr:`uxds`, :attr:`uxgrid`: The UxArray dataset and grid object used to represent the surface mesh (see the next section for more details).
 
@@ -88,6 +88,7 @@ Like all Cratermaker components, a Surface object is instantiated with a special
 - "icosphere": This is the default surface type, which generates a uniform grid configuration with polygonal faces that will be subdivided by the input value for the `gridlevel` argument. The icosphere surface will have the most uniform face sizes, but is limited to a few resolutions. It is best suited for general use and is the default surface type.
 - "arbitrary_resolution": This surface type allows the user to define the approximate size of the faces of the grid using the `pix` argument. It creates a uniform grid configuration but allows for more control over the sizes of the faces. The faces on this surface will be more irregular in shape, making it less ideal for some applications, but it is useful when specific face sizes are needed.
 - "hireslocal": This surface type is used for modeling a small local region at high resolution. It requires the `pix`, `local_radius`, `local_location`, and `superdomain_scale_factor` arguments. The local region is the "primary" surface being modeled, and the superdomain is simply a source for distal ejecta from large far away craters. This surface type is useful for applications that require high resolution in a small area, but still allows for global processes to affect the small local area.
+- "datasurface": This surface type is based on "hireslocal" but will construct a surface and initialize it based on a digital elevation model (DEM). When using the Moon as a target body, can fetch DEM data from the NASA PDS automatically, and only requires a minimum of the `local_location` and `local_radius` arguments. By default, it will find data file that contains approximately 10:sup:`6` faces. Passing an optional argument `pix` will override this default behavior and it will attempt to find a DEM file that comes closest to matching the requested pixel size. Optionally, the user can also pass in one or more file paths or URLs to DEM files using the `dem_file_list` argument. Like "hireslocal," this surface will contain a local region and a global superdomain. The superdomain will be initialized using a low resolution global DEM, or optionally a file path or URL to a DEM file can be passed in using the `superdomain_dem_file` argument.
 
 The following sections will describe each of these surface types in more detail, including how to create them and their specific attributes and methods.
 
@@ -197,6 +198,12 @@ For instance, suppose we want to generate a high resolution local grid on the Mo
 
 The image above shows a rendering of this high resolution local grid, showing a view of the whole local region and an inset showing the high resolution portion inside. The local region will have approximately square and equal-sized faces, but the faces will be more irregular in shape as you move away from the center of the local region. The superdomain will have larger faces that are scaled by the `superdomain_scale_factor`, which allows for distal ejecta to be modeled from large far away craters. The superdomain is not a separate surface, but rather a part of the same surface that is used to model the effects of distant craters on the local region.
 The "hireslocal" surface type works somewhat differently than the others. For instance, the diffusive degradation is only applied on the local region. You can think of the local region as the "primary" surface being modeled, and the superdomain as simply a source for distal ejecta fram large far away craters. 
+
+
+DataSurface
+~~~~~~~~~~~
+
+
 
 
 Extracting a local subsection of the surface
