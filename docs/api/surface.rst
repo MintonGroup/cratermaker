@@ -116,7 +116,7 @@ Usage example
 DataSurface grid
 =================
 
-See `HiResLocalSurface`_ for inherited methods and attributes.
+See `api-HiResLocalSurface`_ for inherited methods and attributes.
 
 .. autoclass:: cratermaker.components.surface.datasurface.DataSurface
    :members:

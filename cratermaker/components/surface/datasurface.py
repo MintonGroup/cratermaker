@@ -67,6 +67,7 @@ class DataSurface(HiResLocalSurface):
     Notes
     -----
     Currently this only uses LOLA DEM data for the Moon.
+
     """
 
     def __init__(

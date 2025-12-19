@@ -89,12 +89,10 @@ Rim scoring combines three cues computed on the surface mesh:
    - Faces far outside the expected rim zone are masked out.
 
 2. **Height cue**
-   - Face elevations are normalized, then *weighted by the distance score* so that
-     elevation structure near the rim matters more than far-field terrain.
+   - Face elevations are normalized, then *weighted by the distance score* so that elevation structure near the rim matters more than far-field terrain.
 
 3. **Gradient and curvature cues (radial)**
-   - A radial gradient of face elevation is computed, and then a second radial gradient
-     (interpreted as radial curvature) is computed from that.
+   - A radial gradient of face elevation is computed, and then a second radial gradient (interpreted as radial curvature) is computed from that.
    - The gradient cue is designed to favor faces near a radial-gradient extremum.
    - The curvature cue favors ridge-like structure (negative radial curvature) and suppresses valleys.
 
@@ -152,6 +150,6 @@ Notes and tips
 
 
 More Counting examples
----------------------
+----------------------
 
 See more examples at  :ref:`gal-counting`
