@@ -71,6 +71,7 @@ docs/sg_execution_times.rst
 !examples/02-production/
 !examples/03-projectiles_and_scaling/
 !examples/04-topography/
+!examples/05-counting/
 !examples/**/*.rst 
 !examples/**/*.py
 !examples/**/*.txt

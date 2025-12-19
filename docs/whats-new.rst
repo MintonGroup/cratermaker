@@ -3,6 +3,15 @@
 What's New
 ==========
 
+.. _whats-new.2025.12.0-alpha:
+
+:release:`v2025.12.0-alpha`
+---------------------------
+
+- Added new DataSurface type that can initialize surface topography from DEM files. :pull:XX `David Minton`_
+- Added new Counting class for crater counting and rim fitting. :pull:XX `David Minton`_
+
+
 .. _whats-new.2025.11.3-alpha:
 
 :release:`v2025.11.3-alpha`
@@ -30,39 +39,11 @@ What's New
 .. _whats-new.2025.11.0-alpha:
 
 :release:`v2025.11.0-alpha`
---------------------------
-
-
-- Major updates to documentation and GIS exporting tools. :pull:66 `David Minton`_
-
-
-
-.. _whats-new.2025.10.1-alpha:
-
-:release:`v2025.10.1-alpha`
---------------------------
-
-
-- Minor updates to exporting tools.
-
-
-.. _whats-new.2025.10.0-alpha:
-
-:release:`v2025.10.0-alpha`
---------------------------
-
-
-- Added crater user guide by :pull:55 `Dennise Valadez`_
-
-
-
-.. _whats-new.2025.11.0-alpha:
-
-:release:`v2025.11.0-alpha`
 ---------------------------
 
 
 - Major updates to documentation and GIS exporting tools. :pull:66 `David Minton`_
+
 
 
 .. _whats-new.2025.10.1-alpha:
@@ -81,6 +62,7 @@ What's New
 
 
 - Added crater user guide by :pull:55 `Dennise Valadez`_
+
 
 
 .. _whats-new.2025.4.1-alpha:
