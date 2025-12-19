@@ -27,4 +27,4 @@ sim = cm.Simulation(target="Moon", gridlevel=6, ask_overwrite=False)
 
 sim.run(age=4310, ninterval=300)
 sim.export(driver="VTK")
-# sim.show(cmap="Greys_r")
+sim.show(cmap="Greys_r")

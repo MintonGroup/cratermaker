@@ -108,3 +108,28 @@ Usage example
 
     from cratermaker import Surface
     surface = Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9))
+
+.. _api-DataSurface:
+
+.. currentmodule:: cratermaker.components.surface.datasurface
+
+DataSurface grid
+=================
+
+See `HiResLocalSurface`_ for inherited methods and attributes.
+
+.. autoclass:: cratermaker.components.surface.datasurface.DataSurface
+   :members:
+   :undoc-members:
+
+
+Usage example
+-------------
+
+This creates a DataSurface with a local region containing Kepler crater. The resolution of the local surface will be approxiamtely half of what it would be if ``pix`` was not set.
+
+.. code-block:: python
+   :linenos:
+
+    from cratermaker import Surface
+    surface = Surface.maker("datasurface", pix=200.0, local_location=(321.9913, 8.121), local_radius=50.0e3)
