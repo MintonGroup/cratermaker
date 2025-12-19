@@ -164,7 +164,7 @@ class Surface(ComponentBase):
         simdir : str | Path
             The main project simulation directory. Default is the current working directory if None.
         **kwargs : Any
-            Additional keyword arguments.
+            Additional keyword arguments that can be provided to the surface constructor associated with the input surface type.
 
         Returns
         -------

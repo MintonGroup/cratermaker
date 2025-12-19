@@ -34,9 +34,10 @@ class HiResLocalSurface(Surface):
     local_location : PairOfFloats
         The longitude and latitude of the location in degrees.
     superdomain_scale_factor : FloatLike, optional
-        A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters
-        that are modeled outside the local region are those whose ejecta could just reach the boundary. If a negative number is provided, then it will
-        be computed based on a provided (or default) scaling and morphology model. If None is provided, then the superdomain is not set and you must call set_superdomain manually. Default is -1.
+        A factor defining relative size of the face at the antipode of the local region to the face size inside the local region.
+        If not provided, construction of the surface will be deferred until the `set_superdomain` method is called.
+        If a negative number is provided, it will be computed based on a provided (or default) scaling and morphology model, and will be set so that smallest craters that can be resolved on faces outside the local region could potentially deposit ejecta at the boundary of the local region.
+        Default is -1 (which triggers automatic computation based on scaling and morphology models).
     target : Target, optional
         The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
         or extracted from the scaling model if it is provied
@@ -69,6 +70,7 @@ class HiResLocalSurface(Surface):
         **kwargs: Any,
     ):
         object.__setattr__(self, "_local", None)
+        object.__setattr__(self, "_superdomain_scale_factor", None)
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
