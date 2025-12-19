@@ -62,10 +62,10 @@ def plot_fits(surface, crater=None, plot_score=False, imagefile=None):
     return
 
 
-# Lansberg B is a 9 km crater relatively fresh simple crater located at (331.6E, -2.49N).
+# Lansberg B is a 9 km crater relatively fresh simple crater located at (28.14°W, 2.494°S).
 # Start by creating a (slightly) incorrect Crater object representing our initial guess for Lansberg B.
 
-lansberg_b = Crater.maker(diameter=8.0e3, location=(331.58, -2.48))
+lansberg_b = Crater.maker(diameter=9.5e3, location=(-28.1, -2.45))
 
 # Next, we will create a DataSurface that should be large enough to encompass the correct crater rim.
 surface = Surface.maker(
@@ -76,7 +76,7 @@ surface = Surface.maker(
 )
 
 # Now refine the fit of the crater rim using the Counting class.
-lansberg_b = Counting.maker(surface=surface, ask_overwrite=False).fit_rim(crater=lansberg_b)
+lansberg_b = Counting.maker(surface=surface, ask_overwrite=False).fit_rim(crater=lansberg_b, fit_ellipse=False, fit_center=True)
 
 # If we print the crater object, we will see that the original parameters are retained, but the values from the fit are prepended by `measured_`
 print(lansberg_b)

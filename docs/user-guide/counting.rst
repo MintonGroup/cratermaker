@@ -151,8 +151,6 @@ Notes and tips
   and ensure the initial crater size/location are reasonable for the extracted region.
 
 
-
-
 More Counting examples
 ---------------------
 
