@@ -153,6 +153,8 @@ pub fn score_rim<'py>(
     heightmult: f64,
 ) -> PyResult<Bound<'py, PyAny>>  {
     let region = surface.call_method1("extract_region",(crater.measured_location, _EXTENT_RADIUS_RATIO * crater.measured_radius))?;
+    // Ensure face projections are set
+    region.call_method0("set_face_proj")?;
     let transformer = region.getattr("from_surface").unwrap();
     let x0y0 = transformer.call_method1("transform",(crater.measured_location.0, crater.measured_location.1))?;
     let (x0, y0): (f64, f64) = x0y0.extract()?;
@@ -228,6 +230,8 @@ pub fn fit_rim<'py>(
 
         // Extract a region surrounding the current best fit location and best-fit radius
         region = surface.call_method1("extract_region",(crater_fit.measured_location, _EXTENT_RADIUS_RATIO * crater_fit.measured_radius))?;
+        // Ensure face projections are set
+        region.call_method0("set_face_proj")?;
         let transformer = region.getattr("from_surface").unwrap();
         let x0y0 = transformer.call_method1("transform",(crater_fit.measured_location.0, crater_fit.measured_location.1))?;
         let (x0, y0): (f64, f64) = x0y0.extract()?;

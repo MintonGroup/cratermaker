@@ -3778,13 +3778,21 @@ class LocalSurface(CratermakerBase):
             )
         return self._to_surface
 
+    def set_face_proj(self) -> None:
+        """
+        Pre-compute the projected x and y coordinates of the faces in the local CRS.
+        """
+        if self.location is None:
+            raise ValueError("Must be a true local surface with a set location to compute projected face coordinates.")
+
+        self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
+        return
+
     @property
     def face_proj_x(self) -> NDArray:
         """
         The projected x coordinates of the faces in the local CRS.
         """
-        if self._face_proj_x is None:
-            self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
         return self._face_proj_x
 
     @property
@@ -3792,8 +3800,6 @@ class LocalSurface(CratermakerBase):
         """
         The projected y coordinates of the faces in the local CRS.
         """
-        if self._face_proj_y is None:
-            self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
         return self._face_proj_y
 
 
