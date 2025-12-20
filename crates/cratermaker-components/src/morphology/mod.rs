@@ -9,6 +9,7 @@ use std::f64::{
     self,
     consts::{PI, TAU, SQRT_2},
 };
+use libm::erf;
 
 
 const RIMDROP: f64 = 4.20; // The exponent for the uplifted rim dropoff.
@@ -407,7 +408,11 @@ fn ejecta_ray_func(theta: f64, thetar: f64, r: f64, n: i32, w: f64) -> f64 {
     if logval < crate::VSMALL.ln() {
         0.0
     } else {
-        let a = (2.0 * PI).sqrt() / (n as f64 * c * (PI / (2.0 * SQRT_2 * c)).erf());
+        let denom = erf(PI / (2.0 * SQRT_2 * c));
+        if denom.abs() <= crate::VSMALL {
+            return 0.0;
+        }
+        let a = (2.0 * PI).sqrt() / (n as f64 * c * denom);
         a * logval.exp()
     }
 }
