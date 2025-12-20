@@ -87,13 +87,15 @@ class DataSurface(HiResLocalSurface):
         **kwargs: Any,
     ):
         try:
-            import rasterio
-        except ImportError:
-            warn(
-                "rasterio is not installed. This is required for 'datasurface.' On some platforms, you may need to install GDAL first before installing rasterio.",
-                stacklevel=2,
-            )
-            return
+            import rasterio  # noqa: F401
+        except ImportError as e:
+            # IMPORTANT: do not `return` from __init__.
+            # Returning leaves a partially-initialized object that will later fail
+            # with missing base-class attributes (e.g., _simdir, _output_dir_name).
+            raise ImportError(
+                "DataSurface requires the optional dependency 'rasterio'. "
+                "Install it (and GDAL if needed) to use the 'datasurface' surface type."
+            ) from e
         object.__setattr__(self, "_local", None)
 
         # Temporary storage for DEM data during initialization. This will be cleared after the elevation points are set.
