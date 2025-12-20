@@ -31,13 +31,15 @@ class DataSurface(HiResLocalSurface):
 
     Parameters
     ----------
+    local_radius : FloatLike
         The radius of the local region in meters.
     local_location : PairOfFloats
         The longitude and latitude of the location in degrees.
     superdomain_scale_factor : FloatLike, optional
-        A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters
-        that are modeled outside the local region are those whose ejecta could just reach the boundary. If not provide, then it will
-        be computed based on a provided (or default) scaling and morphology model
+        A factor defining relative size of the face at the antipode of the local region to the face size inside the local region.
+        If not provided, construction of the surface will be deferred until the `set_superdomain` method is called.
+        If a negative number is provided, it will be computed based on a provided (or default) scaling and morphology model, and will be set so that smallest craters that can be resolved on faces outside the local region could potentially deposit ejecta at the boundary of the local region.
+        Default is -1 (which triggers automatic computation based on scaling and morphology models).
     target : Target, optional
         The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
         or extracted from the scaling model if it is provied
@@ -54,6 +56,8 @@ class DataSurface(HiResLocalSurface):
     local_radius : FloatLike
     dem_file_list : list of str | Path, optional
         A list of one or more DEM files or urls links to files to be used for the local region. If not provided, a set of files will be determined based on the location and radius of the region. It will chose a set of files that fully covers the local region with approximately approximately 1e6 faces.
+    superdomain_dem_file :  str | Path, optional
+        A global DEM files or urs link to a file to be used for the superdomain region. If not provided, a default global DEM file will be used based on the target body.
     **kwargs : Any
 
     Returns
@@ -64,6 +68,7 @@ class DataSurface(HiResLocalSurface):
     Notes
     -----
     Currently this only uses LOLA DEM data for the Moon.
+
     """
 
     def __init__(
@@ -78,28 +83,35 @@ class DataSurface(HiResLocalSurface):
         simdir: str | Path | None = None,
         pix: FloatLike | None = None,
         dem_file_list: list[str] | list[Path] | None = None,
+        superdomain_dem_file: str | Path | None = None,
         **kwargs: Any,
     ):
         try:
-            import rasterio
-        except ImportError:
-            warn(
-                "rasterio is not installed. This is required for 'datasurface.' On some platforms, you may need to install GDAL first before installing rasterio.",
-                stacklevel=2,
-            )
-            return
+            import rasterio  # noqa: F401
+        except ImportError as e:
+            # IMPORTANT: do not `return` from __init__.
+            # Returning leaves a partially-initialized object that will later fail
+            # with missing base-class attributes (e.g., _simdir, _output_dir_name).
+            raise ImportError(
+                "DataSurface requires the optional dependency 'rasterio'. "
+                "Install it (and GDAL if needed) to use the 'datasurface' surface type."
+            ) from e
         object.__setattr__(self, "_local", None)
 
         # Temporary storage for DEM data during initialization. This will be cleared after the elevation points are set.
-        object.__setattr__(self, "_dem_data", None)
+        object.__setattr__(self, "_local_dem_data", None)
+        object.__setattr__(self, "_global_dem_data", None)
 
         # The location of the saved DEM data that can be retrieved later
         object.__setattr__(self, "_dem_output_file", None)
         object.__setattr__(self, "_dem_file_list", None)
+        object.__setattr__(self, "_superdomain_dem_file", None)
 
         super(HiResLocalSurface, self).__init__(target=target, simdir=simdir, **kwargs)
         if dem_file_list is None and self.target.name != "Moon":
             raise ValueError("DataSurface currently only supports the Moon as a target if 'dem_file_list' is not provided.")
+        if superdomain_dem_file is None and self.target.name != "Moon":
+            raise ValueError("DataSurface currently only supports the Moon as a target if 'superdomain_dem_file' is not provided.")
         self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
         self._dem_output_file = f"dem_data.{self._output_file_extension}"
 
@@ -121,18 +133,30 @@ class DataSurface(HiResLocalSurface):
             **kwargs,
         )
 
+        self._superdomain_dem_file = superdomain_dem_file
+
         return
 
-    def _get_lola_dem_file_list(self):
+    def _get_lola_dem_file_list(
+        self,
+        pix: FloatLike,
+        lat_range: tuple[float, float],
+    ) -> list[str] | str:
         """
         Determine the set of LOLA DEM files needed to cover the local region if none are provided by the user.
+
+        Parameters
+        ----------
+        pix : FloatLike
+            The approximate resolution in meters per pixel to use to select the DEM files.
+        lat_range : tuple of float, optional
+            The (min_lat, max_lat) in degrees of the local region. If None, it will be computed from the local location and radius.
         """
-        lon_min, lon_max, lat_min, lat_max = self._get_location_extents()
-        target_pds_resolution = np.pi / 180.0 * self.target.radius / self.pix
+        target_pds_resolution = np.pi / 180.0 * self.target.radius / pix
         if target_pds_resolution > 10 and (
-            lat_min > 60 or lat_max < -60
+            lat_range[0] > 60 or lat_range[1] < -60
         ):  # Use polar files high latitude, high resolution regions.
-            return self._get_lola_polar_files_from_pds(self.pix, latrange=(lat_min, lat_max))
+            return self._get_lola_polar_files_from_pds(pix, lat_range=lat_range)
         else:  # Use cylindrical for all other cases
             return self._get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution)
 
@@ -152,6 +176,7 @@ class DataSurface(HiResLocalSurface):
             Minimum latitude in degrees.
         lat_max : float
             Maximum latitude in degrees.
+
         """
         R = self.target.radius
         lon0, lat0 = self.local_location
@@ -194,6 +219,7 @@ class DataSurface(HiResLocalSurface):
         -----
         This is meant to be used for mid-latitude regions on the Moon between -60 and 60 degrees latitude.
         For resolutions of 128, 256, and 512 pix/deg, this will return the SLDEM2015 datasets.
+
         """
         lola_cylindrical_url = (
             "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/"
@@ -295,7 +321,7 @@ class DataSurface(HiResLocalSurface):
 
         return filelist
 
-    def _get_lola_polar_files_from_pds(self, resolution, latrange: tuple[float, float]) -> list[str] | str:
+    def _get_lola_polar_files_from_pds(self, resolution, lat_range: tuple[float, float]) -> list[str] | str:
         """
         Retrieve the appropriate polar projected LOLA DEM file url or list of urls for a given location and resolution from the PDS.
 
@@ -303,8 +329,9 @@ class DataSurface(HiResLocalSurface):
         ----------
         resolution : FloatLike
             Requested resolution in meters per pixel. The closest available resolution will be used.
-        latrange : tuple of float
+        lat_range : tuple of float
             The (min_lat, max_lat) in degrees of the local region.
+
         """
         import rasterio
 
@@ -313,7 +340,7 @@ class DataSurface(HiResLocalSurface):
         AVAILABLE_RESOLUTIONS = [3000, 1000, 400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
         MIN_LAT = [50, 50, 45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
 
-        if latrange[0] > 0:
+        if lat_range[0] > 0:
             pole = "n"
             min_lat_index = 0  # in the northern hemisphere, the minimum latitude defines coverage
         else:
@@ -322,7 +349,7 @@ class DataSurface(HiResLocalSurface):
         combo = [
             (res, minlat)
             for res, minlat in zip(AVAILABLE_RESOLUTIONS, MIN_LAT, strict=False)
-            if abs(latrange[min_lat_index]) >= minlat
+            if abs(lat_range[min_lat_index]) >= minlat
         ]
         if len(combo) == 0:
             raise ValueError("No available LOLA polar DEM files cover the requested latitude range.")
@@ -338,7 +365,7 @@ class DataSurface(HiResLocalSurface):
         self._pix = pds_file_resolution
         return [url]
 
-    def _get_dem_data(
+    def _get_local_dem_data(
         self,
     ):
         """
@@ -348,6 +375,7 @@ class DataSurface(HiResLocalSurface):
         -------
         dem : dict or None
             Dictionary with x, y, z coordinates and elevation, or None if boundary case.
+
         """
         try:
             import rasterio
@@ -456,14 +484,14 @@ class DataSurface(HiResLocalSurface):
             # Transform to longitude and latitude
             longitudes, latitudes = transformer_to_geodetic.transform(x_coords, y_coords)
             r_vals = self.compute_distances(self.local_location, list(zip(longitudes, latitudes, strict=False)))
-            dem_data = {
+            local_dem_data = {
                 "elevation": elevation,
                 "mask": r_vals <= region_radius + self.pix / 4,
                 "latitudes": latitudes,
                 "longitudes": longitudes,
             }
 
-        self._dem_data = dem_data
+        self._local_dem_data = local_dem_data
         return
 
     def _generate_face_distribution(self, **kwargs: Any) -> NDArray:
@@ -474,13 +502,14 @@ class DataSurface(HiResLocalSurface):
         -------
         (3,n) ndarray of np.float64
             Array of points on a unit sphere.
+
         """
 
         def _interior_distribution():
-            self._get_dem_data()
-            mask = self._dem_data["mask"]
-            longitudes = np.radians(self._dem_data["longitudes"][mask])
-            latitudes = np.radians(self._dem_data["latitudes"][mask])
+            self._get_local_dem_data()
+            mask = self._local_dem_data["mask"]
+            longitudes = np.radians(self._local_dem_data["longitudes"][mask])
+            latitudes = np.radians(self._local_dem_data["latitudes"][mask])
             x = self.target.radius * np.cos(latitudes) * np.cos(longitudes)
             y = self.target.radius * np.cos(latitudes) * np.sin(longitudes)
             z = self.target.radius * np.sin(latitudes)
@@ -546,14 +575,16 @@ class DataSurface(HiResLocalSurface):
             If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             Additional keyword arguments for subclasses.
+
         """
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
-        if self._dem_data is not None:
-            self._add_dem_elevation()
+        if self._local_dem_data is not None:
+            self._add_local_dem_elevation()
+            self._add_global_dem_elevation()
         elif (self.output_dir / self._dem_output_file).exists():
             with xr.open_dataset(self.output_dir / self._dem_output_file) as ds:
-                self.local.update_elevation(ds.isel(time=0).face_elevation)
-                self.local.update_elevation(ds.isel(time=0).node_elevation)
+                self.update_elevation(ds.isel(time=0).face_elevation)
+                self.update_elevation(ds.isel(time=0).node_elevation)
 
         return
 
@@ -573,9 +604,9 @@ class DataSurface(HiResLocalSurface):
         bool
             A boolean indicating whether the grid should be regenerated.
         """
-        # DEM data can come from one of two sources. If we are in the middle of building the surface as part of _generate_face_distribution, then the DEM data should be stored in the _dem_data attribute.
+        # DEM data can come from one of two sources. If we are in the middle of building the surface as part of _generate_face_distribution, then the local DEM data should be stored in the _local_dem_data attribute.
         # If this is not set but we already have a grid generated and stored in the uxgrid attribute, then we need to check if a matching DEM file exists on disk. If neither of these sources are avaailable, then we need to regrid.
-        if not regrid and self._dem_data is None:
+        if not regrid and self._local_dem_data is None:
             if not (self.output_dir / self._dem_output_file).exists():
                 regrid = True
             elif self.uxgrid is not None:
@@ -583,23 +614,25 @@ class DataSurface(HiResLocalSurface):
                     if (
                         "face_elevation" not in ds
                         or "node_elevation" not in ds
-                        or ds.face_elevation.shape[-1] != self.local.n_face
-                        or ds.node_elevation.shape[-1] != self.local.n_node
+                        or ds.face_elevation.shape[-1] != self.n_face
+                        or ds.node_elevation.shape[-1] != self.n_node
                     ):
                         print(f"DEM datafile {self._dem_output_file} does not match current grid. Regridding needed.")
                         regrid = True
 
         return super()._regrid_if_needed(regrid=regrid, **kwargs)
 
-    def _add_dem_elevation(self):
+    def _add_local_dem_elevation(self):
         """
-        Sample the preserved DEM grid at the face and node centers using bilinear interpolation.
+        Sample the preserved DEM grid at the local face and node centers using bilinear interpolation.
 
         """
         from scipy.interpolate import LinearNDInterpolator
 
-        lonlat = np.c_[self._dem_data["longitudes"], self._dem_data["latitudes"]]
-        lut2 = LinearNDInterpolator(lonlat, self._dem_data["elevation"], fill_value=0.0)
+        if self._local_dem_data is None:
+            raise ValueError("Local DEM data is not available for interpolation.")
+        lonlat = np.c_[self._local_dem_data["longitudes"], self._local_dem_data["latitudes"]]
+        lut2 = LinearNDInterpolator(lonlat, self._local_dem_data["elevation"], fill_value=0.0)
         face_elevations = lut2(np.c_[self.local.face_lon, self.local.face_lat])
         node_elevations = lut2(np.c_[self.local.node_lon, self.local.node_lat])
 
@@ -608,13 +641,102 @@ class DataSurface(HiResLocalSurface):
 
         # Now save the surface to a file that we can reload later if we want to avoid re-downloading the DEM data
         self.local.save(filename=self._dem_output_file)
-        self._dem_data = None  # Clear temporary DEM data storage
+        self._local_dem_data = None  # Clear temporary DEM data storage
+        return
+
+    def _add_global_dem_elevation(self):
+        """
+        Sample the preserved DEM grid at the global face and node centers using bilinear interpolation.
+
+        """
+        import rasterio
+        from pyproj import Transformer
+        from scipy.interpolate import LinearNDInterpolator
+
+        # If we haven't cached global DEM samples yet, build the exterior lon/lat lists
+        if self._global_dem_data is None:
+            # This will trigger setting the file automatically from the superdomain_scale_factor if not already set.
+            self.superdomain_dem_file = self._superdomain_dem_file
+
+        if self._global_dem_data is None:
+            self._global_dem_data = {}
+
+            # Build index arrays for exterior faces/nodes (sorted for reproducibility)
+            exterior_face_ind = np.array(sorted(set(range(self.n_face)) - set(self.local.face_indices)), dtype=int)
+            exterior_node_ind = np.array(sorted(set(range(self.n_node)) - set(self.local.node_indices)), dtype=int)
+
+            # Cache exterior point coordinates in geodetic lon/lat (degrees)
+            self._global_dem_data["face_indices"] = exterior_face_ind
+            self._global_dem_data["node_indices"] = exterior_node_ind
+            self._global_dem_data["face_longitudes"] = np.asarray(self.face_lon)[exterior_face_ind]
+            self._global_dem_data["face_latitudes"] = np.asarray(self.face_lat)[exterior_face_ind]
+            self._global_dem_data["node_longitudes"] = np.asarray(self.node_lon)[exterior_node_ind]
+            self._global_dem_data["node_latitudes"] = np.asarray(self.node_lat)[exterior_node_ind]
+
+            # Read and sample the global DEM at those exterior points.
+            print("Reading global DEM file:")
+            print(f"  {self.superdomain_dem_file}")
+            with rasterio.open(self.superdomain_dem_file) as dataset:
+                if dataset.crs is None:
+                    raise ValueError("Global DEM has no CRS; cannot sample elevations.")
+
+                # Transform from geodetic lon/lat (self.crs) into the DEM's CRS
+                to_dem = Transformer.from_crs(self.crs, dataset.crs, always_xy=True)
+
+                # Determine unit scaling (match local DEM logic)
+                units = getattr(dataset, "units", "") or ""
+                if isinstance(units, (list, tuple)):
+                    units = units[0] if len(units) else ""
+                scale_factor = 1000.0 if "KILOMETER" in str(units).upper() else 1.0
+
+                nodata = dataset.nodata
+
+                def _sample(lons_deg: NDArray, lats_deg: NDArray) -> NDArray:
+                    xs, ys = to_dem.transform(lons_deg, lats_deg)
+                    # rasterio.sample expects an iterable of (x, y)
+                    samples = np.fromiter(
+                        (v[0] for v in dataset.sample(zip(xs, ys, strict=False))),
+                        dtype=np.float32,
+                        count=len(lons_deg),
+                    )
+                    samples = samples.astype(np.float32) * scale_factor
+
+                    # Replace nodata / NaN with mean of valid samples
+                    if nodata is None or np.isnan(nodata):
+                        valid = np.isfinite(samples)
+                    else:
+                        valid = np.isfinite(samples) & (samples != nodata)
+
+                    if np.any(valid):
+                        mean_val = float(np.mean(samples[valid]))
+                    else:
+                        mean_val = 0.0
+                    samples[~valid] = mean_val
+                    return samples
+
+                face_samples = _sample(self._global_dem_data["face_longitudes"], self._global_dem_data["face_latitudes"])
+                node_samples = _sample(self._global_dem_data["node_longitudes"], self._global_dem_data["node_latitudes"])
+
+        # Create full-sized elevation arrays and insert the sampled values at the exterior indices
+        face_elevations = np.zeros(self.n_face, dtype=np.float32)
+        node_elevations = np.zeros(self.n_node, dtype=np.float32)
+        face_elevations[self._global_dem_data["face_indices"]] = face_samples
+        node_elevations[self._global_dem_data["node_indices"]] = node_samples
+
+        # Apply elevations to the global (superdomain) surface
+        self.update_elevation(face_elevations)
+        self.update_elevation(node_elevations)
+
+        # Save so we can reload later without re-downloading / re-sampling the DEM
+        self.save(filename=self._dem_output_file)
+        self._global_dem_data = None  # Clear temporary DEM data storage
         return
 
     @parameter
     def dem_file_list(self) -> int | None:
         """
-        The list of files to use for the DEM data.
+        The list of files to use for the DEM data in the high resolution local region.
+
         """
         return self._dem_file_list
 
@@ -624,9 +746,8 @@ class DataSurface(HiResLocalSurface):
             if self._pix is None:
                 # Compute a reasonable default resolution that will contain approximately 1e6 faces based on the local radius
                 self._pix = np.sqrt(np.pi * self.local_radius**2 / _DEFAULT_N_FACES_LOCAL)
-            self._dem_file_list = self._get_lola_dem_file_list()
-            return
-        if isinstance(value, list):
+            value = self._get_lola_dem_file_list(pix=self._pix, lat_range=self._get_location_extents()[2:])
+        elif isinstance(value, list):
             if not all(isinstance(f, (str, Path)) for f in value):
                 raise ValueError("All items in 'dem_file_list' must be strings or Path objects.")
         elif not isinstance(value, (str, Path)):
@@ -649,9 +770,35 @@ class DataSurface(HiResLocalSurface):
 
         return
 
+    @parameter
+    def superdomain_dem_file(self) -> int | None:
+        """
+        The list of files to use for the DEM data in the superdomain.
+
+        """
+        return self._superdomain_dem_file
+
+    @superdomain_dem_file.setter
+    def superdomain_dem_file(self, value: int | None):
+        if value is None:
+            # If the superdomain has not been set yet, we will defer setting this until later
+            if self.superdomain_scale_factor is None:
+                return
+            min_global_pix = np.pi / 180.0 * self.target.radius / 128.0
+            sdpix = self.superdomain_scale_factor * self.pix / 10.0
+            if sdpix < min_global_pix:
+                sdpix = min_global_pix
+            self._superdomain_dem_file = self._get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90))[0]
+            return
+        if not isinstance(value, (str, Path)):
+            raise TypeError("'superdomain_dem_file' must be a strings or Path objects, or None.")
+
+        self._superdomain_dem_file = value
+
     @property
     def _hashvars(self):
         """
         The variables used to generate the hash.
+
         """
         return super()._hashvars + [self._dem_file_list]

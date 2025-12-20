@@ -1,4 +1,3 @@
-#![feature(float_erf)] // Required to use f64::erf (https://github.com/rust-lang/rust/issues/136321)
 pub mod morphology;
 pub mod surface;
 pub mod counting;

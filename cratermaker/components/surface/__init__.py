@@ -164,7 +164,7 @@ class Surface(ComponentBase):
         simdir : str | Path
             The main project simulation directory. Default is the current working directory if None.
         **kwargs : Any
-            Additional keyword arguments.
+            Additional keyword arguments that can be provided to the surface constructor associated with the input surface type.
 
         Returns
         -------
@@ -2937,7 +2937,7 @@ class LocalSurface(CratermakerBase):
             azimuth = 300.0
             solar_angle = 20.0
             ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
-            band = gaussian_filter(band, sigma=4, mode="constant", cval=np.nan)
+            band = gaussian_filter(band, sigma=2, mode="constant", cval=np.nan)
             cvals = ls.hillshade(band, dx=self.pix, dy=self.pix, fraction=1.0)
             cmap = kwargs.pop("cmap", "gray")
             vmin = 0.0
@@ -3778,6 +3778,16 @@ class LocalSurface(CratermakerBase):
                 always_xy=True,
             )
         return self._to_surface
+
+    def set_face_proj(self) -> None:
+        """
+        Pre-compute the projected x and y coordinates of the faces in the local CRS.
+        """
+        if self.location is None:
+            raise ValueError("Must be a true local surface with a set location to compute projected face coordinates.")
+
+        self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
+        return
 
     @property
     def face_proj_x(self) -> NDArray:

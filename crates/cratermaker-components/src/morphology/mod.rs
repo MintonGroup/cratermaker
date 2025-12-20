@@ -9,6 +9,7 @@ use std::f64::{
     self,
     consts::{PI, TAU, SQRT_2},
 };
+use libm::erf;
 
 
 const RIMDROP: f64 = 4.20; // The exponent for the uplifted rim dropoff.
@@ -209,7 +210,7 @@ pub fn ejecta_profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) ->
 /// * `crater_radius` - Radius of the crater (in meters).
 /// * `rmin` - Minimum normalized radial distance.
 /// * `rmax` - Maximum normalized radial distance.
-/// * `thetari` - Precomputed ray azimuth angles (in degrees).
+/// * `thetari` - Precomputed ray azimuth angles (in radians).
 /// * `random_numbers` - Set of random numbers used for pattern variation.
 ///
 /// # Returns
@@ -230,7 +231,7 @@ fn ray_intensity_point(
     let mut sum = 0.0;
     for j in 0..NPATT as usize {
         let rn = random_numbers[j];
-        let theta = (theta0.to_radians() + rn * TAU) % TAU;
+        let theta = (theta0 + rn * TAU) % TAU;
         let r_pattern = r / crater_radius - rn;
         sum += FRAYREDUCTION.powi(j as i32 - 1)
             * ray_intensity_func(
@@ -287,7 +288,7 @@ pub fn ray_intensity(
         .map(|i| {
             ray_intensity_point(
                 radial_distances[i],
-                initial_bearings[i].to_radians(),
+                initial_bearings[i],
                 crater_radius,
                 rmin,
                 rmax,
@@ -407,7 +408,11 @@ fn ejecta_ray_func(theta: f64, thetar: f64, r: f64, n: i32, w: f64) -> f64 {
     if logval < crate::VSMALL.ln() {
         0.0
     } else {
-        let a = (2.0 * PI).sqrt() / (n as f64 * c * (PI / (2.0 * SQRT_2 * c)).erf());
+        let denom = erf(PI / (2.0 * SQRT_2 * c));
+        if denom.abs() <= crate::VSMALL {
+            return 0.0;
+        }
+        let a = (2.0 * PI).sqrt() / (n as f64 * c * denom);
         a * logval.exp()
     }
 }

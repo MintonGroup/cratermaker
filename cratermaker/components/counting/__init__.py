@@ -208,7 +208,7 @@ class Counting(ComponentBase):
 
         return
 
-    def fit_rim(self, crater: Crater, tol=0.01, nloops=10, score_quantile=0.95, fit_center=False) -> Crater:
+    def fit_rim(self, crater: Crater, tol=0.01, nloops=10, score_quantile=0.95, fit_center=False, fit_ellipse=False) -> Crater:
         """
         Find the rim region of a crater on the surface.
 
@@ -224,6 +224,8 @@ class Counting(ComponentBase):
             The quantile of rim scores to consider. Default is 0.95.
         fit_center : bool, optional
             If True, fit the crater center as well. Default is False.
+        fit_ellipse : bool, optional
+            If True, fit an ellipse to the rim, otherwise fit a circle. Default is False.
 
         Returns
         -------
@@ -240,6 +242,7 @@ class Counting(ComponentBase):
             nloops,
             score_quantile,
             fit_center,
+            fit_ellipse,
         )
 
         crater_fit = Crater.maker(
