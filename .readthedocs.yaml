@@ -17,6 +17,8 @@ build:
     rust: "latest"
   apt_packages:
     - pandoc
+    - libssl-dev
+    - libopenblas-dev
   jobs:
     post_create_environment: 
       - git fetch --prune --unshallow
