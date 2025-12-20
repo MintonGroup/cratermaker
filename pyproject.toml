@@ -44,7 +44,7 @@ dependencies = [
 tests = ["pytest"]
 rasterio = ['rasterio']
 docs =[
-    'sphinx',
+    'sphinx<9',
     'sphinx-autosummary-accessors',
     'sphinx-book-theme>=0.3.0',
     'sphinx-copybutton',

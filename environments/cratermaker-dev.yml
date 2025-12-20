@@ -18,7 +18,7 @@ dependencies:
   - astropy >= 7
   - pytest
   - pip >= 24.2
-  - sphinx
+  - sphinx < 9
   - sphinx-autosummary-accessors
   - sphinx-book-theme >= 0.3.0
   - sphinx-copybutton
