@@ -115,7 +115,7 @@ pub fn ejecta_profile<'py>(
 ///
 /// * `py` - Python GIL token.
 /// * `radial_distance` - 1D array of radial distances from crater center.
-/// * `initial_bearing` - 1D array of bearing angles (degrees).
+/// * `initial_bearing` - 1D array of bearing angles (radians).
 /// * `crater_diameter` - Crater diameter (meters).
 ///
 /// # Returns
