@@ -28,23 +28,15 @@ gridargs = {
         "local_radius": local_radius,
         "superdomain_scale_factor": superdomain_scale_factor,
     },
+    "datasurface": {
+        "local_location": local_location,
+        "local_radius": local_radius,
+        "superdomain_scale_factor": superdomain_scale_factor,
+        "dem_file_list": [
+            "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/ldem_4_float.xml"
+        ],
+    },
 }
-# If rasterio is installed, add datasurface test case
-try:
-    import rasterio  # noqa: F401
-except ImportError:
-    pass
-else:
-    gridargs["datasurface"] = (
-        {
-            "local_location": local_location,
-            "local_radius": local_radius,
-            "superdomain_scale_factor": superdomain_scale_factor,
-            "dem_file_list": [
-                "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/ldem_4_float.xml"
-            ],
-        },
-    )
 
 
 class TestSurface(unittest.TestCase):
