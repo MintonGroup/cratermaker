@@ -24,24 +24,46 @@ classifiers=[
 keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'landscape evolution']
 dependencies = [
     'numpy',
-    'dask>=2025.03.0',
-    'xarray>=2025.1.2',
-    'uxarray>=2025.03.0',
+    'dask>=2025.11.0',
+    'xarray>=2025.11.0',
+    'uxarray>=2025.10.0',
     'vtk>=9.5',
     'scipy',
     'matplotlib',
     'tqdm',
     'pyogrio',
     'trimesh',
-    'datashader>=0.17.0',
+    'datashader>=0.18.0',
     'geoviews>=1.14.0',
     'PyYAML>=6',
-    'astropy>=6',
+    'astropy>=7',
+    'pyvista',
+    'rasterio>=1.4.4'
 ]
 
 [project.optional-dependencies]
 tests = ["pytest"]
-rasterio = ["rasterio"]
+docs =[
+    'sphinx<9',
+    'sphinx-autosummary-accessors',
+    'sphinx-book-theme>=0.3.0',
+    'sphinx-copybutton',
+    'sphinx-design',
+    'sphinx-inline-tabs',
+    'sphinxext-rediraffe',
+    'sphinxext-opengraph',
+    'sphinx-gallery',
+    'ipython',
+    'ipykernel',
+    'ipywidgets',
+    'jupyter-server-proxy',
+    'nest-asyncio',
+    'trame-client>=2.12.7',
+    'trame-server>=2.11.7',
+    'trame-vtk>=2.5.8',
+    'trame-vuetify>=2.3.1',
+    'trame>=2.5.2'
+]
 
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
@@ -54,8 +76,9 @@ build-backend = "maturin"
 
 [tool.maturin]
 python-source = "."
-include = ["cratermaker/_version.py", "cratermaker/**/*.py", "pyproject.toml", "Cargo.toml"]
+include = ["cratermaker/_version.py", "cratermaker/**/*.py", "pyproject.toml", "Cargo.toml", "README.md", "COPYING", "LICENSE"]
 features = ["pyo3/extension-module"]
+manifest-path = "crates/cratermaker-py/Cargo.toml"
 module-name = "cratermaker._cratermaker"
 
 [tool.ruff]

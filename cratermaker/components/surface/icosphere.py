@@ -72,7 +72,7 @@ class IcosphereSurface(Surface):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self.radius, self.gridlevel]
+        return super()._hashvars + [self.gridlevel]
 
     def _generate_face_distribution(self, **kwargs: Any) -> NDArray:
         """

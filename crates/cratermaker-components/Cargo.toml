@@ -1,0 +1,34 @@
+[package]
+name = "cratermaker-components"
+version = "2025.12.0-a0"
+edition = "2021"
+
+
+[dependencies]
+itertools = "0.14.0"
+rand = "0.9.1"
+noise = "0.9.0"
+rand_chacha = "0.9.0"
+numpy = "0.27"
+blas = "0.23"
+rayon = "1.11"
+pyo3= {version = "0.27", features = ["extension-module"]}
+libm  = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+ndarray-linalg = {version = "0.18", features = ["intel-mkl"]}
+intel-mkl-src = "0.8.1"
+
+[target.'cfg(unix)'.dependencies]
+ndarray-linalg = {version = "0.18", features = ["openblas-system"]}
+
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
+version = "0.6"
+features = [ "disable_initial_exec_tls",]
+
