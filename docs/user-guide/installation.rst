@@ -13,6 +13,8 @@ Normal installation
 
 Cratermaker is a Python package that is designed to work with Python 3.10 or later on MacOS, Linux, and Windows. It contains some Rust components for performance. You may need to install Rust before installing Cratermaker. Installation instructions for your operating system can be found in `the Rust documentation <https://www.rust-lang.org/tools/install>`__. 
 
+The fitting tools in Cratermaker use OpenBLAS for linear algebra operations. On some systems, you may need to install OpenBLAS separately before installing Cratermaker. Installation instructions for your operating system can be found in `the OpenBLAS documentation <http://www.openmathlib.org/OpenBLAS/docs/install/>`__.  You may also need to install OpenSSL development libraries for your system.
+
 You can install Cratermaker using pip into the Python environment of your choice, provided it is at least Python 3.10 or above.
 
 .. code-block:: bash 

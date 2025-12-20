@@ -25,11 +25,6 @@ import cratermaker as cm
 # Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 to speed up the simulation for this example. We set `ask_overwrite` to False to avoid being prompted during the example.
 sim = cm.Simulation(target="Moon", gridlevel=6, ask_overwrite=False)
 
-sim.run(age=4310)
+sim.run(age=4310, ninterval=300)
 sim.export(driver="VTK")
-# Load and visualize the resulting surface using Pyvista
-mesh = pv.read(sim.surface.output_dir / "surface000001.vtp")
-
-plotter = pv.Plotter()
-plotter.add_mesh(mesh, scalars="face_elevation", cmap="Greys_r", show_edges=False)
-plotter.show()
+sim.show(cmap="Greys_r")
