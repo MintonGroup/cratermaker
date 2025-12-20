@@ -13,7 +13,7 @@ sphinx:
 build:
   os: ubuntu-22.04
   tools:
-    python: "mambaforge-22.9"  
+    python: "3.13"
     rust: "latest"
   apt_packages:
     - pandoc
@@ -22,7 +22,5 @@ build:
       - git fetch --prune --unshallow
       - git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - python buildscripts/set_version.py
-      - pip install .
+      - pip install ".[rasterio,docs]"
 
-conda:
-  environment: environments/cratermaker-dev.yml
