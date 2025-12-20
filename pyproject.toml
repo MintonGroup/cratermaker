@@ -54,7 +54,15 @@ docs =[
     'sphinxext-opengraph',
     'sphinx-gallery',
     'ipython',
-    'ipykernel'
+    'ipykernel',
+    'ipywidgets',
+    'jupyter-server-proxy',
+    'nest-asyncio',
+    'trame-client>=2.12.7',
+    'trame-server>=2.11.7',
+    'trame-vtk>=2.5.8',
+    'trame-vuetify>=2.3.1',
+    'trame>=2.5.2'
 ]
 
 [project.urls]
