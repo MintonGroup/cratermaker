@@ -155,7 +155,7 @@ https://github.com/bokeh/bokeh/blob/branch-2.4/sphinx/source/bokeh/static/custom
       position: -webkit-sticky;
       position: sticky;
       top: var(--navbar-height);
-      z-index: 1000;
+      z-index: auto;
       height: calc(100vh - var(--navbar-height));
     }
   }
@@ -324,6 +324,43 @@ body {
   margin-left: auto;
   margin-right: auto;
   margin-top: 10px;
+}
+
+.sd-card {
+  position: relative;
+  z-index: 1;
+}
+.sd-card .sd-stretched-link {
+  position: relative;
+  z-index: 2;
+}
+
+/*
+ * PyData Sphinx Theme overlays
+ *
+ * The theme uses full-page <label class="overlay ..."> elements for the
+ * primary/secondary sidebars (and a search overlay). If these overlays are
+ * visible (even with 0 opacity) they can steal clicks from the front-page
+ * cards. Make them non-interactive unless the corresponding toggle is active.
+ */
+label.overlay,
+.search-button__overlay {
+  pointer-events: none !important;
+}
+
+/* When the sidebar is opened, re-enable click interception so clicking the
+   overlay can close it (theme behavior). */
+#pst-primary-sidebar-checkbox:checked ~ label.overlay-primary {
+  pointer-events: auto !important;
+}
+#pst-secondary-sidebar-checkbox:checked ~ label.overlay-secondary {
+  pointer-events: auto !important;
+}
+
+/* If the theme ever marks overlays as visible via a class, keep them clickable */
+label.overlay.is-active,
+.search-button__overlay.is-active {
+  pointer-events: auto !important;
 }
 
 /* Hide ToC on mobile */
