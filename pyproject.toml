@@ -38,11 +38,11 @@ dependencies = [
     'PyYAML>=6',
     'astropy>=7',
     'pyvista',
+    'rasterio>=1.4.4'
 ]
 
 [project.optional-dependencies]
 tests = ["pytest"]
-rasterio = ['rasterio']
 docs =[
     'sphinx<9',
     'sphinx-autosummary-accessors',

@@ -25,7 +25,7 @@ sphinx-gallery
 ipython
 ipykernel
 pyvista[all]
-rasterio
+rasterio>=1.4.4
 jupyter-server-proxy
 nest-asyncio
 trame-client>=2.12.7

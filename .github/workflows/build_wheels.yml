@@ -122,13 +122,6 @@ jobs:
             source .venv/bin/activate
           fi
 
-          # Install optional test dependency (skip on Linux arm64 where rasterio wheels may be unavailable)
-          if [[ "$RUNNER_OS" == "Linux" && "$(uname -m)" == "aarch64" ]]; then
-            echo "Skipping rasterio install on Linux arm64"
-          else
-            pip install rasterio
-          fi
-
           PYTAG=$(python -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
           pip install dist/*${PYTAG}-${PYTAG}-*.whl
           pip install pytest
