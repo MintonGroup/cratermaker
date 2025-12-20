@@ -10,13 +10,12 @@ import numpy as np
 import pandas as pd
 import uxarray as uxr
 import xarray as xr
-from pyproj import Geod
-from shapely.geometry import GeometryCollection, LineString, Polygon
-from shapely.ops import split, transform
+from cratermaker._cratermaker import counting_bindings
+from shapely.geometry import GeometryCollection
+from shapely.ops import transform
 
-from cratermaker.constants import FloatLike
+from cratermaker.components.crater import Crater
 from cratermaker.core.base import ComponentBase, import_components
-from cratermaker.core.crater import Crater
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
@@ -28,7 +27,8 @@ _N_LAYER = (
     8  # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
 )
 _MIN_FACE_FOR_COUNTING = 5
-_RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater taggin region is extended beyond the final rim.
+_RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater tagging region is extended beyond the final rim.
+_EXTENT_RADIUS_RATIO = 2.0  # The factor by radius over which the local region that is extracted to evaluate the crater rim
 
 
 class Counting(ComponentBase):
@@ -208,6 +208,81 @@ class Counting(ComponentBase):
 
         return
 
+    def fit_rim(self, crater: Crater, tol=0.01, nloops=10, score_quantile=0.95, fit_center=False, fit_ellipse=False) -> Crater:
+        """
+        Find the rim region of a crater on the surface.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater for which to find the rim region.
+        tol : float, optional
+            The tolerance for the rim fitting algorithm. Default is 0.001.
+        nloops : int, optional
+            The number of iterations for the rim fitting algorithm. Default is 10.
+        score_quantile : float, optional
+            The quantile of rim scores to consider. Default is 0.95.
+        fit_center : bool, optional
+            If True, fit the crater center as well. Default is False.
+        fit_ellipse : bool, optional
+            If True, fit an ellipse to the rim, otherwise fit a circle. Default is False.
+
+        Returns
+        -------
+        Crater
+            A new Crater object with updated measured rim parameters.
+        """
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
+
+        location, ap, bp, orientation = counting_bindings.fit_rim(
+            self.surface,
+            crater,
+            tol,
+            nloops,
+            score_quantile,
+            fit_center,
+            fit_ellipse,
+        )
+
+        crater_fit = Crater.maker(
+            crater,
+            measured_semimajor_axis=ap,
+            measured_semiminor_axis=bp,
+            measured_orientation=np.degrees(orientation),
+            measured_location=location,
+        )
+
+        return crater_fit
+
+    def score_rim(self, crater: Crater, quantile=0.95, gradmult=1.0, curvmult=1.0, heightmult=1.0) -> None:
+        """
+        Score the rim region of a crater on the surface.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater for which to score the rim region.
+        quantile : float, optional
+            The quantile of rim scores to consider. Default is 0.95.
+        gradmult : float, optional
+            Gradient multiplier for scoring. Default is 1.0.
+        curvmult : float, optional
+            Curvature multiplier for scoring. Default is 1.0.
+        heightmult : float, optional
+            Height multiplier for scoring. Default is 1.0.
+
+        Returns
+        -------
+        Updates the attached surface object with the rim score for this crater.
+        """
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
+
+        region = counting_bindings.score_rim(self.surface, crater, quantile, gradmult, curvmult, heightmult)
+
+        return region
+
     @abstractmethod
     def tally(self, region: LocalSurface | None = None) -> None: ...
 
@@ -343,83 +418,115 @@ class Counting(ComponentBase):
         # return
 
     @staticmethod
-    def geodesic_ellipse_polygon(
-        lon: float,
-        lat: float,
-        a: float,
-        b: float,
-        az_deg: float = 0.0,
-        n: int = 150,
-        R_pole: FloatLike = 1.0,
-        R_equator: FloatLike = 1.0,
-        split_antimeridian: bool = True,
-    ) -> Polygon:
+    def _compute_geometric_distances_to_ellipse(x, y, coeffs):
         """
-        Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by az_deg.
+        Compute the geometric distances from points (x, y) to the ellipse defined by the coefficients.
 
         Parameters
         ----------
-        lon : float
-            Longitude of the ellipse center in degrees.
-        lat : float
-            Latitude of the ellipse center in degrees.
-        a : float
-            Semi-major axis in meters.
-        b : float
-            Semi-minor axis in meters.
-        az_deg : float, optional
-            Azimuth rotation of the ellipse in degrees clockwise from north, by default 0.0.
-        n : int, optional
-            Number of points to use for the polygon, by default 150.
-        R_pole : FloatLike, optional
-            Planetary polar radius in units of meters, by default 1.0.
-        R_equator : FloatLike, optional
-            Planetary equatorial radius in units of meters, by default 1.0.
-        split_antimeridian : bool, optional
-            If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
+        x : array_like
+            1D array of x-coordinates of data points.
+        y : array_like
+            1D array of y-coordinates of data points.
+        coeffs : array_like
+            Coefficients [a, b, c, d, e, f] defining the ellipse.
 
         Returns
         -------
-        Returns a Shapely Polygon in lon/lat degrees.
+        delta : array_like
+            1D array of geometric distances from each point to the ellipse.
         """
-        geod = Geod(a=R_pole, b=R_equator)
-        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+        a, b, c, d, e, f = coeffs
+        F = a * x**2 + b * x * y + c * y**2 + d * x + e * y + f
 
-        # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
-        ct = np.cos(np.deg2rad(theta))
-        st = np.sin(np.deg2rad(theta))
-        r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+        # gradient magnitude (to convert algebraic to geometric residual)
+        Fx = 2 * a * x + b * y + d
+        Fy = b * x + 2 * c * y + e
+        gradnorm = np.hypot(Fx, Fy)
 
-        # Bearings (from east, CCW) rotated by azimuth
-        bearings = theta + az_deg % 360.0
+        # geometric distances
+        delta = F / gradnorm
+        return delta
 
-        # Forward geodesic for each bearing/distance
-        poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+    @staticmethod
+    def cart_to_pol(coeffs):
+        """
 
-        # Correct for potential antimeridian crossing
-        if split_antimeridian and np.ptp(poly_lon) > 180.0:
-            center_sign = np.sign(lon)
-            poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
-            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
-            merdian_lon = 180.0 * center_sign
-            meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
-            poly = split(poly, meridian)
+        Convert the cartesian conic coefficients, (a, b, c, d, e, f), to the ellipse parameters, where F(x, y) = ax^2 + bxy + cy^2 + dx + ey + f = 0.
 
-            def lon_flip(lon, lat):
-                lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
-                return lon, lat
+        The returned parameters are x0, y0, ap, bp, e, phi, where (x0, y0) is the ellipse centre; (ap, bp) are the semi-major and semi-minor axes, respectively; e is the eccentricity; and phi is the rotation of the semi- major axis from the x-axis.
 
-            new_geoms = []
-            for p in poly.geoms:
-                if np.abs(p.centroid.x) > 180.0:
-                    p = transform(lon_flip, p)
-                new_geoms.append(p)
-            poly = GeometryCollection(new_geoms)
+        Adapted from: https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/
 
+        """
+        # We use the formulas from https://mathworld.wolfram.com/Ellipse.html
+        # which assumes a cartesian form ax^2 + 2bxy + cy^2 + 2dx + 2fy + g = 0.
+        # Therefore, rename and scale b, d and f appropriately.
+        a = coeffs[0]
+        b = coeffs[1] / 2
+        c = coeffs[2]
+        d = coeffs[3] / 2
+        f = coeffs[4] / 2
+        g = coeffs[5]
+
+        den = b**2 - a * c
+        if den > 0:
+            raise ValueError("coeffs do not represent an ellipse: b^2 - 4ac must be negative!")
+
+        # The location of the ellipse centre.
+        x0, y0 = (c * d - b * f) / den, (a * f - b * d) / den
+
+        num = 2 * (a * f**2 + c * d**2 + g * b**2 - 2 * b * d * f - a * c * g)
+        fac = np.sqrt((a - c) ** 2 + 4 * b**2)
+        # The semi-major and semi-minor axis lengths (these are not sorted).
+        ap = np.sqrt(num / den / (fac - a - c))
+        bp = np.sqrt(num / den / (-fac - a - c))
+
+        # Sort the semi-major and semi-minor axis lengths but keep track of
+        # the original relative magnitudes of width and height.
+        width_gt_height = True
+        if ap < bp:
+            width_gt_height = False
+            ap, bp = bp, ap
+
+        # The eccentricity.
+        r = (bp / ap) ** 2
+        if r > 1:
+            r = 1 / r
+        e = np.sqrt(1 - r)
+
+        # The angle of anticlockwise rotation of the major-axis from x-axis.
+        if b == 0:
+            phi = 0 if a < c else np.pi / 2
         else:
-            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+            phi = np.arctan((2.0 * b) / (a - c)) / 2
+            if a > c:
+                phi += np.pi / 2
+        if not width_gt_height:
+            # Ensure that phi is the angle to rotate to the semi-major axis.
+            phi += np.pi / 2
+        phi = phi % np.pi
 
-        return poly
+        return x0, y0, ap, bp, e, phi
+
+    def pol_to_coeff(x0, y0, ap, bp, e, phi):
+        """
+        Convert from ellipse parameters to cartesian conic coefficients.
+        """
+        s2 = np.sin(phi) ** 2
+        c2 = np.cos(phi) ** 2
+        sc = np.sin(phi) * np.cos(phi)
+        a2 = ap**2
+        b2 = bp**2
+
+        a = a2 * s2 + b2 * c2
+        b = 2 * (b2 - a2) * sc
+        c = a2 * c2 + b2 * s2
+        d = -2 * a * x0 - b * y0
+        e = -b * x0 - 2 * c * y0
+        f = a * x0**2 + b * x0 * y0 + c * y0**2 - a2 * b2
+
+        return (a, b, c, d, e, f)
 
     def to_vector_file(
         self,
@@ -453,7 +560,7 @@ class Counting(ComponentBase):
             vtkXMLPolyDataWriter,
         )
 
-        def lonlat_to_xyz_transformer(R):
+        def lonlat_to_xyz(R):
             def _f(lon_deg, lat_deg, z=None):
                 lon = np.deg2rad(lon_deg)
                 lat = np.deg2rad(lat_deg)
@@ -466,7 +573,7 @@ class Counting(ComponentBase):
 
         def polygon_xyz_coords(geom, R):
             """Yield Nx3 arrays for each exterior ring (drop closing vertex)."""
-            g3d = transform(lonlat_to_xyz_transformer(R), geom)
+            g3d = transform(lonlat_to_xyz(R), geom)
 
             def _rings(g):
                 if g.geom_type == "Polygon":

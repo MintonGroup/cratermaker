@@ -24,25 +24,27 @@ else:  # This is a release version, so there is no dash after alpha, but it need
     version = version[0].replace("alpha", "a0")
 
 root_path = Path(__file__).resolve().parents[1]
-cargo_file = root_path / "Cargo.toml"
+components_cargo_file = root_path / "crates" / "cratermaker-components" / "Cargo.toml"
+py_cargo_file = root_path / "crates" / "cratermaker-py" / "Cargo.toml"
 version_file = root_path / "cratermaker" / "_version.py"
 
-# Read Cargo.toml as text
-with Path.open(cargo_file, encoding="utf-8") as f:
-    cargo_contents = f.read()
+for cargo_file in [components_cargo_file, py_cargo_file]:
+    # Read Cargo.toml as text
+    with Path.open(cargo_file, encoding="utf-8") as f:
+        cargo_contents = f.read()
 
-# Replace the version line
-new_cargo_contents = re.sub(
-    r'version\s*=\s*".*?"',
-    f'version = "{version}"',
-    cargo_contents,
-    count=1,
-)
+    # Replace the version line
+    new_cargo_contents = re.sub(
+        r'version\s*=\s*".*?"',
+        f'version = "{version}"',
+        cargo_contents,
+        count=1,
+    )
 
-# Write back
-with Path.open(cargo_file, "w", encoding="utf-8") as f:
-    f.write(new_cargo_contents)
-with Path.open(version_file, "w") as f:
-    f.write(f'__version__ = version = "{version}"\n')
+    # Write back
+    with Path.open(cargo_file, "w", encoding="utf-8") as f:
+        f.write(new_cargo_contents)
+    with Path.open(version_file, "w") as f:
+        f.write(f'__version__ = version = "{version}"\n')
 
-print(f"Updated Cargo.toml to version: {version}")
+    print(f"Updated {cargo_file} to version: {version}")

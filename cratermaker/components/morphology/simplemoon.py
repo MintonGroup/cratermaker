@@ -5,15 +5,15 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 import numpy as np
-from cratermaker._cratermaker import simplemoon_functions as sm
+from cratermaker._cratermaker import morphology_bindings
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import root_scalar
 
+from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import FloatLike
-from cratermaker.core.crater import Crater
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 
@@ -225,7 +225,7 @@ class SimpleMoon(Morphology):
         # flatten r to 1D array
         rflat = np.ravel(r)
         r_ref_flat = np.ravel(r_ref)
-        elevation = sm.crater_profile(
+        elevation = morphology_bindings.crater_profile(
             rflat,
             r_ref_flat,
             crater.final_diameter,
@@ -299,7 +299,7 @@ class SimpleMoon(Morphology):
             r = np.array(r, dtype=np.float64)
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = sm.ejecta_profile(rflat, crater.final_diameter, crater.ejrim)
+        elevation = morphology_bindings.ejecta_profile(rflat, crater.final_diameter, crater.ejrim)
         elevation = np.array(elevation, dtype=np.float64)
         # reshape elevation to match the shape of r
         elevation = np.reshape(elevation, r.shape)
@@ -316,7 +316,7 @@ class SimpleMoon(Morphology):
         r : ArrayLike
             Radial distances from the crater center (in meters).
         theta : ArrayLike
-            Angular bearings from the crater center (in radians).
+            Angular bearings from the crater center (in degrees).
 
         Returns
         -------
@@ -335,9 +335,9 @@ class SimpleMoon(Morphology):
         thickness = self.ejecta_profile(crater, r)
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
-        intensity = sm.ray_intensity(
+        intensity = morphology_bindings.ray_intensity(
             radial_distance=rflat,
-            initial_bearing=theta_flat,
+            initial_bearing=np.radians(theta_flat),
             crater_diameter=crater.final_diameter,
             seed=self.rng.integers(0, 2**32 - 1),
         )
@@ -358,7 +358,7 @@ class SimpleMoon(Morphology):
         r : ArrayLike
             Radial distances from the crater center (in meters).
         theta : ArrayLike
-            Angular bearings from the crater center (in radians).
+            Angular bearings from the crater center (in degrees).
 
         Returns
         -------
@@ -373,8 +373,8 @@ class SimpleMoon(Morphology):
             crater = SimpleMoonCrater.maker(crater)
         # flatten r and theta to 1D arrays
         rflat = np.ravel(r)
-        theta_flat = np.ravel(theta)
-        intensity = sm.ray_intensity(
+        theta_flat = np.radians(np.ravel(theta))
+        intensity = morphology_bindings.ray_intensity(
             rflat,
             theta_flat,
             crater.final_diameter,
