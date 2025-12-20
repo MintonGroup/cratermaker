@@ -42,7 +42,7 @@ jobs:
       - name: Install OpenBLAS via vcpkg (Windows)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install openblas:x64-windows clapack:x64-windows
+          vcpkg install openblas intel-mkl --triplet x64-windows
           echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
           echo "OPENBLAS_LIB=C:\vcpkg\installed\x64-windows\lib" >> $env:GITHUB_ENV
 
