@@ -31,17 +31,13 @@ jobs:
         run: |
           python buildscripts/set_version.py
 
-      - name: Install OpenSSL (Linux)
+      - name: Install openblas/openssl (Linux host only; manylinux builds use container deps)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev libopenblas-dev
 
-      - name:  Install OpenSSL (macOS)
+      - name:  Install OpenSSL OpenBLAS via Homebrew (macOS)
         if: runner.os == 'macOS'
-        run: brew install openssl@3
-
-      - name: Install OpenBLAS via Homebrew (MacOS)
-        if: runner.os == 'macOS'
-        run: brew install openblas
+        run: brew install openssl@3 openblas
 
       - name: Install OpenBLAS via vcpkg (Windows)
         if: runner.os == 'Windows'
@@ -73,12 +69,12 @@ jobs:
             set -eux
             # maturin builds Linux wheels in a manylinux Docker container; install deps *inside* that container.
             if command -v yum >/dev/null 2>&1; then
-              yum -y install pkgconfig openssl-devel
+              yum -y install pkgconfig openssl-devel openblas-devel
             elif command -v dnf >/dev/null 2>&1; then
-              dnf -y install pkgconf-pkg-config openssl-devel
+              dnf -y install pkgconf-pkg-config openssl-devel openblas-devel
             elif command -v apt-get >/dev/null 2>&1; then
               apt-get update
-              apt-get install -y pkg-config libssl-dev
+              apt-get install -y pkg-config libssl-dev libopenblas-dev
             else
               echo "No supported package manager found in manylinux container" >&2
               exit 1
