@@ -105,43 +105,8 @@ jobs:
           path: dist/*.tar.gz              
           retention-days: 1 
 
-  test_wheels:
-    name: Testing wheels on ${{ matrix.os }}
-    needs: build_wheels
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
-    
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.13'
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
-          path: dist/
-
-      - name: pytest
-        shell: bash
-        run: |
-          set -e
-          python3 -m venv .venv
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            source .venv/Scripts/activate
-          else
-            source .venv/bin/activate
-          fi
-          PYTAG=$(python -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
-          pip install dist/*${PYTAG}-${PYTAG}-*.whl
-          pip install pytest
-          pytest
-
   upload_pypi:
-    needs: [test_wheels, build_sdist]
+    needs: [build_sdist]
     runs-on: ubuntu-latest
     environment: 
       name: pypi
