@@ -39,6 +39,10 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install openssl@3
 
+      - name: Install OpenBLAS via Homebrew (MacOS)
+        if: runner.os == 'macOS'
+        run: brew install openblas
+
       - name: Install OpenBLAS via vcpkg (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
