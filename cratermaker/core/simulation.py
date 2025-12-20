@@ -1,7 +1,4 @@
-import csv
-import shutil
 from contextlib import suppress
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -11,22 +8,23 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 
-from ..components.counting import Counting
-from ..components.morphology import Morphology
-from ..components.production import Production
-from ..components.projectile import Projectile
-from ..components.scaling import Scaling
-from ..components.surface import Surface
-from ..components.target import Target
-from ..constants import (
+from cratermaker.components.counting import Counting
+from cratermaker.components.crater import Crater
+from cratermaker.components.morphology import Morphology
+from cratermaker.components.production import Production
+from cratermaker.components.projectile import Projectile
+from cratermaker.components.scaling import Scaling
+from cratermaker.components.surface import Surface
+from cratermaker.components.surface.hireslocal import HiResLocalSurface
+from cratermaker.components.target import Target
+from cratermaker.constants import (
     _COMPONENT_NAMES,
     _CONFIG_FILE_NAME,
     FloatLike,
     PairOfFloats,
 )
-from ..utils.general_utils import _set_properties, format_large_units, parameter
-from .base import CratermakerBase, _convert_for_yaml
-from .crater import Crater
+from cratermaker.core.base import CratermakerBase, _convert_for_yaml
+from cratermaker.utils.general_utils import _set_properties, format_large_units, parameter
 
 
 class Simulation(CratermakerBase):
@@ -160,7 +158,15 @@ class Simulation(CratermakerBase):
             **scaling_config,
         )
 
-        surface_config = {**surface_config, **kwargs, "ask_overwrite": self.ask_overwrite}
+        surface_config = {
+            **surface_config,
+            **kwargs,
+            "ask_overwrite": self.ask_overwrite,
+        }
+        if "superdomain_scale_factor" not in surface_config:
+            surface_config["superdomain_scale_factor"] = (
+                None  # This will trigger setting of the superdomain after the Morphology and Scaling models are set
+            )
         self.surface = Surface.maker(
             self.surface,
             target=self.target,
@@ -183,8 +189,13 @@ class Simulation(CratermakerBase):
             counting=self.counting,
             **morphology_config,
         )
-        if self.surface.gridtype == "hireslocal" and self.surface.uxgrid is None:
-            self.surface._set_superdomain(scaling=self.scaling, morphology=self.morphology, reset=reset, **surface_config)
+        if issubclass(self.surface.__class__, HiResLocalSurface) and self.surface.uxgrid is None:
+            self.surface.set_superdomain(
+                scaling=self.scaling,
+                morphology=self.morphology,
+                reset=reset,
+                **surface_config,
+            )
 
         if reset:
             self.reset(ask_overwrite=ask_overwrite, skip_component=["surface"])
@@ -607,6 +618,30 @@ class Simulation(CratermakerBase):
             self.counting.export(interval_number=interval_number, driver=driver, **kwargs)
         return
 
+    def plot(self, **kwargs: Any) -> None:
+        """
+        Plot the current state of the surface.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments to pass to the surface plot method.
+        """
+        self.surface.plot(**kwargs)
+        return
+
+    def show(self, **kwargs: Any) -> None:
+        """
+        Show the current state of the surface.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments to pass to the surface show method.
+        """
+        self.surface.show(**kwargs)
+        return
+
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """
         Converts values to types that can be used in yaml.safe_dump.
@@ -671,7 +706,11 @@ class Simulation(CratermakerBase):
 
         return sim_config
 
-    def reset(self, ask_overwrite: bool | None = None, skip_component: str | list[str] | None = None) -> None:
+    def reset(
+        self,
+        ask_overwrite: bool | None = None,
+        skip_component: str | list[str] | None = None,
+    ) -> None:
         """
         Reset the simulation by clearing all data and files associated with it.
 
@@ -991,8 +1030,9 @@ class Simulation(CratermakerBase):
 
     @surface.setter
     def surface(self, value):
-        if not isinstance(value, (Surface | str)):
-            raise TypeError("surface must be an instance of Surface or str")
+        if not isinstance(value, (Surface | str | type)):
+            if isinstance(value, type) and not issubclass(value, Surface):
+                raise TypeError("surface must be an instance of Surface, a subclass of Surface, or str")
         self._surface = value
 
     @property

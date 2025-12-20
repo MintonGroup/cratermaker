@@ -31,6 +31,21 @@ jobs:
         run: |
           python buildscripts/set_version.py
 
+      - name: Install openblas/openssl (Linux host only; manylinux builds use container deps)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev libopenblas-dev
+
+      - name:  Install OpenSSL OpenBLAS via Homebrew (macOS)
+        if: runner.os == 'macOS'
+        run: brew install openssl@3 openblas
+
+      - name: Install OpenBLAS via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          vcpkg install openblas intel-mkl --triplet x64-windows
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+          echo "OPENBLAS_LIB=C:\vcpkg\installed\x64-windows\lib" >> $env:GITHUB_ENV
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -38,6 +53,22 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
+          before-script-linux: |
+            set -eux
+            # maturin builds Linux wheels in a manylinux Docker container; install deps *inside* that container.
+            if command -v yum >/dev/null 2>&1; then
+              yum -y install epel-release
+              yum repolist
+              yum -y install pkgconfig openssl-devel openblas-devel
+            elif command -v dnf >/dev/null 2>&1; then
+              dnf -y install pkgconf-pkg-config openssl-devel flexiblas-devel
+            elif command -v apt-get >/dev/null 2>&1; then
+              apt-get update
+              apt-get install -y pkg-config libssl-dev libopenblas-dev
+            else
+              echo "No supported package manager found in manylinux container" >&2
+              exit 1
+            fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -60,6 +91,21 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Install openblas/openssl (Linux host only; manylinux builds use container deps)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev libopenblas-dev
+
+      - name:  Install OpenSSL OpenBLAS via Homebrew (macOS)
+        if: runner.os == 'macOS'
+        run: brew install openssl@3 openblas
+
+      - name: Install OpenBLAS via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          vcpkg install openblas intel-mkl --triplet x64-windows
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+          echo "OPENBLAS_LIB=C:\vcpkg\installed\x64-windows\lib" >> $env:GITHUB_ENV
+
       - uses: actions/download-artifact@v5
         with:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
@@ -75,8 +121,8 @@ jobs:
           else
             source .venv/bin/activate
           fi
+
           PYTAG=$(python -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
           pip install dist/*${PYTAG}-${PYTAG}-*.whl
           pip install pytest
           pytest
-

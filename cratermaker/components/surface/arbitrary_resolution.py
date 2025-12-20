@@ -61,7 +61,7 @@ class ArbitraryResolutionSurface(Surface):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self.radius, self.pix]
+        return super()._hashvars + [self.pix]
 
     @parameter
     def pix(self):

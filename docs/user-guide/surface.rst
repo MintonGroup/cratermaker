@@ -15,7 +15,7 @@ Cratermaker's :ref:`Surface <api-surface>` component is used to represent target
 - :attr:`target`: The :ref:`Target <ug-target>` that the surface is associated with. The default target is "Moon."
 - :attr:`radius`: The radius of the target body in meters. This is a convenience attribute that retrieves the radius from the :ref:`Target <ug-target>` object.
 - :attr:`smallest_length`: The smallest length scale that the surface can resolve. This is used for determining minimum elevation changes, such as when ejecta deposits are added to the surface. It is set when the surface is created.
-- :attr:`gridtype`: The type of surface grid that is being used. This will be one of "icosphere", "arbitrary_resolution", or "hireslocal", depending on how it was created.
+- :attr:`gridtype`: The type of surface grid that is being used. This will be one of "icosphere," "arbitrary_resolution," "hireslocal," or "datasurface," depending on how it was created.
 - :attr:`data_dir`: The directory where the surface data files are stored. 
 - :attr:`uxds`, :attr:`uxgrid`: The UxArray dataset and grid object used to represent the surface mesh (see the next section for more details).
 
@@ -54,7 +54,7 @@ In the above image, show a single face with 6 nodes and 6 edges, surrounded by 6
 Many of the above attributes are based on similar once found in UxArray, though some are modified to be more useful for Cratermaker's purposes. For instance, the `face_area` attribute is computed using the true dimensions of the surface, rather than assuming a unit sphere, which is how UxArray computes it by default. You can access the underlying UxArray structures through the :attr:`uxds` and :attr:`uxgrid` properties.
 
 Mesh connectivity
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 Many of the functions within Cratermaker require knowledge of the connectivity between faces, nodes, and edges. The Surface object contains several attributes that represent this connectivity:
 
@@ -88,12 +88,13 @@ Like all Cratermaker components, a Surface object is instantiated with a special
 - "icosphere": This is the default surface type, which generates a uniform grid configuration with polygonal faces that will be subdivided by the input value for the `gridlevel` argument. The icosphere surface will have the most uniform face sizes, but is limited to a few resolutions. It is best suited for general use and is the default surface type.
 - "arbitrary_resolution": This surface type allows the user to define the approximate size of the faces of the grid using the `pix` argument. It creates a uniform grid configuration but allows for more control over the sizes of the faces. The faces on this surface will be more irregular in shape, making it less ideal for some applications, but it is useful when specific face sizes are needed.
 - "hireslocal": This surface type is used for modeling a small local region at high resolution. It requires the `pix`, `local_radius`, `local_location`, and `superdomain_scale_factor` arguments. The local region is the "primary" surface being modeled, and the superdomain is simply a source for distal ejecta from large far away craters. This surface type is useful for applications that require high resolution in a small area, but still allows for global processes to affect the small local area.
+- "datasurface": This surface type is based on "hireslocal" but will construct a surface and initialize it based on a digital elevation model (DEM). When using the Moon as a target body, can fetch DEM data from the NASA PDS automatically, and only requires a minimum of the `local_location` and `local_radius` arguments. By default, it will find data file that contains approximately 10:sup:`6` faces. Passing an optional argument `pix` will override this default behavior and it will attempt to find a DEM file that comes closest to matching the requested pixel size. Optionally, the user can also pass in one or more file paths or URLs to DEM files using the `dem_file_list` argument. Like "hireslocal," this surface will contain a local region and a global superdomain. The superdomain will be initialized using a low resolution global DEM, or optionally a file path or URL to a DEM file can be passed in using the `superdomain_dem_file` argument.
 
 The following sections will describe each of these surface types in more detail, including how to create them and their specific attributes and methods.
 
 
 Icosphere
-~~~~~~~~~
+^^^^^^^^^
 
 .. image:: ../_static/icosphere_grid.png
     :alt: Icosphere grid
@@ -114,7 +115,7 @@ The default Surface is "icosphere," which consists of a uniform grid configurati
     9, 2621442, 5242880, 3.80 km ± 160 m
 
 
-Though it is limited to a few resolutions, the icosphere surface will have the most uniform face sizes. Lower values of `gridlevel` will result in fewer but larger face sizes, which can be computed quickly but will not resolve detail well. Higher values of `gridlevel` will result in more faces with smaller areas, which will resolve detail better but will take longer to generate and use, and will consume more memory. The default value is 8, and we recommend keeping `gridlevel` to between ~7-9. Also, keep in mind that the value of `pix` in the table above is computed for the Moon, and will vary for other targets. 
+Though it is limited to a few resolutions, the icosphere surface will have the most uniform face sizes. Lower values of `gridlevel` will result in fewer but larger face sizes, which can be computed quickly but will not resolve detail well. Higher values of `gridlevel` will result in more faces with smaller areas, which will resolve detail better but will take longer to generate and use, and will consume more memory. The default value is 8, and we recommend keeping `gridlevel` to between ^7-9. Also, keep in mind that the value of `pix` in the table above is computed for the Moon, and will vary for other targets. 
 
 
 .. ipython:: python
@@ -142,7 +143,7 @@ This is equivalent to:
     shutil.rmtree(surface.output_dir)
 
 Arbitrary Resolution 
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 .. image:: ../_static/arbitrary_resolution_grid.png
     :alt: Arbitrary resolution grid
@@ -150,7 +151,7 @@ Arbitrary Resolution
     :width: 400px
 
 
-While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of ~20 km per face (shown in the figure above):
+While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of ^20 km per face (shown in the figure above):
 
 .. ipython:: python
     :okwarning:
@@ -162,7 +163,7 @@ While the `icosphere` surface generates the most regular grids, it is limited to
 The arbitrary resolution grid is similar to the icosphphere grid in that the surface will be discretized into approximately equal-sized faces. Unlike the icosphere, the faces on the surface will be more irregular in shape, making it less ideal. 
 
 High Resolution Local
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 
 .. image:: ../_static/hireslocal_grid_with_inset.png
@@ -180,7 +181,7 @@ In many application of Cratermaker, it is useful to model a small local region a
 .. note::
     When used as part of a :ref:`Simulation <ug-simulation>`, the `superdomain_scale_factor` can be omitted. It is computed using the Simulation's production and morphology models in order to compute the sizes of faces in the superdomain as a function of distance from the local region boundary. 
 
-For instance, suppose we want to generate a high resolution local grid on the Moon with a resolution of ~10 m per pixel, with a high resolution region radius of 5 km, centered at the equator and prime meridian (0° longitude, 0° latitude), and a superdomain scale factor of 10,000:
+For instance, suppose we want to generate a high resolution local grid on the Moon with a resolution of ^10 m per pixel, with a high resolution region radius of 5 km, centered at the equator and prime meridian (0° longitude, 0° latitude), and a superdomain scale factor of 10,000:
 
 .. ipython:: python
     :okwarning:
@@ -197,6 +198,63 @@ For instance, suppose we want to generate a high resolution local grid on the Mo
 
 The image above shows a rendering of this high resolution local grid, showing a view of the whole local region and an inset showing the high resolution portion inside. The local region will have approximately square and equal-sized faces, but the faces will be more irregular in shape as you move away from the center of the local region. The superdomain will have larger faces that are scaled by the `superdomain_scale_factor`, which allows for distal ejecta to be modeled from large far away craters. The superdomain is not a separate surface, but rather a part of the same surface that is used to model the effects of distant craters on the local region.
 The "hireslocal" surface type works somewhat differently than the others. For instance, the diffusive degradation is only applied on the local region. You can think of the local region as the "primary" surface being modeled, and the superdomain as simply a source for distal ejecta fram large far away craters. 
+
+
+DataSurface
+^^^^^^^^^^^
+
+.. image:: ../_static/datasurface_copernicus.png
+    :alt: A DataSurface created in a region around Copernicus crater.
+    :align: center
+    :width: 400px
+
+Many applications of Cratermaker could potentially use real digital elevation model (DEM) data as the starting surface topography. The "datasurface" Surface type is designed for this purpose. It is based on the "hireslocal" surface type, but will construct a surface and initialize it based on a DEM. When using the Moon as a target body, Cratermaker can fetch DEM data from the NASA PDS automatically, and only requires a minimum of the `local_location` and `local_radius` arguments. By default, it will find data file that contains approximately 10:sup:`6` faces. Passing an optional argument `pix` will override this default behavior and it will attempt to find a DEM file that comes closest to matching the requested pixel size. Optionally, the user can also pass in one or more file paths or URLs to DEM files using the `dem_file_list` argument. Like "hireslocal," this surface will contain a local region and a global superdomain. The superdomain will be initialized using a low resolution global DEM, or optionally a file path or URL to a DEM file can be passed in using the `superdomain_dem_file` argument.
+
+
+How DataSurface chooses lunar DEM files
+"""""""""""""""""""""""""""""""""""""""
+
+When the target body is the Moon and you do **not** provide explicit DEM files, ``DataSurface`` will automatically select appropriate LOLA/SLDEM products from the NASA PDS based on the requested region and resolution.
+
+Local-region DEM (``dem_file_list``)
+""""""""""""""""""""""""""""""""""""
+
+If ``dem_file_list`` is not provided, the class chooses DEM sources as follows:
+
+1. **Pick a target resolution**
+   If ``pix`` is not given, a default pixel size is computed to yield roughly :math:`10^6` faces in the local region.
+   If ``pix`` *is* given, it is treated as the desired meters-per-pixel for the local DEM.
+
+2. **Compute geographic coverage**
+   The code computes a lon/lat bounding box for the local circular region (centered at ``local_location`` with radius ``local_radius``).
+   If the region reaches a pole, longitudes are treated as global (``-180`` to ``180``).
+
+3. **Choose projection family (polar vs. cylindrical)**
+   A target angular resolution (pixels/degree) is estimated from ``pix`` and the lunar radius.
+   If the implied resolution is *high* (greater than ^10 pix/deg) **and** the region extends beyond lat = 60° (North or South), the **polar** LOLA products are used.
+   Otherwise, **cylindrical** products are used.
+
+4. **Select the closest available dataset resolution**
+   - **Cylindrical:** chooses the nearest available product from ``[4, 16, 64, 128, 256, 512]`` pix/deg.  For low-resolution global products (< 256 pix/deg), a single global file covers the domain.  For high-resolution tiled products (>= 256 pix/deg), the tile containing the center is selected, and additional neighboring tiles are added as needed to cover the bounding box corners.
+   - **Polar:** chooses the closest available meters-per-pixel product that covers the requested latitude range (datasets have minimum-latitude coverage thresholds that depend on the product).
+
+Global superdomain DEM (``superdomain_dem_file``)
+"""""""""""""""""""""""""""""""""""""""""""""""""
+
+If ``superdomain_dem_file`` is not provided (and the superdomain has been defined), the class:
+
+1. Computes a **coarser** target pixel size from the local resolution and ``superdomain_scale_factor`` (with a minimum corresponding to ^128 pix/deg globally), then
+2. Uses the same selection logic as above (polar vs. cylindrical) to pick a suitable *global* DEM file for initializing elevations outside the local region.
+
+Overriding file selection
+"""""""""""""""""""""""""
+
+You can bypass all automatic dataset selection by providing:
+
+- ``dem_file_list``: one or more file paths or URLs for the local region DEM(s)
+- ``superdomain_dem_file``: a file path or URL for the global DEM.
+
+Cratermaker uses `rasterio <https://rasterio.readthedocs.io/en/latest/>`_ to read DEM files, and so any format supported by rasterio should work (e.g., GeoTIFF, IMG, etc.).
 
 
 Extracting a local subsection of the surface
@@ -266,7 +324,7 @@ Examples
 --------
 
 Extracting a local subset of the grid
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Suppose we wish to extract a 10 km radius local region of the surface of the Moon centered at 45° N latitude, 205° E longitude:
 
@@ -288,7 +346,7 @@ The ``region`` object now contains a view of all faces (along with their corresp
 
 
 Distances and bearings 
-~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^
 
 The :class:`LocalSurface` object has two attributes called `face_distance` and `face_bearing` (and also `node_distance` and `node_bearing`), which are pre-computed distances and bearings from the center of the local region to all faces (nodes). This is useful for quickly accessing these values without having to compute them yourself.
 
@@ -322,7 +380,7 @@ As you can see from above, we recieve two arrays, which are the same sizes as th
 
 
 Finding a face index
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 Suppose we would like to find a face correspnding to a particulal location. We can do the following:
 
@@ -354,7 +412,7 @@ There are corresponding methods for finding the nearest node, as well as connect
 
 
 Converting elevation to Cartesian coordinates
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Cratermaker saves the face and node elevations independently of the mesh geometry. Suppose you want to visualize the surface with the elevations applied. You can use the :meth:`elevation_to_cartesian` method to convert the elevations to Cartesian coordinates. This method takes one argument, `element`, which can either be "face" or "node". The method will return an (n, 3) array of Cartesian coordinates, where n is the number of faces or nodes, depending on the value of `element`.
 

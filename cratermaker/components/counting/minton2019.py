@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from cratermaker._cratermaker import counting_functions
+from cratermaker._cratermaker import counting_bindings
 from numpy.typing import NDArray
 from scipy import fft
 
 from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, _TALLY_ID, Counting
+from cratermaker.components.crater import Crater
 from cratermaker.components.surface import LocalSurface, Surface
-from cratermaker.core.crater import Crater
 
 
 @Counting.register("minton2019")
@@ -62,5 +62,5 @@ class Minton2019Counting(Counting):
 
         observed_dict = {int(k): asdict(v) for k, v in self.observed.items()}
 
-        observed_ids = counting_functions.tally_m19(region.face_elevation, id_array, observed_dict)
+        observed_ids = counting_bindings.tally(region.face_elevation, id_array, observed_dict)
         return

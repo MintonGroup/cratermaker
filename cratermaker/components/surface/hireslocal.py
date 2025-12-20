@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from warnings import warn
 
 import numpy as np
 from numpy.typing import NDArray
-from pyproj import CRS
 from scipy.spatial.transform import Rotation
 
 from cratermaker.components.morphology import Morphology
@@ -34,9 +34,10 @@ class HiResLocalSurface(Surface):
     local_location : PairOfFloats
         The longitude and latitude of the location in degrees.
     superdomain_scale_factor : FloatLike, optional
-        A factor defining the ratio of cell size to the distance from the local boundary. This is set so that smallest craters
-        that are modeled outside the local region are those whose ejecta could just reach the boundary. If not provide, then it will
-        be computed based on a provided (or default) scaling and morphology model
+        A factor defining relative size of the face at the antipode of the local region to the face size inside the local region.
+        If not provided, construction of the surface will be deferred until the `set_superdomain` method is called.
+        If a negative number is provided, it will be computed based on a provided (or default) scaling and morphology model, and will be set so that smallest craters that can be resolved on faces outside the local region could potentially deposit ejecta at the boundary of the local region.
+        Default is -1 (which triggers automatic computation based on scaling and morphology models).
     target : Target, optional
         The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
         or extracted from the scaling model if it is provied
@@ -69,6 +70,7 @@ class HiResLocalSurface(Surface):
         **kwargs: Any,
     ):
         object.__setattr__(self, "_local", None)
+        object.__setattr__(self, "_superdomain_scale_factor", None)
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
         super().__init__(target=target, simdir=simdir, **kwargs)
@@ -78,7 +80,10 @@ class HiResLocalSurface(Surface):
         self.local_radius = local_radius
         self.local_location = local_location
         if superdomain_scale_factor is not None:
-            self.superdomain_scale_factor = superdomain_scale_factor
+            if superdomain_scale_factor < 0:
+                self.set_superdomain(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
+            else:
+                self.superdomain_scale_factor = superdomain_scale_factor
             self._load_from_files(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
 
         return
@@ -103,7 +108,7 @@ class HiResLocalSurface(Surface):
         Defines the superdomain scale factor based on the distance from the local boundary.
 
         This is set so that smallest craters that are modeled outside the local region are those whose ejecta could just reach the boundary.
-        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `_set_superdomain` method.
+        It is a piecewise function that returns the local pixel size inside the local region and a power law function outside. The slope and exponent of the power law is linear if superdomain_scale_factor is set explicitly, otherwise it is computed by the `set_superdomain` method.
 
         Parameters
         ----------
@@ -148,6 +153,9 @@ class HiResLocalSurface(Surface):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
+        include_variables: list[str] | tuple[str, ...] | None = None,
+        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        filename: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -161,15 +169,27 @@ class HiResLocalSurface(Surface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        include_variables : list[str] or tuple[str, ...], optional
+            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
+        exclude_variables : list[str] or tuple[str, ...], optional
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+        filename : str or Path, optional
+            The filename to save the data to. If None, a default filename will be used based on the interval number. If provided, the file associated with the local surface will have 'local' prepended. Default is None.
         """
         self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=filename,
             **kwargs,
         )
         self.local.save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=f"local_{filename}" if filename else None,
             **kwargs,
         )
         return
@@ -208,7 +228,49 @@ class HiResLocalSurface(Surface):
         )
         return
 
-    def _set_superdomain(
+    def plot(self, imagefile=None, label=None, scalebar=True, superdomain: bool = False, **kwargs: Any) -> None:
+        """
+        Plot a hillshade image of the surface.
+
+        Parameters
+        ----------
+        imagefile : str | Path, optional
+            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
+        superdomain : bool, optional
+            If True, plot the full surface including the superdomain. If False, plot only the local region. Default is False.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if superdomain:
+            return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+        else:
+            return self.local.plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+
+    def show(self, engine: str = "pyvista", variable: str = "face_elevation", superdomain: bool = False, **kwargs) -> None:
+        """
+        Show the surface using an interactive 3D plot.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        variable : str, optional
+            The variable to plot. Default is "face_elevation".
+        superdomain : bool, optional
+            If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if superdomain:
+            return self._full().show(engine=engine, variable=variable, **kwargs)
+        else:
+            return self.local.show(engine=engine, variable=variable, **kwargs)
+
+    def set_superdomain(
         self,
         scaling: Scaling | str | None = None,
         morphology: Morphology | str | None = None,
@@ -237,6 +299,9 @@ class HiResLocalSurface(Surface):
         from scipy.optimize import curve_fit
 
         from cratermaker import Crater
+
+        scaling = Scaling.maker(scaling, target=self.target, **kwargs)
+        morphology = Morphology.maker(morphology, surface=self, target=self.target, **kwargs)
 
         antipode_distance = np.pi * self.target.radius
         projectile_velocity = scaling.projectile.mean_velocity * 10
@@ -507,14 +572,7 @@ class HiResLocalSurface(Surface):
         """
         The variables used to generate the hash.
         """
-        return [
-            self._component_name,
-            self.radius,
-            self.pix,
-            self.local_radius,
-            self.local_location,
-            self.superdomain_scale_factor,
-        ]
+        return super()._hashvars + [self.pix, self.local_radius, self.local_location, self.superdomain_scale_factor]
 
 
 class LocalHiResLocalSurface(LocalSurface):
@@ -663,6 +721,10 @@ class LocalHiResLocalSurface(LocalSurface):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
+        include_variables: list[str] | tuple[str, ...] | None = None,
+        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
+        filename: str | None = None,
+        plot_style: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -676,18 +738,33 @@ class LocalHiResLocalSurface(LocalSurface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        include_variables : list[str] or tuple[str, ...], optional
+            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
+        exclude_variables : list[str] or tuple[str, ...], optional
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+        filename : str or Path, optional
+            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
+        plot_style : str, optional
+            The style of plot to generate. Set to None to skip generating a plot.
+        **kwargs : Any
+            Additional keyword arguments to pass to the save or plot functions.
         """
         super().save(
             interval_number=interval_number,
             time_variables=time_variables,
+            include_variables=include_variables,
+            exclude_variables=exclude_variables,
+            filename=filename,
             **kwargs,
         )
-        imgdir = Path(self.simdir) / "surface_images"
-        imgdir.mkdir(parents=True, exist_ok=True)
-        imagefile = imgdir / f"hillshade{interval_number:06d}.png"
-        if time_variables:
-            kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
-        self.plot_hillshade(imagefile=imagefile, **kwargs)
+        if plot_style is not None:
+            if plot_style not in ["hillshade", "elevation"]:
+                warn(f"Plot style '{plot_style}' not recognized. Using 'hillshade' or 'elevation' instead.", stacklevel=2)
+            else:
+                imagefile = self.plot_dir / f"{plot_style}{interval_number:06d}.png"
+            if time_variables and "label" not in kwargs:
+                kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+            self.plot(plot_style, imagefile=imagefile, **kwargs)
         return
 
     @property
