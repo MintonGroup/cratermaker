@@ -39,13 +39,17 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install openssl@3 openblas
 
-      - name: Install OpenBLAS on Windows
+      - name: Install OpenBLAS via vcpkg (Windows)
         if: runner.os == 'Windows'
-        run: choco install openblas 
-      
-      - name: Set OpenBLAS env on Windows
-        if: runner.os == 'Windows'
-        run: echo "OPENBLAS_DIR=C:\\tools\\openblas" >> $GITHUB_ENV
+        run: |
+          vcpkg install openblas:x64-windows
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env: GITHUB_ENV
+          echo "OPENBLAS_LIB=C:\vcpkg\installed\x64-windows\lib" >> $env:GITHUB_ENV
+
+      - name: Install Intel MKL (Windows)
+        if: runner.os == 'Windows'  
+        run: choco install intel-mkl-static
+
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
