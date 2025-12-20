@@ -5,10 +5,18 @@
 # Required
 version: 2
 
+ install:
+    - requirements: docs/requirements.txt
+
+
 # Build documentation with Sphinx
 sphinx:
   configuration: docs/conf.py
   fail_on_warning: false  
+
+python:
+  install:
+    - requirements: environments/requirements-docdev.txt
 
 build:
   os: ubuntu-22.04
@@ -24,8 +32,5 @@ build:
       - git fetch --prune --unshallow
       - git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - python buildscripts/set_version.py
-      - pip install --upgrade pip
-      - pip install ".[rasterio,docs]"
-      - pip install --upgrade --force-reinstall "sphinx<9" "sphinx-autosummary-accessors>=2025.3.1"
-      - python -c "import sphinx; print('Sphinx in RTD env:', sphinx.__version__)"
+      - pip install .
 
