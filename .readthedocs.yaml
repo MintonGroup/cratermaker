@@ -15,8 +15,8 @@ sphinx:
   fail_on_warning: false  
 
 python:
-  install:
-    - requirements: environments/requirements-docdev.txt
+   install:
+     - requirements: environments/requirements-docdev.txt
 
 build:
   os: ubuntu-22.04
