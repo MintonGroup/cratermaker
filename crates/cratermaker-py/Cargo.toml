@@ -10,6 +10,7 @@ crate-type = [ "cdylib",]
 [dependencies]
 pyo3= {version = "0.27", features = ["extension-module"]}
 numpy = "0.27"
+ndarray = { version = "=0.17" }
 cratermaker-components = { path = "../cratermaker-components" }
 
 [profile.release]
@@ -20,3 +21,4 @@ opt-level = 3
 [target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"
 features = [ "disable_initial_exec_tls",]
+
