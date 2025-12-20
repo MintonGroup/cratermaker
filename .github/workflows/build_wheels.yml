@@ -43,7 +43,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           vcpkg install openblas:x64-windows
-          echo "VCPKG_ROOT=C:\vcpkg" >> $env: GITHUB_ENV
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
           echo "OPENBLAS_LIB=C:\vcpkg\installed\x64-windows\lib" >> $env:GITHUB_ENV
 
       - name: Install Intel MKL (Windows)
