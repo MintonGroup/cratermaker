@@ -10,7 +10,7 @@ rand = "0.9.1"
 noise = "0.9.0"
 rand_chacha = "0.9.0"
 numpy = "0.27"
-ndarray-linalg = {version = "0.17", features = ["openblas-system"]}
+ndarray-linalg = {version = "0.18", features = ["openblas-system"]}
 rayon = "1.11"
 pyo3= {version = "0.27", features = ["extension-module"]}
 

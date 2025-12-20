@@ -39,6 +39,25 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install openssl@3
 
+      - name: Install OpenBLAS via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # openblas-src uses vcpkg on Windows; provide VCPKG_ROOT and install the OpenBLAS port.
+          $vcpkgRoot = Join-Path $env:GITHUB_WORKSPACE 'vcpkg'
+          if (-not (Test-Path $vcpkgRoot)) {
+            git clone https://github.com/microsoft/vcpkg $vcpkgRoot
+          }
+          & (Join-Path $vcpkgRoot 'bootstrap-vcpkg.bat')
+
+          # Choose a triplet compatible with MSVC (/MD) while linking OpenBLAS as a static library.
+          $triplet = 'x64-windows-static-md'
+          & (Join-Path $vcpkgRoot 'vcpkg.exe') install "openblas:$triplet"
+
+          "VCPKG_ROOT=$vcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "VCPKG_DEFAULT_TRIPLET=$triplet" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
