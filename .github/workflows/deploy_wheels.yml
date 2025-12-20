@@ -69,7 +69,9 @@ jobs:
             set -eux
             # maturin builds Linux wheels in a manylinux Docker container; install deps *inside* that container.
             if command -v yum >/dev/null 2>&1; then
-              yum -y install pkgconfig openssl-devel flexiblas-devel
+              yum -y install epel-release
+              yum repolist
+              yum -y install pkgconfig openssl-devel openblas-devel
             elif command -v dnf >/dev/null 2>&1; then
               dnf -y install flexiblas-devel pkgconf-pkg-config openssl-devel 
             elif command -v apt-get >/dev/null 2>&1; then
