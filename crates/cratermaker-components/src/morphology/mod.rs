@@ -254,7 +254,7 @@ fn ray_intensity_point(
 /// # Arguments
 ///
 /// * `radial_distance` - 1D array of radial distances (meters).
-/// * `initial_bearing` - 1D array of initial bearing angles (radians).
+/// * `initial_bearing` - 1D array of initial bearing angles (degrees).
 /// * `crater_diameter` - Crater diameter (meters).
 ///
 /// # Returns
