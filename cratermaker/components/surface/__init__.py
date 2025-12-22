@@ -3014,7 +3014,7 @@ class LocalSurface(CratermakerBase):
             plt.show(**kwargs)
         return im
 
-    def show(self, engine: str = "pyvista", variable: str = "face_elevation", **kwargs) -> None:
+    def show(self, engine: str = "pyvista", variable: str = "face_elevation", focus_location=None, **kwargs) -> None:
         """
         Show the local surface region using an interactive 3D plot.
 
@@ -3024,6 +3024,8 @@ class LocalSurface(CratermakerBase):
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         variable : str, optional
             The variable to plot. Default is "face_elevation".
+        focus_location : PairOfFloats, optional
+            Longitude and latitude of the location to focus the camera on. If None, the camera will be set to the default position. Default is None.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
@@ -3035,6 +3037,20 @@ class LocalSurface(CratermakerBase):
                 return
             plotter = pv.Plotter()
             mesh = self.to_vtk_mesh(self.uxds)
+            if focus_location is None and self.location is not None:
+                focus_location = self.location
+            if focus_location is not None:
+                center_face_ind = self.surface.find_nearest_face(focus_location)
+                local_center = np.array(
+                    [
+                        self.surface.face_x[center_face_ind],
+                        self.surface.face_y[center_face_ind],
+                        self.surface.face_z[center_face_ind],
+                    ]
+                )
+                plotter.camera_position = local_center * 1.15
+                plotter.camera.focal_point = local_center
+                plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
             plotter.add_mesh(mesh, scalars=variable, show_edges=False, **kwargs)
             plotter.show()
         else:
