@@ -326,14 +326,14 @@ body {
   margin-top: 10px;
 }
 
-.sd-card {
+/* .sd-card {
   position: relative;
   z-index: 1;
 }
 .sd-card .sd-stretched-link {
   position: relative;
   z-index: 2;
-}
+} */
 
 /*
  * PyData Sphinx Theme overlays

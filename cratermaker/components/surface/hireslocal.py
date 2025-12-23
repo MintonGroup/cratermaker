@@ -250,7 +250,9 @@ class HiResLocalSurface(Surface):
         else:
             return self.local.plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
 
-    def show(self, engine: str = "pyvista", variable: str = "face_elevation", superdomain: bool = False, **kwargs) -> None:
+    def show(
+        self, engine: str = "pyvista", variable: str = "face_elevation", focus_location=None, superdomain: bool = False, **kwargs
+    ) -> None:
         """
         Show the surface using an interactive 3D plot.
 
@@ -260,13 +262,15 @@ class HiResLocalSurface(Surface):
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         variable : str, optional
             The variable to plot. Default is "face_elevation".
+        focus_location : PairOfFloats, optional
+            Longitude and latitude of the location to focus the camera on. If None, the camera will be set to the default position. Default is None.
         superdomain : bool, optional
             If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
         if superdomain:
-            return self._full().show(engine=engine, variable=variable, **kwargs)
+            return self._full().show(engine=engine, variable=variable, focus_location=self.local_location, **kwargs)
         else:
             return self.local.show(engine=engine, variable=variable, **kwargs)
 
