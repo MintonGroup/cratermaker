@@ -32,7 +32,7 @@ Components of Cratermaker
 
 
     .. grid-item-card::  Surface
-        :columns: 3
+        :columns: 12 6 4 3
         :img-top: ../_static/surface_icon.svg
         :link: surface
         :link-type: doc
@@ -41,7 +41,7 @@ Components of Cratermaker
 
 
     .. grid-item-card::  Morphology
-        :columns: 3
+        :columns: 12 6 4 3
         :img-top: ../_static/morphology_icon.svg
         :link: morphology
         :link-type: doc
@@ -49,7 +49,7 @@ Components of Cratermaker
         Used to construct the three-dimensional representation of a crater onto the surface. 
 
     .. grid-item-card::  Production
-        :columns: 3
+        :columns: 12 6 4 3
         :img-top: ../_static/production_icon.svg
         :link: production
         :link-type: doc
@@ -57,7 +57,7 @@ Components of Cratermaker
         Manages the production function, which determines the number of craters/projectiles produced over time and surface area.
 
     .. grid-item-card:: Counting
-        :columns: 3
+        :columns: 12 6 4 3
         :img-top: ../_static/counting_icon.svg
         :link: counting
         :link-type: doc
@@ -65,7 +65,7 @@ Components of Cratermaker
         Contains methods for counting craters on the surface.
 
     .. grid-item-card::  Target
-        :columns: 3
+        :columns: 12 6 4 3
         :img-top: ../_static/target_icon.svg
         :link: target
         :link-type: doc
@@ -74,7 +74,7 @@ Components of Cratermaker
 
 
     .. grid-item-card::  Projectile
-        :columns: 3
+        :columns: 12 6 4 3
         :img-top: ../_static/projectile_icon.svg
         :link: projectile
         :link-type: doc
@@ -83,7 +83,7 @@ Components of Cratermaker
 
 
     .. grid-item-card::  Scaling
-        :columns: 3
+        :columns: 12 6 4 3
         :img-top: ../_static/scaling_icon.svg
         :link: scaling
         :link-type: doc
@@ -92,7 +92,7 @@ Components of Cratermaker
 
 
     .. grid-item-card::  Crater
-        :columns: 3
+        :columns: 12 6 4 3
         :img-top: ../_static/crater_icon.svg
         :link: crater
         :link-type: doc
@@ -105,7 +105,7 @@ Components of Cratermaker
     :gutter: 2
 
     .. grid-item-card::  Example gallery
-        :columns: 6
+        :columns: 12 6 6 6
         :img-top: ../_static/index_gallery.svg
         :link: ../auto_examples/index
         :link-type: doc
@@ -113,7 +113,7 @@ Components of Cratermaker
         See full working examples of how to use Cratermaker.
 
     .. grid-item-card::  API reference
-        :columns: 6
+        :columns: 12 6 6 6
         :img-top: ../_static/index_api_reference.svg
         :link: ../api/index
         :link-type: doc

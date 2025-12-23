@@ -3,9 +3,17 @@
 What's New
 ==========
 
-.. _whats-new.2025.12.0-alpha:
+.. _whats-new.2025.12.2-alpha:
 
-:release:`v2025.12.0-alpha`
+:release:`v2025.12.2-alpha`
+---------------------------
+
+- Improved the camera focusing in the `show` method of Surface and HighResLocalSurface to better center on the specified location. `David Minton`_
+- Fixed the formatting of the documentation so that the grid icons are clickable and also can resize properly on small screens. `David Minton`_
+
+.. _whats-new.2025.12.1-alpha:
+
+:release:`v2025.12.1-alpha`
 ---------------------------
 
 - Added new DataSurface type that can initialize surface topography from DEM files. :pull:68 `David Minton`_
