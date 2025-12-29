@@ -7,13 +7,11 @@ const _EXTENT_RADIUS_RATIO: f64 = 3.0;
 
 
 #[pyfunction]
-pub fn tally<'py>(
+pub fn measure_degradation_state<'py>(
     py: Python<'py>,
-    //face_elevation: PyReadonlyArray1<'py, f64>,
-    id_array: PyReadonlyArray2<'py, u32>, 
-) -> PyResult<Bound<'py, PyArray1<u32>>> {
-    let id_array = id_array.as_array();
-    let mut id_vec = Vec::with_capacity(id_array.len());
+    surface: &Bound<'py, PyAny>,
+    crater: Crater, 
+) -> PyResult<f64> {
     // for (key, value) in observed.as_ref(py).iter() {
     //     let id: u32 = key.extract()?;
     //     let crater: &PyDict = value.downcast::<PyDict>()?;
@@ -24,11 +22,32 @@ pub fn tally<'py>(
     // }
 
 
-    for id in id_array.iter() {
-        id_vec.push(*id);
-    }
-    let id_array_flat = PyArray1::from_vec(py, id_vec);
-    Ok(id_array_flat)
+    // for id in id_array.iter() {
+    //     id_vec.push(*id);
+    // }
+    // let id_array_flat = PyArray1::from_vec(py, id_vec);
+    Ok(0.0)
+}
+
+#[pyfunction]
+pub fn measure_crater_depth<'py>(
+    py: Python<'py>,
+    surface: &Bound<'py, PyAny>,
+    crater: Crater, 
+) -> PyResult<f64> {
+
+    let region = surface.call_method1("extract_region",(crater.measured_location, crater.measured_radius))?;
+    // Ensure face projections are set
+    region.call_method0("set_face_proj")?;
+    let transformer = region.getattr("from_surface").unwrap();
+    let x0y0 = transformer.call_method1("transform",(crater.measured_location.0, crater.measured_location.1))?;
+    let (x0, y0): (f64, f64) = x0y0.extract()?;
+
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
+
+
+    Ok(0.0)
 }
 
 /// Fit a single ellipse to the provided x, y coordinates and weights.
