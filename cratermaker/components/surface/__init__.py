@@ -699,7 +699,7 @@ class Surface(ComponentBase):
         """
         return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
 
-    def show(self, engine: str = "pyvista", variable: str = "face_elevation", **kwargs) -> None:
+    def show(self, engine: str = "pyvista", variable: ArrayLike | str = "face_elevation", **kwargs) -> None:
         """
         Show the surface using an interactive 3D plot.
 
@@ -707,8 +707,8 @@ class Surface(ComponentBase):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable : str, optional
-            The variable to plot. Default is "face_elevation".
+        variable : ArrayLike or str, optional
+            The variable to plot. Can be an array of values the same size as the number of faces or the name of an existing variable in the dataset. Default is "face_elevation".
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
@@ -3013,7 +3013,7 @@ class LocalSurface(CratermakerBase):
             plt.show(**kwargs)
         return im
 
-    def show(self, engine: str = "pyvista", variable: str = "face_elevation", focus_location=None, **kwargs) -> None:
+    def show(self, engine: str = "pyvista", variable: ArrayLike | str = "face_elevation", focus_location=None, **kwargs) -> None:
         """
         Show the local surface region using an interactive 3D plot.
 
@@ -3021,8 +3021,8 @@ class LocalSurface(CratermakerBase):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable : str, optional
-            The variable to plot. Default is "face_elevation".
+        variable : ArrayLike or str, optional
+            The variable to plot. Can be an array of values the same size as the number of faces or the name of an existing variable in the dataset. Default is "face_elevation".
         focus_location : PairOfFloats, optional
             Longitude and latitude of the location to focus the camera on. If None, the camera will be set to the default position. Default is None.
         **kwargs : Any
@@ -3050,7 +3050,17 @@ class LocalSurface(CratermakerBase):
                 plotter.camera_position = local_center * 1.15
                 plotter.camera.focal_point = local_center
                 plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
-            plotter.add_mesh(mesh, scalars=variable, show_edges=False, **kwargs)
+            if isinstance(variable, str):
+                if variable not in self.uxds:
+                    raise ValueError(f"Variable '{variable}' not found in the surface data.")
+                variable_name = variable
+            else:
+                variable = np.asarray(variable, dtype=np.float64)
+                if variable.size != self.n_face:
+                    raise ValueError("variable must be a string or an array with the same size as the number of faces in the grid")
+                variable_name = "scalars"
+                mesh.cell_data[variable_name] = variable
+            plotter.add_mesh(mesh, scalars=variable_name, show_edges=False, **kwargs)
             plotter.show()
         else:
             raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
