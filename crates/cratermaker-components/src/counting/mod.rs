@@ -2,10 +2,95 @@ use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use numpy::ndarray::prelude::*; 
 use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{Inverse, Eig};
-use rayon::prelude::*;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::ArrayResult;
 use crate::surface::LocalSurfaceView;
 use crate::crater::Crater;
+const _RIM_BOUNDARY:(f64, f64) = (0.95, 1.05);
+const _BOWL_BOUNDARY:f64 = 0.2;
+
+
+pub fn mask_crater_faces(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<Array1<bool>, &'static str> {
+    let ids = region
+        .id
+        .as_ref()
+        .ok_or("id required")?;
+
+    // `ids` is shaped (n_face, n_layer). A face is part of the crater if ANY layer id matches.
+    let mask_vec: Vec<bool> = ids
+        .axis_iter(Axis(0))
+        .map(|row| 
+            row.iter()
+            .any(|&id| id == crater.id)
+        )
+        .collect();
+
+    Ok(Array1::from(mask_vec))
+}
+
+pub fn measure_bowl_depth(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<f64, &'static str> {
+
+    let mut elev_sum: f64 = 0.0;
+    let mut n_bowl: usize = 0;
+    let mask_crater = mask_crater_faces(region, crater)?;
+    let n_face = region.n_face;
+    let distances = region.face_distance.as_ref().ok_or("face_distance required")?;
+    let mask_bowl: Vec<_> = (0..n_face)
+        .into_par_iter()
+        .map(|f| {
+            mask_crater[f] && distances[f] <= _BOWL_BOUNDARY * crater.measured_radius
+        })
+        .collect();
+
+    for (&elev, &mask) in region.face_elevation.iter().zip(mask_bowl.iter()) {
+        if mask && !elev.is_nan() {
+            elev_sum += elev;
+            n_bowl += 1;
+        }
+    }
+    if n_bowl == 0 {
+        return Err("no valid faces inside bowl boundary");
+    }
+    Ok(elev_sum / (n_bowl as f64))
+}
+
+
+pub fn measure_rim_height(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<f64, &'static str> {
+
+    let mut elev_sum: f64 = 0.0;
+    let mut n_rim: usize = 0;
+    let mask_crater = mask_crater_faces(region, crater)?;
+    let n_face = region.n_face;
+    let distances = region.face_distance.as_ref().ok_or("face_distance required")?;
+    let mask_rim: Vec<_> = (0..n_face)
+        .into_par_iter()
+        .map(|f| {
+            mask_crater[f] && 
+            distances[f] >= _RIM_BOUNDARY.0 * crater.measured_radius && 
+            distances[f] <= _RIM_BOUNDARY.1 * crater.measured_radius
+        })
+        .collect();
+
+    for (&elev, &mask) in region.face_elevation.iter().zip(mask_rim.iter()) {
+        if mask && !elev.is_nan() {
+            elev_sum += elev;
+            n_rim += 1;
+        }
+    }
+    if n_rim == 0 {
+        return Err("no valid faces inside rim boundary");
+    }
+    Ok(elev_sum / (n_rim as f64))
+}
 
 /// Fits a crater rim ellipse to a local surface region.
 /// This function performs an iterative fitting procedure to refine

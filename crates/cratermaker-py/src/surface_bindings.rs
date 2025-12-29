@@ -1,4 +1,4 @@
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PySlice;
 use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
@@ -44,6 +44,7 @@ pub struct PyReadonlyLocalSurface<'py> {
     pub face_bearing:   Option<PyReadonlyArray1<'py, f64>>,
     pub region_radius:  Option<f64>,
     pub location:       Option<(f64, f64)>,
+    pub id:             Option<PyReadonlyArray2<'py, u32>>,
 
 }
 
@@ -87,6 +88,31 @@ fn ensure_index_array<'py>(
     } else {
         indices_obj.extract::<PyReadonlyArray1<'py, i64>>()
             .map_err(|e| PyErr::new::<PyValueError, _>(format!("Failed to extract index array: {}", e)))
+    }
+}
+
+fn getattr_optional<'py, T>(obj: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<T>>
+where
+    T: for<'a> pyo3::FromPyObject<'a, 'py>,
+    for<'a> <T as pyo3::FromPyObject<'a, 'py>>::Error: Into<pyo3::PyErr>,
+{
+    let py = obj.py();
+    match obj.getattr(name) {
+        Ok(val) => {
+            if val.is_none() {
+                Ok(None)
+            } else {
+                Ok(Some(val.extract::<T>().map_err(Into::into)?))
+            }
+        }
+        Err(err) => {
+            // If the attribute simply doesn't exist on the Python object, treat it as optional.
+            if err.is_instance_of::<PyAttributeError>(py) {
+                Ok(None)
+            } else {
+                Err(err)
+            }
+        }
     }
 }
 
@@ -135,13 +161,13 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             edge_face_connectivity: obj.getattr("edge_face_connectivity")?.extract()?,
             edge_node_connectivity: obj.getattr("edge_node_connectivity")?.extract()?,
             edge_face_distance:     obj.getattr("edge_face_distance")?.extract()?,
-
-            face_proj_x:    obj.getattr("face_proj_x")?.extract()?,
-            face_proj_y:    obj.getattr("face_proj_y")?.extract()?,
-            face_distance:  obj.getattr("face_distance")?.extract()?,
-            face_bearing:   obj.getattr("face_bearing")?.extract()?,
-            region_radius:   obj.getattr("region_radius")?.extract()?,
-            location:       obj.getattr("location")?.extract()?,
+            face_proj_x:    getattr_optional(obj, "face_proj_x")?,
+            face_proj_y:    getattr_optional(obj, "face_proj_y")?,
+            face_distance:  getattr_optional(obj, "face_distance")?,
+            face_bearing:   getattr_optional(obj, "face_bearing")?,
+            region_radius:  getattr_optional(obj, "region_radius")?,
+            location:       getattr_optional(obj, "location")?,
+            id:             getattr_optional(obj, "id")?,
         })
     }
     /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
@@ -186,6 +212,7 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             face_bearing:           self.face_bearing.as_ref().map(|a| a.as_array()),
             region_radius:          self.region_radius,
             location:               self.location,
+            id:                     self.id.as_ref().map(|a| a.as_array()),
 
         }
     }

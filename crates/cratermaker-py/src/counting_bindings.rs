@@ -1,9 +1,10 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use numpy::{PyReadonlyArray1,PyReadonlyArray2,PyArray1};
+use numpy::{PyReadonlyArray1,PyArray1};
 use crate::surface_bindings::PyReadonlyLocalSurface;
 use cratermaker_components::crater::Crater;
-const _EXTENT_RADIUS_RATIO: f64 = 3.0;
+const _FITTING_RADIUS_RATIO: f64 = 3.0;
+const _MEASURING_RADIUS_RATIO: f64 = 1.2;
 
 
 #[pyfunction]
@@ -31,23 +32,29 @@ pub fn measure_degradation_state<'py>(
 
 #[pyfunction]
 pub fn measure_crater_depth<'py>(
-    py: Python<'py>,
+    _py: Python<'py>,
     surface: &Bound<'py, PyAny>,
     crater: Crater, 
 ) -> PyResult<f64> {
 
-    let region = surface.call_method1("extract_region",(crater.measured_location, crater.measured_radius))?;
-    // Ensure face projections are set
-    region.call_method0("set_face_proj")?;
-    let transformer = region.getattr("from_surface").unwrap();
-    let x0y0 = transformer.call_method1("transform",(crater.measured_location.0, crater.measured_location.1))?;
-    let (x0, y0): (f64, f64) = x0y0.extract()?;
-
+    let region = surface.call_method1("extract_region",(crater.measured_location, _MEASURING_RADIUS_RATIO * crater.measured_radius))?;
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
+    let bowl_depth = cratermaker_components::counting::measure_bowl_depth(
+            &region_v,
+            &crater,
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-    Ok(0.0)
+    let rim_height = cratermaker_components::counting::measure_rim_height(
+            &region_v,
+            &crater,
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+
+    Ok(rim_height - bowl_depth)
 }
 
 /// Fit a single ellipse to the provided x, y coordinates and weights.
@@ -171,7 +178,8 @@ pub fn score_rim<'py>(
     curvmult: f64,
     heightmult: f64,
 ) -> PyResult<Bound<'py, PyAny>>  {
-    let region = surface.call_method1("extract_region",(crater.measured_location, _EXTENT_RADIUS_RATIO * crater.measured_radius))?;
+
+    let region = surface.call_method1("extract_region",(crater.measured_location, _FITTING_RADIUS_RATIO * crater.measured_radius))?;
     // Ensure face projections are set
     region.call_method0("set_face_proj")?;
     let transformer = region.getattr("from_surface").unwrap();
@@ -248,7 +256,7 @@ pub fn fit_rim<'py>(
     loop {
 
         // Extract a region surrounding the current best fit location and best-fit radius
-        region = surface.call_method1("extract_region",(crater_fit.measured_location, _EXTENT_RADIUS_RATIO * crater_fit.measured_radius))?;
+        region = surface.call_method1("extract_region",(crater_fit.measured_location, _FITTING_RADIUS_RATIO * crater_fit.measured_radius))?;
         // Ensure face projections are set
         region.call_method0("set_face_proj")?;
         let transformer = region.getattr("from_surface").unwrap();

@@ -1798,6 +1798,14 @@ class Surface(ComponentBase):
         plotdir.mkdir(parents=True, exist_ok=True)
         return plotdir
 
+    @property
+    def id(self) -> NDArray[np.uint32, np.uint32]:
+        """
+        Crater identification tags for each face.
+        """
+        if "id" in self.uxds:
+            return self.uxds["id"].values
+
 
 class LocalSurface(CratermakerBase):
     """
@@ -3047,7 +3055,7 @@ class LocalSurface(CratermakerBase):
                         self.surface.face_z[center_face_ind],
                     ]
                 )
-                plotter.camera_position = local_center * 1.15
+                plotter.camera_position = local_center * 1.05
                 plotter.camera.focal_point = local_center
                 plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
             if isinstance(variable, str):
@@ -3827,6 +3835,14 @@ class LocalSurface(CratermakerBase):
         The projected y coordinates of the faces in the local CRS.
         """
         return self._face_proj_y
+
+    @property
+    def id(self) -> NDArray[np.uint32, np.uint32]:
+        """
+        Crater identification tags for each face.
+        """
+        if "id" in self.surface.uxds:
+            return self.surface.uxds["id"].values[self.face_indices]
 
 
 import_components(__name__, __path__)

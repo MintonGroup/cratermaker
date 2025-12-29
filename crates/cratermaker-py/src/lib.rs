@@ -23,6 +23,7 @@ mod cratermaker {
         #[pymodule_export]
         use crate::counting_bindings::{
             measure_degradation_state, 
+            measure_crater_depth,
             score_rim,
             fit_one_ellipse,
             fit_one_ellipse_fixed_center,

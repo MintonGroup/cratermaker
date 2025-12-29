@@ -46,6 +46,7 @@ pub struct LocalSurfaceView<'a> {
     pub face_bearing:   Option<ArrayView1<'a, f64>>,
     pub region_radius:  Option<f64>,
     pub location:       Option<(f64, f64)>,
+    pub id:             Option<ArrayView2<'a, u32>>,
 }
 
 /// Applies one explicit diffusion update step over a surface mesh with variable diffusivity.
