@@ -381,50 +381,244 @@ class Counting(ComponentBase):
         self._emplaced = []
         return
 
-    def export(self, interval_number: int = 0, driver: str = "GPKG", **kwargs: Any) -> None:
+    def export(
+        self,
+        craters: Crater | list[Crater] | dict[int, Crater] | str,
+        name: str | None = None,
+        interval_number: int | None = None,
+        driver: str = "GPKG",
+        ask_overwrite: bool = True,
+        **kwargs: Any,
+    ) -> None:
         """
-        Exports crater lists to a file and reset the emplaced crater list.
+        Exports crater lists to a file.
 
         Parameters
         ----------
+        craters : Crater |list[Crater] | dict[int, Crater] | str
+            A crater or list or dictionary of Crater objects to export, or 'emplaced' or 'observed' to export those lists.
+        name : str, default=None
+            The name used for the file name or layer name. If None, uses default naming convention.
         interval_number : int, default=0
             The interval number for the output file naming.
         driver : str, default='GPKG'
-            The vector file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', etc.
+            The file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', etc.
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
             Additional keyword arguments to pass to the make_vector_file function.
         """
-        # for crater_type in ["emplaced", "observed"]:
-        #     filename = (
-        #         self.output_dir / f"{crater_type}_{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
-        #     )
-        #     if filename.exists():
-        #         with xr.open_dataset(filename) as ds:
-        #             self.make_vector_file(ds, interval_number, layer_name=f"{crater_type}_craters", format=format, **kwargs)
-        pass
-        # return
+        if isinstance(craters, str):
+            if craters.lower() == "emplaced":
+                craters = self.emplaced
+                if name is None:
+                    name = "emplaced_craters"
+            elif craters.lower() == "observed":
+                craters = self.observed
+                if name is None:
+                    name = "observed_craters"
+            else:
+                raise ValueError("craters string must be 'emplaced' or 'observed'")
+
+        if isinstance(craters, Crater):
+            craters = [craters]
+
+        elif isinstance(craters, dict):
+            craters = craters.values()
+        elif not isinstance(craters, list):
+            raise TypeError("craters must be a Crater, list of Crater, dict of Crater, or 'emplaced'/'observed' string")
+        if name is not None:
+            kwargs["name"] = name
+
+        if driver.upper() in ["VTK", "VTP"]:
+            self.to_vtk_file(
+                craters=craters,
+                interval_number=interval_number,
+                ask_overwrite=ask_overwrite,
+                **kwargs,
+            )
+        elif driver.upper() == "CSV":
+            self.to_csv_file(
+                craters=craters,
+                interval_number=interval_number,
+                ask_overwrite=ask_overwrite,
+                **kwargs,
+            )
+        else:
+            self.to_vector_file(
+                craters=craters,
+                interval_number=interval_number,
+                driver=driver,
+                ask_overwrite=ask_overwrite,
+                **kwargs,
+            )
+
+        return
+
+    @staticmethod
+    def _overwrite_check(output_file: Path) -> bool:
+        if output_file.exists():
+            response = input(
+                f"File '{output_file}' already exists. To disable this message, pass `ask_overwrite=False` to this function. Overwrite? (y/n): "
+            )
+            if response.lower() != "y":
+                print("Operation cancelled by user.")
+                return False
+        output_file.unlink(missing_ok=True)
+        return True
 
     def to_vector_file(
         self,
-        crater_data: xr.Dataset | dict[int, Crater] | list[Crater],
+        craters: list[Crater],
         driver: str = "GPKG",
         interval_number: int | None = None,
-        layer_name: str = "craters",
+        name: str = "craters",
+        ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
         """
         Export the crater data to a vector file and stores it in the default export directory.
 
-        Notes: In order for the crater and surface to be synced up when saving to VTK/VTP format, the initial conditions (no craters) must be saved. Otherwise, saving to file only occurs if there are craters in the crater_data.
+        Parameters
+        ----------
+        craters : list[Crater]
+            A list of Crater objects.
+        driver : str, optional
+            The file format to save. Supported formats are 'GPKG', 'ESRI Shapefile', etc. Default is 'GPKG'.
+        interval_number : int, optional
+            The interval number to append to the file name. If None, then no interval number is added. Default is None.
+        name : str, optional
+            The name of the layer in the GeoPackage file or the file name if the format does not support layers, by default "craters".
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before overwriting files. Default is True.
+        **kwargs : Any
+            Additional keyword arguments that are ignored.
+        """
+
+        def shp_key_fix(key: str) -> str:
+            """
+            ESRI Shapefile format limits field names to 10 characters, so this function substitues longer names with shorter alternatives, truncates the results, and sets them to upper case.
+            """
+            alt_names = {
+                "projectile_": "proj",
+                "morphology_": "morph",
+                "diameter": "diam",
+                "longitude": "lon",
+                "latitude": "lat",
+                "density": "dens",
+                "velocity": "vel",
+                "direction": "dir",
+                "location": "loc",
+                "angle": "ang",
+                "transient_": "tr",
+            }
+            for long, short in alt_names.items():
+                if long in key:
+                    key = key.replace(long, short)
+            return key[:10].upper()
+
+        # Map of OGR drivers to file extensions
+        driver_to_extension_map = {
+            "PCIDSK": "pix",
+            "PDS4": "xml",
+            "PDF": "pdf",
+            "MBTiles": "mbtiles",
+            "ESRI Shapefile": "shp",
+            "MapInfo File": "tab",
+            "S57": "000",
+            "DGN": "dgn",
+            "GML": "gml",
+            "GPX": "gpx",
+            "KML": "kml",
+            "GeoJSON": "json",
+            "GeoJSONSeq": "geojsonl",
+            "OGR_GMT": "gmt",
+            "GPKG": "gpkg",
+            "SQLite": "sqlite",
+            "WAsP": "map",
+            "OpenFileGDB": "gdb",
+            "DXF": "dxf",
+            "FlatGeobuf": "fgb",
+            "PGDUMP": "sql",
+            "GPSBabel": "mps",
+            "JML": "jml",
+            "VDV": "txt",
+            "MVT": "mvt",
+            "PMTiles": "pmtiles",
+            "JSONFG": "json",
+            "MiraMonVector": "pol",
+        }
+
+        if driver in driver_to_extension_map:
+            file_extension = driver_to_extension_map[driver]
+        else:
+            raise ValueError("Cannot infer file extension from driver {driver}.")
+
+        if file_extension == "shp":
+            format_has_layers = False
+            split_antimeridian = True
+        else:
+            format_has_layers = True
+            split_antimeridian = True
+
+        surface = self.surface
+
+        geoms = []
+        attrs = []
+        for crater in craters:
+            poly = crater.to_geoseries(surface=surface, split_antimeridian=split_antimeridian, measured=True)
+            if isinstance(poly, GeometryCollection):
+                for p in poly.geoms:
+                    geoms.append(p)
+                    attrs.append(crater.to_dataframe())
+            else:
+                geoms.append(poly)
+                attrs.append(crater.to_dataframe())
+
+        if len(geoms) > 0:
+            attrs_df = pd.concat(attrs, ignore_index=True)
+            if driver.upper() == "SHP":
+                attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
+
+            gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
+            try:
+                if format_has_layers:
+                    output_file = self.output_dir / f"craters{interval_number:06d}.{driver}"
+                    print(f"Saving {name} layer to vector file: '{output_file}'...")
+                    gdf.to_file(output_file, layer=name)
+                else:
+                    output_file = self.output_dir / f"{name}{interval_number:06d}.{driver}"
+                    if ask_overwrite and not self._overwrite_check(output_file):
+                        return
+                    gdf.to_file(output_file)
+            except Exception as e:
+                raise RuntimeError(f"Error saving {output_file}: {e}") from e
+
+        return
+
+    def to_vtk_file(
+        self,
+        craters: list[Crater],
+        interval_number: int | None = None,
+        name: str = "craters",
+        ask_overwrite: bool = True,
+        **kwargs,
+    ) -> None:
+        """
+        Export the crater data to a VTK file and stores it in the default export directory.
+
+        Notes: In order for the crater and surface to be synced up when saving to VTK/VTP format, the initial conditions (no craters) must be saved. Otherwise, saving to file only occurs if there are craters to save.
 
         Parameters
         ----------
-        crater_data : dict
-            Dictionary containing crater attributes. Must include 'final_diameter', 'longitude', and 'latitude' keys. Any additional key value pairs will be added as attributes to each crater.
+        craters : list[Crater]
+            A list of Crater objects.
         interval_number : int, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
-        layer_name : str, optional
-            The name of the layer in the GeoPackage file, by default "craters".
+        name : str, optional
+            The name used for the file name, by default "craters".
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
             Additional keyword arguments that are ignored.
         """
@@ -435,6 +629,14 @@ class Counting(ComponentBase):
             vtkPolyLine,
             vtkXMLPolyDataWriter,
         )
+
+        if interval_number is not None:
+            output_file = self.output_dir / f"{name}{interval_number:06d}.vtp"
+        else:
+            output_file = self.output_dir / f"{name}.vtp"
+        if ask_overwrite and not self._overwrite_check(output_file):
+            return
+        print(f"Saving crater data to VTK file: '{output_file}'...")
 
         def lonlat_to_xyz(R):
             def _f(lon_deg, lat_deg, z=None):
@@ -464,118 +666,167 @@ class Counting(ComponentBase):
 
             yield from _rings(g3d)
 
-        def shp_key_fix(key: str) -> str:
-            """
-            ESRI Shapefile format limits field names to 10 characters, so this function substitues longer names with shorter alternatives, truncates the results, and sets them to upper case.
-            """
-            alt_names = {
-                "projectile_": "proj",
-                "morphology_": "morph",
-                "diameter": "diam",
-                "longitude": "lon",
-                "latitude": "lat",
-                "density": "dens",
-                "velocity": "vel",
-                "direction": "dir",
-                "location": "loc",
-                "angle": "ang",
-                "transient_": "tr",
-            }
-            for long, short in alt_names.items():
-                if long in key:
-                    key = key.replace(long, short)
-            return key[:10].upper()
-
-        if isinstance(crater_data, (dict | list)):
-            crater_data = self.to_xarray(crater_data)
-
-        if format == "shp":
-            format_has_layers = False
-            split_antimeridian = True
-        elif format == "vtp" or format == "vtk":
-            format_has_layers = False
-            split_antimeridian = False
-        else:
-            format_has_layers = True
-            split_antimeridian = True
-
         surface = self.surface
 
         geoms = []
-        attrs = []
-        if "final_diameter" in crater_data and "longitude" in crater_data and "latitude" in crater_data:
-            for id in crater_data.id:
-                crater = crater_data.sel(id=[id])
-                lon = float(crater["longitude"])
-                lat = float(crater["latitude"])
-                radius = float(crater["final_diameter"]) / 2.0
-                poly = self.geodesic_ellipse_polygon(
-                    lon,
-                    lat,
-                    a=radius,
-                    b=radius,
-                    R_pole=surface.radius,
-                    R_equator=surface.radius,
-                    split_antimeridian=split_antimeridian,
-                )
-                if isinstance(poly, GeometryCollection):
-                    for p in poly.geoms:
-                        geoms.append(p)
-                        attrs.append(crater.to_dataframe())
-                else:
-                    geoms.append(poly)
-                    attrs.append(crater.to_dataframe())
+        for crater in craters:
+            geoms.append(crater.to_geoseries(surface=surface, split_antimeridian=False, measured=True))
 
-        if format == "vtp" or format == "vtk":
-            output_file = self.output_dir / f"{layer_name}{interval_number:06d}.vtp"
+        points = vtkPoints()
+        lines = vtkCellArray()
+        point_id = 0  # Keep track of the point ID across all circles
+        for poly in geoms:
+            for ring_xyz in polygon_xyz_coords(poly, surface.radius):
+                x, y, z = ring_xyz.T  # each is (N,)
+                for i in range(len(x)):
+                    points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))
+                polyline = vtkPolyLine()
+                polyline.GetPointIds().SetNumberOfIds(len(x))
+                for i in range(len(x)):
+                    polyline.GetPointIds().SetId(i, point_id + i)
+                point_id += len(x)
+                lines.InsertNextCell(polyline)
 
-            points = vtkPoints()
-            lines = vtkCellArray()
-            point_id = 0  # Keep track of the point ID across all circles
-            for poly in geoms:
-                for ring_xyz in polygon_xyz_coords(poly, surface.radius):
-                    x, y, z = ring_xyz.T  # each is (N,)
-                    for i in range(len(x)):
-                        points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))
-                    polyline = vtkPolyLine()
-                    polyline.GetPointIds().SetNumberOfIds(len(x))
-                    for i in range(len(x)):
-                        polyline.GetPointIds().SetId(i, point_id + i)
-                    point_id += len(x)
-                    lines.InsertNextCell(polyline)
+        # Create a poly_data object and add points and lines to it
+        poly_data = vtkPolyData()
+        poly_data.SetPoints(points)
+        poly_data.SetLines(lines)
 
-            # Create a poly_data object and add points and lines to it
-            poly_data = vtkPolyData()
-            poly_data.SetPoints(points)
-            poly_data.SetLines(lines)
+        # Write the poly_data to a VTK file
+        writer = vtkXMLPolyDataWriter()
+        writer.SetFileName(output_file)
+        writer.SetInputData(poly_data)
 
-            # Write the poly_data to a VTK file
-            writer = vtkXMLPolyDataWriter()
-            writer.SetFileName(output_file)
-            writer.SetInputData(poly_data)
+        # Optional: set the data mode to binary to save disk space
+        writer.SetDataModeToBinary()
+        writer.Write()
+        return
 
-            # Optional: set the data mode to binary to save disk space
-            writer.SetDataModeToBinary()
-            writer.Write()
-        elif len(geoms) > 0:
-            attrs_df = pd.concat(attrs, ignore_index=True)
-            if format == "shp":
-                attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
+    def to_csv_file(
+        self,
+        craters: list[Crater],
+        name: str = "craters",
+        interval_number: int | None = None,
+        ask_overwrite: bool = True,
+        **kwargs,
+    ) -> None:
+        """
+        Export the crater data to a CSV file and stores it in the default export directory.
 
-            gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
-            try:
-                if format_has_layers:
-                    output_file = self.output_dir / f"craters{interval_number:06d}.{format}"
-                    print(f"Saving {layer_name} layer to vector file: '{output_file}'...")
-                    gdf.to_file(output_file, layer=layer_name)
-                else:
-                    output_file = self.output_dir / f"{layer_name}{interval_number:06d}.{format}"
-                    print(f"Saving to vector file: '{output_file}'...")
-                    gdf.to_file(output_file)
-            except Exception as e:
-                raise RuntimeError(f"Error saving {output_file}: {e}") from e
+        Parameters
+        ----------
+        craters : list[Crater]
+            List of Crater objects to export.
+        name : str, optional
+            The name used for the file name. Default is "craters".
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before overwriting files. Default is True.
+        **kwargs : Any
+            Additional keyword arguments that are ignored.
+        """
+        import csv
+
+        if craters:
+            if interval_number is None:
+                output_file = self.output_dir / f"{name}.csv"
+            else:
+                output_file = self.output_dir / f"{name}{interval_number:06d}.csv"
+            if ask_overwrite and not self._overwrite_check(output_file):
+                return
+            print(f"Saving crater data to CSV file: '{output_file}'...")
+            with output_file.open(mode="w", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                header_written = False
+                for crater in craters:
+                    crater_dict = asdict(crater)
+
+                    # Convert location fields from tuples into lon/lat
+                    location = crater_dict.pop("location")
+                    crater_dict["longitude"] = location[0]
+                    crater_dict["latitude"] = location[1]
+                    measured_location = crater_dict.pop("measured_location")
+                    crater_dict["measured_longitude"] = measured_location[0]
+                    crater_dict["measured_latitude"] = measured_location[1]
+
+                    # Check if the crater is circular, and if so convert semimajor/semiminor to diameter
+                    if crater_dict["measured_semimajor_axis"] == crater_dict["measured_semiminor_axis"]:
+                        measured_diameter = 2.0 * crater_dict.pop("measured_semimajor_axis")
+                        crater_dict.pop("measured_semiminor_axis")
+                        items = list(crater_dict.items())
+                        crater_dict = {"id": crater_dict["id"], "measured_diameter": measured_diameter}
+                        crater_dict.update(items[1:])
+
+                    if crater_dict["semimajor_axis"] == crater_dict["semiminor_axis"]:
+                        diameter = 2.0 * crater_dict.pop("semimajor_axis")
+                        crater_dict.pop("semiminor_axis")
+                        items = list(crater_dict.items())
+                        crater_dict = {"id": crater_dict["id"], "diameter": diameter}
+                        crater_dict.update(items[1:])
+
+                    # Pop out any None values
+                    crater_dict = {k: v for k, v in crater_dict.items() if v is not None}
+
+                    if not header_written:
+                        header = list(crater_dict.keys())
+                        writer.writerow(header)
+                        header_written = True
+                    row = [crater_dict[key] for key in header]
+                    writer.writerow(row)
 
         return
+
+    def from_csv_file(self, input_file: Path | str) -> list[Crater]:
+        """
+        Import crater data from a CSV file.
+
+        Parameters
+        ----------
+        input_file : Path | str
+            The path to the CSV file containing crater data.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the CSV file.
+        """
+        import csv
+
+        craters = []
+        input_file = Path(input_file)
+        if not input_file.exists():
+            raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
+        with input_file.open(mode="r", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                crater_data = {}
+                crater_data["location"] = [None, None]
+                crater_data["measured_location"] = [None, None]
+                for key, value in row.items():
+                    if key in ["id"]:
+                        crater_data[key] = int(value)
+                    elif key == "longitude":
+                        crater_data["location"][0] = float(value)
+                    elif key == "latitude":
+                        crater_data["location"][1] = float(value)
+                    elif key == "measured_longitude":
+                        crater_data["measured_location"][0] = float(value)
+                    elif key == "measured_latitude":
+                        crater_data["measured_location"][1] = float(value)
+                    else:
+                        try:
+                            crater_data[key] = float(value)
+                        except ValueError:
+                            crater_data[key] = value
+                if None in crater_data["location"]:
+                    crater_data.pop("location")
+                if None in crater_data["measured_location"]:
+                    crater_data.pop("measured_location")
+                crater = Crater.maker(**crater_data, check_redundant_inputs=False)
+                craters.append(crater)
+
+        return craters
 
     @property
     def surface(self):

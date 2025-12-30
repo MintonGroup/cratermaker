@@ -257,6 +257,7 @@ class Crater:
         rng: Generator = None,
         rng_seed: str | int | None = None,
         rng_state: dict | None = None,
+        check_redundant_inputs: bool = True,
         **kwargs: Any,
     ):
         """
@@ -334,6 +335,8 @@ class Crater:
             The rng_rng_seed for the RNG. If None, a new RNG is created.
         rng_state : dict, optional
             The state of the random number generator. If None, a new state is created.
+        check_redundant_inputs : bool, optional
+            If True, check for redundant inputs such as providing both diameter and radius. Default is True.
         **kwargs : Any
             Additional keyword arguments for subclasses.
 
@@ -344,6 +347,7 @@ class Crater:
 
         Notes
         -----
+        - Unless `check_redundant_inputs` is False, the following rules apply:
         - Exactly one of the following must be provided: `diameter`, `radius`, both of `semimajor_axis` and `semiminor_axis`, `transient_diameter`, `transient_radius`, `projectile_diameter`, `projectile_radius`, or `projectile_mass`.
         - Velocity may be specified in one of these ways:
         - `projectile_mean_velocity` alone (samples a velocity)
@@ -351,12 +355,13 @@ class Crater:
         - `projectile` is mutually exclusive with velocity-related inputs; if provided, it overrides velocity, angle, direction, and density unless explicitly set.
         - The `scaling`, and `rng` models are required for scaling and density inference, but are not stored in the returned Crater object.
         - If providing measured properties, either both `measured_semimajor_axis` and `measured_semiminor_axis`, or one of `measured_diameter` or `measured_radius` must be provided.
+        - if `check_redundant_inputs` is True and any of the rules are violated, then it is assumed that the user wants a copy. In that case, some parameters will not be computed and only the user-input arguments will be used
         """
         from cratermaker.components.projectile import Projectile
         from cratermaker.components.scaling import Scaling
         from cratermaker.components.target import Target
 
-        make_copy = False
+        make_copy = crater is not None
 
         def _set_id(**kwargs: Any) -> np.uint32:
             """
@@ -421,10 +426,16 @@ class Crater:
 
         n_velocity_inputs = sum(x is not None for x in velocity_inputs.values())
         if n_velocity_inputs > 2:
-            raise ValueError(f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set.")
+            if check_redundant_inputs:
+                raise ValueError(f"Only two of {', '.join(k for k, v in velocity_inputs.items() if v is not None)} may be set.")
+            else:
+                make_copy = True
 
         if projectile_mean_velocity is not None and (projectile_velocity is not None or projectile_vertical_velocity is not None):
-            raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
+            if check_redundant_inputs:
+                raise ValueError("projectile_mean_velocity cannot be used with projectile_velocity or projectile_vertical_velocity")
+            else:
+                make_copy = True
 
         size_inputs = {
             "semimajor_axis": semimajor_axis,
@@ -499,7 +510,10 @@ class Crater:
                     args[field] = old_parameters[field]
 
         if n_size_inputs != 1:
-            raise ValueError(f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set.")
+            if check_redundant_inputs:
+                raise ValueError(f"Exactly one of {', '.join(k for k, v in size_inputs.items() if v is not None)} must be set.")
+            else:
+                make_copy = True
 
         if make_copy:
             a = args["semimajor_axis"]
@@ -511,7 +525,6 @@ class Crater:
             pv = args["projectile_velocity"]
             pang = args["projectile_angle"]
             location = args["location"]
-            mt = crater.morphology_type
             age = args["age"]
             measured_semimajor_axis = args["measured_semimajor_axis"]
             measured_semiminor_axis = args["measured_semiminor_axis"]
@@ -519,6 +532,12 @@ class Crater:
             measured_diameter = args["measured_diameter"]
             measured_radius = args["measured_radius"]
             measured_location = args["measured_location"]
+
+            if crater is not None:
+                mt = crater.morphology_type
+            else:
+                mt = kwargs.pop("morphology_type", "UNKNOWN")
+
         else:
             # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
             argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
@@ -629,7 +648,7 @@ class Crater:
             if prho < 0:
                 raise ValueError("Projectile density must be non-negative.")
 
-        if measured_radius is not None and measured_diameter is not None:
+        if check_redundant_inputs and measured_radius is not None and measured_diameter is not None:
             raise ValueError("Only one of measured_diameter or measured_radius may be set.")
         elif measured_diameter is not None:
             measured_radius = measured_diameter / 2.0
@@ -677,7 +696,6 @@ class Crater:
         crater_args["measured_semimajor_axis"] = float(measured_semimajor_axis) if measured_semimajor_axis is not None else None
         crater_args["measured_semiminor_axis"] = float(measured_semiminor_axis) if measured_semiminor_axis is not None else None
         crater_args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
-        crater_args["measured_location"] = (
-            (float(measured_location[0]), float(measured_location[1])) if measured_location is not None else None
-        )
+        if measured_location is not None:
+            crater_args["measured_location"] = (float(measured_location[0]), float(measured_location[1]))
         return cls(**crater_args)
