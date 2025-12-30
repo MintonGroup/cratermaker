@@ -1204,44 +1204,12 @@ class Surface(ComponentBase):
         """
         return self.uxds["face_elevation"].values
 
-    @face_elevation.setter
-    def face_elevation(self, value: NDArray) -> None:
-        """
-        Set the elevation of the faces.
-
-        Parameters
-        ----------
-        value : NDArray
-            The elevation values to set for the faces.
-        """
-        value = np.asarray(value, dtype=np.float64)
-        if value.size != self.n_face:
-            raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
-        self.uxds["face_elevation"][:] = value
-        return
-
     @property
     def node_elevation(self) -> NDArray[np.float64]:
         """
         The elevation of the nodes.
         """
         return self.uxds["node_elevation"].values
-
-    @node_elevation.setter
-    def node_elevation(self, value: NDArray) -> None:
-        """
-        Set the elevation of the nodes.
-
-        Parameters
-        ----------
-        value : NDArray
-            The elevation values to set for the nodes.
-        """
-        value = np.asarray(value, dtype=np.float64)
-        if value.size != self.n_node:
-            raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
-        self.uxds["node_elevation"][:] = value
-        return
 
     @property
     def pix(self) -> float:
@@ -1797,14 +1765,6 @@ class Surface(ComponentBase):
         plotdir = self.simdir / "surface_images"
         plotdir.mkdir(parents=True, exist_ok=True)
         return plotdir
-
-    @property
-    def id(self) -> NDArray[np.uint32, np.uint32]:
-        """
-        Crater identification tags for each face.
-        """
-        if "id" in self.uxds:
-            return self.uxds["id"].values
 
 
 class LocalSurface(CratermakerBase):
@@ -3251,20 +3211,20 @@ class LocalSurface(CratermakerBase):
         """
         return self.surface.face_elevation[self.face_indices]
 
-    @face_elevation.setter
-    def face_elevation(self, value: NDArray) -> None:
-        """
-        Set the elevation of the faces.
+        # @face_elevation.setter
+        # def face_elevation(self, value: NDArray) -> None:
+        #     """
+        #     Set the elevation of the faces.
 
-        Parameters
-        ----------
-        value : NDArray
-            The elevation values to set for the faces.
+        #     Parameters
+        #     ----------
+        #     value : NDArray
+        #         The elevation values to set for the faces.
 
-        """
-        if value.size != self.n_face:
-            raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
-        self.surface.face_elevation[self.face_indices] = value
+        #     """
+        #     if value.size != self.n_face:
+        #         raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
+        #     self.surface.face_elevation[self.face_indices] = value
         return
 
     @property
@@ -3282,21 +3242,21 @@ class LocalSurface(CratermakerBase):
         """
         return self.surface.node_elevation[self.node_indices]
 
-    @node_elevation.setter
-    def node_elevation(self, value: NDArray) -> None:
-        """
-        Set the elevation of the nodes.
+    # @node_elevation.setter
+    # def node_elevation(self, value: NDArray) -> None:
+    #     """
+    #     Set the elevation of the nodes.
 
-        Parameters
-        ----------
-        value : NDArray
-            The elevation values to set for the nodes.
+    #     Parameters
+    #     ----------
+    #     value : NDArray
+    #         The elevation values to set for the nodes.
 
-        """
-        if value.size != self.n_node:
-            raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
-        self.surface.node_elevation[self.node_indices] = value
-        return
+    #     """
+    #     if value.size != self.n_node:
+    #         raise ValueError(f"Value must have size {self.n_node}, got {value.size} instead.")
+    #     self.surface.node_elevation[self.node_indices] = value
+    #     return
 
     @property
     def location(self) -> tuple[float, float]:
@@ -3835,14 +3795,6 @@ class LocalSurface(CratermakerBase):
         The projected y coordinates of the faces in the local CRS.
         """
         return self._face_proj_y
-
-    @property
-    def id(self) -> NDArray[np.uint32, np.uint32]:
-        """
-        Crater identification tags for each face.
-        """
-        if "id" in self.surface.uxds:
-            return self.surface.uxds["id"].values[self.face_indices]
 
 
 import_components(__name__, __path__)
