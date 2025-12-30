@@ -310,7 +310,7 @@ class TestSurface(unittest.TestCase):
                     uxds["test_data"].sel(n_face=face_indices).values,
                     np.full(n_face, test_value),
                 )
-
+                assert hasattr(obj, "test_data")
                 obj.add_data(
                     name="test_data",
                     data=-test_value,
@@ -330,6 +330,7 @@ class TestSurface(unittest.TestCase):
                 # Add scalar node data
                 obj.add_data(name="scalar_node", data=test_value, isfacedata=False)
                 self.assertIn("scalar_node", uxds)
+                assert hasattr(obj, "scalar_node")
                 np.testing.assert_array_equal(
                     uxds["scalar_node"].sel(n_node=node_indices).values,
                     np.full(n_node, test_value),
@@ -338,6 +339,7 @@ class TestSurface(unittest.TestCase):
                 # Add array face data
                 data_array = np.arange(n_face)
                 obj.add_data(name="array_face", data=data_array)
+                assert hasattr(obj, "array_face")
                 np.testing.assert_array_equal(uxds["array_face"].sel(n_face=face_indices).values, data_array)
 
                 # Overwrite behavior

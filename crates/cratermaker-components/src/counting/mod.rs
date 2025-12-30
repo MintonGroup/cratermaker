@@ -15,9 +15,9 @@ pub fn mask_crater_faces(
     crater: &Crater,
 ) -> Result<Array1<bool>, &'static str> {
     let ids = region
-        .id
+        .crater_id
         .as_ref()
-        .ok_or("id required")?;
+        .ok_or("crater_id required")?;
 
     // `ids` is shaped (n_face, n_layer). A face is part of the crater if ANY layer id matches.
     let mask_vec: Vec<bool> = ids

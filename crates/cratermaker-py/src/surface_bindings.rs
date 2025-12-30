@@ -44,7 +44,7 @@ pub struct PyReadonlyLocalSurface<'py> {
     pub face_bearing:   Option<PyReadonlyArray1<'py, f64>>,
     pub region_radius:  Option<f64>,
     pub location:       Option<(f64, f64)>,
-    pub id:             Option<PyReadonlyArray2<'py, u32>>,
+    pub crater_id:      Option<PyReadonlyArray2<'py, u32>>,
 
 }
 
@@ -167,7 +167,7 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             face_bearing:   getattr_optional(obj, "face_bearing")?,
             region_radius:  getattr_optional(obj, "region_radius")?,
             location:       getattr_optional(obj, "location")?,
-            id:             getattr_optional(obj, "id")?,
+            crater_id:      getattr_optional(obj, "crater_id")?,
         })
     }
     /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
@@ -212,7 +212,7 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             face_bearing:           self.face_bearing.as_ref().map(|a| a.as_array()),
             region_radius:          self.region_radius,
             location:               self.location,
-            id:                     self.id.as_ref().map(|a| a.as_array()),
+            crater_id:              self.crater_id.as_ref().map(|a| a.as_array()),
 
         }
     }

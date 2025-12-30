@@ -185,6 +185,22 @@ class Surface(ComponentBase):
         )
         return surface
 
+    def __getattr__(self, name: str):
+        """
+        Get attribute values from the uxds dataset.
+
+        Parameters
+        ----------
+        name : str
+            The name of the attribute to retrieve.
+        """
+        if not hasattr(self, "uxds"):
+            raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
+        uxds = object.__getattribute__(self, "uxds")
+        if name in uxds:
+            return uxds[name].values
+        raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
+
     def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
         """
         Reset the surface to its initial state.
@@ -1198,20 +1214,6 @@ class Surface(ComponentBase):
         return
 
     @property
-    def face_elevation(self) -> NDArray[np.float64]:
-        """
-        The elevation of the faces.
-        """
-        return self.uxds["face_elevation"].values
-
-    @property
-    def node_elevation(self) -> NDArray[np.float64]:
-        """
-        The elevation of the nodes.
-        """
-        return self.uxds["node_elevation"].values
-
-    @property
     def pix(self) -> float:
         """
         The effective pixel size of the mesh.
@@ -1859,6 +1861,34 @@ class LocalSurface(CratermakerBase):
             base += f"\nRegion Radius: {format_large_units(self.region_radius, quantity='length')}"
 
         return f"{base}\nNumber of faces: {self.n_face}\nNumber of nodes: {self.n_node}"
+
+    def __getattr__(self, name: str):
+        """
+        Get attribute from the surface's uxds.
+
+        If the attribute is face-, node-, or edge-based, slice it to only include the faces, nodes, or edges in the local surface.
+
+        Parameters
+        ----------
+        name : str
+            Name of the attribute to get.
+        """
+        uxds = self.surface.uxds
+        if name in uxds:
+            arr = uxds[name].values
+            if arr.ndim >= 1:
+                if arr.shape[0] == self.surface.n_face:
+                    return arr[self.face_indices, ...]
+                elif arr.shape[0] == self.surface.n_node:
+                    return arr[self.node_indices, ...]
+                elif arr.shape[0] == self.surface.n_edge:
+                    return arr[self.edge_indices, ...]
+                else:
+                    raise AttributeError(
+                        f"Cannot match attribute {name!r} with shape {arr.shape} to face, node, or edge data of the surface"
+                    )
+            return arr
+        raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
 
     def add_data(
         self,
@@ -3204,43 +3234,11 @@ class LocalSurface(CratermakerBase):
         return self.surface.n_nodes_per_face[self.face_indices]
 
     @property
-    def face_elevation(self) -> NDArray:
-        """
-        The elevation of the faces.
-
-        """
-        return self.surface.face_elevation[self.face_indices]
-
-        # @face_elevation.setter
-        # def face_elevation(self, value: NDArray) -> None:
-        #     """
-        #     Set the elevation of the faces.
-
-        #     Parameters
-        #     ----------
-        #     value : NDArray
-        #         The elevation values to set for the faces.
-
-        #     """
-        #     if value.size != self.n_face:
-        #         raise ValueError(f"Value must have size {self.n_face}, got {value.size} instead.")
-        #     self.surface.face_elevation[self.face_indices] = value
-        return
-
-    @property
     def face_size(self) -> NDArray:
         """
         The effective pixel size of faces in the view.
         """
         return self.surface.face_size[self.face_indices]
-
-    @property
-    def node_elevation(self) -> NDArray:
-        """
-        The elevation of the nodes.
-
-        """
-        return self.surface.node_elevation[self.node_indices]
 
     # @node_elevation.setter
     # def node_elevation(self, value: NDArray) -> None:

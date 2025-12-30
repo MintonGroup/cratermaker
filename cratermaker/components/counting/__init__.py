@@ -383,7 +383,7 @@ class Counting(ComponentBase):
 
     def export(self, interval_number: int = 0, driver: str = "GPKG", **kwargs: Any) -> None:
         """
-        Dump the crater lists to a file and reset the emplaced crater list.
+        Exports crater lists to a file and reset the emplaced crater list.
 
         Parameters
         ----------
