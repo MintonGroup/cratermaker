@@ -20,7 +20,7 @@ from cratermaker.core.base import ComponentBase, import_components
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
-_TALLY_ID = "id"
+_TALLY_ID = "crater_id"
 _TALLY_LONG_NAME = "Unique crater identification number"
 
 _N_LAYER = (
@@ -57,6 +57,7 @@ class Counting(ComponentBase):
         **kwargs: Any,
     ):
         self.surface = surface
+
         rng = kwargs.pop("rng", surface.rng)
         simdir = kwargs.pop("simdir", surface.simdir)
         super().__init__(rng=rng, simdir=simdir, reset=reset, ask_overwrite=ask_overwrite, **kwargs)
@@ -150,6 +151,7 @@ class Counting(ComponentBase):
         self.surface._uxds[_TALLY_ID] = uxda
         self._emplaced = []
         self._observed = {}
+
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
         return
 
