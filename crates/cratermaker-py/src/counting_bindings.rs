@@ -41,7 +41,7 @@ pub fn measure_crater_depth<'py>(
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
-    let bowl_depth = cratermaker_components::counting::measure_bowl_depth(
+    let floor_depth = cratermaker_components::counting::measure_floor_depth(
             &region_v,
             &crater,
         )
@@ -54,7 +54,7 @@ pub fn measure_crater_depth<'py>(
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
 
 
-    Ok(rim_height - bowl_depth)
+    Ok(rim_height - floor_depth)
 }
 
 /// Fit a single ellipse to the provided x, y coordinates and weights.
