@@ -1845,6 +1845,7 @@ class LocalSurface(CratermakerBase):
         else:  # This is really a Surface object wearing a LocalSurface costume.
             object.__setattr__(self, "_output_file_prefix", self.surface._output_file_prefix)
             object.__setattr__(self, "_grid_file_prefix", self.surface._grid_file_prefix)
+            object.__setattr__(self, "_region_radius", self.surface.radius)
             self._output_file_pattern = self.surface._output_file_pattern
 
         return
@@ -2650,7 +2651,7 @@ class LocalSurface(CratermakerBase):
             uxds = self.uxds
 
         node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
-        node_normals = node_xyz / self.radius
+        node_normals = node_xyz / self.surface.radius
         vtk_point_normals = numpy_to_vtk(node_normals.astype(np.float32), deep=True)
         vtk_point_normals.SetNumberOfComponents(3)
         vtk_point_normals.SetName("Normals")
@@ -2893,7 +2894,7 @@ class LocalSurface(CratermakerBase):
             gdf = da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
             xmin, xmax = -180.0, 180.0
             ymin, ymax = -90.0, 90.0
-            deg_per_pix = 180.0 * self.pix / (np.pi * self.radius)
+            deg_per_pix = 180.0 * self.pix / (np.pi * self.surface.radius)
             xres = yres = deg_per_pix
             W = int(np.ceil((xmax - xmin) / xres))
             H = int(np.ceil((ymax - ymin) / yres))
@@ -3037,6 +3038,7 @@ class LocalSurface(CratermakerBase):
             if focus_location is None and self.location is not None:
                 focus_location = self.location
             if focus_location is not None:
+                # Compute camera position so that it sits over the local region and the region fills the frame
                 center_face_ind = self.surface.find_nearest_face(focus_location)
                 local_center = np.array(
                     [
@@ -3045,7 +3047,10 @@ class LocalSurface(CratermakerBase):
                         self.surface.face_z[center_face_ind],
                     ]
                 )
-                plotter.camera_position = local_center * 1.05
+                # Add a 20% buffer to keep the region fully in view
+                d = 1.2 * self.radius / np.tan(np.radians(plotter.camera.view_angle / 2))
+                distance_multiplier = 1.0 + d / self.target.radius
+                plotter.camera_position = local_center * distance_multiplier
                 plotter.camera.focal_point = local_center
                 plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
             if isinstance(variable, str):
@@ -3178,6 +3183,13 @@ class LocalSurface(CratermakerBase):
         The surface object that contains the mesh data.
         """
         return self._surface
+
+    @property
+    def target(self):
+        """
+        The target body for the impact simulation. Set during initialization.
+        """
+        return self.surface.target
 
     @property
     def n_edge(self) -> int:
@@ -3542,7 +3554,7 @@ class LocalSurface(CratermakerBase):
         """
         if self._crs is None:
             self._crs = self.surface.get_crs(
-                radius=self.radius,
+                radius=self.surface.radius,
                 name=self.surface.target.name,
                 location=self.location,
             )
@@ -3732,9 +3744,9 @@ class LocalSurface(CratermakerBase):
     @property
     def radius(self) -> float:
         """
-        The radius of the target body in meters.
+        The radius of the local region in meters.
         """
-        return self.surface.radius
+        return self.region_radius
 
     @property
     def plot_dir(self) -> Path:
