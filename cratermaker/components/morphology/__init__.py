@@ -410,6 +410,8 @@ class Morphology(ComponentBase):
 
             if self.dosubpixel_degradation:
                 self.apply_subpixel_degradation()
+            if self.docounting:
+                self.counting.tally()
             return
 
         total_craters = len(self._queue_manager._queue)

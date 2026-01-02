@@ -619,7 +619,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def export(self, driver: str = "GPKG", interval_number: int | None = None, **kwargs: Any) -> None:
+    def export(self, driver: str = "GPKG", interval_number: int | None = None, ask_overwrite: bool = True, **kwargs: Any) -> None:
         """
         Export the surface data to the specified format.
 
@@ -629,12 +629,15 @@ class Surface(ComponentBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
         interval_number : int, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before overwriting existing files. Default is True.
         **kwargs : Any
             Additional keyword arguments to pass to the export function.
         """
         return self._full().export(
             driver=driver,
             interval_number=interval_number,
+            ask_overwrite=ask_overwrite,
             **kwargs,
         )
 
@@ -642,6 +645,7 @@ class Surface(ComponentBase):
         self,
         driver: str = "GPKG",
         interval_number: int | None = None,
+        ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -2457,6 +2461,7 @@ class LocalSurface(CratermakerBase):
         self,
         driver: str = "GPKG",
         interval_number: int | None = None,
+        ask_overwrite: bool = True,
         **kwargs: Any,
     ) -> None:
         """
@@ -2470,26 +2475,43 @@ class LocalSurface(CratermakerBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
         interval_number : int, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        ask_overwrite : bool, optional
+            If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
                 interval_number=interval_number,
+                ask_overwrite=ask_overwrite,
                 **kwargs,
             )
         else:
             self.to_vector_file(
                 driver=driver,
                 interval_number=interval_number,
+                ask_overwrite=ask_overwrite,
                 **kwargs,
             )
         return
+
+    @staticmethod
+    def _overwrite_check(output_file: Path) -> bool:
+        if output_file.exists():
+            response = input(
+                f"File '{output_file}' already exists. To disable this message, pass `ask_overwrite=False` to this function. Overwrite? (y/n): "
+            )
+            if response.lower() != "y":
+                print("Operation cancelled by user.")
+                return False
+        output_file.unlink(missing_ok=True)
+        return True
 
     def to_vector_file(
         self,
         driver: str = "GPKG",
         interval_number: int | None = None,
+        ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -2503,6 +2525,8 @@ class LocalSurface(CratermakerBase):
             The file format driver to use for exporting. Default is 'GPKG'.
         interval_number : int, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        ask_overwrite : bool, optional
+            If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
@@ -2539,6 +2563,8 @@ class LocalSurface(CratermakerBase):
                 gdf = gdf.rename(columns={col: shp_key_fix(col) for col in gdf.columns})
 
             print(f"Exporting to {filename} using driver {driver}")
+            if ask_overwrite and not self._overwrite_check(filename):
+                return
             gdf.to_file(filename, layer=layer_name, driver=driver, **kwargs)
             return
 
@@ -2708,6 +2734,7 @@ class LocalSurface(CratermakerBase):
     def to_vtk_file(
         self,
         interval_number: int | None = None,
+        ask_overwrite: bool = True,
         **kwargs: Any,
     ) -> None:
         """
@@ -2717,6 +2744,8 @@ class LocalSurface(CratermakerBase):
         ----------
         interval_number : int, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        ask_overwrite : bool, optional
+            If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
             Additional keyword arguments
         """
@@ -2727,6 +2756,8 @@ class LocalSurface(CratermakerBase):
             writer = vtkXMLPolyDataWriter()
             writer.SetDataModeToBinary()
             writer.SetCompressorTypeToZLib()
+            if ask_overwrite and not self._overwrite_check(output_filename):
+                return
             if output_filename.exists():
                 output_filename.unlink()
 
@@ -2739,6 +2770,8 @@ class LocalSurface(CratermakerBase):
         if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
             old_vtk_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{_VTK_FILE_EXTENSION}"))
             for f in old_vtk_files:
+                if ask_overwrite and not self._overwrite_check(f):
+                    return
                 f.unlink()
 
         # Check if we need to save the geometry file

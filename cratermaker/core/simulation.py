@@ -593,6 +593,7 @@ class Simulation(CratermakerBase):
         self,
         driver: str = "GPKG",
         interval_number: int | None = None,
+        ask_overwrite: bool = True,
         **kwargs: Any,
     ) -> None:
         """
@@ -604,6 +605,8 @@ class Simulation(CratermakerBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.). This is overridden if either the filename or file_extension parameters are provided. Default is 'GPKG'.
         interval_number : int, optional
             The interval number to export. If None, all intervals will be exported. Default is None.
+        ask_overwrite : bool, optional
+            If True, the user will be prompted before overwriting any existing files. Default is True
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
@@ -611,11 +614,18 @@ class Simulation(CratermakerBase):
         self.surface.export(
             driver=driver,
             interval_number=interval_number,
+            ask_overwrite=ask_overwrite,
             **kwargs,
         )
 
         if self.morphology.docounting:
-            self.counting.export(interval_number=interval_number, driver=driver, **kwargs)
+            self.counting.export(
+                craters=self.counting.observed,
+                interval_number=interval_number,
+                driver=driver,
+                ask_overwrite=ask_overwrite,
+                **kwargs,
+            )
         return
 
     def plot(self, **kwargs: Any) -> None:

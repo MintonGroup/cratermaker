@@ -210,6 +210,20 @@ class Counting(ComponentBase):
 
         return
 
+    def remove(self, crater_id: int) -> None:
+        """
+        Remove all instances of a crater id from the surface.
+
+        Parameters
+        ----------
+        crater_id : int
+            The ID of the crater to be removed.
+        """
+        remove_mask = self.surface.uxds[_TALLY_ID] == crater_id
+        self.surface.uxds[_TALLY_ID] = xr.where(remove_mask, 0.0, self.surface.crater_id)
+        self.observed.pop(crater_id, None)
+        return
+
     def fit_rim(self, crater: Crater, tol=0.01, nloops=10, score_quantile=0.95, fit_center=False, fit_ellipse=False) -> Crater:
         """
         Find the rim region of a crater on the surface.
@@ -307,7 +321,7 @@ class Counting(ComponentBase):
         return depth
 
     @abstractmethod
-    def tally(self, region: LocalSurface | None = None) -> None: ...
+    def tally(self, region: LocalSurface | None = None, **kwargs: Any) -> None: ...
 
     @staticmethod
     def to_xarray(craters: dict[int, Crater] | list[Crater]) -> xr.Dataset:
@@ -335,11 +349,15 @@ class Counting(ComponentBase):
                 lon, lat = d.pop("location")
                 d["longitude"] = lon
                 d["latitude"] = lat
-            d = xr.Dataset(data_vars=d).set_coords(_TALLY_ID).expand_dims(dim=_TALLY_ID)
-            d[_TALLY_ID].attrs["long_name"] = _TALLY_LONG_NAME
+            if "measured_location" in d:
+                mlon, mlat = d.pop("measured_location")
+                d["measured_longitude"] = mlon
+                d["measured_latitude"] = mlat
+            d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
+            d["id"].attrs["long_name"] = _TALLY_LONG_NAME
             new_data.append(d)
 
-        return xr.concat(new_data, dim=_TALLY_ID)
+        return xr.concat(new_data, dim="id")
 
     def save(self, interval_number: int = 0, **kwargs: Any) -> None:
         """
@@ -565,15 +583,17 @@ class Counting(ComponentBase):
 
         geoms = []
         attrs = []
+        crater_ds = self.to_xarray(craters)
         for crater in craters:
-            poly = crater.to_geoseries(surface=surface, split_antimeridian=split_antimeridian, measured=True)
+            poly = crater.to_geoseries(surface=surface, split_antimeridian=split_antimeridian, measured=True).item()
+            df = crater_ds.sel(id=[crater.id]).to_dataframe()
             if isinstance(poly, GeometryCollection):
                 for p in poly.geoms:
                     geoms.append(p)
-                    attrs.append(crater.to_dataframe())
+                    attrs.append(df)
             else:
                 geoms.append(poly)
-                attrs.append(crater.to_dataframe())
+                attrs.append(df)
 
         if len(geoms) > 0:
             attrs_df = pd.concat(attrs, ignore_index=True)
@@ -581,15 +601,23 @@ class Counting(ComponentBase):
                 attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
 
             gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
+            if format_has_layers:
+                if interval_number is None:
+                    output_file = self.output_dir / f"craters.{file_extension}"
+                else:
+                    output_file = self.output_dir / f"craters{interval_number:06d}.{file_extension}"
+                print(f"Saving {name} layer to vector file: '{output_file}'...")
+            else:
+                if interval_number is None:
+                    output_file = self.output_dir / f"{name}.{file_extension}"
+                else:
+                    output_file = self.output_dir / f"{name}{interval_number:06d}.{file_extension}"
+                if ask_overwrite and not self._overwrite_check(output_file):
+                    return
             try:
                 if format_has_layers:
-                    output_file = self.output_dir / f"craters{interval_number:06d}.{driver}"
-                    print(f"Saving {name} layer to vector file: '{output_file}'...")
                     gdf.to_file(output_file, layer=name)
                 else:
-                    output_file = self.output_dir / f"{name}{interval_number:06d}.{driver}"
-                    if ask_overwrite and not self._overwrite_check(output_file):
-                        return
                     gdf.to_file(output_file)
             except Exception as e:
                 raise RuntimeError(f"Error saving {output_file}: {e}") from e
@@ -675,8 +703,8 @@ class Counting(ComponentBase):
         points = vtkPoints()
         lines = vtkCellArray()
         point_id = 0  # Keep track of the point ID across all circles
-        for poly in geoms:
-            for ring_xyz in polygon_xyz_coords(poly, surface.radius):
+        for g in geoms:
+            for ring_xyz in polygon_xyz_coords(g.item(), surface.radius):
                 x, y, z = ring_xyz.T  # each is (N,)
                 for i in range(len(x)):
                     points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))

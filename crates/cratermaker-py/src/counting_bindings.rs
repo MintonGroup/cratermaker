@@ -7,28 +7,6 @@ const _FITTING_RADIUS_RATIO: f64 = 3.0;
 const _MEASURING_RADIUS_RATIO: f64 = 1.2;
 
 
-#[pyfunction]
-pub fn measure_degradation_state<'py>(
-    py: Python<'py>,
-    surface: &Bound<'py, PyAny>,
-    crater: Crater, 
-) -> PyResult<f64> {
-    // for (key, value) in observed.as_ref(py).iter() {
-    //     let id: u32 = key.extract()?;
-    //     let crater: &PyDict = value.downcast::<PyDict>()?;
-
-    //     let final_diameter: Option<f64> = crater.get_item("final_diameter").and_then(|v| v.extract().ok());
-    //     let location: Option<(f64, f64)> = crater.get_item("location").and_then(|v| v.extract().ok());
-
-    // }
-
-
-    // for id in id_array.iter() {
-    //     id_vec.push(*id);
-    // }
-    // let id_array_flat = PyArray1::from_vec(py, id_vec);
-    Ok(0.0)
-}
 
 #[pyfunction]
 pub fn measure_crater_depth<'py>(
