@@ -653,6 +653,8 @@ class Simulation(CratermakerBase):
         """
         if engine == "pyvista":
             plotter = self.surface.show_pyvista(**kwargs)
+            if self.morphology.docounting:
+                plotter.add_mesh(self.counting.to_vtk_mesh(self.counting.observed.values()), line_width=2)
             plotter.show()
         else:
             raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")

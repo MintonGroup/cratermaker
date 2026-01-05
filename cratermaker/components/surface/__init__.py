@@ -3127,7 +3127,7 @@ class LocalSurface(CratermakerBase):
             return
 
         def _help_message():
-            help_message = "c: Cycle through scalar face variables"
+            help_message = "j: Cycle through scalar face variables"
             help_message += "\nv: Isometric view"
             help_message += "\nUp/Down: Zoom in/out"
             help_message += "\n+/-: Increase/decrease point size"
@@ -3195,7 +3195,7 @@ class LocalSurface(CratermakerBase):
         help_actor = _help_message()
         plotter.add_actor(help_actor)
         plotter.add_key_event("h", lambda: toggle_help_message(plotter, help_actor))
-        plotter.add_key_event("c", lambda: update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor))
+        plotter.add_key_event("j", lambda: update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor))
         plotter.add_key_event("r", lambda: reset_view(plotter))
         return plotter
 

@@ -13,6 +13,7 @@ import xarray as xr
 from cratermaker._cratermaker import counting_bindings
 from shapely.geometry import GeometryCollection
 from shapely.ops import transform
+from vtk import vtkPolyData
 
 from cratermaker.components.crater import Crater
 from cratermaker.core.base import ComponentBase, import_components
@@ -627,47 +628,13 @@ class Counting(ComponentBase):
 
         return
 
-    def to_vtk_file(
-        self,
-        craters: list[Crater],
-        interval_number: int | None = None,
-        name: str = "craters",
-        ask_overwrite: bool = True,
-        **kwargs,
-    ) -> None:
-        """
-        Export the crater data to a VTK file and stores it in the default export directory.
-
-        Notes: In order for the crater and surface to be synced up when saving to VTK/VTP format, the initial conditions (no craters) must be saved. Otherwise, saving to file only occurs if there are craters to save.
-
-        Parameters
-        ----------
-        craters : list[Crater]
-            A list of Crater objects.
-        interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
-        name : str, optional
-            The name used for the file name, by default "craters".
-        ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before overwriting files. Default is True.
-        **kwargs : Any
-            Additional keyword arguments that are ignored.
-        """
+    def to_vtk_mesh(self, craters: list[Crater]) -> vtkPolyData:
         from vtk import (
             vtkCellArray,
             vtkPoints,
-            vtkPolyData,
             vtkPolyLine,
             vtkXMLPolyDataWriter,
         )
-
-        if interval_number is not None:
-            output_file = self.output_dir / f"{name}{interval_number:06d}.vtp"
-        else:
-            output_file = self.output_dir / f"{name}.vtp"
-        if ask_overwrite and not self._overwrite_check(output_file):
-            return
-        print(f"Saving crater data to VTK file: '{output_file}'...")
 
         def lonlat_to_xyz(R):
             def _f(lon_deg, lat_deg, z=None):
@@ -722,6 +689,44 @@ class Counting(ComponentBase):
         poly_data = vtkPolyData()
         poly_data.SetPoints(points)
         poly_data.SetLines(lines)
+        return poly_data
+
+    def to_vtk_file(
+        self,
+        craters: list[Crater],
+        interval_number: int | None = None,
+        name: str = "craters",
+        ask_overwrite: bool = True,
+        **kwargs,
+    ) -> None:
+        """
+        Export the crater data to a VTK file and stores it in the default export directory.
+
+        Notes: In order for the crater and surface to be synced up when saving to VTK/VTP format, the initial conditions (no craters) must be saved. Otherwise, saving to file only occurs if there are craters to save.
+
+        Parameters
+        ----------
+        craters : list[Crater]
+            A list of Crater objects.
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+        name : str, optional
+            The name used for the file name, by default "craters".
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before overwriting files. Default is True.
+        **kwargs : Any
+            Additional keyword arguments that are ignored.
+        """
+        from vtk import vtkXMLPolyDataWriter
+
+        if interval_number is not None:
+            output_file = self.output_dir / f"{name}{interval_number:06d}.vtp"
+        else:
+            output_file = self.output_dir / f"{name}.vtp"
+        if ask_overwrite and not self._overwrite_check(output_file):
+            return
+        print(f"Saving crater data to VTK file: '{output_file}'...")
+        poly_data = self.to_vtk_mesh(craters=craters)
 
         # Write the poly_data to a VTK file
         writer = vtkXMLPolyDataWriter()
