@@ -9,7 +9,7 @@ from cratermaker._cratermaker import counting_bindings
 from numpy.typing import NDArray
 from scipy import fft
 
-from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, _TALLY_ID, Counting
+from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, _TALLY_VARIABLE_NAME, Counting
 from cratermaker.components.crater import Crater
 from cratermaker.components.surface import LocalSurface, Surface
 

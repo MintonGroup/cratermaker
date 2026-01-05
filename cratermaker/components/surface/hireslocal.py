@@ -275,9 +275,11 @@ class HiResLocalSurface(Surface):
             The PyVista Plotter object for further customization.
         """
         if superdomain:
-            return self._full().show_pyvista(variable=variable, focus_location=self.local_location, **kwargs)
+            return self._full().show_pyvista(
+                variable=variable, variable_name=variable_name, focus_location=self.local_location, **kwargs
+            )
         else:
-            return self.local.show_pyvista(variable=variable, **kwargs)
+            return self.local.show_pyvista(variable=variable, variable_name=variable_name, **kwargs)
 
     def show(
         self,

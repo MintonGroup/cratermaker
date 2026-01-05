@@ -20,7 +20,7 @@ from cratermaker.core.base import ComponentBase, import_components
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
-_TALLY_ID = "crater_id"
+_TALLY_VARIABLE_NAME = "crater_id"
 _TALLY_LONG_NAME = "Unique crater identification number"
 
 _N_LAYER = (
@@ -144,11 +144,11 @@ class Counting(ComponentBase):
             data=data,
             dims=dims,
             attrs={"long_name": _TALLY_LONG_NAME},
-            name=_TALLY_ID,
+            name=_TALLY_VARIABLE_NAME,
             uxgrid=self.surface.uxgrid,
         )
 
-        self.surface._uxds[_TALLY_ID] = uxda
+        self.surface._uxds[_TALLY_VARIABLE_NAME] = uxda
         self._emplaced = []
         self._observed = {}
 
@@ -170,7 +170,7 @@ class Counting(ComponentBase):
 
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if _TALLY_ID not in self.surface.uxds:
+        if _TALLY_VARIABLE_NAME not in self.surface.uxds:
             self.reset()
 
         self.emplaced.append(crater)
@@ -187,26 +187,28 @@ class Counting(ComponentBase):
         if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
             insert_layer = -1
             for i in reversed(range(self.n_layer)):
-                if np.any(self.surface.uxds[_TALLY_ID].isel(layer=i).data[count_region.face_indices] > 0):
+                if np.any(self.surface.uxds[_TALLY_VARIABLE_NAME].isel(layer=i).data[count_region.face_indices] > 0):
                     # Gather the unique id values for the current layer
-                    unique_ids = np.unique(self.surface.uxds[_TALLY_ID].data[count_region.face_indices, i])
+                    unique_ids = np.unique(self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, i])
                     removes = [
                         id for id, v in self.observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter
                     ]
 
                     # For every id that appears in the removes list, set it to 0 in the data array
                     if removes:
-                        data = self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :]
+                        data = self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :]
                         for remove in removes:
                             data[data == remove] = 0
-                        self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :] = data
-                if insert_layer == -1 and np.all(self.surface.uxds[_TALLY_ID].isel(layer=i).data[count_region.face_indices] == 0):
+                        self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :] = data
+                if insert_layer == -1 and np.all(
+                    self.surface.uxds[_TALLY_VARIABLE_NAME].isel(layer=i).data[count_region.face_indices] == 0
+                ):
                     insert_layer = i
             if insert_layer == -1:
                 raise ValueError("Crater counting layers are full")
-            data = self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :]
+            data = self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :]
             data[:, insert_layer] = crater.id
-            self.surface.uxds[_TALLY_ID].data[count_region.face_indices, :] = data
+            self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :] = data
 
         return
 
@@ -219,8 +221,9 @@ class Counting(ComponentBase):
         crater_id : int
             The ID of the crater to be removed.
         """
-        remove_mask = self.surface.uxds[_TALLY_ID] == crater_id
-        self.surface.uxds[_TALLY_ID] = xr.where(remove_mask, 0.0, self.surface.crater_id)
+        idda = self.surface.uxds[_TALLY_VARIABLE_NAME]
+        remove_mask = idda == crater_id
+        self.surface.uxds[_TALLY_VARIABLE_NAME] = xr.where(remove_mask, xr.zeros_like(idda), idda, keep_attrs=True)
         self.observed.pop(crater_id, None)
         return
 
@@ -384,7 +387,7 @@ class Counting(ComponentBase):
             # If the file already exists, read it and merge
             if filename.exists():
                 with xr.open_dataset(filename) as ds:
-                    combined_data = xr.concat([ds, dsnew], dim=_TALLY_ID)
+                    combined_data = xr.concat([ds, dsnew], dim=_TALLY_VARIABLE_NAME)
             else:
                 combined_data = dsnew
 

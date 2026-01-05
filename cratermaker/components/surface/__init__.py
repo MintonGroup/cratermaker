@@ -2083,7 +2083,7 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
-        self.add_data("ejecta_thickness", delta_face_elevation)
+        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation)
         self.interpolate_node_elevation_from_faces()
         return
 
@@ -2103,7 +2103,7 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.slope_collapse(critical_slope=critical_slope, region=self)
         self.update_elevation(delta_face_elevation)
-        self.add_data("ejecta_thickness", delta_face_elevation)
+        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation)
         self.interpolate_node_elevation_from_faces()
 
     def compute_slope(self) -> NDArray[np.float64]:
@@ -3093,6 +3093,16 @@ class LocalSurface(CratermakerBase):
             warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
             return
 
+        def _set_title(variable_name):
+            if variable_name in self.uxds and "long_name" in self.uxds[variable_name].attrs:
+                if "units" in self.uxds[variable_name].attrs:
+                    title = f"{self.uxds[variable_name].attrs['long_name']} ({self.uxds[variable_name].attrs['units']})"
+                else:
+                    title = self.uxds[variable_name].attrs["long_name"]
+            else:
+                title = variable_name
+            return title
+
         def update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor):
             scalar_names = []
             for v in mesh_actor.mapper.dataset.array_names:
@@ -3109,10 +3119,7 @@ class LocalSurface(CratermakerBase):
             mesh_actor.mapper.array_name = next_scalar_name
             mesh_actor.mapper.scalar_range = mesh.cell_data[next_scalar_name].range
             mesh_actor.mapper.dataset.active_scalars_name = next_scalar_name
-            if next_scalar_name in self.uxds and "long_name" in self.uxds[next_scalar_name].attrs:
-                title = self.uxds[next_scalar_name].attrs["long_name"]
-            else:
-                title = next_scalar_name
+            title = _set_title(next_scalar_name)
             scalar_bar_actor.SetTitle(title)
             plotter.update()
             return
@@ -3140,8 +3147,8 @@ class LocalSurface(CratermakerBase):
             if self.uxds[v].shape == (self.n_face,):
                 mesh.cell_data[v] = self.uxds[v].data
 
-        if variable_name in self.uxds and "long_name" in self.uxds[variable_name].attrs:
-            title = self.uxds[variable_name].attrs["long_name"]
+        if variable_name in self.uxds:
+            title = _set_title(variable_name)
         else:
             if variable is not None:
                 variable = np.asarray(variable, dtype=np.float64)
@@ -3819,10 +3826,26 @@ class LocalSurface(CratermakerBase):
             ds[var].attrs = self.surface.uxds[var].attrs.copy()
         if self.location is not None:
             ds = ds.assign_attrs({"location": self.location})
-            ds["face_distance"] = xr.DataArray(data=self.face_distance, dims=("n_face",))
-            ds["face_bearing"] = xr.DataArray(data=self.face_bearing, dims=("n_face",))
-            ds["node_distance"] = xr.DataArray(data=self.node_distance, dims=("n_node",))
-            ds["node_bearing"] = xr.DataArray(data=self.node_bearing, dims=("n_node",))
+            ds["face_distance"] = xr.DataArray(
+                data=self.face_distance,
+                dims=("n_face",),
+                attrs={"long_name": "Distance from center location to face", "units": "m"},
+            )
+            ds["face_bearing"] = xr.DataArray(
+                data=self.face_bearing,
+                dims=("n_face",),
+                attrs={"long_name": "Initial bearing from center location to face", "units": "degrees"},
+            )
+            ds["node_distance"] = xr.DataArray(
+                data=self.node_distance,
+                dims=("n_node",),
+                attrs={"long_name": "Distance from center location to node", "units": "m"},
+            )
+            ds["node_bearing"] = xr.DataArray(
+                data=self.node_bearing,
+                dims=("n_node",),
+                attrs={"long_name": "Initial bearing from center location to node", "units": "degrees"},
+            )
         if isinstance(self.face_indices, slice):
             data = np.arange(self.surface.n_face)[self.face_indices]
         else:
@@ -3830,17 +3853,22 @@ class LocalSurface(CratermakerBase):
         ds["face_indices"] = xr.DataArray(
             data=data,
             dims=("n_face",),
+            attrs={"long_name": "Indices of faces in the local surface view"},
         )
         if isinstance(self.node_indices, slice):
             data = np.arange(self.surface.n_node)[self.node_indices]
         else:
             data = self.node_indices
-        ds["node_indices"] = xr.DataArray(data=data, dims=("n_node",))
+        ds["node_indices"] = xr.DataArray(
+            data=data, dims=("n_node",), attrs={"long_name": "Indices of nodes in the local surface view"}
+        )
         if isinstance(self.edge_indices, slice):
             data = np.arange(self.surface.n_edge)[self.edge_indices]
         else:
             data = self.edge_indices
-        ds["edge_indices"] = xr.DataArray(data=data, dims=("n_edge",))
+        ds["edge_indices"] = xr.DataArray(
+            data=data, dims=("n_edge",), attrs={"long_name": "Indices of edges in the local surface view"}
+        )
         return uxr.UxDataset.from_xarray(ds=ds, uxgrid=self.uxgrid)
 
     @property
