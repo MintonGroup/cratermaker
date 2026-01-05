@@ -640,16 +640,23 @@ class Simulation(CratermakerBase):
         self.surface.plot(**kwargs)
         return
 
-    def show(self, **kwargs: Any) -> None:
+    def show(self, engine: str = "pyvista", **kwargs: Any) -> None:
         """
-        Show the current state of the surface.
+        Show the current state of the simulated surface.
 
         Parameters
         ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         **kwargs : Any
             Keyword arguments to pass to the surface show method.
         """
-        self.surface.show(**kwargs)
+        if engine == "pyvista":
+            plotter = self.surface.show_pyvista(**kwargs)
+            plotter.show()
+        else:
+            raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
+
         return
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:

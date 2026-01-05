@@ -719,7 +719,29 @@ class Surface(ComponentBase):
         """
         return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
 
-    def show(self, engine: str = "pyvista", variable: ArrayLike | str = "face_elevation", **kwargs) -> None:
+    def show_pyvista(self, variable_name: str = "face_elevation", variable: ArrayLike | None = None, **kwargs: Any):
+        """
+        Show the surface region using an interactive 3D plot with PyVista.
+
+        Parameters
+        ----------
+        variable_name : str, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
+        variable: (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+
+        Returns
+        -------
+        pyvista.Plotter
+            The PyVista Plotter object for further customization.
+        """
+        return self._full().show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
+
+    def show(
+        self, engine: str = "pyvista", variable_name: str = "face_elevation", variable: ArrayLike | None = None, **kwargs: Any
+    ) -> None:
         """
         Show the surface using an interactive 3D plot.
 
@@ -727,12 +749,14 @@ class Surface(ComponentBase):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable : ArrayLike or str, optional
-            The variable to plot. Can be an array of values the same size as the number of faces or the name of an existing variable in the dataset. Default is "face_elevation".
+        variable_name : str, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
+        variable: (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
-        return self._full().show(engine=engine, variable=variable, **kwargs)
+        return self._full().show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
 
     @staticmethod
     def _sphere_function(coords, x_c, y_c, z_c, r):
@@ -3045,7 +3069,99 @@ class LocalSurface(CratermakerBase):
             plt.show(**kwargs)
         return im
 
-    def show(self, engine: str = "pyvista", variable: ArrayLike | str = "face_elevation", focus_location=None, **kwargs) -> None:
+    def show_pyvista(self, variable_name: str = "face_elevation", variable: ArrayLike | None = None, **kwargs) -> None:
+        """
+        Show the local surface region using an interactive 3D plot with PyVista.
+
+        Parameters
+        ----------
+        variable_name : str, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
+        variable: (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        **kwargs : Any
+            Additional keyword arguments to pass to the plotting function.
+
+        Returns
+        -------
+        pyvista.Plotter
+            The PyVista Plotter object for further customization.
+        """
+        try:
+            import pyvista as pv
+        except ImportError:
+            warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
+            return
+
+        def update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor):
+            scalar_names = []
+            for v in mesh_actor.mapper.dataset.array_names:
+                if v in mesh_actor.mapper.dataset.cell_data:
+                    scalar_names.append(v)
+            scalar_names.sort()
+            scalar_names = list(set(scalar_names))  # Remove duplicates
+            idx = scalar_names.index(mesh_actor.mapper.array_name)
+            idx += 1
+            if idx == len(scalar_names):
+                idx = 0
+
+            next_scalar_name = scalar_names[idx]
+            mesh_actor.mapper.array_name = next_scalar_name
+            mesh_actor.mapper.scalar_range = mesh.cell_data[next_scalar_name].range
+            mesh_actor.mapper.dataset.active_scalars_name = next_scalar_name
+            if next_scalar_name in self.uxds and "long_name" in self.uxds[next_scalar_name].attrs:
+                title = self.uxds[next_scalar_name].attrs["long_name"]
+            else:
+                title = next_scalar_name
+            scalar_bar_actor.SetTitle(title)
+            plotter.update()
+            return
+
+        plotter = pv.Plotter()
+
+        mesh = self.to_vtk_mesh(self.uxds)
+        if self.location is not None:
+            # Compute camera position so that it sits over the local region and the region fills the frame
+            center_face_ind = self.surface.find_nearest_face(self.location)
+            local_center = np.array(
+                [
+                    self.surface.face_x[center_face_ind],
+                    self.surface.face_y[center_face_ind],
+                    self.surface.face_z[center_face_ind],
+                ]
+            )
+            # Add a 20% buffer to keep the region fully in view
+            d = 1.2 * self.radius / np.tan(np.radians(plotter.camera.view_angle / 2))
+            distance_multiplier = 1.0 + d / self.target.radius
+            plotter.camera_position = local_center * distance_multiplier
+            plotter.camera.focal_point = local_center
+            plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
+        for v in self.uxds.data_vars:
+            if self.uxds[v].shape == (self.n_face,):
+                mesh.cell_data[v] = self.uxds[v].data
+
+        if variable_name in self.uxds and "long_name" in self.uxds[variable_name].attrs:
+            title = self.uxds[variable_name].attrs["long_name"]
+        else:
+            if variable is not None:
+                variable = np.asarray(variable, dtype=np.float64)
+                if variable.size != self.n_face:
+                    raise ValueError("variable must be a string or an array with the same size as the number of faces in the grid")
+                mesh.cell_data[variable_name] = variable
+                title = variable_name
+            else:
+                raise ValueError(
+                    f"Variable '{variable_name}' not found in the surface data. The 'variable' argument must be provided with scalar values for the faces."
+                )
+
+        mesh_actor = plotter.add_mesh(mesh, scalars=variable_name, show_edges=False, show_scalar_bar=False, **kwargs)
+        scalar_bar_actor = plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
+        plotter.add_key_event("v", lambda: update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor))
+        return plotter
+
+    def show(
+        self, engine: str = "pyvista", variable_name: str = "face_elevation", variable: ArrayLike | None = None, **kwargs
+    ) -> None:
         """
         Show the local surface region using an interactive 3D plot.
 
@@ -3053,50 +3169,15 @@ class LocalSurface(CratermakerBase):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable : ArrayLike or str, optional
-            The variable to plot. Can be an array of values the same size as the number of faces or the name of an existing variable in the dataset. Default is "face_elevation".
-        focus_location : PairOfFloats, optional
-            Longitude and latitude of the location to focus the camera on. If None, the camera will be set to the default position. Default is None.
+        variable_name : str, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
+        variable: (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
         if engine == "pyvista":
-            try:
-                import pyvista as pv
-            except ImportError:
-                warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
-                return
-            plotter = pv.Plotter()
-            mesh = self.to_vtk_mesh(self.uxds)
-            if focus_location is None and self.location is not None:
-                focus_location = self.location
-            if focus_location is not None:
-                # Compute camera position so that it sits over the local region and the region fills the frame
-                center_face_ind = self.surface.find_nearest_face(focus_location)
-                local_center = np.array(
-                    [
-                        self.surface.face_x[center_face_ind],
-                        self.surface.face_y[center_face_ind],
-                        self.surface.face_z[center_face_ind],
-                    ]
-                )
-                # Add a 20% buffer to keep the region fully in view
-                d = 1.2 * self.radius / np.tan(np.radians(plotter.camera.view_angle / 2))
-                distance_multiplier = 1.0 + d / self.target.radius
-                plotter.camera_position = local_center * distance_multiplier
-                plotter.camera.focal_point = local_center
-                plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
-            if isinstance(variable, str):
-                if variable not in self.uxds:
-                    raise ValueError(f"Variable '{variable}' not found in the surface data.")
-                variable_name = variable
-            else:
-                variable = np.asarray(variable, dtype=np.float64)
-                if variable.size != self.n_face:
-                    raise ValueError("variable must be a string or an array with the same size as the number of faces in the grid")
-                variable_name = "scalars"
-                mesh.cell_data[variable_name] = variable
-            plotter.add_mesh(mesh, scalars=variable_name, show_edges=False, **kwargs)
+            plotter = self.show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
             plotter.show()
         else:
             raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
@@ -3712,6 +3793,7 @@ class LocalSurface(CratermakerBase):
         Return a UxDataset representation of the local surface.
         """
         ds = xr.Dataset()
+        ds.attrs = self.surface.uxds.attrs.copy()
         for var in self.surface.uxds.data_vars:
             if self.surface.uxds[var].dims == ("n_face",):
                 ds[var] = (
@@ -3734,6 +3816,7 @@ class LocalSurface(CratermakerBase):
                     ("n_face", dim2name),
                     self.surface.uxds[var].values[self.face_indices, :],
                 )
+            ds[var].attrs = self.surface.uxds[var].attrs.copy()
         if self.location is not None:
             ds = ds.assign_attrs({"location": self.location})
             ds["face_distance"] = xr.DataArray(data=self.face_distance, dims=("n_face",))
