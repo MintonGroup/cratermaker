@@ -3104,6 +3104,7 @@ class LocalSurface(CratermakerBase):
             return title
 
         def update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor):
+            camera_orig = plotter.camera
             scalar_names = []
             for v in mesh_actor.mapper.dataset.array_names:
                 if v in mesh_actor.mapper.dataset.cell_data:
@@ -3121,28 +3122,56 @@ class LocalSurface(CratermakerBase):
             mesh_actor.mapper.dataset.active_scalars_name = next_scalar_name
             title = _set_title(next_scalar_name)
             scalar_bar_actor.SetTitle(title)
+            plotter.camera = camera_orig
             plotter.update()
+            return
+
+        def _help_message():
+            help_message = "c: Cycle through scalar face variables"
+            help_message += "\nv: Isometric view"
+            help_message += "\nUp/Down: Zoom in/out"
+            help_message += "\n+/-: Increase/decrease point size"
+            help_message += "\nw: Wireframe view"
+            help_message += "\ns: Shaded view"
+            help_message += "\nC: Enable cell picking"
+            help_message += "\nh: Toggle this help message"
+            help_message += "\nq: Quit"
+            help_actor = pv.CornerAnnotation(0, help_message, name="help")
+            help_actor.SetVisibility(False)
+            return help_actor
+
+        def toggle_help_message(plotter, help_actor):
+            help_actor.SetVisibility(not help_actor.GetVisibility())
+            plotter.update()
+            return
+
+        def reset_view(plotter):
+            if self.location is None:
+                plotter.reset_camera()
+            else:
+                # Compute camera position so that it sits over the local region and the region fills the frame
+                center_face_ind = self.surface.find_nearest_face(self.location)
+                local_center = np.array(
+                    [
+                        self.surface.face_x[center_face_ind],
+                        self.surface.face_y[center_face_ind],
+                        self.surface.face_z[center_face_ind],
+                    ]
+                )
+                # Add a 20% buffer to keep the region fully in view
+                d = 1.2 * self.radius / np.tan(np.radians(plotter.camera.view_angle / 2))
+                distance_multiplier = 1.0 + d / self.target.radius
+                plotter.camera_position = local_center * distance_multiplier
+                plotter.camera.focal_point = local_center
+                plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
             return
 
         plotter = pv.Plotter()
 
         mesh = self.to_vtk_mesh(self.uxds)
-        if self.location is not None:
-            # Compute camera position so that it sits over the local region and the region fills the frame
-            center_face_ind = self.surface.find_nearest_face(self.location)
-            local_center = np.array(
-                [
-                    self.surface.face_x[center_face_ind],
-                    self.surface.face_y[center_face_ind],
-                    self.surface.face_z[center_face_ind],
-                ]
-            )
-            # Add a 20% buffer to keep the region fully in view
-            d = 1.2 * self.radius / np.tan(np.radians(plotter.camera.view_angle / 2))
-            distance_multiplier = 1.0 + d / self.target.radius
-            plotter.camera_position = local_center * distance_multiplier
-            plotter.camera.focal_point = local_center
-            plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
+
+        reset_view(plotter)
+
         for v in self.uxds.data_vars:
             if self.uxds[v].shape == (self.n_face,):
                 mesh.cell_data[v] = self.uxds[v].data
@@ -3163,7 +3192,11 @@ class LocalSurface(CratermakerBase):
 
         mesh_actor = plotter.add_mesh(mesh, scalars=variable_name, show_edges=False, show_scalar_bar=False, **kwargs)
         scalar_bar_actor = plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
-        plotter.add_key_event("v", lambda: update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor))
+        help_actor = _help_message()
+        plotter.add_actor(help_actor)
+        plotter.add_key_event("h", lambda: toggle_help_message(plotter, help_actor))
+        plotter.add_key_event("c", lambda: update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor))
+        plotter.add_key_event("r", lambda: reset_view(plotter))
         return plotter
 
     def show(
