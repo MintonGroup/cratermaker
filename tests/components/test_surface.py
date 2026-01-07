@@ -430,6 +430,8 @@ class TestSurface(unittest.TestCase):
                 "interval_number": -1,
             },
         ]
+        for i, _ in enumerate(export_args_list):
+            export_args_list[i]["ask_overwrite"] = False
 
         # Expected output files:
         expected_file_list = [

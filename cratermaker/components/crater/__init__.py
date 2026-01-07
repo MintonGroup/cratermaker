@@ -84,7 +84,8 @@ class Crater:
         n: int = 150,
         surface: Surface | None = None,
         split_antimeridian: bool = True,
-        measured: bool = False,
+        use_measured_properties: bool = True,
+        **kwargs: Any,
     ) -> GeoSeries:
         """
         Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by the crater's orientation.
@@ -97,8 +98,10 @@ class Crater:
             Surface object providing planetary radius and CRS.
         split_antimeridian : bool, optional
             If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
-        measured : bool, optional
-            If True, use the current measured crater parameters instead of the initial ones, by default False.
+        use_measured_properties : bool, optional
+            If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
+        **kwargs : Any
+            Additional keyword arguments.
 
         Returns
         -------
@@ -109,7 +112,7 @@ class Crater:
         surface = Surface.maker(surface)
         geod = Geod(a=surface.target.radius, b=surface.target.radius)
         theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
-        if measured:
+        if use_measured_properties:
             a = self.measured_semimajor_axis
             b = self.measured_semiminor_axis
             lon, lat = self.measured_location

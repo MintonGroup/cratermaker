@@ -495,6 +495,7 @@ class Counting(ComponentBase):
         driver: str = "GPKG",
         interval_number: int | None = None,
         name: str = "craters",
+        use_measured_properties: bool = True,
         ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
@@ -511,6 +512,8 @@ class Counting(ComponentBase):
             The interval number to append to the file name. If None, then no interval number is added. Default is None.
         name : str, optional
             The name of the layer in the GeoPackage file or the file name if the format does not support layers, by default "craters".
+        use_measured_properties : bool, optional
+            If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
@@ -589,7 +592,9 @@ class Counting(ComponentBase):
         attrs = []
         crater_ds = self.to_xarray(craters)
         for crater in craters:
-            poly = crater.to_geoseries(surface=surface, split_antimeridian=split_antimeridian, measured=True).item()
+            poly = crater.to_geoseries(
+                surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=use_measured_properties
+            ).item()
             df = crater_ds.sel(id=[crater.id]).to_dataframe()
             if isinstance(poly, GeometryCollection):
                 for p in poly.geoms:
@@ -628,7 +633,24 @@ class Counting(ComponentBase):
 
         return
 
-    def to_vtk_mesh(self, craters: list[Crater]) -> vtkPolyData:
+    def to_vtk_mesh(self, craters: list[Crater], use_measured_properties: bool = True, **kwargs: Any) -> vtkPolyData:
+        """
+        Convert the crater data to a VTK PolyData mesh.
+
+        Parameters
+        ----------
+        craters : list[Crater]
+            A list of Crater objects to convert.
+        use_measured_properties : bool, optional
+            If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
+        **kwargs : Any
+            Additional keyword arguments that are passed to the crater to_geoseries method.
+
+        Returns
+        -------
+        vtkPolyData
+            A VTK PolyData object representing the crater geometries.
+        """
         from vtk import (
             vtkCellArray,
             vtkPoints,
@@ -637,12 +659,12 @@ class Counting(ComponentBase):
         )
 
         def lonlat_to_xyz(R):
-            def _f(lon_deg, lat_deg, z=None):
+            def _f(lon_deg, lat_deg, z=0.0):
                 lon = np.deg2rad(lon_deg)
                 lat = np.deg2rad(lat_deg)
-                X = R * np.cos(lat) * np.cos(lon)
-                Y = R * np.cos(lat) * np.sin(lon)
-                Z = R * np.sin(lat)
+                X = (R + z) * np.cos(lat) * np.cos(lon)
+                Y = (R + z) * np.cos(lat) * np.sin(lon)
+                Z = (R + z) * np.sin(lat)
                 return X, Y, Z
 
             return _f
@@ -668,7 +690,11 @@ class Counting(ComponentBase):
 
         geoms = []
         for crater in craters:
-            geoms.append(crater.to_geoseries(surface=surface, split_antimeridian=False, measured=True))
+            geoms.append(
+                crater.to_geoseries(
+                    surface=surface, split_antimeridian=False, use_measured_properties=use_measured_properties, **kwargs
+                )
+            )
 
         points = vtkPoints()
         lines = vtkCellArray()

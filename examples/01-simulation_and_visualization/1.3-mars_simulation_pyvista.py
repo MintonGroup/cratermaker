@@ -27,7 +27,7 @@ sim = cm.Simulation(
     ask_overwrite=False,
     rng_seed=86186233406,  # This will ensure we get the same crater population each time we run the example
 )
-sim.run(age=2000, plot_style="elevation", cmap="pink", scalebar=True, label="Mars region simulation")
+sim.run(age=2000, plot_style="map", cmap="pink", scalebar=True, label="Mars region simulation")
 sim.show(cmap="pink")
 
 # Alternatively, this will generate hillshade images with a default time stamp

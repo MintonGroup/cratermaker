@@ -35,12 +35,12 @@ def plot_fits(ax, surface, crater=None, plot_score=False, imagefile=None):
     surface.plot(show=False, style="hillshade", ax=ax)
     if crater:
         # Plot the initial guess
-        crater.to_geoseries(surface=surface, split_antimeridian=False, measured=False).to_crs(surface.local.crs).plot(
-            ax=ax, facecolor="none", edgecolor="cyan", linewidth=0.1, linestyle=":"
-        )
+        crater.to_geoseries(surface=surface, split_antimeridian=False, use_measured_properties=False).to_crs(
+            surface.local.crs
+        ).plot(ax=ax, facecolor="none", edgecolor="cyan", linewidth=0.1, linestyle=":")
 
         # Plot the fit
-        crater.to_geoseries(surface=surface, split_antimeridian=False, measured=True).to_crs(surface.local.crs).plot(
+        crater.to_geoseries(surface=surface, split_antimeridian=False, use_measured_properties=True).to_crs(surface.local.crs).plot(
             ax=ax, facecolor="none", edgecolor="white", linewidth=0.2
         )
 
@@ -49,7 +49,7 @@ def plot_fits(ax, surface, crater=None, plot_score=False, imagefile=None):
         surface.plot(
             variable="rimscore",
             show=False,
-            style="elevation",
+            style="map",
             cmap="magma",
             ax=ax,
             imagefile=imagefile,

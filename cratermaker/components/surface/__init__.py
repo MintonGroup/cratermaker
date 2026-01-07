@@ -8,7 +8,7 @@ import threading
 import warnings
 from abc import abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import uxarray as uxr
@@ -2892,8 +2892,9 @@ class LocalSurface(CratermakerBase):
 
     def plot(
         self,
-        style: str = "elevation",
-        variable: str = "face_elevation",
+        style: Literal["map", "hillshade"] = "map",
+        variable: str | None = None,
+        cmap: str | None = None,
         imagefile=None,
         label=None,
         scalebar=False,
@@ -2907,9 +2908,11 @@ class LocalSurface(CratermakerBase):
         Parameters
         ----------
         style : str, optional
-            The style of the plot. Currently, only "hillshade" is supported. Default is "hillshade".
-        variable : str, optional
-            The variable to plot. Default is "face_elevation".
+            The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
+        variable : str | None, optional
+            The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        cmap : str, optional
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
@@ -2943,12 +2946,26 @@ class LocalSurface(CratermakerBase):
         from matplotlib.colors import LightSource
         from scipy.ndimage import gaussian_filter
 
-        if variable not in self.uxds:
+        if variable is not None and variable not in self.uxds:
             raise ValueError(f"Variable '{variable}' not found in the surface data.")
-        da = self.uxds[variable].load()
+        if variable is None and style == "map":
+            variable = "face_elevation"
+        if style == "hillshade":
+            hill_da = self.uxds["face_elevation"].load()
+            if variable is None:
+                do_overlay = False
+            else:
+                var_da = self.uxds[variable].load()
+                do_overlay = True
+        else:
+            var_da = self.uxds[variable].load()
+
         if self.location is None:
             # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
-            gdf = da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
+            if variable is not None:
+                var_gdf = var_da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
+            if style == "hillshade":
+                hill_gdf = hill_da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
             xmin, xmax = -180.0, 180.0
             ymin, ymax = -90.0, 90.0
             deg_per_pix = 180.0 * self.pix / (np.pi * self.surface.radius)
@@ -2957,9 +2974,20 @@ class LocalSurface(CratermakerBase):
             H = int(np.ceil((ymax - ymin) / yres))
 
             transform = from_bounds(xmin, ymin, xmax, ymax, W, H)
-            scalebar = False
+            scalebar = False  # Turn off scalebar for global plots
         else:
-            gdf = da.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
+            if variable is not None:
+                var_gdf = (
+                    var_da.to_geodataframe(engine="geopandas", periodic_elements="ignore")
+                    .set_crs(self.surface.crs)
+                    .to_crs(self.crs)
+                )
+            if style == "hillshade":
+                hill_gdf = (
+                    hill_da.to_geodataframe(engine="geopandas", periodic_elements="ignore")
+                    .set_crs(self.surface.crs)
+                    .to_crs(self.crs)
+                )
             R = self.region_radius
             xmin, xmax = -R, R
             ymin, ymax = -R, R
@@ -2970,42 +2998,58 @@ class LocalSurface(CratermakerBase):
             # upper-left at (-R, +R); y increases downward in rasters
             transform = Affine.translation(-R, R) * Affine.scale(xres, -yres)
 
-        vals = gdf[variable].to_numpy()
-        geoms = gdf.geometry.values
-        shapes = [
-            (geom, float(val))
-            for geom, val in zip(geoms, vals, strict=False)
-            if (geom is not None) and (not geom.is_empty) and np.isfinite(val)
-        ]
+        def _to_raster(gdf, variable):
+            vals = gdf[variable].to_numpy()
+            geoms = gdf.geometry.values
+            shapes = [
+                (geom, float(val))
+                for geom, val in zip(geoms, vals, strict=False)
+                if (geom is not None) and (not geom.is_empty) and np.isfinite(val)
+            ]
 
-        band = rasterize(
-            shapes=shapes,
-            out_shape=(H, W),
-            transform=transform,
-            fill=np.nan,
-            dtype=np.float32,
-            all_touched=True,
-        )
+            return rasterize(
+                shapes=shapes,
+                out_shape=(H, W),
+                transform=transform,
+                fill=np.nan,
+                dtype=np.float32,
+                all_touched=True,
+            )
+
+        if variable is not None:
+            variable_raster = _to_raster(var_gdf, variable)
+            vmin = kwargs.pop("vmin", np.nanmin(variable_raster))
+            vmax = kwargs.pop("vmax", np.nanmax(variable_raster))
+        else:
+            vmin = kwargs.pop("vmin", 0.0)
+            vmax = kwargs.pop("vmax", 1.0)
 
         if style == "hillshade":
-            # Generate hillshade
+            hill_args = {"dx": self.pix, "dy": self.pix, "fraction": 1.0}
+            elevation = _to_raster(hill_gdf, "face_elevation")
+            elevation = gaussian_filter(elevation, sigma=2, mode="constant", cval=np.nan)
             azimuth = 300.0
             solar_angle = 20.0
             ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
-            band = gaussian_filter(band, sigma=2, mode="constant", cval=np.nan)
-            cvals = ls.hillshade(band, dx=self.pix, dy=self.pix, fraction=1.0)
-            cmap = kwargs.pop("cmap", "gray")
-            vmin = 0.0
-            vmax = 1.0
+            if do_overlay:
+                if cmap is None:
+                    cmap = "cividis"
+                cmap = plt.get_cmap(cmap)
+                variable_raster = np.clip((variable_raster - vmin) / (vmax - vmin), 0.0, 1.0)
+                rgb = cmap(variable_raster)[:, :, 0:3]  # drop alpha channel
+                cvals = ls.shade_rgb(rgb, elevation, blend_mode="overlay", **hill_args)
+            else:
+                if cmap is None:
+                    cmap = "gray"
+                cvals = ls.hillshade(elevation, **hill_args)
             interpolation = kwargs.pop("interpolation", "lanczos")
-        elif style == "elevation":
-            cvals = band
-            cmap = kwargs.pop("cmap", "cividis")
-            vmin = kwargs.pop("vmin", np.nanmin(band))
-            vmax = kwargs.pop("vmax", np.nanmax(band))
+        elif style == "map":
+            if cmap is None:
+                cmap = "cividis"
+            cvals = variable_raster
             interpolation = kwargs.pop("interpolation", "bicubic")
 
-        # Plot hillshade with (1, 1) inch figure and dpi=resolution for exact pixel size
+        # Plot with (1, 1) inch figure and dpi=resolution for exact pixel size
         if ax is None:
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
         im = ax.imshow(
