@@ -353,6 +353,8 @@ class Simulation(CratermakerBase):
             position=1,
             leave=True,
         ):
+            if self.morphology.docounting:
+                self.counting._emplaced = []
             self.interval_number = i + 1
             if is_age_interval:
                 current_age = age - i * age_interval
@@ -654,7 +656,26 @@ class Simulation(CratermakerBase):
         if engine == "pyvista":
             plotter = self.surface.show_pyvista(**kwargs)
             if self.morphology.docounting:
-                plotter.add_mesh(self.counting.to_vtk_mesh(self.counting.observed.values()), line_width=2)
+                from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+
+                if self.counting.emplaced:
+                    emplaced_count_actor = plotter.add_mesh(
+                        self.counting.to_vtk_mesh(self.counting.emplaced, use_measured_properties=False),
+                        line_width=2,
+                        color="red",
+                        name="emplaced",
+                    )
+                    emplaced_count_actor.SetVisibility(False)
+                    plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
+                    plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
+                if self.counting.observed:
+                    observed_count_actor = plotter.add_mesh(
+                        self.counting.to_vtk_mesh(self.counting.observed.values()), line_width=2, name="observed"
+                    )
+                    observed_count_actor.SetVisibility(False)
+                    plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
+                    plotter = update_pyvista_help_message(plotter, new_message="c: Toggle counted craters")
+
             plotter.show()
         else:
             raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")

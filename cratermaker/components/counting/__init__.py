@@ -400,7 +400,6 @@ class Counting(ComponentBase):
             _convert_and_merge(self.emplaced, emplaced_filename, "emplaced_craters")
         if self.observed:
             _convert_and_merge(self.observed, observed_filename, "observed_craters")
-        self._emplaced = []
         return
 
     def export(

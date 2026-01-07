@@ -3136,6 +3136,7 @@ class LocalSurface(CratermakerBase):
         except ImportError:
             warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
             return
+        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
         def _set_title(variable_name):
             if variable_name in self.uxds and "long_name" in self.uxds[variable_name].attrs:
@@ -3170,8 +3171,7 @@ class LocalSurface(CratermakerBase):
             plotter.update()
             return
 
-        def _help_message():
-            help_message = "j: Cycle through scalar face variables"
+        def _help_message(help_message: str | None = None):
             help_message += "\nv: Isometric view"
             help_message += "\nUp/Down: Zoom in/out"
             help_message += "\n+/-: Increase/decrease point size"
@@ -3183,11 +3183,6 @@ class LocalSurface(CratermakerBase):
             help_actor = pv.CornerAnnotation(0, help_message, name="help")
             help_actor.SetVisibility(False)
             return help_actor
-
-        def toggle_help_message(plotter, help_actor):
-            help_actor.SetVisibility(not help_actor.GetVisibility())
-            plotter.update()
-            return
 
         def reset_view(plotter):
             if self.location is None:
@@ -3236,9 +3231,7 @@ class LocalSurface(CratermakerBase):
 
         mesh_actor = plotter.add_mesh(mesh, scalars=variable_name, show_edges=False, show_scalar_bar=False, **kwargs)
         scalar_bar_actor = plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
-        help_actor = _help_message()
-        plotter.add_actor(help_actor)
-        plotter.add_key_event("h", lambda: toggle_help_message(plotter, help_actor))
+        plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
         plotter.add_key_event("j", lambda: update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor))
         plotter.add_key_event("r", lambda: reset_view(plotter))
         return plotter

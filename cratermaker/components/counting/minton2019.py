@@ -8,6 +8,7 @@ import numpy as np
 from cratermaker._cratermaker import counting_bindings
 from numpy.typing import NDArray
 from scipy import fft
+from tqdm import tqdm
 
 from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, _TALLY_VARIABLE_NAME, Counting
 from cratermaker.components.crater import Crater
@@ -66,7 +67,14 @@ class Minton2019Counting(Counting):
 
         unique_ids = np.unique(id_array[id_array > 0])
         remove_ids = []
-        for id in unique_ids:
+        for id in tqdm(
+            unique_ids,
+            total=len(unique_ids),
+            desc="Counting craters",
+            unit="craters",
+            position=0,
+            leave=False,
+        ):
             # Check if we have orphaned crater ids for some reason and remove them
             if id not in self.observed:
                 self.remove(id)
@@ -114,7 +122,7 @@ class Minton2019Counting(Counting):
 
         a = 0.07
         b = 0.15
-        diam_correction = 20e3
+        diam_correction = 20e3  # depth/diameter correction transition diameter from Riedel et al. (2020)
         correction_factor = 2.0e-7
         depth = self.measure_crater_depth(crater)
         depth_diam = depth / crater.measured_diameter
@@ -149,4 +157,4 @@ class Minton2019Counting(Counting):
         .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
 
         """
-        return Kv1 * crater.radius**gamma
+        return Kv1 * crater.measured_radius**gamma

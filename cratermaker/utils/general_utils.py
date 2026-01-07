@@ -399,3 +399,44 @@ def format_large_units(value: float, threshold: float = 1000.0, quantity: str = 
     else:
         fmt = "{:.3g} {}"
     return fmt.format(value, units[unit_index])
+
+
+def toggle_pyvista_actor(plotter, actor):
+    """
+    Toggle the visibility of a given actor in a PyVista plotter and updates the plotter.
+    """
+    actor.SetVisibility(not actor.GetVisibility())
+    plotter.update()
+    return
+
+
+def update_pyvista_help_message(plotter, new_message: str | None = None):
+    try:
+        import pyvista as pv
+    except ImportError:
+        warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
+        return
+
+    old_actor = plotter.actors.get("help", None)
+    if old_actor is None:
+        old_message = "v: Isometric view"
+        old_message += "\nUp/Down: Zoom in/out"
+        old_message += "\n+/-: Increase/decrease point size"
+        old_message += "\nw: Wireframe view"
+        old_message += "\ns: Shaded view"
+        old_message += "\nC: Enable cell picking"
+        old_message += "\nh: Toggle this help message"
+        old_message += "\nq: Quit"
+    else:
+        plotter.remove_actor("help")
+        old_message = old_actor.GetText(0)
+    if new_message is None:
+        help_message = old_message
+    else:
+        help_message = new_message + "\n" + old_message
+    help_actor = pv.CornerAnnotation(0, help_message, name="help")
+    help_actor.SetVisibility(False)
+    plotter.add_actor(help_actor)
+    plotter.add_key_event("h", lambda: toggle_pyvista_actor(plotter, help_actor))
+
+    return plotter

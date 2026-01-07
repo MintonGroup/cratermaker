@@ -19,17 +19,21 @@ pub fn measure_crater_depth<'py>(
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
-    let floor_depth = cratermaker_components::counting::measure_floor_depth(
+    let floor_depth = match cratermaker_components::counting::measure_floor_depth(
             &region_v,
             &crater,
-        )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        ) {
+        Ok(v) => v,
+        Err(_) => return Ok(0.0),
+    };
 
-    let rim_height = cratermaker_components::counting::measure_rim_height(
+    let rim_height = match cratermaker_components::counting::measure_rim_height(
             &region_v,
             &crater,
-        )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        ) {
+        Ok(v) => v,
+        Err(_) => return Ok(0.0),
+    };
 
 
     Ok(rim_height - floor_depth)
