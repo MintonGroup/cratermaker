@@ -553,10 +553,13 @@ pub fn score_rim(
     heightmult: f64,
 ) ->ArrayResult { 
     let n = region.n_face;
-    const MIN_POINTS_FOR_FIT: usize = 3; // It will try to use at least this many points per sector in the fit
+    let min_points_for_fit: usize = 3; // It will try to use at least this many points per sector in the fit
     const EXTENT_RADIUS_CUTOFF: f64 = 1.5; // Max radial extent as a multiple of crater semi-major axis
-    const N_SECTORS: usize = 36; // Number of bearing sectors for scoring
-    let sector_width = 360.0 / N_SECTORS as f64;
+    const N_SECTOR_MAX: usize = 36;
+    const N_SECTOR_MIN: usize = 9;
+    const N_PER_SECTOR: usize = 100;
+    let n_sectors = (n / N_PER_SECTOR).clamp(N_SECTOR_MIN, N_SECTOR_MAX);
+    let sector_width = 360.0 / n_sectors as f64;
 
     let radial_gradient = crate::surface::compute_radial_gradient(
         region.face_elevation.view(),
@@ -699,10 +702,10 @@ pub fn score_rim(
         }
     }
     // Bin into bearing sectors:
-    let mut rimscore_sector_index = Array1::<usize>::from_elem(n, N_SECTORS);
+    let mut rimscore_sector_index = Array1::<usize>::from_elem(n, n_sectors);
     let bearing = region.face_bearing.as_ref().ok_or("face_bearing required")?; 
     // First pass: compute max rimscore per sector (ignoring NaNs)
-    let mut sector_max = [f64::NEG_INFINITY; N_SECTORS];
+    let mut sector_max = [f64::NEG_INFINITY; N_SECTOR_MAX];
 
     for i in 0..n {
         let v = rimscore[i];
@@ -715,8 +718,8 @@ pub fn score_rim(
         let mut idx = (b / sector_width).floor() as isize;
         if idx < 0 {
             idx = 0;
-        } else if idx >= N_SECTORS as isize {
-            idx = N_SECTORS as isize - 1;
+        } else if idx >= n_sectors as isize {
+            idx = n_sectors as isize - 1;
         }
         let idx = idx as usize;
         rimscore_sector_index[i] = idx;
@@ -747,7 +750,7 @@ pub fn score_rim(
 
     // Third pass: Apply quantile threshold to keep only highest scores in each sector
     let mut high_scores = Array1::<bool>::from_elem(n, false);
-    for sector in 0..N_SECTORS {
+    for sector in 0..n_sectors {
         let sector_indices: Vec<usize> = (0..n)
             .filter(|&i| rimscore_sector_index[i] == sector && !rimscore[i].is_nan())
             .collect();
@@ -776,21 +779,21 @@ pub fn score_rim(
     let num_high = high_scores.iter().filter(|&&b| b).count();
     let num_valid = rimscore.iter().filter(|v| !v.is_nan()).count();
 
-    if num_high < MIN_POINTS_FOR_FIT * N_SECTORS {
-        if num_valid < MIN_POINTS_FOR_FIT * N_SECTORS {
+    if num_high < min_points_for_fit * n_sectors {
+        if num_valid < min_points_for_fit * n_sectors {
             // use all valid points
             for i in 0..n {
                 high_scores[i] = !rimscore[i].is_nan();
             }
         } else {
-            // take top MIN_POINTS_FOR_FIT scores
+            // take top min_points_for_fit scores
             let mut vals: Vec<f64> = rimscore
                 .iter()
                 .copied()
                 .filter(|v| !v.is_nan())
                 .collect();
             vals.sort_by(|a, b| b.partial_cmp(a).unwrap()); // descending order
-            let threshold = vals[MIN_POINTS_FOR_FIT * N_SECTORS - 1];
+            let threshold = vals[min_points_for_fit * n_sectors - 1];
 
             for i in 0..n {
                 let v = rimscore[i];

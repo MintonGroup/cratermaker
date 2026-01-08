@@ -13,6 +13,7 @@ import xarray as xr
 from cratermaker._cratermaker import counting_bindings
 from shapely.geometry import GeometryCollection
 from shapely.ops import transform
+from tqdm import tqdm
 from vtk import vtkPolyData
 
 from cratermaker.components.crater import Crater
@@ -325,8 +326,71 @@ class Counting(ComponentBase):
         crater = Crater.maker(crater, measured_rim_height=rim_height, measured_floor_depth=floor_depth)
         return crater
 
+    def tally(self, region: LocalSurface | None = None, **kwargs: Any) -> dict[int:Crater]:
+        """
+        Tally the craters on the surface using.
+
+        Parameters
+        ----------
+        region : LocalSurface, optional
+            A LocalSurface region to count. If not supplied, then the associated surface property is used.
+
+        Returns
+        -------
+        dict[int:Crater]
+            A dictionary of observed craters indexed by their ID.
+
+        References
+        ----------
+        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
+
+        """
+        if region is None:
+            region = self.surface
+            id_array = self.surface.crater_id
+        elif isinstance(region, LocalSurface):
+            id_array = region.crater_id
+        else:
+            raise TypeError(f"Expected a LocalSurface, but got {type(region).__name__}.")
+
+        unique_ids = np.unique(id_array[id_array > 0])
+        remove_ids = []
+        for id in tqdm(
+            unique_ids,
+            total=len(unique_ids),
+            desc="Counting craters",
+            unit="craters",
+            position=0,
+            leave=False,
+        ):
+            # Check if we have orphaned crater ids for some reason and remove them
+            if id not in self.observed:
+                self.remove(id)
+                continue
+
+            # Update the crater size measurement before computing the degradation and visibility functions
+            crater = self.observed[id]
+            crater = self.fit_rim(crater=crater, fit_center=False, fit_ellipse=False, **kwargs)
+            crater = self.measure_degradation_state(crater, **kwargs)
+            Kd = crater.measured_degradation_state
+            Kv = self.visibility_function(crater, **kwargs)
+            if Kd >= Kv:
+                remove_ids.append(id)
+            else:
+                self.observed[id] = crater  # Save the updated measurements to the observed tally
+
+        if len(remove_ids) > 0:
+            print(f"Removing {len(remove_ids)} craters from the tally.")
+            for id in remove_ids:
+                self.remove(id)
+
+        return
+
     @abstractmethod
-    def tally(self, region: LocalSurface | None = None, **kwargs: Any) -> None: ...
+    def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> Crater: ...
+
+    @abstractmethod
+    def visibility_function(self, crater: Crater, Kv1: float = 0.17, gamma: float = 2.0, **kwargs: Any) -> float: ...
 
     @staticmethod
     def to_xarray(craters: dict[int, Crater] | list[Crater]) -> xr.Dataset:
@@ -475,6 +539,82 @@ class Counting(ComponentBase):
                 **kwargs,
             )
 
+        return
+
+    def show_pyvista(
+        self,
+        surface: Surface | LocalSurface | None = None,
+        observed_color: str = "white",
+        emplaced_color: str = "red",
+        **kwargs: Any,
+    ):
+        """
+        Passes through to the surface sshow_pyvista method and adds crater counts to it.
+
+        Parameters
+        ----------
+        surface : Surface | LocalSurface, optional
+            The surface or local surface view to be displayed. If None, uses the associated surface property
+        observed_color : str, optional
+            The color to use for observed craters. Default is "white".
+        emplaced_color : str, optional
+            The color to use for emplaced craters. Default is "red".
+        **kwargs : Any
+            Additional keyword arguments to pass to the surface show_pyvista method.
+
+        Returns
+        -------
+        plotter : pyvista.Plotter
+            The pyvista plotter with the crater counts added.
+
+        """
+        if surface is None:
+            surface = self.surface
+        plotter = surface.show_pyvista(**kwargs)
+
+        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+
+        if self.emplaced:
+            emplaced_count_actor = plotter.add_mesh(
+                self.to_vtk_mesh(self.emplaced, use_measured_properties=False),
+                line_width=2,
+                color=emplaced_color,
+                name="emplaced",
+            )
+            emplaced_count_actor.SetVisibility(False)
+            plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
+            plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
+        if self.observed:
+            observed_count_actor = plotter.add_mesh(
+                self.to_vtk_mesh(self.observed.values()), line_width=2, color=observed_color, name="observed"
+            )
+            observed_count_actor.SetVisibility(False)
+            plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
+            plotter = update_pyvista_help_message(plotter, new_message="c: Toggle counted craters")
+
+        return plotter
+
+    def show(self, engine: str = "pyvista", observed_color: str = "white", emplaced_color: str = "red", **kwargs: Any) -> None:
+        """
+        Passes through to the surface show method and adds crater counts to it.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        observed_color : str, optional
+            The color to use for observed craters. Default is "white".
+        emplaced_color : str, optional
+            The color to use for emplaced craters. Default is "red".
+        **kwargs : Any
+            Additional keyword arguments to pass to the surface show_pyvista method.
+
+        """
+        if engine.lower() == "pyvista":
+            plotter = self.show_pyvista(observed_color=observed_color, emplaced_color=emplaced_color, **kwargs)
+            plotter.show()
+        else:
+            raise ValueError(f"Engine '{engine}' is not supported for crater counting visualization.")
         return
 
     @staticmethod

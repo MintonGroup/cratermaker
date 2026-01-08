@@ -129,7 +129,10 @@ class Crater:
             phi = self.orientation
 
         # Measure the rim height so that the polygon sits on to of the surface rather than underneath
-        z = np.full_like(theta, counting_bindings.measure_rim_height(surface, self))
+        rim_height = counting_bindings.measure_rim_height(surface, self)
+        if rim_height < -surface.target.radius:
+            rim_height = 0.0
+        z = np.full_like(theta, rim_height)
 
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))

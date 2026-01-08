@@ -508,7 +508,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> None:
+    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> list[Crater]:
         """
         Emplace one or more craters in the simulation.
 
@@ -523,6 +523,11 @@ class Simulation(CratermakerBase):
         **kwargs : Any
             Keyword arguments to pass to :class:`Crater.maker`.
             Refer to the documentation of this class for details on valid keyword arguments.
+
+        Returns
+        -------
+        list of Crater
+            The list of emplaced Crater objects.
 
         Notes
         -----
@@ -567,7 +572,7 @@ class Simulation(CratermakerBase):
                 self._enqueue_crater(c)
             self._process_queue()
 
-        return
+        return craters
 
     def save(self, **kwargs: Any) -> None:
         """
@@ -651,34 +656,12 @@ class Simulation(CratermakerBase):
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         **kwargs : Any
-            Keyword arguments to pass to the surface show method.
+            Keyword arguments to pass to the Surface or Counting show methods.
         """
-        if engine == "pyvista":
-            plotter = self.surface.show_pyvista(**kwargs)
-            if self.morphology.docounting:
-                from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
-
-                if self.counting.emplaced:
-                    emplaced_count_actor = plotter.add_mesh(
-                        self.counting.to_vtk_mesh(self.counting.emplaced, use_measured_properties=False),
-                        line_width=2,
-                        color="red",
-                        name="emplaced",
-                    )
-                    emplaced_count_actor.SetVisibility(False)
-                    plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
-                    plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
-                if self.counting.observed:
-                    observed_count_actor = plotter.add_mesh(
-                        self.counting.to_vtk_mesh(self.counting.observed.values()), line_width=2, name="observed"
-                    )
-                    observed_count_actor.SetVisibility(False)
-                    plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
-                    plotter = update_pyvista_help_message(plotter, new_message="c: Toggle counted craters")
-
-            plotter.show()
+        if self.morphology.docounting:
+            self.counting.show(engine=engine, **kwargs)
         else:
-            raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
+            self.surface.show(engine=engine, **kwargs)
 
         return
 
