@@ -107,6 +107,7 @@ class Crater:
         -------
         A GeoSeries containing a Shapely Polygon in lon/lat degrees.
         """
+        from cratermaker._cratermaker import counting_bindings
         from pyproj import Geod
         from shapely.geometry import GeometryCollection, LineString, Polygon
         from shapely.ops import split, transform
@@ -127,10 +128,8 @@ class Crater:
             lon, lat = self.location
             phi = self.orientation
 
-        if self.measured_rim_height is not None:
-            z = np.full_like(theta, self.measured_rim_height)
-        else:
-            z = np.zeros_like(theta)
+        # Measure the rim height so that the polygon sits on to of the surface rather than underneath
+        z = np.full_like(theta, counting_bindings.measure_rim_height(surface, self))
 
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))

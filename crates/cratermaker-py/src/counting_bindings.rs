@@ -9,7 +9,30 @@ const _MEASURING_RADIUS_RATIO: f64 = 1.2;
 
 
 #[pyfunction]
-pub fn measure_crater_depth<'py>(
+pub fn measure_rim_height<'py>(
+    _py: Python<'py>,
+    surface: &Bound<'py, PyAny>,
+    crater: Crater, 
+) -> PyResult<f64> {
+
+    let region = surface.call_method1("extract_region",(crater.measured_location, _MEASURING_RADIUS_RATIO * crater.measured_radius))?;
+    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_v = region_py.as_views();
+
+    let rim_height = match cratermaker_components::counting::measure_rim_height(
+            &region_v,
+            &crater,
+        ) {
+        Ok(v) => v,
+        Err(_) => return Ok(-f64::MAX),
+    };
+
+
+    Ok(rim_height)
+}
+
+#[pyfunction]
+pub fn measure_floor_depth<'py>(
     _py: Python<'py>,
     surface: &Bound<'py, PyAny>,
     crater: Crater, 
@@ -24,20 +47,13 @@ pub fn measure_crater_depth<'py>(
             &crater,
         ) {
         Ok(v) => v,
-        Err(_) => return Ok(0.0),
-    };
-
-    let rim_height = match cratermaker_components::counting::measure_rim_height(
-            &region_v,
-            &crater,
-        ) {
-        Ok(v) => v,
-        Err(_) => return Ok(0.0),
+        Err(_) => return Ok(f64::MAX),
     };
 
 
-    Ok(rim_height - floor_depth)
+    Ok(floor_depth)
 }
+
 
 /// Fit a single ellipse to the provided x, y coordinates and weights.
 /// 

@@ -83,7 +83,8 @@ class Minton2019Counting(Counting):
             # Update the crater size measurement before computing the degradation and visibility functions
             crater = self.observed[id]
             crater = self.fit_rim(crater=crater, fit_center=False, fit_ellipse=False)
-            Kd = self.measure_degradation_state(crater)
+            crater = self.measure_degradation_state(crater)
+            Kd = crater.measured_degradation_state
             Kv = self.visibility_function(crater, Kv1=Kv1, gamma=gamma)
             if Kd >= Kv:
                 remove_ids.append(id)
@@ -97,9 +98,9 @@ class Minton2019Counting(Counting):
 
         return
 
-    def measure_degradation_state(self, crater: Crater) -> float:
+    def measure_degradation_state(self, crater: Crater) -> Crater:
         """
-        Measure the degradation state of a crater using eq. 9 from Minton et al. (2019) [#]_ with a correction factor for complex craters from Riedel et al. (2020) [#]_.
+        Measure the degradation state of a crater by measuring its depth-to-diameter ratio and using eq. 9 from Minton et al. (2019) [#]_ with a correction factor for complex craters from Riedel et al. (2020) [#]_.
 
         Parameters
         ----------
@@ -108,8 +109,8 @@ class Minton2019Counting(Counting):
 
         Returns
         -------
-        float
-            The degradation state of the crater.
+        crater : Crater
+            The updated Crater object with the measured degradation state and updated depth properties.
 
         References
         ----------
@@ -124,15 +125,17 @@ class Minton2019Counting(Counting):
         b = 0.15
         diam_correction = 20e3  # depth/diameter correction transition diameter from Riedel et al. (2020)
         correction_factor = 2.0e-7
-        depth = self.measure_crater_depth(crater)
+        crater = self.measure_crater_depth(crater)
+        depth = crater.measured_rim_height - crater.measured_floor_depth
         depth_diam = depth / crater.measured_diameter
         if depth_diam < _VSMALL:
             depth_diam = _VSMALL
         if crater.measured_diameter > diam_correction:
             depth_diam += (crater.measured_diameter - diam_correction) * correction_factor
         K = (a / np.sqrt(depth_diam) - b) * crater.measured_radius**2
+        crater = Crater.maker(crater, measured_degradation_state=K)
 
-        return K
+        return crater
 
     def visibility_function(self, crater: Crater, Kv1: float = 0.17, gamma: float = 2.0) -> float:
         """

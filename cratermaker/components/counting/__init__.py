@@ -303,9 +303,9 @@ class Counting(ComponentBase):
 
         return region
 
-    def measure_crater_depth(self, crater: Crater) -> float:
+    def measure_crater_depth(self, crater: Crater) -> Crater:
         """
-        Measure the depth of a crater on the surface.
+        Measure the rim height and floor depth of a crater on the surface.
 
         Parameters
         ----------
@@ -314,15 +314,16 @@ class Counting(ComponentBase):
 
         Returns
         -------
-        float
-            The measured depth of the crater.
+        crater
+            The updated Crater object with the new measured depth properties.
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        depth = counting_bindings.measure_crater_depth(self.surface, crater)
-
-        return depth
+        rim_height = counting_bindings.measure_rim_height(self.surface, crater)
+        floor_depth = counting_bindings.measure_floor_depth(self.surface, crater)
+        crater = Crater.maker(crater, measured_rim_height=rim_height, measured_floor_depth=floor_depth)
+        return crater
 
     @abstractmethod
     def tally(self, region: LocalSurface | None = None, **kwargs: Any) -> None: ...
