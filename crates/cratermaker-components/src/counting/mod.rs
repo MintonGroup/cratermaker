@@ -79,7 +79,6 @@ pub fn measure_floor_depth(
         }
     }
     if n_floor == 0 {
-        println!("No valid faces inside floor boundary");
         return Err("no valid faces inside floor boundary");
     }
     Ok(elev_sum / (n_floor as f64))
@@ -114,7 +113,6 @@ pub fn measure_rim_height(
         }
     }
     if n_rim == 0 {
-        println!("No valid faces inside floor boundary");
         return Err("no valid faces inside rim boundary");
     }
     Ok(elev_sum / (n_rim as f64))
