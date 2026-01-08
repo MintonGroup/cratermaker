@@ -9,9 +9,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from geopandas import GeoSeries
 from numpy.random import Generator
-from pyproj import Geod
-from shapely.geometry import GeometryCollection, LineString, Polygon
-from shapely.ops import split, transform
 
 from cratermaker.core.base import CratermakerBase
 from cratermaker.utils.general_utils import format_large_units
@@ -41,6 +38,9 @@ class Crater:
     measured_semiminor_axis: float | None = None
     measured_orientation: float | None = None
     measured_location: tuple[float, float] | None = None
+    measured_rim_height: float | None = None
+    measured_floor_depth: float | None = None
+    measured_degradation_state: float | None = None
 
     def __str__(self):
         if self.age is None:
@@ -107,6 +107,10 @@ class Crater:
         -------
         A GeoSeries containing a Shapely Polygon in lon/lat degrees.
         """
+        from pyproj import Geod
+        from shapely.geometry import GeometryCollection, LineString, Polygon
+        from shapely.ops import split, transform
+
         from cratermaker.components.surface import Surface
 
         surface = Surface.maker(surface)
@@ -123,6 +127,11 @@ class Crater:
             lon, lat = self.location
             phi = self.orientation
 
+        if self.measured_rim_height is not None:
+            z = np.full_like(theta, self.measured_rim_height)
+        else:
+            z = np.zeros_like(theta)
+
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))
         st = np.sin(np.deg2rad(theta))
@@ -138,7 +147,7 @@ class Crater:
         if split_antimeridian and np.ptp(poly_lon) > 180.0:
             center_sign = np.sign(lon)
             poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
-            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+            poly = Polygon(zip(poly_lon, poly_lat, z, strict=True))
             merdian_lon = 180.0 * center_sign
             meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
             poly = split(poly, meridian)
@@ -155,7 +164,7 @@ class Crater:
             poly = GeometryCollection(new_geoms)
 
         else:
-            poly = Polygon(zip(poly_lon, poly_lat, strict=False))
+            poly = Polygon(zip(poly_lon, poly_lat, z, strict=True))
 
         return GeoSeries([poly], crs=surface.crs)
 
@@ -256,6 +265,9 @@ class Crater:
         measured_diameter: float | None = None,
         measured_radius: float | None = None,
         measured_location: tuple[float, float] | None = None,
+        measured_rim_height: float | None = None,
+        measured_floor_depth: float | None = None,
+        measured_degradation_state: float | None = None,
         simdir: str | Path | None = None,
         rng: Generator = None,
         rng_seed: str | int | None = None,
@@ -330,6 +342,12 @@ class Crater:
             The measured radius of the crater in meters.
         measured_location : tuple of float, optional
             The measured (longitude, latitude) location of the crater.
+        measured_rim_height : float, optional
+            The measured rim height of the crater in meters.
+        measured_floor_depth : float, optional
+            The measured floor depth of the crater in meters.
+        measured_degradation_state : float, optional
+            The measured degradation state of the crater in meters squared.
         simdir : str | Path
             The main project simulation directory. Default is the current working directory if None.
         rng : numpy.random.Generator | None
@@ -378,7 +396,20 @@ class Crater:
                 Keyword arguments used to compute the unique identifier.
 
             """
-            combined = "::".join(f"{k}:{kwargs[k]}" for k in kwargs)
+            id_args = [
+                "semimajor_axis",
+                "semiminor_axis",
+                "orientation",
+                "transient_diameter",
+                "projectile_diameter",
+                "projectile_velocity",
+                "projectile_angle",
+                "projectile_density",
+                "location",
+            ]
+            combined_args = [k for k in kwargs if k in id_args]
+            combined_args.sort()  # Sort to ensure consistent ordering
+            combined = "::".join(f"{k}:{kwargs[k]}" for k in combined_args)
             hexid = hashlib.shake_128(combined.encode()).hexdigest(4)
             return np.uint32(int(f"0x{hexid}", 16))
 
@@ -465,9 +496,10 @@ class Crater:
             "measured_semimajor_axis": measured_semimajor_axis,
             "measured_semiminor_axis": measured_semiminor_axis,
             "measured_orientation": measured_orientation,
-            "measured_diameter": measured_diameter,
-            "measured_radius": measured_radius,
             "measured_location": measured_location,
+            "measured_rim_height": measured_rim_height,
+            "measured_floor_depth": measured_floor_depth,
+            "measured_degradation_state": measured_degradation_state,
         }
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
@@ -519,22 +551,24 @@ class Crater:
                 make_copy = True
 
         if make_copy:
-            a = args["semimajor_axis"]
-            b = args["semiminor_axis"]
-            td = args["transient_diameter"]
-            pdir = args["orientation"]
-            pd = args["projectile_diameter"]
-            prho = args["projectile_density"]
-            pv = args["projectile_velocity"]
-            pang = args["projectile_angle"]
-            location = args["location"]
-            age = args["age"]
-            measured_semimajor_axis = args["measured_semimajor_axis"]
-            measured_semiminor_axis = args["measured_semiminor_axis"]
-            measured_orientation = args["measured_orientation"]
-            measured_diameter = args["measured_diameter"]
-            measured_radius = args["measured_radius"]
-            measured_location = args["measured_location"]
+            # The following will change the id
+            a = args.pop("semimajor_axis")
+            b = args.pop("semiminor_axis")
+            td = args.pop("transient_diameter")
+            pdir = args.pop("orientation")
+            pd = args.pop("projectile_diameter")
+            prho = args.pop("projectile_density")
+            pv = args.pop("projectile_velocity")
+            pang = args.pop("projectile_angle")
+            location = args.pop("location")
+            measured_semimajor_axis = (
+                float(measured_semimajor_axis)
+                if measured_semimajor_axis is not None
+                else float(args.pop("measured_semimajor_axis"))
+            )
+            measured_semiminor_axis = args.pop("measured_semiminor_axis")
+            measured_orientation = args.pop("measured_orientation")
+            measured_location = args.pop("measured_location")
 
             if crater is not None:
                 mt = crater.morphology_type
@@ -653,8 +687,15 @@ class Crater:
 
         if check_redundant_inputs and measured_radius is not None and measured_diameter is not None:
             raise ValueError("Only one of measured_diameter or measured_radius may be set.")
-        elif measured_diameter is not None:
-            measured_radius = measured_diameter / 2.0
+        else:
+            if measured_diameter is not None:
+                measured_semimajor_axis = measured_diameter / 2.0
+                measured_semiminor_axis = measured_diameter / 2.0
+                measured_diameter = None
+            if measured_radius is not None:
+                measured_semimajor_axis = measured_radius
+                measured_semiminor_axis = measured_radius
+                measured_radius = None
 
         if measured_semimajor_axis is not None or measured_semiminor_axis is not None:
             if measured_semimajor_axis is None or measured_semiminor_axis is None:
@@ -680,25 +721,22 @@ class Crater:
             measured_orientation = pdir if pdir is not None else None
         if measured_location is None:
             measured_location = (float(location[0]), float(location[1])) if location is not None else None
-        # Assemble final arguments
-        crater_args = {
-            "semimajor_axis": float(a) if a is not None else None,
-            "semiminor_axis": float(b) if b is not None else None,
-            "transient_diameter": float(td) if td is not None else None,
-            "orientation": float(pdir) if pdir is not None else None,
-            "projectile_diameter": float(pd) if pd is not None else None,
-            "projectile_density": float(prho) if prho is not None else None,
-            "projectile_velocity": float(pv) if pv is not None else None,
-            "projectile_angle": float(pang) if pang is not None else None,
-            "location": (float(location[0]), float(location[1])),
-            "morphology_type": str(mt) if mt is not None else None,
-        }
-        crater_args["id"] = _set_id(**crater_args)
 
-        crater_args["age"] = float(age) if age is not None else None
-        crater_args["measured_semimajor_axis"] = float(measured_semimajor_axis) if measured_semimajor_axis is not None else None
-        crater_args["measured_semiminor_axis"] = float(measured_semiminor_axis) if measured_semiminor_axis is not None else None
-        crater_args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
+        # Assemble the final set of arguments to pass to the Crater constructor
+        args["semimajor_axis"] = float(a) if a is not None else None
+        args["semiminor_axis"] = float(b) if b is not None else None
+        args["transient_diameter"] = float(td) if td is not None else None
+        args["orientation"] = float(pdir) if pdir is not None else None
+        args["projectile_diameter"] = float(pd) if pd is not None else None
+        args["projectile_density"] = float(prho) if prho is not None else None
+        args["projectile_velocity"] = float(pv) if pv is not None else None
+        args["projectile_angle"] = float(pang) if pang is not None else None
+        args["location"] = (float(location[0]), float(location[1]))
+        args["morphology_type"] = str(mt) if mt is not None else None
         if measured_location is not None:
-            crater_args["measured_location"] = (float(measured_location[0]), float(measured_location[1]))
-        return cls(**crater_args)
+            args["measured_location"] = (float(measured_location[0]), float(measured_location[1]))
+        args["measured_semimajor_axis"] = float(measured_semimajor_axis) if measured_semimajor_axis is not None else None
+        args["measured_semiminor_axis"] = float(measured_semiminor_axis) if measured_semiminor_axis is not None else None
+        args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
+        args["id"] = _set_id(**args)
+        return cls(**args)

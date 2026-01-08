@@ -77,9 +77,7 @@ class TestCrater(unittest.TestCase):
 
     def test_non_default_target_and_rng_crater(self):
         rng = default_rng()
-        crater = Crater.maker(
-            projectile_diameter=1000, rng=rng, projectile_mean_velocity=10e3
-        )
+        crater = Crater.maker(projectile_diameter=1000, rng=rng, projectile_mean_velocity=10e3)
         self.assertEqual(crater.projectile_diameter, 1000)
 
     def test_invalid_target_or_rng_type_projectile(self):
@@ -93,6 +91,11 @@ class TestCrater(unittest.TestCase):
     def test_argument_override(self):
         crater = Crater.maker(final_diameter=1000, location=(0.0, 0.0))
         self.assertEqual(crater.location, (0.0, 0.0))
+
+    def test_copy_retains_id(self):
+        crater1 = Crater.maker(final_diameter=1000.0)
+        crater2 = crater1.maker(crater1, measured_radius=1100.0)
+        self.assertEqual(crater1.id, crater2.id)
 
 
 if __name__ == "__main__":
