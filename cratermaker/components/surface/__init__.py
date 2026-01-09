@@ -2052,6 +2052,7 @@ class LocalSurface(CratermakerBase):
 
         if update_face:
             self.add_data(name="face_elevation", data=new_face_elev, overwrite=overwrite)
+            self.interpolate_node_elevation_from_faces()
         if update_node:
             self.add_data(name="node_elevation", data=new_node_elev, overwrite=overwrite)
 
@@ -2084,7 +2085,6 @@ class LocalSurface(CratermakerBase):
         delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation)
-        self.interpolate_node_elevation_from_faces()
         return
 
     def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
@@ -2104,7 +2104,6 @@ class LocalSurface(CratermakerBase):
         delta_face_elevation = surface_bindings.slope_collapse(critical_slope=critical_slope, region=self)
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation)
-        self.interpolate_node_elevation_from_faces()
 
     def compute_slope(self) -> NDArray[np.float64]:
         """
