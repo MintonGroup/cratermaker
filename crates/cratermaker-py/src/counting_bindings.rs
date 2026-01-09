@@ -16,6 +16,9 @@ pub fn measure_rim_height<'py>(
 ) -> PyResult<f64> {
 
     let region = surface.call_method1("extract_region",(crater.measured_location, _MEASURING_RADIUS_RATIO * crater.measured_radius))?;
+    if region.is_none() {
+        return Ok(-f64::MAX);
+    }
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
@@ -39,6 +42,9 @@ pub fn measure_floor_depth<'py>(
 ) -> PyResult<f64> {
 
     let region = surface.call_method1("extract_region",(crater.measured_location, _MEASURING_RADIUS_RATIO * crater.measured_radius))?;
+    if region.is_none() {
+        return Ok(f64::MAX);
+    }
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
@@ -178,6 +184,9 @@ pub fn score_rim<'py>(
 ) -> PyResult<Bound<'py, PyAny>>  {
 
     let region = surface.call_method1("extract_region",(crater.measured_location, _FITTING_RADIUS_RATIO * crater.measured_radius))?;
+    if region.is_none() {
+        return Ok(region);
+    }
     // Ensure face projections are set
     region.call_method0("set_face_proj")?;
     let transformer = region.getattr("from_surface").unwrap();
@@ -255,6 +264,9 @@ pub fn fit_rim<'py>(
 
         // Extract a region surrounding the current best fit location and best-fit radius
         region = surface.call_method1("extract_region",(crater_fit.measured_location, _FITTING_RADIUS_RATIO * crater_fit.measured_radius))?;
+        if region.is_none() {
+            return Err(PyValueError::new_err("Failed to extract region for rim fitting."));
+        }
         // Ensure face projections are set
         region.call_method0("set_face_proj")?;
         let transformer = region.getattr("from_surface").unwrap();
