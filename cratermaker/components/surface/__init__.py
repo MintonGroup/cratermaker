@@ -719,14 +719,14 @@ class Surface(ComponentBase):
         """
         return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
 
-    def show_pyvista(self, variable_name: str = "face_elevation", variable: ArrayLike | None = None, **kwargs: Any):
+    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
         """
         Show the surface region using an interactive 3D plot with PyVista.
 
         Parameters
         ----------
         variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
@@ -740,7 +740,7 @@ class Surface(ComponentBase):
         return self._full().show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
 
     def show(
-        self, engine: str = "pyvista", variable_name: str = "face_elevation", variable: ArrayLike | None = None, **kwargs: Any
+        self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
     ) -> None:
         """
         Show the surface using an interactive 3D plot.
@@ -750,7 +750,7 @@ class Surface(ComponentBase):
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
@@ -3113,15 +3113,15 @@ class LocalSurface(CratermakerBase):
             plt.show(**kwargs)
         return im
 
-    def show_pyvista(self, variable_name: str = "face_elevation", variable: ArrayLike | None = None, **kwargs) -> None:
+    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs) -> None:
         """
         Show the local surface region using an interactive 3D plot with PyVista.
 
         Parameters
         ----------
-        variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
-        variable: (n_face) array, optional
+        variable_name : str | None, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+        variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
@@ -3148,25 +3148,45 @@ class LocalSurface(CratermakerBase):
                 title = variable_name
             return title
 
-        def update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor):
+        def update_scalars(plotter):
             camera_orig = plotter.camera
-            scalar_names = []
+            mesh_actor = plotter.actors["surface_mesh"]
+            if not plotter.scalar_bars:
+                scalar_bar_actor = None
+            else:
+                old_title = next(iter(plotter.scalar_bars.keys()))
+                scalar_bar_actor = plotter.scalar_bars[old_title]
+            scalar_names = [""]  # Add entry for no scalars
             for v in mesh_actor.mapper.dataset.array_names:
                 if v in mesh_actor.mapper.dataset.cell_data:
                     scalar_names.append(v)
             scalar_names.sort()
             scalar_names = list(set(scalar_names))  # Remove duplicates
-            idx = scalar_names.index(mesh_actor.mapper.array_name)
-            idx += 1
-            if idx == len(scalar_names):
-                idx = 0
+            if mesh_actor.mapper.GetScalarVisibility():
+                idx = scalar_names.index(mesh_actor.mapper.array_name)
+                idx += 1
+                if idx == len(scalar_names):
+                    idx = 0
+            else:  # We are currently not showing scalars, so start over from the first non-empty slot
+                idx = 1
 
             next_scalar_name = scalar_names[idx]
-            mesh_actor.mapper.array_name = next_scalar_name
-            mesh_actor.mapper.scalar_range = mesh.cell_data[next_scalar_name].range
-            mesh_actor.mapper.dataset.active_scalars_name = next_scalar_name
-            title = _set_title(next_scalar_name)
-            scalar_bar_actor.SetTitle(title)
+            if next_scalar_name == "":
+                mesh_actor.mapper.SetScalarVisibility(False)
+                if scalar_bar_actor is not None:
+                    scalar_bar_actor.SetVisibility(False)
+            else:
+                mesh_actor.mapper.SetScalarVisibility(True)
+                mesh_actor.mapper.array_name = next_scalar_name
+                mesh_actor.mapper.dataset.active_scalars_name = next_scalar_name
+                mesh_actor.mapper.scalar_range = mesh_actor.mapper.dataset.get_data_range(arr_var=next_scalar_name)
+                mesh_actor.mapper.SetScalarVisibility(True)
+                title = _set_title(next_scalar_name)
+                if scalar_bar_actor is None:
+                    scalar_bar_actor = plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
+                else:
+                    scalar_bar_actor.SetVisibility(True)
+                    scalar_bar_actor.SetTitle(title)
             plotter.camera = camera_orig
             plotter.update()
             return
@@ -3215,7 +3235,7 @@ class LocalSurface(CratermakerBase):
             if self.uxds[v].shape == (self.n_face,):
                 mesh.cell_data[v] = self.uxds[v].data
 
-        if variable_name in self.uxds:
+        if variable_name is not None and variable_name in self.uxds:
             title = _set_title(variable_name)
         else:
             if variable is not None:
@@ -3224,21 +3244,22 @@ class LocalSurface(CratermakerBase):
                     raise ValueError("variable must be a string or an array with the same size as the number of faces in the grid")
                 mesh.cell_data[variable_name] = variable
                 title = variable_name
-            else:
+            elif variable_name is not None:
                 raise ValueError(
                     f"Variable '{variable_name}' not found in the surface data. The 'variable' argument must be provided with scalar values for the faces."
                 )
-
-        mesh_actor = plotter.add_mesh(mesh, scalars=variable_name, show_edges=False, show_scalar_bar=False, **kwargs)
-        scalar_bar_actor = plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
+        color = kwargs.pop("color", "grey")
+        mesh_actor = plotter.add_mesh(
+            mesh, name="surface_mesh", scalars=variable_name, show_edges=False, show_scalar_bar=False, color=color, **kwargs
+        )
+        if variable_name is not None:
+            plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
         plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
-        plotter.add_key_event("j", lambda: update_scalars(plotter, mesh, mesh_actor, scalar_bar_actor))
+        plotter.add_key_event("j", lambda: update_scalars(plotter))
         plotter.add_key_event("r", lambda: reset_view(plotter))
         return plotter
 
-    def show(
-        self, engine: str = "pyvista", variable_name: str = "face_elevation", variable: ArrayLike | None = None, **kwargs
-    ) -> None:
+    def show(self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs) -> None:
         """
         Show the local surface region using an interactive 3D plot.
 
@@ -3246,9 +3267,9 @@ class LocalSurface(CratermakerBase):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
-        variable: (n_face) array, optional
+        variable_name : str | None, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+        variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.

@@ -251,7 +251,7 @@ class HiResLocalSurface(Surface):
             return self.local.plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
 
     def show_pyvista(
-        self, variable_name: str = "face_elevation", variable: ArrayLike | None = None, superdomain: bool = False, **kwargs
+        self, variable_name: str | None = None, variable: ArrayLike | None = None, superdomain: bool = False, **kwargs
     ):
         """
         Show the surface using an interactive 3D plot.
@@ -260,9 +260,9 @@ class HiResLocalSurface(Surface):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is "face_elevation".
-        variable: (n_face) array, optional
+        variable_name : str | None, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+        variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         superdomain : bool, optional
             If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
@@ -282,7 +282,7 @@ class HiResLocalSurface(Surface):
     def show(
         self,
         engine: str = "pyvista",
-        variable_name: str = "face_elevation",
+        variable_name: str | None = None,
         variable: ArrayLike | None = None,
         superdomain: bool = False,
         **kwargs,
@@ -294,8 +294,10 @@ class HiResLocalSurface(Surface):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable : str, optional
-            The variable to plot. Default is "face_elevation".
+        variable_name : str | None, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+        variable : (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         superdomain : bool, optional
             If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
         **kwargs : Any
