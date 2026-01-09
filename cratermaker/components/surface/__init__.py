@@ -3148,7 +3148,7 @@ class LocalSurface(CratermakerBase):
                 title = variable_name
             return title
 
-        def update_scalars(plotter):
+        def update_scalars(plotter, cmap):
             camera_orig = plotter.camera
             mesh_actor = plotter.actors["surface_mesh"]
             if not plotter.scalar_bars:
@@ -3160,8 +3160,8 @@ class LocalSurface(CratermakerBase):
             for v in mesh_actor.mapper.dataset.array_names:
                 if v in mesh_actor.mapper.dataset.cell_data:
                     scalar_names.append(v)
-            scalar_names.sort()
             scalar_names = list(set(scalar_names))  # Remove duplicates
+            scalar_names.sort()
             if mesh_actor.mapper.GetScalarVisibility():
                 idx = scalar_names.index(mesh_actor.mapper.array_name)
                 idx += 1
@@ -3180,6 +3180,8 @@ class LocalSurface(CratermakerBase):
                 mesh_actor.mapper.array_name = next_scalar_name
                 mesh_actor.mapper.dataset.active_scalars_name = next_scalar_name
                 mesh_actor.mapper.scalar_range = mesh_actor.mapper.dataset.get_data_range(arr_var=next_scalar_name)
+                mesh_actor.mapper.SetColorModeToMapScalars()
+                mesh_actor.mapper.lookup_table.cmap = cmap
                 mesh_actor.mapper.SetScalarVisibility(True)
                 title = _set_title(next_scalar_name)
                 if scalar_bar_actor is None:
@@ -3248,14 +3250,33 @@ class LocalSurface(CratermakerBase):
                 raise ValueError(
                     f"Variable '{variable_name}' not found in the surface data. The 'variable' argument must be provided with scalar values for the faces."
                 )
+
+        if variable_name is None:
+            scalars = "face_elevation"  # Add a default scalar to enable the cmap to be applied properly if we decide to turn them back on later
+        else:
+            scalars = variable_name
+
         color = kwargs.pop("color", "grey")
+        cmap = kwargs.pop("cmap", "cividis")
+
         mesh_actor = plotter.add_mesh(
-            mesh, name="surface_mesh", scalars=variable_name, show_edges=False, show_scalar_bar=False, color=color, **kwargs
+            mesh,
+            name="surface_mesh",
+            scalars=scalars,
+            show_edges=False,
+            show_scalar_bar=False,
+            color=color,
+            cmap=cmap,
+            **kwargs,
         )
-        if variable_name is not None:
+
+        if variable_name is None:
+            mesh_actor.mapper.SetScalarVisibility(False)
+        else:
             plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
+
         plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
-        plotter.add_key_event("j", lambda: update_scalars(plotter))
+        plotter.add_key_event("j", lambda: update_scalars(plotter, cmap=cmap))
         plotter.add_key_event("r", lambda: reset_view(plotter))
         return plotter
 
