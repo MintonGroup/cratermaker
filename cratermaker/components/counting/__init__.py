@@ -196,6 +196,7 @@ class Counting(ComponentBase):
                 if np.any(self.surface.uxds[_TALLY_VARIABLE_NAME].isel(layer=i).data[count_region.face_indices] > 0):
                     # Gather the unique id values for the current layer
                     unique_ids = np.unique(self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, i])
+                    # Compute cookie cutting removes list
                     removes = [
                         id for id, v in self.observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter
                     ]
@@ -206,6 +207,11 @@ class Counting(ComponentBase):
                         for remove in removes:
                             data[data == remove] = 0
                         self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :] = data
+                        # Check to see if this crater has been obliterated competely by cookie cutting
+                        for remove in removes:
+                            if not np.any(self.surface.uxds[_TALLY_VARIABLE_NAME].data == remove):
+                                self.observed.pop(remove, None)
+
                 if insert_layer == -1 and np.all(
                     self.surface.uxds[_TALLY_VARIABLE_NAME].isel(layer=i).data[count_region.face_indices] == 0
                 ):
