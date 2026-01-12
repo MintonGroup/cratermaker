@@ -11,14 +11,10 @@ const _MEASURING_RADIUS_RATIO: f64 = 1.2;
 #[pyfunction]
 pub fn measure_rim_height<'py>(
     _py: Python<'py>,
-    surface: &Bound<'py, PyAny>,
+    region: &Bound<'py, PyAny>,
     crater: Crater, 
 ) -> PyResult<f64> {
 
-    let region = surface.call_method1("extract_region",(crater.measured_location, _MEASURING_RADIUS_RATIO * crater.measured_radius))?;
-    if region.is_none() {
-        return Ok(-f64::MAX);
-    }
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
@@ -37,14 +33,10 @@ pub fn measure_rim_height<'py>(
 #[pyfunction]
 pub fn measure_floor_depth<'py>(
     _py: Python<'py>,
-    surface: &Bound<'py, PyAny>,
+    region: &Bound<'py, PyAny>,
     crater: Crater, 
 ) -> PyResult<f64> {
 
-    let region = surface.call_method1("extract_region",(crater.measured_location, _MEASURING_RADIUS_RATIO * crater.measured_radius))?;
-    if region.is_none() {
-        return Ok(f64::MAX);
-    }
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
@@ -175,7 +167,7 @@ pub fn fit_one_ellipse_fixed_center<'py>(
 #[pyfunction]
 pub fn score_rim<'py>(
     py: Python<'py>,
-    surface: &Bound<'py, PyAny>,
+    region: &Bound<'py, PyAny>,
     crater: Crater, 
     quantile: f64,
     gradmult: f64,
@@ -183,10 +175,6 @@ pub fn score_rim<'py>(
     heightmult: f64,
 ) -> PyResult<Bound<'py, PyAny>>  {
 
-    let region = surface.call_method1("extract_region",(crater.measured_location, _FITTING_RADIUS_RATIO * crater.measured_radius))?;
-    if region.is_none() {
-        return Ok(region);
-    }
     // Ensure face projections are set
     region.call_method0("set_face_proj")?;
     let transformer = region.getattr("from_surface").unwrap();
@@ -210,7 +198,7 @@ pub fn score_rim<'py>(
 
     region.call_method1("add_data",("rimscore", PyArray1::from_owned_array(py, result.clone()), "Rim Score", "dimensionless", true, true, f64::NAN))?;
 
-    Ok(region)
+    Ok(region.clone())
 }
 
 

@@ -31,6 +31,10 @@ _N_LAYER = (
 _MIN_FACE_FOR_COUNTING = 5
 _RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater tagging region is extended beyond the final rim.
 _EXTENT_RADIUS_RATIO = 2.0  # The factor by radius over which the local region that is extracted to evaluate the crater rim
+_FITTING_RADIUS_RATIO = 3.0  # The factor by radius over which the local region that is extracted to fit the crater rim for scoring
+_MEASURING_RADIUS_RATIO = (
+    1.2  # The factor by radius over which the local region that is extracted to measure rim height and floor depth
+)
 
 
 class Counting(ComponentBase):
@@ -300,7 +304,14 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        region = counting_bindings.score_rim(self.surface, crater, quantile, gradmult, curvmult, heightmult)
+        region = self.surface.extract_region(
+            location=crater.measured_location, region_radius=_FITTING_RADIUS_RATIO * crater.measured_radius
+        )
+        orig_elevation = region.face_elevation.copy()
+        reference_elevation = region.get_reference_surface(only_faces=True)
+        region.update_elevation(-reference_elevation, overwrite=False)
+        region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
+        region.update_elevation(orig_elevation, overwrite=True)
 
         return region
 
@@ -321,8 +332,15 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        rim_height = counting_bindings.measure_rim_height(self.surface, crater)
-        floor_depth = counting_bindings.measure_floor_depth(self.surface, crater)
+        region = self.surface.extract_region(
+            location=crater.measured_location, region_radius=_MEASURING_RADIUS_RATIO * crater.measured_radius
+        )
+        orig_elevation = region.face_elevation.copy()
+        reference_elevation = region.get_reference_surface(only_faces=True)
+        region.update_elevation(-reference_elevation, overwrite=False)
+        rim_height = counting_bindings.measure_rim_height(region, crater)
+        floor_depth = counting_bindings.measure_floor_depth(region, crater)
+        region.update_elevation(orig_elevation.data, overwrite=True)
         crater = Crater.maker(crater, measured_rim_height=rim_height, measured_floor_depth=floor_depth)
         return crater
 
