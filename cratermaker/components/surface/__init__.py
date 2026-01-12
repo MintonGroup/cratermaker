@@ -2052,7 +2052,8 @@ class LocalSurface(CratermakerBase):
 
         if update_face:
             self.add_data(name="face_elevation", data=new_face_elev, overwrite=overwrite)
-            self.interpolate_node_elevation_from_faces()
+            if not update_node:
+                self.interpolate_node_elevation_from_faces()
         if update_node:
             self.add_data(name="node_elevation", data=new_node_elev, overwrite=overwrite)
 
@@ -2256,21 +2257,25 @@ class LocalSurface(CratermakerBase):
         self.update_elevation(node_elevation, overwrite=True)
         return
 
-    def get_reference_surface(self, reference_radius: float, **kwargs: Any) -> NDArray[np.float64]:
+    def get_reference_surface(
+        self, reference_radius: float | None = None, only_faces: bool = False, **kwargs: Any
+    ) -> NDArray[np.float64]:
         """
         Calculate the orientation of a hemispherical cap that represents the average surface within a given region.
 
         Parameters
         ----------
         reference_radius : float
-            The radius of the reference region to compute the average over in meters.
+            The radius of the reference region to compute the average over in meters. If None, the region_radius of the LocalSurface is used.
+        only_faces : bool
+            If True, only return the face elevation data of the reference surface. Default is False.
         **kwargs : Any
             Additional keyword arguments.
 
         Returns
         -------
         NDArray[np.float64]
-            The face and node elevation points of the reference sphere, or the original elevation points is th reference region is too small
+            The face and node elevation points of the reference sphere, or the original elevation points is the reference region is too small
         """
 
         def _find_reference_elevations(region_coords, region_elevation):
@@ -2324,26 +2329,36 @@ class LocalSurface(CratermakerBase):
             elevations = self.surface.radius * (t * np.linalg.norm(f_vec, axis=1) - 1)
             return elevations
 
+        if reference_radius is None:
+            reference_radius = self.region_radius
         # Find cells within the crater radius
         faces_within_region = self.face_distance <= reference_radius
-        nodes_within_region = self.node_distance <= reference_radius
-        points_within_region = np.concatenate([faces_within_region, nodes_within_region])
+        if only_faces:
+            points_within_region = faces_within_region
+            elevation = self.face_elevation
+            n_reference = np.sum(faces_within_region)
+        else:
+            elevation = np.concatenate([self.face_elevation, self.node_elevation])
+            nodes_within_region = self.node_distance <= reference_radius
+            if not nodes_within_region.any():
+                return elevation
+            points_within_region = np.concatenate([faces_within_region, nodes_within_region])
+            n_reference = np.sum(faces_within_region) + np.sum(nodes_within_region)
 
-        elevation = np.concatenate([self.face_elevation, self.node_elevation])
-
-        n_reference = np.sum(faces_within_region) + np.sum(nodes_within_region)
-
-        # if there are not enough faces or nodes within the radius, return the original elevations and use that as the reference
-        if n_reference < 5 or not nodes_within_region.any():
+        # if there are not points within the radius, return the original elevations and use that as the reference
+        if n_reference < 5:
             return elevation
 
-        combo_grid = np.column_stack(
-            (
-                np.concatenate([self.face_x, self.node_x]),
-                np.concatenate([self.face_y, self.node_y]),
-                np.concatenate([self.face_z, self.node_z]),
+        if only_faces:
+            combo_grid = np.column_stack((self.face_x, self.face_y, self.face_z))
+        else:
+            combo_grid = np.column_stack(
+                (
+                    np.concatenate([self.face_x, self.node_x]),
+                    np.concatenate([self.face_y, self.node_y]),
+                    np.concatenate([self.face_z, self.node_z]),
+                )
             )
-        )
         # find_refence_elevations expects coordinates to be on the unit sphere, so we need to normalize
         region_coords = combo_grid[points_within_region] / self.surface.radius
         region_elevation = elevation[points_within_region] / self.surface.radius
