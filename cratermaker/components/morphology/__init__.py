@@ -287,6 +287,8 @@ class Morphology(ComponentBase):
         # Otherwise, degradation will continue to accumulate until the next batch of craters is processed.
         if np.any(self._Kdiff / self.surface.face_area > 1):
             self.apply_subpixel_degradation()
+            if self.docounting:
+                self.counting.tally()
 
         return
 
