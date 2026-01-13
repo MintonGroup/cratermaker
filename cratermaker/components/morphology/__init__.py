@@ -207,7 +207,7 @@ class Morphology(ComponentBase):
 
                 # Record the crater to the counting layer
                 if self.docounting:
-                    self.counting.add(crater, region=ejecta_region)
+                    self.counting.add(crater, count_region=ejecta_region)
 
         # Now form the ejecta blanket
         ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, ejecta_region)

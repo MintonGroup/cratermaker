@@ -22,19 +22,25 @@ from cratermaker.core.base import ComponentBase, import_components
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
-_TALLY_VARIABLE_NAME = "crater_id"
 _TALLY_LONG_NAME = "Unique crater identification number"
 
-_N_LAYER = (
-    8  # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
-)
+# The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
+_N_LAYER = 8
+
+# The minimum number of faces required in a region to perform crater counting
 _MIN_FACE_FOR_COUNTING = 5
-_RIM_BUFFER_FACTOR = 1.2  # The factor by which the crater tagging region is extended beyond the final rim.
-_EXTENT_RADIUS_RATIO = 2.0  # The factor by radius over which the local region that is extracted to evaluate the crater rim
-_FITTING_RADIUS_RATIO = 3.0  # The factor by radius over which the local region that is extracted to fit the crater rim for scoring
-_MEASURING_RADIUS_RATIO = (
-    1.2  # The factor by radius over which the local region that is extracted to measure rim height and floor depth
-)
+
+# The factor by which the crater tagging region is extended beyond the final rim.
+_RIM_BUFFER_FACTOR = 1.2
+
+# The factor by radius over which the local region that is extracted to evaluate the crater rim
+_EXTENT_RADIUS_RATIO = 2.0
+
+# The factor by radius over which the local region that is extracted to fit the crater rim for scoring
+_FITTING_RADIUS_RATIO = 3.0
+
+# The factor by radius over which the local region that is extracted to measure rim height and floor depth
+_MEASURING_RADIUS_RATIO = 1.2
 
 
 class Counting(ComponentBase):
@@ -144,24 +150,14 @@ class Counting(ComponentBase):
         **kwargs : Any
             Additional keyword arguments for subclasses.
         """
-        dims = ("n_face", "layer")
-        data = np.zeros((self.surface.n_face, self.n_layer), dtype=np.uint32)
-        uxda = uxr.UxDataArray(
-            data=data,
-            dims=dims,
-            attrs={"long_name": _TALLY_LONG_NAME},
-            name=_TALLY_VARIABLE_NAME,
-            uxgrid=self.surface.uxgrid,
-        )
-
-        self.surface._uxds[_TALLY_VARIABLE_NAME] = uxda
+        self.surface.add_tag(name="crater_id", long_name=_TALLY_LONG_NAME, tag=None, n_layer=_N_LAYER)
         self._emplaced = []
         self._observed = {}
 
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
         return
 
-    def add(self, crater: Crater, region: LocalSurface | None = None):
+    def add(self, crater: Crater, count_region: LocalSurface | None = None):
         """
         Add a crater to the surface.
 
@@ -169,33 +165,39 @@ class Counting(ComponentBase):
         ----------
         crater : Crater
             The crater to be added to the surface.
-        region : LocalSurface, optional
+        count_region : LocalSurface, optional
             A LocalSurface region that contains the crater inside. If not supplied, then the associated surface property is used.
         """
         from cratermaker.components.surface import LocalSurface
 
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if _TALLY_VARIABLE_NAME not in self.surface.uxds:
-            self.reset()
 
-        self.emplaced.append(crater)
-        self.observed[crater.id] = crater
-        region_radius = _RIM_BUFFER_FACTOR * crater.final_radius
+        count_radius = _RIM_BUFFER_FACTOR * crater.final_radius
         # Tag a region just outside crater rim with the id
-        if region is None:
-            count_region = self.surface.extract_region(location=crater.location, region_radius=region_radius)
-        elif isinstance(region, LocalSurface):
-            count_region = region.extract_subregion(subregion_radius=region_radius)
+        if count_region is None:
+            count_region = self.surface.extract_region(location=crater.location, region_radius=count_radius)
+        elif isinstance(count_region, LocalSurface):
+            if count_radius <= count_region.region_radius:
+                count_region = count_region.extract_subregion(subregion_radius=count_radius)
         else:
             raise TypeError("region must be a LocalSurface or None")
 
         if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            insert_layer = -1
-            for i in reversed(range(self.n_layer)):
-                if np.any(self.surface.uxds[_TALLY_VARIABLE_NAME].isel(layer=i).data[count_region.face_indices] > 0):
-                    # Gather the unique id values for the current layer
-                    unique_ids = np.unique(self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, i])
+            self.emplaced.append(crater)
+            self.observed[crater.id] = crater
+            self.surface.add_tag(
+                name="crater_id",
+                long_name=_TALLY_LONG_NAME,
+                tag=crater.id,
+                n_layer=_N_LAYER,
+                region=count_region,
+            )
+
+            # Cookie cutting: remove any smaller craters that are overlapped by this new crater
+            for i in range(_N_LAYER):
+                unique_ids = np.unique(self.surface.uxds.crater_id.data[count_region.face_indices, i])
+                if len(unique_ids) > 0:
                     # Compute cookie cutting removes list
                     removes = [
                         id for id, v in self.observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter
@@ -203,24 +205,10 @@ class Counting(ComponentBase):
 
                     # For every id that appears in the removes list, set it to 0 in the data array
                     if removes:
-                        data = self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :]
-                        for remove in removes:
-                            data[data == remove] = 0
-                        self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :] = data
-                        # Check to see if this crater has been obliterated competely by cookie cutting
-                        for remove in removes:
-                            if not np.any(self.surface.uxds[_TALLY_VARIABLE_NAME].data == remove):
-                                self.observed.pop(remove, None)
-
-                if insert_layer == -1 and np.all(
-                    self.surface.uxds[_TALLY_VARIABLE_NAME].isel(layer=i).data[count_region.face_indices] == 0
-                ):
-                    insert_layer = i
-            if insert_layer == -1:
-                raise ValueError("Crater counting layers are full")
-            data = self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :]
-            data[:, insert_layer] = crater.id
-            self.surface.uxds[_TALLY_VARIABLE_NAME].data[count_region.face_indices, :] = data
+                        for remove_id in removes:
+                            self.surface.remove_tag(name="crater_id", tag=remove_id, region=count_region)
+                            if not np.any(self.surface.uxds.crater_id.data == remove_id):
+                                self.observed.pop(remove_id, None)
 
         return
 
@@ -233,9 +221,7 @@ class Counting(ComponentBase):
         crater_id : int
             The ID of the crater to be removed.
         """
-        idda = self.surface.uxds[_TALLY_VARIABLE_NAME]
-        remove_mask = idda == crater_id
-        self.surface.uxds[_TALLY_VARIABLE_NAME] = xr.where(remove_mask, xr.zeros_like(idda), idda, keep_attrs=True)
+        self.surface.remove_tag(name="crater_id", tag=crater_id)
         self.observed.pop(crater_id, None)
         return
 
@@ -477,7 +463,7 @@ class Counting(ComponentBase):
             # If the file already exists, read it and merge
             if filename.exists():
                 with xr.open_dataset(filename) as ds:
-                    combined_data = xr.concat([ds, dsnew], dim=_TALLY_VARIABLE_NAME)
+                    combined_data = xr.concat([ds, dsnew], dim="crater_id")
             else:
                 combined_data = dsnew
 
