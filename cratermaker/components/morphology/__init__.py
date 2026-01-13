@@ -386,6 +386,8 @@ class Morphology(ComponentBase):
         from concurrent.futures import ThreadPoolExecutor
 
         def _batch_process(pbar=None):
+            tally_cadence = 1000
+            nacumulated = 0
             while not self._queue_manager.is_empty():
                 batch = self._queue_manager.peek_next_batch()
 
@@ -409,6 +411,10 @@ class Morphology(ComponentBase):
 
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
+                nacumulated += len(batch)
+                if self.docounting and nacumulated >= tally_cadence:
+                    self.counting.tally(quiet=True)
+                    nacumulated = 0
 
             return
 

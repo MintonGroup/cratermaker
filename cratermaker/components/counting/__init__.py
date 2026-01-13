@@ -28,7 +28,7 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 _N_LAYER = 8
 
 # The minimum number of faces required in a region to perform crater counting
-_MIN_FACE_FOR_COUNTING = 5
+_MIN_FACE_FOR_COUNTING = 10
 
 # The factor by which the crater tagging region is extended beyond the final rim.
 _RIM_BUFFER_FACTOR = 1.2
@@ -344,7 +344,7 @@ class Counting(ComponentBase):
         crater = Crater.maker(crater, measured_rim_height=rim_height, measured_floor_depth=floor_depth)
         return crater
 
-    def tally(self, region: LocalSurface | None = None, **kwargs: Any) -> dict[int:Crater]:
+    def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> dict[int:Crater]:
         """
         Tally the craters on the surface using.
 
@@ -352,6 +352,8 @@ class Counting(ComponentBase):
         ----------
         region : LocalSurface, optional
             A LocalSurface region to count. If not supplied, then the associated surface property is used.
+        quiet : bool, optional
+            If True, suppress progress output. Default is False.
 
         Returns
         -------
@@ -374,14 +376,19 @@ class Counting(ComponentBase):
         unique_ids = np.unique(id_array[id_array > 0])
         remove_ids = []
 
-        for id in tqdm(
-            unique_ids,
-            total=len(unique_ids),
-            desc="Counting craters",
-            unit="craters",
-            position=0,
-            leave=False,
-        ):
+        if quiet:
+            iterable = unique_ids
+        else:
+            iterable = tqdm(
+                unique_ids,
+                total=len(unique_ids),
+                desc="Counting craters",
+                unit="craters",
+                position=0,
+                leave=False,
+            )
+
+        for id in iterable:
             # Check if we have orphaned crater ids for some reason and remove them
             if id not in self.observed:
                 remove_ids.append(id)
@@ -399,7 +406,8 @@ class Counting(ComponentBase):
                 self.observed[id] = crater  # Save the updated measurements to the observed tally
 
         if len(remove_ids) > 0:
-            print(f"Removing {len(remove_ids)} craters from the tally.")
+            if not quiet:
+                print(f"Removing {len(remove_ids)} craters from the tally.")
             for id in remove_ids:
                 self.remove(id)
 
