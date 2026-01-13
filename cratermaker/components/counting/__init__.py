@@ -157,7 +157,7 @@ class Counting(ComponentBase):
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
         return
 
-    def add(self, crater: Crater, count_region: LocalSurface | None = None):
+    def add(self, crater: Crater, count_region: LocalSurface | None = None, **kwargs: Any):
         """
         Add a crater to the surface.
 
@@ -167,6 +167,8 @@ class Counting(ComponentBase):
             The crater to be added to the surface.
         count_region : LocalSurface, optional
             A LocalSurface region that contains the crater inside. If not supplied, then the associated surface property is used.
+        **kwargs : Any
+            Additional keyword arguments to pass to the surface add_tag method.
         """
         from cratermaker.components.surface import LocalSurface
 
@@ -184,15 +186,21 @@ class Counting(ComponentBase):
             raise TypeError("region must be a LocalSurface or None")
 
         if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            self.emplaced.append(crater)
-            self.observed[crater.id] = crater
             self.surface.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
                 tag=crater.id,
                 n_layer=_N_LAYER,
                 region=count_region,
+                **kwargs,
             )
+
+            # Check to make sure the crater was recorded to the surface. HiResLocal surfaces may not record craters in the superdomain
+            if crater.id in self.surface.uxds.crater_id:
+                self.emplaced.append(crater)
+                self.observed[crater.id] = crater
+            else:
+                return
 
             # Cookie cutting: remove any smaller craters that are overlapped by this new crater
             for i in range(_N_LAYER):
@@ -365,6 +373,7 @@ class Counting(ComponentBase):
 
         unique_ids = np.unique(id_array[id_array > 0])
         remove_ids = []
+
         for id in tqdm(
             unique_ids,
             total=len(unique_ids),
@@ -375,7 +384,7 @@ class Counting(ComponentBase):
         ):
             # Check if we have orphaned crater ids for some reason and remove them
             if id not in self.observed:
-                self.remove(id)
+                remove_ids.append(id)
                 continue
 
             # Update the crater size measurement before computing the degradation and visibility functions
@@ -438,6 +447,39 @@ class Counting(ComponentBase):
 
         return xr.concat(new_data, dim="id")
 
+    def merge_with_file(
+        self, craters: dict[int, Crater] | list[Crater], filename: Path | str, save_merged: bool = True
+    ) -> xr.Dataset | None:
+        """
+        Merge a list or dictionary of Crater objects with an existing file.
+
+        Parameters
+        ----------
+        craters : dict[int, Crater] | list[Crater]
+            A dictionary or list of Crater objects to merge.
+        filename : Path | str
+            The path to the file to merge with.
+        save_merged : bool, optional
+            If True, save the merged data back to the file. Default is True.
+
+        Returns
+        -------
+        xr.Dataset | None
+            An xarray Dataset containing the merged crater data, or None if no data.
+        """
+        # Convert into an xarray dataset
+        combined_data = self.to_xarray(craters)
+
+        # If the file already exists, read it and merge
+        if filename.exists():
+            with xr.open_dataset(filename) as ds:
+                combined_data.combine_first(ds)
+
+        # Write merged data back to file
+        if save_merged and combined_data:
+            combined_data.to_netcdf(filename)
+        return combined_data
+
     def save(self, interval_number: int = 0, **kwargs: Any) -> None:
         """
         Dump the crater lists to a file and reset the emplaced crater list.
@@ -456,25 +498,10 @@ class Counting(ComponentBase):
             self.output_dir / f"observed_{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
         )
 
-        def _convert_and_merge(craters: dict[int, Crater] | list[Crater], filename: Path | str, layer_name: str) -> None:
-            # Convert into an xarray dataset
-            dsnew = self.to_xarray(craters)
-
-            # If the file already exists, read it and merge
-            if filename.exists():
-                with xr.open_dataset(filename) as ds:
-                    combined_data = xr.concat([ds, dsnew], dim="crater_id")
-            else:
-                combined_data = dsnew
-
-            # Write merged data back to file
-            if combined_data:
-                combined_data.to_netcdf(filename)
-
         if self.emplaced:
-            _convert_and_merge(self.emplaced, emplaced_filename, "emplaced_craters")
+            self.merge_with_file(self.emplaced, emplaced_filename)
         if self.observed:
-            _convert_and_merge(self.observed, observed_filename, "observed_craters")
+            self.merge_with_file(self.observed, observed_filename)
         return
 
     def export(
@@ -556,10 +583,11 @@ class Counting(ComponentBase):
         surface: Surface | LocalSurface | None = None,
         observed_color: str = "white",
         emplaced_color: str = "red",
+        interval_number: int | None = None,
         **kwargs: Any,
     ):
         """
-        Passes through to the surface sshow_pyvista method and adds crater counts to it.
+        Passes through to the surface show_pyvista method and adds crater counts to it.
 
         Parameters
         ----------
@@ -569,6 +597,8 @@ class Counting(ComponentBase):
             The color to use for observed craters. Default is "white".
         emplaced_color : str, optional
             The color to use for emplaced craters. Default is "red".
+        interval_number : int, optional
+            The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
         **kwargs : Any
             Additional keyword arguments to pass to the surface show_pyvista method.
 
@@ -582,11 +612,27 @@ class Counting(ComponentBase):
             surface = self.surface
         plotter = surface.show_pyvista(**kwargs)
 
-        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+        from cratermaker.utils.general_utils import get_saved_interval_numbers, toggle_pyvista_actor, update_pyvista_help_message
 
-        if self.emplaced:
+        interval_numbers, data_file_list = get_saved_interval_numbers(
+            output_dir=self.output_dir,
+            output_file_prefix=f"emplaced_{self._output_file_prefix}",
+            output_file_extension=self._output_file_extension,
+        )
+        if interval_number is not None:
+            if interval_number in interval_numbers:
+                file_index = interval_numbers.index(interval_number)
+                data_file_list = [data_file_list[file_index]]
+            else:
+                raise ValueError(f"Interval number {interval_number} not found in saved emplaced crater files.")
+
+        emplaced = self.emplaced
+        for data_file in data_file_list:
+            emplaced = self.merge_with_file(emplaced, data_file, save_merged=False)
+            emplaced = self.from_xarray(emplaced)
+        if emplaced:
             emplaced_count_actor = plotter.add_mesh(
-                self.to_vtk_mesh(self.emplaced, use_measured_properties=False),
+                self.to_vtk_mesh(emplaced, use_measured_properties=False),
                 line_width=2,
                 color=emplaced_color,
                 name="emplaced",
@@ -1037,6 +1083,37 @@ class Counting(ComponentBase):
                     crater_data.pop("measured_location")
                 crater = Crater.maker(**crater_data, check_redundant_inputs=False)
                 craters.append(crater)
+
+        return craters
+
+    @staticmethod
+    def from_xarray(dataset: xr.Dataset) -> list[Crater]:
+        """
+        Import crater data from an xarray Dataset.
+
+        Parameters
+        ----------
+        dataset : xr.Dataset
+            The xarray Dataset containing crater data.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the xarray Dataset.
+        """
+        craters = []
+        for id in dataset.id.data:
+            crater_data = dataset.sel(id=id).to_dict()["data_vars"]
+            crater_data = {k: v["data"] for k, v in crater_data.items()}
+            if "longitude" in crater_data and "latitude" in crater_data:
+                crater_data["location"] = (crater_data.pop("longitude"), crater_data.pop("latitude"))
+            if "measured_longitude" in crater_data and "measured_latitude" in crater_data:
+                crater_data["measured_location"] = (
+                    crater_data.pop("measured_longitude"),
+                    crater_data.pop("measured_latitude"),
+                )
+            crater = Crater.maker(**crater_data, check_redundant_inputs=False)
+            craters.append(crater)
 
         return craters
 

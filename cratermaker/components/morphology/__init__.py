@@ -207,7 +207,7 @@ class Morphology(ComponentBase):
 
                 # Record the crater to the counting layer
                 if self.docounting:
-                    self.counting.add(crater, count_region=ejecta_region)
+                    self.counting.add(crater, count_region=ejecta_region, **kwargs)
 
         # Now form the ejecta blanket
         ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, ejecta_region)
@@ -408,10 +408,6 @@ class Morphology(ComponentBase):
                 self._queue_manager.pop_batch(batch)
                 self._queue_manager.clear_active()
 
-            if self.dosubpixel_degradation:
-                self.apply_subpixel_degradation()
-            if self.docounting:
-                self.counting.tally()
             return
 
         total_craters = len(self._queue_manager._queue)
@@ -427,6 +423,11 @@ class Morphology(ComponentBase):
                 _batch_process(pbar)
         else:
             _batch_process()
+
+        if self.dosubpixel_degradation:
+            self.apply_subpixel_degradation()
+        if self.docounting:
+            self.counting.tally()
         return
 
     def ejecta_burial_degradation(self, ejecta_thickness, ejecta_soften_factor=1.50) -> NDArray[np.float64]:

@@ -376,7 +376,9 @@ class Surface(ComponentBase):
         **kwargs: Any,
     ) -> None:
         """
-        Adds an integer tag to the surface. Used primarily for tracking crater ids.
+        Adds an integer tag to the surface.
+
+        Used primarily for tracking crater ids.
 
         Parameters
         ----------
@@ -390,6 +392,8 @@ class Surface(ComponentBase):
             The number of layers to use for the tag. Default is 8.
         long_name : str | None
             The long name of the tag to be added. If None, no long name will be added.
+        **kwargs : Any
+            Additional keyword arguments.
         """
         # Reset the tag layers if the tag is None or does not yet exist on the surface
         if name not in self.uxds or tag is None:
@@ -3337,19 +3341,31 @@ class LocalSurface(CratermakerBase):
 
         reset_view(plotter)
 
+        face_variables = []
+        component_variables = []
         for v in self.uxds.data_vars:
-            if self.uxds[v].shape == (self.n_face,):
+            if self.uxds[v].shape[0] == self.n_face:
                 mesh.cell_data[v] = self.uxds[v].data
+                face_variables.append(v)
+                if len(self.uxds[v].dims) == 2:
+                    component_variables.append(v)
 
-        if variable_name is not None and variable_name in self.uxds:
+        component = kwargs.pop("component", None)
+        if variable_name is not None and variable_name in face_variables:
             title = _set_title(variable_name)
+            if variable_name in component_variables:
+                component = 0 if component is None else component
+                title += f" (layer {component})"
         else:
             if variable is not None:
                 variable = np.asarray(variable, dtype=np.float64)
-                if variable.size != self.n_face:
+                if variable.shape[0] != self.n_face:
                     raise ValueError("variable must be a string or an array with the same size as the number of faces in the grid")
                 mesh.cell_data[variable_name] = variable
                 title = variable_name
+                if variable.ndim == 2:
+                    component = 0 if component is None else component
+                    title += f" (layer {component})"
             elif variable_name is not None:
                 raise ValueError(
                     f"Variable '{variable_name}' not found in the surface data. The 'variable' argument must be provided with scalar values for the faces."
@@ -3369,6 +3385,7 @@ class LocalSurface(CratermakerBase):
             scalars=scalars,
             show_edges=False,
             show_scalar_bar=False,
+            component=component,
             color=color,
             cmap=cmap,
             **kwargs,
@@ -3915,20 +3932,13 @@ class LocalSurface(CratermakerBase):
         UxDataset
             An initialized UxDataset object containing the grid and data.
         """
-        import re
+        from cratermaker.utils.general_utils import get_saved_interval_numbers
 
-        data_file_list = list(self.output_dir.glob(f"{self._output_file_prefix}*.{self._output_file_extension}"))
-        if self.grid_file in data_file_list:
-            data_file_list.remove(self.grid_file)
-        interval_numbers = []
-        for data_file in data_file_list:
-            match = re.match(
-                rf"{re.escape(self._output_file_prefix)}(\d{{6}})\.{re.escape(self._output_file_extension)}$",
-                data_file.name,
-            )
-            if match:
-                interval_numbers.append(int(match.group(1)))
-        interval_numbers.sort()
+        interval_numbers, data_file_list = get_saved_interval_numbers(
+            output_dir=self.output_dir,
+            output_file_prefix=self._output_file_prefix,
+            output_file_extension=self._output_file_extension,
+        )
 
         # map the requested interval_number to the index of interval_numbers
         if interval_number is not None:

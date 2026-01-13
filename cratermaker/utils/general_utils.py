@@ -369,6 +369,46 @@ def R_to_CSFD(
     return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
 
 
+def get_saved_interval_numbers(
+    output_dir: str | Path, output_file_prefix: str, output_file_extension: str
+) -> tuple[list[int], list[Path]]:
+    """
+    Get a list of saved interval numbers from the output directory.
+
+    Parameter
+    ----------
+    output_dir : str or Path
+        The directory where the output files are saved.
+    output_file_prefix : str
+        The prefix of the output files.
+    output_file_extension : str
+        The extension of the output files.
+
+    Returns
+    -------
+    tuple
+        A tuple containing a list of interval numbers and a list of corresponding file paths.
+    """
+    import re
+
+    data_file_list = list(Path(output_dir).glob(f"{output_file_prefix}*.{output_file_extension}"))
+    interval_numbers = []
+    matched_files = []
+    for data_file in data_file_list:
+        match = re.match(
+            rf"{re.escape(output_file_prefix)}(\d{{6}})\.{re.escape(output_file_extension)}$",
+            data_file.name,
+        )
+        if match:
+            interval_numbers.append(int(match.group(1)))
+            matched_files.append(data_file)
+
+    if len(interval_numbers) > 1:
+        matched_files = sorted(matched_files, key=lambda x: interval_numbers)
+        interval_numbers.sort()
+    return interval_numbers, matched_files
+
+
 def format_large_units(value: float, threshold: float = 1000.0, quantity: str = "length") -> str:
     """
     Format a value and automatically shift units based on threshold.
