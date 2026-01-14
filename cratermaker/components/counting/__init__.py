@@ -28,7 +28,7 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 _N_LAYER = 8
 
 # The minimum number of faces required in a region to perform crater counting
-_MIN_FACE_FOR_COUNTING = 10
+_MIN_FACE_FOR_COUNTING = 20
 
 # The factor by which the crater tagging region is extended beyond the final rim.
 _RIM_BUFFER_FACTOR = 1.2
@@ -384,8 +384,8 @@ class Counting(ComponentBase):
                 total=len(unique_ids),
                 desc="Counting craters",
                 unit="craters",
-                position=0,
-                leave=False,
+                position=1,
+                leave=True,
             )
 
         for id in iterable:
@@ -406,9 +406,18 @@ class Counting(ComponentBase):
                 self.observed[id] = crater  # Save the updated measurements to the observed tally
 
         if len(remove_ids) > 0:
-            if not quiet:
-                print(f"Removing {len(remove_ids)} craters from the tally.")
-            for id in remove_ids:
+            if quiet:
+                iterable = remove_ids
+            else:
+                iterable = tqdm(
+                    remove_ids,
+                    total=len(remove_ids),
+                    desc="Removing craters",
+                    unit="craters",
+                    position=2,
+                    leave=True,
+                )
+            for id in iterable:
                 self.remove(id)
 
         return

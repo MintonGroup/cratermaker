@@ -350,7 +350,7 @@ class Simulation(CratermakerBase):
             total=ninterval,
             desc="Simulation interval",
             unit="interval",
-            position=1,
+            position=3,
             leave=True,
         ):
             if self.morphology.docounting:
@@ -593,6 +593,7 @@ class Simulation(CratermakerBase):
             self.counting.save(interval_number=self.interval_number, **kwargs)
 
         self.to_config(**kwargs)
+        self.plot(**kwargs)
 
         return
 
@@ -644,7 +645,9 @@ class Simulation(CratermakerBase):
         **kwargs : Any
             Keyword arguments to pass to the surface plot method.
         """
-        self.surface.plot(**kwargs)
+        imagefile = kwargs.pop("imagefile", self.surface.plot_dir / f"surface_{self.interval_number:06d}.png")
+        style = kwargs.pop("style", "hillshade")
+        self.surface.plot(imagefile=imagefile, style=style, **kwargs)
         return
 
     def show(self, engine: str = "pyvista", **kwargs: Any) -> None:
