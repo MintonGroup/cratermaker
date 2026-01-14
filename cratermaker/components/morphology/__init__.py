@@ -424,7 +424,7 @@ class Morphology(ComponentBase):
                 total=total_craters,
                 desc="Emplacing craters",
                 position=0,
-                leave=True,
+                leave=False,
                 unit="craters",
                 smoothing=10 / total_craters,
             ) as pbar:

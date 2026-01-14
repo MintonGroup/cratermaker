@@ -15,6 +15,7 @@ import uxarray as uxr
 import xarray as xr
 from cratermaker._cratermaker import surface_bindings
 from matplotlib.axes import Axes
+from matplotlib.image import AxesImage
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
 from scipy.optimize import OptimizeWarning, curve_fit
@@ -3009,7 +3010,7 @@ class LocalSurface(CratermakerBase):
         show=True,
         ax: Axes | None = None,
         **kwargs: Any,
-    ) -> None:
+    ) -> AxesImage | None:
         """
         Plot a hillshade image of the local region.
 
@@ -3202,21 +3203,22 @@ class LocalSurface(CratermakerBase):
                 fontweight="bold",
             )
         if label:
-            x_start = xmin / np.sqrt(2.0)
+            # Label in the upper left corner
+            x_start = xmin  # / np.sqrt(2.0)
             y_start = ymax * 0.85
-            # Label above the scale bar
             ax.text(
                 x_start,
                 y_start,
                 label,
                 color="black",
-                ha="center",
+                ha="left",
                 va="bottom",
                 fontsize=fontsize,
                 fontweight="bold",
             )
         if imagefile:
             plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=W, **kwargs)
+            plt.close()
         elif show:
             plt.show(**kwargs)
         return im

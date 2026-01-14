@@ -385,7 +385,7 @@ class Counting(ComponentBase):
                 desc="Counting craters",
                 unit="craters",
                 position=1,
-                leave=True,
+                leave=False,
             )
 
         for id in iterable:
@@ -415,7 +415,7 @@ class Counting(ComponentBase):
                     desc="Removing craters",
                     unit="craters",
                     position=2,
-                    leave=True,
+                    leave=False,
                 )
             for id in iterable:
                 self.remove(id)
