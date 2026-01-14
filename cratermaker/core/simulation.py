@@ -115,7 +115,6 @@ class Simulation(CratermakerBase):
         _, unmatched = _set_properties(
             self,
             target=target,
-            rng_seed=rng_seed,
             scaling=scaling,
             production=production,
             morphology=morphology,
@@ -124,6 +123,7 @@ class Simulation(CratermakerBase):
             counting=counting,
             config_file=config_file,
             ask_overwrite=ask_overwrite,
+            **vars(self.common_args),
         )
 
         for component in _COMPONENT_NAMES:
@@ -668,6 +668,8 @@ class Simulation(CratermakerBase):
         **kwargs : Any
             Keyword arguments to pass to the Surface or Counting show methods.
         """
+        if "interval_number" not in kwargs:
+            kwargs["interval_number"] = self.interval_number
         if self.morphology.docounting:
             self.counting.show(engine=engine, **kwargs)
         else:
