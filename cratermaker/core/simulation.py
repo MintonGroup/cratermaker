@@ -179,6 +179,7 @@ class Simulation(CratermakerBase):
         self.counting = Counting.maker(
             self.counting,
             surface=self.surface,
+            reset=reset,
             **counting_config,
         )
 

@@ -18,6 +18,7 @@ from vtk import vtkPolyData
 
 from cratermaker.components.crater import Crater
 from cratermaker.core.base import ComponentBase, import_components
+from cratermaker.utils.general_utils import get_saved_interval_numbers
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
@@ -81,6 +82,19 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_output_file_extension", "nc")
 
         self._output_file_pattern += [f"*{self._output_file_prefix}*.{self._output_file_extension}"]
+
+        if not reset:
+            observed_interval_numbers, observed_data_file_list = get_saved_interval_numbers(
+                output_dir=self.output_dir,
+                output_file_prefix=f"observed_{self._output_file_prefix}",
+                output_file_extension=self._output_file_extension,
+            )
+            if observed_data_file_list:
+                observed = xr.open_dataset(observed_data_file_list[-1])
+                observed = self.from_xarray(observed)
+                for crater in observed:
+                    self._observed[crater.id] = crater
+        return
 
     @classmethod
     def maker(
@@ -629,25 +643,40 @@ class Counting(ComponentBase):
             surface = self.surface
         plotter = surface.show_pyvista(**kwargs)
 
-        from cratermaker.utils.general_utils import get_saved_interval_numbers, toggle_pyvista_actor, update_pyvista_help_message
+        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
-        interval_numbers, data_file_list = get_saved_interval_numbers(
+        emplaced_interval_numbers, emplaced_data_file_list = get_saved_interval_numbers(
             output_dir=self.output_dir,
             output_file_prefix=f"emplaced_{self._output_file_prefix}",
             output_file_extension=self._output_file_extension,
         )
+        observed_interval_numbers, observed_data_file_list = get_saved_interval_numbers(
+            output_dir=self.output_dir,
+            output_file_prefix=f"observed_{self._output_file_prefix}",
+            output_file_extension=self._output_file_extension,
+        )
         if interval_number is not None:
-            if interval_number in interval_numbers:
-                file_index = interval_numbers.index(interval_number)
-                data_file_list = [data_file_list[file_index]]
+            if interval_number in emplaced_interval_numbers:
+                file_index = emplaced_interval_numbers.index(interval_number)
+                emplaced_data_file_list = [emplaced_data_file_list[file_index]]
+            else:
+                interval_number = None
+            if interval_number in observed_interval_numbers:
+                file_index = observed_interval_numbers.index(interval_number)
+                observed_data_file_list = [observed_data_file_list[file_index]]
             else:
                 interval_number = None
 
-        if data_file_list:
-            emplaced = xr.open_mfdataset(data_file_list, combine="nested", parallel=True, engine="h5netcdf")
+        if emplaced_data_file_list:
+            emplaced = xr.open_mfdataset(emplaced_data_file_list, combine="nested", parallel=True, engine="h5netcdf")
             emplaced = xr.merge([self.to_xarray(self.emplaced), emplaced])
         else:
             emplaced = self.to_xarray(self.emplaced)
+
+        if observed_data_file_list:
+            observed = xr.open_dataset(observed_data_file_list[-1])
+        else:
+            observed = self.to_xarray(self.observed)
         if emplaced:
             emplaced = self.from_xarray(emplaced)
             emplaced_count_actor = plotter.add_mesh(
@@ -659,9 +688,10 @@ class Counting(ComponentBase):
             emplaced_count_actor.SetVisibility(False)
             plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
             plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
-        if self.observed:
+        if observed:
+            observed = self.from_xarray(observed)
             observed_count_actor = plotter.add_mesh(
-                self.to_vtk_mesh(self.observed.values()), line_width=2, color=observed_color, name="observed"
+                self.to_vtk_mesh(observed, use_measured_properties=True), line_width=2, color=observed_color, name="observed"
             )
             observed_count_actor.SetVisibility(False)
             plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
