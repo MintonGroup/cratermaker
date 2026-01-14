@@ -490,7 +490,7 @@ class Counting(ComponentBase):
         # If the file already exists, read it and merge
         if filename.exists():
             with xr.open_dataset(filename) as ds:
-                combined_data.combine_first(ds)
+                combined_data = xr.merge([combined_data, ds])
 
         # Write merged data back to file
         if save_merged and combined_data:
@@ -641,13 +641,15 @@ class Counting(ComponentBase):
                 file_index = interval_numbers.index(interval_number)
                 data_file_list = [data_file_list[file_index]]
             else:
-                raise ValueError(f"Interval number {interval_number} not found in saved emplaced crater files.")
+                interval_number = None
 
-        emplaced = self.emplaced
-        for data_file in data_file_list:
-            emplaced = self.merge_with_file(emplaced, data_file, save_merged=False)
-            emplaced = self.from_xarray(emplaced)
+        if data_file_list:
+            emplaced = xr.open_mfdataset(data_file_list, combine="nested", parallel=True, engine="h5netcdf")
+            emplaced = xr.merge([self.to_xarray(self.emplaced), emplaced])
+        else:
+            emplaced = self.to_xarray(self.emplaced)
         if emplaced:
+            emplaced = self.from_xarray(emplaced)
             emplaced_count_actor = plotter.add_mesh(
                 self.to_vtk_mesh(emplaced, use_measured_properties=False),
                 line_width=2,
@@ -1129,6 +1131,9 @@ class Counting(ComponentBase):
                     crater_data.pop("measured_longitude"),
                     crater_data.pop("measured_latitude"),
                 )
+            for k, v in crater_data.items():
+                if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
+                    crater_data[k] = None
             crater = Crater.maker(**crater_data, check_redundant_inputs=False)
             craters.append(crater)
 

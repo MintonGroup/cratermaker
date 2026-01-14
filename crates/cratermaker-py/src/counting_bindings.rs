@@ -26,7 +26,6 @@ pub fn measure_rim_height<'py>(
         Err(_) => return Ok(-f64::MAX),
     };
 
-
     Ok(rim_height)
 }
 
