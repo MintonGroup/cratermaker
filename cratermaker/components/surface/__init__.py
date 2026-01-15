@@ -721,7 +721,7 @@ class Surface(ComponentBase):
         Parameters
         ----------
         driver : str, optional
-            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
+            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval_number : int, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         ask_overwrite : bool, optional
@@ -759,8 +759,55 @@ class Surface(ComponentBase):
         """
         return self._full().to_vector_file(driver=driver, interval_number=interval_number, **kwargs)
 
-    def to_raster(self, variable_name: str = "face_elevation", **kwargs: Any):
+    def to_raster(
+        self, variable_name: str = "face_elevation", **kwargs: Any
+    ) -> tuple[NDArray[np.float32], tuple[float, float, float, float], Any, CRS]:
+        """
+        Rasterize a face-based variable into a 2D raster using rasterio.
+
+        Parameters
+        ----------
+        variable_name : str, optional
+            The name of the variable to rasterize. Default is "face_elevation".
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        raster : NDArray[np.float32]
+            The rasterized variable as a 2D numpy array.
+        extent : tuple[float, float, float, float]
+            The extent of the raster in the format (xmin, xmax, ymin, ymax).
+        transform : Affine
+            The affine transform for the raster.
+        crs : CRS
+            The coordinate reference system of the raster.
+        """
         return self._full().to_raster(variable_name, **kwargs)
+
+    def to_geotiff_file(
+        self,
+        interval_number: int | None = None,
+        variable_name: str = "face_elevation",
+        **kwargs,
+    ) -> None:
+        """
+        Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
+
+        Parameters
+        ----------
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default
+        variable_name : str, optional
+            The name of the variable to rasterize. Default is "face_elevation".
+        **kwargs : Any
+            Additional keyword arguments to pass to the rasterio to_geotiff method.
+        """
+        return self._full().to_geotiff(
+            interval_number=interval_number,
+            variable_name=variable_name,
+            **kwargs,
+        )
 
     def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
@@ -2646,7 +2693,7 @@ class LocalSurface(CratermakerBase):
         Parameters
         ----------
         driver : str, optional
-            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
+            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval_number : int, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         ask_overwrite : bool, optional
@@ -2656,6 +2703,12 @@ class LocalSurface(CratermakerBase):
         """
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
+                interval_number=interval_number,
+                ask_overwrite=ask_overwrite,
+                **kwargs,
+            )
+        elif driver.upper() in ["GEOTIFF", "GTIFF", "TIFF", "TIF"]:
+            self.to_geotiff_file(
                 interval_number=interval_number,
                 ask_overwrite=ask_overwrite,
                 **kwargs,
@@ -2972,7 +3025,30 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def to_raster(self, variable_name: str = "face_elevation", **kwargs: Any):
+    def to_raster(
+        self, uxda: UxDataArray | None = None, **kwargs: Any
+    ) -> tuple[NDArray[np.float32], tuple[float, float, float, float], Any, CRS]:
+        """
+        Rasterize a face-based variable into a 2D raster using rasterio.
+
+        Parameters
+        ----------
+        uxda : UxDataArray | None
+            The UxDataArray containing the face-based variable to rasterize. If None, the method will use currently loaded data in the surface with "face_elevation" as the default variable. Default is None.
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        raster : NDArray[np.float32]
+            The rasterized variable as a 2D numpy array.
+        extent : tuple[float, float, float, float]
+            The extent of the raster in the format (xmin, xmax, ymin, ymax).
+        transform : Affine
+            The affine transform for the raster.
+        crs : CRS
+            The coordinate reference system of the raster.
+        """
         # Check if rasterio is installed, and if not, just return without plotting
         try:
             from rasterio.features import rasterize
@@ -2984,13 +3060,12 @@ class LocalSurface(CratermakerBase):
             )
             return
 
-        if variable_name is not None and variable_name not in self.uxds:
-            raise ValueError(f"Variable '{variable_name}' not found in the surface data.")
-        var_da = self.uxds[variable_name].load()
+        if uxda is None:
+            uxda = self.uxds["face_elevation"].load()
 
         if self.location is None:
             # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
-            gdf = var_da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
+            gdf = uxda.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
             xmin, xmax = -180.0, 180.0
             ymin, ymax = -90.0, 90.0
             # Get the approximate pixel size based on the number of faces
@@ -3004,7 +3079,7 @@ class LocalSurface(CratermakerBase):
 
             transform = from_bounds(xmin, ymin, xmax, ymax, W, H)
         else:
-            gdf = var_da.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
+            gdf = uxda.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
             R = self.region_radius
             xmin, xmax = -R, R
             ymin, ymax = -R, R
@@ -3015,7 +3090,7 @@ class LocalSurface(CratermakerBase):
             # upper-left at (-R, +R); y increases downward in rasters
             transform = Affine.translation(-R, R) * Affine.scale(xres, -yres)
 
-        vals = gdf[variable_name].to_numpy()
+        vals = gdf[uxda.name].to_numpy()
         geoms = gdf.geometry.values
         shapes = [
             (geom, float(val))
@@ -3032,14 +3107,12 @@ class LocalSurface(CratermakerBase):
             dtype=np.float32,
             all_touched=True,
         )
-        return raster, extent
+        return raster, extent, transform, gdf.crs
 
-    def to_geotiff(
+    def to_geotiff_file(
         self,
-        interval_number: int = 0,
-        bounds: tuple[float, float, float, float] | None = None,
-        dtype: str = "float32",
-        nodata: float | None = np.nan,
+        interval_number: int | None = None,
+        variable_name: str = "face_elevation",
         **kwargs,
     ) -> None:
         """
@@ -3047,80 +3120,65 @@ class LocalSurface(CratermakerBase):
 
         Parameters
         ----------
-        surface : Surface
-            Source surface with an unstructured mesh and face-based data in UxArray.
         interval_number : int, optional
-            Interval number to save, by default 0.
-        bounds : tuple[float, float, float, float] | None, optional
-            (minx, miny, maxx, maxy) bounds of the output raster in the self CRS; if None, use the full extent of the data, by default None.
-        dtype : str, optional
-            Data type for the output raster, by default "float32".
-        nodata : float | None, optional
-            NoData value for the output raster; if None, no NoData value is set, by default np.nan.
+            The interval number to export. If None, all intervals currently saved will be exported. Default
+        variable_name : str, optional
+            The name of the variable to rasterize. Default is "face_elevation".
         """
         import matplotlib.pyplot as plt
         import rasterio as rio
         from cartopy import crs as ccrs
 
-        out_dir = self.output_dir
-        out_dir.mkdir(parents=True, exist_ok=True)
+        def _write_dataset(uxda, filename, **kwargs):
+            projection = ccrs.PlateCarree()
 
-        ds = self.uxds.load()
-        variables = [v for v in ds.data_vars if len(ds[v].dims) == 1 and any(dim == "n_face" for dim in ds[v].dims)]
-        if not variables:
-            raise ValueError("No face-based variables found to export to GeoTiff.")
+            raster, extent, transform, crs = self.to_raster(uxda, **kwargs)
 
-        projection = ccrs.PlateCarree()
+            H, W = raster.shape
 
-        for var in variables:
-            output_file = out_dir / f"{var}{interval_number:06d}.tiff"
-            print(f"Saving raster file: '{output_file}'...")
-            gdf = ds[var].to_geodataframe(engine="geopandas")
-
-            # Ensure CRS is set
-            if getattr(gdf, "crs", None) is None:
-                gdf = gdf.set_crs(self.crs)
-
-            # Drop empty geometries
-            gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notnull()].copy()
-
-            # Choose bounds
-            if bounds is None:
-                minx, miny, maxx, maxy = gdf.total_bounds
-            else:
-                minx, miny, maxx, maxy = bounds
-
-            # degrees per pixel (same for lat/lon if you want square pixels)
-            deg_per_pix = 360.0 * self.pix / (2 * np.pi * self.radius)
-
-            width = int(np.ceil((maxx - minx) / deg_per_pix))
-            height = int(np.ceil((maxy - miny) / deg_per_pix))
-
-            fig = plt.figure(figsize=(width, height), dpi=1)
+            fig = plt.figure(figsize=(W, H), dpi=1)
 
             ax = fig.add_axes([0, 0, 1, 1], projection=projection)
             ax.set_axis_off()
             fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
-            ax.set_extent([minx, maxx, miny, maxy], crs=projection)
-
-            raster = ds[var].to_raster(ax=ax)
-
-            # transform = rio.transform.from_origin(minx, miny, deg_per_pix, deg_per_pix)
-            transform = rio.transform.from_bounds(minx, maxy, maxx, miny, width, height)
+            ax.set_extent(extent, crs=projection)
 
             profile = {
                 "driver": "GTiff",
-                "height": height,
-                "width": width,
+                "height": H,
+                "width": W,
                 "count": 1,
-                "dtype": dtype,
-                "crs": gdf.crs,
+                "dtype": raster.dtype,
+                "crs": crs,
                 "transform": transform,
+                "nodata": np.nan,
             }
-            if nodata is not None:
-                profile["nodata"] = nodata
-            with rio.open(output_file, "w", **profile) as dst:
+            with rio.open(filename, "w", **profile) as dst:
                 dst.write(raster, 1)
+            return
+
+        # load data and select the face-based variables
+        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
+        file_extension = "tif"
+
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_number = interval_numbers[interval_number]
+            interval_numbers = [interval_number]
+
+        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
+            old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
+            for f in old_vector_files:
+                f.unlink()
+
+        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
+            uxda = uxds.sel(time=time, variable=variable_name).load()
+            filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
+            _write_dataset(
+                uxda,
+                filename=filename,
+                **kwargs,
+            )
 
         return
 
@@ -3248,7 +3306,9 @@ class LocalSurface(CratermakerBase):
                 do_overlay = True
 
         if variable_name is not None:
-            variable_raster, extent = self.to_raster(variable_name)
+            ret = self.to_raster(self.uxds[variable_name].load())
+            variable_raster = ret[0]
+            extent = ret[1]
             H, W = variable_raster.shape
             vmin = kwargs.pop("vmin", np.nanmin(variable_raster))
             vmax = kwargs.pop("vmax", np.nanmax(variable_raster))
@@ -3258,7 +3318,9 @@ class LocalSurface(CratermakerBase):
 
         if style == "hillshade":
             hill_args = {"dx": self.pix, "dy": self.pix, "fraction": 1.0}
-            elevation, extent = self.to_raster(variable_name="face_elevation")
+            ret = self.to_raster(self.uxds["face_elevation"].load())
+            elevation = ret[0]
+            extent = ret[1]
             elevation = gaussian_filter(elevation, sigma=2, mode="constant", cval=np.nan)
             H, W = elevation.shape
             azimuth = 300.0

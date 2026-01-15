@@ -295,10 +295,65 @@ class HiResLocalSurface(Surface):
             )
 
     def to_raster(self, variable_name: str = "face_elevation", superdomain: bool = False, **kwargs: Any):
+        """
+        Rasterize a face-based variable into a 2D raster using rasterio.
+
+        Parameters
+        ----------
+        variable_name : str, optional
+            The name of the variable to rasterize. Default is "face_elevation".
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        raster : NDArray[np.float32]
+            The rasterized variable as a 2D numpy array.
+        extent : tuple[float, float, float, float]
+            The extent of the raster in the format (xmin, xmax, ymin, ymax).
+        transform : Affine
+            The affine transform for the raster.
+        crs : CRS
+            The coordinate reference system of the raster.
+        """
         if superdomain:
             return self._full().to_raster(variable_name, **kwargs)
         else:
             return self.local.to_raster(variable_name, **kwargs)
+
+    def to_geotiff_file(
+        self,
+        interval_number: int | None = None,
+        variable_name: str = "face_elevation",
+        superdomain: bool = False,
+        **kwargs,
+    ) -> None:
+        """
+        Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
+
+        Parameters
+        ----------
+        interval_number : int, optional
+            The interval number to export. If None, all intervals currently saved will be exported. Default
+        variable_name : str, optional
+            The name of the variable to rasterize. Default is "face_elevation".
+        superdomain : bool, optional
+            If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
+        **kwargs : Any
+            Additional keyword arguments to pass to the rasterio function.
+        """
+        if superdomain:
+            return self._full().to_geotiff_file(
+                interval_number=interval_number,
+                variable_name=variable_name,
+                **kwargs,
+            )
+        else:
+            return self.local.to_geotiff_file(
+                interval_number=interval_number,
+                variable_name=variable_name,
+                **kwargs,
+            )
 
     def show_pyvista(
         self, variable_name: str | None = None, variable: ArrayLike | None = None, superdomain: bool = False, **kwargs
