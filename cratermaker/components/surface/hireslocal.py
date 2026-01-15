@@ -939,7 +939,7 @@ class LocalHiResLocalSurface(LocalSurface):
 
     def save(
         self,
-        interval_number: int = 0,
+        interval_number: int | None = None,
         time_variables: dict | None = None,
         include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),

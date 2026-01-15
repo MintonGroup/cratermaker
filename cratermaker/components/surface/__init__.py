@@ -2701,6 +2701,7 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
+        self.save(interval_number=interval_number, **kwargs)
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
                 interval_number=interval_number,
@@ -3172,7 +3173,7 @@ class LocalSurface(CratermakerBase):
                 f.unlink()
 
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
-            uxda = uxds.sel(time=time, variable=variable_name).load()
+            uxda = uxds.sel(time=time)[variable_name].load()
             filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
             _write_dataset(
                 uxda,
@@ -3184,7 +3185,7 @@ class LocalSurface(CratermakerBase):
 
     def save(
         self,
-        interval_number: int = 0,
+        interval_number: int | None = None,
         time_variables: dict | None = None,
         include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
@@ -3213,6 +3214,9 @@ class LocalSurface(CratermakerBase):
             Additional keyword arguments to pass to the export function.
         """
         self.surface.output_dir.mkdir(parents=True, exist_ok=True)
+
+        if interval_number is None:
+            interval_number = 0
 
         if time_variables is None:
             time_variables = {"elapsed_time": float(interval_number)}
