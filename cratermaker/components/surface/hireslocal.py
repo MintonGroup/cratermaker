@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from warnings import warn
 
 import numpy as np
 import uxarray as uxr
+from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from scipy.spatial.transform import Rotation
 
@@ -229,27 +230,69 @@ class HiResLocalSurface(Surface):
         )
         return
 
-    def plot(self, imagefile=None, label=None, scalebar=True, superdomain: bool = False, **kwargs: Any) -> None:
+    def plot(
+        self,
+        style: Literal["map", "hillshade"] = "map",
+        variable_name: str | None = None,
+        cmap: str | None = None,
+        imagefile=None,
+        label=None,
+        scalebar=True,
+        show=True,
+        ax: Axes | None = None,
+        superdomain: bool = False,
+        **kwargs: Any,
+    ) -> None:
         """
-        Plot a hillshade image of the surface.
+        Plot an image of the surface.
 
         Parameters
         ----------
+        style : str, optional
+            The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
+        variable_name : str | None, optional
+            The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        cmap : str, optional
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is True.
+            If True, a scalebar will be added to the plot. Default is True unless `superdomain` is True, in which case the scalebar will not be displayed by default.
+        show : bool, optional
+            If True, the plot will be displayed.
+        ax : matplotlib.axes.Axes, optional
+            An existing Axes object to plot on. If None, a new figure and axes will be created.
         superdomain : bool, optional
             If True, plot the full surface including the superdomain. If False, plot only the local region. Default is False.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
         """
         if superdomain:
-            return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+            return self._full().plot(
+                style=style,
+                variable_name=variable_name,
+                cmap=cmap,
+                imagefile=imagefile,
+                label=label,
+                scalebar=False,
+                show=show,
+                ax=ax,
+                **kwargs,
+            )
         else:
-            return self.local.plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+            return self.local.plot(
+                style=style,
+                variable_name=variable_name,
+                cmap=cmap,
+                imagefile=imagefile,
+                label=label,
+                scalebar=scalebar,
+                show=show,
+                ax=ax,
+                **kwargs,
+            )
 
     def to_raster(self, variable_name: str = "face_elevation", superdomain: bool = False, **kwargs: Any):
         if superdomain:

@@ -800,22 +800,58 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def plot(self, imagefile=None, label=None, scalebar=True, **kwargs: Any) -> None:
+    def plot(
+        self,
+        style: Literal["map", "hillshade"] = "map",
+        variable_name: str | None = None,
+        cmap: str | None = None,
+        imagefile=None,
+        label=None,
+        scalebar=False,
+        show=True,
+        ax: Axes | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
-        Plot a hillshade image of the surface.
+        Plot an image of the surface.
 
         Parameters
         ----------
+        style : str, optional
+            The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
+        variable_name : str | None, optional
+            The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        cmap : str, optional
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is True.
+            If True, a scalebar will be added to the plot. Default is False.
+        show : bool, optional
+            If True, the plot will be displayed. Default is True.
+        ax : matplotlib.axes.Axes, optional
+            An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
             Additional keyword arguments to pass to the plotting function.
+
+        Returns
+        -------
+        matplotlib.image.AxesImage
+            The AxesImage object created by imshow.
         """
-        return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+        return self._full().plot(
+            variable_name=variable_name,
+            style=style,
+            cmap=cmap,
+            imagefile=imagefile,
+            label=label,
+            scalebar=scalebar,
+            show=show,
+            ax=ax,
+            **kwargs,
+        )
 
     def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
         """
@@ -2957,7 +2993,11 @@ class LocalSurface(CratermakerBase):
             gdf = var_da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
             xmin, xmax = -180.0, 180.0
             ymin, ymax = -90.0, 90.0
-            deg_per_pix = 180.0 * self.pix / (np.pi * self.surface.radius)
+            # Get the approximate pixel size based on the number of faces
+            npix = self.surface.n_face
+            pix_area = 4.0 * np.pi * (self.surface.radius**2) / npix
+            pix = np.sqrt(pix_area)
+            deg_per_pix = 180.0 * pix / (np.pi * self.surface.radius)
             xres = yres = deg_per_pix
             W = int(np.ceil((xmax - xmin) / xres))
             H = int(np.ceil((ymax - ymin) / yres))
@@ -2982,8 +3022,9 @@ class LocalSurface(CratermakerBase):
             for geom, val in zip(geoms, vals, strict=False)
             if (geom is not None) and (not geom.is_empty) and np.isfinite(val)
         ]
+        extent = (xmin, xmax, ymin, ymax)
 
-        return rasterize(
+        raster = rasterize(
             shapes=shapes,
             out_shape=(H, W),
             transform=transform,
@@ -2991,6 +3032,7 @@ class LocalSurface(CratermakerBase):
             dtype=np.float32,
             all_touched=True,
         )
+        return raster, extent
 
     def to_geotiff(
         self,
@@ -3153,23 +3195,23 @@ class LocalSurface(CratermakerBase):
     def plot(
         self,
         style: Literal["map", "hillshade"] = "map",
-        variable: str | None = None,
+        variable_name: str | None = None,
         cmap: str | None = None,
         imagefile=None,
         label=None,
-        scalebar=False,
+        scalebar=True,
         show=True,
         ax: Axes | None = None,
         **kwargs: Any,
     ) -> AxesImage | None:
         """
-        Plot a hillshade image of the local region.
+        Plot an image of the local region.
 
         Parameters
         ----------
         style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
-        variable : str | None, optional
+        variable_name : str | None, optional
             The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
         cmap : str, optional
             The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
@@ -3191,93 +3233,23 @@ class LocalSurface(CratermakerBase):
         matplotlib.image.AxesImage
             The AxesImage object created by imshow.
         """
-        # Check if rasterio is installed, and if not, just return without plotting
-        try:
-            from rasterio.features import rasterize
-            from rasterio.transform import Affine, from_bounds
-        except ImportError:
-            warnings.warn(
-                "rasterio is not installed. Cannot generate plot. On some platforms, you may need to install GDAL first before installing rasterio.",
-                stacklevel=2,
-            )
-            return
-
         import matplotlib.pyplot as plt
         from matplotlib.colors import LightSource
         from scipy.ndimage import gaussian_filter
 
-        if variable is not None and variable not in self.uxds:
-            raise ValueError(f"Variable '{variable}' not found in the surface data.")
-        if variable is None and style == "map":
-            variable = "face_elevation"
+        if variable_name is not None and variable_name not in self.uxds:
+            raise ValueError(f"Variable '{variable_name}' not found in the surface data.")
+        if variable_name is None and style == "map":
+            variable_name = "face_elevation"
         if style == "hillshade":
-            hill_da = self.uxds["face_elevation"].load()
-            if variable is None:
+            if variable_name is None:
                 do_overlay = False
             else:
-                var_da = self.uxds[variable].load()
                 do_overlay = True
-        else:
-            var_da = self.uxds[variable].load()
 
-        if self.location is None:
-            # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
-            if variable is not None:
-                var_gdf = var_da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
-            if style == "hillshade":
-                hill_gdf = hill_da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
-            xmin, xmax = -180.0, 180.0
-            ymin, ymax = -90.0, 90.0
-            deg_per_pix = 180.0 * self.pix / (np.pi * self.surface.radius)
-            xres = yres = deg_per_pix
-            W = int(np.ceil((xmax - xmin) / xres))
-            H = int(np.ceil((ymax - ymin) / yres))
-
-            transform = from_bounds(xmin, ymin, xmax, ymax, W, H)
-            scalebar = False  # Turn off scalebar for global plots
-        else:
-            if variable is not None:
-                var_gdf = (
-                    var_da.to_geodataframe(engine="geopandas", periodic_elements="ignore")
-                    .set_crs(self.surface.crs)
-                    .to_crs(self.crs)
-                )
-            if style == "hillshade":
-                hill_gdf = (
-                    hill_da.to_geodataframe(engine="geopandas", periodic_elements="ignore")
-                    .set_crs(self.surface.crs)
-                    .to_crs(self.crs)
-                )
-            R = self.region_radius
-            xmin, xmax = -R, R
-            ymin, ymax = -R, R
-            pix = self.pix
-            W = H = int(max(1, np.ceil((2.0 * R) / pix)))
-            # pixel size (meters/pixel)
-            xres = yres = (2.0 * R) / W
-            # upper-left at (-R, +R); y increases downward in rasters
-            transform = Affine.translation(-R, R) * Affine.scale(xres, -yres)
-
-        def _to_raster(gdf, variable):
-            vals = gdf[variable].to_numpy()
-            geoms = gdf.geometry.values
-            shapes = [
-                (geom, float(val))
-                for geom, val in zip(geoms, vals, strict=False)
-                if (geom is not None) and (not geom.is_empty) and np.isfinite(val)
-            ]
-
-            return rasterize(
-                shapes=shapes,
-                out_shape=(H, W),
-                transform=transform,
-                fill=np.nan,
-                dtype=np.float32,
-                all_touched=True,
-            )
-
-        if variable is not None:
-            variable_raster = _to_raster(var_gdf, variable)
+        if variable_name is not None:
+            variable_raster, extent = self.to_raster(variable_name)
+            H, W = variable_raster.shape
             vmin = kwargs.pop("vmin", np.nanmin(variable_raster))
             vmax = kwargs.pop("vmax", np.nanmax(variable_raster))
         else:
@@ -3286,8 +3258,9 @@ class LocalSurface(CratermakerBase):
 
         if style == "hillshade":
             hill_args = {"dx": self.pix, "dy": self.pix, "fraction": 1.0}
-            elevation = _to_raster(hill_gdf, "face_elevation")
+            elevation, extent = self.to_raster(variable_name="face_elevation")
             elevation = gaussian_filter(elevation, sigma=2, mode="constant", cval=np.nan)
+            H, W = elevation.shape
             azimuth = 300.0
             solar_angle = 20.0
             ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
@@ -3312,19 +3285,12 @@ class LocalSurface(CratermakerBase):
         # Plot with (1, 1) inch figure and dpi=resolution for exact pixel size
         if ax is None:
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
-        im = ax.imshow(
-            cvals,
-            interpolation=interpolation,
-            cmap=cmap,
-            vmin=vmin,
-            vmax=vmax,
-            aspect="equal",
-            extent=(xmin, xmax, ymin, ymax),
-        )
+        im = ax.imshow(cvals, interpolation=interpolation, cmap=cmap, vmin=vmin, vmax=vmax, aspect="equal", extent=extent)
         ax.axis("off")
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
         fontsize_px = W * 0.03
         fontsize = fontsize_px * 72 / W
+        xmin, xmax, ymin, ymax = extent
         # Add scale bar before saving/showing image
         if scalebar:
             # Determine max physical size for the scale bar
