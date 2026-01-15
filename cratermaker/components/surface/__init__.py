@@ -759,6 +759,9 @@ class Surface(ComponentBase):
         """
         return self._full().to_vector_file(driver=driver, interval_number=interval_number, **kwargs)
 
+    def to_raster(self, variable_name: str = "face_elevation", **kwargs: Any):
+        return self._full().to_raster(variable_name, **kwargs)
+
     def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
         Exports the surface to a VTK PolyData object.
@@ -2933,6 +2936,152 @@ class LocalSurface(CratermakerBase):
 
         return
 
+    def to_raster(self, variable_name: str = "face_elevation", **kwargs: Any):
+        # Check if rasterio is installed, and if not, just return without plotting
+        try:
+            from rasterio.features import rasterize
+            from rasterio.transform import Affine, from_bounds
+        except ImportError:
+            warnings.warn(
+                "rasterio is not installed. Cannot generate plot. On some platforms, you may need to install GDAL first before installing rasterio.",
+                stacklevel=2,
+            )
+            return
+
+        if variable_name is not None and variable_name not in self.uxds:
+            raise ValueError(f"Variable '{variable_name}' not found in the surface data.")
+        var_da = self.uxds[variable_name].load()
+
+        if self.location is None:
+            # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
+            gdf = var_da.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
+            xmin, xmax = -180.0, 180.0
+            ymin, ymax = -90.0, 90.0
+            deg_per_pix = 180.0 * self.pix / (np.pi * self.surface.radius)
+            xres = yres = deg_per_pix
+            W = int(np.ceil((xmax - xmin) / xres))
+            H = int(np.ceil((ymax - ymin) / yres))
+
+            transform = from_bounds(xmin, ymin, xmax, ymax, W, H)
+        else:
+            gdf = var_da.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
+            R = self.region_radius
+            xmin, xmax = -R, R
+            ymin, ymax = -R, R
+            pix = self.pix
+            W = H = int(max(1, np.ceil((2.0 * R) / pix)))
+            # pixel size (meters/pixel)
+            xres = yres = (2.0 * R) / W
+            # upper-left at (-R, +R); y increases downward in rasters
+            transform = Affine.translation(-R, R) * Affine.scale(xres, -yres)
+
+        vals = gdf[variable_name].to_numpy()
+        geoms = gdf.geometry.values
+        shapes = [
+            (geom, float(val))
+            for geom, val in zip(geoms, vals, strict=False)
+            if (geom is not None) and (not geom.is_empty) and np.isfinite(val)
+        ]
+
+        return rasterize(
+            shapes=shapes,
+            out_shape=(H, W),
+            transform=transform,
+            fill=np.nan,
+            dtype=np.float32,
+            all_touched=True,
+        )
+
+    def to_geotiff(
+        self,
+        interval_number: int = 0,
+        bounds: tuple[float, float, float, float] | None = None,
+        dtype: str = "float32",
+        nodata: float | None = np.nan,
+        **kwargs,
+    ) -> None:
+        """
+        Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
+
+        Parameters
+        ----------
+        surface : Surface
+            Source surface with an unstructured mesh and face-based data in UxArray.
+        interval_number : int, optional
+            Interval number to save, by default 0.
+        bounds : tuple[float, float, float, float] | None, optional
+            (minx, miny, maxx, maxy) bounds of the output raster in the self CRS; if None, use the full extent of the data, by default None.
+        dtype : str, optional
+            Data type for the output raster, by default "float32".
+        nodata : float | None, optional
+            NoData value for the output raster; if None, no NoData value is set, by default np.nan.
+        """
+        import matplotlib.pyplot as plt
+        import rasterio as rio
+        from cartopy import crs as ccrs
+
+        out_dir = self.output_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        ds = self.uxds.load()
+        variables = [v for v in ds.data_vars if len(ds[v].dims) == 1 and any(dim == "n_face" for dim in ds[v].dims)]
+        if not variables:
+            raise ValueError("No face-based variables found to export to GeoTiff.")
+
+        projection = ccrs.PlateCarree()
+
+        for var in variables:
+            output_file = out_dir / f"{var}{interval_number:06d}.tiff"
+            print(f"Saving raster file: '{output_file}'...")
+            gdf = ds[var].to_geodataframe(engine="geopandas")
+
+            # Ensure CRS is set
+            if getattr(gdf, "crs", None) is None:
+                gdf = gdf.set_crs(self.crs)
+
+            # Drop empty geometries
+            gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notnull()].copy()
+
+            # Choose bounds
+            if bounds is None:
+                minx, miny, maxx, maxy = gdf.total_bounds
+            else:
+                minx, miny, maxx, maxy = bounds
+
+            # degrees per pixel (same for lat/lon if you want square pixels)
+            deg_per_pix = 360.0 * self.pix / (2 * np.pi * self.radius)
+
+            width = int(np.ceil((maxx - minx) / deg_per_pix))
+            height = int(np.ceil((maxy - miny) / deg_per_pix))
+
+            fig = plt.figure(figsize=(width, height), dpi=1)
+
+            ax = fig.add_axes([0, 0, 1, 1], projection=projection)
+            ax.set_axis_off()
+            fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+            ax.set_extent([minx, maxx, miny, maxy], crs=projection)
+
+            raster = ds[var].to_raster(ax=ax)
+
+            # transform = rio.transform.from_origin(minx, miny, deg_per_pix, deg_per_pix)
+            transform = rio.transform.from_bounds(minx, maxy, maxx, miny, width, height)
+
+            profile = {
+                "driver": "GTiff",
+                "height": height,
+                "width": width,
+                "count": 1,
+                "dtype": dtype,
+                "crs": gdf.crs,
+                "transform": transform,
+            }
+            if nodata is not None:
+                profile["nodata"] = nodata
+            with rio.open(output_file, "w", **profile) as dst:
+                dst.write(raster, 1)
+
+        return
+
     def save(
         self,
         interval_number: int = 0,
@@ -4075,30 +4224,30 @@ class LocalSurface(CratermakerBase):
                     dims=("n_node",),
                     attrs={"long_name": "Initial bearing from center location to node", "units": "degrees"},
                 )
-            if isinstance(self.face_indices, slice):
-                data = np.arange(self.surface.n_face)[self.face_indices]
-            else:
-                data = self.face_indices
-            ds["face_indices"] = xr.DataArray(
-                data=data,
-                dims=("n_face",),
-                attrs={"long_name": "Indices of faces in the local surface view"},
-            )
-            if isinstance(self.node_indices, slice):
-                data = np.arange(self.surface.n_node)[self.node_indices]
-            else:
-                data = self.node_indices
-            ds["node_indices"] = xr.DataArray(
-                data=data, dims=("n_node",), attrs={"long_name": "Indices of nodes in the local surface view"}
-            )
-            if isinstance(self.edge_indices, slice):
-                data = np.arange(self.surface.n_edge)[self.edge_indices]
-            else:
-                data = self.edge_indices
-            ds["edge_indices"] = xr.DataArray(
-                data=data, dims=("n_edge",), attrs={"long_name": "Indices of edges in the local surface view"}
-            )
-            self._uxds = uxr.UxDataset.from_xarray(ds=ds, uxgrid=self.uxgrid)
+                if isinstance(self.face_indices, slice):
+                    data = np.arange(self.surface.n_face)[self.face_indices]
+                else:
+                    data = self.face_indices
+                ds["face_indices"] = xr.DataArray(
+                    data=data,
+                    dims=("n_face",),
+                    attrs={"long_name": "Indices of faces in the local surface view"},
+                )
+                if isinstance(self.node_indices, slice):
+                    data = np.arange(self.surface.n_node)[self.node_indices]
+                else:
+                    data = self.node_indices
+                ds["node_indices"] = xr.DataArray(
+                    data=data, dims=("n_node",), attrs={"long_name": "Indices of nodes in the local surface view"}
+                )
+                if isinstance(self.edge_indices, slice):
+                    data = np.arange(self.surface.n_edge)[self.edge_indices]
+                else:
+                    data = self.edge_indices
+                ds["edge_indices"] = xr.DataArray(
+                    data=data, dims=("n_edge",), attrs={"long_name": "Indices of edges in the local surface view"}
+                )
+                self._uxds = uxr.UxDataset.from_xarray(ds=ds, uxgrid=self.uxgrid)
         return self._uxds
 
     @property

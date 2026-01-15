@@ -251,6 +251,12 @@ class HiResLocalSurface(Surface):
         else:
             return self.local.plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
 
+    def to_raster(self, variable_name: str = "face_elevation", superdomain: bool = False, **kwargs: Any):
+        if superdomain:
+            return self._full().to_raster(variable_name, **kwargs)
+        else:
+            return self.local.to_raster(variable_name, **kwargs)
+
     def show_pyvista(
         self, variable_name: str | None = None, variable: ArrayLike | None = None, superdomain: bool = False, **kwargs
     ):
