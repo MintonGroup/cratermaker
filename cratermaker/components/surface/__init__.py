@@ -2714,6 +2714,8 @@ class LocalSurface(CratermakerBase):
                 ask_overwrite=ask_overwrite,
                 **kwargs,
             )
+            # Also export the regional surface polygon using the default output format
+            self.export_region_polygon()
         else:
             self.to_vector_file(
                 driver=driver,
@@ -2721,6 +2723,7 @@ class LocalSurface(CratermakerBase):
                 ask_overwrite=ask_overwrite,
                 **kwargs,
             )
+            self.export_region_polygon(driver=driver)
         return
 
     @staticmethod
@@ -2758,11 +2761,11 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
+        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
         def _write_dataset(uxds, filename, layer_name, driver, **kwargs):
-            if (
-                self.location is None
-            ):  # Exclude periodic elements for global surfaces. For some reason, UxArray gets the windings wrong when using the split argument, so we have to exclude instead.
+            if self.location is None:
+                # Exclude periodic elements for global surfaces. For some reason, UxArray gets the windings wrong when using the split argument, so we have to exclude instead.
                 gdfargs = {"engine": "geopandas", "periodic_elements": "exclude"}
             else:
                 gdfargs = {"engine": "geopandas", "periodic_elements": "ignore"}
@@ -2811,43 +2814,8 @@ class LocalSurface(CratermakerBase):
                     key = key.replace(long, short)
             return key[:10].upper()
 
-        # Map of OGR drivers to file extensions
-        driver_to_extension_map = {
-            "PCIDSK": "pix",
-            "PDS4": "xml",
-            "PDF": "pdf",
-            "MBTiles": "mbtiles",
-            "ESRI Shapefile": "shp",
-            "MapInfo File": "tab",
-            "S57": "000",
-            "DGN": "dgn",
-            "CSV": "csv",
-            "GML": "gml",
-            "GPX": "gpx",
-            "KML": "kml",
-            "GeoJSON": "json",
-            "GeoJSONSeq": "geojsonl",
-            "OGR_GMT": "gmt",
-            "GPKG": "gpkg",
-            "SQLite": "sqlite",
-            "WAsP": "map",
-            "OpenFileGDB": "gdb",
-            "DXF": "dxf",
-            "FlatGeobuf": "fgb",
-            "PGDUMP": "sql",
-            "GPSBabel": "mps",
-            "ODS": "ods",
-            "XLSX": "xlsx",
-            "JML": "jml",
-            "VDV": "txt",
-            "MVT": "mvt",
-            "PMTiles": "pmtiles",
-            "JSONFG": "json",
-            "MiraMonVector": "pol",
-        }
-
-        if driver in driver_to_extension_map:
-            file_extension = driver_to_extension_map[driver]
+        if driver in EXPORT_DRIVER_TO_EXTENSION_MAP:
+            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver]
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
@@ -2867,6 +2835,7 @@ class LocalSurface(CratermakerBase):
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxdsi = uxds.sel(time=time).load()
             filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
+
             _write_dataset(
                 uxdsi,
                 filename=filename,
@@ -2874,8 +2843,6 @@ class LocalSurface(CratermakerBase):
                 driver=driver,
                 **kwargs,
             )
-
-        return
 
     def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
@@ -3585,6 +3552,51 @@ class LocalSurface(CratermakerBase):
         plotter.add_key_event("j", lambda: update_scalars(plotter, cmap=cmap))
         plotter.add_key_event("r", lambda: reset_view(plotter))
         return plotter
+
+    def export_region_polygon(self, driver: str = "GPKG", **kwargs: Any) -> None:
+        """
+        Export the local surface region as a polygon to a vector file.
+
+        This will create a polygon that can be used for the OpenCraterTool plugin in QGIS [#]_.
+
+        [#] https://github.com/thomasheyer/OpenCraterTool
+
+        Parameters
+        ----------
+        driver : str, optional
+            The OGR driver to use for exporting the polygon. Default is "GPKG"
+        **kwargs : Any
+            Additional keyword arguments to pass to the geop
+        """
+        import geopandas as gpd
+        import pandas as pd
+
+        from cratermaker.components.crater import Crater
+        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
+        if driver in EXPORT_DRIVER_TO_EXTENSION_MAP:
+            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver]
+        else:
+            raise ValueError("Cannot infer file extension from driver {driver}.")
+
+        # If this is a local surface, we will use the Crater functionality to generate a polygon representation of it
+        if self.location is not None:
+            region = Crater.maker(radius=self.region_radius, location=self.location)
+            geoms = region.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False).to_crs(
+                self.crs
+            )
+            df = pd.DataFrame(
+                {"area": [self.area], "area_name": ["local_region"]},
+                index=[0, 1],
+            )
+            gdf = gpd.GeoDataFrame(data=df, geometry=geoms, crs=self.crs)
+            filename = self.output_dir / f"local_surface_poly.{file_extension}"
+            if file_extension == "shp":
+                gdf.to_file(filename, driver=driver, **kwargs)
+            else:
+                gdf.to_file(filename, layer="local_surface_poly", driver=driver, **kwargs)
+
+        return
 
     def show(self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs) -> None:
         """

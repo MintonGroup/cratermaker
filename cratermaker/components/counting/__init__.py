@@ -764,6 +764,7 @@ class Counting(ComponentBase):
         **kwargs : Any
             Additional keyword arguments that are ignored.
         """
+        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
         def shp_key_fix(key: str) -> str:
             """
@@ -787,51 +788,18 @@ class Counting(ComponentBase):
                     key = key.replace(long, short)
             return key[:10].upper()
 
-        # Map of OGR drivers to file extensions
-        driver_to_extension_map = {
-            "PCIDSK": "pix",
-            "PDS4": "xml",
-            "PDF": "pdf",
-            "MBTiles": "mbtiles",
-            "ESRI Shapefile": "shp",
-            "MapInfo File": "tab",
-            "S57": "000",
-            "DGN": "dgn",
-            "GML": "gml",
-            "GPX": "gpx",
-            "KML": "kml",
-            "GeoJSON": "json",
-            "GeoJSONSeq": "geojsonl",
-            "OGR_GMT": "gmt",
-            "GPKG": "gpkg",
-            "SQLite": "sqlite",
-            "WAsP": "map",
-            "OpenFileGDB": "gdb",
-            "DXF": "dxf",
-            "FlatGeobuf": "fgb",
-            "PGDUMP": "sql",
-            "GPSBabel": "mps",
-            "JML": "jml",
-            "VDV": "txt",
-            "MVT": "mvt",
-            "PMTiles": "pmtiles",
-            "JSONFG": "json",
-            "MiraMonVector": "pol",
-        }
-
-        if driver in driver_to_extension_map:
-            file_extension = driver_to_extension_map[driver]
+        if driver in EXPORT_DRIVER_TO_EXTENSION_MAP:
+            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver]
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
         if file_extension == "shp":
             format_has_layers = False
-            split_antimeridian = True
         else:
             format_has_layers = True
-            split_antimeridian = True
 
         surface = self.surface
+        split_antimeridian = True
 
         geoms = []
         attrs = []
