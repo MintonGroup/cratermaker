@@ -19,6 +19,7 @@ from vtk import vtkPolyData
 from cratermaker.components.crater import Crater
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils.general_utils import get_saved_interval_numbers
+from cratermaker import __version__ as VERSION
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
@@ -556,7 +557,7 @@ class Counting(ComponentBase):
         interval_number : int, default=0
             The interval number for the output file naming.
         driver : str, default='GPKG'
-            The file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', etc.
+            The file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', 'CSV', 'SCC'.
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
@@ -593,6 +594,13 @@ class Counting(ComponentBase):
             )
         elif driver.upper() == "CSV":
             self.to_csv_file(
+                craters=craters,
+                interval_number=interval_number,
+                ask_overwrite=ask_overwrite,
+                **kwargs,
+            )
+        elif driver.upper() == "SCC":
+            self.to_scc_file(
                 craters=craters,
                 interval_number=interval_number,
                 ask_overwrite=ask_overwrite,
@@ -1102,6 +1110,80 @@ class Counting(ComponentBase):
                 craters.append(crater)
 
         return craters
+
+    def to_scc_file(
+        self,
+        craters: list[Crater],
+        interval_number: int | None = None,
+        name: str = "craters",
+        ask_overwrite: bool = True,
+        **kwargs,
+    ) -> None:
+        """
+        Export the crater data to Craterstats and OpenCraterTools-compatible SCC file and stores it in the default export directory.
+
+        Parameters
+        ----------
+        craters : list[Crater]
+            A list of Crater objects.
+        interval_number : int, optional
+            The interval number to append to the file name. If None, then no interval number is added. Default is None.
+        name : str, optional
+            The name used for the file name, by default "craters".
+        ask_overwrite : bool, optional
+            If True, prompt the user for confirmation before overwriting files. Default is True.
+        **kwargs : Any
+            Additional keyword arguments that are ignored.
+        """
+        import datetime
+        if interval_number is None:
+            output_file = self.output_dir / f"{name}.scc"
+        else:
+            output_file = self.output_dir / f"{name}{interval_number:06d}.scc"
+        if ask_overwrite and not self._overwrite_check(output_file):
+            return
+        print(f"\nSaving crater data to {output_file}")
+        with output_file.open(mode="w") as f:
+            f.write(f"# Spatial crater count Cratermaker version {VERSION}\n")
+            f.write("#\n")
+            f.write(f"# Exported on {datetime.datetime.now().isoformat()}\n")
+            f.write("#\n")
+            f.write("# Ellipsoid axes\n")
+            f.write(f"a_axis radius = {self.surface.radius*1e-3:.3f} <km>\n")
+            f.write(f"b_axis radius = {self.surface.radius*1e-3:.3f} <km>\n")
+            f.write(f"c_axis radius = {self.surface.radius*1e-3:.3f} <km>\n")
+
+            # Start with regional area
+            boundary_points = []
+
+            if hasattr(self.surface, "local_radius") and hasattr(self.surface,"local_location"):
+                f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
+                region_circle = Crater.maker(radius=self.surface.local_radius, location=self.surface.local_location)
+                region_poly = region_circle.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False).item()
+                boundary_points = list(region_poly.exterior.coords)
+                area = self.surface.local.area 
+            else:
+                f.write(f"coordinate_system_name = {self.surface.crs.name}\n")
+                boundary_points = [(-180.0, -90.0), (180.0, -90.0), (180.0, 90.0), (-180.0, 90.0), (-180.0, -90.0)]
+                area = self.surface.area 
+            f.write("# area_shapes:\n")
+            f.write("unit_boundary = {vertex, sub_area, tag, lon, lat\n")
+            for i,p in enumerate(boundary_points):
+                f.write(f"{i} 1 ext {p[0]} {p[1]}\n")
+            f.write("}\n")
+            f.write("#\n")
+            f.write("# area_info:\n")
+            f.write(f"Total_area = {area * 1e-6} <km^2>\n")
+            f.write("#\n")
+            f.write("# crater_diameters\n")
+            f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")
+            for crater in craters:
+                f.write(f"{crater.measured_diameter*1e-3} 1 {crater.measured_location[0]} {crater.measured_location[1]} 1\n")
+            f.write("}\n")
+
+
+        
+        return
 
     @staticmethod
     def from_xarray(dataset: xr.Dataset) -> list[Crater]:
