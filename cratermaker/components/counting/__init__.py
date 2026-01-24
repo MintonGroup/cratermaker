@@ -16,10 +16,10 @@ from shapely.ops import transform
 from tqdm import tqdm
 from vtk import vtkPolyData
 
+from cratermaker import __version__ as cratermaker_version
 from cratermaker.components.crater import Crater
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils.general_utils import get_saved_interval_numbers
-from cratermaker import __version__ as VERSION
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
@@ -1136,6 +1136,7 @@ class Counting(ComponentBase):
             Additional keyword arguments that are ignored.
         """
         import datetime
+
         if interval_number is None:
             output_file = self.output_dir / f"{name}.scc"
         else:
@@ -1144,31 +1145,33 @@ class Counting(ComponentBase):
             return
         print(f"\nSaving crater data to {output_file}")
         with output_file.open(mode="w") as f:
-            f.write(f"# Spatial crater count Cratermaker version {VERSION}\n")
+            f.write(f"# Spatial crater count Cratermaker version {cratermaker_version}\n")
             f.write("#\n")
             f.write(f"# Exported on {datetime.datetime.now().isoformat()}\n")
             f.write("#\n")
             f.write("# Ellipsoid axes\n")
-            f.write(f"a_axis radius = {self.surface.radius*1e-3:.3f} <km>\n")
-            f.write(f"b_axis radius = {self.surface.radius*1e-3:.3f} <km>\n")
-            f.write(f"c_axis radius = {self.surface.radius*1e-3:.3f} <km>\n")
+            f.write(f"a_axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
+            f.write(f"b_axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
+            f.write(f"c_axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
 
             # Start with regional area
             boundary_points = []
 
-            if hasattr(self.surface, "local_radius") and hasattr(self.surface,"local_location"):
+            if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
                 f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
                 region_circle = Crater.maker(radius=self.surface.local_radius, location=self.surface.local_location)
-                region_poly = region_circle.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False).item()
+                region_poly = region_circle.to_geoseries(
+                    surface=self.surface, split_antimeridian=False, use_measured_properties=False
+                ).item()
                 boundary_points = list(region_poly.exterior.coords)
-                area = self.surface.local.area 
+                area = self.surface.local.area
             else:
                 f.write(f"coordinate_system_name = {self.surface.crs.name}\n")
                 boundary_points = [(-180.0, -90.0), (180.0, -90.0), (180.0, 90.0), (-180.0, 90.0), (-180.0, -90.0)]
-                area = self.surface.area 
+                area = self.surface.area
             f.write("# area_shapes:\n")
             f.write("unit_boundary = {vertex, sub_area, tag, lon, lat\n")
-            for i,p in enumerate(boundary_points):
+            for i, p in enumerate(boundary_points):
                 f.write(f"{i} 1 ext {p[0]} {p[1]}\n")
             f.write("}\n")
             f.write("#\n")
@@ -1178,11 +1181,9 @@ class Counting(ComponentBase):
             f.write("# crater_diameters\n")
             f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")
             for crater in craters:
-                f.write(f"{crater.measured_diameter*1e-3} 1 {crater.measured_location[0]} {crater.measured_location[1]} 1\n")
+                f.write(f"{crater.measured_diameter * 1e-3} 1 {crater.measured_location[0]} {crater.measured_location[1]} 1\n")
             f.write("}\n")
 
-
-        
         return
 
     @staticmethod
