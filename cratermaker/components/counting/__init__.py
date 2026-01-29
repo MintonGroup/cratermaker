@@ -564,14 +564,12 @@ class Counting(ComponentBase):
             Additional keyword arguments to pass to the make_vector_file function.
         """
         if isinstance(craters, str):
-            if craters.lower() == "emplaced":
+            if name is None:
+                name = craters.lower()
+            if name == "emplaced":
                 craters = self.emplaced
-                if name is None:
-                    name = "emplaced_craters"
-            elif craters.lower() == "observed":
+            elif name == "observed":
                 craters = self.observed
-                if name is None:
-                    name = "observed_craters"
             else:
                 raise ValueError("craters string must be 'emplaced' or 'observed'")
 
@@ -790,12 +788,20 @@ class Counting(ComponentBase):
                 "location": "loc",
                 "angle": "ang",
                 "transient_": "tr",
+                "semimajor_axis": "a",
+                "semiminor_axis": "b",
+                "orientation": "orient",
+                "measured_": "meas",
+                "degradation_state": "kdeg",
             }
             for long, short in alt_names.items():
                 if long in key:
                     key = key.replace(long, short)
             return key[:10].upper()
 
+        # Common alias for Shapefile
+        if driver.upper() == "SHP":
+            driver = "ESRI Shapefile"
         if driver in EXPORT_DRIVER_TO_EXTENSION_MAP:
             file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver]
         else:
@@ -827,7 +833,7 @@ class Counting(ComponentBase):
 
         if len(geoms) > 0:
             attrs_df = pd.concat(attrs, ignore_index=True)
-            if driver.upper() == "SHP":
+            if driver.upper() == "ESRI SHAPEFILE":
                 attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
 
             gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
@@ -844,6 +850,13 @@ class Counting(ComponentBase):
                     output_file = self.output_dir / f"{name}{interval_number:06d}.{file_extension}"
                 if ask_overwrite and not self._overwrite_check(output_file):
                     return
+            if driver.upper() == "ESRI SHAPEFILE":
+                # Append _CRATER so that it is recognized by Craterstats
+                output_file = Path(str(output_file).replace(".shp", "_CRATER.shp"))
+                if hasattr(self.surface, "local"):
+                    # Create the _AREA file
+                    self.surface.local.export_region_polygon(driver=driver)
+
             try:
                 if format_has_layers:
                     gdf.to_file(output_file, layer=name)
@@ -1209,6 +1222,9 @@ class Counting(ComponentBase):
         if input_file.suffix != ".scc":
             raise ValueError(f"Input file '{input_file}' is not a .scc file.")
         scc = Spatialcount(filename=str(input_file))
+        for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
+            crater = Crater.maker(diameter=diam * 1e3, location=(lon, lat))
+            craters.append(crater)
 
         return craters
 
