@@ -1150,9 +1150,9 @@ class Counting(ComponentBase):
             f.write(f"# Exported on {datetime.datetime.now().isoformat()}\n")
             f.write("#\n")
             f.write("# Ellipsoid axes\n")
-            f.write(f"a_axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
-            f.write(f"b_axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
-            f.write(f"c_axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
+            f.write(f"a-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
+            f.write(f"b-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
+            f.write(f"c-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
 
             # Start with regional area
             boundary_points = []
@@ -1185,6 +1185,32 @@ class Counting(ComponentBase):
             f.write("}\n")
 
         return
+
+    def from_scc_file(self, input_file: Path | str) -> list[Crater]:
+        """
+        Import crater data from a Spatial Crater Count file.
+
+        Parameters
+        ----------
+        input_file : Path | str
+            The path to the SCC file containing crater data.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the SCC file.
+        """
+        from craterstats import Spatialcount
+
+        craters = []
+        input_file = Path(input_file)
+        if not input_file.exists():
+            raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
+        if input_file.suffix != ".scc":
+            raise ValueError(f"Input file '{input_file}' is not a .scc file.")
+        scc = Spatialcount(filename=str(input_file))
+
+        return craters
 
     @staticmethod
     def from_xarray(dataset: xr.Dataset) -> list[Crater]:

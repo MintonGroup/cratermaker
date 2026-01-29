@@ -1,17 +1,13 @@
 [project]
 name = "cratermaker"
 dynamic = ["version"]
-authors=[
-    {name = 'David A. Minton', email='daminton@purdue.edu'},
-]
-maintainers = [
-    {name = 'David A. Minton', email='daminton@purdue.edu'},
-]
+authors = [{ name = 'David A. Minton', email = 'daminton@purdue.edu' }]
+maintainers = [{ name = 'David A. Minton', email = 'daminton@purdue.edu' }]
 
 readme = "README.md"
-requires-python=">=3.10,<3.14"
-license={file = "LICENSE"}
-classifiers=[
+requires-python = ">=3.10,<3.14"
+license = { file = "LICENSE" }
+classifiers = [
     'Development Status :: 3 - Alpha',
     'Intended Audience :: Science/Research',
     'Topic :: Scientific/Engineering :: Astronomy',
@@ -21,7 +17,14 @@ classifiers=[
     'Operating System :: MacOS',
     'Operating System :: POSIX :: Linux',
 ]
-keywords=['astronomy','astrophysics', 'planetary', 'monte carlo',  'moon', 'landscape evolution']
+keywords = [
+    'astronomy',
+    'astrophysics',
+    'planetary',
+    'monte carlo',
+    'moon',
+    'landscape evolution',
+]
 dependencies = [
     'numpy',
     'dask>=2025.11.0',
@@ -38,12 +41,13 @@ dependencies = [
     'PyYAML>=6',
     'astropy>=7',
     'pyvista',
-    'rasterio>=1.4.4'
+    'rasterio>=1.4.4',
+    'craterstats>=3.6.3',
 ]
 
 [project.optional-dependencies]
 tests = ["pytest"]
-docs =[
+docs = [
     'sphinx<9',
     'sphinx-autosummary-accessors',
     'sphinx-book-theme>=0.3.0',
@@ -62,21 +66,27 @@ docs =[
     'trame-server>=2.11.7',
     'trame-vtk>=2.5.8',
     'trame-vuetify>=2.3.1',
-    'trame>=2.5.2'
+    'trame>=2.5.2',
 ]
 
 [project.urls]
 Repository = 'https://github.com/MintonGroup/cratermaker'
 
 [build-system]
-requires = [
-    "maturin>=1.8,<2.0"
-]
+requires = ["maturin>=1.8,<2.0"]
 build-backend = "maturin"
 
 [tool.maturin]
 python-source = "."
-include = ["cratermaker/_version.py", "cratermaker/**/*.py", "pyproject.toml", "Cargo.toml", "README.md", "COPYING", "LICENSE"]
+include = [
+    "cratermaker/_version.py",
+    "cratermaker/**/*.py",
+    "pyproject.toml",
+    "Cargo.toml",
+    "README.md",
+    "COPYING",
+    "LICENSE",
+]
 features = ["pyo3/extension-module"]
 manifest-path = "crates/cratermaker-py/Cargo.toml"
 module-name = "cratermaker._cratermaker"
@@ -102,21 +112,21 @@ docstring-code-format = true
 
 [tool.ruff.lint]
 select = [
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "D",  # pydocstyle
-    "E",  # Error
-    "F",  # pyflakes
-    "I",  # isort
-    "N",  # pep8-naming
-    "PGH",  # pygrep-hooks
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "D",   # pydocstyle
+    "E",   # Error
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "PGH", # pygrep-hooks
     "PTH", # flake8-use-pathlib
-    "Q",  # flake8-quotes
-    "S",  # bandit
-    "SIM",  # flake8-simplify
-    "TRY",  # tryceratops
+    "Q",   # flake8-quotes
+    "S",   # bandit
+    "SIM", # flake8-simplify
+    "TRY", # tryceratops
     "UP",  # pyupgrade
-    "W",  # Warning
+    "W",   # Warning
     "YTT", # flake8-2020
 ]
 
@@ -134,19 +144,15 @@ ignore = [
     "E402",
     "E501",
     "F401",
-    "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
+    "TRY003", # Avoid specifying messages outside exception class; overly strict, especially for ValueError
     "SIM108", # Don't suggest if else block instead of expression, as it can reduce readability
-    "N802", # Allow uppercase functions 
-    "N803", # Allow uppercase arguments 
-    "N806", # Allow uppercase variable names
+    "N802",   # Allow uppercase functions 
+    "N803",   # Allow uppercase arguments 
+    "N806",   # Allow uppercase variable names
 ]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = [
-    "chr",
-    "typer.Argument",
-    "typer.Option",
-]
+extend-immutable-calls = ["chr", "typer.Argument", "typer.Option"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
@@ -161,14 +167,11 @@ convention = "numpy"
     "D105",
     "D106",
     "D107",
-    "S101",  # use of "assert"
-    "S102",  # use of "exec"
-    "S106",  # possible hardcoded password.
-    "PGH001",  # use of "eval"
+    "S101",   # use of "assert"
+    "S102",   # use of "exec"
+    "S106",   # possible hardcoded password.
+    "PGH001", # use of "eval"
 ]
 
 [tool.ruff.lint.pep8-naming]
-staticmethod-decorators = [
-    "pydantic.validator",
-    "pydantic.root_validator",
-]
+staticmethod-decorators = ["pydantic.validator", "pydantic.root_validator"]
