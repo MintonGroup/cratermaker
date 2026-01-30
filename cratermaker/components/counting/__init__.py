@@ -1185,7 +1185,7 @@ class Counting(ComponentBase):
             f.write("# area_shapes:\n")
             f.write("unit_boundary = {vertex, sub_area, tag, lon, lat\n")
             for i, p in enumerate(boundary_points):
-                f.write(f"{i} 1 ext {p[0]} {p[1]}\n")
+                f.write(f"{i}\t1\text\t{p[0]}\t{p[1]}\n")
             f.write("}\n")
             f.write("#\n")
             f.write("# area_info:\n")
@@ -1194,7 +1194,7 @@ class Counting(ComponentBase):
             f.write("# crater_diameters\n")
             f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")
             for crater in craters:
-                f.write(f"{crater.measured_diameter * 1e-3} 1 {crater.measured_location[0]} {crater.measured_location[1]} 1\n")
+                f.write(f"{crater.measured_diameter * 1e-3}\t1\t{crater.measured_location[0]}\t{crater.measured_location[1]}\t 1\n")
             f.write("}\n")
 
         return
