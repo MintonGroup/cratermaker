@@ -601,7 +601,7 @@ class Simulation(CratermakerBase):
 
     def export(
         self,
-        driver: str = "GPKG",
+        driver: str = "OpenCraterTool",
         interval_number: int | None = None,
         ask_overwrite: bool = True,
         **kwargs: Any,
@@ -612,17 +612,27 @@ class Simulation(CratermakerBase):
         Parameters
         ----------
         driver : str, optional
-            The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.). This is overridden if either the filename or file_extension parameters are provided. Default is 'GPKG'.
+            The driver to use export the data to. Supported formats are 'OpenCraterTool', 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.). This is overridden if either the filename or file_extension parameters are provided. Default is 'OpenCraterTool'.
         interval_number : int, optional
             The interval number to export. If None, all intervals will be exported. Default is None.
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting any existing files. Default is True
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
+
+        Notes
+        -----
+        The default driver is 'OpenCraterTool', which is designed to output data into a format that is relatively easy to import into QGIS with the OpenCraterTool plugin. This will create a GeoTIFF file representation of the surface, and a set of SCC files for the crater counting data if counting is enabled.
         """
         self.save()
+        if driver.lower() == "opencratertool":
+            surface_driver = "GeoTIFF"
+            counting_driver = "SCC"
+        else:
+            surface_driver = driver
+            counting_driver = driver
         self.surface.export(
-            driver=driver,
+            driver=surface_driver,
             interval_number=interval_number,
             ask_overwrite=ask_overwrite,
             **kwargs,
@@ -632,7 +642,7 @@ class Simulation(CratermakerBase):
             self.counting.export(
                 craters=self.counting.observed,
                 interval_number=interval_number,
-                driver=driver,
+                driver=counting_driver,
                 ask_overwrite=ask_overwrite,
                 **kwargs,
             )
