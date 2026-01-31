@@ -70,18 +70,16 @@ class Counting(ComponentBase):
         ask_overwrite: bool = False,
         **kwargs: Any,
     ):
-        self.surface = surface
+        from cratermaker.components.surface import Surface
 
-        rng = kwargs.pop("rng", surface.rng)
-        simdir = kwargs.pop("simdir", surface.simdir)
-        super().__init__(rng=rng, simdir=simdir, reset=reset, ask_overwrite=ask_overwrite, **kwargs)
+        super().__init__(reset=reset, ask_overwrite=ask_overwrite, **kwargs)
 
         object.__setattr__(self, "_emplaced", [])
         object.__setattr__(self, "_observed", {})
         object.__setattr__(self, "_output_dir_name", "craters")
         object.__setattr__(self, "_output_file_prefix", "craters")
         object.__setattr__(self, "_output_file_extension", "nc")
-
+        self._surface = Surface.maker(surface, reset=reset, ask_overwrite=ask_overwrite, **kwargs)
         self._output_file_pattern += [f"*{self._output_file_prefix}*.{self._output_file_extension}"]
 
         if not reset:
@@ -136,9 +134,6 @@ class Counting(ComponentBase):
         """
         if counting is None:
             counting = "minton2019"
-
-        if surface is None:
-            raise ValueError("surface must be provided")
 
         counting = super().maker(
             component=counting,
