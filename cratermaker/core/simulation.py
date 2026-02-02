@@ -603,7 +603,7 @@ class Simulation(CratermakerBase):
         self,
         driver: str = "OpenCraterTool",
         interval_number: int | None = None,
-        ask_overwrite: bool = True,
+        ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -616,7 +616,7 @@ class Simulation(CratermakerBase):
         interval_number : int, optional
             The interval number to export. If None, all intervals will be exported. Default is None.
         ask_overwrite : bool, optional
-            If True, the user will be prompted before overwriting any existing files. Default is True
+            If True, the user will be prompted before overwriting any existing files. Default is set to the value provided when the Simulation object was created.
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
 
@@ -624,6 +624,8 @@ class Simulation(CratermakerBase):
         -----
         The default driver is 'OpenCraterTool', which is designed to output data into a format that is relatively easy to import into QGIS with the OpenCraterTool plugin. This will create a GeoTIFF file representation of the surface, and a set of SCC files for the crater counting data if counting is enabled.
         """
+        if ask_overwrite is None:
+            ask_overwrite = self.ask_overwrite
         self.save()
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"
