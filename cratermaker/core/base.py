@@ -57,6 +57,7 @@ class CratermakerBase:
         object.__setattr__(self, "_simdir", None)
         object.__setattr__(self, "_output_dir_name", None)
         object.__setattr__(self, "_output_file_pattern", [])
+        object.__setattr__(self, "_export_dir_name", "export")
 
         self.simdir = simdir
 
@@ -196,6 +197,21 @@ class CratermakerBase:
             except Exception as e:
                 raise RuntimeError(f"Could not create output directory at {output_dir}") from e
         return output_dir
+
+    @property
+    def export_dir(self) -> Path | None:
+        """
+        The export directory for a component. If None, the component does not have an export directory set.
+        """
+        if self._export_dir_name is None:
+            return None
+        export_dir = self.simdir / self._export_dir_name
+        if not export_dir.exists():
+            try:
+                export_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                raise RuntimeError(f"Could not create export directory at {export_dir}") from e
+        return export_dir
 
     @property
     def output_file_pattern(self) -> list[str]:

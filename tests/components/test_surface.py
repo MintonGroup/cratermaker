@@ -480,7 +480,7 @@ class TestSurface(unittest.TestCase):
                     else:
                         surface.export(**export_args)
                     for file in expected_files:
-                        output_file = surface.output_dir / file
+                        output_file = surface.export_dir / file
                         if not output_file.exists():
                             raise FileNotFoundError(f"{surface_name} test {i}: Expected output file not created: {output_file}")
 

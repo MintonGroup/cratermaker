@@ -648,6 +648,7 @@ class Simulation(CratermakerBase):
                 ask_overwrite=ask_overwrite,
                 **kwargs,
             )
+
         return
 
     def plot(self, **kwargs: Any) -> AxesImage:

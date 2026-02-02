@@ -25,7 +25,7 @@ sim = cratermaker.Simulation(gridlevel=6, ask_overwrite=False)
 sim.run(age=4e3)
 sim.export(driver="GPKG")
 
-gdf = gpd.read_file(sim.surface.output_dir / "surface000001.gpkg")
+gdf = gpd.read_file(sim.surface.export_dir / "surface000001.gpkg")
 gdf.plot("face_elevation", cmap="Greys_r")
 
 
@@ -34,5 +34,5 @@ local = sim.surface.extract_region(location=(0, 0), region_radius=1000e3)
 # Pass the interval number explicitly so that the file number matches the last frame of the simulation
 local.save(interval_number=sim.interval_number)
 local.export(driver="GPKG")
-gdf = gpd.read_file(sim.surface.output_dir / "local_surface000001.gpkg")
+gdf = gpd.read_file(sim.surface.export_dir / "local_surface000001.gpkg")
 gdf.plot("face_elevation", cmap="Greys_r")

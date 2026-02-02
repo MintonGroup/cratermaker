@@ -3156,7 +3156,7 @@ class LocalSurface(CratermakerBase):
 
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxda = uxds.sel(time=time)[variable_name].load()
-            filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
+            filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
             _write_dataset(
                 uxda,
                 filename=filename,
@@ -3605,7 +3605,7 @@ class LocalSurface(CratermakerBase):
                 index=[0, 1],
             )
             gdf = gpd.GeoDataFrame(data=df, geometry=geoms, crs=self.crs)
-            filename = self.output_dir / f"local_surface_AREA.{file_extension}"
+            filename = self.export_dir / f"local_surface_AREA.{file_extension}"
 
             if file_extension == "shp":
                 gdf.to_file(filename, driver=driver, **kwargs)

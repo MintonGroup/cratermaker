@@ -739,7 +739,7 @@ class Counting(ComponentBase):
         craters: list[Crater],
         driver: str = "GPKG",
         interval_number: int | None = None,
-        name: str = "craters",
+        name: str | None = None,
         use_measured_properties: bool = True,
         ask_overwrite: bool = True,
         **kwargs,
@@ -793,6 +793,11 @@ class Counting(ComponentBase):
                     key = key.replace(long, short)
             return key[:10].upper()
 
+        if name is None:
+            if hasattr(self.surface, "local"):
+                name = "local_surface"
+            else:
+                name = "surface"
         # Common alias for Shapefile
         if driver.upper() == "SHP":
             driver = "ESRI Shapefile"
@@ -827,37 +832,39 @@ class Counting(ComponentBase):
 
         if len(geoms) > 0:
             attrs_df = pd.concat(attrs, ignore_index=True)
-            if driver.upper() == "ESRI SHAPEFILE":
-                attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
+        else:
+            attrs_df = pd.DataFrame()
+        if driver.upper() == "ESRI SHAPEFILE":
+            attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
 
-            gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
-            if format_has_layers:
-                if interval_number is None:
-                    output_file = self.output_dir / f"craters.{file_extension}"
-                else:
-                    output_file = self.output_dir / f"craters{interval_number:06d}.{file_extension}"
-                print(f"Saving {name} layer to vector file: '{output_file}'...")
+        gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
+        if format_has_layers:
+            if interval_number is None:
+                output_file = self.export_dir / f"craters.{file_extension}"
             else:
-                if interval_number is None:
-                    output_file = self.output_dir / f"{name}.{file_extension}"
-                else:
-                    output_file = self.output_dir / f"{name}{interval_number:06d}.{file_extension}"
-                if ask_overwrite and not self._overwrite_check(output_file):
-                    return
-            if driver.upper() == "ESRI SHAPEFILE":
-                # Append _CRATER so that it is recognized by Craterstats
-                output_file = Path(str(output_file).replace(".shp", "_CRATER.shp"))
-                if hasattr(self.surface, "local"):
-                    # Create the _AREA file
-                    self.surface.local.export_region_polygon(driver=driver)
+                output_file = self.export_dir / f"craters{interval_number:06d}.{file_extension}"
+            print(f"Saving {name} layer to vector file: '{output_file}'...")
+        else:
+            if interval_number is None:
+                output_file = self.export_dir / f"{name}.{file_extension}"
+            else:
+                output_file = self.export_dir / f"{name}{interval_number:06d}.{file_extension}"
+            if ask_overwrite and not self._overwrite_check(output_file):
+                return
+        if driver.upper() == "ESRI SHAPEFILE":
+            # Append _CRATER so that it is recognized by Craterstats
+            output_file = Path(str(output_file).replace(".shp", "_CRATER.shp"))
+            if hasattr(self.surface, "local"):
+                # Create the _AREA file
+                self.surface.local.export_region_polygon(driver=driver)
 
-            try:
-                if format_has_layers:
-                    gdf.to_file(output_file, layer=name)
-                else:
-                    gdf.to_file(output_file)
-            except Exception as e:
-                raise RuntimeError(f"Error saving {output_file}: {e}") from e
+        try:
+            if format_has_layers:
+                gdf.to_file(output_file, layer=name)
+            else:
+                gdf.to_file(output_file)
+        except Exception as e:
+            raise RuntimeError(f"Error saving {output_file}: {e}") from e
 
         return
 
@@ -974,9 +981,9 @@ class Counting(ComponentBase):
         from vtk import vtkXMLPolyDataWriter
 
         if interval_number is not None:
-            output_file = self.output_dir / f"{name}{interval_number:06d}.vtp"
+            output_file = self.export_dir / f"{name}{interval_number:06d}.vtp"
         else:
-            output_file = self.output_dir / f"{name}.vtp"
+            output_file = self.export_dir / f"{name}.vtp"
         if ask_overwrite and not self._overwrite_check(output_file):
             return
         print(f"Saving crater data to VTK file: '{output_file}'...")
@@ -1020,9 +1027,9 @@ class Counting(ComponentBase):
 
         if craters:
             if interval_number is None:
-                output_file = self.output_dir / f"{name}.csv"
+                output_file = self.export_dir / f"{name}.csv"
             else:
-                output_file = self.output_dir / f"{name}{interval_number:06d}.csv"
+                output_file = self.export_dir / f"{name}{interval_number:06d}.csv"
             if ask_overwrite and not self._overwrite_check(output_file):
                 return
             print(f"Saving crater data to CSV file: '{output_file}'...")
@@ -1145,9 +1152,9 @@ class Counting(ComponentBase):
         import datetime
 
         if interval_number is None:
-            output_file = self.output_dir / f"{name}.scc"
+            output_file = self.export_dir / f"{name}.scc"
         else:
-            output_file = self.output_dir / f"{name}{interval_number:06d}.scc"
+            output_file = self.export_dir / f"{name}{interval_number:06d}.scc"
         if ask_overwrite and not self._overwrite_check(output_file):
             return
         print(f"\nSaving crater data to {output_file}")
