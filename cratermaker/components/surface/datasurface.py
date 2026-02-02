@@ -584,8 +584,8 @@ class DataSurface(HiResLocalSurface):
             self._add_global_dem_elevation()
         elif (self.output_dir / self._dem_output_file).exists():
             with xr.open_dataset(self.output_dir / self._dem_output_file) as ds:
-                self.update_elevation(ds.isel(time=0).face_elevation)
-                self.update_elevation(ds.isel(time=0).node_elevation)
+                elevation = np.concatenate([ds.isel(time=0).face_elevation, ds.isel(time=0).node_elevation])
+                self.update_elevation(elevation)
 
         return
 
@@ -636,9 +636,8 @@ class DataSurface(HiResLocalSurface):
         lut2 = LinearNDInterpolator(lonlat, self._local_dem_data["elevation"], fill_value=0.0)
         face_elevations = lut2(np.c_[self.local.face_lon, self.local.face_lat])
         node_elevations = lut2(np.c_[self.local.node_lon, self.local.node_lat])
-
-        self.local.update_elevation(face_elevations)
-        self.local.update_elevation(node_elevations)
+        elevation = np.concatenate([face_elevations, node_elevations])
+        self.local.update_elevation(elevation)
 
         # Now save the surface to a file that we can reload later if we want to avoid re-downloading the DEM data
         self.local.save(filename=self._dem_output_file)
@@ -725,8 +724,8 @@ class DataSurface(HiResLocalSurface):
         node_elevations[self._global_dem_data["node_indices"]] = node_samples
 
         # Apply elevations to the global (superdomain) surface
-        self.update_elevation(face_elevations)
-        self.update_elevation(node_elevations)
+        elevation = np.concatenate([face_elevations, node_elevations])
+        self.update_elevation(elevation)
 
         # Save so we can reload later without re-downloading / re-sampling the DEM
         self.save(filename=self._dem_output_file)
