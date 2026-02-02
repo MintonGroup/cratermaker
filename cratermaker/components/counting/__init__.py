@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import uxarray as uxr
 import xarray as xr
 from cratermaker._cratermaker import counting_bindings
 from shapely.geometry import GeometryCollection

@@ -232,7 +232,13 @@ class Surface(ComponentBase):
 
         return
 
-    def extract_region(self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike):
+    def extract_region(
+        self,
+        location: tuple[FloatLike, FloatLike],
+        region_radius: FloatLike,
+        at_least_one_face: bool = False,
+        **kwargs: Any,
+    ) -> LocalSurface | None:
         """
         Extract a regional grid based on a given location and radius.
 
@@ -242,6 +248,10 @@ class Surface(ComponentBase):
             tuple containing the longitude and latitude of the location in degrees.
         region_radius : float
             The radius of the region to extract in meters.
+        at_least_one_face : bool, optional
+            If True, ensure that at least one face is returned, even if the region radius is very small. Default is False.
+        **kwargs : Any
+            Additional keyword arguments.
 
         Returns
         -------
@@ -258,7 +268,11 @@ class Surface(ComponentBase):
         if region_angle < 180.0:
             face_indices = self.face_tree.query_radius(coords, region_angle)
             if len(face_indices) == 0:
-                return None
+                if at_least_one_face:
+                    nearest_face = self.find_nearest_face(location)
+                    face_indices = np.array([nearest_face])
+                else:
+                    return None
 
             # First select edges and nodes that are attached to these faces
             edge_indices = np.unique(self.face_edge_connectivity[face_indices].ravel())

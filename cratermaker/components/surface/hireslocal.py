@@ -128,7 +128,13 @@ class HiResLocalSurface(Surface):
             self.pix + self.superdomain_function_slope * (r - self.local_radius) ** self.superdomain_function_exponent,
         )
 
-    def extract_region(self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike):
+    def extract_region(
+        self,
+        location: tuple[FloatLike, FloatLike],
+        region_radius: FloatLike,
+        at_least_one_face: bool = False,
+        **kwargs: Any,
+    ):
         """
         Extract a regional grid based on a given location and radius.
 
@@ -138,6 +144,10 @@ class HiResLocalSurface(Surface):
             tuple containing the longitude and latitude of the location in degrees.
         region_radius : float
             The radius of the region to extract in meters.
+        at_least_one_face : bool, optional
+            If True, ensure that at least one face is returned, even if the region radius is very small. Default is False.
+        **kwargs : Any
+            Additional keyword arguments.
 
         Returns
         -------
@@ -145,7 +155,9 @@ class HiResLocalSurface(Surface):
             A LocalSurface object containing a view of the regional grid.
 
         """
-        local = super().extract_region(location=location, region_radius=region_radius)
+        local = super().extract_region(
+            location=location, region_radius=region_radius, at_least_one_face=at_least_one_face, **kwargs
+        )
         if local is None:
             return None
 

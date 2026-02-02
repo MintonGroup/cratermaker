@@ -394,7 +394,7 @@ class DataSurface(HiResLocalSurface):
             raise ValueError("No DEM files provided to extract data from.")
 
         _EXPANSION_BUFFER = 1.05
-        _NODATA = -1.0e-9
+        _NODATA = np.finfo(np.float32).min
         region_radius = self.local_radius
         box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
         half_box_size = box_size / 2
@@ -412,7 +412,7 @@ class DataSurface(HiResLocalSurface):
         except Exception as e:
             raise RuntimeError(f"Error reading DEM file(s): {e}") from e
         nodata_val = src_list[0].nodata
-        if nodata_val is None or np.isnan(nodata_val) or nodata_val < _NODATA:
+        if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
             nodata_val = _NODATA
         target_res = min(s.res[0] for s in src_list)
         dst_width = int(np.ceil(2 * half_box_size / target_res))
@@ -445,6 +445,7 @@ class DataSurface(HiResLocalSurface):
                 "width": mosaic.shape[2],
                 "transform": transform,
                 "crs": dst_crs,
+                "nodata": nodata_val,
             }
         )
 
