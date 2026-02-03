@@ -167,7 +167,6 @@ class HiResLocalSurface(Surface):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
-        include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         **kwargs,
@@ -183,17 +182,14 @@ class HiResLocalSurface(Surface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        include_variables : list[str] or tuple[str, ...], optional
-            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
         exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area").
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. If provided, the file associated with the local surface will have 'local' prepended. Default is None.
         """
         self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
-            include_variables=include_variables,
             exclude_variables=exclude_variables,
             filename=filename,
             **kwargs,
@@ -201,7 +197,6 @@ class HiResLocalSurface(Surface):
         self.local.save(
             interval_number=interval_number,
             time_variables=time_variables,
-            include_variables=include_variables,
             exclude_variables=exclude_variables,
             filename=f"local_{filename}" if filename else None,
             **kwargs,
@@ -211,7 +206,7 @@ class HiResLocalSurface(Surface):
     def export(
         self,
         driver: str = "GPKG",
-        interval_number: int | None = None,
+        interval_number: Literal["all"] | int = -1,
         superdomain: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -953,7 +948,6 @@ class LocalHiResLocalSurface(LocalSurface):
         self,
         interval_number: int | None = None,
         time_variables: dict | None = None,
-        include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         plot_style: str | None = None,
@@ -970,10 +964,8 @@ class LocalHiResLocalSurface(LocalSurface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        include_variables : list[str] or tuple[str, ...], optional
-            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
         exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area").
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         plot_style : str, optional
@@ -984,7 +976,6 @@ class LocalHiResLocalSurface(LocalSurface):
         super().save(
             interval_number=interval_number,
             time_variables=time_variables,
-            include_variables=include_variables,
             exclude_variables=exclude_variables,
             filename=filename,
             **kwargs,

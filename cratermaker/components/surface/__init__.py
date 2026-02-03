@@ -694,7 +694,6 @@ class Surface(ComponentBase):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
-        include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         **kwargs,
@@ -710,10 +709,8 @@ class Surface(ComponentBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        include_variables : list[str] or tuple[str, ...], optional
-            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
         exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area").
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         **kwargs : Any
@@ -722,13 +719,14 @@ class Surface(ComponentBase):
         return self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
-            include_variables=include_variables,
             exclude_variables=exclude_variables,
             filename=filename,
             **kwargs,
         )
 
-    def export(self, driver: str = "GPKG", interval_number: int | None = None, ask_overwrite: bool = True, **kwargs: Any) -> None:
+    def export(
+        self, driver: str = "GPKG", interval_number: Literal["all"] | int | None = None, ask_overwrite: bool = True, **kwargs: Any
+    ) -> None:
         """
         Export the surface data to the specified format.
 
@@ -2835,17 +2833,21 @@ class LocalSurface(CratermakerBase):
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
         # load data and select the face-based variables
-        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
+        if interval_number is None:
+            uxds = self.uxds
+            interval_numbers = [None]
+        else:
+            uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
 
-        if interval_number is not None:
-            if interval_number < 0:
-                interval_number = interval_numbers[interval_number]
+        if type(interval_number) is str:
+            if interval_number.lower() == "all":
+                old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
+                for f in old_vector_files:
+                    f.unlink()
+            else:
+                raise ValueError("interval_number string value must be 'all' to export all intervals.")
+        elif type(interval_number) is int:
             interval_numbers = [interval_number]
-
-        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
-            old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
-            for f in old_vector_files:
-                f.unlink()
 
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
             uxdsi = uxds.sel(time=time).load()
@@ -3169,7 +3171,6 @@ class LocalSurface(CratermakerBase):
         self,
         interval_number: int | None = None,
         time_variables: dict | None = None,
-        include_variables: list[str] | tuple[str, ...] | None = None,
         exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         **kwargs,
@@ -3185,10 +3186,8 @@ class LocalSurface(CratermakerBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        include_variables : list[str] or tuple[str, ...], optional
-            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
         exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
+            List or tuple of variable names to exclude from the output dataset. Default is ("face_area").
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
 
@@ -3212,10 +3211,7 @@ class LocalSurface(CratermakerBase):
         for k, v in time_variables.items():
             ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time": [interval_number]})
 
-        if include_variables is not None:
-            keep_vars = [k for k in ds.data_vars if k in include_variables]
-            ds = ds[keep_vars]
-        elif exclude_variables is not None:
+        if exclude_variables is not None:
             drop_vars = [k for k in ds.data_vars if k in exclude_variables]
             if len(drop_vars) > 0:
                 ds = ds.drop_vars(drop_vars)

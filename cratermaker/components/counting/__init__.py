@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import geopandas as gpd
 import numpy as np
@@ -534,7 +534,7 @@ class Counting(ComponentBase):
         self,
         craters: Crater | list[Crater] | dict[int, Crater] | str,
         name: str | None = None,
-        interval_number: int | None = None,
+        interval_number: Literal["all"] | int | None = None,
         driver: str = "GPKG",
         ask_overwrite: bool = True,
         **kwargs: Any,
@@ -548,8 +548,8 @@ class Counting(ComponentBase):
             A crater or list or dictionary of Crater objects to export, or 'emplaced' or 'observed' to export those lists.
         name : str, default=None
             The name used for the file name or layer name. If None, uses default naming convention.
-        interval_number : int, default=0
-            The interval number for the output file naming.
+        interval_number : Literal["all"] | int | None, optional
+            The interval number to append to the output file. None means no interval number will be appended to the output file name. If "all" is passed, then
         driver : str, default='GPKG'
             The file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', 'CSV', 'SCC'.
         ask_overwrite : bool, optional
