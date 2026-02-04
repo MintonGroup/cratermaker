@@ -2843,10 +2843,7 @@ class LocalSurface(CratermakerBase):
             for f in old_vector_files:
                 f.unlink()
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
-            if "time" in uxds.dims:
-                uxdsi = uxds.sel(time=time).load()
-            else:
-                uxdsi = uxds.load()
+            uxdsi = uxds.sel(time=time).load()
             filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
             _write_dataset(
                 uxdsi,
@@ -2995,10 +2992,7 @@ class LocalSurface(CratermakerBase):
             _write_current_mesh(grid, grid_filename)
 
         for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
-            if "time" in uxds.dims:
-                uxdsi = uxds.sel(time=time).load()
-            else:
-                uxdsi = uxds.load()
+            uxdsi = uxds.sel(time=time).load()
             mesh = self.to_vtk_mesh(uxds=uxdsi)
 
             filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
