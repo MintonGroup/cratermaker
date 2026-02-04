@@ -50,7 +50,7 @@ class DataSurface(HiResLocalSurface):
     ask_overwrite : bool, optional
         If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
-        The main project simulation directory. Default is the current working directory if None.
+        |simdir|
     pix : FloatLike | None, optional
         The approximate face size inside the local region in meters. This will be used to determine the target resolution of the DEM data to be used. The actual resolution may be different based on the available DEM data. Note that if you provide a list of DEM files using the `dem_file_list` parameter, this value will be ignored. If None, is set, and no file(s) are provided, a default resolution that creates approximately 1e6 faces in the local region will be used.
     local_radius : FloatLike

@@ -22,26 +22,10 @@ if TYPE_CHECKING:
 
 
 class Morphology(ComponentBase):
+    _registry: dict[str, Morphology] = {}
     """
     The base class for Morphology models.
-
-    Parameters
-    ----------
-    surface : str or Surface, optional
-        The name of a Surface object, or an instance of Surface, to be associated the morphology model.
-    production : str or Production, optional
-        The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
-    dosubpixel_degradation : bool, optional
-        If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
-    doslope_collapse : bool, optional
-        If True, slope collapse will be performed during the emplacement of craters. Default is True.
-    docounting : bool, optional
-        If True, counting will be performed during the emplacement of craters. Default is True.
-    **kwargs : Any
-
     """
-
-    _registry: dict[str, Morphology] = {}
 
     def __init__(
         self,
@@ -53,6 +37,24 @@ class Morphology(ComponentBase):
         docounting: bool = False,
         **kwargs: Any,
     ) -> None:
+        """
+        |constructor_warning|.
+
+        Parameters
+        ----------
+        surface : str or Surface, optional
+            The name of a Surface object, or an instance of Surface, to be associated the morphology model.
+        production : str or Production, optional
+            The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
+        dosubpixel_degradation : bool, optional
+            If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
+        doslope_collapse : bool, optional
+            If True, slope collapse will be performed during the emplacement of craters. Default is True.
+        docounting : bool, optional
+            If True, counting will be performed during the emplacement of craters. Default is True.
+        **kwargs : Any
+
+        """
         from cratermaker.components.counting import Counting
         from cratermaker.components.production import Production
         from cratermaker.components.surface import Surface
@@ -86,7 +88,7 @@ class Morphology(ComponentBase):
         **kwargs: Any,
     ) -> Morphology:
         """
-        Initialize a component model with the given name or instance.
+        Initialize a Morphology model with the given name or instance.
 
         Parameters
         ----------

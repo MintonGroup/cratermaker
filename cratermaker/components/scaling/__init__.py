@@ -17,21 +17,6 @@ if TYPE_CHECKING:
 class Scaling(ComponentBase):
     """
     The abstract base class for all scaling models. It defines the interface for converting between projectile and crater diameters.
-
-    Parameters
-    ----------
-    target : Target | str, default="Moon"
-        The target body for the impact. Can be a Target object or a string representing the target name.
-    projectile : Projectile | str, default="asteroids"
-        The projectile model for the impact. Can be an Projectile object or a string representing the projectile name.
-    rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
-    rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
-    **kwargs : Any
-        Additional keyword arguments.
     """
 
     _registry: dict[str, Scaling] = {}
@@ -45,6 +30,24 @@ class Scaling(ComponentBase):
         rng_state: dict | None = None,
         **kwargs: Any,
     ):
+        """
+        |constructor_warning|.
+
+        Parameters
+        ----------
+        target : Target | str, default="Moon"
+            The target body for the impact. Can be a Target object or a string representing the target name.
+        projectile : Projectile | str, default="asteroids"
+            The projectile model for the impact. Can be an Projectile object or a string representing the projectile name.
+        rng : numpy.random.Generator | None
+            |rng|
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            |rng_seed|
+        rng_state : dict, optional
+            |rng_state|
+        **kwargs : Any
+            Additional keyword arguments.
+        """
         from cratermaker.components.projectile import Projectile
         from cratermaker.components.target import Target
 
@@ -55,17 +58,6 @@ class Scaling(ComponentBase):
         kwargs = {**kwargs, **vars(self.common_args)}
         self._target = Target.maker(target, **kwargs)
         self._projectile = Projectile.maker(projectile, target=self.target, **kwargs)
-
-    @abstractmethod
-    def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
-    @abstractmethod
-    def transient_to_projectile(self, **kwargs: Any) -> np.float64: ...
-    @abstractmethod
-    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
-    @abstractmethod
-    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
-    @abstractmethod
-    def recompute(self, **kwargs: Any) -> None: ...
 
     @classmethod
     def maker(
@@ -79,7 +71,7 @@ class Scaling(ComponentBase):
         **kwargs: Any,
     ) -> Scaling:
         """
-        Initialize a scaling model based on the provided name or class.
+        Initialize a Scaling model with the given name or instance.
 
         Parameters
         ----------
@@ -90,11 +82,11 @@ class Scaling(ComponentBase):
         projectile : Projectile | str, default="asteroids"
             The projectile model for the impact. Can be an Projectile object or a string representing the projectile name.
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+            |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
+            |rng_seed|
         rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
+            |rng_state|
         **kwargs : Any
             Additional keyword arguments.
 
@@ -127,6 +119,17 @@ class Scaling(ComponentBase):
             scaling.target = target
 
         return scaling
+
+    @abstractmethod
+    def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
+    @abstractmethod
+    def transient_to_projectile(self, **kwargs: Any) -> np.float64: ...
+    @abstractmethod
+    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
+    @abstractmethod
+    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
+    @abstractmethod
+    def recompute(self, **kwargs: Any) -> None: ...
 
     def __str__(self) -> str:
         base = super().__str__()

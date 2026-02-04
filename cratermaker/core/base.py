@@ -168,7 +168,7 @@ class CratermakerBase:
     @parameter
     def simdir(self):
         """
-        The main project simulation directory.
+        |simdir|
 
         Returns
         -------
@@ -298,15 +298,20 @@ class ComponentBase(CratermakerBase, ABC):
 
     Defines the common parameters and methods for all components in the Cratermaker project, including the maker class that is used to select the correct component from user arguments.
 
-    Parameters
-    ----------
-    **kwargs : Any
-        Additional keyword arguments.
+
     """
 
     _registry: dict[str, type[ComponentBase]] = {}
 
     def __init__(self, **kwargs: Any) -> None:
+        """
+        |constructor_warning|.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Additional keyword arguments.
+        """
         super().__init__(**kwargs)
 
     def __str__(self) -> str:
@@ -408,9 +413,9 @@ def _rng_init(
     Parameters
     ----------
     rng : Generator, optional
-        The random number generator to be initialized.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
         Set the rng_state of the RNG.
 
@@ -457,7 +462,7 @@ def _simdir_init(simdir: str | Path | None = None, **kwargs: Any) -> Path:
     Parameters
     ----------
     simdir : str | Path | None
-        The main project simulation directory. Default is the current working directory if None.
+        |simdir|
 
     Returns
     -------

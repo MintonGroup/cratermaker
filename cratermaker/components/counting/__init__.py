@@ -45,22 +45,11 @@ _MEASURING_RADIUS_RATIO = 1.2
 
 
 class Counting(ComponentBase):
-    _registry: dict[str, Counting] = {}
-
     """
     Base class for all crater counting models. It defines the interface for tallying the observable craters on a surface.
-
-    Parameters
-    ----------
-    surface : Surface | LocalSurface
-        The surface or local surface view to be counted.
-    reset : bool, optional
-        Flag to indicate whether to reset the count and delete any old output files. Default is True.
-    ask_overwrite : bool, optional
-        If True, prompt the user for confirmation before deleting files. Default is False.
-    **kwargs : Any
-        Additional keyword arguments.
     """
+
+    _registry: dict[str, Counting] = {}
 
     def __init__(
         self,
@@ -69,6 +58,20 @@ class Counting(ComponentBase):
         ask_overwrite: bool = False,
         **kwargs: Any,
     ):
+        """
+        |constructor_warning|.
+
+        Parameters
+        ----------
+        surface : Surface | LocalSurface
+            The surface or local surface view to be counted.
+        reset : bool, optional
+            Flag to indicate whether to reset the count and delete any old output files. Default is True.
+        ask_overwrite : bool, optional
+            |ask_overwrite_false|
+        **kwargs : Any
+            Additional keyword arguments.
+        """
         from cratermaker.components.surface import Surface
 
         super().__init__(reset=reset, ask_overwrite=ask_overwrite, **kwargs)
@@ -104,7 +107,7 @@ class Counting(ComponentBase):
         **kwargs: Any,
     ) -> Counting:
         """
-        Initialize a crater counting model based on the provided name or class.
+        Initialize a Counting model with the given name or instance.
 
         Parameters
         ----------
@@ -355,7 +358,7 @@ class Counting(ComponentBase):
 
     def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> dict[int:Crater]:
         """
-        Tally the craters on the surface using.
+        Tally the craters on the surface using the method of Minton et al. (2019) [#]_.
 
         Parameters
         ----------

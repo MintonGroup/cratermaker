@@ -15,20 +15,6 @@ class NeukumProduction(Production):
     """
     An operations class for computing the the Neukum production function for the Moon and Mars.
 
-    Parameters
-    ----------
-    version : {"Moon", "Mars", "Projectile"}, optional
-        The specific model to use for the production function. "Moon" and "Mars" are both crater production functions, and
-        "Projectile" is a projectile function. Default is "Moon".
-    rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
-    rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
-    **kwargs : Any
-        Additional keyword arguments.
-
     Notes
     -----
     The CSFD is computed using the model of Ivanov, Neukum, and Hartmann (2001) for the Moon and Mars, with
@@ -59,6 +45,23 @@ class NeukumProduction(Production):
         rng_state: dict | None = None,
         **kwargs: Any,
     ):
+        """
+        |constructor_warning|.
+
+        Parameters
+        ----------
+        version : {"Moon", "Mars", "Projectile"}, optional
+            The specific model to use for the production function. "Moon" and "Mars" are both crater production functions, and
+            "Projectile" is a projectile function. Default is "Moon".
+        rng : numpy.random.Generator | None
+            |rng|
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            |rng_seed|
+        rng_state : dict, optional
+            |rng_state|
+        **kwargs : Any
+            |kwargs|
+        """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_Cexp", None)
         object.__setattr__(self, "_Clin", None)

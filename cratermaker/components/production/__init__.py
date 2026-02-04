@@ -18,20 +18,7 @@ from cratermaker.utils.general_utils import parameter
 
 class Production(ComponentBase):
     """
-    An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.
-
-    The production function is defined as the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
-
-    Parameters
-    ----------
-    rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
-    rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
-    **kwargs : Any
-        Additional keyword arguments.
+    The base class for computing the production function for craters and projectiles.
     """
 
     _registry: dict[str, Production] = {}
@@ -44,19 +31,16 @@ class Production(ComponentBase):
         **kwargs: Any,
     ):
         """
-        An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.
-
-        The production function is defined as
-        the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
+        |constructor_warning|.
 
         Parameters
         ----------
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+            |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
+            |rng_seed|
         rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
+            |rng_state|
         **kwargs : Any
             Additional keyword arguments.
         """
@@ -78,7 +62,7 @@ class Production(ComponentBase):
         **kwargs: Any,
     ) -> Production:
         """
-        A helper function that can be used to validate and initialize the production model.
+        Initialize a Production model with the given name or instance.
 
         Parameters
         ----------
@@ -88,11 +72,11 @@ class Production(ComponentBase):
         target : Target | str | None, optional
             The target body for the impact. Can be a Target object or a string representing the target name.
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+            |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
+            |rng_seed|
         rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
+            |rng_state|
         **kwargs : Any
             Additional keyword arguments.
 

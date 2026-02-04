@@ -46,19 +46,6 @@ class Surface(ComponentBase):
 
     It provides methods for setting elevation data, calculating distances and bearings, and other surface-related computations.
     The Surface class extends UxDataset for the cratermaker project.
-
-    Parameters
-    ----------
-    target : Target, optional
-        The target body or name of a known target body for the impact simulation.
-    reset : bool, optional
-        Flag to indicate whether to reset the surface. Default is the value of `regrid`
-    regrid : bool, optional
-        Flag to indicate whether to regrid the surface. Default is False.
-    simdir : str | Path
-        The main project simulation directory. Default is the current working directory if None.
-    **kwargs : Any
-        Additional keyword arguments.
     """
 
     _registry: dict[str, type[Surface]] = {}
@@ -69,6 +56,22 @@ class Surface(ComponentBase):
         simdir: str | Path | None = None,
         **kwargs,
     ):
+        """
+        |constructor_warning|.
+
+        Parameters
+        ----------
+        target : Target, optional
+            The target body or name of a known target body for the impact simulation.
+        reset : bool, optional
+            Flag to indicate whether to reset the surface. Default is the value of `regrid`
+        regrid : bool, optional
+            Flag to indicate whether to regrid the surface. Default is False.
+        simdir : str | Path
+            |simdir|
+        **kwargs : Any
+            |kwargs|
+        """
         from cratermaker.components.target import Target
 
         super().__init__(simdir=simdir, **kwargs)
@@ -148,7 +151,7 @@ class Surface(ComponentBase):
         **kwargs,
     ) -> Surface:
         """
-        Factory method to create a Surface instance from a grid file.
+        Initialize a Surface model with the given name or instance.
 
         Parameters
         ----------
@@ -161,7 +164,7 @@ class Surface(ComponentBase):
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
         ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is False.
+            |ask_overwrite_default_false|
         simdir : str | Path
             |simdir|
         **kwargs : Any
@@ -3519,9 +3522,7 @@ class LocalSurface(CratermakerBase):
         """
         Export the local surface region as a polygon to a vector file.
 
-        This will create a polygon that can be used for the OpenCraterTool plugin in QGIS [#]_.
-
-        [#] https://github.com/thomasheyer/OpenCraterTool
+        This will create a polygon that can be used for the `OpenCraterTool <https://github.com/thomasheyer/OpenCraterTool>`__ plugin in QGIS.
 
         Parameters
         ----------

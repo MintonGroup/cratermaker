@@ -48,11 +48,11 @@ class GenericProjectiles(Projectile):
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+            |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
+            |rng_seed|
         rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
+            |rng_state|
         **kwargs : Any
             Additional keyword arguments.
         """

@@ -50,13 +50,13 @@ class Simulation(CratermakerBase):
     projectile : str, optional
         The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise.
     simdir : str | Path
-        The main project simulation directory. Default is the current working directory if None.
+        |simdir|
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     reset : bool, optional
         Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is True.
     ask_overwrite : bool, optional

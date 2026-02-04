@@ -79,159 +79,6 @@ class Crater:
             f"age: {agetext}"
         )
 
-    def to_geoseries(
-        self,
-        n: int = 150,
-        surface: Surface | None = None,
-        split_antimeridian: bool = True,
-        use_measured_properties: bool = True,
-        **kwargs: Any,
-    ) -> GeoSeries:
-        """
-        Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by the crater's orientation.
-
-        Parameters
-        ----------
-        n : int, optional
-            Number of points to use for the polygon, by default 150.
-        surface : Surface | None, optional
-            Surface object providing planetary radius and CRS.
-        split_antimeridian : bool, optional
-            If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
-        use_measured_properties : bool, optional
-            If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
-        **kwargs : Any
-            Additional keyword arguments.
-
-        Returns
-        -------
-        A GeoSeries containing a Shapely Polygon in lon/lat degrees.
-        """
-        from cratermaker._cratermaker import counting_bindings
-        from pyproj import Geod
-        from shapely.geometry import GeometryCollection, LineString, Polygon
-        from shapely.ops import split, transform
-
-        from cratermaker.components.surface import Surface
-
-        surface = Surface.maker(surface)
-        geod = Geod(a=surface.target.radius, b=surface.target.radius)
-        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
-        if use_measured_properties:
-            a = self.measured_semimajor_axis
-            b = self.measured_semiminor_axis
-            lon, lat = self.measured_location
-            phi = self.measured_orientation
-        else:
-            a = self.semimajor_axis
-            b = self.semiminor_axis
-            lon, lat = self.location
-            phi = self.orientation
-
-        # Measure the rim height so that the polygon sits on to of the surface rather than underneath
-        region = surface.extract_region(location=self.location, region_radius=self.measured_radius, at_least_one_face=True)
-        rim_height = np.max(region.face_elevation)
-        z = np.full_like(theta, rim_height)
-
-        # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
-        ct = np.cos(np.deg2rad(theta))
-        st = np.sin(np.deg2rad(theta))
-        r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
-
-        # Bearings (from east, CCW) rotated by azimuth
-        bearings = theta + phi % 360.0
-
-        # Forward geodesic for each bearing/distance
-        poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
-
-        # Correct for potential antimeridian crossing
-        if split_antimeridian and np.ptp(poly_lon) > 180.0:
-            center_sign = np.sign(lon)
-            poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
-            poly = Polygon(zip(poly_lon, poly_lat, z, strict=True))
-            merdian_lon = 180.0 * center_sign
-            meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
-            poly = split(poly, meridian)
-
-            def lon_flip(lon, lat):
-                lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
-                return lon, lat
-
-            new_geoms = []
-            for p in poly.geoms:
-                if np.abs(p.centroid.x) > 180.0:
-                    p = transform(lon_flip, p)
-                new_geoms.append(p)
-            poly = GeometryCollection(new_geoms)
-
-        else:
-            poly = Polygon(zip(poly_lon, poly_lat, z, strict=True))
-
-        return GeoSeries([poly], crs=surface.crs)
-
-    @property
-    def diameter(self) -> float | None:
-        """Final diameter of the crater in meters."""
-        return self.radius * 2 if self.radius is not None else None
-
-    @property
-    def radius(self) -> float | None:
-        """Final radius of the crater in meters."""
-        if self.semimajor_axis is not None and self.semiminor_axis is not None:
-            return math.sqrt(self.semimajor_axis * self.semiminor_axis)
-        return None
-
-    @property
-    def measured_diameter(self) -> float | None:
-        """Final diameter of the crater in meters."""
-        return self.measured_radius * 2 if self.measured_radius is not None else None
-
-    @property
-    def measured_radius(self) -> float | None:
-        """Final radius of the crater in meters."""
-        if self.measured_semimajor_axis is not None and self.measured_semiminor_axis is not None:
-            return math.sqrt(self.measured_semimajor_axis * self.measured_semiminor_axis)
-        return None
-
-    @property
-    def final_diameter(self) -> float | None:
-        """Final diameter of the crater in meters."""
-        return self.diameter
-
-    @property
-    def final_radius(self) -> float | None:
-        """Final radius of the crater in meters."""
-        return self.radius
-
-    @property
-    def transient_radius(self) -> float | None:
-        """Transient radius of the crater in meters."""
-        return self.transient_diameter / 2.0 if self.transient_diameter is not None else None
-
-    @property
-    def projectile_radius(self) -> float | None:
-        """Projectile radius in meters."""
-        return self.projectile_diameter / 2.0 if self.projectile_diameter is not None else None
-
-    @property
-    def projectile_mass(self) -> float | None:
-        """Projectile mass in kilograms."""
-        if self.projectile_density is not None and self.projectile_radius is not None:
-            return (4.0 / 3.0) * math.pi * self.projectile_radius**3 * self.projectile_density
-        return None
-
-    @property
-    def projectile_vertical_velocity(self) -> float | None:
-        """Projectile vertical velocity in m/s."""
-        if self.projectile_velocity is not None and self.projectile_angle is not None:
-            return self.projectile_velocity * math.sin(math.radians(self.projectile_angle))
-        return None
-
-    @property
-    def projectile_direction(self) -> float | None:
-        """Projectile direction in degrees."""
-        return self.orientation
-
     @classmethod
     def maker(
         cls: type[Crater],
@@ -350,13 +197,13 @@ class Crater:
         measured_degradation_state : float, optional
             The measured degradation state of the crater in meters squared.
         simdir : str | Path
-            The main project simulation directory. Default is the current working directory if None.
+            |simdir|
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+            |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
+            |rng_seed|
         rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
+            |rng_state|
         check_redundant_inputs : bool, optional
             If True, check for redundant inputs such as providing both diameter and radius. Default is True.
         **kwargs : Any
@@ -741,3 +588,156 @@ class Crater:
         args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
         args["id"] = _set_id(**args)
         return cls(**args)
+
+    def to_geoseries(
+        self,
+        n: int = 150,
+        surface: Surface | None = None,
+        split_antimeridian: bool = True,
+        use_measured_properties: bool = True,
+        **kwargs: Any,
+    ) -> GeoSeries:
+        """
+        Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by the crater's orientation.
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of points to use for the polygon, by default 150.
+        surface : Surface | None, optional
+            Surface object providing planetary radius and CRS.
+        split_antimeridian : bool, optional
+            If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
+        use_measured_properties : bool, optional
+            If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
+        **kwargs : Any
+            Additional keyword arguments.
+
+        Returns
+        -------
+        A GeoSeries containing a Shapely Polygon in lon/lat degrees.
+        """
+        from cratermaker._cratermaker import counting_bindings
+        from pyproj import Geod
+        from shapely.geometry import GeometryCollection, LineString, Polygon
+        from shapely.ops import split, transform
+
+        from cratermaker.components.surface import Surface
+
+        surface = Surface.maker(surface)
+        geod = Geod(a=surface.target.radius, b=surface.target.radius)
+        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+        if use_measured_properties:
+            a = self.measured_semimajor_axis
+            b = self.measured_semiminor_axis
+            lon, lat = self.measured_location
+            phi = self.measured_orientation
+        else:
+            a = self.semimajor_axis
+            b = self.semiminor_axis
+            lon, lat = self.location
+            phi = self.orientation
+
+        # Measure the rim height so that the polygon sits on to of the surface rather than underneath
+        region = surface.extract_region(location=self.location, region_radius=self.measured_radius, at_least_one_face=True)
+        rim_height = np.max(region.face_elevation)
+        z = np.full_like(theta, rim_height)
+
+        # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
+        ct = np.cos(np.deg2rad(theta))
+        st = np.sin(np.deg2rad(theta))
+        r = (a * b) / np.sqrt((b * ct) ** 2 + (a * st) ** 2)
+
+        # Bearings (from east, CCW) rotated by azimuth
+        bearings = theta + phi % 360.0
+
+        # Forward geodesic for each bearing/distance
+        poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+        # Correct for potential antimeridian crossing
+        if split_antimeridian and np.ptp(poly_lon) > 180.0:
+            center_sign = np.sign(lon)
+            poly_lon = np.where(np.sign(poly_lon) != center_sign, poly_lon + 360.0 * center_sign, poly_lon)
+            poly = Polygon(zip(poly_lon, poly_lat, z, strict=True))
+            merdian_lon = 180.0 * center_sign
+            meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
+            poly = split(poly, meridian)
+
+            def lon_flip(lon, lat):
+                lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
+                return lon, lat
+
+            new_geoms = []
+            for p in poly.geoms:
+                if np.abs(p.centroid.x) > 180.0:
+                    p = transform(lon_flip, p)
+                new_geoms.append(p)
+            poly = GeometryCollection(new_geoms)
+
+        else:
+            poly = Polygon(zip(poly_lon, poly_lat, z, strict=True))
+
+        return GeoSeries([poly], crs=surface.crs)
+
+    @property
+    def diameter(self) -> float | None:
+        """Final diameter of the crater in meters."""
+        return self.radius * 2 if self.radius is not None else None
+
+    @property
+    def radius(self) -> float | None:
+        """Final radius of the crater in meters."""
+        if self.semimajor_axis is not None and self.semiminor_axis is not None:
+            return math.sqrt(self.semimajor_axis * self.semiminor_axis)
+        return None
+
+    @property
+    def measured_diameter(self) -> float | None:
+        """Final diameter of the crater in meters."""
+        return self.measured_radius * 2 if self.measured_radius is not None else None
+
+    @property
+    def measured_radius(self) -> float | None:
+        """Final radius of the crater in meters."""
+        if self.measured_semimajor_axis is not None and self.measured_semiminor_axis is not None:
+            return math.sqrt(self.measured_semimajor_axis * self.measured_semiminor_axis)
+        return None
+
+    @property
+    def final_diameter(self) -> float | None:
+        """Final diameter of the crater in meters."""
+        return self.diameter
+
+    @property
+    def final_radius(self) -> float | None:
+        """Final radius of the crater in meters."""
+        return self.radius
+
+    @property
+    def transient_radius(self) -> float | None:
+        """Transient radius of the crater in meters."""
+        return self.transient_diameter / 2.0 if self.transient_diameter is not None else None
+
+    @property
+    def projectile_radius(self) -> float | None:
+        """Projectile radius in meters."""
+        return self.projectile_diameter / 2.0 if self.projectile_diameter is not None else None
+
+    @property
+    def projectile_mass(self) -> float | None:
+        """Projectile mass in kilograms."""
+        if self.projectile_density is not None and self.projectile_radius is not None:
+            return (4.0 / 3.0) * math.pi * self.projectile_radius**3 * self.projectile_density
+        return None
+
+    @property
+    def projectile_vertical_velocity(self) -> float | None:
+        """Projectile vertical velocity in m/s."""
+        if self.projectile_velocity is not None and self.projectile_angle is not None:
+            return self.projectile_velocity * math.sin(math.radians(self.projectile_angle))
+        return None
+
+    @property
+    def projectile_direction(self) -> float | None:
+        """Projectile direction in degrees."""
+        return self.orientation

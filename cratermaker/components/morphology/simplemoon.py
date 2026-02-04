@@ -40,6 +40,11 @@ class SimpleMoonCrater(Crater):
 
     @classmethod
     def maker(cls, crater: Crater | None = None, **kwargs) -> SimpleMoonCrater:
+        """
+        Initialize a SimpleMoonCrater object either from an existing Crater object or from parameters.
+
+        This generates a spetialized Crater object with morphology parameters.
+        """
         if crater is None:
             crater = super(cls, cls).maker(**kwargs)
         base_fields = asdict(crater)
@@ -83,28 +88,6 @@ class SimpleMoonCrater(Crater):
 class SimpleMoon(Morphology):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh.
-
-    Parameters
-    ----------
-    surface : str or Surface, optional
-        The name of a Surface object, or an instance of Surface, to be associated the morphology model.
-    crater : Crater, optional
-        The crater currently attached to the morphology model.
-    ejecta_truncation : float, optional
-        The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a
-        truncation distance based on where the ejecta thickness reaches a small value.
-    rng : Generator, optional
-        A random number generator instance. If not provided, the default numpy RNG will be used.
-    dorays : bool, optional
-        A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket, default is False.
-    rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
-    rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
-    **kwargs : Any
-        Additional keyword arguments.
     """
 
     def __init__(
@@ -117,6 +100,29 @@ class SimpleMoon(Morphology):
         rng_state: dict | None = None,
         **kwargs: Any,
     ):
+        """
+        |constructor_warning|.
+
+        Parameters
+        ----------
+        surface : str or Surface, optional
+            The name of a Surface object, or an instance of Surface, to be associated the morphology model.
+        crater : Crater, optional
+            The crater currently attached to the morphology model.
+        ejecta_truncation : float, optional
+            The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a
+            truncation distance based on where the ejecta thickness reaches a small value.
+        dorays : bool, optional
+            A flag to determine if the ray pattern should be used instead of the homogeneous ejecta blanket, default is False.
+        rng : numpy.random.Generator | None
+            |rng|
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            |rng_seed|
+        rng_state : dict, optional
+            |rng_state|
+        **kwargs : Any
+            Additional keyword arguments.
+        """
         object.__setattr__(self, "_ejecta_truncation", None)
         object.__setattr__(self, "_node", None)
         self.ejecta_truncation = ejecta_truncation

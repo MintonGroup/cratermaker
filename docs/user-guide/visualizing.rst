@@ -7,7 +7,7 @@ Visualizing the surface
 
 Cratermaker can export the surface mesh to a VTK file, which can be visualized with tools like `PyVista <https://docs.pyvista.org/>`__  and `ParaView <https://www.paraview.org/>`__. In this example, we will emplace a 500 km crater on the Moon at a location of 60° N, 45°E, and then visualize the surface mesh using Pyvista.
 
-The simulation will generate several files in a folder called ``surface``, including ``grid.nc`` and ``surf000000.nc``. When exported to vtk format, a file called ``surf000000.vtp`` will also be placed in the ``surface`` folder. In this example, the simulation only contains one interval, so only one file is created (see :ref:`ug-Simulation` for how to run multi-interval simulations). 
+The simulation will generate several files in a folder called ``surface``, including ``grid.nc`` and ``surf000000.nc``. When exported to vtk format, a file called ``surf000000.vtp`` will also be placed in the ``export`` folder. In this example, the simulation only contains one interval, so only one file is created (see :ref:`ug-Simulation` for how to run multi-interval simulations). 
 
 We can then open up the mesh in PyVista for visualization
 
@@ -26,12 +26,13 @@ We can then open up the mesh in PyVista for visualization
 .. pyvista-plot::
 
     import cratermaker as cm
-    sim = cm.Simulation()
+    sim = cm.Simulation(gridlevel=6)
     sim.emplace(final_diameter=500e3, location=(45,60))
-    sim.export(driver="VTK")
+    sim.show(driver="pyvista")
 
-    import pyvista as pv
-    mesh = pv.read("surface/surface000000.vtp")
-    plotter = pv.Plotter()
-    plotter.add_mesh(mesh, scalars="face_elevation", cmap="cividis", show_edges=False)
-    plotter.show()
+
+We can also export the surface mesh to a VTK file that can be opened up with other visualization tools, like Paraview.
+
+.. code-block:: python
+
+    sim.export(driver="VTK")
