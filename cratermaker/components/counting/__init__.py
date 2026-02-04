@@ -405,7 +405,8 @@ class Counting(ComponentBase):
 
             # Update the crater size measurement before computing the degradation and visibility functions
             crater = self.observed[id]
-            crater = self.fit_rim(crater=crater, fit_center=False, fit_ellipse=False, **kwargs)
+            # TODO: Make the fit_rim function more reliable before turning it on permanently
+            # crater = self.fit_rim(crater=crater, fit_center=False, fit_ellipse=False, **kwargs)
             crater = self.measure_degradation_state(crater, **kwargs)
             Kd = crater.measured_degradation_state
             Kv = self.visibility_function(crater, **kwargs)

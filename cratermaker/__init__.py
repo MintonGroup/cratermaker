@@ -1,5 +1,5 @@
 """
-Copyright 2025 - David Minton.
+Copyright 2026 - David Minton.
 
 This file is part of Cratermaker.
 
