@@ -667,8 +667,8 @@ class Simulation(CratermakerBase):
         """
         imagefile = kwargs.pop("imagefile", self.surface.plot_dir / f"surface_{self.interval_number:06d}.png")
         label = kwargs.pop("label", f"Time: {self.current_age:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
-        style = kwargs.pop("style", "hillshade")
-        im = self.surface.plot(imagefile=imagefile, style=style, label=label, **kwargs)
+        plot_style = kwargs.pop("plot_style", "hillshade")
+        im = self.surface.plot(imagefile=imagefile, plot_style=plot_style, label=label, **kwargs)
         return im
 
     def show(self, engine: str = "pyvista", **kwargs: Any) -> None:
