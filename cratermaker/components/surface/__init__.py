@@ -3234,7 +3234,7 @@ class LocalSurface(CratermakerBase):
 
     def plot(
         self,
-        style: Literal["map", "hillshade"] = "map",
+        plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
         cmap: str | None = None,
         imagefile=None,
@@ -3249,12 +3249,12 @@ class LocalSurface(CratermakerBase):
 
         Parameters
         ----------
-        style : str, optional
+        plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
             The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
         cmap : str, optional
-            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
@@ -3266,7 +3266,7 @@ class LocalSurface(CratermakerBase):
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            Additional keyword arguments.
 
         Returns
         -------
@@ -3279,9 +3279,9 @@ class LocalSurface(CratermakerBase):
 
         if variable_name is not None and variable_name not in self.uxds:
             raise ValueError(f"Variable '{variable_name}' not found in the surface data.")
-        if variable_name is None and style == "map":
+        if variable_name is None and plot_style == "map":
             variable_name = "face_elevation"
-        if style == "hillshade":
+        if plot_style == "hillshade":
             if variable_name is None:
                 do_overlay = False
             else:
@@ -3298,7 +3298,7 @@ class LocalSurface(CratermakerBase):
             vmin = kwargs.pop("vmin", 0.0)
             vmax = kwargs.pop("vmax", 1.0)
 
-        if style == "hillshade":
+        if plot_style == "hillshade":
             hill_args = {"dx": self.pix, "dy": self.pix, "fraction": 1.0}
             ret = self.to_raster(self.uxds["face_elevation"].load())
             elevation = ret[0]
@@ -3320,11 +3320,13 @@ class LocalSurface(CratermakerBase):
                     cmap = "gray"
                 cvals = ls.hillshade(elevation, **hill_args)
             interpolation = kwargs.pop("interpolation", "lanczos")
-        elif style == "map":
+        elif plot_style == "map":
             if cmap is None:
                 cmap = "cividis"
             cvals = variable_raster
             interpolation = kwargs.pop("interpolation", "bicubic")
+        else:
+            raise ValueError("plot_style must be either 'map' or 'hillshade'")
 
         # Plot with (1, 1) inch figure and dpi=resolution for exact pixel size
         if ax is None:
@@ -3378,10 +3380,10 @@ class LocalSurface(CratermakerBase):
                 fontweight="bold",
             )
         if imagefile:
-            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=W, **kwargs)
+            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=W)
             plt.close()
         elif show:
-            plt.show(**kwargs)
+            plt.show()
         return im
 
     def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs) -> None:
@@ -3551,7 +3553,6 @@ class LocalSurface(CratermakerBase):
             component=component,
             color=color,
             cmap=cmap,
-            **kwargs,
         )
 
         if variable_name is None:
@@ -4228,83 +4229,80 @@ class LocalSurface(CratermakerBase):
         """
         Return a UxDataset representation of the local surface.
         """
-        if self._uxds is None:
-            if self.location is None:
-                self._uxds = self.surface.uxds
-            else:
-                ds = xr.Dataset()
-                ds.attrs = self.surface.uxds.attrs.copy()
-                for var in self.surface.uxds.data_vars:
-                    if self.surface.uxds[var].dims == ("n_face",):
-                        ds[var] = (
-                            ("n_face",),
-                            self.surface.uxds[var].values[self.face_indices],
-                        )
-                    elif self.surface.uxds[var].dims == ("n_node",):
-                        ds[var] = (
-                            ("n_node",),
-                            self.surface.uxds[var].values[self.node_indices],
-                        )
-                    elif self.surface.uxds[var].dims == ("n_edge",):
-                        ds[var] = (
-                            ("n_edge",),
-                            self.surface.uxds[var].values[self.edge_indices],
-                        )
-                    elif "n_face" in self.surface.uxds[var].dims and len(self.surface.uxds[var].dims) == 2:
-                        dim2name = self.surface.uxds[var].dims[1]
-                        ds[var] = (
-                            ("n_face", dim2name),
-                            self.surface.uxds[var].values[self.face_indices, :],
-                        )
-                    else:  # Variables not associated with faces, nodes, or edges are copied directly
-                        ds[var] = self.surface.uxds[var]
-                    ds[var].attrs = self.surface.uxds[var].attrs.copy()
-                ds = ds.assign_attrs({"location": self.location})
-                ds["face_distance"] = xr.DataArray(
-                    data=self.face_distance,
-                    dims=("n_face",),
-                    attrs={"long_name": "Distance from center location to face", "units": "m"},
+        if self.location is None:
+            return self.surface.uxds
+        ds = xr.Dataset()
+        ds.attrs = self.surface.uxds.attrs.copy()
+        for var in self.surface.uxds.data_vars:
+            if self.surface.uxds[var].dims == ("n_face",):
+                ds[var] = (
+                    ("n_face",),
+                    self.surface.uxds[var].values[self.face_indices],
                 )
-                ds["face_bearing"] = xr.DataArray(
-                    data=self.face_bearing,
-                    dims=("n_face",),
-                    attrs={"long_name": "Initial bearing from center location to face", "units": "degrees"},
+            elif self.surface.uxds[var].dims == ("n_node",):
+                ds[var] = (
+                    ("n_node",),
+                    self.surface.uxds[var].values[self.node_indices],
                 )
-                ds["node_distance"] = xr.DataArray(
-                    data=self.node_distance,
-                    dims=("n_node",),
-                    attrs={"long_name": "Distance from center location to node", "units": "m"},
+            elif self.surface.uxds[var].dims == ("n_edge",):
+                ds[var] = (
+                    ("n_edge",),
+                    self.surface.uxds[var].values[self.edge_indices],
                 )
-                ds["node_bearing"] = xr.DataArray(
-                    data=self.node_bearing,
-                    dims=("n_node",),
-                    attrs={"long_name": "Initial bearing from center location to node", "units": "degrees"},
+            elif "n_face" in self.surface.uxds[var].dims and len(self.surface.uxds[var].dims) == 2:
+                dim2name = self.surface.uxds[var].dims[1]
+                ds[var] = (
+                    ("n_face", dim2name),
+                    self.surface.uxds[var].values[self.face_indices, :],
                 )
-                if isinstance(self.face_indices, slice):
-                    data = np.arange(self.surface.n_face)[self.face_indices]
-                else:
-                    data = self.face_indices
-                ds["face_indices"] = xr.DataArray(
-                    data=data,
-                    dims=("n_face",),
-                    attrs={"long_name": "Indices of faces in the local surface view"},
-                )
-                if isinstance(self.node_indices, slice):
-                    data = np.arange(self.surface.n_node)[self.node_indices]
-                else:
-                    data = self.node_indices
-                ds["node_indices"] = xr.DataArray(
-                    data=data, dims=("n_node",), attrs={"long_name": "Indices of nodes in the local surface view"}
-                )
-                if isinstance(self.edge_indices, slice):
-                    data = np.arange(self.surface.n_edge)[self.edge_indices]
-                else:
-                    data = self.edge_indices
-                ds["edge_indices"] = xr.DataArray(
-                    data=data, dims=("n_edge",), attrs={"long_name": "Indices of edges in the local surface view"}
-                )
-                self._uxds = uxr.UxDataset.from_xarray(ds=ds, uxgrid=self.uxgrid)
-        return self._uxds
+            else:  # Variables not associated with faces, nodes, or edges are copied directly
+                ds[var] = self.surface.uxds[var]
+            ds[var].attrs = self.surface.uxds[var].attrs.copy()
+        ds = ds.assign_attrs({"location": self.location})
+        ds["face_distance"] = xr.DataArray(
+            data=self.face_distance,
+            dims=("n_face",),
+            attrs={"long_name": "Distance from center location to face", "units": "m"},
+        )
+        ds["face_bearing"] = xr.DataArray(
+            data=self.face_bearing,
+            dims=("n_face",),
+            attrs={"long_name": "Initial bearing from center location to face", "units": "degrees"},
+        )
+        ds["node_distance"] = xr.DataArray(
+            data=self.node_distance,
+            dims=("n_node",),
+            attrs={"long_name": "Distance from center location to node", "units": "m"},
+        )
+        ds["node_bearing"] = xr.DataArray(
+            data=self.node_bearing,
+            dims=("n_node",),
+            attrs={"long_name": "Initial bearing from center location to node", "units": "degrees"},
+        )
+        if isinstance(self.face_indices, slice):
+            data = np.arange(self.surface.n_face)[self.face_indices]
+        else:
+            data = self.face_indices
+        ds["face_indices"] = xr.DataArray(
+            data=data,
+            dims=("n_face",),
+            attrs={"long_name": "Indices of faces in the local surface view"},
+        )
+        if isinstance(self.node_indices, slice):
+            data = np.arange(self.surface.n_node)[self.node_indices]
+        else:
+            data = self.node_indices
+        ds["node_indices"] = xr.DataArray(
+            data=data, dims=("n_node",), attrs={"long_name": "Indices of nodes in the local surface view"}
+        )
+        if isinstance(self.edge_indices, slice):
+            data = np.arange(self.surface.n_edge)[self.edge_indices]
+        else:
+            data = self.edge_indices
+        ds["edge_indices"] = xr.DataArray(
+            data=data, dims=("n_edge",), attrs={"long_name": "Indices of edges in the local surface view"}
+        )
+        return uxr.UxDataset.from_xarray(ds=ds, uxgrid=self.uxgrid)
 
     @property
     def grid_file(self):
