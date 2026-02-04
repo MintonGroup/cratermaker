@@ -720,9 +720,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def export(
-        self, driver: str = "GPKG", interval_number: Literal["all"] | int | None = None, ask_overwrite: bool = True, **kwargs: Any
-    ) -> None:
+    def export(self, driver: str = "GPKG", interval_number: int = 0, ask_overwrite: bool = True, **kwargs: Any) -> None:
         """
         Export the surface data to the specified format.
 

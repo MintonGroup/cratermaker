@@ -201,7 +201,7 @@ class HiResLocalSurface(Surface):
     def export(
         self,
         driver: str = "GPKG",
-        interval_number: Literal["all"] | int = 0,
+        interval_number: int = 0,
         superdomain: bool = False,
         **kwargs: Any,
     ) -> None:

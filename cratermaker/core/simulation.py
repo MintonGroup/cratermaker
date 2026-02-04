@@ -1,6 +1,6 @@
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import yaml
@@ -602,7 +602,7 @@ class Simulation(CratermakerBase):
     def export(
         self,
         driver: str = "OpenCraterTool",
-        interval_number: Literal["all"] | int = -1,
+        interval_number: int = -1,
         ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
@@ -613,8 +613,8 @@ class Simulation(CratermakerBase):
         ----------
         driver : str, optional
             The driver to use export the data to. Supported formats are 'OpenCraterTool', 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.). This is overridden if either the filename or file_extension parameters are provided. Default is 'OpenCraterTool'.
-        interval_number : Literal["all"] | int, optional
-            The interval number to export. If "all" is passed, all intervals will be exported. Default is -1 (the most current interval saved in the simulation).
+        interval_number : int, optional
+            The interval number to export. Default is -1 (the most current interval saved in the simulation).
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting any existing files. Default is set to the value provided when the Simulation object was created.
         **kwargs : Any
