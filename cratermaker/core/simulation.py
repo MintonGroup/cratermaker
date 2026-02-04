@@ -45,10 +45,12 @@ class Simulation(CratermakerBase):
         Earth, and a simple power law model otherwise.
     morphology : str, optional
         The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
-    surface : str, optional
-        The name of the surface used for the surface. Default is "icosphere".
     projectile : str, optional
         The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise.
+    surface : str, optional
+        The name of the surface used for the surface. Default is "icosphere".
+    counting : Counting or str, optional
+        The crater counting model to use from the components library. Default is "minton2019".
     simdir : str | Path
         |simdir|
     rng : numpy.random.Generator | None

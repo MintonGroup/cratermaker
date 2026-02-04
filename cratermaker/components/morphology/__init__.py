@@ -34,7 +34,6 @@ class Morphology(ComponentBase):
         counting: Counting | str | None = None,
         dosubpixel_degradation: bool = False,
         doslope_collapse: bool = True,
-        docounting: bool = False,
         **kwargs: Any,
     ) -> None:
         """
@@ -46,12 +45,12 @@ class Morphology(ComponentBase):
             The name of a Surface object, or an instance of Surface, to be associated the morphology model.
         production : str or Production, optional
             The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
+        counting : str or Counting, optional
+            The name of a Counting object, or an instance of Counting, to be associated with the morphology model. This is used to record crater counts during emplacement. If None, no counting will be performed.
         dosubpixel_degradation : bool, optional
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         doslope_collapse : bool, optional
             If True, slope collapse will be performed during the emplacement of craters. Default is True.
-        docounting : bool, optional
-            If True, counting will be performed during the emplacement of craters. Default is True.
         **kwargs : Any
 
         """
@@ -62,15 +61,15 @@ class Morphology(ComponentBase):
         super().__init__(**kwargs)
         object.__setattr__(self, "_production", None)
         object.__setattr__(self, "_counting", None)
+        object.__setattr__(self, "_docounting", False)
         self._surface = Surface.maker(surface, **kwargs)
         self._queue_manager: CraterQueueManager | None = None
         if production is not None:
-            self._production = Production.maker(production, **kwargs)
-        if docounting and counting is not None:
-            self._counting = Counting.maker(counting, surface=self.surface, **kwargs)
+            self.production = Production.maker(production, **kwargs)
+        if counting is not None:
+            self.counting = Counting.maker(counting, surface=self.surface, **kwargs)
         self.dosubpixel_degradation = dosubpixel_degradation
         self.doslope_collapse = doslope_collapse
-        self.docounting = docounting
         return
 
     def __str__(self) -> str:
@@ -498,17 +497,17 @@ class Morphology(ComponentBase):
         """
         return self._surface
 
-    @surface.setter
-    def surface(self, surface: Surface) -> None:
-        """
-        Set the surface object associated with this morphology model.
-        """
-        from cratermaker.components.surface import Surface
+    # @surface.setter
+    # def surface(self, surface: Surface) -> None:
+    #     """
+    #     Set the surface object associated with this morphology model.
+    #     """
+    #     from cratermaker.components.surface import Surface
 
-        if not isinstance(surface, (Surface | str)):
-            raise TypeError("surface must be an instance of Surface or a string")
-        self._surface = Surface.maker(surface)
-        self._queue_manager: CraterQueueManager | None = None
+    #     if not isinstance(surface, (Surface | str)):
+    #         raise TypeError("surface must be an instance of Surface or a string")
+    #     self._surface = Surface.maker(surface)
+    #     self._queue_manager: CraterQueueManager | None = None
 
     @property
     def production(self) -> Production:
@@ -547,14 +546,19 @@ class Morphology(ComponentBase):
         return self._counting
 
     @counting.setter
-    def counting(self, counting: Production) -> None:
+    def counting(self, counting: Counting) -> None:
         """
-        Set the production object associated with this morphology model.
+        Set the Counting object associated with this morphology model.
         """
         from cratermaker.components.counting import Counting
 
+        if counting is None:
+            self.docounting = False
+            self._counting = None
+            return
         if not isinstance(counting, (Counting | str)):
-            raise TypeError("counting must be an instance of Production or a string")
+            raise TypeError("counting must be an instance of Counting or a string")
+        self.docounting = True
         self._counting = Counting.maker(counting, surface=self.surface)
 
     @parameter
