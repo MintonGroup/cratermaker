@@ -534,7 +534,7 @@ class Counting(ComponentBase):
         self,
         craters: Crater | list[Crater] | dict[int, Crater] | str,
         name: str | None = None,
-        interval_number: Literal["all"] | int | None = None,
+        interval_number: int = 0,
         driver: str = "GPKG",
         ask_overwrite: bool = True,
         **kwargs: Any,
@@ -548,8 +548,8 @@ class Counting(ComponentBase):
             A crater or list or dictionary of Crater objects to export, or 'emplaced' or 'observed' to export those lists.
         name : str, default=None
             The name used for the file name or layer name. If None, uses default naming convention.
-        interval_number : Literal["all"] | int | None, optional
-            The interval number to append to the output file. None means no interval number will be appended to the output file name. If "all" is passed, then
+        interval_number : int, optional
+            The interval number to append to the output file. Default is 0.
         driver : str, default='GPKG'
             The file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', 'CSV', 'SCC'.
         ask_overwrite : bool, optional
@@ -738,7 +738,7 @@ class Counting(ComponentBase):
         self,
         craters: list[Crater],
         driver: str = "GPKG",
-        interval_number: int | None = None,
+        interval_number: int = 0,
         name: str | None = None,
         use_measured_properties: bool = True,
         ask_overwrite: bool = True,
@@ -754,7 +754,7 @@ class Counting(ComponentBase):
         driver : str, optional
             The file format to save. Supported formats are 'GPKG', 'ESRI Shapefile', etc. Default is 'GPKG'.
         interval_number : int, optional
-            The interval number to append to the file name. If None, then no interval number is added. Default is None.
+            The interval number to append to the file name. Default is 0.
         name : str, optional
             The name of the layer in the GeoPackage file or the file name if the format does not support layers, by default "craters".
         use_measured_properties : bool, optional
@@ -839,16 +839,10 @@ class Counting(ComponentBase):
 
         gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
         if format_has_layers:
-            if interval_number is None:
-                output_file = self.export_dir / f"craters.{file_extension}"
-            else:
-                output_file = self.export_dir / f"craters{interval_number:06d}.{file_extension}"
+            output_file = self.export_dir / f"craters{interval_number:06d}.{file_extension}"
             print(f"Saving {name} layer to vector file: '{output_file}'...")
         else:
-            if interval_number is None:
-                output_file = self.export_dir / f"{name}.{file_extension}"
-            else:
-                output_file = self.export_dir / f"{name}{interval_number:06d}.{file_extension}"
+            output_file = self.export_dir / f"{name}{interval_number:06d}.{file_extension}"
             if ask_overwrite and not self._overwrite_check(output_file):
                 return
         if driver.upper() == "ESRI SHAPEFILE":
@@ -955,7 +949,7 @@ class Counting(ComponentBase):
     def to_vtk_file(
         self,
         craters: list[Crater],
-        interval_number: int | None = None,
+        interval_number: int = 0,
         name: str = "craters",
         ask_overwrite: bool = True,
         **kwargs,
@@ -970,7 +964,7 @@ class Counting(ComponentBase):
         craters : list[Crater]
             A list of Crater objects.
         interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+            The interval number to export. Default is 0.
         name : str, optional
             The name used for the file name, by default "craters".
         ask_overwrite : bool, optional
@@ -980,10 +974,7 @@ class Counting(ComponentBase):
         """
         from vtk import vtkXMLPolyDataWriter
 
-        if interval_number is not None:
-            output_file = self.export_dir / f"{name}{interval_number:06d}.vtp"
-        else:
-            output_file = self.export_dir / f"{name}.vtp"
+        output_file = self.export_dir / f"{name}{interval_number:06d}.vtp"
         if ask_overwrite and not self._overwrite_check(output_file):
             return
         print(f"Saving crater data to VTK file: '{output_file}'...")
@@ -1003,7 +994,7 @@ class Counting(ComponentBase):
         self,
         craters: list[Crater],
         name: str = "craters",
-        interval_number: int | None = None,
+        interval_number: int = 0,
         ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
@@ -1017,7 +1008,7 @@ class Counting(ComponentBase):
         name : str, optional
             The name used for the file name. Default is "craters".
         interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+            The interval number to export. Default is 0.
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
@@ -1026,10 +1017,7 @@ class Counting(ComponentBase):
         import csv
 
         if craters:
-            if interval_number is None:
-                output_file = self.export_dir / f"{name}.csv"
-            else:
-                output_file = self.export_dir / f"{name}{interval_number:06d}.csv"
+            output_file = self.export_dir / f"{name}{interval_number:06d}.csv"
             if ask_overwrite and not self._overwrite_check(output_file):
                 return
             print(f"Saving crater data to CSV file: '{output_file}'...")
@@ -1128,7 +1116,7 @@ class Counting(ComponentBase):
     def to_scc_file(
         self,
         craters: list[Crater],
-        interval_number: int | None = None,
+        interval_number: int = 0,
         name: str = "craters",
         ask_overwrite: bool = True,
         **kwargs,
@@ -1141,7 +1129,7 @@ class Counting(ComponentBase):
         craters : list[Crater]
             A list of Crater objects.
         interval_number : int, optional
-            The interval number to append to the file name. If None, then no interval number is added. Default is None.
+            The interval number to append to the file name. Default is 0.
         name : str, optional
             The name used for the file name, by default "craters".
         ask_overwrite : bool, optional
@@ -1151,10 +1139,7 @@ class Counting(ComponentBase):
         """
         import datetime
 
-        if interval_number is None:
-            output_file = self.export_dir / f"{name}.scc"
-        else:
-            output_file = self.export_dir / f"{name}{interval_number:06d}.scc"
+        output_file = self.export_dir / f"{name}{interval_number:06d}.scc"
         if ask_overwrite and not self._overwrite_check(output_file):
             return
         print(f"\nSaving crater data to {output_file}")

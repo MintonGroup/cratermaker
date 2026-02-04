@@ -31,15 +31,15 @@ class CratermakerBase:
     Parameters
     ----------
     simdir : str | Path
-        The main project simulation directory. Default is the current working directory if None.
+        |simdir|
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
     """
 
     def __init__(
@@ -58,6 +58,7 @@ class CratermakerBase:
         object.__setattr__(self, "_output_dir_name", None)
         object.__setattr__(self, "_output_file_pattern", [])
         object.__setattr__(self, "_export_dir_name", "export")
+        object.__setattr__(self, "_ask_overwrite", True)
 
         self.simdir = simdir
 

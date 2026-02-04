@@ -163,9 +163,9 @@ class Surface(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before deleting files. Default is False.
         simdir : str | Path
-            The main project simulation directory. Default is the current working directory if None.
+            |simdir|
         **kwargs : Any
-            Additional keyword arguments that can be provided to the surface constructor associated with the input surface type.
+            |kwargs|
 
         Returns
         -------
@@ -694,7 +694,6 @@ class Surface(ComponentBase):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
-        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         **kwargs,
     ) -> None:
@@ -709,8 +708,6 @@ class Surface(ComponentBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area").
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         **kwargs : Any
@@ -719,7 +716,6 @@ class Surface(ComponentBase):
         return self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
-            exclude_variables=exclude_variables,
             filename=filename,
             **kwargs,
         )
@@ -751,7 +747,7 @@ class Surface(ComponentBase):
     def to_vector_file(
         self,
         driver: str = "GPKG",
-        interval_number: int | None = None,
+        interval_number: int = 0,
         ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
@@ -765,7 +761,7 @@ class Surface(ComponentBase):
         driver : str, optional
             The file format driver to use for exporting. Default is 'GPKG'.
         interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+            The interval number to export. Default is 0.
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
@@ -799,7 +795,7 @@ class Surface(ComponentBase):
 
     def to_geotiff_file(
         self,
-        interval_number: int | None = None,
+        interval_number: int = 0,
         variable_name: str = "face_elevation",
         **kwargs,
     ) -> None:
@@ -809,7 +805,7 @@ class Surface(ComponentBase):
         Parameters
         ----------
         interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default
+            The interval number to export. Default is 0.
         variable_name : str, optional
             The name of the variable to rasterize. Default is "face_elevation".
         **kwargs : Any
@@ -841,7 +837,7 @@ class Surface(ComponentBase):
 
     def to_vtk_file(
         self,
-        interval_number: int | None = None,
+        interval_number: int = 0,
         **kwargs: Any,
     ) -> None:
         """
@@ -861,7 +857,7 @@ class Surface(ComponentBase):
 
     def plot(
         self,
-        style: Literal["map", "hillshade"] = "map",
+        plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
         cmap: str | None = None,
         imagefile=None,
@@ -876,12 +872,12 @@ class Surface(ComponentBase):
 
         Parameters
         ----------
-        style : str, optional
+        plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
             The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
         cmap : str, optional
-            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
@@ -902,7 +898,7 @@ class Surface(ComponentBase):
         """
         return self._full().plot(
             variable_name=variable_name,
-            style=style,
+            plot_style=plot_style,
             cmap=cmap,
             imagefile=imagefile,
             label=label,
@@ -2693,7 +2689,7 @@ class LocalSurface(CratermakerBase):
     def export(
         self,
         driver: str = "GPKG",
-        interval_number: int | None = None,
+        interval_number: int = 0,
         ask_overwrite: bool = True,
         **kwargs: Any,
     ) -> None:
@@ -2707,7 +2703,7 @@ class LocalSurface(CratermakerBase):
         driver : str, optional
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+            The interval number to export. Default is 0.
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
@@ -2750,7 +2746,7 @@ class LocalSurface(CratermakerBase):
     def to_vector_file(
         self,
         driver: str = "GPKG",
-        interval_number: int | None = None,
+        interval_number: int = 0,
         ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
@@ -2764,7 +2760,7 @@ class LocalSurface(CratermakerBase):
         driver : str, optional
             The file format driver to use for exporting. Default is 'GPKG'.
         interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+            The interval number to export. Default is 0.
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
@@ -2790,12 +2786,12 @@ class LocalSurface(CratermakerBase):
                 variables = [var for var in variables if not var.startswith("id")]
 
             for var in variables:
-                if len(uxdsi[var].dims) == 1:
-                    gds = uxdsi[var].to_geodataframe(**gdfargs)
+                if len(uxds[var].dims) == 1:
+                    gds = uxds[var].to_geodataframe(**gdfargs)
                     gdf[var] = gds[var]
-                elif "layer" in uxdsi[var].dims:
-                    for layer in range(uxdsi.layer.size):
-                        gds = uxdsi[var].isel(layer=layer).to_geodataframe(**gdfargs)
+                elif "layer" in uxds[var].dims:
+                    for layer in range(uxds.layer.size):
+                        gds = uxds[var].isel(layer=layer).to_geodataframe(**gdfargs)
                         gdf[f"{var}{layer:02d}"] = gds[var]
 
             # Rename columns if exporting to Shapefile to comply with field name length limits
@@ -2832,34 +2828,16 @@ class LocalSurface(CratermakerBase):
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
-        # load data and select the face-based variables
-        if interval_number is None:
-            uxds = self.uxds
-            interval_numbers = [None]
-        else:
-            uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
+        filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
 
-        if type(interval_number) is str:
-            if interval_number.lower() == "all":
-                old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
-                for f in old_vector_files:
-                    f.unlink()
-            else:
-                raise ValueError("interval_number string value must be 'all' to export all intervals.")
-        elif type(interval_number) is int:
-            interval_numbers = [interval_number]
-
-        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
-            uxdsi = uxds.sel(time=time).load()
-            filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
-
-            _write_dataset(
-                uxdsi,
-                filename=filename,
-                layer_name="face_data",
-                driver=driver,
-                **kwargs,
-            )
+        _write_dataset(
+            self.uxds.load(),
+            filename=filename,
+            layer_name="face_data",
+            driver=driver,
+            **kwargs,
+        )
+        return
 
     def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
@@ -2945,7 +2923,7 @@ class LocalSurface(CratermakerBase):
 
     def to_vtk_file(
         self,
-        interval_number: int | None = None,
+        interval_number: int = 0,
         ask_overwrite: bool = True,
         **kwargs: Any,
     ) -> None:
@@ -2955,7 +2933,7 @@ class LocalSurface(CratermakerBase):
         Parameters
         ----------
         interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+            The interval number to export. Default is 0.
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
@@ -2979,34 +2957,19 @@ class LocalSurface(CratermakerBase):
             writer.Write()
             return
 
-        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
-            old_vtk_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{_VTK_FILE_EXTENSION}"))
-            for f in old_vtk_files:
-                if ask_overwrite and not self._overwrite_check(f):
-                    return
-                f.unlink()
+        uxds = self.uxds.load()
 
         # Check if we need to save the geometry file
-        grid_filename = self.output_dir / f"{self._grid_file_prefix}.{_VTK_FILE_EXTENSION}"
-        save_geometry = not grid_filename.exists()
+        grid_filename = self.export_dir / f"{self._grid_file_prefix}.{_VTK_FILE_EXTENSION}"
 
-        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
-        if interval_number is not None:
-            if interval_number < 0:
-                interval_number = interval_numbers[interval_number]
-            interval_numbers = [interval_number]
+        if not grid_filename.exists():
+            grid = self.to_vtk_mesh(uxds=self.uxgrid.to_xarray())
+            _write_current_mesh(grid, grid_filename)
 
-        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
-            uxdsi = uxds.sel(time=time).load()
+        mesh = self.to_vtk_mesh(uxds=uxds)
 
-            if save_geometry:
-                grid = self.to_vtk_mesh(uxds=self.uxgrid.to_xarray())
-                _write_current_mesh(grid, grid_filename)
-
-            mesh = self.to_vtk_mesh(uxds=uxdsi)
-
-            filename = self.output_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
-            _write_current_mesh(mesh, filename)
+        filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
+        _write_current_mesh(mesh, filename)
 
         return
 
@@ -3152,7 +3115,7 @@ class LocalSurface(CratermakerBase):
             interval_numbers = [interval_number]
 
         if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
-            old_vector_files = list(self.output_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
+            old_vector_files = list(self.export_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
             for f in old_vector_files:
                 f.unlink()
 
@@ -3169,9 +3132,8 @@ class LocalSurface(CratermakerBase):
 
     def save(
         self,
-        interval_number: int | None = None,
+        interval_number: int = 0,
         time_variables: dict | None = None,
-        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         **kwargs,
     ) -> None:
@@ -3186,8 +3148,6 @@ class LocalSurface(CratermakerBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area").
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
 
@@ -3195,9 +3155,6 @@ class LocalSurface(CratermakerBase):
             Additional keyword arguments to pass to the export function.
         """
         self.surface.output_dir.mkdir(parents=True, exist_ok=True)
-
-        if interval_number is None:
-            interval_number = 0
 
         if time_variables is None:
             time_variables = {"elapsed_time": float(interval_number)}
@@ -3210,11 +3167,6 @@ class LocalSurface(CratermakerBase):
         ds = self.uxds.expand_dims(dim="time").assign_coords({"time": [interval_number]})
         for k, v in time_variables.items():
             ds[k] = xr.DataArray(data=[v], name=k, dims=["time"], coords={"time": [interval_number]})
-
-        if exclude_variables is not None:
-            drop_vars = [k for k in ds.data_vars if k in exclude_variables]
-            if len(drop_vars) > 0:
-                ds = ds.drop_vars(drop_vars)
 
         if filename is None:
             filename = Path(f"{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}")

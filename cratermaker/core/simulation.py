@@ -626,6 +626,8 @@ class Simulation(CratermakerBase):
         """
         if ask_overwrite is None:
             ask_overwrite = self.ask_overwrite
+        if interval_number < 0:
+            interval_number = self.interval_number + 1 + interval_number
         self.save()
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"

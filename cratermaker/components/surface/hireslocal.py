@@ -167,7 +167,6 @@ class HiResLocalSurface(Surface):
         self,
         interval_number: int = 0,
         time_variables: dict | None = None,
-        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         **kwargs,
     ) -> None:
@@ -182,22 +181,18 @@ class HiResLocalSurface(Surface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area").
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. If provided, the file associated with the local surface will have 'local' prepended. Default is None.
         """
         self._full().save(
             interval_number=interval_number,
             time_variables=time_variables,
-            exclude_variables=exclude_variables,
             filename=filename,
             **kwargs,
         )
         self.local.save(
             interval_number=interval_number,
             time_variables=time_variables,
-            exclude_variables=exclude_variables,
             filename=f"local_{filename}" if filename else None,
             **kwargs,
         )
@@ -206,7 +201,7 @@ class HiResLocalSurface(Surface):
     def export(
         self,
         driver: str = "GPKG",
-        interval_number: Literal["all"] | int = -1,
+        interval_number: Literal["all"] | int = 0,
         superdomain: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -330,7 +325,7 @@ class HiResLocalSurface(Surface):
 
     def to_geotiff_file(
         self,
-        interval_number: int | None = None,
+        interval_number: int = 0,
         variable_name: str = "face_elevation",
         superdomain: bool = False,
         **kwargs,
@@ -341,7 +336,7 @@ class HiResLocalSurface(Surface):
         Parameters
         ----------
         interval_number : int, optional
-            The interval number to export. If None, all intervals currently saved will be exported. Default
+            The interval number to export. Default is 0.
         variable_name : str, optional
             The name of the variable to rasterize. Default is "face_elevation".
         superdomain : bool, optional
@@ -946,9 +941,8 @@ class LocalHiResLocalSurface(LocalSurface):
 
     def save(
         self,
-        interval_number: int | None = None,
+        interval_number: int = 0,
         time_variables: dict | None = None,
-        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         plot_style: str | None = None,
         **kwargs,
@@ -964,8 +958,6 @@ class LocalHiResLocalSurface(LocalSurface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area").
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         plot_style : str, optional
@@ -976,15 +968,11 @@ class LocalHiResLocalSurface(LocalSurface):
         super().save(
             interval_number=interval_number,
             time_variables=time_variables,
-            exclude_variables=exclude_variables,
             filename=filename,
             **kwargs,
         )
         if plot_style is not None:
-            if plot_style not in ["hillshade", "elevation"]:
-                warn(f"Plot style '{plot_style}' not recognized. Using 'hillshade' or 'elevation' instead.", stacklevel=2)
-            else:
-                imagefile = self.plot_dir / f"{plot_style}{interval_number:06d}.png"
+            imagefile = self.plot_dir / f"{plot_style}{interval_number:06d}.png"
             if time_variables and "label" not in kwargs:
                 kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
             self.plot(plot_style, imagefile=imagefile, **kwargs)
