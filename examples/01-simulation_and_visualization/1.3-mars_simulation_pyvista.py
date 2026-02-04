@@ -26,6 +26,7 @@ sim = cm.Simulation(
     local_radius=20.0e3,
     ask_overwrite=False,
     rng_seed=86186233406,  # This will ensure we get the same crater population each time we run the example
+    simdir="simdata-1_3",
 )
 sim.run(age=2000, plot_style="map", cmap="pink", scalebar=True, label="Mars region simulation")
 sim.show(cmap="pink")
@@ -34,4 +35,4 @@ sim.show(cmap="pink")
 # sim.run(age=2000, plot_style="hillshade")
 
 # We can also display the saved image directly. The name will depend on the plot_style option used above.
-Image(filename=sim.surface.plot_dir / "elevation000001.png")
+Image(filename=sim.surface.plot_dir / "map000001.png")

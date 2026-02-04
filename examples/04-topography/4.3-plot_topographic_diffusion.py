@@ -46,6 +46,7 @@ surface = Surface.maker(
     local_radius=local_radius,
     superdomain_scale_factor=superdomain_scale_factor,
     ask_overwrite=False,
+    simdir="simdata-4_3",
 )
 
 # Generate the initial elevation profile and apply it to the surface

@@ -70,6 +70,7 @@ surface = Surface.maker(
     local_location=lansberg_b.location,
     local_radius=lansberg_b.radius * 3.0,
     ask_overwrite=False,
+    simdir="simdata-5_1",
 )
 
 # Now refine the fit of the crater rim using the Counting class.
