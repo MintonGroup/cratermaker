@@ -849,12 +849,9 @@ class Counting(ComponentBase):
             output_file = self.export_dir / f"{name}{interval_number:06d}.{file_extension}"
             if ask_overwrite and not self._overwrite_check(output_file):
                 return
-        if driver.upper() == "ESRI SHAPEFILE":
-            # Append _CRATER so that it is recognized by Craterstats
-            output_file = Path(str(output_file).replace(".shp", "_CRATER.shp"))
-            if hasattr(self.surface, "local"):
-                # Create the _AREA file
-                self.surface.local.export_region_polygon(driver=driver)
+        if driver.upper() == "ESRI SHAPEFILE" and hasattr(self.surface, "local"):
+            # Create the _AREA file
+            self.surface.local.export_region_polygon(driver=driver)
 
         try:
             if format_has_layers:

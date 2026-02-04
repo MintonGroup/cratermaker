@@ -2710,7 +2710,8 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
-        self.save(interval_number=interval_number, **kwargs)
+        if interval_number is not None:
+            self.save(interval_number=interval_number, **kwargs)
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
                 interval_number=interval_number,
@@ -2768,6 +2769,7 @@ class LocalSurface(CratermakerBase):
             Additional keyword arguments to pass to the GeoPandas to_file method.
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+        from cratermaker.utils.general_utils import get_saved_interval_numbers
 
         def _write_dataset(uxds, filename, layer_name, driver, **kwargs):
             if self.location is None:
@@ -2829,15 +2831,30 @@ class LocalSurface(CratermakerBase):
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
-        filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
+        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
 
-        _write_dataset(
-            self.uxds.load(),
-            filename=filename,
-            layer_name="face_data",
-            driver=driver,
-            **kwargs,
-        )
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_number = interval_numbers[interval_number]
+            interval_numbers = [interval_number]
+
+        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
+            old_vector_files = list(self.export_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
+            for f in old_vector_files:
+                f.unlink()
+        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
+            if "time" in uxds.dims:
+                uxdsi = uxds.sel(time=time).load()
+            else:
+                uxdsi = uxds.load()
+            filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{file_extension}"
+            _write_dataset(
+                uxdsi,
+                filename=filename,
+                layer_name="face_data",
+                driver=driver,
+                **kwargs,
+            )
         return
 
     def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
@@ -2958,7 +2975,17 @@ class LocalSurface(CratermakerBase):
             writer.Write()
             return
 
-        uxds = self.uxds.load()
+        uxds, interval_numbers = self.read_file(interval_number=interval_number, reset=False)
+        file_extension = _VTK_FILE_EXTENSION
+        if interval_number is not None:
+            if interval_number < 0:
+                interval_number = interval_numbers[interval_number]
+            interval_numbers = [interval_number]
+
+        if interval_number is None:  # We are exporting all intervals, so we need to remove all old files
+            old_vector_files = list(self.export_dir.glob(f"{self._output_file_prefix}*.{file_extension}"))
+            for f in old_vector_files:
+                f.unlink()
 
         # Check if we need to save the geometry file
         grid_filename = self.export_dir / f"{self._grid_file_prefix}.{_VTK_FILE_EXTENSION}"
@@ -2967,10 +2994,15 @@ class LocalSurface(CratermakerBase):
             grid = self.to_vtk_mesh(uxds=self.uxgrid.to_xarray())
             _write_current_mesh(grid, grid_filename)
 
-        mesh = self.to_vtk_mesh(uxds=uxds)
+        for time, interval_number in zip(uxds.time.values, interval_numbers, strict=False):
+            if "time" in uxds.dims:
+                uxdsi = uxds.sel(time=time).load()
+            else:
+                uxdsi = uxds.load()
+            mesh = self.to_vtk_mesh(uxds=uxdsi)
 
-        filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
-        _write_current_mesh(mesh, filename)
+            filename = self.export_dir / f"{self._output_file_prefix}{interval_number:06d}.{_VTK_FILE_EXTENSION}"
+            _write_current_mesh(mesh, filename)
 
         return
 
@@ -3156,7 +3188,8 @@ class LocalSurface(CratermakerBase):
             Additional keyword arguments to pass to the export function.
         """
         self.surface.output_dir.mkdir(parents=True, exist_ok=True)
-
+        if interval_number is None:
+            interval_number = 0
         if time_variables is None:
             time_variables = {"elapsed_time": float(interval_number)}
         else:
