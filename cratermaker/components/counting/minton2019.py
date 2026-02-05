@@ -24,7 +24,7 @@ class Minton2019Counting(Counting):
     surface : Surface | LocalSurface
         The surface or local surface view to be counted.
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
     """
 
     def __init__(self, surface, **kwargs: Any):
@@ -40,7 +40,7 @@ class Minton2019Counting(Counting):
         crater : Crater
             The crater to measure.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -85,7 +85,7 @@ class Minton2019Counting(Counting):
         gamma: float
             The visibility function parameter gamma from Minton et al. (2019).
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------

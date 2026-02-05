@@ -50,7 +50,7 @@ class MonteCarloScaling(Scaling):
     rng_state : dict, optional
         |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Notes
     -----
@@ -369,7 +369,7 @@ class MonteCarloScaling(Scaling):
         transient_diameter : float
             The diameter of the crater in meters.
         **kwargs : Any
-            Additional keyword arguments that might influence the calculation.
+            |kwargs|
 
         Returns
         -------

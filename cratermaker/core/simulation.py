@@ -64,8 +64,7 @@ class Simulation(CratermakerBase):
     ask_overwrite : bool, optional
         If True, the user will be prompted before overwriting any existing files. Default is True.
     **kwargs : Any
-        Additional keyword arguments that can be passed to other cratermaker components, such as arguments to set the surface, scaling,
-        morphology, or production function constructors. Refer to the documentation of each component module for details.
+        |kwargs|        morphology, or production function constructors. Refer to the documentation of each component module for details.
     """
 
     def __init__(
@@ -283,7 +282,7 @@ class Simulation(CratermakerBase):
             Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output
             in equal cumulative number intervals and vice versa.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
 
         Notes
         -----
@@ -357,7 +356,7 @@ class Simulation(CratermakerBase):
             position=3,
             leave=False,
         ):
-            if self.morphology.docounting:
+            if self.morphology.do_counting:
                 self.counting._emplaced = []
             self.interval_number = i + 1
             if is_age_interval:
@@ -512,7 +511,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> list[Crater]:
+    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> None:
         """
         Emplace one or more craters in the simulation.
 
@@ -525,19 +524,11 @@ class Simulation(CratermakerBase):
         craters : Crater or list of Crater objects, optional
             The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
         **kwargs : Any
-            Keyword arguments to pass to :class:`Crater.maker`.
-            Refer to the documentation of this class for details on valid keyword arguments.
-
-        Returns
-        -------
-        list of Crater
-            The list of emplaced Crater objects.
+            |kwargs|
 
         Notes
         -----
-        The keyword arguments provided are passed down to :meth:`Crater.maker`.
-        Refer to its documentation for a detailed description of valid
-        keyword arguments.
+        The keyword arguments provided are passed down to :meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
         Examples
         --------
@@ -561,22 +552,10 @@ class Simulation(CratermakerBase):
             sim.emplace(craters)
 
         """
-        if craters is None:
-            crater_args = {**kwargs, **vars(self.common_args)}
-            # Add scaling=self.scaling to the kwargs if it is not already present
-            if "scaling" not in crater_args:
-                crater_args["scaling"] = self.scaling
-            craters = [Crater.maker(**crater_args)]
-        elif isinstance(craters, Crater):
-            craters = [craters]
-        if isinstance(craters, list) and len(craters) > 0:
-            for c in craters:
-                if not isinstance(c, Crater):
-                    raise TypeError(f"Expected Crater, got {type(c)}")
-                self._enqueue_crater(c)
-            self._process_queue()
-
-        return craters
+        crater_args = {**kwargs, **vars(self.common_args)}
+        if craters is None and "scaling" not in crater_args:
+            crater_args["scaling"] = self.scaling
+        return self.morphology.emplace(craters=craters, **crater_args)
 
     def save(self, **kwargs: Any) -> None:
         """
@@ -593,7 +572,7 @@ class Simulation(CratermakerBase):
             **kwargs,
         )
 
-        if self.morphology.docounting:
+        if self.morphology.do_counting:
             self.counting.save(interval_number=self.interval_number, **kwargs)
 
         self.to_config(**kwargs)
@@ -620,7 +599,7 @@ class Simulation(CratermakerBase):
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting any existing files. Default is set to the value provided when the Simulation object was created.
         **kwargs : Any
-            Additional keyword arguments to pass to the GeoPandas to_file method.
+            |kwargs|
 
         Notes
         -----
@@ -644,7 +623,7 @@ class Simulation(CratermakerBase):
             **kwargs,
         )
 
-        if self.morphology.docounting:
+        if self.morphology.do_counting:
             self.counting.export(
                 craters=self.counting.observed,
                 interval_number=interval_number,
@@ -662,7 +641,7 @@ class Simulation(CratermakerBase):
         Parameters
         ----------
         **kwargs : Any
-            Keyword arguments to pass to the surface plot method.
+        |kwargs|
 
         Returns
         -------
@@ -684,11 +663,11 @@ class Simulation(CratermakerBase):
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         **kwargs : Any
-            Keyword arguments to pass to the Surface or Counting show methods.
+        |kwargs|
         """
         if "interval_number" not in kwargs:
             kwargs["interval_number"] = self.interval_number
-        if self.morphology.docounting:
+        if self.morphology.do_counting:
             self.counting.show(engine=engine, **kwargs)
         else:
             self.surface.show(engine=engine, **kwargs)
@@ -707,7 +686,7 @@ class Simulation(CratermakerBase):
         save_to_file : bool, optional
             If True, the configuration will be saved to a file. Default is True.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
 
         Returns
         -------
@@ -823,41 +802,9 @@ class Simulation(CratermakerBase):
         Parameters
         ----------
         *args: Variable length argument list to pass to self.surface.update_elevation.
-        **kwargs: Arbitrary keyword arguments to pass to self.surface.update_elevation.
+        |kwargs|
         """
         return self.surface.update_elevation(*args, **kwargs)
-
-    def _enqueue_crater(self, crater: Crater, **kwargs) -> None:
-        """
-        Add a crater to the queue for later emplacement.
-
-        Parameters
-        ----------
-        crater : Crater
-            The crater object to enqueue.
-
-        **kwargs : Any
-            Additional keyword arguments for initializing the :class:`Crater`.
-
-        Raises
-        ------
-        RuntimeError
-            If the queue manager has not been initialized.
-        """
-        self.morphology._enqueue_crater(crater, **kwargs)
-        return
-
-    def _process_queue(self) -> None:
-        """
-        Process all queued craters in the order they were added, forming non-overlapping batches and applying each to the surface.
-
-        Raises
-        ------
-        RuntimeError
-            If the queue manager has not been initialized.
-        """
-        self.morphology._process_queue()
-        return
 
     def _get_smallest_diameter(self, face_size: ArrayLike | None = None, from_projectile: bool = False) -> float:
         """
@@ -906,7 +853,7 @@ class Simulation(CratermakerBase):
         else:
             return largest_crater
 
-    def _validate_run_args(self, **kwargs) -> dict:
+    def _validate_run_args(self, **kwargs: Any) -> dict:
         """
         Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
 
@@ -933,6 +880,8 @@ class Simulation(CratermakerBase):
         ninterval : int, optional
             Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output
             in equal cumulative number intervals and vice versa.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------

@@ -63,7 +63,7 @@ class Projectile(ComponentBase):
     ):
         """
 
-        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------
@@ -90,7 +90,7 @@ class Projectile(ComponentBase):
         rng_state : dict, optional
             |rng_state|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         from cratermaker.components.target import Target
 
@@ -210,7 +210,7 @@ class Projectile(ComponentBase):
         rng_state : dict, optional
             |rng_state|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -289,7 +289,7 @@ class Projectile(ComponentBase):
         location : tuple[float, float] | None
             The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
         **kwargs : Any
-            Additional keyword arguments to override attributes.
+            |kwargs|
 
         Returns
         -------

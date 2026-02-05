@@ -59,7 +59,7 @@ class Counting(ComponentBase):
         **kwargs: Any,
     ):
         """
-        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------
@@ -70,7 +70,7 @@ class Counting(ComponentBase):
         ask_overwrite : bool, optional
             |ask_overwrite_false|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         from cratermaker.components.surface import Surface
 
@@ -120,7 +120,7 @@ class Counting(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -160,7 +160,7 @@ class Counting(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
         """
         self.surface.add_tag(name="crater_id", long_name=_TALLY_LONG_NAME, tag=None, n_layer=_N_LAYER)
         self._emplaced = []
@@ -180,7 +180,7 @@ class Counting(ComponentBase):
         count_region : LocalSurface, optional
             A LocalSurface region that contains the crater inside. If not supplied, then the associated surface property is used.
         **kwargs : Any
-            Additional keyword arguments to pass to the surface add_tag method.
+            |kwargs|
         """
         from cratermaker.components.surface import LocalSurface
 
@@ -366,6 +366,8 @@ class Counting(ComponentBase):
             A LocalSurface region to count. If not supplied, then the associated surface property is used.
         quiet : bool, optional
             If True, suppress progress output. Default is False.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
@@ -519,7 +521,7 @@ class Counting(ComponentBase):
         interval_number : int, default=0
             The interval number for the output file naming.
         **kwargs : Any
-            Additional keyword arguments (ignored)
+            |kwargs|
         """
         emplaced_filename = (
             self.output_dir / f"emplaced_{self._output_file_prefix}{interval_number:06d}.{self._output_file_extension}"
@@ -559,7 +561,7 @@ class Counting(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
-            Additional keyword arguments to pass to the make_vector_file function.
+            |kwargs|
         """
         if isinstance(craters, str):
             if name is None:
@@ -635,7 +637,7 @@ class Counting(ComponentBase):
         interval_number : int, optional
             The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
         **kwargs : Any
-            Additional keyword arguments to pass to the surface show_pyvista method.
+            |kwargs|
 
         Returns
         -------
@@ -716,8 +718,7 @@ class Counting(ComponentBase):
         emplaced_color : str, optional
             The color to use for emplaced craters. Default is "red".
         **kwargs : Any
-            Additional keyword arguments to pass to the surface show_pyvista method.
-
+            |kwargs|
         """
         if engine.lower() == "pyvista":
             plotter = self.show_pyvista(observed_color=observed_color, emplaced_color=emplaced_color, **kwargs)
@@ -766,7 +767,7 @@ class Counting(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
-            Additional keyword arguments that are ignored.
+            |kwargs|
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
@@ -874,7 +875,7 @@ class Counting(ComponentBase):
         use_measured_properties : bool, optional
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
         **kwargs : Any
-            Additional keyword arguments that are passed to the crater to_geoseries method.
+            |kwargs|
 
         Returns
         -------
@@ -971,7 +972,7 @@ class Counting(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
-            Additional keyword arguments that are ignored.
+            |kwargs|
         """
         from vtk import vtkXMLPolyDataWriter
 
@@ -1013,7 +1014,7 @@ class Counting(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
-            Additional keyword arguments that are ignored.
+            |kwargs|
         """
         import csv
 
@@ -1136,7 +1137,7 @@ class Counting(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting files. Default is True.
         **kwargs : Any
-            Additional keyword arguments that are ignored.
+            |kwargs|
         """
         import datetime
 

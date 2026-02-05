@@ -58,7 +58,7 @@ class AsteroidProjectiles(Projectile):
         rng_state : dict, optional
             |rng_state|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         density = 2250.0 if density is None else density
         kwargs.pop("mean_velocity", None)

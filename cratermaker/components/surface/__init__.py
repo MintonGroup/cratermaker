@@ -57,7 +57,7 @@ class Surface(ComponentBase):
         **kwargs,
     ):
         """
-        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------
@@ -214,7 +214,7 @@ class Surface(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
         """
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
 
@@ -254,7 +254,7 @@ class Surface(ComponentBase):
         at_least_one_face : bool, optional
             If True, ensure that at least one face is returned, even if the region radius is very small. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -376,7 +376,7 @@ class Surface(ComponentBase):
         overwrite : bool, optional
             If True, the existing data will be replaced with the new data. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Notes
         -----
@@ -411,7 +411,7 @@ class Surface(ComponentBase):
         long_name : str | None
             The long name of the tag to be added. If None, no long name will be added.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         # Reset the tag layers if the tag is None or does not yet exist on the surface
         if name not in self.uxds or tag is None:
@@ -652,7 +652,7 @@ class Surface(ComponentBase):
         """
         return self._full().interpolate_node_elevation_from_faces()
 
-    def get_random_location_on_face(self, face_index: int, **kwargs) -> float | tuple[float, float] | ArrayLike:
+    def get_random_location_on_face(self, face_index: int, **kwargs: Any) -> float | tuple[float, float] | ArrayLike:
         """
         Generate a random coordinate within a given face of a the mesh.
 
@@ -665,6 +665,8 @@ class Surface(ComponentBase):
         size : int or tuple of ints, optional
             The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1,
             then an array of tuples is returned. The default is 1.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
@@ -714,7 +716,7 @@ class Surface(ComponentBase):
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         **kwargs : Any
-            Additional keyword arguments to pass to the export function.
+            |kwargs|
         """
         return self._full().save(
             interval_number=interval_number,
@@ -736,7 +738,7 @@ class Surface(ComponentBase):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before overwriting existing files. Default is True.
         **kwargs : Any
-            Additional keyword arguments to pass to the export function.
+            |kwargs|
         """
         return self._full().export(
             driver=driver,
@@ -764,7 +766,7 @@ class Surface(ComponentBase):
         interval_number : int, optional
             The interval number to export. Default is 0.
         **kwargs : Any
-            Additional keyword arguments to pass to the GeoPandas to_file method.
+            |kwargs|
         """
         return self._full().to_vector_file(driver=driver, interval_number=interval_number, **kwargs)
 
@@ -779,7 +781,7 @@ class Surface(ComponentBase):
         variable_name : str, optional
             The name of the variable to rasterize. Default is "face_elevation".
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -810,7 +812,7 @@ class Surface(ComponentBase):
         variable_name : str, optional
             The name of the variable to rasterize. Default is "face_elevation".
         **kwargs : Any
-            Additional keyword arguments to pass to the rasterio to_geotiff method.
+            |kwargs|
         """
         return self._full().to_geotiff(
             interval_number=interval_number,
@@ -827,7 +829,7 @@ class Surface(ComponentBase):
         uxds : UxDataset, optional
             The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
         **kwargs : Any
-            Additional keyword arguments
+            |kwargs|
 
         Returns
         -------
@@ -849,7 +851,7 @@ class Surface(ComponentBase):
         interval_number : int, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         **kwargs : Any
-            Additional keyword arguments
+            |kwargs|
         """
         return self._full().to_vtk_file(
             interval_number=interval_number,
@@ -890,7 +892,7 @@ class Surface(ComponentBase):
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
 
         Returns
         -------
@@ -920,7 +922,7 @@ class Surface(ComponentBase):
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
 
         Returns
         -------
@@ -944,7 +946,7 @@ class Surface(ComponentBase):
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
         """
         return self._full().show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
 
@@ -1057,7 +1059,7 @@ class Surface(ComponentBase):
         reset : bool, optional
             Flag to indicate whether to reset the surface. If True it reads in the grid but creates an empty dataset. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -2008,7 +2010,7 @@ class LocalSurface(CratermakerBase):
     reset : bool, optional
         Flag to indicate whether to remove any existing data files in the output directory. Default is True.
     **kwargs : Any
-        Additional keyword arguments passed to the CratermakerBase initializer.
+        |kwargs|
     """
 
     def __init__(
@@ -2201,7 +2203,7 @@ class LocalSurface(CratermakerBase):
         overwrite : bool, optional
             If True, the existing data will be replaced with the new data. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Notes
         -----
@@ -2462,7 +2464,7 @@ class LocalSurface(CratermakerBase):
         only_faces : bool
             If True, only return the face elevation data of the reference surface. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -2708,7 +2710,7 @@ class LocalSurface(CratermakerBase):
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
-            Additional keyword arguments to pass to the GeoPandas to_file method.
+            |kwargs|
         """
         if interval_number is not None:
             self.save(interval_number=interval_number, **kwargs)
@@ -2766,7 +2768,7 @@ class LocalSurface(CratermakerBase):
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
-            Additional keyword arguments to pass to the GeoPandas to_file method.
+            |kwargs|
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
         from cratermaker.utils.general_utils import get_saved_interval_numbers
@@ -2863,7 +2865,7 @@ class LocalSurface(CratermakerBase):
         uxds : UxDataset, optional
             The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
         **kwargs : Any
-            Additional keyword arguments
+            |kwargs|
 
         Returns
         -------
@@ -2952,7 +2954,7 @@ class LocalSurface(CratermakerBase):
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
-            Additional keyword arguments
+            |kwargs|
         """
 
         def _write_current_mesh(mesh, output_filename):
@@ -3011,7 +3013,7 @@ class LocalSurface(CratermakerBase):
         uxda : UxDataArray | None
             The UxDataArray containing the face-based variable to rasterize. If None, the method will use currently loaded data in the surface with "face_elevation" as the default variable. Default is None.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -3179,7 +3181,7 @@ class LocalSurface(CratermakerBase):
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
 
         **kwargs : Any
-            Additional keyword arguments to pass to the export function.
+            |kwargs|
         """
         self.surface.output_dir.mkdir(parents=True, exist_ok=True)
         if interval_number is None:
@@ -3246,7 +3248,7 @@ class LocalSurface(CratermakerBase):
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -3366,7 +3368,7 @@ class LocalSurface(CratermakerBase):
             plt.show()
         return im
 
-    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs) -> None:
+    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any) -> None:
         """
         Show the local surface region using an interactive 3D plot with PyVista.
 
@@ -3377,7 +3379,7 @@ class LocalSurface(CratermakerBase):
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
 
         Returns
         -------
@@ -3556,7 +3558,7 @@ class LocalSurface(CratermakerBase):
         driver : str, optional
             The OGR driver to use for exporting the polygon. Default is "GPKG"
         **kwargs : Any
-            Additional keyword arguments to pass to the geop
+            |kwargs|
         """
         import geopandas as gpd
         import pandas as pd
@@ -3589,7 +3591,9 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def show(self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs) -> None:
+    def show(
+        self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
+    ) -> None:
         """
         Show the local surface region using an interactive 3D plot.
 
@@ -3602,7 +3606,7 @@ class LocalSurface(CratermakerBase):
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
         """
         if engine == "pyvista":
             plotter = self.show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
@@ -4097,7 +4101,7 @@ class LocalSurface(CratermakerBase):
         reset : bool, optional
             Flag to indicate whether to reset the surface. If True it reads in the grid but creates an empty dataset. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------

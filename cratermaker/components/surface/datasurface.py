@@ -575,7 +575,7 @@ class DataSurface(HiResLocalSurface):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
 
         """
         super().reset(ask_overwrite=ask_overwrite, **kwargs)

@@ -46,7 +46,7 @@ class NeukumProduction(Production):
         **kwargs: Any,
     ):
         """
-        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------

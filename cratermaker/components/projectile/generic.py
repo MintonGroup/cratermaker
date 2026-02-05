@@ -54,7 +54,7 @@ class GenericProjectiles(Projectile):
         rng_state : dict, optional
             |rng_state|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         # set the defaults
         density = 1000.0 if density is None else density

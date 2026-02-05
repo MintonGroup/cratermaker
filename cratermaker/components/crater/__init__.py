@@ -207,7 +207,7 @@ class Crater:
         check_redundant_inputs : bool, optional
             If True, check for redundant inputs such as providing both diameter and radius. Default is True.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
 
         Returns
         -------
@@ -241,7 +241,7 @@ class Crater:
             Parameters
             ----------
             **kwargs : Any
-                Keyword arguments used to compute the unique identifier.
+                |kwargs|
 
             """
             id_args = [
@@ -611,7 +611,7 @@ class Crater:
         use_measured_properties : bool, optional
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------

@@ -70,8 +70,8 @@ def _set_properties(
         The key to look up in the catalogue. It must be provided if the catalogue is provided.
     config_file : str or Path, optional
         The path to a YAML file containing properties. If provided, it will be used to set properties.
-    **kwargs : dict
-        Keyword arguments that can include 'config_file', 'catalogue', and other direct property settings.
+    **kwargs : Any
+        |kwargs|
 
     Returns
     -------
@@ -409,18 +409,25 @@ def get_saved_interval_numbers(
     return interval_numbers, matched_files
 
 
-def format_large_units(value: float, threshold: float = 1000.0, quantity: str = "length") -> str:
+def format_large_units(value: float, quantity: str = "length") -> str:
     """
     Format a value and automatically shift units based on threshold.
     """
     if quantity == "length":
         units = ["m", "km"]
+        threshold = 1.0e3
     elif quantity == "velocity":
         units = ["m/s", "km/s"]
+        threshold = 1.0e3
     elif quantity == "time":
         units = ["My", "Gy"]
+        threshold = 1.0e3
     elif quantity == "pressure":
         units = ["Pa", "kPa", "MPa", "GPa"]
+        threshold = 1.0e3
+    elif quantity == "volume":
+        units = ["m³", "km³"]
+        threshold = 1.0e6
 
     if value is None:
         return "N/A"
@@ -431,13 +438,13 @@ def format_large_units(value: float, threshold: float = 1000.0, quantity: str = 
         unit_index += 1
 
     if value >= 100:
-        fmt = "{:.0f} {}"
-    elif value >= 10:
         fmt = "{:.1f} {}"
-    elif value >= 1:
+    elif value >= 10:
         fmt = "{:.2f} {}"
+    elif value >= 1:
+        fmt = "{:.3f} {}"
     else:
-        fmt = "{:.3g} {}"
+        fmt = "{:.4g} {}"
     return fmt.format(value, units[unit_index])
 
 

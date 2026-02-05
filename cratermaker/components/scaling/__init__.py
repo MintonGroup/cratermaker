@@ -31,7 +31,7 @@ class Scaling(ComponentBase):
         **kwargs: Any,
     ):
         """
-        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------
@@ -46,7 +46,7 @@ class Scaling(ComponentBase):
         rng_state : dict, optional
             |rng_state|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         from cratermaker.components.projectile import Projectile
         from cratermaker.components.target import Target
@@ -88,7 +88,7 @@ class Scaling(ComponentBase):
         rng_state : dict, optional
             |rng_state|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -125,9 +125,9 @@ class Scaling(ComponentBase):
     @abstractmethod
     def transient_to_projectile(self, **kwargs: Any) -> np.float64: ...
     @abstractmethod
-    def transient_to_final(self, transient_diameter: FloatLike) -> tuple[np.float64, str]: ...
+    def transient_to_final(self, transient_diameter: FloatLike, **kwargs: Any) -> tuple[np.float64, str]: ...
     @abstractmethod
-    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs) -> np.float64: ...
+    def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs: Any) -> np.float64: ...
     @abstractmethod
     def recompute(self, **kwargs: Any) -> None: ...
 

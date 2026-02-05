@@ -147,7 +147,7 @@ class HiResLocalSurface(Surface):
         at_least_one_face : bool, optional
             If True, ensure that at least one face is returned, even if the region radius is very small. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -217,7 +217,7 @@ class HiResLocalSurface(Surface):
         superdomain : bool, optional
             If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the export function.
+            |kwargs|
         """
         if superdomain:
             self._full().export(
@@ -269,7 +269,7 @@ class HiResLocalSurface(Surface):
         superdomain : bool, optional
             If True, plot the full surface including the superdomain. If False, plot only the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
         """
         if superdomain:
             return self._full().plot(
@@ -305,7 +305,7 @@ class HiResLocalSurface(Surface):
         variable_name : str, optional
             The name of the variable to rasterize. Default is "face_elevation".
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -342,7 +342,7 @@ class HiResLocalSurface(Surface):
         superdomain : bool, optional
             If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the rasterio function.
+            |kwargs|
         """
         if superdomain:
             return self._full().to_geotiff_file(
@@ -374,7 +374,7 @@ class HiResLocalSurface(Surface):
         superdomain : bool, optional
             If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
 
         Returns
         -------
@@ -408,7 +408,7 @@ class HiResLocalSurface(Surface):
         superdomain : bool, optional
             If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
         """
         if superdomain:
             return self._full().show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
@@ -439,7 +439,7 @@ class HiResLocalSurface(Surface):
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the scaling and morphology models.
+            |kwargs|
         """
         from scipy.optimize import curve_fit
 
@@ -657,7 +657,7 @@ class HiResLocalSurface(Surface):
         tag_superdomain: bool = False,
             If True, apply the tag to surface including the superdomain. If False, apply only to the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         # Reset the tag layers if the tag is None or does not yet exist on the surface
         if name not in self.uxds or tag is None:
@@ -963,7 +963,7 @@ class LocalHiResLocalSurface(LocalSurface):
         plot_style : str, optional
             The style of plot to generate. Set to None to skip generating a plot.
         **kwargs : Any
-            Additional keyword arguments to pass to the save or plot functions.
+            |kwargs|
         """
         super().save(
             interval_number=interval_number,

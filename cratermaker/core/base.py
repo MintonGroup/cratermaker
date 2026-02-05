@@ -78,7 +78,7 @@ class CratermakerBase:
         remove_common_args : bool, optional
             If True, remove the set of common arguments that are shared among all components of the project from the configuration. Default is False.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
 
         Returns
         -------
@@ -142,7 +142,7 @@ class CratermakerBase:
         files_to_remove : list[Path | str], optional
             If set, this is the list of files that will be removed. If not set, then the removed files will be determined using the component's output_dir and output_file_pattern attributes.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
         """
         if files_to_remove is None:
             files_to_remove = self.has_output()
@@ -305,12 +305,12 @@ class ComponentBase(CratermakerBase, ABC):
 
     def __init__(self, **kwargs: Any) -> None:
         """
-        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         super().__init__(**kwargs)
 
@@ -333,7 +333,7 @@ class ComponentBase(CratermakerBase, ABC):
         component : str or ComponentBase or None
             The name of the component to use, or an instance of ComponentBase. If None, it choose a default component.
         kwargs : Any
-            Additional keyword arguments to pass to the component model constructor.
+            |kwargs|
 
         Returns
         -------

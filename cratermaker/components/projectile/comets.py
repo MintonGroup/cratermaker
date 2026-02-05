@@ -116,7 +116,7 @@ class CometProjectiles(Projectile):
 
 
         **kwargs : Any
-            Additional keyword arguments to be passed to internal functions.
+            |kwargs|
         """
         density = 500.0 if density is None else density
         kwargs.pop("mean_velocity", None)

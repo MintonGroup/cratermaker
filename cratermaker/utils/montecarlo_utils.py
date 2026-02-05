@@ -37,7 +37,7 @@ def get_random_location(
     rng_state : dict, optional
         |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -132,7 +132,7 @@ def get_random_location_on_face(
     rng_state : dict, optional
         |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -188,7 +188,7 @@ def get_random_impact_angle(
     rng_state : dict, optional
         |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -223,7 +223,7 @@ def get_random_impact_direction(
     rng_state : dict, optional
         |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -268,7 +268,7 @@ def get_random_size(
     rng_state : dict, optional
         |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -388,7 +388,7 @@ def get_random_velocity(
     rng_state : dict, optional
         |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------

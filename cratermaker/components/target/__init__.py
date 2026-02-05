@@ -84,7 +84,7 @@ class Target(ComponentBase):
         **kwargs: Any,
     ):
         """
-        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------
@@ -102,9 +102,8 @@ class Target(ComponentBase):
             Name of the material composition of the target body.
         density : FloatLike or None
             Volumetric density of the surface of the target body in kg/m^3.
-
         **kwargs : Any
-            Additional keyword argumments that could be set by the user.
+            |kwargs|
 
         Notes
         -----
@@ -195,7 +194,7 @@ class Target(ComponentBase):
         density : FloatLike or None
             Volumetric density of the surface of the target body in kg/m^3.
         **kwargs : Any
-            Additional keyword argumments that could be set by the user.
+            |kwargs|
 
         Notes
         -----
