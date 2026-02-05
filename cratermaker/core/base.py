@@ -305,7 +305,7 @@ class ComponentBase(CratermakerBase, ABC):
 
     def __init__(self, **kwargs: Any) -> None:
         """
-        |constructor_warning|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
 
         Parameters
         ----------

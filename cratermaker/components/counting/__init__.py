@@ -59,7 +59,7 @@ class Counting(ComponentBase):
         **kwargs: Any,
     ):
         """
-        |constructor_warning|.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.|.
 
         Parameters
         ----------

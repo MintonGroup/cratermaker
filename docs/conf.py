@@ -211,5 +211,4 @@ rst_prolog = """
 .. |ask_overwrite_default_true| replace:: If True, the user is prompted before overwriting existing files. Default is True.
 .. |ask_overwrite_default_false| replace:: If True, the user is prompted before overwriting existing files. Default is False.
 .. |kwargs| replace:: Additional keyword arguments that are either ignored or passed to internal functions as needed.
-.. |constructor_warning| replace:: **Warning:** This objects should not be instantiated directly. Instead, use one of the ``.maker()`` factory method
 """
