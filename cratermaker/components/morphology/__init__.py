@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from scipy.integrate import quad
 from tqdm import tqdm
 
-from cratermaker.components.crater import Crater
+from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
 from cratermaker.constants import FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils.general_utils import format_large_units, parameter
@@ -22,15 +22,52 @@ if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
 
+class MorphologyCraterVariable(CraterVariable):
+    def __init__(self, ejecta_region: LocalSurface | None = None, crater_region: LocalSurface | None = None, **kwargs: Any) -> None:
+        object.__setattr__(self, "_ejecta_region", None)
+        object.__setattr__(self, "_crater_region", None)
+        super().__init__(**kwargs)
+        self.ejecta_region = ejecta_region
+        self.crater_region = crater_region
+
+    @property
+    def ejecta_region(self) -> LocalSurface | None:
+        return self._ejecta_region
+
+    @ejecta_region.setter
+    def ejecta_region(self, value: LocalSurface | None) -> None:
+        from cratermaker.components.surface import LocalSurface
+
+        if value is not None and not isinstance(value, LocalSurface):
+            raise TypeError("ejecta_region must be an instance of LocalSurface or None")
+        object.__setattr__(self, "_ejecta_region", value)
+
+    @property
+    def crater_region(self) -> LocalSurface | None:
+        return self._crater_region
+
+    @crater_region.setter
+    def crater_region(self, value: LocalSurface | None) -> None:
+        from cratermaker.components.surface import LocalSurface
+
+        if value is not None and not isinstance(value, LocalSurface):
+            raise TypeError("crater_region must be an instance of LocalSurface or None")
+        object.__setattr__(self, "_crater_region", value)
+
+
 @dataclass(frozen=True, slots=True)
-class MorphologyCrater(Crater):
+class MorphologyCraterFixed(CraterFixed):
     face_index: int | None = None
-    ejecta_region: LocalSurface | None = None
-    crater_region: LocalSurface | None = None
     crater_rmax: float | None = None
     ejecta_rmax: float | None = None
     affected_face_indices: set[int] | None = None
     affected_node_indices: set[int] | None = None
+
+
+class MorphologyCrater(Crater):
+    def __init__(self, crater: Crater | None = None, fixed_cls=MorphologyCraterFixed, var_cls=MorphologyCraterVariable, **kwargs):
+        super().__init__(crater=crater, fixed_cls=fixed_cls, var_cls=var_cls, **kwargs)
+        return
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -38,39 +75,10 @@ class MorphologyCrater(Crater):
         return (
             f"{base}\n"
             f"Face index of crater center: {self.face_index}\n"
-            f"Maximum affected radius: {format_large_units(self.rmax, quantity='length')}\n"
             f"Crater region maximum radius: {format_large_units(self.crater_rmax, quantity='length')}\n"
             f"Crater region: {self.crater_region}\n"
             f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}\n"
             f"Ejecta region: {self.ejecta_region}\n"
-        )
-
-    @classmethod
-    def maker(
-        cls,
-        crater: Crater | None = None,
-        morphology: Morphology | None = None,
-        **kwargs: Any,
-    ) -> MorphologyCrater:
-        """
-        Initialize a MorphologyCrater object either from an existing Crater object or from parameters.
-
-        This generates a specialized Crater object with morphology parameters. It is a stub that is intended to be extended by specific morphology models.
-
-        Parameters
-        ----------
-        crater : Crater | None
-            The crater object to be converted into a MorphologyCrater. If None, a new Crater object is created using the provided keyword arguments.
-        morphology : Morphology, optional
-            The morphology model to use for generating morphology parameters.
-        kwargs : Any
-            The keyword arguments provided are passed down to :func:`cratermaker.crater.Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
-        """
-        if crater is None:
-            crater = super(MorphologyCrater, cls).maker(**kwargs)
-        base_fields = asdict(crater)
-        return cls(
-            **base_fields,
         )
 
 
@@ -181,6 +189,7 @@ class Morphology(ComponentBase):
             component=morphology,
             surface=surface,
             production=production,
+            counting=counting,
             do_subpixel_degradation=do_subpixel_degradation,
             do_slope_collapse=do_slope_collapse,
             **kwargs,
@@ -231,17 +240,14 @@ class Morphology(ComponentBase):
 
             # Check to make sure that the face at the crater location is not smaller than the crater area
             if crater_area > self.surface.face_area[crater.face_index]:
-                # Form the crater shape
-                # Because the crater_region is locked in a mutable dataclass, we can't use it directly to update the elevation, so we have to rebuild it
-                crater_region = self._get_mutable_region(crater, self.surface, "crater")
-                elevation_change = self.crater_shape(crater, crater_region)
-                crater_region.update_elevation(elevation_change)
+                elevation_change = self.crater_shape(crater, crater.crater_region)
+                crater.crater_region.update_elevation(elevation_change)
                 if self.do_slope_collapse:
-                    crater_region.slope_collapse()
-                self._excavated_volume = crater_region.compute_volume(elevation_change[: crater_region.n_face])
+                    crater.crater_region.slope_collapse()
+                self._excavated_volume = crater.crater_region.compute_volume(elevation_change[: crater.crater_region.n_face])
 
                 # Remove any ejecta from the surface
-                inner_crater_region = crater_region.extract_subregion(crater.final_radius)
+                inner_crater_region = crater.crater_region.extract_subregion(crater.final_radius)
                 if inner_crater_region is not None:
                     inner_crater_region.add_data(
                         "ejecta_thickness",
@@ -253,10 +259,9 @@ class Morphology(ComponentBase):
 
                 # Record the crater to the counting layer
                 if self.do_counting:
-                    ejecta_region = self._get_mutable_region(crater, self.surface, "ejecta")
-                    self.counting.add(crater, count_region=ejecta_region, **kwargs)
+                    self.counting.add(crater, count_region=crater.ejecta_region, **kwargs)
 
-            self.form_ejecta(crater, **kwargs)
+                self.form_ejecta(crater, **kwargs)
         return
 
     def form_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -282,20 +287,19 @@ class Morphology(ComponentBase):
 
         if not self._excavated_volume:
             return
-        ejecta_region = self._get_mutable_region(crater, self.surface, "ejecta")
-        ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, ejecta_region)
-        ejecta_volume = ejecta_region.compute_volume(ejecta_thickness[: ejecta_region.n_face])
+        ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, crater.ejecta_region)
+        ejecta_volume = crater.ejecta_region.compute_volume(ejecta_thickness[: crater.ejecta_region.n_face])
         conservation_factor = -self._excavated_volume / ejecta_volume
         ejecta_thickness *= conservation_factor
 
-        ejecta_region.add_data(
+        crater.ejecta_region.add_data(
             "ejecta_thickness",
             long_name="ejecta thickness",
             units="m",
-            data=ejecta_thickness[: ejecta_region.n_face],
+            data=ejecta_thickness[: crater.ejecta_region.n_face],
         )
 
-        ejecta_region.update_elevation(ejecta_thickness)
+        crater.ejecta_region.update_elevation(ejecta_thickness)
 
         return ejecta_thickness, ejecta_intensity
 
@@ -430,31 +434,6 @@ class Morphology(ComponentBase):
     def overlap_function(
         crater: Crater,
     ) -> tuple[set[int], set[int]]: ...
-
-    @staticmethod
-    def _get_mutable_region(crater: MorphologyCrater, surface: Surface, feature: Literal["crater", "ejecta"]) -> LocalSurface:
-        from cratermaker.components.surface import LocalSurface
-
-        if feature == "crater":
-            return LocalSurface(
-                surface=surface,
-                face_indices=crater.crater_region.face_indices,
-                node_indices=crater.crater_region.node_indices,
-                edge_indices=crater.crater_region.edge_indices,
-                location=crater.crater_region.location,
-                region_radius=crater.crater_region.region_radius,
-            )
-        elif feature == "ejecta":
-            return LocalSurface(
-                surface=surface,
-                face_indices=crater.ejecta_region.face_indices,
-                node_indices=crater.ejecta_region.node_indices,
-                edge_indices=crater.ejecta_region.edge_indices,
-                location=crater.ejecta_region.location,
-                region_radius=crater.ejecta_region.region_radius,
-            )
-        else:
-            raise ValueError("feature must be either 'crater' or 'ejecta'")
 
     @property
     def surface(self) -> Surface:

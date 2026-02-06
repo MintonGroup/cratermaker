@@ -11,21 +11,27 @@ from numpy.typing import ArrayLike, NDArray
 from scipy.integrate import quad
 from scipy.optimize import root_scalar
 
-from cratermaker.components.crater import Crater
-from cratermaker.components.morphology import Morphology, MorphologyCrater
+from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
+from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterFixed, MorphologyCraterVariable
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 
 @dataclass(frozen=True, slots=True)
-class SimpleMoonCrater(MorphologyCrater):
+class SimpleMoonCraterFixed(MorphologyCraterFixed):
     rim_height: float | None = None
     rim_width: float | None = None
     floor_depth: float | None = None
     floor_diameter: float | None = None
     peak_height: float | None = None
     ejrim: float | None = None
+
+
+class SimpleMoonCrater(MorphologyCrater):
+    def __init__(self, crater: Crater | None = None, fixed_cls=SimpleMoonCraterFixed, **kwargs):
+        super().__init__(crater=crater, fixed_cls=fixed_cls, **kwargs)
+        return
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -40,7 +46,19 @@ class SimpleMoonCrater(MorphologyCrater):
         )
 
     @classmethod
-    def maker(cls, crater: Crater | None = None, morphology: Morphology | None = None, **kwargs: Any) -> SimpleMoonCrater:
+    def maker(
+        cls,
+        crater: Crater | None = None,
+        morphology: Morphology | None = None,
+        face_index: int | None = None,
+        crater_rmax: float | None = None,
+        ejecta_rmax: float | None = None,
+        affected_face_indices: set[int] | None = None,
+        affected_node_indices: set[int] | None = None,
+        ejecta_region: LocalSurface | None = None,
+        crater_region: LocalSurface | None = None,
+        **kwargs: Any,
+    ) -> SimpleMoonCrater:
         """
         Initialize a SimpleMoonCrater object either from an existing Crater object or from parameters.
 
@@ -55,83 +73,95 @@ class SimpleMoonCrater(MorphologyCrater):
         kwargs : Any
             The keyword arguments provided are passed down to :func:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
         """
+        morphology = Morphology.maker(morphology, **kwargs)
         if crater is None:
-            crater = super(SimpleMoonCrater, cls).maker(**kwargs)
-        fields = asdict(crater)
-        # Remove any SimpleMoonCrater-specific fields to avoid conflicts
-        morphology_fields = set(cls.__dataclass_fields__) - set(super(cls, cls).__dataclass_fields__)
-        overlapping_fields = set(kwargs) & set(morphology_fields)
-        if "ejrim" not in overlapping_fields:
-            if overlapping_fields:
-                for key in overlapping_fields:
-                    fields[key] = kwargs.pop(key)
+            crater = super().maker(**kwargs)
+        args = crater.as_dict()
+        diameter_m = crater.final_diameter
+        diameter_km = diameter_m * 1e-3
 
-            diameter_m = crater.final_diameter
-            diameter_km = diameter_m * 1e-3
-
-            if crater.morphology_type in ["simple", "transitional"]:
-                fields["rim_height"] = 0.043 * diameter_km**1.014 * 1e3
-                fields["rim_width"] = 0.257 * diameter_km**1.011 * 1e3
-                fields["floor_depth"] = 0.224 * diameter_km**1.010 * 1e3
-                fields["floor_diameter"] = 0.200 * diameter_km**1.143 * 1e3
-                fields["peak_height"] = None
-            elif crater.morphology_type in ["complex", "peakring", "multiring"]:
-                fields["rim_height"] = 0.236 * diameter_km**0.399 * 1e3
-                fields["rim_width"] = 0.467 * diameter_km**0.836 * 1e3
-                fields["floor_depth"] = 1.044 * diameter_km**0.301 * 1e3
-                fields["floor_diameter"] = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
-                fields["peak_height"] = 0.032 * diameter_km**0.900 * 1e3
-            else:
-                raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
-
-            fields["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74
-
-            # We need to generate an intermediate object to store the above morphology fields before we can compute the rest
-            crater = cls(**fields)
-            fields = asdict(crater)
-        fields = {k: v for k, v in fields.items() if v is not None}
-
-        if "face_index" not in fields:
-            fields["face_index"] = morphology.surface.find_nearest_face(crater.location)
-
-        if "ejecta_rmax" not in fields:
-            fields["ejecta_rmax"] = morphology.rmax(crater, minimum_thickness=morphology.surface.smallest_length, feature="ejecta")
-        if "ejecta_region" not in fields:
-            fields["ejecta_region"] = morphology.surface.extract_region(crater.location, fields["ejecta_rmax"])
-
-        if fields["ejecta_region"] is None:  # The crater is not big enough to change the surface
-            fields["crater_rmax"] = None
-            fields["ejecta_region"] = None
-            fields["excavated_volume"] = None
-            fields["affected_face_indices"] = set()
-            fields["affected_node_indices"] = set()
+        if crater.morphology_type in ["simple", "transitional"]:
+            args["rim_height"] = 0.043 * diameter_km**1.014 * 1e3
+            args["rim_width"] = 0.257 * diameter_km**1.011 * 1e3
+            args["floor_depth"] = 0.224 * diameter_km**1.010 * 1e3
+            args["floor_diameter"] = 0.200 * diameter_km**1.143 * 1e3
+            args["peak_height"] = None
+        elif crater.morphology_type in ["complex", "peakring", "multiring"]:
+            args["rim_height"] = 0.236 * diameter_km**0.399 * 1e3
+            args["rim_width"] = 0.467 * diameter_km**0.836 * 1e3
+            args["floor_depth"] = 1.044 * diameter_km**0.301 * 1e3
+            args["floor_diameter"] = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
+            args["peak_height"] = 0.032 * diameter_km**0.900 * 1e3
         else:
-            if "crater_rmax" not in fields:
-                fields["crater_rmax"] = morphology.rmax(
+            raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
+
+        args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74
+
+        # Build an intermediate crater object to compute morphology parameters that depend on the surface and region views
+        crater = cls(**args, fixed_cls=SimpleMoonCraterFixed)
+        args = crater.as_dict()
+
+        if face_index is not None:
+            args["face_index"] = face_index
+        if crater_rmax is not None:
+            args["crater_rmax"] = crater_rmax
+        if ejecta_rmax is not None:
+            args["ejecta_rmax"] = ejecta_rmax
+        if affected_face_indices is not None:
+            args["affected_face_indices"] = affected_face_indices
+        if affected_node_indices is not None:
+            args["affected_node_indices"] = affected_node_indices
+        if ejecta_region is not None:
+            args["ejecta_region"] = ejecta_region
+        if crater_region is not None:
+            args["crater_region"] = crater_region
+
+        if morphology.surface.uxds is not None:
+            if "face_index" not in args or args["face_index"] is None:
+                args["face_index"] = morphology.surface.find_nearest_face(crater.location)
+            if "ejecta_rmax" not in args or args["ejecta_rmax"] is None:
+                args["ejecta_rmax"] = morphology.rmax(
+                    crater, minimum_thickness=morphology.surface.smallest_length, feature="ejecta"
+                )
+            if "ejecta_region" not in args or args["ejecta_region"] is None:
+                args["ejecta_region"] = morphology.surface.extract_region(crater.location, args["ejecta_rmax"])
+        else:
+            args["face_index"] = None
+            args["ejecta_region"] = None
+
+        if (
+            args["ejecta_region"] is None
+        ):  # The crater is not big enough to change the surface, or the surface hasn't been fully initialized yet
+            args["crater_rmax"] = None
+            args["ejecta_region"] = None
+            args["affected_face_indices"] = set()
+            args["affected_node_indices"] = set()
+        else:
+            if "crater_rmax" not in args or args["crater_rmax"] is None:
+                args["crater_rmax"] = morphology.rmax(
                     crater, minimum_thickness=morphology.surface.smallest_length, feature="crater"
                 )
-            if "crater_region" not in fields:
-                fields["crater_region"] = fields["ejecta_region"].extract_subregion(fields["crater_rmax"])
-            if fields["crater_region"] is None:
-                fields["ejecta_region"] = None
-                fields["excavated_volume"] = None
-                fields["affected_face_indices"] = set()
-                fields["affected_node_indices"] = set()
+            if "crater_region" not in args or args["crater_region"] is None:
+                args["crater_region"] = args["ejecta_region"].extract_subregion(args["crater_rmax"])
+            if args["crater_region"] is None:
+                args["ejecta_region"] = None
+                args["affected_face_indices"] = set()
+                args["affected_node_indices"] = set()
             else:
-                region = fields["ejecta_region"]
+                region = args["ejecta_region"]
                 if isinstance(region.node_indices, slice) or isinstance(region.face_indices, slice):
-                    fields["affected_node_indices"], fields["affected_face_indices"] = (
+                    args["affected_node_indices"], args["affected_face_indices"] = (
                         set(np.arange(morphology.surface.n_node)[region.node_indices]),
                         set(np.arange(morphology.surface.n_face)[region.face_indices]),
                     )
                 else:
-                    fields["affected_node_indices"], fields["affected_face_indices"] = (
+                    args["affected_node_indices"], args["affected_face_indices"] = (
                         set(region.node_indices),
                         set(region.face_indices),
                     )
 
         return cls(
-            **fields,
+            **args,
         )
 
 
@@ -225,37 +255,36 @@ class SimpleMoon(Morphology):
             |kwargs|
         """
         if not isinstance(crater, SimpleMoonCrater):
-            crater = SimpleMoonCrater.maker(crater)
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
 
         super().form_crater(crater, **kwargs)
         return
 
-        def form_ejecta(self, crater: Crater | SimpleMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-            """
-            Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
+    def form_ejecta(self, crater: Crater | SimpleMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
 
-            Parameters
-            ----------
-            crater : Crater
-                The crater object whose ejecta is to be formed.
-            **kwargs : Any
-                |kwargs|
+        Parameters
+        ----------
+        crater : Crater
+            The crater object whose ejecta is to be formed.
+        **kwargs : Any
+            |kwargs|
 
-            Returns
-            -------
-            tuple[NDArray[np.float64], NDArray[np.float64]]
-                The computed ejecta thickness and intensity at the face and node elevations.
-            """
-            if not isinstance(crater, SimpleMoonCrater):
-                crater = SimpleMoonCrater.maker(crater)
-            ejecta_thickness, ejecta_intensity = super().form_ejecta(crater, **kwargs)
-            ejecta_region = self._get_mutable_region(crater, self.surface, "ejecta")
-            k_ej = self.ejecta_burial_degradation(ejecta_thickness[: ejecta_region.n_face], ejecta_soften_factor=1.50)
-            ejecta_region.apply_diffusion(k_ej)
+        Returns
+        -------
+        tuple[NDArray[np.float64], NDArray[np.float64]]
+            The computed ejecta thickness and intensity at the face and node elevations.
+        """
+        if not isinstance(crater, SimpleMoonCrater):
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
+        ejecta_thickness, ejecta_intensity = super().form_ejecta(crater, **kwargs)
+        k_ej = self.ejecta_burial_degradation(ejecta_thickness[: crater.ejecta_region.n_face], ejecta_soften_factor=1.50)
+        crater.ejecta_region.apply_diffusion(k_ej)
 
-            k_deg = self.degradation_function(crater.diameter, fe=100) * ejecta_intensity[: ejecta_region.n_face]
-            ejecta_region.apply_diffusion(k_deg)
-            return ejecta_thickness, ejecta_intensity
+        k_deg = self.degradation_function(crater.diameter, fe=100) * ejecta_intensity[: crater.ejecta_region.n_face]
+        crater.ejecta_region.apply_diffusion(k_deg)
+        return ejecta_thickness, ejecta_intensity
 
     def crater_shape(self, crater: SimpleMoonCrater, region: LocalSurface, **kwargs: Any) -> NDArray[np.float64]:
         """
@@ -276,7 +305,7 @@ class SimpleMoon(Morphology):
             The computed crater shape at the face and node elevations.
         """
         if not isinstance(crater, SimpleMoonCrater):
-            crater = SimpleMoonCrater.maker(crater)
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
         reference_elevation = region.get_reference_surface(reference_radius=crater.final_radius)
 
         # Combine distances and references for nodes and faces
@@ -312,7 +341,7 @@ class SimpleMoon(Morphology):
         This is a wrapper for a compiled Rust function.
         """
         if not isinstance(crater, SimpleMoonCrater):
-            crater = SimpleMoonCrater.maker(crater)
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
         if r_ref is None:
             r_ref = np.zeros_like(r)
 
@@ -362,7 +391,7 @@ class SimpleMoon(Morphology):
             The computed ejecta intensity at the face and node elevations which is used to compute the degradation function. When `dorays` is True, this is the ray intensity function. When `dorays` is False, this is just a constant 1 over the ejecta region.
         """
         if not isinstance(crater, SimpleMoonCrater):
-            crater = SimpleMoonCrater.maker(crater)
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
 
         distance = np.concatenate([region.face_distance, region.node_distance])
         if self.dorays:
@@ -395,7 +424,7 @@ class SimpleMoon(Morphology):
         This is a wrapper for a compiled Rust function.
         """
         if not isinstance(crater, SimpleMoonCrater):
-            crater = SimpleMoonCrater.maker(crater)
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
         if np.isscalar(r):
             r = np.array([r], dtype=np.float64)
         elif isinstance(r, (list | tuple)):
@@ -433,7 +462,7 @@ class SimpleMoon(Morphology):
         This is a wrapper for a compiled Rust function.
         """
         if not isinstance(crater, SimpleMoonCrater):
-            crater = SimpleMoonCrater.maker(crater)
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
         # flatten r and theta to 1D arrays
         thickness = self.ejecta_profile(crater, r)
         rflat = np.ravel(r)
@@ -473,7 +502,7 @@ class SimpleMoon(Morphology):
         This is a wrapper for a compiled Rust function.
         """
         if not isinstance(crater, SimpleMoonCrater):
-            crater = SimpleMoonCrater.maker(crater)
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
         # flatten r and theta to 1D arrays
         rflat = np.ravel(r)
         theta_flat = np.radians(np.ravel(theta))
@@ -605,7 +634,7 @@ class SimpleMoon(Morphology):
             The maximum extent of the crater or ejecta blanket in meters.
         """
         if not isinstance(crater, SimpleMoonCrater):
-            crater = SimpleMoonCrater.maker(crater)
+            crater = SimpleMoonCrater.maker(crater, morphology=self)
 
         def _profile_invert_ejecta(r):
             ans = self.ejecta_profile(crater, r) - minimum_thickness
@@ -712,12 +741,6 @@ class SimpleMoon(Morphology):
             The affected node and face indices for the crater.
         """
         return crater.affected_node_indices, crater.affected_face_indices
-
-    # def _enqueue_crater(self, crater: Crater) -> None:
-    #     if not isinstance(crater, SimpleMoonCrater):
-    #         crater = SimpleMoonCrater.maker(crater)
-    #     super()._enqueue_crater(crater)
-    #     return
 
     @parameter
     def ejecta_truncation(self) -> float:

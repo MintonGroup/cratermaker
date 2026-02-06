@@ -282,15 +282,12 @@ class Counting(ComponentBase):
             fit_ellipse,
         )
 
-        crater_fit = Crater.maker(
-            crater,
-            measured_semimajor_axis=ap,
-            measured_semiminor_axis=bp,
-            measured_orientation=np.degrees(orientation),
-            measured_location=location,
-        )
+        crater.measured_semimajor_axis = ap
+        crater.measured_semiminor_axis = bp
+        crater.measured_orientation = np.degrees(orientation)
+        crater.measured_location = location
 
-        return crater_fit
+        return crater
 
     def score_rim(self, crater: Crater, quantile=0.95, gradmult=1.0, curvmult=1.0, heightmult=1.0) -> None:
         """
@@ -353,7 +350,8 @@ class Counting(ComponentBase):
         rim_height = counting_bindings.measure_rim_height(region, crater)
         floor_depth = counting_bindings.measure_floor_depth(region, crater)
         region.update_elevation(orig_elevation.data, overwrite=True)
-        crater = Crater.maker(crater, measured_rim_height=rim_height, measured_floor_depth=floor_depth)
+        crater.measured_rim_height = rim_height
+        crater.measured_floor_depth = floor_depth
         return crater
 
     def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> dict[int:Crater]:
@@ -413,7 +411,7 @@ class Counting(ComponentBase):
             # TODO: Make the fit_rim function more reliable before turning it on permanently
             # crater = self.fit_rim(crater=crater, fit_center=False, fit_ellipse=False, **kwargs)
             crater = self.measure_degradation_state(crater, **kwargs)
-            Kd = crater.measured_degradation_state
+            Kd = crater.degradation_state
             Kv = self.visibility_function(crater, **kwargs)
             if Kd >= Kv:
                 remove_ids.append(id)

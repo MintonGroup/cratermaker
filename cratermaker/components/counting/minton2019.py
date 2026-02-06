@@ -68,7 +68,7 @@ class Minton2019Counting(Counting):
         if crater.measured_diameter > diam_correction:
             depth_diam += (crater.measured_diameter - diam_correction) * correction_factor
         K = (a / np.sqrt(depth_diam) - b) * crater.measured_radius**2
-        crater = Crater.maker(crater, measured_degradation_state=K)
+        crater = Crater.maker(crater, degradation_state=K)
 
         return crater
 
