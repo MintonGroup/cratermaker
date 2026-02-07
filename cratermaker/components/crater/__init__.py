@@ -319,13 +319,16 @@ class Crater:
             setattr(self._var, name, value)
             return
 
-    def as_dict(self):
+    def as_dict(self, ignore_keys: list[str] = [], **kwargs) -> dict:
         """
         Expose delegated attributes for serialization.
         """
         base = {}
         base.update(asdict(self._fixed))
         base.update(self._var.as_dict())
+        if ignore_keys is not None:
+            for key in ignore_keys:
+                base.pop(key, None)
         return base
 
     def __dir__(self):
@@ -570,7 +573,10 @@ class Crater:
         if final_radius is not None:
             radius = final_radius
         if radius is not None and diameter is not None:
-            raise ValueError("Only one of diameter or radius may be set.")
+            if check_redundant_inputs:
+                raise ValueError("Only one of diameter or radius may be set.")
+            else:
+                diameter = None  # Give priority to radius if both are set and we aren't checking for redundant inputs
 
         if location is None:
             location = projectile_location
@@ -581,7 +587,7 @@ class Crater:
                 radius = semimajor_axis if semiminor_axis is None else semiminor_axis
                 semimajor_axis = radius
                 semiminor_axis = radius
-            if diameter is not None or radius is not None:
+            if check_redundant_inputs and (diameter is not None or radius is not None):
                 raise ValueError(
                     "diameter or radius cannot be used for elliptical craters; use semimajor_axis and semiminor_axis instead."
                 )
@@ -596,11 +602,11 @@ class Crater:
                 semiminor_axis = diameter / 2.0
 
         # For now, crater orientation and projectile direction are linked
-        if orientation is not None and projectile_direction is not None:
+        if check_redundant_inputs and orientation is not None and projectile_direction is not None:
             raise ValueError("Only one of orientation or projectile_direction may be set for elliptical craters.")
-        elif orientation is not None:
+        if orientation is not None and projectile_direction is None:
             projectile_direction = orientation
-        elif projectile_direction is not None:
+        if projectile_direction is not None and orientation is None:
             orientation = projectile_direction
 
         velocity_inputs = {

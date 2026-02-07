@@ -18,8 +18,6 @@ References
 .. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., (2001) Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. `doi: 10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`
 """
 
-import pyvista as pv
-
 import cratermaker as cm
 
 # Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 to speed up the simulation for this example. We set `ask_overwrite` to False to avoid being prompted during the example.

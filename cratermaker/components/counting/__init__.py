@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -462,7 +461,7 @@ class Counting(ComponentBase):
         if isinstance(craters, dict):
             craters = craters.values()
         for c in craters:
-            d = asdict(c)
+            d = c.as_dict(skip_complex_data=True)
             if "location" in d:
                 lon, lat = d.pop("location")
                 d["longitude"] = lon
@@ -1025,7 +1024,7 @@ class Counting(ComponentBase):
                 writer = csv.writer(csvfile)
                 header_written = False
                 for crater in craters:
-                    crater_dict = asdict(crater)
+                    crater_dict = crater.as_dict(skip_complex_data=True)
 
                     # Convert location fields from tuples into lon/lat
                     location = crater_dict.pop("location")

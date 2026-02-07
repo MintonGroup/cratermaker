@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from math import pi
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -54,6 +54,14 @@ class MorphologyCraterVariable(CraterVariable):
             raise TypeError("crater_region must be an instance of LocalSurface or None")
         object.__setattr__(self, "_crater_region", value)
 
+    def as_dict(self) -> dict:
+        dict_repr = super().as_dict()
+        if self.crater_region is not None:
+            dict_repr["crater_region"] = self.crater_region
+        if self.ejecta_region is not None:
+            dict_repr["ejecta_region"] = self.ejecta_region
+        return dict_repr
+
 
 @dataclass(frozen=True, slots=True)
 class MorphologyCraterFixed(CraterFixed):
@@ -62,6 +70,7 @@ class MorphologyCraterFixed(CraterFixed):
     ejecta_rmax: float | None = None
     affected_face_indices: set[int] | None = None
     affected_node_indices: set[int] | None = None
+    emplaceable: bool | None = None
 
 
 class MorphologyCrater(Crater):
@@ -70,16 +79,21 @@ class MorphologyCrater(Crater):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
+        output = super().__str__()
+        output += f"Crater region maximum radius: {format_large_units(self.crater_rmax, quantity='length')}\n"
+        output += f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}\n"
+        output += f"\nLarge enough to be emplaced on the grid: {self.emplaceable}\n"
+        if self.emplaceable:
+            output += f"Face index of crater center: {self.face_index}\n"
+            output += f"Crater region: {self.crater_region}\n"
+            output += f"Ejecta region: {self.ejecta_region}\n"
+        return output
 
-        return (
-            f"{base}\n"
-            f"Face index of crater center: {self.face_index}\n"
-            f"Crater region maximum radius: {format_large_units(self.crater_rmax, quantity='length')}\n"
-            f"Crater region: {self.crater_region}\n"
-            f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}\n"
-            f"Ejecta region: {self.ejecta_region}\n"
-        )
+    def as_dict(self, ignore_keys=[], skip_complex_data=False, **kwargs) -> dict:
+        if skip_complex_data:
+            ignore_keys.extend(["crater_region", "ejecta_region"])
+        dict_repr = super().as_dict(ignore_keys=ignore_keys, skip_complex_data=skip_complex_data, **kwargs)
+        return dict_repr
 
 
 class Morphology(ComponentBase):

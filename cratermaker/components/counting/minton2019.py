@@ -1,6 +1,5 @@
 import json
 import math
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 

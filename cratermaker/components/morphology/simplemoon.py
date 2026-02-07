@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -10,6 +10,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.integrate import quad
 from scipy.optimize import root_scalar
+from tqdm import tqdm
 
 from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
 from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterFixed, MorphologyCraterVariable
@@ -132,6 +133,7 @@ class SimpleMoonCrater(MorphologyCrater):
         if (
             args["ejecta_region"] is None
         ):  # The crater is not big enough to change the surface, or the surface hasn't been fully initialized yet
+            args["emplaceable"] = False
             args["crater_rmax"] = None
             args["ejecta_region"] = None
             args["affected_face_indices"] = set()
@@ -144,10 +146,12 @@ class SimpleMoonCrater(MorphologyCrater):
             if "crater_region" not in args or args["crater_region"] is None:
                 args["crater_region"] = args["ejecta_region"].extract_subregion(args["crater_rmax"])
             if args["crater_region"] is None:
+                args["emplaceable"] = False
                 args["ejecta_region"] = None
                 args["affected_face_indices"] = set()
                 args["affected_node_indices"] = set()
             else:
+                args["emplaceable"] = True
                 region = args["ejecta_region"]
                 if isinstance(region.node_indices, slice) or isinstance(region.face_indices, slice):
                     args["affected_node_indices"], args["affected_face_indices"] = (
@@ -163,6 +167,12 @@ class SimpleMoonCrater(MorphologyCrater):
         return cls(
             **args,
         )
+
+    def as_dict(self, ignore_keys: list[str] = [], skip_complex_data: bool = False, **kwargs) -> dict:
+        if skip_complex_data:
+            ignore_keys.extend(["affected_face_indices", "affected_node_indices", "crater_region", "ejecta_region"])
+        base = super().as_dict(ignore_keys=ignore_keys, skip_complex_data=skip_complex_data, **kwargs)
+        return base
 
 
 @Morphology.register("simplemoon")
@@ -226,19 +236,31 @@ class SimpleMoon(Morphology):
 
         Parameters
         ----------
-        crater : Crater
-            The crater to be emplaced.
+        crater : Crater | list[Crater] | None
+            The crater or list of craters to be emplaced. If None, then a crater will be created using the provided parameters in kwargs and emplaced.
         kwargs : Any
             |kwargs|
         """
         if craters is None:
-            craters = [SimpleMoonCrater.maker(**kwargs, morphology=self)]
-        elif isinstance(craters, list) and len(craters) > 0:
-            for i, c in enumerate(craters):
-                craters[i] = SimpleMoonCrater.maker(c, morphology=self)
-            return
-        if isinstance(craters, Crater):
-            craters = [SimpleMoonCrater.maker(craters, morphology=self)]
+            processed_craters = [SimpleMoonCrater.maker(**kwargs, morphology=self)]
+        elif isinstance(craters, (list | tuple)) and len(craters) > 0:
+            processed_craters = []
+            for c in tqdm(
+                craters,
+                total=len(craters),
+                desc="Processing craters",
+                unit="crater",
+                position=0,
+                leave=False,
+            ):
+                processed_craters.append(SimpleMoonCrater.maker(c, morphology=self))
+        elif isinstance(craters, Crater):
+            processed_craters = [SimpleMoonCrater.maker(craters, morphology=self)]
+        else:
+            raise ValueError(
+                "Invalid input for crater emplacement. Must be a Crater object, a list of Crater objects, or None with additional arguments for Crater.maker()."
+            )
+        craters = [c for c in processed_craters if c.emplaceable]
 
         super().emplace(craters)
         return
