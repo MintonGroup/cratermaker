@@ -287,7 +287,7 @@ class Morphology(ComponentBase):
         crater : Crater
             The crater object whose ejecta is to be formed.
         **kwargs : Any
-            |kwargs
+            |kwargs|
 
         Returns
         -------

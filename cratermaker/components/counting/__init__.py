@@ -502,7 +502,7 @@ class Counting(ComponentBase):
         # If the file already exists, read it and merge
         if filename.exists():
             with xr.open_dataset(filename) as ds:
-                combined_data = xr.merge([combined_data, ds])
+                combined_data = xr.merge([combined_data, ds], compat="no_conflicts")
 
         # Write merged data back to file
         if save_merged and combined_data:

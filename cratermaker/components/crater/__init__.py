@@ -994,7 +994,7 @@ class Crater:
             meridian = LineString([(merdian_lon, -90.0), (merdian_lon, 90.0)])
             poly = split(poly, meridian)
 
-            def lon_flip(lon, lat):
+            def lon_flip(lon, lat, z=None):
                 lon = np.where(np.abs(lon) >= 180.0, lon - 360.0 * np.sign(lon), lon)
                 return lon, lat
 
