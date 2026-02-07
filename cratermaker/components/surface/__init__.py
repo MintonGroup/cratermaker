@@ -2058,8 +2058,6 @@ class LocalSurface(CratermakerBase):
 
         if location is not None:  # This is a true LocalSurface object
             self._location = validate_and_normalize_location(location)
-            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
-            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
             self._output_file_prefix = "local_surface"
             object.__setattr__(self, "_output_file_prefix", "local_surface")
             object.__setattr__(self, "_grid_file_prefix", "local_grid")
@@ -3817,6 +3815,8 @@ class LocalSurface(CratermakerBase):
         """
         The initial bearing from the location to the faces relative to North.
         """
+        if self._location is not None and self._face_bearing is None:
+            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
         return self._face_bearing
 
     @property
@@ -3824,6 +3824,8 @@ class LocalSurface(CratermakerBase):
         """
         The initial bearing from the location to the nodes relative to North.
         """
+        if self._location is not None and self._node_bearing is None:
+            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
         return self._node_bearing
 
     @property
@@ -3831,6 +3833,8 @@ class LocalSurface(CratermakerBase):
         """
         The distance from the location to the faces.
         """
+        if self._location is not None and self._face_distance is None:
+            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
         return self._face_distance
 
     @property
@@ -3838,6 +3842,8 @@ class LocalSurface(CratermakerBase):
         """
         The distance from the location to the nodes.
         """
+        if self._location is not None and self._node_distance is None:
+            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
         return self._node_distance
 
     @property
