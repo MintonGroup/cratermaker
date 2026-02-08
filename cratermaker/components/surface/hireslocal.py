@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Any, Literal
 from warnings import warn
@@ -75,6 +76,7 @@ class HiResLocalSurface(Surface):
         object.__setattr__(self, "_superdomain_scale_factor", None)
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
+        object.__setattr__(self, "_local_grid_indices_file_extension", "npz")
         super().__init__(target=target, simdir=simdir, **kwargs)
         self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
 
@@ -706,6 +708,23 @@ class HiResLocalSurface(Surface):
 
         return
 
+    def _load_from_files(self, **kwargs: Any):
+        super()._load_from_files(**kwargs)
+        if self.local_grid_indices_file is not None and Path(self.local_grid_indices_file).exists():
+            with np.load(self.local_grid_indices_file) as grid_data:
+                face_indices = grid_data["face_indices"]
+                node_indices = grid_data["node_indices"]
+                edge_indices = grid_data["edge_indices"]
+                self._local = LocalHiResLocalSurface(
+                    surface=self,
+                    face_indices=face_indices,
+                    node_indices=node_indices,
+                    edge_indices=edge_indices,
+                    location=self.local_location,
+                    region_radius=self.local_radius,
+                )
+        return
+
     @property
     def local(self):
         """
@@ -713,6 +732,14 @@ class HiResLocalSurface(Surface):
         """
         if self._local is None:
             self._local = self.extract_region(location=self.local_location, region_radius=self.local_radius)
+            self.local_grid_indices_file.unlink(missing_ok=True)
+            np.savez_compressed(
+                file=self.local_grid_indices_file,
+                face_indices=self.local.face_indices,
+                node_indices=self.local.node_indices,
+                edge_indices=self.local.edge_indices,
+                allow_pickle=False,
+            )
         return self._local
 
     @parameter
@@ -757,6 +784,13 @@ class HiResLocalSurface(Surface):
         if not isinstance(value, tuple) or len(value) != 2:
             raise TypeError("local_location must be a tuple of two floats")
         self._local_location = validate_and_normalize_location(value)
+
+    @property
+    def local_grid_indices_file(self) -> Path:
+        """
+        The path to the local grid indices file.
+        """
+        return self.output_dir / f"local_{self._grid_file_prefix}_indices.{self._local_grid_indices_file_extension}"
 
     @property
     def superdomain_function_slope(self):
@@ -977,6 +1011,13 @@ class LocalHiResLocalSurface(LocalSurface):
                 kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
             self.plot(plot_style, imagefile=imagefile, **kwargs)
         return
+
+    @property
+    def local_grid_indices_file(self) -> Path:
+        """
+        The path to the local grid file.
+        """
+        return self.surface.local_grid_indices_file
 
     @property
     def local_overlap(self) -> LocalHiResLocalSurface | None:

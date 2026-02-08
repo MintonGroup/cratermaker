@@ -286,13 +286,11 @@ class Surface(ComponentBase):
 
             # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
             # These are needed for diffusion calculations
-            neighbor_faces = self.face_face_connectivity[face_indices]
-            neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
-            node_faces = self.node_face_connectivity[node_indices]
-            node_faces = node_faces[node_faces != INT_FILL_VALUE]
-            edge_faces = self.edge_face_connectivity[edge_indices]
-            edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
+            neighbor_faces = self.face_face_connectivity[face_indices].ravel()
+            node_faces = self.node_face_connectivity[node_indices].ravel()
+            edge_faces = self.edge_face_connectivity[edge_indices].ravel()
             face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
+            face_indices = face_indices[face_indices != INT_FILL_VALUE]
 
             # Add in all nodes that are attached to these buffer faces
             node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
@@ -1095,19 +1093,27 @@ class Surface(ComponentBase):
 
         return
 
-    @staticmethod
-    def _write_grid_file(uxgrid: uxr.Grid, grid_file) -> None:
+    def _write_grid_file(self, uxgrid: uxr.Grid | None = None, grid_file: Path | str | None = None, **kwargs: Any) -> None:
         """
         Write the grid to a NetCDF file.
 
         Parameters
         ----------
-        uxgrid : uxr.Grid
-            The grid to write.
-        grid_file : Path
-            The path to the grid file.
+        uxgrid : uxr.Grid, optional
+            The grid to be written to the file. If None, the grid will be obtained from the surface object. Default is None.
+        grid_file : Path, str, optional
+            The path to the grid file. If None, the path will be obtained from the surface object. Default is None.
+        **kwargs : Any
+            |kwargs|
         """
         import uxarray.conventions.ugrid as ugrid
+
+        if uxgrid is None:
+            uxgrid = self.uxgrid
+        if grid_file is None:
+            grid_file = self.grid_file
+        else:
+            grid_file = Path(grid_file)
 
         grid_file.unlink(missing_ok=True)
 
@@ -1146,7 +1152,7 @@ class Surface(ComponentBase):
         threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-7)
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
         uxgrid.attrs["_id"] = self._id
-        self._write_grid_file(uxgrid, self.grid_file)
+        self._write_grid_file(uxgrid=uxgrid)
 
         regrid = not self._is_same_grid()
         if regrid:
@@ -1301,9 +1307,12 @@ class Surface(ComponentBase):
         -------
         None
         """
-        with xr.open_dataset(self.grid_file) as ds:
-            ds.load()
-            uxgrid = uxr.Grid.from_dataset(ds)
+        if self.uxgrid is None:
+            with xr.open_dataset(self.grid_file) as ds:
+                ds.load()
+                uxgrid = uxr.Grid.from_dataset(ds)
+        else:
+            uxgrid = self.uxgrid
         if long_name is None and units is None:
             attrs = None
         else:
@@ -3208,7 +3217,30 @@ class LocalSurface(CratermakerBase):
         )
 
         if self.location is not None:  # Save the local grid if this is a local surface
-            self.surface._write_grid_file(self.uxgrid, self.grid_file)
+            self._write_grid_file()
+
+        return
+
+    def _write_grid_file(self, uxgrid: uxr.Grid | None = None, grid_file: Path | str | None = None, **kwargs: Any) -> None:
+        """
+        Write the grid to a NetCDF file.
+
+        Parameters
+        ----------
+        uxgrid : uxr.Grid, optional
+            The grid to be written to the file. If None, the grid will be obtained from the surface object. Default is None.
+        grid_file : Path, str, optional
+            The path to the grid file. If None, the path will be obtained from the surface object. Default is None.
+        **kwargs : Any
+            |kwargs|
+        """
+        if uxgrid is None:
+            uxgrid = self.uxgrid
+        if grid_file is None:
+            grid_file = self.surface.output_dir / f"{self._grid_file_prefix}.{self._output_file_extension}"
+        else:
+            grid_file = Path(grid_file)
+        self.surface._write_grid_file(uxgrid=uxgrid, grid_file=grid_file, **kwargs)
 
         return
 
