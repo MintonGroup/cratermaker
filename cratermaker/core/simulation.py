@@ -61,6 +61,8 @@ class Simulation(CratermakerBase):
         |rng_state|
     reset : bool, optional
         Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is True.
+    do_counting : bool, optional
+        If True, the counting component will keep track of emplaced craters during the simulation. Default is True.
     ask_overwrite : bool, optional
         If True, the user will be prompted before overwriting any existing files. Default is True.
     **kwargs : Any
@@ -83,6 +85,7 @@ class Simulation(CratermakerBase):
         rng_state: dict | None = None,
         reset: bool = True,
         ask_overwrite: bool = True,
+        do_counting: bool = True,
         **kwargs: Any,
     ):
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
@@ -138,7 +141,8 @@ class Simulation(CratermakerBase):
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
         projectile_config = unmatched.pop("projectile_config", {})
-        counting_config = unmatched.pop("counting_config", {})
+        if do_counting:
+            counting_config = unmatched.pop("counting_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
 
@@ -176,13 +180,14 @@ class Simulation(CratermakerBase):
             **surface_config,
         )
 
-        counting_config = {**counting_config, **kwargs}
-        self.counting = Counting.maker(
-            self.counting,
-            surface=self.surface,
-            reset=reset,
-            **counting_config,
-        )
+        if do_counting:
+            counting_config = {**counting_config, **kwargs}
+            self.counting = Counting.maker(
+                self.counting,
+                surface=self.surface,
+                reset=reset,
+                **counting_config,
+            )
 
         morphology_config = {**morphology_config, **kwargs}
         self.morphology = Morphology.maker(
@@ -201,7 +206,10 @@ class Simulation(CratermakerBase):
             )
 
         if reset:
-            self.reset(ask_overwrite=ask_overwrite, skip_component=["surface"])
+            skip_components = ["surface"]
+            if not do_counting:
+                skip_components.append("counting")
+            self.reset(ask_overwrite=ask_overwrite, skip_component=skip_components)
         self.to_config()
 
         return
@@ -699,20 +707,27 @@ class Simulation(CratermakerBase):
         - The function will convert Numpy types to their native Python types.
         """
         sim_config = super().to_config(remove_common_args=False)
-        sim_config["target_config"] = self.target.to_config(remove_common_args=True)
-        sim_config["scaling_config"] = self.scaling.to_config(remove_common_args=True)
-        sim_config["production_config"] = self.production.to_config(remove_common_args=True)
-        sim_config["surface_config"] = self.surface.to_config(remove_common_args=True)
-        sim_config["projectile_config"] = self.projectile.to_config(remove_common_args=True)
-        sim_config["morphology_config"] = self.morphology.to_config(remove_common_args=True)
-        sim_config["counting_config"] = self.counting.to_config(remove_common_args=True)
-        sim_config["target"] = self.target.name
-        sim_config["scaling"] = self.scaling._component_name
-        sim_config["production"] = self.production._component_name
-        sim_config["projectile"] = self.projectile._component_name
-        sim_config["morphology"] = self.morphology._component_name
-        sim_config["surface"] = self.surface._component_name
-        sim_config["counting"] = self.counting._component_name
+        if self.target is not None:
+            sim_config["target"] = self.target.name
+            sim_config["target_config"] = self.target.to_config(remove_common_args=True)
+        if self.scaling is not None:
+            sim_config["scaling"] = self.scaling._component_name
+            sim_config["scaling_config"] = self.scaling.to_config(remove_common_args=True)
+        if self.production is not None:
+            sim_config["production"] = self.production._component_name
+            sim_config["production_config"] = self.production.to_config(remove_common_args=True)
+        if self.surface is not None:
+            sim_config["surface"] = self.surface._component_name
+            sim_config["surface_config"] = self.surface.to_config(remove_common_args=True)
+        if self.projectile is not None:
+            sim_config["projectile"] = self.projectile._component_name
+            sim_config["projectile_config"] = self.projectile.to_config(remove_common_args=True)
+        if self.morphology is not None:
+            sim_config["morphology"] = self.morphology._component_name
+            sim_config["morphology_config"] = self.morphology.to_config(remove_common_args=True)
+        if self.counting is not None:
+            sim_config["counting"] = self.counting._component_name
+            sim_config["counting_config"] = self.counting.to_config(remove_common_args=True)
 
         for config in [
             "target",
