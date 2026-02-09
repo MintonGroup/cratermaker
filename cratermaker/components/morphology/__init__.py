@@ -549,7 +549,6 @@ class Morphology(ComponentBase):
                 batch = self._queue_manager.peek_next_batch()
 
                 with ThreadPoolExecutor() as executor:
-                    # executor.map(process, batch)
                     futures = [executor.submit(self.form_crater, crater) for crater in batch]
                     for future in as_completed(futures):
                         try:
