@@ -279,10 +279,13 @@ class Crater:
                 var_fields.pop("measured_radius", None)
         else:
             fixed_fields = {}
-            for f in fields(fixed_cls):
-                if f.name in kwargs and f.init:
-                    fixed_fields[f.name] = kwargs.pop(f.name)
             var_fields = {}
+
+        for f in fields(fixed_cls):
+            if f.name in kwargs and f.init and (f.name not in fixed_fields or fixed_fields[f.name] is None):
+                fixed_fields[f.name] = kwargs.pop(f.name)
+            if f.name not in fixed_fields and f.name in kwargs and f.init:
+                fixed_fields[f.name] = kwargs.pop(f.name)
 
         var_fields.update({k: v for k, v in kwargs.items() if k not in fixed_fields})
         self._fixed = fixed_cls(**fixed_fields)
@@ -918,7 +921,7 @@ class Crater:
         args["measured_semiminor_axis"] = float(measured_semiminor_axis) if measured_semiminor_axis is not None else None
         args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
         args["id"] = _set_id(**args)
-        return cls(**args)
+        return cls(**args, **kwargs)
 
     def to_geoseries(
         self,
@@ -1019,3 +1022,11 @@ class Crater:
     def final_radius(self) -> float | None:
         """Final radius of the crater in meters."""
         return self.radius
+
+    def remove_complex_data(self, **kwargs) -> None:
+        """
+        Remove complex data types from the crater variable properties.
+
+        This is useful for storing a lightweight representation, as it removes complex data types that can be recomputed from the fixed properties and the morphology model when needed. The base  Crater type does not have any complex data types, but is used by derived types that do, so this method is included here for consistency and to allow for future expansion of the base Crater type without breaking the API.
+        """
+        pass

@@ -13,14 +13,14 @@ from scipy.optimize import root_scalar
 from tqdm import tqdm
 
 from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
-from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterFixed, MorphologyCraterVariable
+from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterVariable
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 
 @dataclass(frozen=True, slots=True)
-class SimpleMoonCraterFixed(MorphologyCraterFixed):
+class SimpleMoonCraterFixed(CraterFixed):
     rim_height: float | None = None
     rim_width: float | None = None
     floor_depth: float | None = None
@@ -51,13 +51,6 @@ class SimpleMoonCrater(MorphologyCrater):
         cls,
         crater: Crater | None = None,
         morphology: Morphology | None = None,
-        face_index: int | None = None,
-        crater_rmax: float | None = None,
-        ejecta_rmax: float | None = None,
-        affected_face_indices: set[int] | None = None,
-        affected_node_indices: set[int] | None = None,
-        ejecta_region: LocalSurface | None = None,
-        crater_region: LocalSurface | None = None,
         **kwargs: Any,
     ) -> SimpleMoonCrater:
         """
@@ -77,7 +70,7 @@ class SimpleMoonCrater(MorphologyCrater):
         morphology = Morphology.maker(morphology, **kwargs)
         if crater is None:
             crater = super().maker(**kwargs)
-        args = crater.as_dict()
+        args = {}
         diameter_m = crater.final_diameter
         diameter_km = diameter_m * 1e-3
 
@@ -98,81 +91,11 @@ class SimpleMoonCrater(MorphologyCrater):
 
         args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74
 
-        # Build an intermediate crater object to compute morphology parameters that depend on the surface and region views
-        crater = cls(**args, fixed_cls=SimpleMoonCraterFixed)
-        args = crater.as_dict()
-
-        if face_index is not None:
-            args["face_index"] = face_index
-        if crater_rmax is not None:
-            args["crater_rmax"] = crater_rmax
-        if ejecta_rmax is not None:
-            args["ejecta_rmax"] = ejecta_rmax
-        if affected_face_indices is not None:
-            args["affected_face_indices"] = affected_face_indices
-        if affected_node_indices is not None:
-            args["affected_node_indices"] = affected_node_indices
-        if ejecta_region is not None:
-            args["ejecta_region"] = ejecta_region
-        if crater_region is not None:
-            args["crater_region"] = crater_region
-
-        if morphology.surface.uxds is not None:
-            if "face_index" not in args or args["face_index"] is None:
-                args["face_index"] = morphology.surface.find_nearest_face(crater.location)
-            if "ejecta_rmax" not in args or args["ejecta_rmax"] is None:
-                args["ejecta_rmax"] = morphology.rmax(
-                    crater, minimum_thickness=morphology.surface.smallest_length, feature="ejecta"
-                )
-            if "ejecta_region" not in args or args["ejecta_region"] is None:
-                args["ejecta_region"] = morphology.surface.extract_region(crater.location, args["ejecta_rmax"])
-        else:
-            args["face_index"] = None
-            args["ejecta_region"] = None
-
-        if (
-            args["ejecta_region"] is None
-        ):  # The crater is not big enough to change the surface, or the surface hasn't been fully initialized yet
-            args["emplaceable"] = False
-            args["crater_rmax"] = None
-            args["ejecta_region"] = None
-            args["affected_face_indices"] = set()
-            args["affected_node_indices"] = set()
-        else:
-            if "crater_rmax" not in args or args["crater_rmax"] is None:
-                args["crater_rmax"] = morphology.rmax(
-                    crater, minimum_thickness=morphology.surface.smallest_length, feature="crater"
-                )
-            if "crater_region" not in args or args["crater_region"] is None:
-                args["crater_region"] = args["ejecta_region"].extract_subregion(args["crater_rmax"])
-            if args["crater_region"] is None:
-                args["emplaceable"] = False
-                args["ejecta_region"] = None
-                args["affected_face_indices"] = set()
-                args["affected_node_indices"] = set()
-            else:
-                args["emplaceable"] = True
-                region = args["ejecta_region"]
-                if isinstance(region.node_indices, slice) or isinstance(region.face_indices, slice):
-                    args["affected_node_indices"], args["affected_face_indices"] = (
-                        set(np.arange(morphology.surface.n_node)[region.node_indices]),
-                        set(np.arange(morphology.surface.n_face)[region.face_indices]),
-                    )
-                else:
-                    args["affected_node_indices"], args["affected_face_indices"] = (
-                        set(region.node_indices),
-                        set(region.face_indices),
-                    )
-
         return cls(
+            crater=crater,
+            morphology=morphology,
             **args,
         )
-
-    def as_dict(self, ignore_keys: list[str] = [], skip_complex_data: bool = False, **kwargs) -> dict:
-        if skip_complex_data:
-            ignore_keys.extend(["affected_face_indices", "affected_node_indices", "crater_region", "ejecta_region"])
-        base = super().as_dict(ignore_keys=ignore_keys, skip_complex_data=skip_complex_data, **kwargs)
-        return base
 
 
 @Morphology.register("simplemoon")
@@ -242,25 +165,25 @@ class SimpleMoon(Morphology):
             |kwargs|
         """
         if craters is None:
-            processed_craters = [SimpleMoonCrater.maker(**kwargs, morphology=self)]
+            craters = [SimpleMoonCrater.maker(morphology=self, **kwargs)]
         elif isinstance(craters, (list | tuple)) and len(craters) > 0:
             processed_craters = []
             for c in tqdm(
                 craters,
                 total=len(craters),
-                desc="Processing craters",
+                desc="Preparing craters for emplacement",
                 unit="crater",
                 position=0,
                 leave=False,
             ):
-                processed_craters.append(SimpleMoonCrater.maker(c, morphology=self))
+                processed_craters.append(SimpleMoonCrater.maker(c, morphology=self, **kwargs))
+            craters = processed_craters
         elif isinstance(craters, Crater):
-            processed_craters = [SimpleMoonCrater.maker(craters, morphology=self)]
+            craters = [SimpleMoonCrater.maker(craters, morphology=self, **kwargs)]
         else:
             raise ValueError(
                 "Invalid input for crater emplacement. Must be a Crater object, a list of Crater objects, or None with additional arguments for Crater.maker()."
             )
-        craters = [c for c in processed_craters if c.emplaceable]
 
         super().emplace(craters)
         return
@@ -279,7 +202,8 @@ class SimpleMoon(Morphology):
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater, morphology=self)
 
-        super().form_crater(crater, **kwargs)
+        if crater.emplaceable:
+            super().form_crater(crater, **kwargs)
         return
 
     def form_ejecta(self, crater: Crater | SimpleMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:

@@ -412,41 +412,42 @@ class Surface(ComponentBase):
             |kwargs|
         """
         # Reset the tag layers if the tag is None or does not yet exist on the surface
-        if name not in self.uxds or tag is None:
-            dims = ("n_face", "layer")
-            data = np.zeros((self.n_face, n_layer), dtype=np.uint32)
-            if long_name is not None:
-                attrs = {"long_name": long_name}
+        with surface_lock:
+            if name not in self.uxds or tag is None:
+                dims = ("n_face", "layer")
+                data = np.zeros((self.n_face, n_layer), dtype=np.uint32)
+                if long_name is not None:
+                    attrs = {"long_name": long_name}
+                else:
+                    attrs = None
+
+                uxda = uxr.UxDataArray(
+                    data=data,
+                    dims=dims,
+                    name=name,
+                    attrs=attrs,
+                    uxgrid=self.uxgrid,
+                )
+
+                self._uxds[name] = uxda
+                if tag is None:
+                    return
+
+            if region is None:
+                face_indices = slice(None)
             else:
-                attrs = None
+                face_indices = region.face_indices
+            insert_layer = -1
 
-            uxda = uxr.UxDataArray(
-                data=data,
-                dims=dims,
-                name=name,
-                attrs=attrs,
-                uxgrid=self.uxgrid,
-            )
-
-            self._uxds[name] = uxda
-            if tag is None:
-                return
-
-        if region is None:
-            face_indices = slice(None)
-        else:
-            face_indices = region.face_indices
-        insert_layer = -1
-
-        for i in range(n_layer):
-            if np.all(self.uxds[name].isel(layer=i).data[face_indices] == 0):
-                insert_layer = i
-                break
-        if insert_layer == -1:
-            raise ValueError(f"All {name} layers are full")
-        data = self.uxds[name].data[face_indices, :]
-        data[:, insert_layer] = tag
-        self.uxds[name].data[face_indices, :] = data
+            for i in range(n_layer):
+                if np.all(self.uxds[name].isel(layer=i).data[face_indices] == 0):
+                    insert_layer = i
+                    break
+            if insert_layer == -1:
+                raise ValueError(f"All {name} layers are full")
+            data = self.uxds[name].data[face_indices, :]
+            data[:, insert_layer] = tag
+            self.uxds[name].data[face_indices, :] = data
 
         return
 
@@ -461,18 +462,19 @@ class Surface(ComponentBase):
         region : LocalSurface | None
             The region from which to remove the tag. If None, the tag will be removed from the entire surface.
         """
-        if name not in self.uxds:
-            raise ValueError(f"Tag {name} does not exist on the surface")
+        with surface_lock:
+            if name not in self.uxds:
+                raise ValueError(f"Tag {name} does not exist on the surface")
 
-        if region is None:
-            face_indices = slice(None)
-        else:
-            face_indices = region.face_indices
+            if region is None:
+                face_indices = slice(None)
+            else:
+                face_indices = region.face_indices
 
-        data = self.uxds[name].data[face_indices, :]
-        if tag in data:
-            data[data == tag] = 0
-            self.uxds[name].data[face_indices, :] = data
+            data = self.uxds[name].data[face_indices, :]
+            if tag in data:
+                data[data == tag] = 0
+                self.uxds[name].data[face_indices, :] = data
 
         return
 
@@ -2455,7 +2457,7 @@ class LocalSurface(CratermakerBase):
         None
         """
         node_elevation = surface_bindings.interpolate_node_elevation_from_faces(self)
-        self.update_elevation(node_elevation, overwrite=True)
+        self.add_data(name="node_elevation", data=node_elevation, overwrite=True)
         return
 
     def get_reference_surface(
