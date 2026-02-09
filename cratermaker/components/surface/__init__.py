@@ -1156,13 +1156,14 @@ class Surface(ComponentBase):
         uxgrid.attrs["_id"] = self._id
         self._write_grid_file(uxgrid=uxgrid)
 
-        regrid = not self._is_same_grid()
+        regrid = not self._is_same_grid
         if regrid:
             raise ValueError("Grid file does not match the expected parameters.")
         self._compute_face_size(uxgrid)
 
         return
 
+    @property
     def _is_same_grid(self):
         """
         Check if the existing grid matches the one defined by the current parameters.
@@ -1200,7 +1201,7 @@ class Surface(ComponentBase):
         regrid = regrid or not Path(self.grid_file).exists()
 
         if not regrid:
-            regrid = not self._is_same_grid()
+            regrid = not self._is_same_grid
 
         if regrid:
             print("Creating a new grid")

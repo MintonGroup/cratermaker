@@ -709,8 +709,9 @@ class HiResLocalSurface(Surface):
         return
 
     def _load_from_files(self, **kwargs: Any):
+        is_same_grid = not self._is_same_grid
         super()._load_from_files(**kwargs)
-        if self.local_grid_indices_file is not None and Path(self.local_grid_indices_file).exists():
+        if is_same_grid and self.local_grid_indices_file is not None and Path(self.local_grid_indices_file).exists():
             with np.load(self.local_grid_indices_file) as grid_data:
                 face_indices = grid_data["face_indices"]
                 node_indices = grid_data["node_indices"]
