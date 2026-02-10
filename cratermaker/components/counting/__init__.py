@@ -190,6 +190,11 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
+        if self.surface.uxds is None:
+            raise ValueError(
+                "Surface must have an associated Uxarray dataset to use for counting. This is commonly caused by using a HiResLocal surface type without setting the superdomain_scale_factor."
+            )
+
         count_radius = _RIM_BUFFER_FACTOR * crater.final_radius
         # Tag a region just outside crater rim with the id
         if count_region is None:

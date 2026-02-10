@@ -4254,78 +4254,9 @@ class LocalSurface(CratermakerBase):
         """
         if self.location is None:
             return self.surface.uxds
-        ds = xr.Dataset()
-        ds.attrs = self.surface.uxds.attrs.copy()
-        for var in self.surface.uxds.data_vars:
-            if self.surface.uxds[var].dims == ("n_face",):
-                ds[var] = (
-                    ("n_face",),
-                    self.surface.uxds[var].values[self.face_indices],
-                )
-            elif self.surface.uxds[var].dims == ("n_node",):
-                ds[var] = (
-                    ("n_node",),
-                    self.surface.uxds[var].values[self.node_indices],
-                )
-            elif self.surface.uxds[var].dims == ("n_edge",):
-                ds[var] = (
-                    ("n_edge",),
-                    self.surface.uxds[var].values[self.edge_indices],
-                )
-            elif "n_face" in self.surface.uxds[var].dims and len(self.surface.uxds[var].dims) == 2:
-                dim2name = self.surface.uxds[var].dims[1]
-                ds[var] = (
-                    ("n_face", dim2name),
-                    self.surface.uxds[var].values[self.face_indices, :],
-                )
-            else:  # Variables not associated with faces, nodes, or edges are copied directly
-                ds[var] = self.surface.uxds[var]
-            ds[var].attrs = self.surface.uxds[var].attrs.copy()
-        ds = ds.assign_attrs({"location": self.location})
-        ds["face_distance"] = xr.DataArray(
-            data=self.face_distance,
-            dims=("n_face",),
-            attrs={"long_name": "Distance from center location to face", "units": "m"},
+        return uxr.UxDataset.from_xarray(
+            ds=self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices).to_xarray(), uxgrid=self.uxgrid
         )
-        ds["face_bearing"] = xr.DataArray(
-            data=self.face_bearing,
-            dims=("n_face",),
-            attrs={"long_name": "Initial bearing from center location to face", "units": "degrees"},
-        )
-        ds["node_distance"] = xr.DataArray(
-            data=self.node_distance,
-            dims=("n_node",),
-            attrs={"long_name": "Distance from center location to node", "units": "m"},
-        )
-        ds["node_bearing"] = xr.DataArray(
-            data=self.node_bearing,
-            dims=("n_node",),
-            attrs={"long_name": "Initial bearing from center location to node", "units": "degrees"},
-        )
-        if isinstance(self.face_indices, slice):
-            data = np.arange(self.surface.n_face)[self.face_indices]
-        else:
-            data = self.face_indices
-        ds["face_indices"] = xr.DataArray(
-            data=data,
-            dims=("n_face",),
-            attrs={"long_name": "Indices of faces in the local surface view"},
-        )
-        if isinstance(self.node_indices, slice):
-            data = np.arange(self.surface.n_node)[self.node_indices]
-        else:
-            data = self.node_indices
-        ds["node_indices"] = xr.DataArray(
-            data=data, dims=("n_node",), attrs={"long_name": "Indices of nodes in the local surface view"}
-        )
-        if isinstance(self.edge_indices, slice):
-            data = np.arange(self.surface.n_edge)[self.edge_indices]
-        else:
-            data = self.edge_indices
-        ds["edge_indices"] = xr.DataArray(
-            data=data, dims=("n_edge",), attrs={"long_name": "Indices of edges in the local surface view"}
-        )
-        return uxr.UxDataset.from_xarray(ds=ds, uxgrid=self.uxgrid)
 
     @property
     def grid_file(self):

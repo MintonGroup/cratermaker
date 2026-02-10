@@ -12,4 +12,4 @@ import cratermaker as cm
 
 sim = cm.Simulation(gridlevel=6, ask_overwrite=False, simdir="simdata-1_1")
 sim.emplace(final_diameter=500e3, location=(45, 60))
-sim.show(cmap="cividis")
+sim.show(variable_name="face_elevation", cmap="cividis")

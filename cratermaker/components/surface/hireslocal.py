@@ -100,13 +100,15 @@ class HiResLocalSurface(Surface):
         local_radius = format_large_units(self.local_radius, quantity="length")
         return (
             f"{base}\n"
-            f"Local pixel size: {pix}\n"
+            f"Local pixel size: {pix}"
             f"Local Radius: {local_radius}\n"
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
             f"Minimum effective pixel size: {pix_min}\n"
-            f"Maximum effective pixel size: {pix_max}"
+            f"Maximum effective pixel size: {pix_max}\n"
             f"Number of local faces: {self.local.n_face}\n"
             f"Number of local nodes: {self.local.n_node}\n"
+            f"Number of superdomain faces: {self.n_face - self.local.n_face}\n"
+            f"Number of superdomain nodes: {self.n_node - self.local.n_node}\n"
         )
 
     def superdomain_function(self, r):

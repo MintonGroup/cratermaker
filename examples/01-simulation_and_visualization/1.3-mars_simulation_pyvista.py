@@ -29,7 +29,7 @@ sim = cm.Simulation(
     simdir="simdata-1_3",
 )
 sim.run(age=2000, plot_style="map", cmap="pink", scalebar=True, label="Mars region simulation")
-sim.show(cmap="pink")
+sim.show(variable_name="face_elevation", cmap="pink")
 
 # Alternatively, this will generate hillshade images with a default time stamp
 # sim.run(age=2000, plot_style="hillshade")

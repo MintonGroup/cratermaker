@@ -801,8 +801,8 @@ class CraterQueueManager:
         Return a list of the next batch of craters that do not overlap with each other or the current active region.
         """
         batch = []
-        reserved_nodes = set()  # set(self._active_nodes)
-        reserved_faces = set()  # set(self._active_faces)
+        reserved_nodes = set()
+        reserved_faces = set()
         for crater in self._queue:
             node_indices, face_indices = self._overlap_fn(crater)
             if reserved_nodes.isdisjoint(node_indices) and reserved_faces.isdisjoint(face_indices):

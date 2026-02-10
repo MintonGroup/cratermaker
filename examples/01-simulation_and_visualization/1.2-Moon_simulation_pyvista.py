@@ -24,4 +24,4 @@ import cratermaker as cm
 sim = cm.Simulation(target="Moon", gridlevel=6, ask_overwrite=False, do_counting=False, simdir="simdata-1_2")
 
 sim.run(age=4310)
-sim.show(cmap="Greys_r")
+sim.show(variable_name="face_elevation", cmap="Greys_r")
