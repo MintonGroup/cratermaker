@@ -151,7 +151,7 @@ class SimpleMoon(Morphology):
             base += "\nEjecta Truncation: Off"
         return f"{base}\nEjecta Rays: {self.dorays}"
 
-    def emplace(self, craters: Crater, **kwargs: Any) -> None:
+    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
 

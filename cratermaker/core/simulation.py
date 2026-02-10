@@ -536,7 +536,7 @@ class Simulation(CratermakerBase):
         Parameters
         ----------
         craters : Crater or list of Crater objects, optional
-            The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single will be generated based on the keyword arguments.
+            The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single crat er will be generated based on the keyword arguments.
         **kwargs : Any
             |kwargs|
 
