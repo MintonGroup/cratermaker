@@ -1330,3 +1330,43 @@ class Simulation(CratermakerBase):
             True if counting is enabled, False otherwise.
         """
         return self.morphology.do_counting if self.morphology is not None else False
+
+    @property
+    def observed(self) -> dict[Crater] | None:
+        """
+        Pass-through to retrieve the current observed craters from the counting model, if it is enabled.
+        """
+        if self.do_counting:
+            return self.counting.observed
+        else:
+            return None
+
+    @property
+    def emplaced(self) -> list[Crater] | None:
+        """
+        Pass-through to retrieve the current emplaced craters from the morphology model, if it is enabled.
+        """
+        if self.morphology is not None:
+            return self.morphology.emplaced
+        else:
+            return None
+
+    @property
+    def n_observed(self) -> int | None:
+        """
+        Pass-through to retrieve the current number of observed craters from the counting model, if it is enabled.
+        """
+        if self.do_counting:
+            return self.counting.n_observed
+        else:
+            return None
+
+    @property
+    def n_emplaced(self) -> int | None:
+        """
+        Pass-through to retrieve the current number of emplaced craters from the counting model, if it is enabled.
+        """
+        if self.do_counting:
+            return self.counting.n_emplaced
+        else:
+            return None
