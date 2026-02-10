@@ -213,21 +213,23 @@ class Counting(ComponentBase):
             else:
                 return
 
+            removes = []
             # Cookie cutting: remove any smaller craters that are overlapped by this new crater
             for i in range(_N_LAYER):
                 unique_ids = np.unique(self.surface.uxds.crater_id.data[count_region.face_indices, i])
                 if len(unique_ids) > 0:
                     # Compute cookie cutting removes list
-                    removes = [
-                        id for id, v in self.observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter
-                    ]
+                    observed = self.observed.copy()
+                    removes.extend(
+                        [id for id, v in observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter]
+                    )
 
-                    # For every id that appears in the removes list, set it to 0 in the data array
-                    if removes:
-                        for remove_id in removes:
-                            self.surface.remove_tag(name="crater_id", tag=remove_id, region=count_region)
-                            if not np.any(self.surface.uxds.crater_id.data == remove_id):
-                                self.observed.pop(remove_id, None)
+            # For every id that appears in the removes list, set it to 0 in the data array
+            if removes:
+                for remove_id in removes:
+                    self.surface.remove_tag(name="crater_id", tag=remove_id, region=count_region)
+                    if not np.any(self.surface.uxds.crater_id.data == remove_id):
+                        self.observed.pop(remove_id, None)
 
         return
 
