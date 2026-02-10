@@ -212,6 +212,10 @@ class Simulation(CratermakerBase):
             if not do_counting:
                 skip_components.append("counting")
             self.reset(ask_overwrite=ask_overwrite, skip_component=skip_components)
+        else:
+            # Now that all components are initialized, we turn off the config_readonly flag so that any changes to the simulation parameters will be saved to the config file.
+            self._config_readonly = False
+
         self.to_config()
 
         return
