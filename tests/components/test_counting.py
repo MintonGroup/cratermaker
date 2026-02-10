@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 
 from numpy.random import default_rng
@@ -5,10 +6,10 @@ from numpy.random import default_rng
 from cratermaker import Counting, Crater, Morphology, Surface, Target
 
 target = Target(name="Moon")
-pix = target.radius / 10.0
+pix = target.radius / 10000.0
 local_location = (0, 0)
-local_radius = pix * 2
-superdomain_scale_factor = 100
+local_radius = pix * 50
+superdomain_scale_factor = 10000
 gridargs = {
     "icosphere": {
         "gridlevel": 6,
@@ -21,16 +22,25 @@ gridargs = {
     },
 }
 
+crater = {
+    "icosphere": {"diameter": 1000.0e3, "location": local_location},
+    "hireslocal": {"diameter": 1000.0, "location": local_location},
+}
+
 
 class TestCounting(unittest.TestCase):
     def test_emplace(self):
         for surface_type, surface_args in gridargs.items():
-            surface = Surface.maker(target=target, surface_type=surface_type, ask_overwrite=False, reset=True, **surface_args)
-            counting = Counting.maker(surface=surface)
-            morphology = Morphology.maker(counting=counting)
-            morphology.emplace(diameter=1000.0e3, location=(0.0, 0.0))
-            self.assertEqual(counting.n_observed, 1)
-            self.assertEqual(counting.n_emplaced, 1)
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                surface = Surface.maker(surface_type, simdir=simdir, target=target, ask_overwrite=False, reset=True, **surface_args)
+                counting = Counting.maker(surface=surface)
+                morphology = Morphology.maker(counting=counting, ejecta_truncation=2.0)
+                morphology.emplace(**crater[surface_type])
+                self.assertEqual(counting.n_observed, 1, msg=f"Failed for surface type {surface_type}")
+                self.assertEqual(counting.n_emplaced, 1, msg=f"Failed for surface type {surface_type}")
+                del surface
+                del counting
+                del morphology
 
 
 if __name__ == "__main__":
