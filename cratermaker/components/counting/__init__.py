@@ -148,7 +148,11 @@ class Counting(ComponentBase):
 
     def __str__(self) -> str:
         base = super().__str__()
-        return f"{base}\nSurface: {self.surface.name}"
+        str_repr = f"{base}\n"
+        str_repr += f"Number of observed craters: {self.n_observed}\n"
+        str_repr += f"Number of emplaced craters: {self.n_emplaced}\n"
+        str_repr += f"\n{self.surface}\n"
+        return str_repr
 
     def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
         """
@@ -1284,6 +1288,20 @@ class Counting(ComponentBase):
         List of craters that have been emplaced in the simulation in the current interval in chronological order.
         """
         return self._emplaced
+
+    @property
+    def n_emplaced(self) -> int:
+        """
+        Number of craters that have been emplaced in the simulation in the current interval.
+        """
+        return len(self._emplaced)
+
+    @property
+    def n_observed(self) -> int:
+        """
+        Number of craters that have been observed on the surface in the current interval.
+        """
+        return len(self._observed)
 
 
 import_components(__name__, __path__)

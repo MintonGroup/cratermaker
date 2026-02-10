@@ -315,18 +315,32 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_do_counting", False)
         object.__setattr__(self, "_excavated_volume", None)
 
-        self.surface = Surface.maker(surface, **kwargs)
-        if counting is not None:
+        # Because a Surface object is associated with a Counting object, we should first check to see if we are receiving a Counting object first so that we don't end up creating a spurious Surface object that we don't want.
+        if surface is None and isinstance(counting, Counting):
+            self.surface = counting.surface
+            self.counting = counting
+        else:
+            self.surface = Surface.maker(surface, **kwargs)
             self.counting = Counting.maker(counting, surface=self.surface, **kwargs)
+
         self.do_subpixel_degradation = do_subpixel_degradation
         self.do_slope_collapse = do_slope_collapse
         if do_subpixel_degradation:
+            # Be sure to use the associated Target object from the Surface object when initializing a new Production object
+            if not isinstance(production, Production):
+                kwargs["target"] = self.surface.target
             self.production = Production.maker(production, **kwargs)
         return
 
     def __str__(self) -> str:
         base = super().__str__()
-        return base
+        str_repr = f"{base}\n"
+        str_repr += f"\n{self.counting}\n"
+        str_repr += f"Do slope collapse: {self.do_slope_collapse}\n"
+        str_repr += f"Do subpixel degradation: {self.do_subpixel_degradation}\n"
+        if self.do_subpixel_degradation:
+            str_repr += f"\n{self.production}\n"
+        return str_repr
 
     @classmethod
     def maker(
