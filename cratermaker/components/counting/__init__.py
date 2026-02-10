@@ -359,7 +359,7 @@ class Counting(ComponentBase):
         crater.measured_floor_depth = floor_depth
         return crater
 
-    def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> dict[int:Crater]:
+    def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> None:
         """
         Tally the craters on the surface using the method of Minton et al. (2019) [#]_.
 
@@ -372,11 +372,6 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
 
-        Returns
-        -------
-        dict[int:Crater]
-            A dictionary of observed craters indexed by their ID.
-
         References
         ----------
         .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
@@ -384,7 +379,10 @@ class Counting(ComponentBase):
         """
         if region is None:
             region = self.surface
-            id_array = self.surface.crater_id
+            if hasattr(self.surface, "crater_id"):
+                id_array = self.surface.crater_id
+            else:
+                return
         elif isinstance(region, LocalSurface):
             id_array = region.crater_id
         else:
