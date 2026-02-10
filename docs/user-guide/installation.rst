@@ -34,6 +34,8 @@ Installing Cratermaker from Source
 
 If you plan to contribute to Cratermaker, or want to try out the latest features that have not yet been released, you can install Cratermaker from source. You can find the latest source code from our `GitHub repository <https://github.com/MintonGroup/cratermaker>`__.  
 
+Some components of Cratermaker are built using Rust, and so you will need to have Rust installed on your system to build Cratermaker from source. Installation instructions for your operating system can be found in `the Rust documentation <https://rust-lang.org/learn/get-started/>`__.
+
 The first time you install Cratermaker from source, you will need to generate the version file. Due to limitations of the Maturin build system, this must be done manually. You do this by running the following command in the root directory of the Cratermaker source code:
 
 .. code-block:: bash
