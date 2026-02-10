@@ -3,6 +3,11 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.0-alpha:
+
+:release:`v2026.2.0-alpha`
+---------------------------
+
 .. _whats-new.2025.12.2-alpha:
 
 :release:`v2025.12.2-alpha`
