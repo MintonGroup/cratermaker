@@ -1347,7 +1347,7 @@ class Simulation(CratermakerBase):
         Pass-through to retrieve the current emplaced craters from the morphology model, if it is enabled.
         """
         if self.morphology is not None:
-            return self.morphology.emplaced
+            return self.counting.emplaced
         else:
             return None
 
