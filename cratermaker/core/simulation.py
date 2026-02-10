@@ -105,9 +105,11 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
         object.__setattr__(self, "_ask_overwrite", None)
+        object.__setattr__(self, "_config_readonly", False)
 
         if not reset and self.config_file.exists():
             config_file = self.config_file
+            object.__setattr__(self, "_config_readonly", True)
         else:
             config_file = None
 
@@ -747,7 +749,7 @@ class Simulation(CratermakerBase):
                 sim_config.pop(f"{config}_config")
 
         # Write the combined configuration to a YAML file
-        if save_to_file:
+        if save_to_file and not self._config_readonly:
             with Path.open(self.config_file, "w") as f:
                 yaml.safe_dump(sim_config, f, indent=4)
 
@@ -1273,6 +1275,13 @@ class Simulation(CratermakerBase):
         The path to the configuration file for the simulation.
         """
         return self.simdir / _CONFIG_FILE_NAME
+
+    @property
+    def config_readonly(self) -> bool:
+        """
+        Flag indicating whether the configuration is read-only.
+        """
+        return self._config_readonly
 
     @parameter
     def ask_overwrite(self):

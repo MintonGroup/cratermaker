@@ -782,7 +782,7 @@ class HiResLocalSurface(Surface):
 
     @local_location.setter
     def local_location(self, value: PairOfFloats):
-        if not isinstance(value, tuple) or len(value) != 2:
+        if not isinstance(value, tuple | list | np.ndarray) or len(value) != 2:
             raise TypeError("local_location must be a tuple of two floats")
         self._local_location = validate_and_normalize_location(value)
 
