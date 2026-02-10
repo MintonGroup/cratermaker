@@ -105,6 +105,8 @@ class HiResLocalSurface(Surface):
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
             f"Minimum effective pixel size: {pix_min}\n"
             f"Maximum effective pixel size: {pix_max}"
+            f"Number of local faces: {self.local.n_face}\n"
+            f"Number of local nodes: {self.local.n_node}\n"
         )
 
     def superdomain_function(self, r):
@@ -709,7 +711,7 @@ class HiResLocalSurface(Surface):
         return
 
     def _load_from_files(self, **kwargs: Any):
-        is_same_grid = not self._is_same_grid
+        is_same_grid = self._is_same_grid
         super()._load_from_files(**kwargs)
         if is_same_grid and self.local_grid_indices_file is not None and Path(self.local_grid_indices_file).exists():
             with np.load(self.local_grid_indices_file) as grid_data:

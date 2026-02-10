@@ -586,7 +586,7 @@ class Simulation(CratermakerBase):
             **kwargs,
         )
 
-        if self.morphology.do_counting:
+        if self.do_counting:
             self.counting.save(interval_number=self.interval_number, **kwargs)
 
         self.to_config(**kwargs)
@@ -637,7 +637,7 @@ class Simulation(CratermakerBase):
             **kwargs,
         )
 
-        if self.morphology.do_counting:
+        if self.do_counting:
             self.counting.export(
                 craters=self.counting.observed,
                 interval_number=interval_number,
@@ -681,7 +681,7 @@ class Simulation(CratermakerBase):
         """
         if "interval_number" not in kwargs:
             kwargs["interval_number"] = self.interval_number
-        if self.morphology.do_counting:
+        if self.do_counting:
             self.counting.show(engine=engine, **kwargs)
         else:
             self.surface.show(engine=engine, **kwargs)
@@ -1318,3 +1318,15 @@ class Simulation(CratermakerBase):
             "elapsed_time": self.elapsed_time,
             "elapsed_n1": self.elapsed_n1,
         }
+
+    @property
+    def do_counting(self) -> bool:
+        """
+        A boolean flag indicating whether or not counting is enabled for the simulation. This is determined by whether or not a counting model is present and has counting enabled.
+
+        Returns
+        -------
+        bool
+            True if counting is enabled, False otherwise.
+        """
+        return self.morphology.do_counting if self.morphology is not None else False

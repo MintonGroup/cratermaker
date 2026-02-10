@@ -399,7 +399,7 @@ class Morphology(ComponentBase):
         )
         return morphology
 
-    def emplace(self, craters: Crater | list[Crater], **kwargs: Any) -> None:
+    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> None:
         """
         Convenience method to immediately emplace a crater onto the surface.
 
@@ -407,10 +407,35 @@ class Morphology(ComponentBase):
 
         Parameters
         ----------
-        crater : Crater or list[Crater]
-            The crater to be emplaced.
+        craters : Crater or list of Crater objects, optional
+            The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single crater will be generated based on the keyword arguments.
         **kwargs : Any
             |kwargs|
+
+        Notes
+        -----
+        The keyword arguments provided are passed down to :meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from cratermaker import Morphology, Crater
+
+            morphology = Morphology.maker()
+
+            # Create a crater with specific diameter
+            morphology.emplace(final_diameter=10.0e3)
+
+            # Create a crater based on a projectile with given mass and projectile_velocity
+            morphology.emplace(projectile_mass=1e15, projectile_velocity=20e3)
+
+            # Create a crater with a specific transient diameter and location
+            morphology.emplace(transient_diameter=50e3, location=(43.43, -86.92))
+
+            # Create multiple craters
+            craters = [Crater.maker(final_diameter=20.0e3), Crater.maker(final_diameter=20.0e3)]
+            morphology.emplace(craters)
         """
         if self._queue_manager is None:
             self._init_queue_manager()
