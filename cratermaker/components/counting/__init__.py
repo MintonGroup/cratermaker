@@ -1147,6 +1147,19 @@ class Counting(ComponentBase):
         """
         import datetime
 
+        def overlap_fraction(crater, region_poly=None):
+            if region_poly is None:
+                return 1.0
+            distance = self.surface.compute_distances(center_location=self.surface.local_location, locations=[crater.location])
+            if distance + crater.radius > self.surface.local_radius:
+                crater_poly = crater.to_geoseries(
+                    surface=self.surface, split_antimeridian=False, use_measured_properties=True
+                ).to_crs(self.surface.crs)
+                overlap_area = crater_poly.intersection(region_poly).to_crs(self.surface.local.crs).area.item()
+                return overlap_area / crater_poly.to_crs(self.surface.local.crs).area.item()
+            else:
+                return 1.0
+
         output_file = self.export_dir / f"{name}{interval_number:06d}.scc"
         if ask_overwrite and not self._overwrite_check(output_file):
             return
@@ -1167,15 +1180,18 @@ class Counting(ComponentBase):
             if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
                 f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
                 region_circle = Crater.maker(radius=self.surface.local_radius, location=self.surface.local_location)
-                region_poly = region_circle.to_geoseries(
-                    surface=self.surface, split_antimeridian=False, use_measured_properties=False
-                ).item()
+                region_poly = (
+                    region_circle.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False)
+                    .to_crs(self.surface.crs)
+                    .item()
+                )
                 boundary_points = list(region_poly.exterior.coords)
                 area = self.surface.local.area
             else:
                 f.write(f"coordinate_system_name = {self.surface.crs.name}\n")
                 boundary_points = [(-180.0, -90.0), (180.0, -90.0), (180.0, 90.0), (-180.0, 90.0), (-180.0, -90.0)]
                 area = self.surface.area
+                region_poly = None
             f.write("# area_shapes:\n")
             f.write("unit_boundary = {vertex, sub_area, tag, lon, lat\n")
             for i, p in enumerate(boundary_points):
@@ -1188,7 +1204,9 @@ class Counting(ComponentBase):
             f.write("# crater_diameters\n")
             f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")
             for crater in craters:
-                f.write(f"{crater.measured_diameter * 1e-3}\t1\t{crater.measured_location[0]}\t{crater.measured_location[1]}\t 1\n")
+                f.write(
+                    f"{crater.measured_diameter * 1e-3}\t{overlap_fraction(crater, region_poly)}\t{crater.measured_location[0]}\t{crater.measured_location[1]}\t 1\n"
+                )
             f.write("}\n")
 
         return
