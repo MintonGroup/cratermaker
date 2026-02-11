@@ -404,8 +404,8 @@ def get_saved_interval_numbers(
             matched_files.append(data_file)
 
     if len(interval_numbers) > 1:
-        matched_files = sorted(matched_files, key=lambda x: interval_numbers)
-        interval_numbers.sort()
+        tup = sorted(zip(matched_files, interval_numbers, strict=True))
+        matched_files, interval_numbers = zip(*tup)
     return interval_numbers, matched_files
 
 

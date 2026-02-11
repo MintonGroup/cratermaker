@@ -227,13 +227,15 @@ class Production(ComponentBase):
                 cdf = np.cumsum(weights, axis=1)
 
             else:
-                N_vs_age -= np.min(N_vs_age)  # Subtract the min along age dimension
-                N_vs_age = N_vs_age[:-1]  # Remove the last value to avoid the cumulative sum reaching 1
-                weights_sum = np.sum(N_vs_age)  # Sum of weights for each diameter
-                weights = N_vs_age / weights_sum  # Normalize weights for each diameter
-
-                # Compute the CDF for each diameter
-                cdf = np.cumsum(weights)
+                if len(N_vs_age) > 0:
+                    N_vs_age -= np.min(N_vs_age)  # Subtract the min along age dimension
+                    N_vs_age = N_vs_age[:-1]  # Remove the last value to avoid the cumulative sum reaching 1
+                    weights_sum = np.sum(N_vs_age)  # Sum of weights for each diameter
+                    weights = N_vs_age / weights_sum  # Normalize weights for each diameter
+                    # Compute the CDF for each diameter
+                    cdf = np.cumsum(weights)
+                else:
+                    cdf = np.empty(0)
 
             # Generate uniform random numbers for each diameter
             random_values = self.rng.uniform(0, 1, size=diameters.size)

@@ -448,14 +448,19 @@ class Surface(ComponentBase):
                 # TODO: Implement an option to expand the number of layers if all layers are full
             data = self.uxds[name].data[face_indices, :]
             data[:, insert_layer] = tag
-            # Sort each n_face row so that empty layers are always at the end. This effectively "compresses" the layers so that tags can be added along the maximum set of contiguous empty layers.
-            sorted_indices = np.argsort(data, axis=1)[:, ::-1]
+            data = self._sort_tag(name, face_indices, data)
             self.uxds[name].data[face_indices, :] = data
-            ds = self.uxds[name].isel(n_face=face_indices)
-            ds = ds.isel(layer=xr.DataArray(sorted_indices, dims=["n_face", "layer"]))
-            self.uxds[name].data[face_indices, :] = ds.data
 
         return
+
+    def _sort_tag(self, name: str, face_indices: slice | np.ndarray, data: np.ndarray) -> np.ndarray:
+        # Sort each n_face row so that empty layers are always at the end. This effectively "compresses" the layers so that tags can be added along the maximum set of contiguous empty layers.
+        sorted_indices = np.argsort(data, axis=1)[:, ::-1]
+        self.uxds[name].data[face_indices, :] = data
+        ds = self.uxds[name].isel(n_face=face_indices)
+        ds = ds.isel(layer=xr.DataArray(sorted_indices, dims=["n_face", "layer"]))
+
+        return ds.data
 
     def remove_tag(self, name: str, tag: int, region: LocalSurface | None = None) -> None:
         """
@@ -480,6 +485,7 @@ class Surface(ComponentBase):
             data = self.uxds[name].data[face_indices, :]
             if tag in data:
                 data[data == tag] = 0
+                data = self._sort_tag(name, face_indices, data)
                 self.uxds[name].data[face_indices, :] = data
 
         return

@@ -60,7 +60,7 @@ class Simulation(CratermakerBase):
     rng_state : dict, optional
         |rng_state|
     reset : bool, optional
-        Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is True.
+        Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is False if `ask_overwrite=False` and a config file is detected, otherwise default is True.
     do_counting : bool, optional
         If True, the counting component will keep track of emplaced craters during the simulation. Default is True.
     ask_overwrite : bool, optional
@@ -83,7 +83,7 @@ class Simulation(CratermakerBase):
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
-        reset: bool = True,
+        reset: bool = None,
         ask_overwrite: bool = True,
         do_counting: bool = True,
         **kwargs: Any,
@@ -106,6 +106,18 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_largest_projectile", None)
         object.__setattr__(self, "_ask_overwrite", None)
         object.__setattr__(self, "_config_readonly", False)
+        if reset is None:
+            if ask_overwrite and self.config_file.exists():
+                response = input(
+                    "Old run detected. Enter y to reset the simulation and n to resume from the previous state. To disable this message, pass `ask_overwrite=False` to this function. (y/[N]): "
+                )
+                if response.lower() == "y":
+                    print("Resetting simulation.")
+                    reset = True
+                else:
+                    reset = False
+            else:
+                reset = False
 
         if not reset and self.config_file.exists():
             config_file = self.config_file
@@ -234,7 +246,7 @@ class Simulation(CratermakerBase):
             f"{self.surface}\n\n"
             f"{self.target}\n\n"
             f"<Current state>\n"
-            f"Current age : {format_large_units(self.current_time, quantity='time')}\n"
+            f"Current time : {format_large_units(self.current_time, quantity='time')}\n"
             f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
             f"Elapsed N_1 : {self.elapsed_n1} #/m^2\n"
             f"Interval    : {self.interval_number}\n"
@@ -473,13 +485,11 @@ class Simulation(CratermakerBase):
             time_interval = age
 
         validate_inputs = kwargs.pop("validate_inputs", False)
-        self.current_time = time_start
-        self.elapsed_time = 0.0
-        self.elapsed_n1 = 0.0
         self.save(**kwargs)
         for i in tqdm(
-            range(ninterval),
+            range(self.interval_number, ninterval),
             total=ninterval,
+            initial=self.interval_number,
             desc="Simulation interval",
             unit="interval",
             position=3,
@@ -632,7 +642,14 @@ class Simulation(CratermakerBase):
             impact_diameters = np.asarray(impact_diameters)[sort_indices]
             impact_times = np.asarray(impact_times)[sort_indices]
             impact_locations = np.array(impact_locations)[sort_indices]
-            for diameter, location, time in zip(impact_diameters, impact_locations, impact_times, strict=False):
+            for diameter, location, time in tqdm(
+                zip(impact_diameters, impact_locations, impact_times, strict=False),
+                total=len(impact_diameters),
+                desc="Generating crater population",
+                unit="crater",
+                position=0,
+                leave=False,
+            ):
                 diam_arg = {diam_key: diameter}
                 craterlist.append(
                     Crater.maker(
