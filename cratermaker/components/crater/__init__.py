@@ -33,7 +33,7 @@ class CraterFixed:
     projectile_mass: float | None = None
     location: tuple[float, float] | None = None
     morphology_type: str | None = None
-    age: float | None = None
+    time: float | None = None
     radius: float | None = field(default=None, init=False)
     diameter: float | None = field(default=None, init=False)
     transient_radius: float | None = field(default=None, init=False)
@@ -344,10 +344,10 @@ class Crater:
         return sorted(base)
 
     def __str__(self):
-        if self.age is None:
-            agetext = "Not set"
+        if self.time is None:
+            timetext = "Not set"
         else:
-            agetext = f"{format_large_units(self.age, quantity='time')}"
+            timetext = f"{format_large_units(self.time, quantity='time')}"
         if self.semimajor_axis != self.semiminor_axis:
             size_text = f"Elliptical size {format_large_units(self.semimajor_axis, quantity='length')} x {format_large_units(self.semiminor_axis, quantity='length')}\nMean Diameter: {format_large_units(self.diameter, quantity='length')}"
         else:
@@ -374,7 +374,7 @@ class Crater:
             f"projectile_direction: {self.projectile_direction:.1f}°\n"
             f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
             f"morphology_type: {self.morphology_type}\n"
-            f"age: {agetext}"
+            f"time: {timetext}"
         )
 
     def _scrub_measured_input_size(self, **kwargs: Any):
@@ -415,7 +415,7 @@ class Crater:
         projectile_direction: float | None = None,
         projectile_location: tuple[float, float] | None = None,
         location: tuple[float, float] | None = None,
-        age: float | None = None,
+        time: float | None = None,
         measured_semimajor_axis: float | None = None,
         measured_semiminor_axis: float | None = None,
         measured_orientation: float | None = None,
@@ -485,8 +485,8 @@ class Crater:
             The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence
         location : tuple of float, optional
             The (longitude, latitude) location of the crater.
-        age : float, optional
-            The age of the crater in Myr.
+        time : float, optional
+            The time of the crater impact in Myr before present.
         measured_semimajor_axis : float, optional
             The measured semimajor axis of the crater in meters.
         measured_semiminor_axis : float, optional
@@ -652,7 +652,7 @@ class Crater:
             "projectile_angle": projectile_angle,
             "morphology_type": "Not Set",
             "location": location,
-            "age": age,
+            "time": time,
         }
 
         if measured_diameter is not None:

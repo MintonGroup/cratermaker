@@ -600,10 +600,10 @@ class Morphology(ComponentBase):
                                 pbar.update(1)
 
                 if self.do_subpixel_degradation and len(batch) > 1:
-                    # If the craters have age values attached to them, we can perform subpixel degradation between time values
-                    agevals = [crater.age for crater in batch if crater.age is not None]
-                    if len(agevals) > 1:
-                        self.compute_subpixel_degradation(age_start=max(agevals), age_end=min(agevals))
+                    # If the craters have time values attached to them, we can perform subpixel degradation between time values
+                    timevals = [crater.time for crater in batch if crater.time is not None]
+                    if len(timevals) > 1:
+                        self.compute_subpixel_degradation(time_start=max(timevals), time_end=min(timevals))
 
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)

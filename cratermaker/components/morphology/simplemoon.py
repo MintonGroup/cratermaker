@@ -489,8 +489,8 @@ class SimpleMoon(Morphology):
 
     def compute_subpixel_degradation(
         self,
-        age_start: float,
-        age_end: float,
+        time_start: float,
+        time_end: float,
         **kwargs,
     ) -> None:
         """
@@ -500,16 +500,16 @@ class SimpleMoon(Morphology):
 
         Parameters
         ----------
-        age_start : float
-            The age of the surface at the start of the degradation.
-        age_end : float
-            The age of the surface at the end of the degradation.
+        time_start : float
+            The time of the surface at the start of the degradation.
+        time_end : float
+            The time of the surface at the end of the degradation.
             |kwargs|
         """
         dc_min = 1e-8  # Minimum crater size for subpixel degradation calculation.
 
-        if age_end >= age_start:
-            raise ValueError("age_end must be less than age_start.")
+        if time_end >= time_start:
+            raise ValueError("time_end must be less than time_start.")
         if self.production is None:
             raise RuntimeError("Production model must be set in the Morphology object to compute subpixel degradation.")
 
@@ -521,8 +521,8 @@ class SimpleMoon(Morphology):
             k = self.degradation_function(diameter, fe)
             n = self.production.function(
                 diameter=diameter,
-                age=age_start,
-                age_end=age_end,
+                time_start=time_start,
+                time_end=time_end,
                 validate_inputs=False,
             ).item()
             degradation_region_area = np.pi * (diameter / 2) * fe

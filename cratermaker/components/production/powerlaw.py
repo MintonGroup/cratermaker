@@ -85,8 +85,8 @@ class PowerLawProduction(Production):
     def function(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
         validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
@@ -97,12 +97,12 @@ class PowerLawProduction(Production):
         ----------
         diameter : FloatLike or ArrayLike
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        age : FloatLike or ArrayLike, default=1.0
+        time_start : FloatLike or ArrayLike, default=1.0
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike or ArrayLike, optional
+        time_end : FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         validate_inputs: bool, default=True
-            If True, the function will check that the validity of age, age_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
+            If True, the function will check that the validity of time_start, time_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
         **kwargs : Any
             Any additional keywords. These are not used in this base class, but included here so that any extended class can share
             the same function signature.
@@ -113,17 +113,19 @@ class PowerLawProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
             surface over the given age range.
         """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
         if validate_inputs:
             diameter, _ = self._validate_csfd(diameter=diameter)
-            age, age_end = self._validate_age(age, age_end)
-        elif age_end is None:
-            if np.isscalar(age):
-                age_end = 0.0
+            time_start, time_end = self._validate_age(time_start, time_end)
+        elif time_end is None:
+            if np.isscalar(time_start):
+                time_end = 0.0
             else:
-                age_end = np.zeros_like(age)
+                time_end = np.zeros_like(time_start)
 
         n_array = np.asarray(self.csfd(diameter))
-        age_difference = np.asarray(age - age_end)
+        age_difference = np.asarray(time_start - time_end)
 
         if n_array.ndim > 0 and age_difference.ndim > 0:
             return n_array[:, None] * age_difference
@@ -132,8 +134,8 @@ class PowerLawProduction(Production):
 
     def chronology(
         self,
-        age: ArrayLike = (1000.0),
-        age_end: ArrayLike | None = None,
+        time_start: ArrayLike = (1000.0),
+        time_end: ArrayLike | None = None,
         validate_inputs: bool = True,
         **kwargs: Any,
     ) -> NDArray[np.float64]:
@@ -142,8 +144,12 @@ class PowerLawProduction(Production):
 
         Parameters
         ----------
-        age : FloatLike or ArrayLike, default=1.0
+        time_start : FloatLike or ArrayLike, default=1.0
             Age in the past relative to the present day to compute cumulative SFD in units of My.
+        time_end : FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        validate_inputs: bool, default
+            If True, the function will check that the validity of age and time_end arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
         **kwargs: Any
             Any additional keywords that are passed to the function method.
 
@@ -153,16 +159,18 @@ class PowerLawProduction(Production):
             The number of craters relative to the amount produced in the last 1 My.
 
         """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
         if validate_inputs:
-            age, age_end = self._validate_age(age, age_end)
+            time_start, time_end = self._validate_age(time_start, time_end)
         else:
-            if age_end is None:
-                if np.isscalar(age):
-                    age_end = 0.0
+            if time_end is None:
+                if np.isscalar(time_start):
+                    time_end = 0.0
                 else:
-                    age_end = np.zeros_like(age)
+                    time_end = np.zeros_like(time_start)
 
-        return age - age_end
+        return time_start - time_end
 
     def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike:
         """

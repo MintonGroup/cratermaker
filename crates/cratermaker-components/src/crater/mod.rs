@@ -24,5 +24,5 @@ pub struct Crater {
     pub measured_rim_height: Option<f64>,
     pub measured_floor_depth: Option<f64>,
     pub degradation_state: Option<f64>,
-    pub age: Option<f64>,
+    pub time: Option<f64>,
 }

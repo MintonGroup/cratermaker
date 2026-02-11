@@ -71,8 +71,8 @@ class NeukumProduction(Production):
 
     def __str__(self) -> str:
         base = super().__str__()
-        timelo = format_large_units(self.valid_age[0], quantity="time")
-        timehi = format_large_units(self.valid_age[1], quantity="time")
+        timelo = format_large_units(self.valid_time[0], quantity="time")
+        timehi = format_large_units(self.valid_time[1], quantity="time")
         dlo = format_large_units(self.sfd_range[0], quantity="length")
         dhi = format_large_units(self.sfd_range[1], quantity="length")
         return f"{base}\nVersion: {self.version}\nValid Time Range: {timelo} - {timehi}\nValid Diameter Range: {dlo} - {dhi}"
@@ -80,8 +80,8 @@ class NeukumProduction(Production):
     def function(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
         validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
@@ -92,12 +92,12 @@ class NeukumProduction(Production):
         ----------
         diameter : FloatLike or numpy array
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        age : FloatLike or ArrayLike, default=1.0
+        time_start : FloatLike or ArrayLike, default=1.0
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike or ArrayLike, optional
+        time_end : FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         validate_inputs: bool, default=True
-            If True, the function will check that the validity of age, age_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
+            If True, the function will check that the validity of age, time_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
 
         Returns
         -------
@@ -105,12 +105,14 @@ class NeukumProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
             surface over the given age range.
         """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
         if validate_inputs:
-            age, age_end = self._validate_age(age, age_end)
+            time_start, time_end = self._validate_age(time_start, time_end)
             diameter, _ = self._validate_csfd(diameter=diameter)
 
         diameter_array = self.csfd(diameter)
-        age_difference = self.chronology(age=age, age_end=age_end, validate_inputs=validate_inputs)
+        age_difference = self.chronology(time_start=time_start, time_end=time_end, validate_inputs=validate_inputs)
 
         if diameter_array.ndim > 0 and age_difference.ndim > 0:
             return diameter_array[:, None] * age_difference
@@ -119,8 +121,8 @@ class NeukumProduction(Production):
 
     def chronology(
         self,
-        age: ArrayLike = np.array([1000.0]),
-        age_end: ArrayLike | None = None,
+        time_start: ArrayLike = (1000.0),
+        time_end: ArrayLike | None = None,
         validate_inputs: bool = True,
         **kwargs: Any,
     ) -> NDArray[np.float64]:
@@ -135,7 +137,7 @@ class NeukumProduction(Production):
         ----------
         age : ArrayLike, default=1000.0
             Age in the past relative to the present day to compute cumulative SFD in units of My.
-        age_end : ArrayLike, default=0.0
+        time_end : ArrayLike, default=0.0
             The ending age in the past relative to the present day to compute cumulative SFD in units of My. The default is 0 (present day).
         validate_inputs : bool, default=True
             If True, the function will check that the age is within the valid range of ages for this production function. If False, no check is performed.
@@ -146,8 +148,10 @@ class NeukumProduction(Production):
             The number of craters relative to the amount produced in the last 1 My between age and ange_end.
 
         """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
         if validate_inputs:
-            age, age_end = self._validate_age(age, age_end)
+            time_start, time_end = self._validate_age(time_start, time_end)
 
         def _N1km(
             age: Sequence[FloatLike] | ArrayLike,
@@ -170,10 +174,10 @@ class NeukumProduction(Production):
             N1 = self.Cexp * (np.exp(age * 1e-3 / self.tau) - 1.0) + self.Clin * age * 1e-3
             return N1 * 1e-6
 
-        if age_end is None:
-            return _N1km(age=age)
+        if time_end is None:
+            return _N1km(age=time_start)
         else:
-            return _N1km(age=age) - _N1km(age=age_end)
+            return _N1km(age=time_start) - _N1km(age=time_end)
 
     @property
     def valid_versions(self) -> list[str]:
@@ -376,7 +380,7 @@ class NeukumProduction(Production):
         return sfd_range[self.version]
 
     @property
-    def valid_age(self) -> tuple[float, float]:
+    def valid_time(self) -> tuple[float, float]:
         """
         The range of ages over which the production function is valid. The range is given in My.
 

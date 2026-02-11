@@ -1013,7 +1013,7 @@ class LocalHiResLocalSurface(LocalSurface):
         if plot_style is not None:
             imagefile = self.plot_dir / f"{plot_style}{interval_number:06d}.png"
             if time_variables and "label" not in kwargs:
-                kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+                kwargs["label"] = f"Time (BP)\n{time_variables.get('current_time', -1.0):.1f} Ma"
             self.plot(plot_style, imagefile=imagefile, **kwargs)
         return
 
