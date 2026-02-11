@@ -321,7 +321,8 @@ class Morphology(ComponentBase):
             self.counting = counting
         else:
             self.surface = Surface.maker(surface, **kwargs)
-            self.counting = Counting.maker(counting, surface=self.surface, **kwargs)
+            if counting is not None:
+                self.counting = Counting.maker(counting, surface=self.surface, **kwargs)
 
         self.do_subpixel_degradation = do_subpixel_degradation
         self.do_slope_collapse = do_slope_collapse

@@ -370,7 +370,7 @@ class Simulation(CratermakerBase):
             position=3,
             leave=False,
         ):
-            if self.morphology.do_counting:
+            if self.do_counting:
                 self.counting._emplaced = []
             self.interval_number = i + 1
             if is_age_interval:
@@ -1329,7 +1329,7 @@ class Simulation(CratermakerBase):
         bool
             True if counting is enabled, False otherwise.
         """
-        return self.morphology.do_counting if self.morphology is not None else False
+        return self.counting is not None and self.morphology.do_counting if self.morphology is not None else False
 
     @property
     def observed(self) -> dict[Crater] | None:
