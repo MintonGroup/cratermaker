@@ -1436,6 +1436,7 @@ class Surface(ComponentBase):
         The hash id of the grid. This is used for determining if the grid needs to be regridded.
         """
         combined = ":".join(str(v) for v in self._hashvars)
+        combined += "v2026.2.0"  # Add version number because of API changes
         hash_object = hashlib.sha256(combined.encode())
         return hash_object.hexdigest()
 
