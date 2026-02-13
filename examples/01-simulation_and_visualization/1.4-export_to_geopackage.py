@@ -21,7 +21,7 @@ from matplotlib import colormaps
 import cratermaker
 
 # Run a lunar simulation for 4 Gy and export the global surface to GeoPackage
-sim = cratermaker.Simulation(gridlevel=6, ask_overwrite=False, simdir="simdata-1_4")
+sim = cratermaker.Simulation(gridlevel=6, ask_overwrite=False, simdir="simdata-1_4", reset=True)
 sim.run(age=4000)
 sim.export(driver="GPKG")
 

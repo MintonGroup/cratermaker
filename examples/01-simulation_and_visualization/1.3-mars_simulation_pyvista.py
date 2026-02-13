@@ -27,6 +27,7 @@ sim = cm.Simulation(
     ask_overwrite=False,
     rng_seed=86186233406,  # This will ensure we get the same crater population each time we run the example
     simdir="simdata-1_3",
+    reset=True,
 )
 sim.run(age=1000, plot_style="map", cmap="pink", scalebar=True, label="Mars region simulation")
 sim.show(variable_name="face_elevation", cmap="pink")
