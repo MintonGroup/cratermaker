@@ -183,13 +183,14 @@ class CratermakerBase:
             |kwargs|
         """
         if interval_index is not None:
-            ds = xr.open_dataset(data_file_list[interval_index])
-            ds.close()
+            with xr.open_dataset(data_file_list[interval_index]) as ds:
+                ds.load()
         elif len(data_file_list) == 1:
-            ds = xr.open_dataset(data_file_list[0])
-            ds.close()
+            with xr.open_dataset(data_file_list[0]) as ds:
+                ds.load()
         else:
             ds = xr.open_mfdataset(data_file_list, parallel=True, engine="h5netcdf", compat="no_conflicts", join="outer")
+        ds.close()
         return ds
 
     @staticmethod

@@ -29,14 +29,14 @@ Running a Simulation
 
 Once a :class:`Simulation` instance has been created, the simulation can be run using the :meth:`run() <cratermaker.Simulation.run>` method. This method requires an `age` argument specifying the duration of the simulation in million years (My).  
 
-The following example configures a simulation targeting the Moon and runs it for 4 Gy, then we plot the number of true emplaced craters as well as the number of observed craters that the crater counting algorithm has determined are observable. To speed up the example, we have reduced the resolution of the surface grid from the default value of 8 to 6 using the ``gridlevel`` argument, and we suppress any questions about overwriting old files by passing ``ask_overwrite=False``.
+The following example configures a simulation targeting the Moon and runs it for 3 Gy, then we plot the number of true emplaced craters as well as the number of observed craters that the crater counting algorithm has determined are observable. To speed up the example, we have reduced the resolution of the surface grid from the default value of 8 to 6 using the ``gridlevel`` argument, and we suppress any questions about overwriting old files by passing ``ask_overwrite=False``.
 
 .. ipython:: python
     :okwarning:
 
     from cratermaker import Simulation
     sim = Simulation(target="Moon", gridlevel=6, ask_overwrite=False)
-    sim.run(age=4000)
+    sim.run(age=3000)
     print(f"Number of true emplaced craters: {len(sim.counting.emplaced)}")
     print(f"Number of observed craters: {len(sim.counting.observed)}")
 
