@@ -1306,6 +1306,7 @@ class Surface(ComponentBase):
             encoding = dict.fromkeys(ds_file.data_vars, comp)
             ds_file.to_netcdf(temp_file, encoding=encoding)
             ds_file.close()
+            ds.close()
             shutil.move(temp_file, data_file)
 
         return

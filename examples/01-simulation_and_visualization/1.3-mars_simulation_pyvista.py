@@ -12,7 +12,6 @@ We also pass an option that will automatically generate hillshade plots each tim
 
 """
 
-import pyvista as pv
 from IPython.display import Image
 
 import cratermaker as cm

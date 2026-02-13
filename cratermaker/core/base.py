@@ -189,7 +189,7 @@ class CratermakerBase:
             with xr.open_dataset(data_file_list[0]) as ds:
                 ds.load()
         else:
-            ds = xr.open_mfdataset(data_file_list, parallel=True, engine="h5netcdf", compat="no_conflicts", join="outer")
+            ds = xr.open_mfdataset(data_file_list, parallel=False, engine="netcdf4", compat="no_conflicts", join="outer")
         ds.close()
         return ds
 

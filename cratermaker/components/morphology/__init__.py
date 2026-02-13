@@ -588,7 +588,8 @@ class Morphology(ComponentBase):
             while not self._queue_manager.is_empty():
                 batch = self._queue_manager.peek_next_batch()
 
-                with ThreadPoolExecutor() as executor:
+                # TODO: Setting max_workers=1 until some lingering issues that cause simulations to occassionally hang are worked out.
+                with ThreadPoolExecutor(max_workers=1) as executor:
                     futures = [executor.submit(self.form_crater, crater) for crater in batch]
                     for future in as_completed(futures):
                         try:
