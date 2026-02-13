@@ -21,7 +21,7 @@ intel-mkl-src = "0.8.1"
 
 [target.'cfg(unix)'.dependencies]
 ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
-native-tls = "0.2.15"
+native-tls = "=0.2.15"
 
 [profile.release]
 codegen-units = 1
