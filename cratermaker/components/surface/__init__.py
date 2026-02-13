@@ -1291,12 +1291,13 @@ class Surface(ComponentBase):
         if "interval" not in ds.coords:
             ds = ds.assign_coords({"interval": [interval]})
 
+        ds.load()
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             data_file = output_dir / filename
             if data_file.exists():
-                with xr.open_mfdataset(data_file) as ds_file:
-                    ds_file = ds.merge(ds_file, compat="override")
-                    ds_file.load()
+                with xr.open_mfdataset(data_file) as ds_old:
+                    ds_old = ds_old.load()
+                ds_file = ds.merge(ds_old, compat="override")
             else:
                 ds_file = ds
 

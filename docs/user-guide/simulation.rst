@@ -35,7 +35,7 @@ The following example configures a simulation targeting the Moon and runs it for
     :okwarning:
 
     from cratermaker import Simulation
-    sim = Simulation(target="Moon", gridlevel=6, ask_overwrite=False)
+    sim = Simulation(target="Moon", gridlevel=6, ask_overwrite=False, reset=True)
     sim.run(age=3000)
     print(f"Number of true emplaced craters: {len(sim.counting.emplaced)}")
     print(f"Number of observed craters: {len(sim.counting.observed)}")
