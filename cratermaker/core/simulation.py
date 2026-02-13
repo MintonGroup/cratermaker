@@ -96,7 +96,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_projectile", projectile)
         object.__setattr__(self, "_surface", surface)
         object.__setattr__(self, "_counting", counting)
-        object.__setattr__(self, "_interval_number", None)
+        object.__setattr__(self, "_interval", None)
         object.__setattr__(self, "_elapsed_time", None)
         object.__setattr__(self, "_current_time", None)
         object.__setattr__(self, "_elapsed_n1", None)
@@ -211,6 +211,9 @@ class Simulation(CratermakerBase):
             counting=self.counting,
             **morphology_config,
         )
+
+        # If this is a variant of the HiResLocalSurface we need to check to see if it has a grid yet.
+        # This is because when creating a new Surface object of this type, the grid generation is deferred until the Scaling and Morphology objects are initialized in order to set the superdomain properly.
         if issubclass(self.surface.__class__, HiResLocalSurface) and self.surface.uxgrid is None:
             self.surface.set_superdomain(
                 scaling=self.scaling,
@@ -220,6 +223,7 @@ class Simulation(CratermakerBase):
             )
 
         if reset:
+            # The Surface has already had its reset method called.
             skip_components = ["surface"]
             if not do_counting:
                 skip_components.append("counting")
@@ -246,10 +250,10 @@ class Simulation(CratermakerBase):
             f"{self.surface}\n\n"
             f"{self.target}\n\n"
             f"<Current state>\n"
-            f"Current time : {format_large_units(self.current_time, quantity='time')}\n"
+            f"Current time : {format_large_units(self.time, quantity='time')}\n"
             f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
             f"Elapsed N_1 : {self.elapsed_n1} #/m^2\n"
-            f"Interval    : {self.interval_number}\n"
+            f"Interval    : {self.interval}\n"
             f"simdir      : {str(self.simdir)}\n"
         )
 
@@ -487,9 +491,9 @@ class Simulation(CratermakerBase):
         validate_inputs = kwargs.pop("validate_inputs", False)
         self.save(**kwargs)
         for i in tqdm(
-            range(self.interval_number, ninterval),
+            range(self.interval, ninterval),
             total=ninterval,
-            initial=self.interval_number,
+            initial=self.interval,
             desc="Simulation interval",
             unit="interval",
             position=3,
@@ -497,13 +501,13 @@ class Simulation(CratermakerBase):
         ):
             if self.do_counting:
                 self.counting._emplaced = []
-            self.interval_number = i + 1
+            self.interval = i + 1
             if is_time_interval:
-                current_time = time_start - i * time_interval
+                time = time_start - i * time_interval
                 current_time_end = time_start - (i + 1) * time_interval
                 if current_time_end < time_end:
                     current_time_end = time_end
-                self.populate(time_start=current_time, time_end=current_time_end)
+                self.populate(time_start=time, time_end=current_time_end)
             else:
                 current_diameter_number = (
                     diameter_number[0],
@@ -521,7 +525,7 @@ class Simulation(CratermakerBase):
                     current_diameter_number[0],
                     current_diameter_number[1] / self.surface.area,
                 )
-                current_time = self.production.age_from_D_N(*current_diameter_number_density, validate_inputs=validate_inputs)
+                time = self.production.age_from_D_N(*current_diameter_number_density, validate_inputs=validate_inputs)
                 if current_diameter_number_end[1] > 0:
                     current_diameter_number_density_end = (
                         current_diameter_number_end[0],
@@ -536,15 +540,15 @@ class Simulation(CratermakerBase):
                     current_time_end = 0.0
                 if current_time_end < 0.0:
                     current_time_end = 0.0
-                time_interval = current_time - current_time_end
+                time_interval = time - current_time_end
             self.elapsed_time += time_interval
             self.elapsed_n1 += self.production.function(
                 diameter=1000.0,
-                time_start=current_time,
+                time_start=time,
                 time_end=current_time_end,
                 validate_inputs=validate_inputs,
             ).item()
-            self.current_time = current_time_end
+            self.time = current_time_end
 
             self.save(**kwargs)
 
@@ -721,13 +725,13 @@ class Simulation(CratermakerBase):
             Additional keyword argumments to pass to the component save methods.
         """
         self.surface.save(
-            interval_number=self.interval_number,
+            interval=self.interval,
             time_variables=self.time_variables,
             **kwargs,
         )
 
         if self.do_counting:
-            self.counting.save(interval_number=self.interval_number, **kwargs)
+            self.counting.save(interval=self.interval, **kwargs)
 
         self.to_config(**kwargs)
         self.plot(**kwargs)
@@ -737,7 +741,7 @@ class Simulation(CratermakerBase):
     def export(
         self,
         driver: str = "OpenCraterTool",
-        interval_number: int = -1,
+        interval: int = -1,
         ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
@@ -748,7 +752,7 @@ class Simulation(CratermakerBase):
         ----------
         driver : str, optional
             The driver to use export the data to. Supported formats are 'OpenCraterTool', 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.). This is overridden if either the filename or file_extension parameters are provided. Default is 'OpenCraterTool'.
-        interval_number : int, optional
+        interval : int, optional
             The interval number to export. Default is -1 (the most current interval saved in the simulation).
         ask_overwrite : bool, optional
             If True, the user will be prompted before overwriting any existing files. Default is set to the value provided when the Simulation object was created.
@@ -761,8 +765,8 @@ class Simulation(CratermakerBase):
         """
         if ask_overwrite is None:
             ask_overwrite = self.ask_overwrite
-        if interval_number < 0:
-            interval_number = self.interval_number + 1 + interval_number
+        if interval < 0:
+            interval = self.interval + 1 + interval
         self.save()
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"
@@ -772,7 +776,7 @@ class Simulation(CratermakerBase):
             counting_driver = driver
         self.surface.export(
             driver=surface_driver,
-            interval_number=interval_number,
+            interval=interval,
             ask_overwrite=ask_overwrite,
             **kwargs,
         )
@@ -780,7 +784,7 @@ class Simulation(CratermakerBase):
         if self.do_counting:
             self.counting.export(
                 craters=self.counting.observed,
-                interval_number=interval_number,
+                interval=interval,
                 driver=counting_driver,
                 ask_overwrite=ask_overwrite,
                 **kwargs,
@@ -802,8 +806,8 @@ class Simulation(CratermakerBase):
         AxesImage
             The matplotlib AxesImage object created by the surface plot method.
         """
-        imagefile = kwargs.pop("imagefile", self.surface.plot_dir / f"surface_{self.interval_number:06d}.png")
-        label = kwargs.pop("label", f"Time: {self.current_time:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
+        imagefile = kwargs.pop("imagefile", self.surface.plot_dir / f"surface_{self.interval:06d}.png")
+        label = kwargs.pop("label", f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
         plot_style = kwargs.pop("plot_style", "hillshade")
         im = self.surface.plot(imagefile=imagefile, plot_style=plot_style, label=label, **kwargs)
         return im
@@ -819,8 +823,8 @@ class Simulation(CratermakerBase):
         **kwargs : Any
         |kwargs|
         """
-        if "interval_number" not in kwargs:
-            kwargs["interval_number"] = self.interval_number
+        if "interval" not in kwargs:
+            kwargs["interval"] = self.interval
         if self.do_counting:
             self.counting.show(engine=engine, **kwargs)
         else:
@@ -927,7 +931,7 @@ class Simulation(CratermakerBase):
             files_to_remove = []
             for component in _COMPONENT_NAMES:
                 if component not in skip_component and hasattr(self, component):
-                    files_to_remove += getattr(self, component).has_output()
+                    files_to_remove += getattr(self, component).saved_output_files()
             if len(files_to_remove) > 0:
                 print("The following files will be deleted:")
                 for f in files_to_remove:
@@ -945,7 +949,7 @@ class Simulation(CratermakerBase):
         for f in files_to_remove:
             f.unlink(missing_ok=True)
 
-        self._interval_number = 0
+        self._interval = 0
         self._elapsed_time = 0.0
         self._current_time = 0.0
         self._elapsed_n1 = 0.0
@@ -1036,9 +1040,8 @@ class Simulation(CratermakerBase):
 
     @surface.setter
     def surface(self, value):
-        if not isinstance(value, (Surface | str | type)):
-            if isinstance(value, type) and not issubclass(value, Surface):
-                raise TypeError("surface must be an instance of Surface, a subclass of Surface, or str")
+        if not isinstance(value, (Surface | str | type)) or (isinstance(value, type) and not issubclass(value, Surface)):
+            raise TypeError("surface must be an instance of Surface, a subclass of Surface, or str")
         self._surface = value
 
     @property
@@ -1121,26 +1124,30 @@ class Simulation(CratermakerBase):
         return self.surface.uxgrid.n_face
 
     @parameter
-    def interval_number(self):
+    def interval(self):
         """
         The index of the current time step.
         """
-        return self._interval_number
+        if self._interval is None:
+            return 0
+        return self._interval
 
-    @interval_number.setter
-    def interval_number(self, value):
+    @interval.setter
+    def interval(self, value):
         if not isinstance(value, int):
-            raise TypeError("interval_number must be an integer")
+            raise TypeError("interval must be an integer")
         if value < 0:
-            raise ValueError("interval_number must be greater than or equal to zero")
+            raise ValueError("interval must be greater than or equal to zero")
 
-        self._interval_number = value
+        self._interval = value
 
     @parameter
     def elapsed_time(self):
         """
         The elapsed time in My since the start of the simulation.
         """
+        if self._elapsed_time is None:
+            return 0.0
         return self._elapsed_time
 
     @elapsed_time.setter
@@ -1148,14 +1155,16 @@ class Simulation(CratermakerBase):
         self._elapsed_time = float(value)
 
     @parameter
-    def current_time(self):
+    def time(self):
         """
         The age of the current time step in My relative to the present from the chronology of the production function.
         """
+        if self._current_time is None:
+            return 0.0
         return self._current_time
 
-    @current_time.setter
-    def current_time(self, value):
+    @time.setter
+    def time(self, value):
         self._current_time = float(value)
 
     @parameter
@@ -1163,6 +1172,8 @@ class Simulation(CratermakerBase):
         """
         The elapsed number of craters larger than 1 km in diameter.
         """
+        if self._elapsed_n1 is None:
+            return 0.0
         return self._elapsed_n1
 
     @elapsed_n1.setter
@@ -1292,12 +1303,12 @@ class Simulation(CratermakerBase):
         -------
         dict[str, float]
             A dictionary containing the following keys:
-            - "current_time": The current age in My relative to the present.
+            - "time": The current age in My relative to the present.
             - "elapsed_time": The elapsed time in My since the start of the simulation.
             - "elapsed_n1": The elapsed number of craters larger than 1 km in diameter.
         """
         return {
-            "current_time": self.current_time,
+            "time": self.time,
             "elapsed_time": self.elapsed_time,
             "elapsed_n1": self.elapsed_n1,
         }

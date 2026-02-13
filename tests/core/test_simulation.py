@@ -57,11 +57,11 @@ class TestSimulation(unittest.TestCase):
             sim.save()
             filename = (
                 Path(sim.surface.output_dir)
-                / f"{sim.surface._output_file_prefix}{sim.interval_number:06d}.{sim.surface._output_file_extension}"
+                / f"{sim.surface._output_file_prefix}{sim.interval:06d}.{sim.surface._output_file_extension}"
             )
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
-                ds = ds.isel(time=-1)
+                ds = ds.isel(interval=-1)
                 np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
                 np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
 

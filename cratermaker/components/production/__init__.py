@@ -211,7 +211,7 @@ class Production(ComponentBase):
             time_subinterval = np.linspace(time_end, time_start, num=1000)
             N_vs_age = self.function(
                 diameter=diameters,
-                time=time_subinterval,
+                age=time_subinterval,
                 validate_inputs=validate_inputs,
                 **kwargs,
             )

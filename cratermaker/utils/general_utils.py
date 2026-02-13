@@ -405,7 +405,7 @@ def get_saved_interval_numbers(
 
     if len(interval_numbers) > 1:
         tup = sorted(zip(matched_files, interval_numbers, strict=True))
-        matched_files, interval_numbers = zip(*tup)
+        matched_files, interval_numbers = zip(*tup, strict=True)
     return interval_numbers, matched_files
 
 

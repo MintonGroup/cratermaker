@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Any, Literal
-from warnings import warn
 
 import numpy as np
 import uxarray as uxr
@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation
 
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.scaling import Scaling
-from cratermaker.components.surface import LocalSurface, Surface
+from cratermaker.components.surface import LocalSurface, Surface, surface_lock
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import (
@@ -78,7 +78,6 @@ class HiResLocalSurface(Surface):
         object.__setattr__(self, "_superdomain_function_exponent", None)
         object.__setattr__(self, "_local_grid_indices_file_extension", "npz")
         super().__init__(target=target, simdir=simdir, **kwargs)
-        self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
 
         self.pix = pix
         self.local_radius = local_radius
@@ -110,6 +109,20 @@ class HiResLocalSurface(Surface):
             f"Number of superdomain faces: {self.n_face - self.local.n_face}\n"
             f"Number of superdomain nodes: {self.n_node - self.local.n_node}\n"
         )
+
+    def reset(
+        self,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Resets the surface by removing all saved output files (except for the grid).
+
+        This will also reset the local surface.
+        """
+        super().reset(**kwargs)
+        if self._local is not None:
+            self._local.reset(**kwargs)
+        return
 
     def superdomain_function(self, r):
         """
@@ -171,7 +184,7 @@ class HiResLocalSurface(Surface):
 
     def save(
         self,
-        interval_number: int = 0,
+        interval: int = 0,
         time_variables: dict | None = None,
         filename: str | None = None,
         **kwargs,
@@ -179,11 +192,11 @@ class HiResLocalSurface(Surface):
         """
         Save the surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
 
         Parameters
         ----------
-        interval_number : int, optional
+        interval : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
@@ -191,13 +204,13 @@ class HiResLocalSurface(Surface):
             The filename to save the data to. If None, a default filename will be used based on the interval number. If provided, the file associated with the local surface will have 'local' prepended. Default is None.
         """
         self._full().save(
-            interval_number=interval_number,
+            interval=interval,
             time_variables=time_variables,
             filename=filename,
             **kwargs,
         )
         self.local.save(
-            interval_number=interval_number,
+            interval=interval,
             time_variables=time_variables,
             filename=f"local_{filename}" if filename else None,
             **kwargs,
@@ -207,7 +220,7 @@ class HiResLocalSurface(Surface):
     def export(
         self,
         driver: str = "GPKG",
-        interval_number: int = 0,
+        interval: int | None = None,
         superdomain: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -218,7 +231,7 @@ class HiResLocalSurface(Surface):
         ----------
         driver : str, optional
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
-        interval_number : int, optional
+        interval : int | None, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         superdomain : bool, optional
             If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
@@ -228,12 +241,12 @@ class HiResLocalSurface(Surface):
         if superdomain:
             self._full().export(
                 driver=driver,
-                interval_number=interval_number,
+                interval=interval,
                 **kwargs,
             )
         self.local.export(
             driver=driver,
-            interval_number=interval_number,
+            interval=interval,
             **kwargs,
         )
         return
@@ -331,7 +344,7 @@ class HiResLocalSurface(Surface):
 
     def to_geotiff_file(
         self,
-        interval_number: int = 0,
+        interval: int | None = None,
         variable_name: str = "face_elevation",
         superdomain: bool = False,
         **kwargs,
@@ -341,8 +354,8 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        interval_number : int, optional
-            The interval number to export. Default is 0.
+        interval : int | None, optional
+            The interval number to export. Default is None, which will export all saved intervals.
         variable_name : str, optional
             The name of the variable to rasterize. Default is "face_elevation".
         superdomain : bool, optional
@@ -352,13 +365,13 @@ class HiResLocalSurface(Surface):
         """
         if superdomain:
             return self._full().to_geotiff_file(
-                interval_number=interval_number,
+                interval=interval,
                 variable_name=variable_name,
                 **kwargs,
             )
         else:
             return self.local.to_geotiff_file(
-                interval_number=interval_number,
+                interval=interval,
                 variable_name=variable_name,
                 **kwargs,
             )
@@ -666,49 +679,52 @@ class HiResLocalSurface(Surface):
             |kwargs|
         """
         # Reset the tag layers if the tag is None or does not yet exist on the surface
-        if name not in self.uxds or tag is None:
-            dims = ("n_face", "layer")
-            data = np.zeros((self.n_face, n_layer), dtype=np.uint32)
-            if long_name is not None:
-                attrs = {"long_name": long_name}
+        with surface_lock:
+            if name not in self.uxds or tag is None:
+                dims = ("n_face", "layer")
+                data = np.zeros((self.n_face, n_layer), dtype=np.uint32)
+                if long_name is not None:
+                    attrs = {"long_name": long_name}
+                else:
+                    attrs = None
+
+                uxda = uxr.UxDataArray(
+                    data=data,
+                    dims=dims,
+                    name=name,
+                    attrs=attrs,
+                    uxgrid=self.uxgrid,
+                )
+
+                self._uxds[name] = uxda
+                if tag is None:
+                    return
+
+            if region is None:
+                if tag_superdomain:
+                    face_indices = slice(None)
+                else:
+                    face_indices = self.local.face_indices
             else:
-                attrs = None
-
-            uxda = uxr.UxDataArray(
-                data=data,
-                dims=dims,
-                name=name,
-                attrs=attrs,
-                uxgrid=self.uxgrid,
-            )
-
-            self._uxds[name] = uxda
-            if tag is None:
+                if tag_superdomain:
+                    face_indices = region.face_indices
+                else:
+                    face_indices = self.local.face_indices[np.isin(self.local.face_indices, region.face_indices)]
+            if len(face_indices) == 0:
                 return
+            insert_layer = -1
 
-        if region is None:
-            if tag_superdomain:
-                face_indices = slice(None)
-            else:
-                face_indices = self.local.face_indices
-        else:
-            if tag_superdomain:
-                face_indices = region.face_indices
-            else:
-                face_indices = self.local.face_indices[np.isin(self.local.face_indices, region.face_indices)]
-        if len(face_indices) == 0:
-            return
-        insert_layer = -1
-
-        for i in range(n_layer):
-            if np.all(self.uxds[name].isel(layer=i).data[face_indices] == 0):
-                insert_layer = i
-                break
-        if insert_layer == -1:
-            raise ValueError(f"All {name} layers are full")
-        data = self.uxds[name].data[face_indices, :]
-        data[:, insert_layer] = tag
-        self.uxds[name].data[face_indices, :] = data
+            for i in range(n_layer):
+                if np.all(self.uxds[name].isel(layer=i).data[face_indices] == 0):
+                    insert_layer = i
+                    break
+            if insert_layer == -1:
+                warnings.warn(f"All {name} layers are full", stacklevel=2)
+                # TODO: Implement an option to expand the number of layers if all layers are full
+            data = self.uxds[name].data[face_indices, :]
+            data[:, insert_layer] = tag
+            data = self._sort_tag(name, face_indices, data)
+            self.uxds[name].data[face_indices, :] = data
 
         return
 
@@ -980,7 +996,7 @@ class LocalHiResLocalSurface(LocalSurface):
 
     def save(
         self,
-        interval_number: int = 0,
+        interval: int = 0,
         time_variables: dict | None = None,
         filename: str | None = None,
         plot_style: str | None = None,
@@ -989,11 +1005,11 @@ class LocalHiResLocalSurface(LocalSurface):
         """
         Save the surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
 
         Parameters
         ----------
-        interval_number : int, optional
+        interval : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
@@ -1005,15 +1021,15 @@ class LocalHiResLocalSurface(LocalSurface):
             |kwargs|
         """
         super().save(
-            interval_number=interval_number,
+            interval=interval,
             time_variables=time_variables,
             filename=filename,
             **kwargs,
         )
         if plot_style is not None:
-            imagefile = self.plot_dir / f"{plot_style}{interval_number:06d}.png"
+            imagefile = self.plot_dir / f"{plot_style}{interval:06d}.png"
             if time_variables and "label" not in kwargs:
-                kwargs["label"] = f"Time (BP)\n{time_variables.get('current_time', -1.0):.1f} Ma"
+                kwargs["label"] = f"Time (BP)\n{time_variables.get('time', -1.0):.1f} Ma"
             self.plot(plot_style, imagefile=imagefile, **kwargs)
         return
 

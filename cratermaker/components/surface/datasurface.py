@@ -584,7 +584,7 @@ class DataSurface(HiResLocalSurface):
             self._add_global_dem_elevation()
         elif (self.output_dir / self._dem_output_file).exists():
             with xr.open_dataset(self.output_dir / self._dem_output_file) as ds:
-                elevation = np.concatenate([ds.isel(time=0).face_elevation, ds.isel(time=0).node_elevation])
+                elevation = np.concatenate([ds.isel(interval=0).face_elevation, ds.isel(interval=0).node_elevation])
                 self.update_elevation(elevation)
 
         return

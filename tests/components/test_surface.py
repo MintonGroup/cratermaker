@@ -407,27 +407,27 @@ class TestSurface(unittest.TestCase):
         export_args_list = [
             {
                 "driver": "GPKG",
-                "interval_number": None,
+                "interval": None,
             },
             {
                 "driver": "VTK",
-                "interval_number": None,
+                "interval": None,
             },
             {
                 "driver": "ESRI Shapefile",
-                "interval_number": None,
+                "interval": None,
             },
             {
                 "driver": "VTK",
-                "interval_number": 0,
+                "interval": 0,
             },
             {
                 "driver": "VTK",
-                "interval_number": 4,
+                "interval": 4,
             },
             {
                 "driver": "VTK",
-                "interval_number": -1,
+                "interval": -1,
             },
         ]
         for i, _ in enumerate(export_args_list):
@@ -442,8 +442,8 @@ class TestSurface(unittest.TestCase):
             + [f"surface{i:06d}.dbf" for i in save_intervals]
             + [f"surface{i:06d}.cpg" for i in save_intervals]
             + [f"surface{i:06d}.prj" for i in save_intervals],
-            [f"surface{export_args_list[3]['interval_number']:06d}.vtp"] + ["grid.vtp"],
-            [f"surface{export_args_list[4]['interval_number']:06d}.vtp"] + ["grid.vtp"],
+            [f"surface{export_args_list[3]['interval']:06d}.vtp"] + ["grid.vtp"],
+            [f"surface{export_args_list[4]['interval']:06d}.vtp"] + ["grid.vtp"],
             [f"surface{save_intervals[-1]:06d}.vtp"] + ["grid.vtp"],
         ]
 
@@ -455,8 +455,8 @@ class TestSurface(unittest.TestCase):
             + [f"local_surface{i:06d}.dbf" for i in save_intervals]
             + [f"local_surface{i:06d}.cpg" for i in save_intervals]
             + [f"local_surface{i:06d}.prj" for i in save_intervals],
-            [f"local_surface{export_args_list[3]['interval_number']:06d}.vtp"] + ["local_grid.vtp"],
-            [f"local_surface{export_args_list[4]['interval_number']:06d}.vtp"] + ["local_grid.vtp"],
+            [f"local_surface{export_args_list[3]['interval']:06d}.vtp"] + ["local_grid.vtp"],
+            [f"local_surface{export_args_list[4]['interval']:06d}.vtp"] + ["local_grid.vtp"],
             [f"local_surface{save_intervals[-1]:06d}.vtp"] + ["local_grid.vtp"],
         ]
 
@@ -470,8 +470,8 @@ class TestSurface(unittest.TestCase):
                             f.unlink()
 
                     surface = Surface.maker(surface=surface_name, simdir=simdir, **gridargs[surface_name])
-                    for interval_number in save_intervals:
-                        surface.save(interval_number=interval_number)
+                    for interval in save_intervals:
+                        surface.save(interval=interval)
 
                     expected_files = expected_file_list[i].copy()
                     if isinstance(surface, HiResLocalSurface):

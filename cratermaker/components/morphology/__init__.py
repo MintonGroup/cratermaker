@@ -823,14 +823,6 @@ class CraterQueueManager:
             crater.remove_complex_data()
         return
 
-    # def clear_active(self) -> None:
-    #     """
-    #     Clear the active region set after batch processing is complete.
-    #     """
-    #     self._active_nodes.clear()
-    #     self._active_faces.clear()
-    #     return
-
     def is_empty(self) -> bool:
         return len(self._queue) == 0
 
