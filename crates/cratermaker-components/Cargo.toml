@@ -21,6 +21,7 @@ intel-mkl-src = "0.8.1"
 
 [target.'cfg(unix)'.dependencies]
 ndarray-linalg = {version = "0.18", features = ["openblas-system"]}
+openssl = { version = "0.10", features = ["vendored"] }
 
 
 [profile.release]
