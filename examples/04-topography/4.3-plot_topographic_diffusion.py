@@ -16,6 +16,15 @@ from scipy.interpolate import griddata
 
 from cratermaker import Surface
 
+simdir = "simdata-4_3"
+
+# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
+# prevent prompts that will prevent these examples from running on their own when building the documentation pages.Alternatively,
+# passing ask_overwrite=False to Surface.maker() also allow the example to run without requiring any prompts.
+from cratermaker import cleanup
+
+cleanup(simdir)
+
 
 def analytical_elevation(r, h0, sigma, kappa, t):
     """Analytical solution for elevation profile after diffusion."""
@@ -45,8 +54,7 @@ surface = Surface.maker(
     pix=pix,
     local_radius=local_radius,
     superdomain_scale_factor=superdomain_scale_factor,
-    ask_overwrite=False,
-    simdir="simdata-4_3",
+    simdir=simdir,
 )
 
 # Generate the initial elevation profile and apply it to the surface

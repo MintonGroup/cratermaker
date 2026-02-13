@@ -20,8 +20,16 @@ References
 
 import cratermaker as cm
 
-# Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 to speed up the simulation for this example. We set `ask_overwrite` to False to avoid being prompted during the example.
-sim = cm.Simulation(target="Moon", gridlevel=6, ask_overwrite=False, do_counting=False, simdir="simdata-1_2", reset=True)
+simdir = "simdata-1_2"
+
+# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
+# prevent prompts that will prevent these examples from running on their own when building the documentation pages. Alternatively,
+# passing ask_overwrite=False and reset=True to Simulation will also allow the example to run without requiring any prompts.
+cm.cleanup(simdir)
+
+
+# Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 to speed up the simulation for this example.
+sim = cm.Simulation(target="Moon", gridlevel=6, do_counting=False, simdir=simdir)
 
 sim.run(age=4310)
 sim.show(variable_name="face_elevation", cmap="Greys_r")

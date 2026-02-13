@@ -17,6 +17,14 @@ from IPython.display import Image
 
 import cratermaker as cm
 
+simdir = "simdata-1_3"
+
+# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
+# prevent prompts that will prevent these examples from running on their own when building the documentation pages. Alternatively,
+# passing ask_overwrite=False and reset=True to Simulation will also allow the example to run without requiring any prompts.
+cm.cleanup(simdir)
+
+
 # Run a simple Mars sim
 sim = cm.Simulation(
     target="Mars",
@@ -24,10 +32,8 @@ sim = cm.Simulation(
     local_location=(0, 0),
     pix=100.0,
     local_radius=20.0e3,
-    ask_overwrite=False,
-    rng_seed=86186233406,  # This will ensure we get the same crater population each time we run the example
-    simdir="simdata-1_3",
-    reset=True,
+    rng_seed=86186233405,  # This will ensure we get the same crater population each time we run the example
+    simdir=simdir,
 )
 sim.run(age=1000, plot_style="map", cmap="pink", scalebar=True, label="Mars region simulation")
 sim.show(variable_name="face_elevation", cmap="pink")

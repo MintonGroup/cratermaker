@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     from cratermaker.components.target import Target
 
 surface_lock = threading.Lock()
-_VTK_FILE_EXTENSION = "vtp"
 
 
 class Surface(ComponentBase):
@@ -3013,7 +3012,7 @@ class LocalSurface(CratermakerBase):
             interval_numbers = [interval]
 
         # Check if we need to save the geometry file
-        grid_filename = self.export_dir / f"{self._grid_file_prefix}.{_VTK_FILE_EXTENSION}"
+        grid_filename = self.export_dir / f"{self._grid_file_prefix}.vtp"
 
         if not grid_filename.exists():
             grid = self.to_vtk_mesh(uxds=self.uxgrid.to_xarray())
@@ -3023,7 +3022,7 @@ class LocalSurface(CratermakerBase):
             uxdsi = uxds.sel(interval=interval).load()
             mesh = self.to_vtk_mesh(uxds=uxdsi)
 
-            filename = self.export_dir / f"{self._output_file_prefix}{interval:06d}.{_VTK_FILE_EXTENSION}"
+            filename = self.export_dir / f"{self._output_file_prefix}{interval:06d}.vtp"
             _write_current_mesh(mesh, filename)
 
         return

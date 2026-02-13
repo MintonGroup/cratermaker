@@ -10,8 +10,15 @@ This example demonstrates how to use the DataSurface to fetch real DEM data for 
 
 from cratermaker import Surface
 
-surface = Surface.maker(
-    "datasurface", local_location=(321.9913, 8.121), local_radius=50.0e3, pix=200.0, ask_overwrite=False, simdir="simdata_1_5"
-)
+simdir = "simdata-1_5"
+
+# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
+# prevent prompts that will prevent these examples from running on their own when building the documentation pages.Alternatively,
+# passing ask_overwrite=False to Surface.maker() also allow the example to run without requiring any prompts.
+from cratermaker import cleanup
+
+cleanup(simdir)
+
+surface = Surface.maker("datasurface", local_location=(321.9913, 8.121), local_radius=50.0e3, pix=200.0, simdir=simdir)
 surface.show(superdomain=False)
 surface.show(superdomain=True)

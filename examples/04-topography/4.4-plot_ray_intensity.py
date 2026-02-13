@@ -20,9 +20,19 @@ from matplotlib.colors import LogNorm
 
 from cratermaker import Crater, Morphology
 
+simdir = "simdata-4_4"
+
+# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
+# prevent prompts that will prevent these examples from running on their own when building the documentation pages.Alternatively,
+# passing ask_overwrite=False to Morphology.maker() also allow the example to run without requiring any prompts.
+from cratermaker import cleanup
+
+cleanup(simdir)
+
+
 crater = Crater.maker(final_radius=10.0e3)
 # Because we are not explicitly passing a Surface object, the Morphology constructor will generate a default surface. We pass the "simdir" and "gridlevel" arguments to control the Surface generation, even though we don't make use of it directly here.
-morphology = Morphology.maker(simdir="simdata-unused", gridlevel=4)
+morphology = Morphology.maker(simdir=simdir, gridlevel=4)
 rc = crater.final_radius
 
 grid_size = 1000

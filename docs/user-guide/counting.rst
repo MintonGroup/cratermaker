@@ -1,5 +1,13 @@
 .. currentmodule:: cratermaker
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
+
 .. image:: ../_static/counting_icon.svg
     :alt: Counting
     :align: center
@@ -153,3 +161,10 @@ More Counting examples
 ----------------------
 
 See more examples at  :ref:`gal-counting`
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

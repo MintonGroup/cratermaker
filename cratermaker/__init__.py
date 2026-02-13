@@ -18,6 +18,7 @@ from .components.scaling import Scaling
 from .components.surface import Surface
 from .components.target import Target
 from .core.simulation import Simulation
+from .utils.general_utils import cleanup
 
 _COMPONENT_NAMES = ["counting", "morphology", "production", "projectile", "scaling", "surface", "target"]
 

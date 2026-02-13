@@ -250,7 +250,7 @@ class Simulation(CratermakerBase):
             f"{self.surface}\n\n"
             f"{self.target}\n\n"
             f"<Current state>\n"
-            f"Current time : {format_large_units(self.time, quantity='time')}\n"
+            f"Current time : {format_large_units(self.time, quantity='time')} before present\n"
             f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
             f"Elapsed N_1 : {self.elapsed_n1} #/m^2\n"
             f"Interval    : {self.interval}\n"

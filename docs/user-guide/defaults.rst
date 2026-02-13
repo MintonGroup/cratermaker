@@ -1,3 +1,13 @@
+.. currentmodule:: cratermaker
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    # Remove any existing output for a clean environment so we don't get prompted about overwriting files
+    from cratermaker import cleanup
+    cleanup()
+
 .. _ug-defaults:
 
 Default Behavior
@@ -14,17 +24,7 @@ As Cratermaker is designed to be easy to use, all of its component classes are b
 
 Because the ``Simulation`` class contains all other components, the defaults for all of the components can be viewed from printing a simulation object to the console, or by inspecting the ``cratermaker.yaml`` configuration file of a simulation with no arguments passed to it.
 
-.. ipython:: python
-    :okwarning:
-    :suppress:
 
-    # Remove any existing output directory for a clean test
-    from pathlib import Path
-    out_dirs = ["surface","craters","export"]
-    for d in out_dirs:
-        if Path(d).exists():
-            import shutil
-            shutil.rmtree(d)
 
 .. ipython:: python
     :okwarning:
@@ -51,3 +51,11 @@ References
 .. [#] McGetchin, T.R., Settle, M., Head, J.W., 1973. Radial thickness variation in impact crater ejecta: Implications for lunar basin deposits. Earth Planet. Sci. Lett. 20, 226-236. https://doi.org/10.1016/0012-821X(73)90162-3
 .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
 .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. https://doi.org/10.1029/2019JE006273
+
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

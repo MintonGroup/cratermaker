@@ -538,10 +538,10 @@ class Counting(ComponentBase):
             |kwargs|
         """
         if self.emplaced:
-            filename = self.output_dir / f"emplaced_{self._output_file_prefix}{interval:06d}.{self._output_file_extension}"
+            filename = self.output_dir / f"emplaced_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
             self._merge_with_file(self.emplaced, filename, interval)
         if self.observed:
-            filename = self.output_dir / f"observed_{self._output_file_prefix}{interval:06d}.{self._output_file_extension}"
+            filename = self.output_dir / f"observed_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
             self._merge_with_file(self.observed, filename, interval)
         return
 
@@ -633,44 +633,32 @@ class Counting(ComponentBase):
 
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
+        if interval is None:
+            interval = -1
+
         observed, emplaced = self.read_saved_output(interval=interval)
-        # if observed:
-        #     interval = observed.interval.values[-1]
-        #     observed = self.from_xarray(observed, interval=interval)
-        #     for crater in observed:
-        #         self._observed[crater.id] = crater
-        #     if emplaced:
-        #         self._emplaced = self.from_xarray(emplaced, interval=interval)
-
-        # if emplaced_data_file_list:
-        #     emplaced = xr.open_mfdataset(emplaced_data_file_list, combine="nested", parallel=True, engine="h5netcdf")
-        #     emplaced = xr.merge([self.to_xarray(self.emplaced), emplaced])
-        # else:
-        #     emplaced = self.to_xarray(self.emplaced)
-
-        # if observed_data_file_list:
-        #     observed = xr.open_dataset(observed_data_file_list[-1])
-        # else:
-        #     observed = self.to_xarray(self.observed)
-        # if emplaced:
-        #     emplaced = self.from_xarray(emplaced)
-        #     emplaced_count_actor = plotter.add_mesh(
-        #         self.to_vtk_mesh(emplaced, use_measured_properties=False),
-        #         line_width=2,
-        #         color=emplaced_color,
-        #         name="emplaced",
-        #     )
-        #     emplaced_count_actor.SetVisibility(False)
-        #     plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
-        #     plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
-        # if observed:
-        #     observed = self.from_xarray(observed)
-        #     observed_count_actor = plotter.add_mesh(
-        #         self.to_vtk_mesh(observed, use_measured_properties=True), line_width=2, color=observed_color, name="observed"
-        #     )
-        #     observed_count_actor.SetVisibility(False)
-        #     plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
-        #     plotter = update_pyvista_help_message(plotter, new_message="c: Toggle counted craters")
+        if observed:
+            interval = observed.interval.values[-1]
+            observed = self.from_xarray(observed, interval=interval)
+            observed_count_actor = plotter.add_mesh(
+                self.to_vtk_mesh(observed, use_measured_properties=True), line_width=2, color=observed_color, name="observed"
+            )
+            observed_count_actor.SetVisibility(False)
+            plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
+            plotter = update_pyvista_help_message(plotter, new_message="c: Toggle counted craters")
+        if emplaced:
+            emplaced_interval = emplaced.interval.values[-1]
+            if emplaced_interval == interval:
+                emplaced = self.from_xarray(emplaced, interval=interval)
+                emplaced_count_actor = plotter.add_mesh(
+                    self.to_vtk_mesh(emplaced, use_measured_properties=False),
+                    line_width=2,
+                    color=emplaced_color,
+                    name="emplaced",
+                )
+                emplaced_count_actor.SetVisibility(False)
+                plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
+                plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
 
         return plotter
 
@@ -698,10 +686,8 @@ class Counting(ComponentBase):
 
     def to_vector_file(
         self,
-        craters: list[Crater],
         driver: str = "GPKG",
         interval: int | None = None,
-        name: str | None = None,
         use_measured_properties: bool = True,
         ask_overwrite: bool = True,
         **kwargs,
@@ -755,11 +741,6 @@ class Counting(ComponentBase):
                     key = key.replace(long, short)
             return key[:10].upper()
 
-        if name is None:
-            if hasattr(self.surface, "local"):
-                name = "local_surface"
-            else:
-                name = "surface"
         # Common alias for Shapefile
         if driver.upper() == "SHP":
             driver = "ESRI Shapefile"
@@ -776,48 +757,56 @@ class Counting(ComponentBase):
         surface = self.surface
         split_antimeridian = True
 
-        geoms = []
-        attrs = []
-        crater_ds = self.to_xarray(craters)
-        for crater in craters:
-            poly = crater.to_geoseries(
-                surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=use_measured_properties
-            ).item()
-            df = crater_ds.sel(id=[crater.id]).to_dataframe()
-            if isinstance(poly, GeometryCollection):
-                for p in poly.geoms:
-                    geoms.append(p)
-                    attrs.append(df)
-            else:
-                geoms.append(poly)
-                attrs.append(df)
+        crater_names = ["observed", "emplaced"]
+        output_ds = self.read_saved_output(interval=interval)
+        for name, crater_ds in zip(crater_names, output_ds, strict=True):
+            interval_numbers = crater_ds.interval.values
+            for interval in interval_numbers:
+                if crater_ds is not None:
+                    crater_list = self.from_xarray(crater_ds, interval=interval)
+                else:
+                    crater_list = []
+                geoms = []
+                attrs = []
+                for crater in crater_list:
+                    poly = crater.to_geoseries(
+                        surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=use_measured_properties
+                    ).item()
+                    df = crater_ds.sel(id=[crater.id]).to_dataframe()
+                    if isinstance(poly, GeometryCollection):
+                        for p in poly.geoms:
+                            geoms.append(p)
+                            attrs.append(df)
+                    else:
+                        geoms.append(poly)
+                        attrs.append(df)
 
-        if len(geoms) > 0:
-            attrs_df = pd.concat(attrs, ignore_index=True)
-        else:
-            attrs_df = pd.DataFrame()
-        if driver.upper() == "ESRI SHAPEFILE":
-            attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
+                if len(geoms) > 0:
+                    attrs_df = pd.concat(attrs, ignore_index=True)
+                else:
+                    attrs_df = pd.DataFrame()
+                if driver.upper() == "ESRI SHAPEFILE":
+                    attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
 
-        gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
-        if format_has_layers:
-            output_file = self.export_dir / f"craters{interval:06d}.{file_extension}"
-            print(f"Saving {name} layer to vector file: '{output_file}'...")
-        else:
-            output_file = self.export_dir / f"{name}{interval:06d}.{file_extension}"
-            if ask_overwrite and not self._overwrite_check(output_file):
-                return
-        if driver.upper() == "ESRI SHAPEFILE" and hasattr(self.surface, "local"):
-            # Create the _AREA file
-            self.surface.local.export_region_polygon(driver=driver)
+                gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
+                if format_has_layers:
+                    output_file = self.export_dir / f"{self.output_file_prefix}{interval:06d}.{file_extension}"
+                    print(f"Saving {name} layer to vector file: '{output_file}'...")
+                else:
+                    output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.{file_extension}"
+                    if ask_overwrite and not self._overwrite_check(output_file):
+                        return
+                if driver.upper() == "ESRI SHAPEFILE" and hasattr(self.surface, "local"):
+                    # Create the _AREA file
+                    self.surface.local.export_region_polygon(driver=driver)
 
-        try:
-            if format_has_layers:
-                gdf.to_file(output_file, layer=name)
-            else:
-                gdf.to_file(output_file)
-        except Exception as e:
-            raise RuntimeError(f"Error saving {output_file}: {e}") from e
+                try:
+                    if format_has_layers:
+                        gdf.to_file(output_file, layer=name)
+                    else:
+                        gdf.to_file(output_file)
+                except Exception as e:
+                    raise RuntimeError(f"Error saving {output_file}: {e}") from e
 
         return
 
@@ -981,7 +970,7 @@ class Counting(ComponentBase):
                     crater_list = self.from_xarray(crater_ds, interval=interval)
                 else:
                     crater_list = []
-                output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.vtp"
+                output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.csv"
                 if ask_overwrite and not self._overwrite_check(output_file):
                     return
                 print(f"Saving crater data to CSV file: '{output_file}'...")

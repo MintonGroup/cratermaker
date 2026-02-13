@@ -14,6 +14,15 @@ import numpy as np
 from cratermaker import Counting, Crater, Surface
 from cratermaker.utils.general_utils import format_large_units
 
+simdir = "simdata-5_1"
+
+# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
+# prevent prompts that will prevent these examples from running on their own when building the documentation pages. Alternatively,
+# passing ask_overwrite=False to Surface.maker() also allow the example to run without requiring any prompts.
+from cratermaker import cleanup
+
+cleanup(simdir)
+
 
 def plot_fits(ax, surface, crater=None, plot_score=False, imagefile=None):
     """
@@ -37,11 +46,11 @@ def plot_fits(ax, surface, crater=None, plot_score=False, imagefile=None):
         # Plot the initial guess
         crater.to_geoseries(surface=surface, split_antimeridian=False, use_measured_properties=False).to_crs(
             surface.local.crs
-        ).plot(ax=ax, facecolor="none", edgecolor="cyan", linewidth=0.1, linestyle=":")
+        ).plot(ax=ax, facecolor="none", edgecolor="cyan", linewidth=0.2, linestyle=":")
 
         # Plot the fit
         crater.to_geoseries(surface=surface, split_antimeridian=False, use_measured_properties=True).to_crs(surface.local.crs).plot(
-            ax=ax, facecolor="none", edgecolor="white", linewidth=0.2
+            ax=ax, facecolor="none", edgecolor="white", linewidth=0.4
         )
 
     # Plot the rimscore
@@ -69,8 +78,7 @@ surface = Surface.maker(
     surface="datasurface",
     local_location=lansberg_b.location,
     local_radius=lansberg_b.radius * 3.0,
-    ask_overwrite=False,
-    simdir="simdata-5_1",
+    simdir=simdir,
 )
 
 # Now refine the fit of the crater rim using the Counting class.

@@ -1,5 +1,12 @@
 .. currentmodule:: cratermaker
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
 .. image:: ../_static/full_simulation.png
     :alt: Simulation
     :align: center
@@ -46,3 +53,10 @@ More detailed component examples are provided in the Gallery section.
 
     - :ref:`api-simulation` for the API reference
     - :ref:`gal-simulation` for example simulations, including visualizations
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()

@@ -15,13 +15,9 @@ We can then open up the mesh in PyVista for visualization
     :okwarning:
     :suppress:
 
-    # Remove any existing output directory for a clean test
-    from pathlib import Path
-    out_dirs = ["surface","craters","export"]
-    for d in out_dirs:
-        if Path(d).exists():
-            import shutil
-            shutil.rmtree(d)
+    # Remove any existing output for a clean environment so we don't get prompted about overwriting files
+    from cratermaker import cleanup
+    cleanup()
 
 .. pyvista-plot::
 
@@ -36,3 +32,10 @@ We can also export the surface mesh to a VTK file that can be opened up with oth
 .. code-block:: python
 
     sim.export(driver="VTK")
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()
