@@ -11,19 +11,19 @@ class TestProduction(unittest.TestCase):
     def test_production_N_to_time(self):
         for model_name in production_models:
             production = Production.maker(production=model_name)
-            for age_orig in np.logspace(np.log10(4500), np.log10(0.1), num=10):
+            for time_orig in np.logspace(np.log10(4500), np.log10(0.1), num=10):
                 D = np.logspace(-1, 3, num=1000)
-                N = production.function(diameter=D, age=age_orig)
+                N = production.function(diameter=D, time_start=time_orig)
                 age_new = production.age_from_D_N(cumulative_number_density=N, diameter=D)
-                np.testing.assert_array_almost_equal(age_orig, age_new, decimal=2)
+                np.testing.assert_array_almost_equal(time_orig, age_new, decimal=2)
 
     def test_production_N_age_to_D(self):
         for model_name in production_models:
             production = Production.maker(production=model_name)
-            for age in np.logspace(np.log10(4500), np.log10(0.1), num=10):
+            for time_start in np.logspace(np.log10(4500), np.log10(0.1), num=10):
                 D_orig = np.logspace(-1, 3, num=1000)
-                N = production.function(diameter=D_orig, age=age)
-                D_new = production.D_from_N_age(cumulative_number_density=N, age=age)
+                N = production.function(diameter=D_orig, time_start=time_start)
+                D_new = production.D_from_N_age(cumulative_number_density=N, time_start=time_start)
                 np.testing.assert_array_almost_equal(D_orig, D_new, decimal=2)
 
     def test_sample_arguments(self):
@@ -40,11 +40,11 @@ class TestProduction(unittest.TestCase):
             with self.assertRaises(ValueError):
                 production.sample(age=500, diameter_number=(100, 10), diameter_range=(10, 100))
 
-            # Test providing both age_end and diameter_number_end
+            # Test providing both time_end and diameter_number_end
             with self.assertRaises(ValueError):
                 production.sample(
                     age=1500,
-                    age_end=1000,
+                    time_end=1000,
                     diameter_number_end=(100, 10),
                     diameter_range=(10, 100),
                 )

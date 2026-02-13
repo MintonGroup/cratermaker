@@ -2,10 +2,121 @@ use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use numpy::ndarray::prelude::*; 
 use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{Inverse, Eig};
-use rayon::prelude::*;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::ArrayResult;
 use crate::surface::LocalSurfaceView;
 use crate::crater::Crater;
+const _RIM_QUANTILE:f64 = 0.90;
+const _FLOOR_QUANTILE:f64 = 0.1;
+
+
+pub fn mask_crater_faces(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<Array1<bool>, &'static str> {
+    let ids = region
+        .crater_id
+        .as_ref()
+        .ok_or("crater_id required")?;
+
+    // `ids` is shaped (n_face, n_layer). A face is part of the crater if ANY layer id matches.
+    let mask_vec: Vec<bool> = ids
+        .axis_iter(Axis(0))
+        .map(|row| 
+            row.iter()
+            .any(|&id| id == crater.id)
+        )
+        .collect();
+
+    Ok(Array1::from(mask_vec))
+}
+
+fn filter_crater_faces(arr: &Array1<f64>, mask: &Array1<bool>) -> Result<Array1<f64>, &'static str> {
+    if arr.len() != mask.len() {
+        return Err("filter_crater_faces: arr and mask must have the same length");
+    }
+
+    let vals: Vec<f64> = arr
+        .iter()
+        .zip(mask.iter())
+        .filter_map(|(&e, &m)| {
+            if m && !e.is_nan() {
+                Some(e)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(Array1::from(vals))
+}
+
+
+pub fn measure_floor_depth(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<f64, &'static str> {
+
+    let mut elev_sum: f64 = 0.0;
+    let mut n_floor: usize = 0;
+    let mask_crater = mask_crater_faces(region, crater)?;
+    let n_face = region.n_face;
+    let elevation = filter_crater_faces(&region.face_elevation.to_owned(), &mask_crater)?;
+    let mask_floor: Vec<bool> = if let Some(threshold) = nanquantile(&elevation, _FLOOR_QUANTILE) {
+        (0..n_face)
+            .into_par_iter()
+            .map(|f| mask_crater[f] && region.face_elevation[f] <= threshold)
+            .collect()
+    } else {
+        // Fall back to the crater mask (convert Array1<bool> -> Vec<bool>)
+        mask_crater.iter().copied().collect()
+    };
+
+    for (&elev, &mask) in region.face_elevation.iter().zip(mask_floor.iter()) {
+        if mask && !elev.is_nan() {
+            elev_sum += elev;
+            n_floor += 1;
+        }
+    }
+    if n_floor == 0 {
+        return Err("no valid faces inside floor boundary");
+    }
+    Ok(elev_sum / (n_floor as f64))
+}
+
+
+pub fn measure_rim_height(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<f64, &'static str> {
+
+    let mut elev_sum: f64 = 0.0;
+    let mut n_rim: usize = 0;
+    let mask_crater = mask_crater_faces(region, crater)?;
+    let n_face = region.n_face;
+    let elevation = filter_crater_faces(&region.face_elevation.to_owned(), &mask_crater)?;
+
+    let mask_rim: Vec<bool> = if let Some(threshold) = nanquantile(&elevation, _RIM_QUANTILE) {
+        (0..n_face)
+            .into_par_iter()
+            .map(|f| mask_crater[f] && region.face_elevation[f] >= threshold)
+            .collect()
+    } else {
+        // Fall back to the crater mask (convert Array1<bool> -> Vec<bool>)
+        mask_crater.iter().copied().collect()
+    };
+
+    for (&elev, &mask) in region.face_elevation.iter().zip(mask_rim.iter()) {
+        if mask && !elev.is_nan() {
+            elev_sum += elev;
+            n_rim += 1;
+        }
+    }
+    if n_rim == 0 {
+        return Err("no valid faces inside rim boundary");
+    }
+    Ok(elev_sum / (n_rim as f64))
+}
 
 /// Fits a crater rim ellipse to a local surface region.
 /// This function performs an iterative fitting procedure to refine
@@ -442,10 +553,13 @@ pub fn score_rim(
     heightmult: f64,
 ) ->ArrayResult { 
     let n = region.n_face;
-    const MIN_POINTS_FOR_FIT: usize = 3; // It will try to use at least this many points per sector in the fit
+    let min_points_for_fit: usize = 3; // It will try to use at least this many points per sector in the fit
     const EXTENT_RADIUS_CUTOFF: f64 = 1.5; // Max radial extent as a multiple of crater semi-major axis
-    const N_SECTORS: usize = 36; // Number of bearing sectors for scoring
-    let sector_width = 360.0 / N_SECTORS as f64;
+    const N_SECTOR_MAX: usize = 36;
+    const N_SECTOR_MIN: usize = 9;
+    const N_PER_SECTOR: usize = 100;
+    let n_sectors = (n / N_PER_SECTOR).clamp(N_SECTOR_MIN, N_SECTOR_MAX);
+    let sector_width = 360.0 / n_sectors as f64;
 
     let radial_gradient = crate::surface::compute_radial_gradient(
         region.face_elevation.view(),
@@ -588,10 +702,10 @@ pub fn score_rim(
         }
     }
     // Bin into bearing sectors:
-    let mut rimscore_sector_index = Array1::<usize>::from_elem(n, N_SECTORS);
+    let mut rimscore_sector_index = Array1::<usize>::from_elem(n, n_sectors);
     let bearing = region.face_bearing.as_ref().ok_or("face_bearing required")?; 
     // First pass: compute max rimscore per sector (ignoring NaNs)
-    let mut sector_max = [f64::NEG_INFINITY; N_SECTORS];
+    let mut sector_max = [f64::NEG_INFINITY; N_SECTOR_MAX];
 
     for i in 0..n {
         let v = rimscore[i];
@@ -604,8 +718,8 @@ pub fn score_rim(
         let mut idx = (b / sector_width).floor() as isize;
         if idx < 0 {
             idx = 0;
-        } else if idx >= N_SECTORS as isize {
-            idx = N_SECTORS as isize - 1;
+        } else if idx >= n_sectors as isize {
+            idx = n_sectors as isize - 1;
         }
         let idx = idx as usize;
         rimscore_sector_index[i] = idx;
@@ -636,44 +750,50 @@ pub fn score_rim(
 
     // Third pass: Apply quantile threshold to keep only highest scores in each sector
     let mut high_scores = Array1::<bool>::from_elem(n, false);
-    for sector in 0..N_SECTORS {
+    for sector in 0..n_sectors {
         let sector_indices: Vec<usize> = (0..n)
             .filter(|&i| rimscore_sector_index[i] == sector && !rimscore[i].is_nan())
             .collect();
         if sector_indices.is_empty() {
             continue;
         }
-        let mut sector_scores: Vec<f64> = sector_indices
+        let sector_scores: Vec<f64> = sector_indices
             .iter()
             .map(|&i| rimscore[i])
             .filter(|v| !v.is_nan())
             .collect();
-        sector_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let threshold_idx = (quantile * sector_scores.len() as f64) as usize;
-        let threshold = sector_scores[threshold_idx];
-        for &i in sector_indices.iter() {
-            high_scores[i] = rimscore[i] >= threshold;
+
+        let sector_scores = Array1::from(sector_scores);
+
+        if let Some(threshold )= nanquantile(&sector_scores, quantile) {
+            for &i in sector_indices.iter() {
+                high_scores[i] = rimscore[i] >= threshold;
+            }
+        } else {
+            for &i in sector_indices.iter() {
+                high_scores[i] = true;
+            }
         }
     }
 
     let num_high = high_scores.iter().filter(|&&b| b).count();
     let num_valid = rimscore.iter().filter(|v| !v.is_nan()).count();
 
-    if num_high < MIN_POINTS_FOR_FIT * N_SECTORS {
-        if num_valid < MIN_POINTS_FOR_FIT * N_SECTORS {
+    if num_high < min_points_for_fit * n_sectors {
+        if num_valid < min_points_for_fit * n_sectors {
             // use all valid points
             for i in 0..n {
                 high_scores[i] = !rimscore[i].is_nan();
             }
         } else {
-            // take top MIN_POINTS_FOR_FIT scores
+            // take top min_points_for_fit scores
             let mut vals: Vec<f64> = rimscore
                 .iter()
                 .copied()
                 .filter(|v| !v.is_nan())
                 .collect();
             vals.sort_by(|a, b| b.partial_cmp(a).unwrap()); // descending order
-            let threshold = vals[MIN_POINTS_FOR_FIT * N_SECTORS - 1];
+            let threshold = vals[min_points_for_fit * n_sectors - 1];
 
             for i in 0..n {
                 let v = rimscore[i];
@@ -1263,4 +1383,20 @@ fn nanmin(arr: &Array1<f64>) -> Option<f64> {
         })
 }
 
+fn nanquantile(arr: &Array1<f64>, q: f64) -> Option<f64> {
+    let mut vals: Vec<f64> = arr
+        .iter()
+        .copied()
+        .filter(|v| !v.is_nan())
+        .collect();
+
+    if vals.is_empty() {
+        return None;
+    }
+
+    vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let q_clamped = q.clamp(0.0, 1.0);
+    let idx = ((vals.len() - 1) as f64 * q_clamped).floor() as usize;
+    Some(vals[idx.min(vals.len() - 1)])
+}
 

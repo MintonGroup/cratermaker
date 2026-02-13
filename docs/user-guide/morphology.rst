@@ -1,5 +1,14 @@
 .. currentmodule:: cratermaker
 
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
+
 .. image:: ../_static/morphology_icon.svg
     :alt: Morphology
     :align: center
@@ -49,3 +58,10 @@ See more advanced usage examples in the gallery: :ref:`gal-topography`
 .. toctree::
    :maxdepth: 2
    :hidden:
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

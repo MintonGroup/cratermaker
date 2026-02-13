@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import tempfile
+import warnings
 from pathlib import Path
-from typing import Any
-from warnings import warn
+from typing import Any, Literal
 
 import numpy as np
-from numpy.typing import NDArray
+import uxarray as uxr
+from matplotlib.axes import Axes
+from numpy.typing import ArrayLike, NDArray
 from scipy.spatial.transform import Rotation
 
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.scaling import Scaling
-from cratermaker.components.surface import LocalSurface, Surface
+from cratermaker.components.surface import LocalSurface, Surface, surface_lock
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import (
@@ -48,7 +51,7 @@ class HiResLocalSurface(Surface):
     ask_overwrite : bool, optional
         If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
-        The main project simulation directory. Default is the current working directory if None.
+        |simdir|
 
     Returns
     -------
@@ -73,8 +76,8 @@ class HiResLocalSurface(Surface):
         object.__setattr__(self, "_superdomain_scale_factor", None)
         object.__setattr__(self, "_superdomain_function_slope", None)
         object.__setattr__(self, "_superdomain_function_exponent", None)
+        object.__setattr__(self, "_local_grid_indices_file_extension", "npz")
         super().__init__(target=target, simdir=simdir, **kwargs)
-        self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
 
         self.pix = pix
         self.local_radius = local_radius
@@ -96,12 +99,30 @@ class HiResLocalSurface(Surface):
         local_radius = format_large_units(self.local_radius, quantity="length")
         return (
             f"{base}\n"
-            f"Local pixel size: {pix}\n"
+            f"Local pixel size: {pix}"
             f"Local Radius: {local_radius}\n"
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
             f"Minimum effective pixel size: {pix_min}\n"
-            f"Maximum effective pixel size: {pix_max}"
+            f"Maximum effective pixel size: {pix_max}\n"
+            f"Number of local faces: {self.local.n_face}\n"
+            f"Number of local nodes: {self.local.n_node}\n"
+            f"Number of superdomain faces: {self.n_face - self.local.n_face}\n"
+            f"Number of superdomain nodes: {self.n_node - self.local.n_node}\n"
         )
+
+    def reset(
+        self,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Resets the surface by removing all saved output files (except for the grid).
+
+        This will also reset the local surface.
+        """
+        super().reset(**kwargs)
+        if self._local is not None:
+            self._local.reset(**kwargs)
+        return
 
     def superdomain_function(self, r):
         """
@@ -126,7 +147,13 @@ class HiResLocalSurface(Surface):
             self.pix + self.superdomain_function_slope * (r - self.local_radius) ** self.superdomain_function_exponent,
         )
 
-    def extract_region(self, location: tuple[FloatLike, FloatLike], region_radius: FloatLike):
+    def extract_region(
+        self,
+        location: tuple[FloatLike, FloatLike],
+        region_radius: FloatLike,
+        at_least_one_face: bool = False,
+        **kwargs: Any,
+    ):
         """
         Extract a regional grid based on a given location and radius.
 
@@ -136,6 +163,10 @@ class HiResLocalSurface(Surface):
             tuple containing the longitude and latitude of the location in degrees.
         region_radius : float
             The radius of the region to extract in meters.
+        at_least_one_face : bool, optional
+            If True, ensure that at least one face is returned, even if the region radius is very small. Default is False.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
@@ -143,7 +174,9 @@ class HiResLocalSurface(Surface):
             A LocalSurface object containing a view of the regional grid.
 
         """
-        local = super().extract_region(location=location, region_radius=region_radius)
+        local = super().extract_region(
+            location=location, region_radius=region_radius, at_least_one_face=at_least_one_face, **kwargs
+        )
         if local is None:
             return None
 
@@ -151,44 +184,34 @@ class HiResLocalSurface(Surface):
 
     def save(
         self,
-        interval_number: int = 0,
+        interval: int = 0,
         time_variables: dict | None = None,
-        include_variables: list[str] | tuple[str, ...] | None = None,
-        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         **kwargs,
     ) -> None:
         """
         Save the surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
 
         Parameters
         ----------
-        interval_number : int, optional
+        interval : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        include_variables : list[str] or tuple[str, ...], optional
-            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
-        exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. If provided, the file associated with the local surface will have 'local' prepended. Default is None.
         """
         self._full().save(
-            interval_number=interval_number,
+            interval=interval,
             time_variables=time_variables,
-            include_variables=include_variables,
-            exclude_variables=exclude_variables,
             filename=filename,
             **kwargs,
         )
         self.local.save(
-            interval_number=interval_number,
+            interval=interval,
             time_variables=time_variables,
-            include_variables=include_variables,
-            exclude_variables=exclude_variables,
             filename=f"local_{filename}" if filename else None,
             **kwargs,
         )
@@ -197,7 +220,7 @@ class HiResLocalSurface(Surface):
     def export(
         self,
         driver: str = "GPKG",
-        interval_number: int | None = None,
+        interval: int | None = None,
         superdomain: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -208,50 +231,187 @@ class HiResLocalSurface(Surface):
         ----------
         driver : str, optional
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.).
-        interval_number : int, optional
+        interval : int | None, optional
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         superdomain : bool, optional
             If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the export function.
+            |kwargs|
         """
         if superdomain:
             self._full().export(
                 driver=driver,
-                interval_number=interval_number,
+                interval=interval,
                 **kwargs,
             )
         self.local.export(
             driver=driver,
-            interval_number=interval_number,
+            interval=interval,
             **kwargs,
         )
         return
 
-    def plot(self, imagefile=None, label=None, scalebar=True, superdomain: bool = False, **kwargs: Any) -> None:
+    def plot(
+        self,
+        style: Literal["map", "hillshade"] = "map",
+        variable_name: str | None = None,
+        cmap: str | None = None,
+        imagefile=None,
+        label=None,
+        scalebar=True,
+        show=True,
+        ax: Axes | None = None,
+        superdomain: bool = False,
+        **kwargs: Any,
+    ) -> None:
         """
-        Plot a hillshade image of the surface.
+        Plot an image of the surface.
 
         Parameters
         ----------
+        style : str, optional
+            The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
+        variable_name : str | None, optional
+            The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        cmap : str, optional
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
         imagefile : str | Path, optional
             The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is True.
+            If True, a scalebar will be added to the plot. Default is True unless `superdomain` is True, in which case the scalebar will not be displayed by default.
+        show : bool, optional
+            If True, the plot will be displayed.
+        ax : matplotlib.axes.Axes, optional
+            An existing Axes object to plot on. If None, a new figure and axes will be created.
         superdomain : bool, optional
             If True, plot the full surface including the superdomain. If False, plot only the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
         """
         if superdomain:
-            return self._full().plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+            return self._full().plot(
+                style=style,
+                variable_name=variable_name,
+                cmap=cmap,
+                imagefile=imagefile,
+                label=label,
+                scalebar=False,
+                show=show,
+                ax=ax,
+                **kwargs,
+            )
         else:
-            return self.local.plot(imagefile=imagefile, label=label, scalebar=scalebar, **kwargs)
+            return self.local.plot(
+                style=style,
+                variable_name=variable_name,
+                cmap=cmap,
+                imagefile=imagefile,
+                label=label,
+                scalebar=scalebar,
+                show=show,
+                ax=ax,
+                **kwargs,
+            )
+
+    def to_raster(self, variable_name: str = "face_elevation", superdomain: bool = False, **kwargs: Any):
+        """
+        Rasterize a face-based variable into a 2D raster using rasterio.
+
+        Parameters
+        ----------
+        variable_name : str, optional
+            The name of the variable to rasterize. Default is "face_elevation".
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        raster : NDArray[np.float32]
+            The rasterized variable as a 2D numpy array.
+        extent : tuple[float, float, float, float]
+            The extent of the raster in the format (xmin, xmax, ymin, ymax).
+        transform : Affine
+            The affine transform for the raster.
+        crs : CRS
+            The coordinate reference system of the raster.
+        """
+        if superdomain:
+            return self._full().to_raster(variable_name, **kwargs)
+        else:
+            return self.local.to_raster(variable_name, **kwargs)
+
+    def to_geotiff_file(
+        self,
+        interval: int | None = None,
+        variable_name: str = "face_elevation",
+        superdomain: bool = False,
+        **kwargs,
+    ) -> None:
+        """
+        Rasterize a face-based elevation variable into a GeoTIFF using rasterio.
+
+        Parameters
+        ----------
+        interval : int | None, optional
+            The interval number to export. Default is None, which will export all saved intervals.
+        variable_name : str, optional
+            The name of the variable to rasterize. Default is "face_elevation".
+        superdomain : bool, optional
+            If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
+        **kwargs : Any
+            |kwargs|
+        """
+        if superdomain:
+            return self._full().to_geotiff_file(
+                interval=interval,
+                variable_name=variable_name,
+                **kwargs,
+            )
+        else:
+            return self.local.to_geotiff_file(
+                interval=interval,
+                variable_name=variable_name,
+                **kwargs,
+            )
+
+    def show_pyvista(
+        self, variable_name: str | None = None, variable: ArrayLike | None = None, superdomain: bool = False, **kwargs
+    ):
+        """
+        Show the surface using an interactive 3D plot.
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        variable_name : str | None, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+        variable : (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        superdomain : bool, optional
+            If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        pyvista.Plotter
+            The PyVista Plotter object for further customization.
+        """
+        if superdomain:
+            return self._full().show_pyvista(variable=variable, variable_name=variable_name, **kwargs)
+        else:
+            return self.local.show_pyvista(variable=variable, variable_name=variable_name, **kwargs)
 
     def show(
-        self, engine: str = "pyvista", variable: str = "face_elevation", focus_location=None, superdomain: bool = False, **kwargs
+        self,
+        engine: str = "pyvista",
+        variable_name: str | None = None,
+        variable: ArrayLike | None = None,
+        superdomain: bool = False,
+        **kwargs,
     ) -> None:
         """
         Show the surface using an interactive 3D plot.
@@ -260,19 +420,19 @@ class HiResLocalSurface(Surface):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable : str, optional
-            The variable to plot. Default is "face_elevation".
-        focus_location : PairOfFloats, optional
-            Longitude and latitude of the location to focus the camera on. If None, the camera will be set to the default position. Default is None.
+        variable_name : str | None, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+        variable : (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         superdomain : bool, optional
             If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the plotting function.
+            |kwargs|
         """
         if superdomain:
-            return self._full().show(engine=engine, variable=variable, focus_location=self.local_location, **kwargs)
+            return self._full().show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
         else:
-            return self.local.show(engine=engine, variable=variable, **kwargs)
+            return self.local.show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
 
     def set_superdomain(
         self,
@@ -298,7 +458,7 @@ class HiResLocalSurface(Surface):
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
         **kwargs : Any
-            Additional keyword arguments to pass to the scaling and morphology models.
+            |kwargs|
         """
         from scipy.optimize import curve_fit
 
@@ -488,6 +648,104 @@ class HiResLocalSurface(Surface):
 
         return points
 
+    def add_tag(
+        self,
+        name: str,
+        tag: int | None = None,
+        region: LocalSurface | None = None,
+        n_layer: int = 8,
+        long_name: str | None = None,
+        tag_superdomain: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Adds an integer tag to the surface with an option to tag faces in the superdomain.
+
+        Parameters
+        ----------
+        name : str
+            The name of the tag to be added.
+        tag : int | None
+            The integer to apply the tag. If None is provided, the tag layers will be reset to zero
+        region : LocalSurface | None
+            The region to which the tag will be applied. If None, the tag will be applied to the entire surface.
+        n_layer : int
+            The number of layers to use for the tag. Default is 8.
+        long_name : str | None
+            The long name of the tag to be added. If None, no long name will be added.
+        tag_superdomain: bool = False,
+            If True, apply the tag to surface including the superdomain. If False, apply only to the local region. Default is False.
+        **kwargs : Any
+            |kwargs|
+        """
+        # Reset the tag layers if the tag is None or does not yet exist on the surface
+        with surface_lock:
+            if name not in self.uxds or tag is None:
+                dims = ("n_face", "layer")
+                data = np.zeros((self.n_face, n_layer), dtype=np.uint32)
+                if long_name is not None:
+                    attrs = {"long_name": long_name}
+                else:
+                    attrs = None
+
+                uxda = uxr.UxDataArray(
+                    data=data,
+                    dims=dims,
+                    name=name,
+                    attrs=attrs,
+                    uxgrid=self.uxgrid,
+                )
+
+                self._uxds[name] = uxda
+                if tag is None:
+                    return
+
+            if region is None:
+                if tag_superdomain:
+                    face_indices = slice(None)
+                else:
+                    face_indices = self.local.face_indices
+            else:
+                if tag_superdomain:
+                    face_indices = region.face_indices
+                else:
+                    face_indices = self.local.face_indices[np.isin(self.local.face_indices, region.face_indices)]
+            if len(face_indices) == 0:
+                return
+            insert_layer = -1
+
+            for i in range(n_layer):
+                if np.all(self.uxds[name].isel(layer=i).data[face_indices] == 0):
+                    insert_layer = i
+                    break
+            if insert_layer == -1:
+                warnings.warn(f"All {name} layers are full", stacklevel=2)
+                # TODO: Implement an option to expand the number of layers if all layers are full
+            data = self.uxds[name].data[face_indices, :]
+            data[:, insert_layer] = tag
+            data = self._sort_tag(name, face_indices, data)
+            self.uxds[name].data[face_indices, :] = data
+
+        return
+
+    def _load_from_files(self, **kwargs: Any):
+        is_same_grid = self._is_same_grid
+        super()._load_from_files(**kwargs)
+        if is_same_grid and self.local_grid_indices_file is not None and Path(self.local_grid_indices_file).exists():
+            with np.load(self.local_grid_indices_file) as grid_data:
+                face_indices = grid_data["face_indices"]
+                node_indices = grid_data["node_indices"]
+                edge_indices = grid_data["edge_indices"]
+                self._local = LocalHiResLocalSurface(
+                    surface=self,
+                    face_indices=face_indices,
+                    node_indices=node_indices,
+                    edge_indices=edge_indices,
+                    location=self.local_location,
+                    region_radius=self.local_radius,
+                )
+        return
+
     @property
     def local(self):
         """
@@ -495,6 +753,14 @@ class HiResLocalSurface(Surface):
         """
         if self._local is None:
             self._local = self.extract_region(location=self.local_location, region_radius=self.local_radius)
+            self.local_grid_indices_file.unlink(missing_ok=True)
+            np.savez_compressed(
+                file=self.local_grid_indices_file,
+                face_indices=self.local.face_indices,
+                node_indices=self.local.node_indices,
+                edge_indices=self.local.edge_indices,
+                allow_pickle=False,
+            )
         return self._local
 
     @parameter
@@ -536,9 +802,16 @@ class HiResLocalSurface(Surface):
 
     @local_location.setter
     def local_location(self, value: PairOfFloats):
-        if not isinstance(value, tuple) or len(value) != 2:
+        if not isinstance(value, tuple | list | np.ndarray) or len(value) != 2:
             raise TypeError("local_location must be a tuple of two floats")
         self._local_location = validate_and_normalize_location(value)
+
+    @property
+    def local_grid_indices_file(self) -> Path:
+        """
+        The path to the local grid indices file.
+        """
+        return self.output_dir / f"local_{self._grid_file_prefix}_indices.{self._local_grid_indices_file_extension}"
 
     @property
     def superdomain_function_slope(self):
@@ -723,10 +996,8 @@ class LocalHiResLocalSurface(LocalSurface):
 
     def save(
         self,
-        interval_number: int = 0,
+        interval: int = 0,
         time_variables: dict | None = None,
-        include_variables: list[str] | tuple[str, ...] | None = None,
-        exclude_variables: list[str] | tuple[str, ...] = ("face_area",),
         filename: str | None = None,
         plot_style: str | None = None,
         **kwargs,
@@ -734,42 +1005,40 @@ class LocalHiResLocalSurface(LocalSurface):
         """
         Save the surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval_number' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
 
         Parameters
         ----------
-        interval_number : int, optional
+        interval : int, optional
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        include_variables : list[str] or tuple[str, ...], optional
-            List of variable names to include in the output dataset. If None, all variables are included except those in `exclude_variables`. Default is None.
-        exclude_variables : list[str] or tuple[str, ...], optional
-            List or tuple of variable names to exclude from the output dataset. Default is ("face_area"). This is ignored if `include_variables` is specified.
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         plot_style : str, optional
             The style of plot to generate. Set to None to skip generating a plot.
         **kwargs : Any
-            Additional keyword arguments to pass to the save or plot functions.
+            |kwargs|
         """
         super().save(
-            interval_number=interval_number,
+            interval=interval,
             time_variables=time_variables,
-            include_variables=include_variables,
-            exclude_variables=exclude_variables,
             filename=filename,
             **kwargs,
         )
         if plot_style is not None:
-            if plot_style not in ["hillshade", "elevation"]:
-                warn(f"Plot style '{plot_style}' not recognized. Using 'hillshade' or 'elevation' instead.", stacklevel=2)
-            else:
-                imagefile = self.plot_dir / f"{plot_style}{interval_number:06d}.png"
+            imagefile = self.plot_dir / f"{plot_style}{interval:06d}.png"
             if time_variables and "label" not in kwargs:
-                kwargs["label"] = f"Time (BP)\n{time_variables.get('current_age', -1.0):.1f} Ma"
+                kwargs["label"] = f"Time (BP)\n{time_variables.get('time', -1.0):.1f} Ma"
             self.plot(plot_style, imagefile=imagefile, **kwargs)
         return
+
+    @property
+    def local_grid_indices_file(self) -> Path:
+        """
+        The path to the local grid file.
+        """
+        return self.surface.local_grid_indices_file
 
     @property
     def local_overlap(self) -> LocalHiResLocalSurface | None:

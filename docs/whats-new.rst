@@ -3,6 +3,17 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.0-alpha:
+
+:release:`v2026.2.0-alpha`
+---------------------------
+
+- Subtantial API changes to the Simulation.run() and .populate(), as well as the Production.populate() methods. Time before present is now called "time" rather than "age." Instead of specifying "age" and "age_end" you now specify "time_start" and "time_end" in units of My before present. The "age" argument is kept for backwards compatability, though it now has a specific meaning of "time_start=age" and "time_end=0". This keeps the terminology consistent with the idea that time is counting down to the present rather than counting up from the past. `David Minton`_
+- Added new export methods, including a Spatial Crater Count exporter that will export crater counts in `Craterstats <https://github.com/ggmichael/craterstats>`__ format. The default export method for Simulation is now "OpenCraterTool," which will produce an SCC output of crater counts along with a geotiff file that can be loaded up easily into QGIS with the `OpenCraterTool <https://github.com/thomasheyer/OpenCraterTool>`__ plugin. `David Minton`_
+- Added a new "cleanup" function to clean out old simulation data. This is used in the examples to ensure that they can run without prompts about overwriting existing data. `David Minton`_
+- Made a number of improvements to the Crater object so that craters are more efficiently processed for emplacement. `David Minton`_
+
+
 .. _whats-new.2025.12.2-alpha:
 
 :release:`v2025.12.2-alpha`

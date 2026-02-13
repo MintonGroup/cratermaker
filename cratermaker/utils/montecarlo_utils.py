@@ -31,13 +31,13 @@ def get_random_location(
         The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1,
         then a structured array with fields 'lon' and 'lat' is returned.
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -126,13 +126,13 @@ def get_random_location_on_face(
     face_index : int | NDArray[np.int64]
         The index or array of indices of the face within the grid to obtain the random sample.
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -182,13 +182,13 @@ def get_random_impact_angle(
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -217,13 +217,13 @@ def get_random_impact_direction(
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single scalar value is returned.
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -262,13 +262,13 @@ def get_random_size(
     mu : int or tuple of ints, optional
         The expected number of samples to generate using a Poisson random number genertor. If the shape is (m, n, k), then m * n * k samples are drawn. Note: mu and size are mutually exclusive.
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -382,13 +382,13 @@ def get_random_velocity(
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Returns
     -------
@@ -441,11 +441,11 @@ def bounded_norm(
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
     rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+        |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
+        |rng_seed|
     rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
+        |rng_state|
     **kwargs : Any
 
     Returns

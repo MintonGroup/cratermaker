@@ -44,27 +44,31 @@ class TestMorphology(unittest.TestCase):
 
     def test_make_morphology(self):
         # Test the make_morphology function
-        for model_name in morphology_models:
-            morphology = Morphology.maker(moprhology=model_name)
-            self.assertIsInstance(morphology, Morphology)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(morphology=model_name, surface=surface)
+                self.assertIsInstance(morphology, Morphology)
 
     def test_finite_profile_values(self):
-        for model_name in morphology_models:
-            morphology = Morphology.maker(model_name)
-            crater_radius_values = [1.0, 1e3, 15e3, 50e3, 500e3, 3000e3]
-            rvals = np.linspace(0, 10, 1000)
-            for final_radius in crater_radius_values:
-                crater = Crater.maker(final_radius=final_radius)
-                crater_shape = morphology.crater_profile(crater, rvals * final_radius)
-                self.assertTrue(
-                    np.all(np.isfinite(crater_shape)),
-                    f"Crater profile for {model_name} contains NaN or Inf values.",
-                )
-                ejecta_shape = morphology.ejecta_profile(crater, rvals * final_radius)
-                self.assertTrue(
-                    np.all(np.isfinite(ejecta_shape)),
-                    f"Ejecta profile for {model_name} contains NaN or Inf values.",
-                )
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(morphology=model_name, surface=surface)
+                crater_radius_values = [1.0, 1e3, 15e3, 50e3, 500e3, 3000e3]
+                rvals = np.linspace(0, 10, 1000)
+                for final_radius in crater_radius_values:
+                    crater = Crater.maker(final_radius=final_radius)
+                    crater_shape = morphology.crater_profile(crater, rvals * final_radius)
+                    self.assertTrue(
+                        np.all(np.isfinite(crater_shape)),
+                        f"Crater profile for {model_name} contains NaN or Inf values.",
+                    )
+                    ejecta_shape = morphology.ejecta_profile(crater, rvals * final_radius)
+                    self.assertTrue(
+                        np.all(np.isfinite(ejecta_shape)),
+                        f"Ejecta profile for {model_name} contains NaN or Inf values.",
+                    )
 
     def test_crater_depth_surface(self):
         from cratermaker.components.morphology.simplemoon import SimpleMoonCrater
@@ -116,7 +120,7 @@ class TestMorphology(unittest.TestCase):
                         msg=f"Failed for {name} with diameter {final_diameter}",
                     )
 
-                    crater = SimpleMoonCrater.maker(final_diameter=final_diameter, location=(0, 0))
+                    crater = SimpleMoonCrater.maker(final_diameter=final_diameter, location=(0, 0), morphology=sim.morphology)
                     sim.emplace(crater)
 
                     # Verify that the crater depth and rim heights are close to the expected values

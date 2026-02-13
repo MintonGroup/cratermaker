@@ -18,13 +18,18 @@ References
 .. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., (2001) Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. `doi: 10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`
 """
 
-import pyvista as pv
-
 import cratermaker as cm
 
-# Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 to speed up the simulation for this example. We set `ask_overwrite` to False to avoid being prompted during the example.
-sim = cm.Simulation(target="Moon", gridlevel=6, ask_overwrite=False)
+simdir = "simdata-1_2"
 
-sim.run(age=4310, ninterval=300)
-sim.export(driver="VTK")
-sim.show(cmap="Greys_r")
+# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
+# prevent prompts that will prevent these examples from running on their own when building the documentation pages. Alternatively,
+# passing ask_overwrite=False and reset=True to Simulation will also allow the example to run without requiring any prompts.
+cm.cleanup(simdir)
+
+
+# Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 to speed up the simulation for this example.
+sim = cm.Simulation(target="Moon", gridlevel=6, do_counting=False, simdir=simdir)
+
+sim.run(age=4310)
+sim.show(variable_name="face_elevation", cmap="Greys_r")

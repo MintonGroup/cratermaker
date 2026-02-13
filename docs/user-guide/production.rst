@@ -1,5 +1,12 @@
 .. currentmodule:: cratermaker.production
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
 .. image:: ../_static/production_icon.svg
     :alt: Production
     :align: center
@@ -33,8 +40,8 @@ Production function
 :func:`Production.function` returns the cumulative size-frequency distribution (CSFD) of craters over a given age range and crater diameter. It takes the following arguments:
 
 - **diameter**: Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-- **age**: Age in units of My relative to the present, used to compute the CSFD. Default is ``1.0``, corresponding to 1 Ma.
-- **age_end**: ending age in units of My relative to the present, also used to compute the CSFD. Default is ``0.0``, which corresponds to the present day.
+- **time_start**: Starting time in units of My relative to the present, used to compute the CSFD. Default is ``1.0``, corresponding to 1 Ma. Alternatively `age` can be used as an alias for `time_start`.
+- **time_end**: Ending time in units of My relative to the present, also used to compute the CSFD. Default is ``0.0``, which corresponds to the present day.
 
 Example: Using Production.function
 ----------------------------------
@@ -126,3 +133,9 @@ References
 .. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. https://doi.org/10.1023/A:1011989004263
 .. [#] Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. https://doi.org/10.1023/A:1011941121102
 .. [#] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1-34. https://doi.org/10.1007/978-94-010-0712-2_1
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

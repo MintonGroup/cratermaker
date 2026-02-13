@@ -18,20 +18,7 @@ from cratermaker.utils.general_utils import parameter
 
 class Production(ComponentBase):
     """
-    An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.
-
-    The production function is defined as the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
-
-    Parameters
-    ----------
-    rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
-    rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
-    **kwargs : Any
-        Additional keyword arguments.
+    The base class for computing the production function for craters and projectiles.
     """
 
     _registry: dict[str, Production] = {}
@@ -44,21 +31,18 @@ class Production(ComponentBase):
         **kwargs: Any,
     ):
         """
-        An abstract operations class that forms the base of classes that compute the production function for craters and projectiles.
-
-        The production function is defined as
-        the cumulative number of craters greater than a given diameter per unit m^2 surface area per unit My time.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+            |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
+            |rng_seed|
         rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
+            |rng_state|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types", ["crater", "projectile"])
@@ -78,7 +62,7 @@ class Production(ComponentBase):
         **kwargs: Any,
     ) -> Production:
         """
-        A helper function that can be used to validate and initialize the production model.
+        Initialize a Production model with the given name or instance.
 
         Parameters
         ----------
@@ -88,13 +72,13 @@ class Production(ComponentBase):
         target : Target | str | None, optional
             The target body for the impact. Can be a Target object or a string representing the target name.
         rng : numpy.random.Generator | None
-            A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+            |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            The rng_rng_seed for the RNG. If None, a new RNG is created.
+            |rng_seed|
         rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
+            |rng_state|
         **kwargs : Any
-            Additional keyword arguments.
+            |kwargs|
 
         Returns
         -------
@@ -137,8 +121,8 @@ class Production(ComponentBase):
 
     def sample(
         self,
-        age: FloatLike | None = None,
-        age_end: FloatLike | None = None,
+        time_start: FloatLike | None = None,
+        time_end: FloatLike | None = None,
         diameter_number: PairOfFloats | None = None,
         diameter_number_end: PairOfFloats | None = None,
         diameter_range: PairOfFloats | None = None,
@@ -154,9 +138,9 @@ class Production(ComponentBase):
 
         Parameters
         ----------
-        age : FloatLike, optional
+        time_start : FloatLike, optional
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike, optional
+        time_end, FloatLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         diameter_number : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function convert this value
@@ -182,9 +166,11 @@ class Production(ComponentBase):
             The sampled age values if return_age is True, otherwise None.
 
         """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
         arguments = {
-            "age": age,
-            "age_end": age_end,
+            "time_start": time_start,
+            "time_end": time_end,
             "diameter_number": diameter_number,
             "diameter_number_end": diameter_number_end,
             "diameter_range": diameter_range,
@@ -193,8 +179,8 @@ class Production(ComponentBase):
             **kwargs,
         }
         arguments = self._validate_sample_args(**arguments)
-        age = arguments["age"]
-        age_end = arguments["age_end"]
+        time_start = arguments["time_start"]
+        time_end = arguments["time_end"]
         diameter_range = arguments["diameter_range"]
         area = arguments["area"]
         return_age = arguments["return_age"]
@@ -204,8 +190,8 @@ class Production(ComponentBase):
         input_diameters = np.logspace(np.log10(diameter_range[0]), np.log10(diameter_range[1]))
         cdf = self.function(
             diameter=input_diameters,
-            age=age,
-            age_end=age_end,
+            time_start=time_start,
+            time_end=time_end,
             validate_inputs=validate_inputs,
             **kwargs,
         )
@@ -222,10 +208,10 @@ class Production(ComponentBase):
             return np.empty(0), np.empty(0)
 
         if return_age:
-            age_subinterval = np.linspace(age_end, age, num=1000)
+            time_subinterval = np.linspace(time_end, time_start, num=1000)
             N_vs_age = self.function(
                 diameter=diameters,
-                age=age_subinterval,
+                age=time_subinterval,
                 validate_inputs=validate_inputs,
                 **kwargs,
             )
@@ -241,13 +227,15 @@ class Production(ComponentBase):
                 cdf = np.cumsum(weights, axis=1)
 
             else:
-                N_vs_age -= np.min(N_vs_age)  # Subtract the min along age dimension
-                N_vs_age = N_vs_age[:-1]  # Remove the last value to avoid the cumulative sum reaching 1
-                weights_sum = np.sum(N_vs_age)  # Sum of weights for each diameter
-                weights = N_vs_age / weights_sum  # Normalize weights for each diameter
-
-                # Compute the CDF for each diameter
-                cdf = np.cumsum(weights)
+                if len(N_vs_age) > 0:
+                    N_vs_age -= np.min(N_vs_age)  # Subtract the min along age dimension
+                    N_vs_age = N_vs_age[:-1]  # Remove the last value to avoid the cumulative sum reaching 1
+                    weights_sum = np.sum(N_vs_age)  # Sum of weights for each diameter
+                    weights = N_vs_age / weights_sum  # Normalize weights for each diameter
+                    # Compute the CDF for each diameter
+                    cdf = np.cumsum(weights)
+                else:
+                    cdf = np.empty(0)
 
             # Generate uniform random numbers for each diameter
             random_values = self.rng.uniform(0, 1, size=diameters.size)
@@ -261,28 +249,28 @@ class Production(ComponentBase):
                 chosen_subinterval_indices = np.searchsorted(cdf, random_values[:], side="right") - 1
 
             # Ensure indices are within valid range
-            chosen_subinterval_indices = np.clip(chosen_subinterval_indices, 0, len(age_subinterval) - 2)
+            chosen_subinterval_indices = np.clip(chosen_subinterval_indices, 0, len(time_subinterval) - 2)
             # Sample a random age within the selected subinterval for each diameter
-            age_lo = age_subinterval[chosen_subinterval_indices]
-            age_hi = age_subinterval[chosen_subinterval_indices + 1]
-            ages = self.rng.uniform(low=age_lo, high=age_hi)
+            time_lo = time_subinterval[chosen_subinterval_indices]
+            time_hi = time_subinterval[chosen_subinterval_indices + 1]
+            timevals = self.rng.uniform(low=time_lo, high=time_hi)
 
             # Sort the ages and diameters so that they are in order of decreasing age
-            if ages.size > 1:
-                sort_indices = np.argsort(ages)[::-1]
+            if timevals.size > 1:
+                sort_indices = np.argsort(timevals)[::-1]
                 diameters = diameters[sort_indices]
-                ages = ages[sort_indices]
+                timevals = timevals[sort_indices]
         else:
-            ages = np.empty(0)
+            timevals = np.empty(0)
 
-        return diameters, ages
+        return diameters, timevals
 
     @abstractmethod
     def function(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
         **kwargs: Any,
     ) -> NDArray[np.float64]: ...
 
@@ -319,17 +307,17 @@ class Production(ComponentBase):
 
         def _root_func(t, D, N):
             kwargs.pop("validate_inputs", None)
-            retval = self.function(diameter=D, age=t, validate_inputs=False, **kwargs) - N
+            retval = self.function(diameter=D, time_start=t, validate_inputs=False, **kwargs) - N
             return retval
 
         xtol = 1e-8
         x0 = 4000.0
-        if self.valid_age[0] is not None:
-            xlo = self.valid_age[0]
+        if self.valid_time[0] is not None:
+            xlo = self.valid_time[0]
         else:
             xlo = 0.0
-        if self.valid_age[1] is not None:
-            xhi = self.valid_age[1]
+        if self.valid_time[1] is not None:
+            xhi = self.valid_time[1]
         else:
             xhi = 1e6
         retval = []
@@ -361,8 +349,8 @@ class Production(ComponentBase):
     def D_from_N_age(
         self,
         cumulative_number_density: FloatLike | Sequence[FloatLike] | ArrayLike,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike,
-        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
         validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
@@ -373,9 +361,9 @@ class Production(ComponentBase):
         ----------
         cumulative_number_density : float-like or array-like
             number density of craters per m^2 surface area greater than the input diameter
-        age : FloatLike or ArrayLike, default=1.0
+        time_start : FloatLike or ArrayLike, default=1.0
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike or ArrayLike, optional
+        time_end, FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         validate_inputs : bool, optional
             If True, the function will validate the inputs. The default is True.
@@ -387,16 +375,18 @@ class Production(ComponentBase):
         float_like or numpy array
             The diameter for the given number density and age.
         """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
         if validate_inputs:
-            age, age_end = self._validate_age(age, age_end)
+            time_start, time_end = self._validate_age(time_start, time_end)
 
-        def _root_func(D, N, age, age_end):
+        def _root_func(D, N, time_start, time_end):
             kwargs.pop("validate_inputs", None)
             retval = (
                 self.function(
                     diameter=D,
-                    age=age,
-                    age_end=age_end,
+                    time_start=time_start,
+                    time_end=time_end,
                     validate_inputs=False,
                     **kwargs,
                 )
@@ -412,9 +402,9 @@ class Production(ComponentBase):
         narr = np.array(cumulative_number_density)
         converged = []
         flag = []
-        for i, n in np.ndenumerate(narr):
+        for _, n in np.ndenumerate(narr):
             sol = root_scalar(
-                lambda x: _root_func(x, n, age, age_end),
+                lambda x: _root_func(x, n, time_start, time_end),
                 x0=x0,
                 xtol=xtol,
                 method="brentq",
@@ -436,7 +426,8 @@ class Production(ComponentBase):
     @abstractmethod
     def chronology(
         self,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike = 0.0,
         validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike: ...
@@ -505,10 +496,10 @@ class Production(ComponentBase):
 
         Parameters
         ----------
-        age : FloatLike, optional
-            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike, optional
-            The ending age in units of My relative to the present, which is used to compute the cumulative SFD.
+        time_start : FloatLike, optional
+            The starting time in units of My relative to the present, which is used to compute the
+        time_end, FloatLike, optional
+            The ending time in units of My relative to the present, which is used to compute the cumulative SFD.
             The default is 0 (present day).
         diameter_number : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N), which gives the total cumulative number of
@@ -516,7 +507,7 @@ class Production(ComponentBase):
             production function for a given age.
         diameter_number_end : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N), which gives the total cumulative number of
-            projectiles, N, larger than diameter, D.. If provided, the function will convert this value to a corresponding age_end
+            projectiles, N, larger than diameter, D.. If provided, the function will convert this value to a corresponding time_end
             and use the production function for a given age. The default is (1000.0, 0) (present day).
         diameter_range : PairOfFloats
             The minimum and maximum crater diameter to sample from in meters.
@@ -529,18 +520,18 @@ class Production(ComponentBase):
         Returns
         -------
         FloatLike
-            The start age in units of My relative to the present.
+            The start time in units of My relative to the present.
         FloatLike
-            The end age in units of My relative to the present.
+            The end time in units of My relative to the present.
         PairOfFloats
-            A pair of diameter and cumulative number values, in the form of a (D, N) representing the cumulative number and diameter values for the start age.
+            A pair of diameter and cumulative number values, in the form of a (D, N) representing the cumulative number and diameter values for a surface at the age given by the start time
         PairOfFloats
-            A pair of diameter and cumulative number values, in the form of a (D, N) representing the cumulative number and diameter values for the end age.
+            A pair of diameter and cumulative number values, in the form of a (D, N) representing the cumulative number and diameter values for a surface at the age given by the end time.
         PairOfFloats
             The minimum and maximum diameter values to sample from in meters.
         FloatLike
             The area in m^2 over which the production function is evaluated to generate the expected number, which is the production
-            function over the input age/cumulative number range at the minimum diameter.
+            function over the input time/cumulative number range at the minimum diameter.
 
         Raises
         ------
@@ -548,9 +539,9 @@ class Production(ComponentBase):
             If any of the following conditions are met:
             - Neither the age nore the diameter_number argument is provided.
             - Both the age and diameter_number arguments are provided.
-            - Both the age_end and diameter_number_end arguments are provided.
-            - The age argument is provided but is not a scalar.
-            - The age_end argument is provided but is not a scalar.
+            - Both the time_end and diameter_number_end arguments are provided.
+            - The time_start or age argument is provided but is not a scalar.
+            - The time_end argument is provided but is not a scalar.
             - The diameter_number argument is not a pair of values, or any of them are less than 0
             - The diameter_number_end argument is not a pair of values, or any of them are less than 0
             - The diameter_range is not provided.
@@ -560,24 +551,27 @@ class Production(ComponentBase):
             - The area argument is not a scalar or is less than 0.
         """
         _REF_DIAM = 1000.0  # The diameter value used if age arguments are provided
-        age = kwargs.get("age")
-        age_end = kwargs.get("age_end")
+        age = kwargs.pop("age", None)
+        if age is not None:
+            kwargs["time_start"] = age
+        time_start = kwargs.get("time_start")
+        time_end = kwargs.get("time_end")
         diameter_number = kwargs.get("diameter_number")
         diameter_number_end = kwargs.get("diameter_number_end")
         diameter_range = kwargs.get("diameter_range")
         area = kwargs.get("area")
         return_age = kwargs.get("return_age", True)
 
-        if age is None and diameter_number is None:
-            raise ValueError("Either the 'age' or 'diameter_number' must be provided")
-        elif age is not None and diameter_number is not None:
-            raise ValueError("Only one of the 'age' or 'diameter_number' arguments can be provided")
-        if age_end is not None and diameter_number_end is not None:
-            raise ValueError("Only one of the 'age_end' or 'diameter_number_end' arguments can be provided")
-        if age is not None and not np.isscalar(age):
-            raise ValueError("The 'age' must be a scalar")
-        if age_end is not None and not np.isscalar(age_end):
-            raise ValueError("The 'age_end' must be a scalar")
+        if time_start is None and diameter_number is None:
+            raise ValueError("Either the 'time_start' or 'diameter_number' must be provided")
+        elif time_start is not None and diameter_number is not None:
+            raise ValueError("Only one of the 'time_start' or 'diameter_number' arguments can be provided")
+        if time_end is not None and diameter_number_end is not None:
+            raise ValueError("Only one of the 'time_end' or 'diameter_number_end' arguments can be provided")
+        if time_start is not None and not np.isscalar(time_start):
+            raise ValueError("The 'time_start' must be a scalar")
+        if time_end is not None and not np.isscalar(time_end):
+            raise ValueError("The 'time_end' must be a scalar")
 
         if diameter_range is None:
             raise ValueError("The 'diameter_range' must be provided")
@@ -603,21 +597,21 @@ class Production(ComponentBase):
                 raise ValueError("The 'diameter_number' must be a pair of values in the form (D, N)")
             diameter_number = self._validate_csfd(*diameter_number)
             diameter_number_density = (diameter_number[0], diameter_number[1] / area)
-            age = self.age_from_D_N(*diameter_number_density)
+            time_start = self.age_from_D_N(*diameter_number_density)
         else:
             diameter_number_density = (
                 _REF_DIAM,
-                self.function(diameter=_REF_DIAM, age=age),
+                self.function(diameter=_REF_DIAM, age=time_start),
             )
             diameter_number = (
                 diameter_number_density[0],
                 diameter_number_density[1] * area,
             )
 
-        if age_end is None and diameter_number_end is None:
+        if time_end is None and diameter_number_end is None:
             diameter_number_end = (_REF_DIAM, 0.0)
             diameter_number_density_end = diameter_number_end
-            age_end = 0.0
+            time_end = 0.0
 
         if diameter_number_end is not None:
             if len(diameter_number_end) != 2:
@@ -633,34 +627,34 @@ class Production(ComponentBase):
                 if diameter_number_density_end[0] != diameter_number_density[0]:
                     diameter_number_density_end = (
                         diameter_number_density[0],
-                        self.function(diameter=diameter_number_density[0], age=age_end),
+                        self.function(diameter=diameter_number_density[0], time_start=time_end),
                     )
                     diameter_number_end = (
                         diameter_number[0],
                         diameter_number_density_end[1] * area,
                     )
 
-        if age_end is None:
+        if time_end is None:
             diameter_number_end = self._validate_csfd(*diameter_number_end)
             diameter_number_density_end = (
                 diameter_number_end[0],
                 diameter_number_end[1] / area,
             )
-            age_end = self.age_from_D_N(*diameter_number_density_end)
+            time_end = self.age_from_D_N(*diameter_number_density_end)
 
-        age, age_end = self._validate_age(age, age_end)
+        time_start, time_end = self._validate_age(time_start, time_end)
 
         if diameter_number_end is None:
             diameter_number_end = (
                 diameter_number[0],
-                self.function(diameter=diameter_number[0], age=age_end) * area,
+                self.function(diameter=diameter_number[0], time_start=time_end) * area,
             )
 
         if not isinstance(return_age, bool):
             raise ValueError("The 'return_age' argument must be a boolean")
 
-        kwargs["age"] = age
-        kwargs["age_end"] = age_end
+        kwargs["time_start"] = time_start
+        kwargs["time_end"] = time_end
         kwargs["diameter_number"] = diameter_number
         kwargs["diameter_number_end"] = diameter_number_end
         kwargs["diameter_range"] = diameter_range
@@ -671,19 +665,19 @@ class Production(ComponentBase):
 
     def _validate_age(
         self,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
     ) -> FloatLike | ArrayLike:
         """
-        Processes the age argument and age_end arguments. Checks that they are valid and returns a tuple of age and age_end.
+        Processes the time_start argument and time_end arguments. Checks that they are valid and returns a tuple of age and time_end.
 
         Parameters
         ----------
-        age : FloatLike or ArrayLike, default=1.0
+        time_start : FloatLike or ArrayLike, default=1.0
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike or ArrayLike, optional
+        time_end, FloatLike or ArrayLike, optional
             The reference used when computing age in My. If none is passed, it will be set either 0 or an array of zeros, depending on
-            the size of age.
+            the size of time_start.
 
         Returns
         -------
@@ -695,48 +689,56 @@ class Production(ComponentBase):
         ValueError
             If the the start age is greater than the end age or the age variable is not a scalar or a sequence of 2 values.
         """
-        if np.isscalar(age):
-            if not isinstance(age, FloatLike):
-                raise TypeError("age must be a numeric value (float or int)")
-            if age_end is None:
-                age_end = 0.0
-            elif not np.isscalar(age_end) or not isinstance(age_end, FloatLike):
-                raise TypeError("age_end must be a numeric value (float or int)")
-            if age < age_end:
-                raise ValueError("age must be greater than the age_end")
-            if self.valid_age[0] is not None and age < self.valid_age[0]:
-                raise ValueError(f"age must be greater than the minimum valid age {self.valid_age[0]}")
-            if self.valid_age[1] is not None and age > self.valid_age[1]:
-                raise ValueError(f"age must be less than the maximum valid age {self.valid_age[1]}")
+        if np.isscalar(time_start):
+            if not isinstance(time_start, FloatLike):
+                raise TypeError("time_start must be a numeric value (float or int)")
+            if time_end is None:
+                time_end = 0.0
+            elif not np.isscalar(time_end) or not isinstance(time_end, FloatLike):
+                raise TypeError("time_end must be a numeric value (float or int)")
+            if time_start < time_end:
+                raise ValueError("time_start must be greater than the time_end")
+            if self.valid_time[0] is not None and time_start < self.valid_time[0]:
+                raise ValueError(
+                    f"time_start must be greater than the minimum valid time {self.valid_time[0]} (it is units of My before present)"
+                )
+            if self.valid_time[1] is not None and time_start > self.valid_time[1]:
+                raise ValueError(
+                    f"time_start must be less than the maximum valid time {self.valid_time[1]} (it is in units of My before present)"
+                )
         else:
-            if isinstance(age, (list, tuple)):
-                age = np.array(age, dtype=np.float64)
-            elif not isinstance(age, np.ndarray):
-                raise TypeError("age must be a numeric value (float or int) or an array")
+            if isinstance(time_start, (list, tuple)):
+                time_start = np.array(time_start, dtype=np.float64)
+            elif not isinstance(time_start, np.ndarray):
+                raise TypeError("time_start must be a numeric value (float or int) or an array")
 
-            if age_end is None:
-                age_end = np.zeros_like(age)
-            elif np.isscalar(age_end):
-                age_end = np.full_like(age, age_end, dtype=np.float64)
-            elif isinstance(age_end, (list, tuple)):
-                age_end = np.array(age_end, dtype=np.float64)
-            elif not isinstance(age_end, np.ndarray):
-                raise TypeError("age_end must be a numeric value (float or int) or an array")
+            if time_end is None:
+                time_end = np.zeros_like(time_start, dtype=np.float64)
+            elif np.isscalar(time_end):
+                time_end = np.full_like(time_start, time_end, dtype=np.float64)
+            elif isinstance(time_end, (list, tuple)):
+                time_end = np.array(time_end, dtype=np.float64)
+            elif not isinstance(time_end, np.ndarray):
+                raise TypeError("time_end must be a numeric value (float or int) or an array")
 
-            if age.size != age_end.size:
-                raise ValueError("The 'age' and 'age_end' arguments must be the same size if both are provided")
+            if time_start.size != time_end.size:
+                raise ValueError("The 'time_start' and 'time_end' arguments must be the same size if both are provided")
 
-            if np.any(age < age_end):
-                raise ValueError("age must be greater than the age_end")
+            if np.any(time_start < time_end):
+                raise ValueError("time_start must be greater than the time_end")
 
-            if self.valid_age[0] is not None:
-                if np.any(age < self.valid_age[0]) or np.any(age_end < self.valid_age[0]):
-                    raise ValueError(f"age must be greater than the minimum valid age {self.valid_age[0]}")
-            if self.valid_age[1] is not None:
-                if np.any(age > self.valid_age[1]) or np.any(age_end > self.valid_age[1]):
-                    raise ValueError(f"age must be less than the maximum valid age {self.valid_age[1]}")
+            if self.valid_time[0] is not None:
+                if np.any(time_start < self.valid_time[0]) or np.any(time_end < self.valid_time[0]):
+                    raise ValueError(
+                        f"time_start must be greater than the minimum valid age {self.valid_time[0]} (it is in units of My before present)"
+                    )
+            if self.valid_time[1] is not None:
+                if np.any(time_start > self.valid_time[1]) or np.any(time_end > self.valid_time[1]):
+                    raise ValueError(
+                        f"time_start must be less than the maximum valid age {self.valid_time[1]} (it is in units of My before present)"
+                    )
 
-        return age, age_end
+        return time_start, time_end
 
     @parameter
     def generator_type(self):
@@ -760,7 +762,7 @@ class Production(ComponentBase):
         return
 
     @property
-    def valid_age(self) -> tuple[float, float]:
+    def valid_time(self) -> tuple[float, float]:
         """
         The range of ages over which the production function is valid. The range is given in My.
 

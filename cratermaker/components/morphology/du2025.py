@@ -25,7 +25,7 @@ class Du2025(SimpleMoon):
     Parameters
     ----------
     **kwargs : Any
-        Additional keyword arguments to be passed to internal functions.
+        |kwargs|
 
     Notes
     -----
@@ -49,6 +49,8 @@ class Du2025(SimpleMoon):
             Coeffcients used to constract a 1D power spectral density
         num_psd_component_effec : int
             Only reconstrut the sine waves with wavelengths smaller than 2pi/num_psd_component_effec to improve computational efficiency
+        **kwargs : Any
+            |kwargs|
 
         References
         ----------

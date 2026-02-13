@@ -1,5 +1,12 @@
 .. currentmodule:: cratermaker
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
 .. image:: ../_static/surface_icon.svg
     :alt: Surface
     :align: center
@@ -126,6 +133,13 @@ Though it is limited to a few resolutions, the icosphere surface will have the m
     print(surface)
 
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()
+
+
 This is equivalent to:
 
 
@@ -139,8 +153,7 @@ This is equivalent to:
     :okwarning:
     :suppress:
 
-    import shutil
-    shutil.rmtree(surface.output_dir)
+    cleanup()
 
 Arbitrary Resolution 
 ^^^^^^^^^^^^^^^^^^^^
@@ -158,6 +171,13 @@ While the `icosphere` surface generates the most regular grids, it is limited to
 
     surface=Surface.maker(surface='arbitrary_resolution', target='Mercury', pix=20e3)
     print(surface)
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()
+
 
 
 The arbitrary resolution grid is similar to the icosphphere grid in that the surface will be discretized into approximately equal-sized faces. Unlike the icosphere, the faces on the surface will be more irregular in shape, making it less ideal. 
@@ -185,16 +205,16 @@ For instance, suppose we want to generate a high resolution local grid on the Mo
 
 .. ipython:: python
     :okwarning:
-    :suppress:
-
-    import shutil
-    shutil.rmtree(surface.output_dir)
-
-.. ipython:: python
-    :okwarning:
 
     surface=Surface.maker("hireslocal", pix=10.0, local_radius=5e3, local_location=(0, 0), superdomain_scale_factor=10000)
     print(surface)
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()
+
 
 The image above shows a rendering of this high resolution local grid, showing a view of the whole local region and an inset showing the high resolution portion inside. The local region will have approximately square and equal-sized faces, but the faces will be more irregular in shape as you move away from the center of the local region. The superdomain will have larger faces that are scaled by the `superdomain_scale_factor`, which allows for distal ejecta to be modeled from large far away craters. The superdomain is not a separate surface, but rather a part of the same surface that is used to model the effects of distant craters on the local region.
 The "hireslocal" surface type works somewhat differently than the others. For instance, the diffusive degradation is only applied on the local region. You can think of the local region as the "primary" surface being modeled, and the superdomain as simply a source for distal ejecta fram large far away craters. 
@@ -271,12 +291,12 @@ Many of the operations that Cratermaker does on a surface only affect a small po
 
 For instance, suppose we'd like to extract a 16 km radius region at the south pole of the Moon:
 
+
 .. ipython:: python
     :okwarning:
     :suppress:
 
-    import shutil
-    shutil.rmtree(surface.output_dir)
+    cleanup()
 
 .. ipython:: python
     :okwarning:
@@ -285,6 +305,9 @@ For instance, suppose we'd like to extract a 16 km radius region at the south po
     print(surface)
     region=surface.extract_region(location=(0,-90),region_radius=16e3)
     print(region)
+
+
+
 
 As we can see, this selects only 33 of the full 655362 faces, which is a significant reduction in the number of faces and nodes that need to be processed. All faces with their centers interior to circle defined by location and region_radius are included, as well as their associated edges and nodes (highlighted in the diagram above). In addition, the region will also contain a "buffer" of all faces that surround the outermost border of the local region, such that any operations that require neighboring faces across included edges or nodes can have access to them. 
 
@@ -332,8 +355,7 @@ Suppose we wish to extract a 10 km radius local region of the surface of the Moo
     :okwarning:
     :suppress:
 
-    import shutil
-    shutil.rmtree(surface.output_dir)
+    cleanup()
 
 .. ipython:: python
     :okwarning:
@@ -430,3 +452,9 @@ More Surface examples
 
 See more examples at  :ref:`gal-topography`
 
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

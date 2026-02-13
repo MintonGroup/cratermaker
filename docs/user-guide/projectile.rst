@@ -1,5 +1,12 @@
 .. currentmodule:: cratermaker
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
 .. image:: ../_static/projectile_icon.svg
     :alt: Projectile
     :align: center
@@ -62,3 +69,10 @@ See more examples at  :ref:`gal-projectiles_and_scaling`
 .. toctree::
    :maxdepth: 2
    :hidden:
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

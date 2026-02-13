@@ -1,5 +1,12 @@
 .. currentmodule:: cratermaker
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
 .. image:: ../_static/crater_icon.svg
     :alt: Production
     :align: center
@@ -127,3 +134,10 @@ Next we will feed our custom target body to the :meth:`Crater.maker()` method to
         projectile_velocity=5000,     
     )
     print(crater)
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

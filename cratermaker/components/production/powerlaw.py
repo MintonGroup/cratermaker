@@ -16,24 +16,6 @@ class PowerLawProduction(Production):
 
     This impliments a very simple power law production function that can be used as either a crater or projectile production function. The production function is defined as the cumulative number of craters greater than a given diameter per unit m^2 surface area.
 
-    Parameters
-    ----------
-    generator_type : str, optional
-        The type of generator to use. This can be either "crater" or "projectile". Default is "crater".
-    N1_coef : float, optional
-        The coefficient for the power law production function at 1 m diameter per 1 My.
-        Default is 7.9.e-3 (lunar craters) or 2.2e-8 (lunar projectiles) based on fits to the NPF on the Moon.
-    slope : float, optional
-        The slope of the power law production function.
-        Default is -3.33 (lunar craters) or -2.26 (lunar projectiles) based on fits to the NPF on the Moon.
-    rng : numpy.random.Generator | None
-        A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
-    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-        The rng_rng_seed for the RNG. If None, a new RNG is created.
-    rng_state : dict, optional
-        The state of the random number generator. If None, a new state is created.
-    **kwargs : Any
-        Additional keyword arguments.
     """
 
     def __init__(
@@ -46,6 +28,28 @@ class PowerLawProduction(Production):
         rng_state: dict | None = None,
         **kwargs: Any,
     ):
+        """
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
+
+        Parameters
+        ----------
+        generator_type : str, optional
+            The type of generator to use. This can be either "crater" or "projectile". Default is "crater".
+        N1_coef : float, optional
+            The coefficient for the power law production function at 1 m diameter per 1 My.
+            Default is 7.9.e-3 (lunar craters) or 2.2e-8 (lunar projectiles) based on fits to the NPF on the Moon.
+        slope : float, optional
+            The slope of the power law production function.
+            Default is -3.33 (lunar craters) or -2.26 (lunar projectiles) based on fits to the NPF on the Moon.
+        rng : numpy.random.Generator | None
+            |rng|
+        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+            |rng_seed|
+        rng_state : dict, optional
+            |rng_state|
+        **kwargs : Any
+            |kwargs|
+        """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         self.generator_type = generator_type
 
@@ -81,8 +85,8 @@ class PowerLawProduction(Production):
     def function(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        age_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
         validate_inputs: bool = True,
         **kwargs: Any,
     ) -> FloatLike | ArrayLike:
@@ -93,12 +97,12 @@ class PowerLawProduction(Production):
         ----------
         diameter : FloatLike or ArrayLike
             Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        age : FloatLike or ArrayLike, default=1.0
+        time_start : FloatLike or ArrayLike, default=1.0
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        age_end, FloatLike or ArrayLike, optional
+        time_end : FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         validate_inputs: bool, default=True
-            If True, the function will check that the validity of age, age_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
+            If True, the function will check that the validity of time_start, time_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
         **kwargs : Any
             Any additional keywords. These are not used in this base class, but included here so that any extended class can share
             the same function signature.
@@ -109,17 +113,19 @@ class PowerLawProduction(Production):
             The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
             surface over the given age range.
         """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
         if validate_inputs:
             diameter, _ = self._validate_csfd(diameter=diameter)
-            age, age_end = self._validate_age(age, age_end)
-        elif age_end is None:
-            if np.isscalar(age):
-                age_end = 0.0
+            time_start, time_end = self._validate_age(time_start, time_end)
+        elif time_end is None:
+            if np.isscalar(time_start):
+                time_end = 0.0
             else:
-                age_end = np.zeros_like(age)
+                time_end = np.zeros_like(time_start)
 
         n_array = np.asarray(self.csfd(diameter))
-        age_difference = np.asarray(age - age_end)
+        age_difference = np.asarray(time_start - time_end)
 
         if n_array.ndim > 0 and age_difference.ndim > 0:
             return n_array[:, None] * age_difference
@@ -128,8 +134,8 @@ class PowerLawProduction(Production):
 
     def chronology(
         self,
-        age: ArrayLike = np.array([1000.0]),
-        age_end: ArrayLike | None = None,
+        time_start: ArrayLike = (1000.0),
+        time_end: ArrayLike | None = None,
         validate_inputs: bool = True,
         **kwargs: Any,
     ) -> NDArray[np.float64]:
@@ -138,8 +144,12 @@ class PowerLawProduction(Production):
 
         Parameters
         ----------
-        age : FloatLike or ArrayLike, default=1.0
+        time_start : FloatLike or ArrayLike, default=1.0
             Age in the past relative to the present day to compute cumulative SFD in units of My.
+        time_end : FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        validate_inputs: bool, default
+            If True, the function will check that the validity of age and time_end arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
         **kwargs: Any
             Any additional keywords that are passed to the function method.
 
@@ -149,16 +159,18 @@ class PowerLawProduction(Production):
             The number of craters relative to the amount produced in the last 1 My.
 
         """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
         if validate_inputs:
-            age, age_end = self._validate_age(age, age_end)
+            time_start, time_end = self._validate_age(time_start, time_end)
         else:
-            if age_end is None:
-                if np.isscalar(age):
-                    age_end = 0.0
+            if time_end is None:
+                if np.isscalar(time_start):
+                    time_end = 0.0
                 else:
-                    age_end = np.zeros_like(age)
+                    time_end = np.zeros_like(time_start)
 
-        return age - age_end
+        return time_start - time_end
 
     def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike:
         """
