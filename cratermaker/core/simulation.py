@@ -669,7 +669,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> None:
+    def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> list[Crater]:
         """
         Emplace one or more craters in the simulation.
 
@@ -683,6 +683,11 @@ class Simulation(CratermakerBase):
             The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single crat er will be generated based on the keyword arguments.
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        list[Crater]
+            A list of the Crater objects that were emplaced in the simulation. Returns an empty list if no craters were emplaced.
 
         Notes
         -----

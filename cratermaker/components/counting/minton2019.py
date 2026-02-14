@@ -59,7 +59,6 @@ class Minton2019Counting(Counting):
         b = 0.15
         diam_correction = 20e3  # depth/diameter correction transition diameter from Riedel et al. (2020)
         correction_factor = 2.0e-7
-        crater = self.measure_crater_depth(crater)
         depth = crater.measured_rim_height - crater.measured_floor_depth
         depth_diam = depth / crater.measured_diameter
         if depth_diam < _VSMALL:
@@ -67,7 +66,7 @@ class Minton2019Counting(Counting):
         if crater.measured_diameter > diam_correction:
             depth_diam += (crater.measured_diameter - diam_correction) * correction_factor
         K = (a / np.sqrt(depth_diam) - b) * crater.measured_radius**2
-        crater = Crater.maker(crater, degradation_state=K)
+        crater.degradation_state = K
 
         return crater
 

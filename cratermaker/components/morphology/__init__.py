@@ -7,6 +7,7 @@ from math import pi
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
+from cratermaker._cratermaker import counting_bindings
 from numpy.typing import NDArray
 from scipy.integrate import quad
 from tqdm import tqdm
@@ -35,6 +36,28 @@ class MorphologyCraterVariable(CraterVariable):
         object.__setattr__(self, "_emplaceable", None)
         super().__init__(**kwargs)
         return
+
+    def as_dict(self) -> dict:
+        """
+        Return a dictionary representation of the crater variable properties.
+        """
+        dict_repr = super().as_dict()
+        keys = (
+            "face_index",
+            "ejecta_rmax",
+            "crater_rmax",
+            "emplaceable",
+            "affected_face_indices",
+            "affected_node_indices",
+            "morphology",
+            "crater_region",
+            "ejecta_region",
+            "emplaceable",
+        )
+        for key in keys:
+            dict_repr[key] = getattr(self, key)
+
+        return dict_repr
 
     @property
     def _has_initialized_surface_data(self) -> bool:
@@ -87,28 +110,6 @@ class MorphologyCraterVariable(CraterVariable):
     def crater_region(self) -> LocalSurface | None:
         return self._crater_region
 
-    def as_dict(self) -> dict:
-        """
-        Return a dictionary representation of the crater variable properties.
-        """
-        dict_repr = super().as_dict()
-        keys = (
-            "face_index",
-            "ejecta_rmax",
-            "crater_rmax",
-            "emplaceable",
-            "affected_face_indices",
-            "affected_node_indices",
-            "morphology",
-            "crater_region",
-            "ejecta_region",
-            "emplaceable",
-        )
-        for key in keys:
-            dict_repr[key] = getattr(self, key)
-
-        return dict_repr
-
 
 class MorphologyCrater(Crater):
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, var_cls=MorphologyCraterVariable, **kwargs):
@@ -146,9 +147,8 @@ class MorphologyCrater(Crater):
         """
         Remove complex data types from the crater variable properties.
 
-        This is useful for storing a lightweight representation, as it removes complex data types that can be recomputed from the fixed properties and the morphology model when needed.
+        This is useful for storing a lightweight representation, as it removes complex data types that can be recomputed from the fixed properties and the morphology model when needed. The morphology model is not removed, so that the complex data can be recomputed if needed.
         """
-        self._var._morphology = None
         self._var._affected_face_indices = None
         self._var._affected_node_indices = None
         self._var._crater_region = None
@@ -269,6 +269,24 @@ class MorphologyCrater(Crater):
         if self._var._emplaceable is None and self._has_initialized_surface_data:
             _ = self.crater_region
         return self._var._emplaceable
+
+    @property
+    def measured_rim_height(self) -> float | None:
+        """
+        The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region.
+        """
+        if self.crater_region is not None:
+            self._var._measured_rim_height = counting_bindings.measure_rim_height(self.crater_region, self)
+        return self._var._measured_rim_height
+
+    @property
+    def measured_floor_depth(self) -> float | None:
+        """
+        The measured floor depth of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region.
+        """
+        if self.crater_region is not None:
+            self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.crater_region, self)
+        return self._var._measured_floor_depth
 
 
 class Morphology(ComponentBase):
@@ -400,7 +418,7 @@ class Morphology(ComponentBase):
         )
         return morphology
 
-    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> None:
+    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> list[Crater]:
         """
         Convenience method to immediately emplace a crater onto the surface.
 
@@ -412,6 +430,11 @@ class Morphology(ComponentBase):
             The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single crater will be generated based on the keyword arguments.
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        list of Crater or None
+            The crater(s) that were emplaced. If no craters were provided and a crater could not be generated based on the keyword arguments, an empty list is returned.
 
         Notes
         -----
@@ -441,12 +464,19 @@ class Morphology(ComponentBase):
         if self._queue_manager is None:
             self._init_queue_manager()
 
+        if craters is None:
+            craters = [MorphologyCrater.maker(**kwargs)]
+        elif isinstance(craters, MorphologyCrater):
+            craters = [craters]
+        elif isinstance(craters, Crater):
+            craters = [MorphologyCrater.maker(crater=craters, morphology=self)]
+
         if isinstance(craters, list) and len(craters) > 0:
             for c in craters:
                 self._enqueue_crater(c)
-        elif isinstance(craters, Crater):
-            self._enqueue_crater(craters)
         self._process_queue()
+
+        return craters
 
     def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """

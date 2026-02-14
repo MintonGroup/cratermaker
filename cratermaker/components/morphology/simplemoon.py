@@ -151,7 +151,7 @@ class SimpleMoon(Morphology):
             base += "\nEjecta Truncation: Off"
         return f"{base}\nEjecta Rays: {self.dorays}"
 
-    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> None:
+    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> list[SimpleMoonCrater]:
         """
         Convenience method to immediately emplace a crater onto the surface.
 
@@ -163,6 +163,11 @@ class SimpleMoon(Morphology):
             The crater or list of craters to be emplaced. If None, then a crater will be created using the provided parameters in kwargs and emplaced.
         kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        list[SimpleMoonCrater]
+            The list of SimpleMoonCrater objects that were emplaced.
         """
         if craters is None:
             craters = [SimpleMoonCrater.maker(morphology=self, **kwargs)]
@@ -185,8 +190,7 @@ class SimpleMoon(Morphology):
                 "Invalid input for crater emplacement. Must be a Crater object, a list of Crater objects, or None with additional arguments for Crater.maker()."
             )
 
-        super().emplace(craters)
-        return
+        return super().emplace(craters)
 
     def form_crater(self, crater: Crater | SimpleMoonCrater, **kwargs: Any) -> None:
         """

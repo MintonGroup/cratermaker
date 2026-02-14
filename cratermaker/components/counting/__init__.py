@@ -339,36 +339,6 @@ class Counting(ComponentBase):
 
         return region
 
-    def measure_crater_depth(self, crater: Crater) -> Crater:
-        """
-        Measure the rim height and floor depth of a crater on the surface.
-
-        Parameters
-        ----------
-        crater : Crater
-            The crater for which to measure the depth.
-
-        Returns
-        -------
-        crater
-            The updated Crater object with the new measured depth properties.
-        """
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-
-        region = self.surface.extract_region(
-            location=crater.measured_location, region_radius=_MEASURING_RADIUS_RATIO * crater.measured_radius
-        )
-        orig_elevation = region.face_elevation.copy()
-        reference_elevation = region.get_reference_surface(only_faces=True)
-        region.update_elevation(-reference_elevation, overwrite=False)
-        rim_height = counting_bindings.measure_rim_height(region, crater)
-        floor_depth = counting_bindings.measure_floor_depth(region, crater)
-        region.update_elevation(orig_elevation.data, overwrite=True)
-        crater.measured_rim_height = rim_height
-        crater.measured_floor_depth = floor_depth
-        return crater
-
     def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> None:
         """
         Tally the craters on the surface using the method of Minton et al. (2019) [#]_.

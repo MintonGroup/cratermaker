@@ -4320,5 +4320,16 @@ class LocalSurface(CratermakerBase):
         """
         return self._face_proj_y
 
+    @property
+    def desloped_face_elevation(self) -> NDArray:
+        """
+        The face elevations with the mean slope of the region removed.
+        """
+        if self.location is not None:
+            reference_elevation = self.get_reference_surface(only_faces=True)
+            return self.uxds.face_elevation.data - reference_elevation
+        else:
+            return None
+
 
 import_components(__name__, __path__)
