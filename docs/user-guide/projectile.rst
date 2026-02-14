@@ -11,6 +11,7 @@
     :alt: Projectile
     :align: center
     :width: 300px
+    :class: dark-light
 
 .. _ug-projectile:
 

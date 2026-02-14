@@ -13,6 +13,7 @@
     :alt: Target
     :align: center
     :width: 300px
+    :class: dark-light
 
 
 .. _ug-target:
