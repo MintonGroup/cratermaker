@@ -2267,7 +2267,7 @@ class LocalSurface(CratermakerBase):
 
             # Find the first layer that contains a contiguous set of empty spots
             for i in range(_N_TAG_LAYERS):
-                if np.all(self.uxds[name].isel(layer=i).data == 0):
+                if np.all(self.uxds[name].data[:, i] == 0):
                     insert_layer = i
                     break
             if insert_layer == -1:
@@ -2303,7 +2303,7 @@ class LocalSurface(CratermakerBase):
         # Sort each n_face row so that empty layers are always at the end. This effectively "compresses" the layers so that tags can be added along the maximum set of contiguous empty layers.
         sorted_indices = np.argsort(data, axis=1)[:, ::-1]
         self.surface.uxds[name].data[self.face_indices, :] = data
-        ds = self.uxds[name]
+        ds = self.surface.uxds[name].sel(n_face=self.face_indices)
         ds = ds.isel(layer=xr.DataArray(sorted_indices, dims=["n_face", "layer"]))
         self.surface.uxds[name].data[self.face_indices, :] = ds.data
         return
@@ -2569,9 +2569,11 @@ class LocalSurface(CratermakerBase):
         if n_reference < 5:
             return elevation
 
+        self.set_face_proj()
         if only_faces:
             x, y, z = self.face_proj_x, self.face_proj_y, self.face_elevation
         else:
+            self.set_node_proj()
             x = np.concatenate([self.face_proj_x, self.node_proj_x])
             y = np.concatenate([self.face_proj_y, self.node_proj_y])
             z = np.concatenate([self.face_elevation, self.node_elevation])
@@ -4263,13 +4265,23 @@ class LocalSurface(CratermakerBase):
             )
         return self._to_surface
 
+    def set_face_proj(self):
+        if self.face_distance is not None and self.face_bearing is not None and self._face_proj_x is None:
+            self._face_proj_x = self.face_distance * np.sin(np.radians(self.face_bearing))
+            self._face_proj_y = self.face_distance * np.cos(np.radians(self.face_bearing))
+        return
+
+    def set_node_proj(self):
+        if self.node_distance is not None and self.node_bearing is not None and self._node_proj_x is None:
+            self._node_proj_x = self.node_distance * np.sin(np.radians(self.node_bearing))
+            self._node_proj_y = self.node_distance * np.cos(np.radians(self.node_bearing))
+        return
+
     @property
     def face_proj_x(self) -> NDArray:
         """
         The projected x coordinates of the faces relative to the LocalSurface center.
         """
-        if self.face_distance is not None and self.face_bearing is not None and self._face_proj_x is None:
-            self._face_proj_x = self.face_distance * np.sin(np.radians(self.face_bearing))
         return self._face_proj_x
 
     @property
@@ -4277,8 +4289,6 @@ class LocalSurface(CratermakerBase):
         """
         The projected y coordinates of the faces relative to the LocalSurface center.
         """
-        if self.face_distance is not None and self.face_bearing is not None and self._face_proj_y is None:
-            self._face_proj_y = self.face_distance * np.cos(np.radians(self.face_bearing))
         return self._face_proj_y
 
     @property
@@ -4286,8 +4296,6 @@ class LocalSurface(CratermakerBase):
         """
         The projected x coordinates of the nodes relative to the LocalSurface center.
         """
-        if self.node_distance is not None and self.node_bearing is not None and self._node_proj_x is None:
-            self._node_proj_x = self.node_distance * np.sin(np.radians(self.node_bearing))
         return self._node_proj_x
 
     @property
@@ -4295,8 +4303,6 @@ class LocalSurface(CratermakerBase):
         """
         The projected y coordinates of the nodes relative to the LocalSurface center.
         """
-        if self.node_distance is not None and self.node_bearing is not None and self._node_proj_y is None:
-            self._node_proj_y = self.node_distance * np.cos(np.radians(self.node_bearing))
         return self._node_proj_y
 
     @property

@@ -153,6 +153,7 @@ pub fn score_rim<'py>(
     heightmult: f64,
 ) -> PyResult<Bound<'py, PyAny>> {
     // Ensure face projections are set
+    region.call_method0("set_face_proj")?;
     let transformer = region.getattr("from_surface").unwrap();
     let x0y0 = transformer.call_method1(
         "transform",
