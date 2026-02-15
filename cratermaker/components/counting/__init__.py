@@ -192,7 +192,7 @@ class Counting(ComponentBase):
             )
 
         # Tag a region just outside crater rim with the id
-        count_region = crater.crater_region
+        count_region = crater.count_region
 
         if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
             count_region.add_tag(
