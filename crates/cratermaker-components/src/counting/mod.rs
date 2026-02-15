@@ -6,8 +6,9 @@ use ndarray_linalg::{Eig, Inverse};
 use numpy::ndarray::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
-const _RIM_QUANTILE: f64 = 0.90;
-const _FLOOR_QUANTILE: f64 = 0.1;
+const _RIM_RADIUS_MAX: f64 = 1.20;
+const _RIM_RADIUS_MIN: f64 = 0.95;
+const _FLOOR_RADIUS: f64 = 0.2;
 
 pub fn mask_crater_faces(
     region: &LocalSurfaceView<'_>,
@@ -54,7 +55,7 @@ pub fn measure_floor_depth(
         .to_owned();
     let elevation = filter_crater_faces(&elevation, &mask_crater)?;
     let n_face = elevation.len();
-    let floor_distance = 0.2 * crater.measured_radius;
+    let floor_distance = _FLOOR_RADIUS * crater.measured_radius;
     let face_distance = region.face_distance.ok_or("face_distance required")?;
     let face_distance = filter_crater_faces(&face_distance.to_owned(), &mask_crater)?;
 
@@ -88,13 +89,14 @@ pub fn measure_rim_height(
         .to_owned();
     let elevation = filter_crater_faces(&elevation, &mask_crater)?;
     let n_face = elevation.len();
-    let rim_distance = 0.8 * crater.measured_radius;
+    let rim_distance_min = _RIM_RADIUS_MIN * crater.measured_radius;
+    let rim_distance_max = _RIM_RADIUS_MAX * crater.measured_radius;
     let face_distance = region.face_distance.ok_or("face_distance required")?;
     let face_distance = filter_crater_faces(&face_distance.to_owned(), &mask_crater)?;
 
     let mask_rim: Vec<bool> = (0..n_face)
         .into_par_iter()
-        .map(|f| face_distance[f] >= rim_distance)
+        .map(|f| face_distance[f] >= rim_distance_min && face_distance[f] <= rim_distance_max)
         .collect();
 
     for (&elev, &mask) in elevation.iter().zip(mask_rim.iter()) {

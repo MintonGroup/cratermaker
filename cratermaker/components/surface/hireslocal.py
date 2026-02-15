@@ -648,86 +648,6 @@ class HiResLocalSurface(Surface):
 
         return points
 
-    def add_tag(
-        self,
-        name: str,
-        tag: int | None = None,
-        region: LocalSurface | None = None,
-        n_layer: int = 8,
-        long_name: str | None = None,
-        tag_superdomain: bool = False,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Adds an integer tag to the surface with an option to tag faces in the superdomain.
-
-        Parameters
-        ----------
-        name : str
-            The name of the tag to be added.
-        tag : int | None
-            The integer to apply the tag. If None is provided, the tag layers will be reset to zero
-        region : LocalSurface | None
-            The region to which the tag will be applied. If None, the tag will be applied to the entire surface.
-        n_layer : int
-            The number of layers to use for the tag. Default is 8.
-        long_name : str | None
-            The long name of the tag to be added. If None, no long name will be added.
-        tag_superdomain: bool = False,
-            If True, apply the tag to surface including the superdomain. If False, apply only to the local region. Default is False.
-        **kwargs : Any
-            |kwargs|
-        """
-        # Reset the tag layers if the tag is None or does not yet exist on the surface
-        with surface_lock:
-            if name not in self.uxds or tag is None:
-                dims = ("n_face", "layer")
-                data = np.zeros((self.n_face, n_layer), dtype=np.uint32)
-                if long_name is not None:
-                    attrs = {"long_name": long_name}
-                else:
-                    attrs = None
-
-                uxda = uxr.UxDataArray(
-                    data=data,
-                    dims=dims,
-                    name=name,
-                    attrs=attrs,
-                    uxgrid=self.uxgrid,
-                )
-
-                self._uxds[name] = uxda
-                if tag is None:
-                    return
-
-            if region is None:
-                if tag_superdomain:
-                    face_indices = slice(None)
-                else:
-                    face_indices = self.local.face_indices
-            else:
-                if tag_superdomain:
-                    face_indices = region.face_indices
-                else:
-                    face_indices = self.local.face_indices[np.isin(self.local.face_indices, region.face_indices)]
-            if len(face_indices) == 0:
-                return
-            insert_layer = -1
-
-            for i in range(n_layer):
-                if np.all(self.uxds[name].isel(layer=i).data[face_indices] == 0):
-                    insert_layer = i
-                    break
-            if insert_layer == -1:
-                warnings.warn(f"All {name} layers are full", stacklevel=2)
-                # TODO: Implement an option to expand the number of layers if all layers are full
-            data = self.uxds[name].data[face_indices, :]
-            data[:, insert_layer] = tag
-            data = self._sort_tag(name, face_indices, data)
-            self.uxds[name].data[face_indices, :] = data
-
-        return
-
     def _load_from_files(self, **kwargs: Any):
         is_same_grid = self._is_same_grid
         super()._load_from_files(**kwargs)
@@ -906,6 +826,35 @@ class LocalHiResLocalSurface(LocalSurface):
         )
         return
 
+    def add_tag(
+        self,
+        name: str,
+        tag: int | None = None,
+        long_name: str | None = None,
+        tag_superdomain: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Adds an integer tag to the surface with an option to tag faces in the superdomain.
+
+        Parameters
+        ----------
+        name : str
+            The name of the tag to be added.
+        tag : int | None
+            The integer to apply the tag. If None is provided, the tag layers will be reset to zero
+        long_name : str | None
+            The long name of the tag to be added. If None, no long name will be added.
+        tag_superdomain: bool = False,
+            If True, apply the tag to surface including the superdomain. If False, apply only to the local region. Default is False.
+        **kwargs : Any
+            |kwargs|
+        """
+        if not tag_superdomain and self.local_overlap:
+            return self.local_overlap.add_tag(name=name, tag=tag, long_name=long_name, tag_superdomain=False, **kwargs)
+        else:
+            return super().add_tag(name=name, tag=tag, long_name=long_name, **kwargs)
+
     def apply_diffusion(self, kdiff: FloatLike | NDArray) -> None:
         """
         Apply diffusion to the surface.
@@ -1041,9 +990,9 @@ class LocalHiResLocalSurface(LocalSurface):
         return self.surface.local_grid_indices_file
 
     @property
-    def local_overlap(self) -> LocalHiResLocalSurface | None:
+    def local_overlap(self) -> LocalSurface | None:
         """
-        Returns a LocalHiResLocalSurface object that contains the overlap between this object and the high resolution local region of the surface. Returns None if there is no overlap.
+        Returns a LocalSurface object that contains the overlap between this object and the high resolution local region of the surface. Returns None if there is no overlap.
         """
         if self._local_overlap is None:
             if self.surface.local is None:

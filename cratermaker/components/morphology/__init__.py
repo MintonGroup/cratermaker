@@ -23,6 +23,10 @@ if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
 
+# The factor by which the crater tagging region is extended beyond the final rim.
+_RIM_BUFFER_FACTOR = 1.5
+
+
 class MorphologyCraterVariable(CraterVariable):
     def __init__(self, morphology: Morphology | None = None, **kwargs: Any) -> None:
         object.__setattr__(self, "_morphology", morphology)
@@ -31,8 +35,8 @@ class MorphologyCraterVariable(CraterVariable):
         object.__setattr__(self, "_face_index", None)
         object.__setattr__(self, "_affected_face_indices", None)
         object.__setattr__(self, "_affected_node_indices", None)
-        object.__setattr__(self, "_crater_rmax", None)
         object.__setattr__(self, "_ejecta_rmax", None)
+        object.__setattr__(self, "_crater_rmax", None)
         object.__setattr__(self, "_emplaceable", None)
         super().__init__(**kwargs)
         return
@@ -176,6 +180,12 @@ class MorphologyCrater(Crater):
         return self._var._ejecta_rmax
 
     @property
+    def crater_rmax(self) -> float | None:
+        if self._var._crater_rmax is None:
+            self._var._crater_rmax = self._fixed.radius * _RIM_BUFFER_FACTOR
+        return self._var._crater_rmax
+
+    @property
     def ejecta_region(self) -> LocalSurface | None:
         """
         The LocalSurface view extracted around the crater center that encompasses the ejecta blanket, as determined by the morphology model.
@@ -192,17 +202,6 @@ class MorphologyCrater(Crater):
                 self._affected_face_indices = set()
                 self._affected_node_indices = set()
         return self._var._ejecta_region
-
-    @property
-    def crater_rmax(self) -> float | None:
-        """
-        The maximum radius of the crater region for this crater, as determined by the morphology model and is based on the distance that the crater shape thickness falls below the value of the `smallest_length` attribute of the morphology's associated Surface object.
-        """
-        if self._var._crater_rmax is None and self._has_initialized_surface_data:
-            self._var._crater_rmax = self.morphology.rmax(
-                self, minimum_thickness=self.morphology.surface.smallest_length, feature="crater"
-            )
-        return self._var._crater_rmax
 
     @property
     def crater_region(self) -> LocalSurface | None:
@@ -500,14 +499,17 @@ class Morphology(ComponentBase):
 
         # Check to make sure that the face at the crater location is not smaller than the crater area
         if crater_area > self.surface.face_area[crater.face_index]:
-            elevation_change = self.crater_shape(crater, crater.crater_region)
-            crater.crater_region.update_elevation(elevation_change)
+            # We use the ejecta_region instead of crater_region because of the uplifted rim profile. If we only applied the crater shape
+            # to the crater_region, we would create an artificial step in the elevation profile. The crater_region is used for
+            # measuring the crater rim and counting.
+            elevation_change = self.crater_shape(crater, crater.ejecta_region)
+            crater.ejecta_region.update_elevation(elevation_change)
             if self.do_slope_collapse:
-                crater.crater_region.slope_collapse()
-            self._excavated_volume = crater.crater_region.compute_volume(elevation_change[: crater.crater_region.n_face])
+                crater.ejecta_region.slope_collapse()
+            self._excavated_volume = crater.ejecta_region.compute_volume(elevation_change[: crater.ejecta_region.n_face])
 
             # Remove any ejecta from the surface
-            inner_crater_region = crater.crater_region.extract_subregion(crater.final_radius)
+            inner_crater_region = crater.crater_region.extract_subregion(crater.radius)
             if inner_crater_region is not None:
                 inner_crater_region.add_data(
                     "ejecta_thickness",
@@ -519,7 +521,7 @@ class Morphology(ComponentBase):
 
             # Record the crater to the counting layer
             if self.do_counting:
-                self.counting.add(crater, count_region=crater.ejecta_region, **kwargs)
+                self.counting.add(crater, **kwargs)
 
             self.form_ejecta(crater, **kwargs)
         return

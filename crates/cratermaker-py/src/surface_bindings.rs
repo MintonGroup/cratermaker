@@ -40,6 +40,8 @@ pub struct PyReadonlyLocalSurface<'py> {
     // The following are optional, as they will not be present if the LocalSurfaceView represents a global Surface object
     pub face_proj_x: Option<PyReadonlyArray1<'py, f64>>,
     pub face_proj_y: Option<PyReadonlyArray1<'py, f64>>,
+    pub node_proj_x: Option<PyReadonlyArray1<'py, f64>>,
+    pub node_proj_y: Option<PyReadonlyArray1<'py, f64>>,
     pub face_distance: Option<PyReadonlyArray1<'py, f64>>,
     pub face_bearing: Option<PyReadonlyArray1<'py, f64>>,
     pub region_radius: Option<f64>,
@@ -166,6 +168,8 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             edge_face_distance: obj.getattr("edge_face_distance")?.extract()?,
             face_proj_x: getattr_optional(obj, "face_proj_x")?,
             face_proj_y: getattr_optional(obj, "face_proj_y")?,
+            node_proj_x: getattr_optional(obj, "node_proj_x")?,
+            node_proj_y: getattr_optional(obj, "node_proj_y")?,
             face_distance: getattr_optional(obj, "face_distance")?,
             face_bearing: getattr_optional(obj, "face_bearing")?,
             region_radius: getattr_optional(obj, "region_radius")?,
@@ -212,6 +216,8 @@ impl<'py> PyReadonlyLocalSurface<'py> {
             // Optional fields that only exist when a LocalSurface represents a global Surface
             face_proj_x: self.face_proj_x.as_ref().map(|a| a.as_array()),
             face_proj_y: self.face_proj_y.as_ref().map(|a| a.as_array()),
+            node_proj_x: self.node_proj_x.as_ref().map(|a| a.as_array()),
+            node_proj_y: self.node_proj_y.as_ref().map(|a| a.as_array()),
             face_distance: self.face_distance.as_ref().map(|a| a.as_array()),
             face_bearing: self.face_bearing.as_ref().map(|a| a.as_array()),
             region_radius: self.region_radius,

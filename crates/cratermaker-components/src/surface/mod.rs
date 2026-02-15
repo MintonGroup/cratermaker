@@ -41,6 +41,8 @@ pub struct LocalSurfaceView<'a> {
     // The following are optional, as they will not be present if the LocalSurfaceView represents a global Surface object
     pub face_proj_x: Option<ArrayView1<'a, f64>>,
     pub face_proj_y: Option<ArrayView1<'a, f64>>,
+    pub node_proj_x: Option<ArrayView1<'a, f64>>,
+    pub node_proj_y: Option<ArrayView1<'a, f64>>,
     pub face_distance: Option<ArrayView1<'a, f64>>,
     pub face_bearing: Option<ArrayView1<'a, f64>>,
     pub region_radius: Option<f64>,

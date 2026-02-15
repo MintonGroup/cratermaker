@@ -19,6 +19,7 @@ from cratermaker.components.crater import Crater
 from cratermaker.core.base import ComponentBase, import_components
 
 if TYPE_CHECKING:
+    from cratermaker.components.morphology import MorphologyCrater
     from cratermaker.components.surface import LocalSurface, Surface
 
 _TALLY_LONG_NAME = "Unique crater identification number"
@@ -29,17 +30,8 @@ _N_LAYER = 8
 # The minimum number of faces required in a region to perform crater counting
 _MIN_FACE_FOR_COUNTING = 20
 
-# The factor by which the crater tagging region is extended beyond the final rim.
-_RIM_BUFFER_FACTOR = 1.2
-
 # The factor by radius over which the local region that is extracted to evaluate the crater rim
 _EXTENT_RADIUS_RATIO = 2.0
-
-# The factor by radius over which the local region that is extracted to fit the crater rim for scoring
-_FITTING_RADIUS_RATIO = 3.0
-
-# The factor by radius over which the local region that is extracted to measure rim height and floor depth
-_MEASURING_RADIUS_RATIO = 1.2
 
 
 class Counting(ComponentBase):
@@ -177,7 +169,7 @@ class Counting(ComponentBase):
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
         return
 
-    def add(self, crater: Crater, count_region: LocalSurface | None = None, **kwargs: Any):
+    def add(self, crater: MorphologyCrater, **kwargs: Any):
         """
         Add a crater to the surface.
 
@@ -185,38 +177,28 @@ class Counting(ComponentBase):
         ----------
         crater : Crater
             The crater to be added to the surface.
-        count_region : LocalSurface, optional
-            A LocalSurface region that contains the crater inside. If not supplied, then the associated surface property is used.
         **kwargs : Any
             |kwargs|
         """
+        from cratermaker.components.morphology import MorphologyCrater
         from cratermaker.components.surface import LocalSurface
 
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
+        if not isinstance(crater, MorphologyCrater):
+            raise TypeError("crater must be an instance of MorphologyCrater")
 
         if self.surface.uxds is None:
             raise ValueError(
                 "Surface must have an associated Uxarray dataset to use for counting. This is commonly caused by using a HiResLocal surface type without setting the superdomain_scale_factor."
             )
 
-        count_radius = _RIM_BUFFER_FACTOR * crater.final_radius
         # Tag a region just outside crater rim with the id
-        if count_region is None:
-            count_region = self.surface.extract_region(location=crater.location, region_radius=count_radius)
-        elif isinstance(count_region, LocalSurface):
-            if count_radius <= count_region.region_radius:
-                count_region = count_region.extract_subregion(subregion_radius=count_radius)
-        else:
-            raise TypeError("region must be a LocalSurface or None")
+        count_region = crater.crater_region
 
         if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            self.surface.add_tag(
+            count_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
                 tag=crater.id,
-                n_layer=self.n_layer,
-                region=count_region,
                 **kwargs,
             )
 
@@ -227,22 +209,19 @@ class Counting(ComponentBase):
             else:
                 return
 
-            removes = []
             # Cookie cutting: remove any smaller craters that are overlapped by this new crater
-            for i in range(self.n_layer):
-                unique_ids = np.unique(self.surface.uxds.crater_id.data[count_region.face_indices, i])
-                if len(unique_ids) > 0:
-                    # Compute cookie cutting removes list
-                    observed = self.observed.copy()
-                    removes.extend(
-                        [id for id, v in observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter]
-                    )
-
-            # For every id that appears in the removes list, set it to 0 in the data array
-            if removes:
+            unique_ids = np.unique(count_region.crater_id)
+            unique_ids = unique_ids[unique_ids > 0]  # Remove the 0 id which corresponds to no crater
+            if len(unique_ids) > 0:
+                # Compute cookie cutting removes list
+                observed = self.observed.copy()
+                removes = [id for id, v in observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter]
+                # For every id that appears in the removes list, set it to 0 in the data array
                 for remove_id in removes:
-                    self.surface.remove_tag(name="crater_id", tag=remove_id, region=count_region)
-                    if not np.any(self.surface.uxds.crater_id.data == remove_id):
+                    count_region.remove_tag(name="crater_id", tag=remove_id)
+                    if not np.any(
+                        self.surface.uxds.crater_id.data == remove_id
+                    ):  # Check to see if this crater id still appears, and if not, it's gone man.
                         self.observed.pop(remove_id, None)
 
         return
@@ -328,15 +307,8 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        region = self.surface.extract_region(
-            location=crater.measured_location, region_radius=_FITTING_RADIUS_RATIO * crater.measured_radius
-        )
-        orig_elevation = region.face_elevation.copy()
-        reference_elevation = region.get_reference_surface(only_faces=True)
-        region.update_elevation(-reference_elevation, overwrite=False)
+        region = crater.crater_region
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
-        region.update_elevation(orig_elevation, overwrite=True)
-
         return region
 
     def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> None:
