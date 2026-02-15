@@ -426,7 +426,6 @@ class DataSurface(HiResLocalSurface):
                 width=dst_width,
                 height=dst_height,
                 resampling=Resampling.bilinear,
-                dst_nodata=nodata_val,
             )
             for src in src_list
         ]
