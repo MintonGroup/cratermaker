@@ -4,7 +4,7 @@ from typing import Any
 
 import numpy as np
 import yaml
-from matplotlib.image import AxesImage
+from matplotlib.axes import Axes
 from numpy.random import Generator
 from numpy.typing import ArrayLike
 from tqdm import tqdm
@@ -797,7 +797,7 @@ class Simulation(CratermakerBase):
 
         return
 
-    def plot(self, **kwargs: Any) -> AxesImage:
+    def plot(self, **kwargs: Any) -> Axes:
         """
         Plot the current state of the surface.
 
@@ -808,14 +808,13 @@ class Simulation(CratermakerBase):
 
         Returns
         -------
-        AxesImage
-            The matplotlib AxesImage object created by the surface plot method.
+        Axes
+            The matplotlib Axes object created by the surface plot method.
         """
-        imagefile = kwargs.pop("imagefile", self.surface.plot_dir / f"surface_{self.interval:06d}.png")
         label = kwargs.pop("label", f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
         plot_style = kwargs.pop("plot_style", "hillshade")
-        im = self.surface.plot(imagefile=imagefile, plot_style=plot_style, label=label, **kwargs)
-        return im
+        ax = self.surface.plot(interval=self.interval, plot_style=plot_style, label=label, **kwargs)
+        return ax
 
     def show(self, engine: str = "pyvista", **kwargs: Any) -> None:
         """

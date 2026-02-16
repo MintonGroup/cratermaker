@@ -510,6 +510,22 @@ class HiResLocalSurface(Surface):
         self._load_from_files(reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs)
         return
 
+    def set_face_proj(self):
+        """
+        Set the face projection for the local surface.
+        """
+        if self.local is not None:
+            self.local.set_face_proj()
+        return
+
+    def set_node_proj(self):
+        """
+        Set the node projection for the local surface.
+        """
+        if self.local is not None:
+            self.local.set_node_proj()
+        return
+
     def _rotate_point_cloud(self, points):
         """
         Rotate a point cloud so that the point at [0,0,1] moves to (lon,lat).

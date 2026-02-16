@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
 from cratermaker._cratermaker import counting_bindings
+from geopandas import GeoSeries
+from matplotlib.axes import Axes
+from matplotlib.image import AxesImage
 from shapely.geometry import GeometryCollection
 from shapely.ops import transform
 from tqdm import tqdm
@@ -539,6 +542,125 @@ class Counting(ComponentBase):
 
         return
 
+    def plot(
+        self,
+        interval: int | None = None,
+        observed_color: str | None = "white",
+        observed_original_color: str | None = None,
+        emplaced_color: str | None = None,
+        plot_style: Literal["map", "hillshade"] = "map",
+        variable_name: str | None = None,
+        cmap: str | None = None,
+        show=True,
+        save=True,
+        ax: Axes | None = None,
+        **kwargs: Any,
+    ) -> Axes:
+        """
+        Plot an image of the local region.
+
+        Parameters
+        ----------
+        interval : int | None, optional
+            The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
+        observed_color : str | None, optional
+            The color to use for observed craters using their measured properties. If None, observed craters will not be plotted. Default is "white".
+        observed_original_color : str | None, optional
+            The color to use for observed craters using their original properties. If None, observed craters will not be plotted. Default is None.
+        emplaced_color : str | None, optional
+            The color to use for emplaced craters. If None, emplaced craters will not be plotted. Default is None.
+        plot_style : str, optional
+            The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
+        variable_name : str | None, optional
+            The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        cmap : str, optional
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
+        show : bool, optional
+            If True, the plot will be displayed. Default is True.
+        save : bool, optional
+            If True, the plot will be saved to the default plot directory. Default is True
+        ax : matplotlib.axes.Axes, optional
+            An existing Axes object to plot on. If None, a new figure and axes will be created.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        matplotlib.image.Axes object created by the surface plot method, with crater counts plotted on top if specified. If show is True, the plot will also be displayed.
+            The Axes object
+        """
+        import matplotlib.pyplot as plt
+
+        from cratermaker.components.surface.hireslocal import HiResLocalSurface
+
+        crs = self.surface.crs
+        split_antimeridian = True
+        # Handle the HiResLocal surface case where we may or may not be plotting the global surface
+        if isinstance(self.surface, HiResLocalSurface):
+            superdomain = kwargs.pop("superdomain", False)
+            if not superdomain and self.surface.local is not None:
+                crs = self.surface.local.crs
+                split_antimeridian = False
+
+        if interval is not None:
+            observed, emplaced = self.read_saved_output(interval=interval)
+            if observed:
+                interval = observed.interval.values[-1]
+                observed = self.from_xarray(observed, interval=interval)
+            if emplaced:
+                emplaced_interval = emplaced.interval.values[-1]
+                if emplaced_interval == interval:
+                    emplaced = self.from_xarray(emplaced, interval=interval)
+            filename = self.surface.plot_dir / f"{self.surface.output_file_prefix}_{self.output_file_prefix}{interval:06d}.png"
+        else:
+            observed = [c for _, c in self.observed.items()]
+            emplaced = self.emplaced
+            filename = self.surface.plot_dir / f"{self.surface.output_file_prefix}_{self.output_file_prefix}.png"
+        if ax is None:
+            W, H = self.surface.get_raster_dims()
+            _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
+        ax = self.surface.plot(
+            show=False, save=False, ax=ax, plot_style=plot_style, variable_name=variable_name, cmap=cmap, **kwargs
+        )
+        if observed_color is not None and observed is not None:
+            print("Plotting observed craters...")
+            gs = self.to_geoseries(craters=observed, use_measured_properties=True, split_antimeridian=split_antimeridian).to_crs(
+                crs
+            )
+            facecolor = kwargs.pop("facecolor", "none")
+            edgecolor = observed_color
+            linewidth = kwargs.pop("linewidth", 0.1)
+            linestyle = kwargs.pop("linestyle", "solid")
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+        if observed_original_color is not None and observed is not None:
+            print("Plotting observed craters with original properties...")
+            gs = self.to_geoseries(craters=observed, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
+                crs
+            )
+            facecolor = kwargs.pop("facecolor", "none")
+            edgecolor = observed_original_color
+            linewidth = kwargs.pop("linewidth", 0.1)
+            linestyle = kwargs.pop("linestyle", "solid")
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+        if emplaced_color is not None and emplaced is not None:
+            print("Plotting emplaced craters...")
+            gs = self.to_geoseries(craters=emplaced, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
+                crs
+            )
+            facecolor = kwargs.pop("facecolor", "none")
+            edgecolor = emplaced_color
+            linewidth = kwargs.pop("linewidth", 0.1)
+            linestyle = kwargs.pop("linestyle", "solid")
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+
+        if save:
+            plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=W)
+        if show:
+            plt.show()
+        else:
+            plt.close()
+        return ax
+
     def show_pyvista(
         self,
         surface: Surface | LocalSurface | None = None,
@@ -625,6 +747,30 @@ class Counting(ComponentBase):
         else:
             raise ValueError(f"Engine '{engine}' is not supported for crater counting visualization.")
         return
+
+    def to_geoseries(
+        self,
+        craters: list[Crater] | None = None,
+        use_measured_properties: bool = True,
+        split_antimeridian: bool = False,
+        **kwargs: Any,
+    ) -> GeoSeries:
+        if craters is None:
+            craters = [c for _, c in self.observed.items()]
+        surface = self.surface
+        crater_gs = []
+        for crater in tqdm(
+            craters,
+            total=len(craters),
+            desc="Converting craters to GeoSeries polygons",
+            unit="crater",
+            position=0,
+            leave=False,
+        ):
+            crater_gs.append(
+                crater.to_geoseries(surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=False)
+            )
+        return pd.concat(crater_gs)
 
     def to_vector_file(
         self,
