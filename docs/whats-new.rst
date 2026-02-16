@@ -3,6 +3,14 @@
 What's New
 ==========
 
+
+.. _whats-new.2026.2.1-alpha:
+
+:release:`v2026.2.1-alpha`
+
+- Fixed a bug that was causing craters on slopes to be "stuck" in the tally. This involved a substantial overhaul of the way that craters are processed, including a complete redesign of the system for computing the mean plane that craters are emplaced on.  :pull:73: `David Minton`_
+- Added new plotting tools for Counting and incorporated it into the Simulation with a "include_counting" option in .plot(). :pull:73: `David Minton`_
+
 .. _whats-new.2026.2.0-alpha:
 
 :release:`v2026.2.0-alpha`
