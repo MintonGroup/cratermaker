@@ -190,7 +190,7 @@ class MorphologyCrater(Crater):
         """
         if self._var._ejecta_rmax is None and self._has_initialized_surface_data:
             self._var._ejecta_rmax = self.morphology.rmax(
-                self, minimum_thickness=self.morphology.surface.smallest_length * self.radius, feature="ejecta"
+                self, minimum_thickness=self.morphology.surface.smallest_length, feature="ejecta"
             )
         return self._var._ejecta_rmax
 
@@ -201,7 +201,7 @@ class MorphologyCrater(Crater):
         """
         if self._var._crater_rmax is None and self._has_initialized_surface_data:
             self._var._crater_rmax = self.morphology.rmax(
-                self, minimum_thickness=self.morphology.surface.smallest_length * self.radius, feature="crater"
+                self, minimum_thickness=self.morphology.surface.smallest_length, feature="crater"
             )
         return self._var._crater_rmax
 
