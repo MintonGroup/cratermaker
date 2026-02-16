@@ -475,20 +475,20 @@ class HiResLocalSurface(Surface):
         sdvals = []
         superdomain_size = distance * 0.1
         while distance < antipode_distance:
-            for final_diameter in np.logspace(
+            for diameter in np.logspace(
                 np.log10(superdomain_size),
                 np.log10(self.target.radius * 2),
                 1000,
             ):
                 crater = Crater.maker(
-                    final_diameter=final_diameter,
+                    diameter=diameter,
                     angle=90.0,
                     scaling=scaling,
                     projectile_velocity=projectile_velocity,
                 )
                 rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
                 if rmax >= distance:
-                    superdomain_size = crater.final_diameter
+                    superdomain_size = crater.diameter
                     break
             dvals.append(distance)
             sdvals.append(superdomain_size)

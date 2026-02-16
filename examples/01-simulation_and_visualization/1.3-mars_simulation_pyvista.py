@@ -41,4 +41,4 @@ sim.show(variable_name="face_elevation", cmap="pink")
 # sim.run(age=1000, plot_style="hillshade")
 
 # We can also display the saved image directly. The name will depend on the plot_style option used above.
-Image(filename=sim.surface.plot_dir / "map000001.png")
+Image(filename=sim.surface.plot_dir / "local_surface_map000001.png")

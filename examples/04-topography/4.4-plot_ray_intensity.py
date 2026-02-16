@@ -30,10 +30,10 @@ from cratermaker import cleanup
 cleanup(simdir)
 
 
-crater = Crater.maker(final_radius=10.0e3)
+crater = Crater.maker(radius=10.0e3)
 # Because we are not explicitly passing a Surface object, the Morphology constructor will generate a default surface. We pass the "simdir" and "gridlevel" arguments to control the Surface generation, even though we don't make use of it directly here.
 morphology = Morphology.maker(simdir=simdir, gridlevel=4)
-rc = crater.final_radius
+rc = crater.radius
 
 grid_size = 1000
 rmax = 20

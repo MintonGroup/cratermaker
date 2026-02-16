@@ -3288,6 +3288,8 @@ class LocalSurface(CratermakerBase):
         """
         Plot an image of the local region.
 
+        Parameters
+        ----------
         plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
@@ -3318,14 +3320,15 @@ class LocalSurface(CratermakerBase):
         from matplotlib.colors import LightSource
         from scipy.ndimage import gaussian_filter
 
+        file_prefix = f"{self.output_file_prefix}_{plot_style}"
         if interval is None:
             uxds = self.uxds
-            filename = self.plot_dir / f"{self.output_file_prefix}.png"
+            filename = self.plot_dir / f"{file_prefix}.png"
         else:
             uxds = self.read_saved_output(interval=interval, reset=False)
             interval = uxds.interval.values.item()
             uxds = uxds.sel(interval=interval)
-            filename = self.plot_dir / f"{self.output_file_prefix}{interval:06d}.png"
+            filename = self.plot_dir / f"{file_prefix}{interval:06d}.png"
 
         if variable_name is not None and variable_name not in uxds:
             raise ValueError(f"Variable '{variable_name}' not found in the surface data.")

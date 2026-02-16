@@ -71,7 +71,7 @@ class SimpleMoonCrater(MorphologyCrater):
         if crater is None:
             crater = super().maker(**kwargs)
         args = {}
-        diameter_m = crater.final_diameter
+        diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
 
         if crater.morphology_type in ["simple", "transitional"]:
@@ -146,7 +146,7 @@ class SimpleMoon(Morphology):
     def __str__(self) -> str:
         base = super().__str__()
         if self.ejecta_truncation is not None:
-            base += f"\nEjecta Trunction: {self.ejecta_truncation:.2f} * crater.final_radius"
+            base += f"\nEjecta Trunction: {self.ejecta_truncation:.2f} * crater.radius"
         else:
             base += "\nEjecta Truncation: Off"
         return f"{base}\nEjecta Rays: {self.dorays}"
@@ -256,7 +256,7 @@ class SimpleMoon(Morphology):
         """
         if not isinstance(crater, SimpleMoonCrater):
             crater = SimpleMoonCrater.maker(crater, morphology=self)
-        reference_elevation = region.get_reference_surface(reference_radius=crater.final_radius)
+        reference_elevation = region.get_reference_surface(reference_radius=crater.radius)
 
         # Combine distances and references for nodes and faces
         distance = np.concatenate([region.face_distance, region.node_distance])
@@ -306,7 +306,7 @@ class SimpleMoon(Morphology):
         elevation = morphology_bindings.crater_profile(
             rflat,
             r_ref_flat,
-            crater.final_diameter,
+            crater.diameter,
             crater.floor_depth,
             crater.floor_diameter,
             crater.rim_height,
@@ -381,7 +381,7 @@ class SimpleMoon(Morphology):
             r = np.array(r, dtype=np.float64)
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = morphology_bindings.ejecta_profile(rflat, crater.final_diameter, crater.ejrim)
+        elevation = morphology_bindings.ejecta_profile(rflat, crater.diameter, crater.ejrim)
         elevation = np.array(elevation, dtype=np.float64)
         # reshape elevation to match the shape of r
         elevation = np.reshape(elevation, r.shape)
@@ -420,7 +420,7 @@ class SimpleMoon(Morphology):
         intensity = morphology_bindings.ray_intensity(
             radial_distance=rflat,
             initial_bearing=np.radians(theta_flat),
-            crater_diameter=crater.final_diameter,
+            crater_diameter=crater.diameter,
             seed=self.rng.integers(0, 2**32 - 1),
         )
         thickness = np.array(thickness, dtype=np.float64)
@@ -459,7 +459,7 @@ class SimpleMoon(Morphology):
         intensity = morphology_bindings.ray_intensity(
             rflat,
             theta_flat,
-            crater.final_diameter,
+            crater.diameter,
             seed=self.rng.integers(0, 2**32 - 1),
         )
         intensity = np.array(intensity, dtype=np.float64)
@@ -602,8 +602,8 @@ class SimpleMoon(Morphology):
             raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
 
         # Get the maximum extent
-        lower_limit = crater.final_radius * 1.0001
-        upper_limit = self.ejecta_truncation * crater.final_radius if self.ejecta_truncation else np.pi * self.surface.target.radius
+        lower_limit = crater.radius * 1.0001
+        upper_limit = self.ejecta_truncation * crater.radius if self.ejecta_truncation else np.pi * self.surface.target.radius
 
         if _profile_invert(lower_limit) < 0:
             ans = lower_limit
@@ -615,13 +615,13 @@ class SimpleMoon(Morphology):
                 bracket=[lower_limit, upper_limit],
                 method="brentq",
             )
-            ans = sol.root if sol.converged else crater.final_radius
+            ans = sol.root if sol.converged else crater.radius
 
         return float(ans)
 
     def degradation_function(
         self,
-        final_diameter: FloatLike,
+        diameter: FloatLike,
         fe: FloatLike = 100.0,
     ) -> float:
         """
@@ -631,7 +631,7 @@ class SimpleMoon(Morphology):
 
         Parameters
         ----------
-        final_diameter : FloatLike
+        diameter : FloatLike
             The final diameter of the crater in meters.
         fe : FloatLike, optional
             The degradation function size factor, which is a scaling factor for the degradation function. Default is 100.0.
@@ -673,7 +673,7 @@ class SimpleMoon(Morphology):
             kd1 = _kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
             return _smooth_broken(r, kd1, rb, psi_1, psi_2, delta)
 
-        return float(_kd(final_diameter / 2, fe))
+        return float(_kd(diameter / 2, fe))
 
     @staticmethod
     def overlap_function(crater: SimpleMoonCrater) -> tuple[set[int], set[int]]:

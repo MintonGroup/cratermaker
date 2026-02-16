@@ -594,7 +594,7 @@ class Simulation(CratermakerBase):
             del age
 
         from_projectile = self.production.generator_type == "projectile"
-        diam_key = "projectile_diameter" if from_projectile else "final_diameter"
+        diam_key = "projectile_diameter" if from_projectile else "diameter"
         diam_max = self._get_largest_diameter(from_projectile=from_projectile)
         diam_min = self._get_smallest_diameter(from_projectile=from_projectile)
 
@@ -702,7 +702,7 @@ class Simulation(CratermakerBase):
             sim = Simulation()
 
             # Create a crater with specific diameter
-            sim.emplace(final_diameter=10.0e3)
+            sim.emplace(diameter=10.0e3)
 
             # Create a crater based on a projectile with given mass and projectile_velocity
             sim.emplace(projectile_mass=1e15, projectile_velocity=20e3)
@@ -711,7 +711,7 @@ class Simulation(CratermakerBase):
             sim.emplace(transient_diameter=50e3, location=(43.43, -86.92))
 
             # Create multiple craters
-            craters = [Crater.maker(final_diameter=20.0e3), Crater.maker(final_diameter=20.0e3)]
+            craters = [Crater.maker(diameter=20.0e3), Crater.maker(diameter=20.0e3)]
             sim.emplace(craters)
 
         """
@@ -1000,7 +1000,7 @@ class Simulation(CratermakerBase):
             face_size = np.min(self.surface.face_size)
         if from_projectile:
             crater = Crater.maker(
-                final_diameter=face_size,
+                diameter=face_size,
                 angle=90.0,
                 projectile_velocity=self.scaling.projectile_mean_velocity * 10,
                 scaling=self.scaling,
@@ -1017,7 +1017,7 @@ class Simulation(CratermakerBase):
         largest_crater = self.target.radius * 2
         if from_projectile:
             crater = Crater.maker(
-                final_diameter=largest_crater,
+                diameter=largest_crater,
                 angle=1.0,
                 projectile_velocity=self.scaling.projectile_mean_velocity / 10.0,
                 scaling=self.scaling,

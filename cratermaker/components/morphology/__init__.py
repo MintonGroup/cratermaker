@@ -479,7 +479,7 @@ class Morphology(ComponentBase):
             morphology = Morphology.maker()
 
             # Create a crater with specific diameter
-            morphology.emplace(final_diameter=10.0e3)
+            morphology.emplace(diameter=10.0e3)
 
             # Create a crater based on a projectile with given mass and projectile_velocity
             morphology.emplace(projectile_mass=1e15, projectile_velocity=20e3)
@@ -488,7 +488,7 @@ class Morphology(ComponentBase):
             morphology.emplace(transient_diameter=50e3, location=(43.43, -86.92))
 
             # Create multiple craters
-            craters = [Crater.maker(final_diameter=20.0e3), Crater.maker(final_diameter=20.0e3)]
+            craters = [Crater.maker(diameter=20.0e3), Crater.maker(diameter=20.0e3)]
             morphology.emplace(craters)
         """
         if self._queue_manager is None:

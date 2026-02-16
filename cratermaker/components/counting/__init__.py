@@ -218,7 +218,7 @@ class Counting(ComponentBase):
             if len(unique_ids) > 0:
                 # Compute cookie cutting removes list
                 observed = self.observed.copy()
-                removes = [id for id, v in observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter]
+                removes = [id for id, v in observed.items() if v.id in unique_ids and v.diameter < crater.diameter]
                 # For every id that appears in the removes list, set it to 0 in the data array
                 for remove_id in removes:
                     count_region.remove_tag(name="crater_id", tag=remove_id)
