@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from cratermaker.components.target import Target
 
 surface_lock = threading.Lock()
+_N_TAG_LAYERS = 8
 
 
 class Surface(ComponentBase):
@@ -314,9 +315,9 @@ class Surface(ComponentBase):
             node_indices = node_indices[node_indices != INT_FILL_VALUE]
 
         else:  # This is the entire surface
-            face_indices = slice(None)
-            edge_indices = slice(None)
-            node_indices = slice(None)
+            face_indices = self.face_indices
+            edge_indices = self.edge_indices
+            node_indices = self.node_indices
 
         return LocalSurface(
             surface=self,
@@ -403,8 +404,6 @@ class Surface(ComponentBase):
         self,
         name: str,
         tag: int | None = None,
-        region: LocalSurface | None = None,
-        n_layer: int = 8,
         long_name: str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -416,96 +415,30 @@ class Surface(ComponentBase):
         Parameters
         ----------
         name : str
-            The name of the tag to be added.
+            The name of the tag variable to perform the add operation on.
         tag : int | None
-            The integer to apply the tag. If None is provided, the tag layers will be reset to zero
-        region : LocalSurface | None
-            The region to which the tag will be applied. If None, the tag will be applied to the entire surface.
-        n_layer : int
-            The number of layers to use for the tag. Default is 8.
+            The integer to value of the tag. If None is provided, the tag layers will be reset to zero
         long_name : str | None
-            The long name of the tag to be added. If None, no long name will be added.
+            The long name of the tag variable. This is only used if the tag variable doesn't exist in the surface dataset. If None, no long name will be added.
         **kwargs : Any
             |kwargs|
         """
-        # Reset the tag layers if the tag is None or does not yet exist on the surface
-        with surface_lock:
-            if name not in self.uxds or tag is None:
-                dims = ("n_face", "layer")
-                data = np.zeros((self.n_face, n_layer), dtype=np.uint32)
-                if long_name is not None:
-                    attrs = {"long_name": long_name}
-                else:
-                    attrs = None
+        return self._full().add_tag(name=name, tag=tag, long_name=long_name, **kwargs)
 
-                uxda = uxr.UxDataArray(
-                    data=data,
-                    dims=dims,
-                    name=name,
-                    attrs=attrs,
-                    uxgrid=self.uxgrid,
-                )
-
-                self._uxds[name] = uxda
-                if tag is None:
-                    return
-
-            if region is None:
-                face_indices = slice(None)
-            else:
-                face_indices = region.face_indices
-            insert_layer = -1
-
-            for i in range(n_layer):
-                if np.all(self.uxds[name].isel(layer=i).data[face_indices] == 0):
-                    insert_layer = i
-                    break
-            if insert_layer == -1:
-                warnings.warn(f"All {name} layers are full", stacklevel=2)
-                # TODO: Implement an option to expand the number of layers if all layers are full
-            data = self.uxds[name].data[face_indices, :]
-            data[:, insert_layer] = tag
-            data = self._sort_tag(name, face_indices, data)
-            self.uxds[name].data[face_indices, :] = data
-
-        return
-
-    def _sort_tag(self, name: str, face_indices: slice | np.ndarray, data: np.ndarray) -> np.ndarray:
-        # Sort each n_face row so that empty layers are always at the end. This effectively "compresses" the layers so that tags can be added along the maximum set of contiguous empty layers.
-        sorted_indices = np.argsort(data, axis=1)[:, ::-1]
-        self.uxds[name].data[face_indices, :] = data
-        ds = self.uxds[name].isel(n_face=face_indices)
-        ds = ds.isel(layer=xr.DataArray(sorted_indices, dims=["n_face", "layer"]))
-
-        return ds.data
-
-    def remove_tag(self, name: str, tag: int, region: LocalSurface | None = None) -> None:
+    def remove_tag(self, name: str, tag: int, **kwargs: Any) -> None:
         """
         Removes an integer tag from the surface.
 
         Parameters
         ----------
+        name : str
+            The name of the tag variable to perform the remove operation on.
         tag : int
             The integer tag to be removed.
-        region : LocalSurface | None
-            The region from which to remove the tag. If None, the tag will be removed from the entire surface.
+        **kwargs : Any
+            |kwargs|
         """
-        with surface_lock:
-            if name not in self.uxds:
-                raise ValueError(f"Tag {name} does not exist on the surface")
-
-            if region is None:
-                face_indices = slice(None)
-            else:
-                face_indices = region.face_indices
-
-            data = self.uxds[name].data[face_indices, :]
-            if tag in data:
-                data[data == tag] = 0
-                data = self._sort_tag(name, face_indices, data)
-                self.uxds[name].data[face_indices, :] = data
-
-        return
+        return self._full().remove_tag(name=name, tag=tag, **kwargs)
 
     def apply_diffusion(self, kdiff: FloatLike | NDArray) -> None:
         """
@@ -825,6 +758,17 @@ class Surface(ComponentBase):
         """
         return self._full().to_raster(variable_name, **kwargs)
 
+    def get_raster_dims(self):
+        """
+        Get the dimensions of the raster based on the target radius and pixel size.
+
+        Returns
+        -------
+        tuple[int, int]
+            The width and height of the raster in pixels.
+        """
+        return self._full().get_raster_dims()
+
     def to_geotiff_file(
         self,
         interval: int | None = None,
@@ -891,14 +835,15 @@ class Surface(ComponentBase):
         self,
         plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
+        interval: int | None = None,
         cmap: str | None = None,
-        imagefile=None,
         label=None,
         scalebar=False,
         show=True,
+        save=False,
         ax: Axes | None = None,
         **kwargs: Any,
-    ) -> None:
+    ) -> Axes:
         """
         Plot an image of the surface.
 
@@ -908,16 +853,18 @@ class Surface(ComponentBase):
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
             The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        interval: int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used.
         cmap : str, optional
             The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
-        imagefile : str | Path, optional
-            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is False.
+            If True, a scalebar will be added to the plot. Default for global surfaces is False.
         show : bool, optional
             If True, the plot will be displayed. Default is True.
+        save : bool, optional
+            If True, the plot will be saved to the default plot directory. Default is False.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
@@ -925,17 +872,18 @@ class Surface(ComponentBase):
 
         Returns
         -------
-        matplotlib.image.AxesImage
-            The AxesImage object created by imshow.
+        matplotlib.axes.Axes
+            A Matplotlib Axes object containing the plot.
         """
         return self._full().plot(
             variable_name=variable_name,
             plot_style=plot_style,
             cmap=cmap,
-            imagefile=imagefile,
+            interval=interval,
             label=label,
             scalebar=scalebar,
             show=show,
+            save=save,
             ax=ax,
             **kwargs,
         )
@@ -978,28 +926,6 @@ class Surface(ComponentBase):
             |kwargs|
         """
         return self._full().show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
-
-    @staticmethod
-    def _sphere_function(coords, x_c, y_c, z_c, r):
-        """
-        Compute the sphere function.
-
-        Parameters
-        ----------
-        coords : ndarray
-            Array of x, y, and z coordinates.
-        x_c, y_c, z_c : float
-            Center coordinates of the sphere.
-        r : float
-            Radius of the sphere.
-
-        Returns
-        -------
-        ndarray
-            The values of the sphere function at the given coordinates.
-        """
-        x, y, z = coords.T
-        return (x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2 - r**2
 
     def compute_distances(
         self,
@@ -1185,6 +1111,8 @@ class Surface(ComponentBase):
         """
         Generate a tessellated mesh of a sphere of based on the particular Surface component that is being used.
         """
+        # Ignore divide by zero warnings that occur due to matmul on some systems (e.g. MacOS with M4 chips). These warnings do not affect the functionality of the code, so we can safely ignore them.
+        orig_settings = np.seterr(divide="ignore", over="ignore", invalid="ignore")
         points = self._generate_face_distribution(**kwargs)
 
         threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-7)
@@ -1196,6 +1124,7 @@ class Surface(ComponentBase):
         if regrid:
             raise ValueError("Grid file does not match the expected parameters.")
         self._compute_face_size(uxgrid)
+        np.seterr(**orig_settings)
 
         return
 
@@ -2104,6 +2033,8 @@ class LocalSurface(CratermakerBase):
         object.__setattr__(self, "_to_surface", None)
         object.__setattr__(self, "_face_proj_x", None)
         object.__setattr__(self, "_face_proj_y", None)
+        object.__setattr__(self, "_node_proj_x", None)
+        object.__setattr__(self, "_node_proj_y", None)
 
         self._output_dir_name = self.surface._output_dir_name
 
@@ -2303,6 +2234,96 @@ class LocalSurface(CratermakerBase):
         if update_node:
             self.add_data(name="node_elevation", data=new_node_elev, overwrite=overwrite)
 
+        return
+
+    def add_tag(
+        self,
+        name: str,
+        tag: int | None = None,
+        long_name: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Adds an integer tag to the surface.
+
+        Used primarily for tracking crater ids.
+
+        Parameters
+        ----------
+        name : str
+            The name of the tag to be added.
+        tag : int | None
+            The integer to apply the tag. If None is provided, the tag layers will be reset to zero
+        long_name : str | None
+            The long name of the tag to be added. If None, no long name will be added.
+        **kwargs : Any
+            |kwargs|
+        """
+        # Reset the tag layers if the tag is None or does not yet exist on the surface
+        with surface_lock:
+            if name not in self.uxds or tag is None:
+                dims = ("n_face", "layer")
+                data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint32)
+                if long_name is not None:
+                    attrs = {"long_name": long_name}
+                else:
+                    attrs = None
+
+                uxda = uxr.UxDataArray(
+                    data=data,
+                    dims=dims,
+                    name=name,
+                    attrs=attrs,
+                    uxgrid=self.surface.uxgrid,
+                )
+
+                self.surface._uxds[name] = uxda
+                if tag is None:
+                    return
+
+            insert_layer = -1
+
+            # Find the first layer that contains a contiguous set of empty spots
+            for i in range(_N_TAG_LAYERS):
+                if np.all(self.uxds[name].data[:, i] == 0):
+                    insert_layer = i
+                    break
+            if insert_layer == -1:
+                warnings.warn(f"All {name} layers are full", stacklevel=2)
+                # TODO: Implement an option to expand the number of layers if all layers are full
+            data = self.uxds[name].data
+            data[:, insert_layer] = tag
+            self._sort_and_add_tag(name, data)
+
+        return
+
+    def remove_tag(self, name: str, tag: int) -> None:
+        """
+        Removes an integer tag from the local surface.
+
+        Parameters
+        ----------
+        tag : int
+            The integer tag to be removed.
+        """
+        with surface_lock:
+            if name not in self.uxds:
+                raise ValueError(f"Tag {name} does not exist on the surface")
+
+            data = self.uxds[name].data
+            if tag in data:
+                data[data == tag] = 0
+                self._sort_and_add_tag(name, data)
+
+        return
+
+    def _sort_and_add_tag(self, name: str, data: np.ndarray) -> np.ndarray:
+        # Sort each n_face row so that empty layers are always at the end. This effectively "compresses" the layers so that tags can be added along the maximum set of contiguous empty layers.
+        sorted_indices = np.argsort(data, axis=1)[:, ::-1]
+        self.surface.uxds[name].data[self.face_indices, :] = data
+        ds = self.surface.uxds[name].sel(n_face=self.face_indices)
+        ds = ds.isel(layer=xr.DataArray(sorted_indices, dims=["n_face", "layer"]))
+        self.surface.uxds[name].data[self.face_indices, :] = ds.data
         return
 
     def apply_diffusion(self, kdiff: FloatLike | NDArray) -> None:
@@ -2524,56 +2545,27 @@ class LocalSurface(CratermakerBase):
             The face and node elevation points of the reference sphere, or the original elevation points is the reference region is too small
         """
 
-        def _find_reference_elevations(region_coords, region_elevation):
-            # Perform the curve fitting to get the best fitting spherical cap for the reference surface
+        def _find_reference_elevations(x: NDArray, y: NDArray, z: NDArray) -> NDArray:
+            """
+            Compute the mean plane that fits the points given by the projected x, projected y, and elevation array.
 
-            region_surf = self.surface._compute_elevation_to_cartesian(region_coords, region_elevation)
+            Parameters
+            ----------
+            region_points : NDArray
+                An array of shape (n, 3) where each row contains [x, y, elevation].
 
-            # Initial guess for the sphere center and radius
-            guess_radius = 1.0 + region_elevation.mean()
-            initial_guess = [0, 0, 0, guess_radius]
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", OptimizeWarning)
-                try:
-                    bounds = ([-1.0, -1.0, -1.0, 0.5], [1.0, 1.0, 1.0, 2.0])
-                    fit_result, _ = curve_fit(
-                        self.surface._sphere_function,
-                        region_surf,
-                        np.zeros_like(region_elevation),
-                        p0=initial_guess,
-                        bounds=bounds,
-                    )
-                except Exception:
-                    fit_result = initial_guess
+            Returns
+            -------
+            NDArray
+                An array of elevation values corresponding to the mean plane for each projected x and y point.
+            """
+            # Create the design matrix for the plane fitting
+            A = np.vstack([x, y, np.ones(len(x))]).T
 
-            reference_sphere_center = fit_result[:3]
-            reference_sphere_radius = fit_result[3]
+            # Solve for the coefficients of the plane (Ax + By + C = z)
+            coeffs, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
 
-            # Find the point along the original vector that intersects the sphere
-            f_vec = region_coords / self.surface.radius
-            a = f_vec[:, 0] ** 2 + f_vec[:, 1] ** 2 + f_vec[:, 2] ** 2
-            b = -2 * (
-                f_vec[:, 0] * reference_sphere_center[0]
-                + f_vec[:, 1] * reference_sphere_center[1]
-                + f_vec[:, 2] * reference_sphere_center[2]
-            )
-            c = np.dot(reference_sphere_center, reference_sphere_center) - reference_sphere_radius**2
-            sqrt_term = b**2 - 4 * a * c
-            valid = ~np.isnan(a) & (sqrt_term >= 0.0)
-
-            # Initialize t with default value
-            t = np.full_like(a, 1.0)
-
-            # Calculate square root only for valid terms
-            sqrt_valid_term = np.sqrt(np.where(valid, sqrt_term, 0))
-
-            # Apply the formula only where valid
-            t = np.where(valid, (-b + sqrt_valid_term) / (2 * a), t)
-            if np.any(t[valid] < 0):
-                t = np.where(valid & (t < 0), (-b - sqrt_valid_term) / (2 * a), t)
-
-            elevations = self.surface.radius * (t * np.linalg.norm(f_vec, axis=1) - 1)
-            return elevations
+            return coeffs[0] * x + coeffs[1] * y + coeffs[2]
 
         if reference_radius is None:
             reference_radius = self.region_radius
@@ -2595,26 +2587,22 @@ class LocalSurface(CratermakerBase):
         if n_reference < 5:
             return elevation
 
+        self.set_face_proj()
         if only_faces:
-            combo_grid = np.column_stack((self.face_x, self.face_y, self.face_z))
+            x, y, z = self.face_proj_x, self.face_proj_y, self.face_elevation
         else:
-            combo_grid = np.column_stack(
-                (
-                    np.concatenate([self.face_x, self.node_x]),
-                    np.concatenate([self.face_y, self.node_y]),
-                    np.concatenate([self.face_z, self.node_z]),
-                )
-            )
-        # find_refence_elevations expects coordinates to be on the unit sphere, so we need to normalize
-        region_coords = combo_grid[points_within_region] / self.surface.radius
-        region_elevation = elevation[points_within_region] / self.surface.radius
-
+            self.set_node_proj()
+            x = np.concatenate([self.face_proj_x, self.node_proj_x])
+            y = np.concatenate([self.face_proj_y, self.node_proj_y])
+            z = np.concatenate([self.face_elevation, self.node_elevation])
         reference_elevation = elevation
-        reference_elevation[points_within_region] = _find_reference_elevations(region_coords, region_elevation)
+        reference_elevation[points_within_region] = _find_reference_elevations(
+            x[points_within_region], y[points_within_region], z[points_within_region]
+        )
 
         return reference_elevation
 
-    def extract_subregion(self, subregion_radius: FloatLike):
+    def extract_subregion(self, subregion_radius: FloatLike, **kwargs) -> LocalSurface | None:
         """
         Extract a subset of the LocalSurface region with a smaller radius than the original region.
 
@@ -2622,6 +2610,8 @@ class LocalSurface(CratermakerBase):
         ----------
         subregion_radius : float
             The radius of the subregion to extract in meters.
+        **kwargs
+            |kwargs|
 
         Returns
         -------
@@ -2629,9 +2619,6 @@ class LocalSurface(CratermakerBase):
             A LocalSurface object containing a view of the regional grid.
 
         """
-        if subregion_radius > self.region_radius:
-            raise ValueError("subregion_radius must be smaller than the original region radius")
-
         if subregion_radius < self.region_radius:
             if isinstance(self.face_indices, slice):
                 face_indices = np.arange(self.n_face)[self.face_indices][self.face_distance <= subregion_radius]
@@ -3067,6 +3054,7 @@ class LocalSurface(CratermakerBase):
         if uxda is None:
             uxda = self.uxds["face_elevation"].load()
 
+        W, H = self.get_raster_dims()
         if self.location is None:
             # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
             gdf = uxda.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
@@ -3078,17 +3066,16 @@ class LocalSurface(CratermakerBase):
             pix = np.sqrt(pix_area)
             deg_per_pix = 180.0 * pix / (np.pi * self.surface.radius)
             xres = yres = deg_per_pix
-            W = int(np.ceil((xmax - xmin) / xres))
-            H = int(np.ceil((ymax - ymin) / yres))
 
             transform = from_bounds(xmin, ymin, xmax, ymax, W, H)
         else:
             gdf = uxda.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
-            R = self.region_radius
+            pix = self.pix
+            R = (
+                self.region_radius + 4 * pix
+            )  # Add a 4 * pix border to enswure that the pixels along the border of the local region are plotted in full
             xmin, xmax = -R, R
             ymin, ymax = -R, R
-            pix = self.pix
-            W = H = int(max(1, np.ceil((2.0 * R) / pix)))
             # pixel size (meters/pixel)
             xres = yres = (2.0 * R) / W
             # upper-left at (-R, +R); y increases downward in rasters
@@ -3112,6 +3099,35 @@ class LocalSurface(CratermakerBase):
             all_touched=True,
         )
         return raster, extent, transform, gdf.crs
+
+    def get_raster_dims(self) -> tuple[int, int]:
+        """
+        Get the dimensions of the raster based on the region radius (or target, if this is a global surface) and pixel size.
+
+        Returns
+        -------
+        tuple[int, int]
+            The width and height of the raster in pixels.
+        """
+        if self.location is None:
+            # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
+            xmin, xmax = -180.0, 180.0
+            ymin, ymax = -90.0, 90.0
+            # Get the approximate pixel size based on the number of faces
+            npix = self.surface.n_face
+            pix_area = 4.0 * np.pi * (self.surface.radius**2) / npix
+            pix = np.sqrt(pix_area)
+            deg_per_pix = 180.0 * pix / (np.pi * self.surface.radius)
+            xres = yres = deg_per_pix
+            W = int(np.ceil((xmax - xmin) / xres))
+            H = int(np.ceil((ymax - ymin) / yres))
+        else:
+            R = self.region_radius
+            xmin, xmax = -R, R
+            ymin, ymax = -R, R
+            pix = self.pix
+            W = H = int(max(1, np.ceil((2.0 * R) / pix)))
+        return W, H
 
     def to_geotiff_file(
         self,
@@ -3260,14 +3276,15 @@ class LocalSurface(CratermakerBase):
         self,
         plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
+        interval: int | None = None,
         cmap: str | None = None,
-        imagefile=None,
         label=None,
         scalebar=True,
         show=True,
+        save=False,
         ax: Axes | None = None,
         **kwargs: Any,
-    ) -> AxesImage | None:
+    ) -> Axes:
         """
         Plot an image of the local region.
 
@@ -3277,16 +3294,18 @@ class LocalSurface(CratermakerBase):
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
             The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        interval: int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used.
         cmap : str, optional
             The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
-        imagefile : str | Path, optional
-            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
             If True, a scalebar will be added to the plot. Default is True.
         show : bool, optional
-            If True, the plot will be displayed. Default is True.
+            If True, the plot will be displayed. Default for local surfaces is True.
+        save : bool, optional
+            If True, the plot will be saved to the default plot directory. Default is False.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         **kwargs : Any
@@ -3294,14 +3313,24 @@ class LocalSurface(CratermakerBase):
 
         Returns
         -------
-        matplotlib.image.AxesImage
-            The AxesImage object created by imshow.
+        matplotlib.axes.Axes
+            A Matplotlib Axes object containing the plot.
         """
         import matplotlib.pyplot as plt
         from matplotlib.colors import LightSource
         from scipy.ndimage import gaussian_filter
 
-        if variable_name is not None and variable_name not in self.uxds:
+        file_prefix = f"{self.output_file_prefix}_{plot_style}"
+        if interval is None:
+            uxds = self.uxds
+            filename = self.plot_dir / f"{file_prefix}.png"
+        else:
+            uxds = self.read_saved_output(interval=interval, reset=False)
+            interval = uxds.interval.values.item()
+            uxds = uxds.sel(interval=interval)
+            filename = self.plot_dir / f"{file_prefix}{interval:06d}.png"
+
+        if variable_name is not None and variable_name not in uxds:
             raise ValueError(f"Variable '{variable_name}' not found in the surface data.")
         if variable_name is None and plot_style == "map":
             variable_name = "face_elevation"
@@ -3312,7 +3341,7 @@ class LocalSurface(CratermakerBase):
                 do_overlay = True
 
         if variable_name is not None:
-            ret = self.to_raster(self.uxds[variable_name].load())
+            ret = self.to_raster(uxds[variable_name].load())
             variable_raster = ret[0]
             extent = ret[1]
             H, W = variable_raster.shape
@@ -3324,7 +3353,7 @@ class LocalSurface(CratermakerBase):
 
         if plot_style == "hillshade":
             hill_args = {"dx": self.pix, "dy": self.pix, "fraction": 1.0}
-            ret = self.to_raster(self.uxds["face_elevation"].load())
+            ret = self.to_raster(uxds["face_elevation"].load())
             elevation = ret[0]
             extent = ret[1]
             elevation = gaussian_filter(elevation, sigma=2, mode="constant", cval=np.nan)
@@ -3355,7 +3384,7 @@ class LocalSurface(CratermakerBase):
         # Plot with (1, 1) inch figure and dpi=resolution for exact pixel size
         if ax is None:
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
-        im = ax.imshow(cvals, interpolation=interpolation, cmap=cmap, vmin=vmin, vmax=vmax, aspect="equal", extent=extent)
+        ax.imshow(cvals, interpolation=interpolation, cmap=cmap, vmin=vmin, vmax=vmax, aspect="equal", extent=extent)
         ax.axis("off")
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
         fontsize_px = W * 0.03
@@ -3403,12 +3432,12 @@ class LocalSurface(CratermakerBase):
                 fontsize=fontsize,
                 fontweight="bold",
             )
-        if imagefile:
-            plt.savefig(imagefile, bbox_inches="tight", pad_inches=0, dpi=W)
-            plt.close()
-        elif show:
+        if show:
             plt.show()
-        return im
+        if save:
+            plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=W)
+            plt.close()
+        return ax
 
     def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any) -> None:
         """
@@ -4237,9 +4266,7 @@ class LocalSurface(CratermakerBase):
         """
         if self.location is None:
             return self.surface.uxds
-        return uxr.UxDataset.from_xarray(
-            ds=self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices).to_xarray(), uxgrid=self.uxgrid
-        )
+        return uxr.UxDataset(self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
 
     @property
     def grid_file(self):
@@ -4296,29 +4323,56 @@ class LocalSurface(CratermakerBase):
             )
         return self._to_surface
 
-    def set_face_proj(self) -> None:
-        """
-        Pre-compute the projected x and y coordinates of the faces in the local CRS.
-        """
-        if self.location is None:
-            raise ValueError("Must be a true local surface with a set location to compute projected face coordinates.")
+    def set_face_proj(self):
+        if self.face_distance is not None and self.face_bearing is not None and self._face_proj_x is None:
+            self._face_proj_x = self.face_distance * np.sin(np.radians(self.face_bearing))
+            self._face_proj_y = self.face_distance * np.cos(np.radians(self.face_bearing))
+        return
 
-        self._face_proj_x, self._face_proj_y = self.from_surface.transform(self.face_lon, self.face_lat)
+    def set_node_proj(self):
+        if self.node_distance is not None and self.node_bearing is not None and self._node_proj_x is None:
+            self._node_proj_x = self.node_distance * np.sin(np.radians(self.node_bearing))
+            self._node_proj_y = self.node_distance * np.cos(np.radians(self.node_bearing))
         return
 
     @property
     def face_proj_x(self) -> NDArray:
         """
-        The projected x coordinates of the faces in the local CRS.
+        The projected x coordinates of the faces relative to the LocalSurface center.
         """
         return self._face_proj_x
 
     @property
     def face_proj_y(self) -> NDArray:
         """
-        The projected y coordinates of the faces in the local CRS.
+        The projected y coordinates of the faces relative to the LocalSurface center.
         """
         return self._face_proj_y
+
+    @property
+    def node_proj_x(self) -> NDArray:
+        """
+        The projected x coordinates of the nodes relative to the LocalSurface center.
+        """
+        return self._node_proj_x
+
+    @property
+    def node_proj_y(self) -> NDArray:
+        """
+        The projected y coordinates of the nodes relative to the LocalSurface center.
+        """
+        return self._node_proj_y
+
+    @property
+    def desloped_face_elevation(self) -> NDArray:
+        """
+        The face elevations with the mean slope of the region removed.
+        """
+        if self.location is not None:
+            reference_elevation = self.get_reference_surface(only_faces=True)
+            return self.uxds.face_elevation.data - reference_elevation
+        else:
+            return None
 
 
 import_components(__name__, __path__)

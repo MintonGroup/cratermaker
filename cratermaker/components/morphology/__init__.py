@@ -7,6 +7,7 @@ from math import pi
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
+from cratermaker._cratermaker import counting_bindings
 from numpy.typing import NDArray
 from scipy.integrate import quad
 from tqdm import tqdm
@@ -22,19 +23,47 @@ if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
 
+# The factor by which the crater tagging region is extended beyond the final rim.
+_RIM_BUFFER_FACTOR = 1.5
+
+
 class MorphologyCraterVariable(CraterVariable):
     def __init__(self, morphology: Morphology | None = None, **kwargs: Any) -> None:
         object.__setattr__(self, "_morphology", morphology)
         object.__setattr__(self, "_ejecta_region", None)
         object.__setattr__(self, "_crater_region", None)
+        object.__setattr__(self, "_count_region", None)
         object.__setattr__(self, "_face_index", None)
         object.__setattr__(self, "_affected_face_indices", None)
         object.__setattr__(self, "_affected_node_indices", None)
-        object.__setattr__(self, "_crater_rmax", None)
         object.__setattr__(self, "_ejecta_rmax", None)
+        object.__setattr__(self, "_crater_rmax", None)
         object.__setattr__(self, "_emplaceable", None)
         super().__init__(**kwargs)
         return
+
+    def as_dict(self) -> dict:
+        """
+        Return a dictionary representation of the crater variable properties.
+        """
+        dict_repr = super().as_dict()
+        keys = (
+            "face_index",
+            "ejecta_rmax",
+            "crater_rmax",
+            "emplaceable",
+            "affected_face_indices",
+            "affected_node_indices",
+            "morphology",
+            "crater_region",
+            "ejecta_region",
+            "count_region",
+            "emplaceable",
+        )
+        for key in keys:
+            dict_repr[key] = getattr(self, key)
+
+        return dict_repr
 
     @property
     def _has_initialized_surface_data(self) -> bool:
@@ -87,27 +116,9 @@ class MorphologyCraterVariable(CraterVariable):
     def crater_region(self) -> LocalSurface | None:
         return self._crater_region
 
-    def as_dict(self) -> dict:
-        """
-        Return a dictionary representation of the crater variable properties.
-        """
-        dict_repr = super().as_dict()
-        keys = (
-            "face_index",
-            "ejecta_rmax",
-            "crater_rmax",
-            "emplaceable",
-            "affected_face_indices",
-            "affected_node_indices",
-            "morphology",
-            "crater_region",
-            "ejecta_region",
-            "emplaceable",
-        )
-        for key in keys:
-            dict_repr[key] = getattr(self, key)
-
-        return dict_repr
+    @property
+    def count_region(self) -> LocalSurface | None:
+        return self._count_region
 
 
 class MorphologyCrater(Crater):
@@ -124,6 +135,7 @@ class MorphologyCrater(Crater):
             output += f"Face index of crater center: {self.face_index}\n"
             output += f"Crater region: {self.crater_region}\n"
             output += f"Ejecta region: {self.ejecta_region}\n"
+            output += f"Rim region   : {self.count_region}\n"
         return output
 
     def as_dict(self, ignore_keys: list[str] | tuple[str] = (), skip_complex_data: bool = False, **kwargs) -> dict:
@@ -133,12 +145,19 @@ class MorphologyCrater(Crater):
         Parameters
         ----------
         ignore_keys : list[str] or tuple[str], optional
-            A list or tuple of property names to ignore when creating the dictionary representation. Default is an empty tuple unless `skip_complex_data` is True, in which case it will be extended to include ("morphology", "affected_face_indices", "affected_node_indices", "crater_region", "ejecta_region").
+            A list or tuple of property names to ignore when creating the dictionary representation. Default is an empty tuple unless `skip_complex_data` is True, in which case it will be extended to include ("morphology", "affected_face_indices", "affected_node_indices", "crater_region", "ejecta_region", "count_region").
         skip_complex_data : bool, optional
             If True, skip complex data types when creating the dictionary representation. This is useful when serializing the object for saving to a file, as it removes complex data types that may not be serializable. Default is False.
         """
         if skip_complex_data:
-            ignore_keys += ("morphology", "affected_face_indices", "affected_node_indices", "crater_region", "ejecta_region")
+            ignore_keys += (
+                "morphology",
+                "affected_face_indices",
+                "affected_node_indices",
+                "crater_region",
+                "ejecta_region",
+                "count_region",
+            )
         dict_repr = super().as_dict(ignore_keys=ignore_keys, skip_complex_data=skip_complex_data, **kwargs)
         return dict_repr
 
@@ -146,13 +165,13 @@ class MorphologyCrater(Crater):
         """
         Remove complex data types from the crater variable properties.
 
-        This is useful for storing a lightweight representation, as it removes complex data types that can be recomputed from the fixed properties and the morphology model when needed.
+        This is useful for storing a lightweight representation, as it removes complex data types that can be recomputed from the fixed properties and the morphology model when needed. The morphology model is not removed, so that the complex data can be recomputed if needed.
         """
-        self._var._morphology = None
         self._var._affected_face_indices = None
         self._var._affected_node_indices = None
         self._var._crater_region = None
         self._var._ejecta_region = None
+        self._var._count_region = None
         return
 
     @property
@@ -176,6 +195,17 @@ class MorphologyCrater(Crater):
         return self._var._ejecta_rmax
 
     @property
+    def crater_rmax(self) -> float | None:
+        """
+        The maximum radius of the crater region for this crater, as determined by the morphology model and is based on the distance that the crater thickness falls below the value of the `smallest_length` attribute of the morphology's associated Surface object.
+        """
+        if self._var._crater_rmax is None and self._has_initialized_surface_data:
+            self._var._crater_rmax = self.morphology.rmax(
+                self, minimum_thickness=self.morphology.surface.smallest_length, feature="crater"
+            )
+        return self._var._crater_rmax
+
+    @property
     def ejecta_region(self) -> LocalSurface | None:
         """
         The LocalSurface view extracted around the crater center that encompasses the ejecta blanket, as determined by the morphology model.
@@ -192,17 +222,6 @@ class MorphologyCrater(Crater):
                 self._affected_face_indices = set()
                 self._affected_node_indices = set()
         return self._var._ejecta_region
-
-    @property
-    def crater_rmax(self) -> float | None:
-        """
-        The maximum radius of the crater region for this crater, as determined by the morphology model and is based on the distance that the crater shape thickness falls below the value of the `smallest_length` attribute of the morphology's associated Surface object.
-        """
-        if self._var._crater_rmax is None and self._has_initialized_surface_data:
-            self._var._crater_rmax = self.morphology.rmax(
-                self, minimum_thickness=self.morphology.surface.smallest_length, feature="crater"
-            )
-        return self._var._crater_rmax
 
     @property
     def crater_region(self) -> LocalSurface | None:
@@ -240,6 +259,17 @@ class MorphologyCrater(Crater):
         return self._var._crater_region
 
     @property
+    def count_region(self) -> LocalSurface | None:
+        """
+        The LocalSurface view extracted around the crater center that encompasses the crater rim, as determined by the morphology model.
+
+        This is extracted from the morphology's associated Surface object based on the location of the crater and a radius that extends beyond the crater_rmax by a factor of the `_RIM_BUFFER_FACTOR` constant. If the crater region cannot be extracted (e.g. if it is smaller than a single face of the mesh) this property will be set to None and the crater will be marked as not emplaceable.
+        """
+        if self.crater_region is not None:
+            self._var._count_region = self.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * self.radius)
+        return self._var._count_region
+
+    @property
     def affected_face_indices(self) -> set[int] | None:
         """
         The set of face indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
@@ -269,6 +299,24 @@ class MorphologyCrater(Crater):
         if self._var._emplaceable is None and self._has_initialized_surface_data:
             _ = self.crater_region
         return self._var._emplaceable
+
+    @property
+    def measured_rim_height(self) -> float | None:
+        """
+        The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region.
+        """
+        if self.crater_region is not None:
+            self._var._measured_rim_height = counting_bindings.measure_rim_height(self.crater_region, self)
+        return self._var._measured_rim_height
+
+    @property
+    def measured_floor_depth(self) -> float | None:
+        """
+        The measured floor depth of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region.
+        """
+        if self.crater_region is not None:
+            self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.crater_region, self)
+        return self._var._measured_floor_depth
 
 
 class Morphology(ComponentBase):
@@ -400,7 +448,7 @@ class Morphology(ComponentBase):
         )
         return morphology
 
-    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> None:
+    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> list[Crater]:
         """
         Convenience method to immediately emplace a crater onto the surface.
 
@@ -412,6 +460,11 @@ class Morphology(ComponentBase):
             The Crater object(s) to be emplaced. If provided, this will be used directly. Otherwise, a single crater will be generated based on the keyword arguments.
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        list of Crater or None
+            The crater(s) that were emplaced. If no craters were provided and a crater could not be generated based on the keyword arguments, an empty list is returned.
 
         Notes
         -----
@@ -426,7 +479,7 @@ class Morphology(ComponentBase):
             morphology = Morphology.maker()
 
             # Create a crater with specific diameter
-            morphology.emplace(final_diameter=10.0e3)
+            morphology.emplace(diameter=10.0e3)
 
             # Create a crater based on a projectile with given mass and projectile_velocity
             morphology.emplace(projectile_mass=1e15, projectile_velocity=20e3)
@@ -435,18 +488,25 @@ class Morphology(ComponentBase):
             morphology.emplace(transient_diameter=50e3, location=(43.43, -86.92))
 
             # Create multiple craters
-            craters = [Crater.maker(final_diameter=20.0e3), Crater.maker(final_diameter=20.0e3)]
+            craters = [Crater.maker(diameter=20.0e3), Crater.maker(diameter=20.0e3)]
             morphology.emplace(craters)
         """
         if self._queue_manager is None:
             self._init_queue_manager()
 
+        if craters is None:
+            craters = [MorphologyCrater.maker(**kwargs)]
+        elif isinstance(craters, MorphologyCrater):
+            craters = [craters]
+        elif isinstance(craters, Crater):
+            craters = [MorphologyCrater.maker(crater=craters, morphology=self)]
+
         if isinstance(craters, list) and len(craters) > 0:
             for c in craters:
                 self._enqueue_crater(c)
-        elif isinstance(craters, Crater):
-            self._enqueue_crater(craters)
         self._process_queue()
+
+        return craters
 
     def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """
@@ -470,14 +530,17 @@ class Morphology(ComponentBase):
 
         # Check to make sure that the face at the crater location is not smaller than the crater area
         if crater_area > self.surface.face_area[crater.face_index]:
-            elevation_change = self.crater_shape(crater, crater.crater_region)
-            crater.crater_region.update_elevation(elevation_change)
+            # We use the ejecta_region instead of crater_region because of the uplifted rim profile. If we only applied the crater shape
+            # to the crater_region, we would create an artificial step in the elevation profile. The crater_region is used for
+            # measuring the crater rim and counting.
+            elevation_change = self.crater_shape(crater, crater.ejecta_region)
+            crater.ejecta_region.update_elevation(elevation_change)
             if self.do_slope_collapse:
-                crater.crater_region.slope_collapse()
-            self._excavated_volume = crater.crater_region.compute_volume(elevation_change[: crater.crater_region.n_face])
+                crater.ejecta_region.slope_collapse()
+            self._excavated_volume = crater.ejecta_region.compute_volume(elevation_change[: crater.ejecta_region.n_face])
 
             # Remove any ejecta from the surface
-            inner_crater_region = crater.crater_region.extract_subregion(crater.final_radius)
+            inner_crater_region = crater.crater_region.extract_subregion(crater.radius)
             if inner_crater_region is not None:
                 inner_crater_region.add_data(
                     "ejecta_thickness",
@@ -489,7 +552,7 @@ class Morphology(ComponentBase):
 
             # Record the crater to the counting layer
             if self.do_counting:
-                self.counting.add(crater, count_region=crater.ejecta_region, **kwargs)
+                self.counting.add(crater, **kwargs)
 
             self.form_ejecta(crater, **kwargs)
         return
@@ -589,16 +652,20 @@ class Morphology(ComponentBase):
                 batch = self._queue_manager.peek_next_batch()
 
                 # TODO: Setting max_workers=1 until some lingering issues that cause simulations to occassionally hang are worked out.
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    futures = [executor.submit(self.form_crater, crater) for crater in batch]
-                    for future in as_completed(futures):
-                        try:
-                            future.result()
-                        except Exception as e:
-                            raise RuntimeError("Error processing crater in batch\n") from e
-                        else:
-                            if pbar is not None:
-                                pbar.update(1)
+                # with ThreadPoolExecutor() as executor:
+                #     futures = [executor.submit(self.form_crater, crater) for crater in batch]
+                #     for future in as_completed(futures):
+                #         try:
+                #             future.result()
+                #         except Exception as e:
+                #             raise RuntimeError("Error processing crater in batch\n") from e
+                #         else:
+                #             if pbar is not None:
+                #                 pbar.update(1)
+                for crater in batch:
+                    self.form_crater(crater)
+                    if pbar is not None:
+                        pbar.update(1)
 
                 if self.do_subpixel_degradation and len(batch) > 1:
                     # If the craters have time values attached to them, we can perform subpixel degradation between time values

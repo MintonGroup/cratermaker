@@ -3,10 +3,10 @@ import numpy as np
 
 from cratermaker import Crater, Morphology
 
-crater = Crater.maker(final_radius=1.0e3)
+crater = Crater.maker(radius=1.0e3)
 morphology = Morphology.maker("simplemoon")
 
-rc = crater.final_radius
+rc = crater.radius
 rvals = np.linspace(0, 3.0 * rc, 1000)
 hvals = morphology.crater_profile(crater, rvals)
 ejvals = morphology.ejecta_profile(crater, rvals)

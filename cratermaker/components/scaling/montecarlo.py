@@ -151,13 +151,13 @@ class MonteCarloScaling(Scaling):
             f"Monte Carlo Scaling: {self._montecarlo_scaling}"
         )
 
-    def _get_morphology_type(self, final_diameter: FloatLike | None = None, **kwargs: Any) -> str:
+    def _get_morphology_type(self, diameter: FloatLike | None = None, **kwargs: Any) -> str:
         """
         Computes and the morphology type of a crater and returns a string corresponding to its type.
 
         Parameters
         ----------
-        final_diameter : float
+        diameter : float
             The diameter of the crater to compute.
 
         Returns
@@ -165,26 +165,26 @@ class MonteCarloScaling(Scaling):
         str
             The type of crater "simple", "complex", or "transitional"
         """
-        if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
-            raise ValueError("final_diameter must be a positive finite number")
+        if not isinstance(diameter, FloatLike) or diameter <= 0 or not np.isfinite(diameter):
+            raise ValueError("diameter must be a positive finite number")
 
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular
         transition_range = (0.5 * self.transition_nominal, 2 * self.transition_nominal)
 
-        if final_diameter < transition_range[0]:
+        if diameter < transition_range[0]:
             morphology_type = "simple"
-        elif final_diameter > transition_range[1]:
+        elif diameter > transition_range[1]:
             morphology_type = "complex"
         else:
             if self._montecarlo_scaling:
                 # We'll uses the distance from the nominal transition diameter to set a probability of being either simple, complex, or transitional.
-                if final_diameter < self.transition_nominal:
-                    p = (self.transition_nominal - final_diameter) / (self.transition_nominal - transition_range[0])
+                if diameter < self.transition_nominal:
+                    p = (self.transition_nominal - diameter) / (self.transition_nominal - transition_range[0])
                     categories = ["simple", "transitional"]
                     prob = [p, 1.0 - p]
                     morphology_type = self.rng.choice(categories, p=prob).item()
                 else:
-                    p = (final_diameter - self.transition_nominal) / (transition_range[1] - self.transition_nominal)
+                    p = (diameter - self.transition_nominal) / (transition_range[1] - self.transition_nominal)
                     categories = ["complex", "transitional"]
                     prob = [p, 1.0 - p]
                     morphology_type = self.rng.choice(categories, p=prob).item()
