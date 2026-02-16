@@ -3321,6 +3321,7 @@ class LocalSurface(CratermakerBase):
         else:
             uxds = self.read_saved_output(interval=interval, reset=False)
             interval = uxds.interval.values.item()
+            uxds = uxds.sel(interval=interval)
             filename = self.plot_dir / f"{self.output_file_prefix}{interval:06d}.png"
 
         if variable_name is not None and variable_name not in uxds:

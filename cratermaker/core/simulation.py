@@ -739,7 +739,7 @@ class Simulation(CratermakerBase):
             self.counting.save(interval=self.interval, **kwargs)
 
         self.to_config(**kwargs)
-        self.plot(**kwargs)
+        self.plot(show=False, save=True, **kwargs)
 
         return
 
