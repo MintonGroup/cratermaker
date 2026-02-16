@@ -20,7 +20,7 @@ class TestMorphology(unittest.TestCase):
 
         self.dummy_crater = Crater.maker(
             location=(0.0, 0.0),
-            final_diameter=100000.0,
+            diameter=100000.0,
         )
 
     def test_model_registration(self):
@@ -57,14 +57,14 @@ class TestMorphology(unittest.TestCase):
                 morphology = Morphology.maker(morphology=model_name, surface=surface)
                 crater_radius_values = [1.0, 1e3, 15e3, 50e3, 500e3, 3000e3]
                 rvals = np.linspace(0, 10, 1000)
-                for final_radius in crater_radius_values:
-                    crater = Crater.maker(final_radius=final_radius)
-                    crater_shape = morphology.crater_profile(crater, rvals * final_radius)
+                for radius in crater_radius_values:
+                    crater = Crater.maker(radius=radius)
+                    crater_shape = morphology.crater_profile(crater, rvals * radius)
                     self.assertTrue(
                         np.all(np.isfinite(crater_shape)),
                         f"Crater profile for {model_name} contains NaN or Inf values.",
                     )
-                    ejecta_shape = morphology.ejecta_profile(crater, rvals * final_radius)
+                    ejecta_shape = morphology.ejecta_profile(crater, rvals * radius)
                     self.assertTrue(
                         np.all(np.isfinite(ejecta_shape)),
                         f"Ejecta profile for {model_name} contains NaN or Inf values.",
@@ -74,7 +74,7 @@ class TestMorphology(unittest.TestCase):
         from cratermaker.components.morphology.simplemoon import SimpleMoonCrater
         # Tests that the surface elevations are expected
 
-        final_diameter_list = [100e3, 200e3, 500e3, 1000e3]
+        diameter_list = [100e3, 200e3, 500e3, 1000e3]
         delta_vals = [0.4, 0.3, 0.3, 0.2]
 
         gridargs = {
@@ -92,35 +92,35 @@ class TestMorphology(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             for name, args in gridargs.items():
                 sim = Simulation(simdir=simdir, surface=name, ask_overwrite=False, **args)
-                for final_diameter, delta in zip(final_diameter_list, delta_vals, strict=False):
+                for diameter, delta in zip(diameter_list, delta_vals, strict=False):
                     sim.reset()
                     # verify that the surface is flat
                     self.assertAlmostEqual(
                         sim.surface.node_elevation.min(),
                         0.0,
                         delta=1e0,
-                        msg=f"Failed for {name} with diameter {final_diameter}",
+                        msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
                         sim.surface.face_elevation.min(),
                         0.0,
                         delta=1e0,
-                        msg=f"Failed for {name} with diameter {final_diameter}",
+                        msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
                         sim.surface.node_elevation.max(),
                         0.0,
                         delta=1e0,
-                        msg=f"Failed for {name} with diameter {final_diameter}",
+                        msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
                         sim.surface.face_elevation.max(),
                         0.0,
                         delta=1e0,
-                        msg=f"Failed for {name} with diameter {final_diameter}",
+                        msg=f"Failed for {name} with diameter {diameter}",
                     )
 
-                    crater = SimpleMoonCrater.maker(final_diameter=final_diameter, location=(0, 0), morphology=sim.morphology)
+                    crater = SimpleMoonCrater.maker(diameter=diameter, location=(0, 0), morphology=sim.morphology)
                     sim.emplace(crater)
 
                     # Verify that the crater depth and rim heights are close to the expected values
@@ -128,25 +128,25 @@ class TestMorphology(unittest.TestCase):
                         -sim.surface.node_elevation.min() / crater.floor_depth,
                         1.0,
                         delta=delta,
-                        msg=f"Failed for {name} with diameter {final_diameter}",
+                        msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
                         -sim.surface.face_elevation.min() / crater.floor_depth,
                         1.0,
                         delta=delta,
-                        msg=f"Failed for {name} with diameter {final_diameter}",
+                        msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
                         sim.surface.node_elevation.max() / crater.rim_height,
                         1.0,
                         delta=2 * delta,
-                        msg=f"Failed for {name} with diameter {final_diameter}",
+                        msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
                         sim.surface.face_elevation.max() / crater.rim_height,
                         1.0,
                         delta=2 * delta,
-                        msg=f"Failed for {name} with diameter {final_diameter}",
+                        msg=f"Failed for {name} with diameter {diameter}",
                     )
 
 

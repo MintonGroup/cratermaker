@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
 from cratermaker._cratermaker import counting_bindings
+from geopandas import GeoSeries
+from matplotlib.axes import Axes
+from matplotlib.image import AxesImage
 from shapely.geometry import GeometryCollection
 from shapely.ops import transform
 from tqdm import tqdm
@@ -19,6 +22,7 @@ from cratermaker.components.crater import Crater
 from cratermaker.core.base import ComponentBase, import_components
 
 if TYPE_CHECKING:
+    from cratermaker.components.morphology import MorphologyCrater
     from cratermaker.components.surface import LocalSurface, Surface
 
 _TALLY_LONG_NAME = "Unique crater identification number"
@@ -29,17 +33,8 @@ _N_LAYER = 8
 # The minimum number of faces required in a region to perform crater counting
 _MIN_FACE_FOR_COUNTING = 20
 
-# The factor by which the crater tagging region is extended beyond the final rim.
-_RIM_BUFFER_FACTOR = 1.2
-
 # The factor by radius over which the local region that is extracted to evaluate the crater rim
 _EXTENT_RADIUS_RATIO = 2.0
-
-# The factor by radius over which the local region that is extracted to fit the crater rim for scoring
-_FITTING_RADIUS_RATIO = 3.0
-
-# The factor by radius over which the local region that is extracted to measure rim height and floor depth
-_MEASURING_RADIUS_RATIO = 1.2
 
 
 class Counting(ComponentBase):
@@ -177,7 +172,7 @@ class Counting(ComponentBase):
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
         return
 
-    def add(self, crater: Crater, count_region: LocalSurface | None = None, **kwargs: Any):
+    def add(self, crater: MorphologyCrater, **kwargs: Any):
         """
         Add a crater to the surface.
 
@@ -185,38 +180,28 @@ class Counting(ComponentBase):
         ----------
         crater : Crater
             The crater to be added to the surface.
-        count_region : LocalSurface, optional
-            A LocalSurface region that contains the crater inside. If not supplied, then the associated surface property is used.
         **kwargs : Any
             |kwargs|
         """
+        from cratermaker.components.morphology import MorphologyCrater
         from cratermaker.components.surface import LocalSurface
 
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
+        if not isinstance(crater, MorphologyCrater):
+            raise TypeError("crater must be an instance of MorphologyCrater")
 
         if self.surface.uxds is None:
             raise ValueError(
                 "Surface must have an associated Uxarray dataset to use for counting. This is commonly caused by using a HiResLocal surface type without setting the superdomain_scale_factor."
             )
 
-        count_radius = _RIM_BUFFER_FACTOR * crater.final_radius
         # Tag a region just outside crater rim with the id
-        if count_region is None:
-            count_region = self.surface.extract_region(location=crater.location, region_radius=count_radius)
-        elif isinstance(count_region, LocalSurface):
-            if count_radius <= count_region.region_radius:
-                count_region = count_region.extract_subregion(subregion_radius=count_radius)
-        else:
-            raise TypeError("region must be a LocalSurface or None")
+        count_region = crater.count_region
 
         if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            self.surface.add_tag(
+            count_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
                 tag=crater.id,
-                n_layer=self.n_layer,
-                region=count_region,
                 **kwargs,
             )
 
@@ -227,22 +212,19 @@ class Counting(ComponentBase):
             else:
                 return
 
-            removes = []
             # Cookie cutting: remove any smaller craters that are overlapped by this new crater
-            for i in range(self.n_layer):
-                unique_ids = np.unique(self.surface.uxds.crater_id.data[count_region.face_indices, i])
-                if len(unique_ids) > 0:
-                    # Compute cookie cutting removes list
-                    observed = self.observed.copy()
-                    removes.extend(
-                        [id for id, v in observed.items() if v.id in unique_ids and v.final_diameter < crater.final_diameter]
-                    )
-
-            # For every id that appears in the removes list, set it to 0 in the data array
-            if removes:
+            unique_ids = np.unique(count_region.crater_id)
+            unique_ids = unique_ids[unique_ids > 0]  # Remove the 0 id which corresponds to no crater
+            if len(unique_ids) > 0:
+                # Compute cookie cutting removes list
+                observed = self.observed.copy()
+                removes = [id for id, v in observed.items() if v.id in unique_ids and v.diameter < crater.diameter]
+                # For every id that appears in the removes list, set it to 0 in the data array
                 for remove_id in removes:
-                    self.surface.remove_tag(name="crater_id", tag=remove_id, region=count_region)
-                    if not np.any(self.surface.uxds.crater_id.data == remove_id):
+                    count_region.remove_tag(name="crater_id", tag=remove_id)
+                    if not np.any(
+                        self.surface.uxds.crater_id.data == remove_id
+                    ):  # Check to see if this crater id still appears, and if not, it's gone man.
                         self.observed.pop(remove_id, None)
 
         return
@@ -328,46 +310,9 @@ class Counting(ComponentBase):
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
 
-        region = self.surface.extract_region(
-            location=crater.measured_location, region_radius=_FITTING_RADIUS_RATIO * crater.measured_radius
-        )
-        orig_elevation = region.face_elevation.copy()
-        reference_elevation = region.get_reference_surface(only_faces=True)
-        region.update_elevation(-reference_elevation, overwrite=False)
+        region = crater.crater_region
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
-        region.update_elevation(orig_elevation, overwrite=True)
-
         return region
-
-    def measure_crater_depth(self, crater: Crater) -> Crater:
-        """
-        Measure the rim height and floor depth of a crater on the surface.
-
-        Parameters
-        ----------
-        crater : Crater
-            The crater for which to measure the depth.
-
-        Returns
-        -------
-        crater
-            The updated Crater object with the new measured depth properties.
-        """
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-
-        region = self.surface.extract_region(
-            location=crater.measured_location, region_radius=_MEASURING_RADIUS_RATIO * crater.measured_radius
-        )
-        orig_elevation = region.face_elevation.copy()
-        reference_elevation = region.get_reference_surface(only_faces=True)
-        region.update_elevation(-reference_elevation, overwrite=False)
-        rim_height = counting_bindings.measure_rim_height(region, crater)
-        floor_depth = counting_bindings.measure_floor_depth(region, crater)
-        region.update_elevation(orig_elevation.data, overwrite=True)
-        crater.measured_rim_height = rim_height
-        crater.measured_floor_depth = floor_depth
-        return crater
 
     def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> None:
         """
@@ -597,6 +542,125 @@ class Counting(ComponentBase):
 
         return
 
+    def plot(
+        self,
+        interval: int | None = None,
+        observed_color: str | None = "white",
+        observed_original_color: str | None = None,
+        emplaced_color: str | None = None,
+        plot_style: Literal["map", "hillshade"] = "map",
+        variable_name: str | None = None,
+        cmap: str | None = None,
+        show=True,
+        save=True,
+        ax: Axes | None = None,
+        **kwargs: Any,
+    ) -> Axes:
+        """
+        Plot an image of the local region.
+
+        Parameters
+        ----------
+        interval : int | None, optional
+            The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
+        observed_color : str | None, optional
+            The color to use for observed craters using their measured properties. If None, observed craters will not be plotted. Default is "white".
+        observed_original_color : str | None, optional
+            The color to use for observed craters using their original properties. If None, observed craters will not be plotted. Default is None.
+        emplaced_color : str | None, optional
+            The color to use for emplaced craters. If None, emplaced craters will not be plotted. Default is None.
+        plot_style : str, optional
+            The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
+        variable_name : str | None, optional
+            The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        cmap : str, optional
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
+        show : bool, optional
+            If True, the plot will be displayed. Default is True.
+        save : bool, optional
+            If True, the plot will be saved to the default plot directory. Default is True
+        ax : matplotlib.axes.Axes, optional
+            An existing Axes object to plot on. If None, a new figure and axes will be created.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        matplotlib.image.Axes object created by the surface plot method, with crater counts plotted on top if specified. If show is True, the plot will also be displayed.
+            The Axes object
+        """
+        import matplotlib.pyplot as plt
+
+        from cratermaker.components.surface.hireslocal import HiResLocalSurface
+
+        crs = self.surface.crs
+        split_antimeridian = True
+        # Handle the HiResLocal surface case where we may or may not be plotting the global surface
+        if isinstance(self.surface, HiResLocalSurface):
+            superdomain = kwargs.pop("superdomain", False)
+            if not superdomain and self.surface.local is not None:
+                crs = self.surface.local.crs
+                split_antimeridian = False
+
+        if interval is not None:
+            observed, emplaced = self.read_saved_output(interval=interval)
+            if observed:
+                interval = observed.interval.values[-1]
+                observed = self.from_xarray(observed, interval=interval)
+            if emplaced:
+                emplaced_interval = emplaced.interval.values[-1]
+                if emplaced_interval == interval:
+                    emplaced = self.from_xarray(emplaced, interval=interval)
+            filename = self.surface.plot_dir / f"{self.surface.output_file_prefix}_{self.output_file_prefix}{interval:06d}.png"
+        else:
+            observed = [c for _, c in self.observed.items()]
+            emplaced = self.emplaced
+            filename = self.surface.plot_dir / f"{self.surface.output_file_prefix}_{self.output_file_prefix}.png"
+        if ax is None:
+            W, H = self.surface.get_raster_dims()
+            _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
+        ax = self.surface.plot(
+            show=False, save=False, ax=ax, plot_style=plot_style, variable_name=variable_name, cmap=cmap, **kwargs
+        )
+        if observed_color is not None and observed is not None:
+            print("Plotting observed craters...")
+            gs = self.to_geoseries(craters=observed, use_measured_properties=True, split_antimeridian=split_antimeridian).to_crs(
+                crs
+            )
+            facecolor = kwargs.pop("facecolor", "none")
+            edgecolor = observed_color
+            linewidth = kwargs.pop("linewidth", 0.1)
+            linestyle = kwargs.pop("linestyle", "solid")
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+        if observed_original_color is not None and observed is not None:
+            print("Plotting observed craters with original properties...")
+            gs = self.to_geoseries(craters=observed, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
+                crs
+            )
+            facecolor = kwargs.pop("facecolor", "none")
+            edgecolor = observed_original_color
+            linewidth = kwargs.pop("linewidth", 0.1)
+            linestyle = kwargs.pop("linestyle", "solid")
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+        if emplaced_color is not None and emplaced is not None:
+            print("Plotting emplaced craters...")
+            gs = self.to_geoseries(craters=emplaced, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
+                crs
+            )
+            facecolor = kwargs.pop("facecolor", "none")
+            edgecolor = emplaced_color
+            linewidth = kwargs.pop("linewidth", 0.1)
+            linestyle = kwargs.pop("linestyle", "solid")
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+
+        if save:
+            plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=W)
+        if show:
+            plt.show()
+        else:
+            plt.close()
+        return ax
+
     def show_pyvista(
         self,
         surface: Surface | LocalSurface | None = None,
@@ -683,6 +747,30 @@ class Counting(ComponentBase):
         else:
             raise ValueError(f"Engine '{engine}' is not supported for crater counting visualization.")
         return
+
+    def to_geoseries(
+        self,
+        craters: list[Crater] | None = None,
+        use_measured_properties: bool = True,
+        split_antimeridian: bool = False,
+        **kwargs: Any,
+    ) -> GeoSeries:
+        if craters is None:
+            craters = [c for _, c in self.observed.items()]
+        surface = self.surface
+        crater_gs = []
+        for crater in tqdm(
+            craters,
+            total=len(craters),
+            desc="Converting craters to GeoSeries polygons",
+            unit="crater",
+            position=0,
+            leave=False,
+        ):
+            crater_gs.append(
+                crater.to_geoseries(surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=False)
+            )
+        return pd.concat(crater_gs)
 
     def to_vector_file(
         self,

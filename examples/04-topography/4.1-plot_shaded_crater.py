@@ -16,7 +16,7 @@ from cratermaker import Crater, Morphology
 
 # Because we are not explicitly passing a Surface object, the Morphology constructor will generate a default surface. We pass the "simdir" and "gridlevel" arguments to control the Surface generation, even though we don't make use of it directly here.
 morphology = Morphology.maker("simplemoon", simdir="simdata-unused", gridlevel=4)
-crater = Crater.maker(final_radius=1.0e3)
+crater = Crater.maker(radius=1.0e3)
 
 # Generate 1000x1000 grid centered at (0, 0)
 gridsize = 1000

@@ -71,11 +71,11 @@ class TestSimulation(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             cdiam = 2 * self.pix
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
-            crater = cratermaker.Crater.maker(final_diameter=cdiam)
+            crater = cratermaker.Crater.maker(diameter=cdiam)
             sim.emplace(crater)
             pdiam = crater.projectile_diameter
 
-            sim.emplace(final_diameter=cdiam)
+            sim.emplace(diameter=cdiam)
             sim.emplace(projectile_diameter=pdiam)
         return
 
