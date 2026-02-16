@@ -22,6 +22,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         :link: user-guide/index
         :link-type: doc
 
+
         The user guide will show you how to install and run Cratermaker. It also contains in-depth information on how to use each of its components.  
 
     .. grid-item-card::  Example gallery

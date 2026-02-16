@@ -11,6 +11,7 @@
     :alt: Surface
     :align: center
     :width: 300px
+    :class: dark-light
 
 .. _ug-surface:
 
@@ -35,6 +36,7 @@ The surface of a celestial body in Cratermaker is represented as a sphere that h
     :alt: Surface faces, nodes, and edges
     :align: center
     :width: 300px
+    :class: dark-light
 
 In the above image, show a single face with 6 nodes and 6 edges, surrounded by 6 neighboring faces. Each face, node, and edge is identified with an integer index. A Surface object contains a number of attributes that represent the mesh geometry and connectivity, such as:
 
@@ -107,6 +109,7 @@ Icosphere
     :alt: Icosphere grid
     :align: center
     :width: 600px
+    :class: dark-light
 
 The default Surface is "icosphere," which consists of a uniform grid configuration with polygonal faces that are be subdivided by the input value for the `gridlevel` argument. The number of faces and nodes of the icosphere is determined by the formulas :math:`N_{face} = 10\times4^{gridlevel}+2` and :math:`N_{node} = 20\times4^{gridlevel}`. The Surface object contains an attribute called `pix`, which is the value of the "effective pixel size" in meters, where :math:`pix=\sqrt{\left<Area_{face}\right>}`. The following table shows the relationship between the grid level, the number of faces and nodes, and the effective pixel size for a default target of the Moon:
  
@@ -162,6 +165,7 @@ Arbitrary Resolution
     :alt: Arbitrary resolution grid
     :align: center
     :width: 400px
+    :class: dark-light
 
 
 While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of ^20 km per face (shown in the figure above):
@@ -190,6 +194,7 @@ High Resolution Local
     :alt: High resolution local grid
     :align: center
     :width: 400px
+    :class: dark-light
 
 In many application of Cratermaker, it is useful to model a small local region at high resolution. This can be done with the "hireslocal" Surface type. This Surface requires the following 4 arguments:
 
@@ -227,6 +232,7 @@ DataSurface
     :alt: A DataSurface created in a region around Copernicus crater.
     :align: center
     :width: 400px
+    :class: dark-light
 
 Many applications of Cratermaker could potentially use real digital elevation model (DEM) data as the starting surface topography. The "datasurface" Surface type is designed for this purpose. It is based on the "hireslocal" surface type, but will construct a surface and initialize it based on a DEM. When using the Moon as a target body, Cratermaker can fetch DEM data from the NASA PDS automatically, and only requires a minimum of the `local_location` and `local_radius` arguments. By default, it will find data file that contains approximately :math: `10^6` faces. Passing an optional argument `pix` will override this default behavior and it will attempt to find a DEM file that comes closest to matching the requested pixel size. Optionally, the user can also pass in one or more file paths or URLs to DEM files using the `dem_file_list` argument. Like "hireslocal," this surface will contain a local region and a global superdomain. The superdomain will be initialized using a low resolution global DEM, or optionally a file path or URL to a DEM file can be passed in using the `superdomain_dem_file` argument.
 
@@ -285,6 +291,7 @@ Extracting a local subsection of the surface
     :alt: LocalSurface region diagram
     :align: center
     :width: 400px
+    :class: dark-light
 
 
 Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that contains the faces, nodes, and edges within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters. This will return a LocalSurface object that contains all faces within a specified radius, plus a buffer of surrounding faces. All nodes and edges associated with the faces inside the primary local region are included, but only nodes associated with the buffer faces are included, but not edges (see the diagram above). This is done to prevent array out of bounds issues when performing operations that require neighboring faces across included edges, as is done when computing topographic diffusion calculations.
@@ -418,6 +425,7 @@ As seen above, we recieve an integer that gives us the index to the nearest face
     :alt: Find Neighboring Face
     :align: center
     :width: 300px
+    :class: dark-light
 
 In the diagram above, we observe a point located within face :math:`f_0` with a distance :math:`d_0` from the center of the face. A neighboring face, :math:`f_1`, is adjacent to :math:`f_0` and has a corresponding distance, :math:`d_1`, to its center, where :math:`d_0 > d_1`. Hence, the find_nearest_face method will return :math:`f_1` as the closest face due to :math:`d_1` being a shorter distance. You can view which faces these are using one of the built-in connectivity arrays. In this case, :attr:`face_face_connectivity` contains the array of faces that are connected to a particular face:
 

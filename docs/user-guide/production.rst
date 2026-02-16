@@ -11,6 +11,7 @@
     :alt: Production
     :align: center
     :width: 600px
+    :class: dark-light
 
 
 .. _ug-production:
