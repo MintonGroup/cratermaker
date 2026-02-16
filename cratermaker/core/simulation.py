@@ -797,12 +797,14 @@ class Simulation(CratermakerBase):
 
         return
 
-    def plot(self, **kwargs: Any) -> Axes:
+    def plot(self, include_counting: bool = False, **kwargs: Any) -> Axes:
         """
         Plot the current state of the surface.
 
         Parameters
         ----------
+        include_counting : bool, optional
+            If True, the counting data will be included in the plot if counting is enabled. Default is False
         **kwargs : Any
         |kwargs|
 
@@ -813,7 +815,10 @@ class Simulation(CratermakerBase):
         """
         label = kwargs.pop("label", f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
         plot_style = kwargs.pop("plot_style", "hillshade")
-        ax = self.surface.plot(interval=self.interval, plot_style=plot_style, label=label, **kwargs)
+        if include_counting and self.do_counting:
+            ax = self.counting.plot(interval=self.interval, plot_style=plot_style, label=label, **kwargs)
+        else:
+            ax = self.surface.plot(interval=self.interval, plot_style=plot_style, label=label, **kwargs)
         return ax
 
     def show(self, engine: str = "pyvista", **kwargs: Any) -> None:

@@ -1111,6 +1111,8 @@ class Surface(ComponentBase):
         """
         Generate a tessellated mesh of a sphere of based on the particular Surface component that is being used.
         """
+        # Ignore divide by zero warnings that occur due to matmul on some systems (e.g. MacOS with M4 chips). These warnings do not affect the functionality of the code, so we can safely ignore them.
+        orig_settings = np.seterr(divide="ignore", over="ignore", invalid="ignore")
         points = self._generate_face_distribution(**kwargs)
 
         threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-7)
@@ -1122,6 +1124,7 @@ class Surface(ComponentBase):
         if regrid:
             raise ValueError("Grid file does not match the expected parameters.")
         self._compute_face_size(uxgrid)
+        np.seterr(**orig_settings)
 
         return
 
@@ -4260,9 +4263,7 @@ class LocalSurface(CratermakerBase):
         """
         if self.location is None:
             return self.surface.uxds
-        return uxr.UxDataset.from_xarray(
-            ds=self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices).to_xarray(), uxgrid=self.uxgrid
-        )
+        return uxr.UxDataset(self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
 
     @property
     def grid_file(self):
