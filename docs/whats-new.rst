@@ -3,6 +3,11 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.2-alpha:
+
+:release:`v2026.2.2-alpha`
+
+- Minor changes to improve the reliability of the export tools when exporting multi-interval runs. `David Minton`_
 
 .. _whats-new.2026.2.1-alpha:
 
