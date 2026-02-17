@@ -492,7 +492,6 @@ class Counting(ComponentBase):
 
     def export(
         self,
-        name: str | None = None,
         interval: int | None = None,
         driver: str = "GPKG",
         ask_overwrite: bool = True,
@@ -503,8 +502,6 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
-        name : str, default=None
-            The name used for the file name or layer name. If None, uses default naming convention.
         interval : int | None, optional
             |interval_export|
         driver : str, default='GPKG'
@@ -514,6 +511,8 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
+        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
                 interval=interval,
@@ -532,7 +531,7 @@ class Counting(ComponentBase):
                 ask_overwrite=ask_overwrite,
                 **kwargs,
             )
-        else:
+        elif driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
             self.to_vector_file(
                 interval=interval,
                 driver=driver,
@@ -595,13 +594,16 @@ class Counting(ComponentBase):
 
         crs = self.surface.crs
         split_antimeridian = True
+        file_prefix = f"{self.surface.output_file_prefix}"
         # Handle the HiResLocal surface case where we may or may not be plotting the global surface
         if isinstance(self.surface, HiResLocalSurface):
             superdomain = kwargs.pop("superdomain", False)
             if not superdomain and self.surface.local is not None:
                 crs = self.surface.local.crs
                 split_antimeridian = False
+                file_prefix = f"{self.surface.local.output_file_prefix}"
 
+        file_prefix += f"_{self.output_file_prefix}"
         if interval is not None:
             observed, emplaced = self.read_saved_output(interval=interval)
             if observed:
@@ -611,11 +613,11 @@ class Counting(ComponentBase):
                 emplaced_interval = emplaced.interval.values[-1]
                 if emplaced_interval == interval:
                     emplaced = self.from_xarray(emplaced, interval=interval)
-            filename = self.surface.plot_dir / f"{self.surface.output_file_prefix}_{self.output_file_prefix}{interval:06d}.png"
+            filename = self.surface.plot_dir / f"{file_prefix}{interval:06d}.png"
         else:
             observed = [c for _, c in self.observed.items()]
             emplaced = self.emplaced
-            filename = self.surface.plot_dir / f"{self.surface.output_file_prefix}_{self.output_file_prefix}.png"
+            filename = self.surface.plot_dir / f"{file_prefix}_{self.output_file_prefix}.png"
         if ax is None:
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
@@ -832,8 +834,8 @@ class Counting(ComponentBase):
         # Common alias for Shapefile
         if driver.upper() == "SHP":
             driver = "ESRI Shapefile"
-        if driver in EXPORT_DRIVER_TO_EXTENSION_MAP:
-            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver]
+        if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
+            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
@@ -848,7 +850,12 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            interval_numbers = crater_ds.interval.values
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
+                continue
+            else:
+                interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
                     crater_list = self.from_xarray(crater_ds, interval=interval)
@@ -856,7 +863,14 @@ class Counting(ComponentBase):
                     crater_list = []
                 geoms = []
                 attrs = []
-                for crater in crater_list:
+                for crater in tqdm(
+                    crater_list,
+                    total=len(crater_list),
+                    desc=f"Converting {name} craters to geometries for export",
+                    unit="craters",
+                    position=0,
+                    leave=False,
+                ):
                     poly = crater.to_geoseries(
                         surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=use_measured_properties
                     ).item()
@@ -1007,7 +1021,12 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            interval_numbers = crater_ds.interval.values
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
+                continue
+            else:
+                interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
                     crater_list = self.from_xarray(crater_ds, interval=interval)
@@ -1052,7 +1071,12 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            interval_numbers = crater_ds.interval.values
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
+                continue
+            else:
+                interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
                     crater_list = self.from_xarray(crater_ds, interval=interval)
@@ -1189,8 +1213,14 @@ class Counting(ComponentBase):
 
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
+        region_poly = None
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            interval_numbers = crater_ds.interval.values
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
+                interval_numbers = [0]
+            else:
+                interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
                     crater_list = self.from_xarray(crater_ds, interval=interval)
@@ -1215,18 +1245,19 @@ class Counting(ComponentBase):
 
                     if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
                         f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
-                        region_circle = self.crater_cls.maker(
-                            radius=self.surface.local_radius, location=self.surface.local_location
-                        )
-                        region_poly = (
-                            region_circle.to_geoseries(
-                                surface=self.surface, split_antimeridian=False, use_measured_properties=False
+                        if region_poly is None:  # We only need to do this the first time through
+                            region_circle = self.crater_cls.maker(
+                                radius=self.surface.local_radius, location=self.surface.local_location
                             )
-                            .to_crs(self.surface.crs)
-                            .item()
-                        )
-                        boundary_points = list(region_poly.exterior.coords)
-                        area = self.surface.local.area
+                            region_poly = (
+                                region_circle.to_geoseries(
+                                    surface=self.surface, split_antimeridian=False, use_measured_properties=False
+                                )
+                                .to_crs(self.surface.crs)
+                                .item()
+                            )
+                            boundary_points = list(region_poly.exterior.coords)
+                            area = self.surface.local.area
                     else:
                         f.write(f"coordinate_system_name = {self.surface.crs.name}\n")
                         boundary_points = [(-180.0, -90.0), (180.0, -90.0), (180.0, 90.0), (-180.0, 90.0), (-180.0, -90.0)]
@@ -1280,14 +1311,14 @@ class Counting(ComponentBase):
 
         return craters
 
-    def from_xarray(self, dataset: xr.Dataset, interval: int | None = None) -> list[Crater]:
+    def from_xarray(self, dataset: xr.Dataset | dict, interval: int | None = None) -> list[Crater]:
         """
         Import crater data from an xarray Dataset.
 
         Parameters
         ----------
-        dataset : xr.Dataset
-            The xarray Dataset containing crater data.
+        dataset : xr.Dataset | dict
+            The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
 
         Returns
         -------
@@ -1295,6 +1326,13 @@ class Counting(ComponentBase):
             A list of Crater objects imported from the xarray Dataset.
         """
         craters = []
+        if type(dataset) is dict:
+            if interval is None:
+                dataset = dataset[-1]
+            elif interval in dataset:
+                dataset = dataset[interval]
+            else:
+                return craters
         if "interval" in dataset.coords:
             if interval is None:
                 dataset = dataset.isel(interval=-1)
@@ -1302,8 +1340,8 @@ class Counting(ComponentBase):
                 dataset = dataset.sel(interval=interval)
             else:
                 return craters
-
-        for id in dataset.id.data:
+        dataset.load()
+        for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
             crater_data = dataset.sel(id=id).to_dict()["data_vars"]
             crater_data = {k: v["data"] for k, v in crater_data.items()}
             if "longitude" in crater_data and "latitude" in crater_data:

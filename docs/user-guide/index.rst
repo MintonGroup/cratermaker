@@ -72,7 +72,7 @@ Components of Cratermaker
     .. grid-item-card::  Target
         :columns: 12 6 4 3
         :img-top: ../_static/target_icon.svg
-        :class: dark-light
+        :class-img-top: dark-light
         :link: target
         :link-type: doc
 
@@ -92,7 +92,7 @@ Components of Cratermaker
     .. grid-item-card::  Scaling
         :columns: 12 6 4 3
         :img-top: ../_static/scaling_icon.svg
-        :class: dark-light
+        :class-img-top: dark-light
         :link: scaling
         :link-type: doc
 
