@@ -257,7 +257,8 @@ class CratermakerBase:
                 elif interval in interval_numbers:
                     interval_index = interval_numbers.index(interval)
                 else:
-                    raise ValueError(f"Interval number {interval} not found in data files.")
+                    output_ds.append(xr.Dataset())
+                    continue
             else:
                 interval_index = None
 

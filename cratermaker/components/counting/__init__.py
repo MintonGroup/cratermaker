@@ -492,7 +492,6 @@ class Counting(ComponentBase):
 
     def export(
         self,
-        name: str | None = None,
         interval: int | None = None,
         driver: str = "GPKG",
         ask_overwrite: bool = True,
@@ -503,8 +502,6 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
-        name : str, default=None
-            The name used for the file name or layer name. If None, uses default naming convention.
         interval : int | None, optional
             |interval_export|
         driver : str, default='GPKG'
@@ -848,6 +845,8 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
+            if "interval" not in crater_ds:
+                continue
             interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
@@ -856,7 +855,14 @@ class Counting(ComponentBase):
                     crater_list = []
                 geoms = []
                 attrs = []
-                for crater in crater_list:
+                for crater in tqdm(
+                    crater_list,
+                    total=len(crater_list),
+                    desc=f"Converting {name} craters to geometries for export",
+                    unit="craters",
+                    position=0,
+                    leave=False,
+                ):
                     poly = crater.to_geoseries(
                         surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=use_measured_properties
                     ).item()
@@ -1190,6 +1196,8 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
+            if "interval" not in crater_ds:
+                continue
             interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
@@ -1243,7 +1251,9 @@ class Counting(ComponentBase):
                     f.write("#\n")
                     f.write("# crater_diameters\n")
                     f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")
-                    for crater in crater_list:
+                    for crater in tqdm(
+                        crater_list, desc=f"Writing craters to {output_file}", unit="crater", position=0, leave=False
+                    ):
                         f.write(
                             f"{crater.measured_diameter * 1e-3}\t{overlap_fraction(crater, region_poly)}\t{crater.measured_location[0]}\t{crater.measured_location[1]}\t 1\n"
                         )
