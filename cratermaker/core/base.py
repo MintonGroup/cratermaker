@@ -14,6 +14,7 @@ import numpy as np
 import xarray as xr
 from numpy.random import BitGenerator, Generator, RandomState, SeedSequence
 from numpy.typing import ArrayLike
+from tqdm import tqdm
 
 from cratermaker.utils.general_utils import parameter
 
@@ -189,8 +190,17 @@ class CratermakerBase:
             with xr.open_dataset(data_file_list[0]) as ds:
                 ds.load()
         else:
-            ds = xr.open_mfdataset(data_file_list, parallel=False, engine="netcdf4", compat="no_conflicts", join="outer")
-        ds.close()
+            try:
+                ds = xr.open_mfdataset(data_file_list, parallel=False, engine="netcdf4", compat="no_conflicts", join="outer")
+            except Exception:
+                ds = {}  # Fall back when the files cannot be opened together (e.g., because they have different variables or dimensions). In this case, we will open each file separately and concatenate them into a list of Datasets.
+                for data_file in tqdm(
+                    data_file_list, desc="Reading in files....", unit="files", total=len(data_file_list), position=0, leave=False
+                ):
+                    with xr.open_mfdataset(data_file, engine="netcdf4") as ds_single:
+                        ds[ds_single.interval.item()] = ds_single
+        if hasattr(ds, "close"):
+            ds.close()
         return ds
 
     @staticmethod

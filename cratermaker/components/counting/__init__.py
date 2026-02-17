@@ -850,9 +850,12 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if crater_ds is None or "interval" not in crater_ds:
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
                 continue
-            interval_numbers = crater_ds.interval.values
+            else:
+                interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
                     crater_list = self.from_xarray(crater_ds, interval=interval)
@@ -1018,9 +1021,12 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if crater_ds is None or "interval" not in crater_ds:
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
                 continue
-            interval_numbers = crater_ds.interval.values
+            else:
+                interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
                     crater_list = self.from_xarray(crater_ds, interval=interval)
@@ -1065,9 +1071,12 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if crater_ds is None or "interval" not in crater_ds:
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
                 continue
-            interval_numbers = crater_ds.interval.values
+            else:
+                interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
                     crater_list = self.from_xarray(crater_ds, interval=interval)
@@ -1205,7 +1214,9 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if crater_ds is None or "interval" not in crater_ds:
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
                 interval_numbers = [0]
             else:
                 interval_numbers = crater_ds.interval.values
@@ -1300,14 +1311,14 @@ class Counting(ComponentBase):
 
         return craters
 
-    def from_xarray(self, dataset: xr.Dataset, interval: int | None = None) -> list[Crater]:
+    def from_xarray(self, dataset: xr.Dataset | dict, interval: int | None = None) -> list[Crater]:
         """
         Import crater data from an xarray Dataset.
 
         Parameters
         ----------
-        dataset : xr.Dataset
-            The xarray Dataset containing crater data.
+        dataset : xr.Dataset | dict
+            The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
 
         Returns
         -------
@@ -1315,6 +1326,13 @@ class Counting(ComponentBase):
             A list of Crater objects imported from the xarray Dataset.
         """
         craters = []
+        if type(dataset) is dict:
+            if interval is None:
+                dataset = dataset[-1]
+            elif interval in dataset:
+                dataset = dataset[interval]
+            else:
+                return craters
         if "interval" in dataset.coords:
             if interval is None:
                 dataset = dataset.isel(interval=-1)

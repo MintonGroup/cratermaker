@@ -8,8 +8,6 @@ Cratermaker is free software: you can redistribute it and/or modify it under the
 
 import warnings
 
-import numpy as np
-
 from ._version import version as __version__
 from .components.counting import Counting
 from .components.crater import Crater
