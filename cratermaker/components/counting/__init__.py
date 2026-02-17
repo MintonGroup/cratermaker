@@ -1206,8 +1206,9 @@ class Counting(ComponentBase):
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
             if crater_ds is None or "interval" not in crater_ds:
-                continue
-            interval_numbers = crater_ds.interval.values
+                interval_numbers = [0]
+            else:
+                interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
                     crater_list = self.from_xarray(crater_ds, interval=interval)
