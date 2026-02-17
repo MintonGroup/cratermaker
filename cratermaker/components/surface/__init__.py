@@ -2751,6 +2751,8 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             |kwargs|
         """
+        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
         if interval is not None:
             self.save(interval=interval, **kwargs)
         if driver.upper() in ["VTK", "VTP"]:
@@ -2765,7 +2767,7 @@ class LocalSurface(CratermakerBase):
                 ask_overwrite=ask_overwrite,
                 **kwargs,
             )
-        else:
+        elif driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
             self.to_vector_file(
                 driver=driver,
                 interval=interval,
@@ -2855,8 +2857,8 @@ class LocalSurface(CratermakerBase):
         if driver.upper() == "SHP":
             driver = "ESRI Shapefile"
 
-        if driver in EXPORT_DRIVER_TO_EXTENSION_MAP:
-            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver]
+        if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
+            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
@@ -3150,7 +3152,10 @@ class LocalSurface(CratermakerBase):
         from cartopy import crs as ccrs
 
         def _write_dataset(uxda, output_filename, **kwargs):
-            projection = ccrs.PlateCarree()
+            if self.location is None:
+                projection = ccrs.PlateCarree()
+            else:
+                projection = ccrs.AzimuthalEquidistant(central_longitude=self.location[0], central_latitude=self.location[1])
 
             raster, extent, transform, crs = self.to_raster(uxda, **kwargs)
 
@@ -3637,8 +3642,8 @@ class LocalSurface(CratermakerBase):
         from cratermaker.components.crater import Crater
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
-        if driver in EXPORT_DRIVER_TO_EXTENSION_MAP:
-            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver]
+        if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
+            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 

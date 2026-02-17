@@ -511,6 +511,8 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
+        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
                 interval=interval,
@@ -529,7 +531,7 @@ class Counting(ComponentBase):
                 ask_overwrite=ask_overwrite,
                 **kwargs,
             )
-        else:
+        elif driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
             self.to_vector_file(
                 interval=interval,
                 driver=driver,
@@ -592,13 +594,16 @@ class Counting(ComponentBase):
 
         crs = self.surface.crs
         split_antimeridian = True
+        file_prefix = f"{self.surface.output_file_prefix}"
         # Handle the HiResLocal surface case where we may or may not be plotting the global surface
         if isinstance(self.surface, HiResLocalSurface):
             superdomain = kwargs.pop("superdomain", False)
             if not superdomain and self.surface.local is not None:
                 crs = self.surface.local.crs
                 split_antimeridian = False
+                file_prefix = f"{self.surface.local.output_file_prefix}"
 
+        file_prefix += f"_{self.output_file_prefix}"
         if interval is not None:
             observed, emplaced = self.read_saved_output(interval=interval)
             if observed:
@@ -608,11 +613,11 @@ class Counting(ComponentBase):
                 emplaced_interval = emplaced.interval.values[-1]
                 if emplaced_interval == interval:
                     emplaced = self.from_xarray(emplaced, interval=interval)
-            filename = self.surface.plot_dir / f"{self.surface.output_file_prefix}_{self.output_file_prefix}{interval:06d}.png"
+            filename = self.surface.plot_dir / f"{file_prefix}{interval:06d}.png"
         else:
             observed = [c for _, c in self.observed.items()]
             emplaced = self.emplaced
-            filename = self.surface.plot_dir / f"{self.surface.output_file_prefix}_{self.output_file_prefix}.png"
+            filename = self.surface.plot_dir / f"{file_prefix}_{self.output_file_prefix}.png"
         if ax is None:
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
@@ -829,8 +834,8 @@ class Counting(ComponentBase):
         # Common alias for Shapefile
         if driver.upper() == "SHP":
             driver = "ESRI Shapefile"
-        if driver in EXPORT_DRIVER_TO_EXTENSION_MAP:
-            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver]
+        if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
+            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
@@ -845,7 +850,7 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if "interval" not in crater_ds:
+            if crater_ds is None or "interval" not in crater_ds:
                 continue
             interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
@@ -1013,6 +1018,8 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
+            if crater_ds is None or "interval" not in crater_ds:
+                continue
             interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
@@ -1058,6 +1065,8 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
+            if crater_ds is None or "interval" not in crater_ds:
+                continue
             interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if crater_ds is not None:
@@ -1196,7 +1205,7 @@ class Counting(ComponentBase):
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if "interval" not in crater_ds:
+            if crater_ds is None or "interval" not in crater_ds:
                 continue
             interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
