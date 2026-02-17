@@ -1213,6 +1213,7 @@ class Counting(ComponentBase):
 
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
+        region_poly = None
         for name, crater_ds in zip(crater_names, output_ds, strict=True):
             if type(crater_ds) is dict:
                 interval_numbers = list(crater_ds.keys())
@@ -1244,18 +1245,19 @@ class Counting(ComponentBase):
 
                     if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
                         f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
-                        region_circle = self.crater_cls.maker(
-                            radius=self.surface.local_radius, location=self.surface.local_location
-                        )
-                        region_poly = (
-                            region_circle.to_geoseries(
-                                surface=self.surface, split_antimeridian=False, use_measured_properties=False
+                        if region_poly is None:  # We only need to do this the first time through
+                            region_circle = self.crater_cls.maker(
+                                radius=self.surface.local_radius, location=self.surface.local_location
                             )
-                            .to_crs(self.surface.crs)
-                            .item()
-                        )
-                        boundary_points = list(region_poly.exterior.coords)
-                        area = self.surface.local.area
+                            region_poly = (
+                                region_circle.to_geoseries(
+                                    surface=self.surface, split_antimeridian=False, use_measured_properties=False
+                                )
+                                .to_crs(self.surface.crs)
+                                .item()
+                            )
+                            boundary_points = list(region_poly.exterior.coords)
+                            area = self.surface.local.area
                     else:
                         f.write(f"coordinate_system_name = {self.surface.crs.name}\n")
                         boundary_points = [(-180.0, -90.0), (180.0, -90.0), (180.0, 90.0), (-180.0, 90.0), (-180.0, -90.0)]
@@ -1272,9 +1274,7 @@ class Counting(ComponentBase):
                     f.write("#\n")
                     f.write("# crater_diameters\n")
                     f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")
-                    for crater in tqdm(
-                        crater_list, desc=f"Writing craters to {output_file}", unit="crater", position=0, leave=False
-                    ):
+                    for crater in crater_list:
                         f.write(
                             f"{crater.measured_diameter * 1e-3}\t{overlap_fraction(crater, region_poly)}\t{crater.measured_location[0]}\t{crater.measured_location[1]}\t 1\n"
                         )
@@ -1340,8 +1340,8 @@ class Counting(ComponentBase):
                 dataset = dataset.sel(interval=interval)
             else:
                 return craters
-
-        for id in dataset.id.data:
+        dataset.load()
+        for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
             crater_data = dataset.sel(id=id).to_dict()["data_vars"]
             crater_data = {k: v["data"] for k, v in crater_data.items()}
             if "longitude" in crater_data and "latitude" in crater_data:
