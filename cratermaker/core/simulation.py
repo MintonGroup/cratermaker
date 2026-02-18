@@ -480,13 +480,12 @@ class Simulation(CratermakerBase):
         time_end = arguments.pop("time_end", None)
         time_interval = arguments.pop("time_interval", None)
         diameter_number = arguments.pop("diameter_number", None)
-        diameter_number_end = arguments.pop("diameter_number_end", None)
         diameter_number_interval = arguments.pop("diameter_number_interval", None)
         ninterval = arguments.pop("ninterval", None)
         is_time_interval = arguments.pop("is_time_interval", None)
         if ninterval == 1:
             is_time_interval = True
-            time_interval = age
+            time_interval = time_start - time_end
 
         validate_inputs = kwargs.pop("validate_inputs", False)
         self.save(**kwargs)

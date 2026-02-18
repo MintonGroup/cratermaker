@@ -101,6 +101,11 @@ class TestSimulation(unittest.TestCase):
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
             sim.run(age=1010, time_interval=100)
 
+            # Test runs with a single time interval between time_start and time_end
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
+            sim.run(time_start=1010, time_end=1000, time_interval=10)
+        return
+
     def test_invalid_run_args(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
