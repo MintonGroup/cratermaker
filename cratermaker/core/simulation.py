@@ -98,7 +98,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_counting", counting)
         object.__setattr__(self, "_interval", None)
         object.__setattr__(self, "_elapsed_time", None)
-        object.__setattr__(self, "_current_time", None)
+        object.__setattr__(self, "_time", None)
         object.__setattr__(self, "_elapsed_n1", None)
         object.__setattr__(self, "_smallest_crater", None)
         object.__setattr__(self, "_smallest_projectile", None)
@@ -395,7 +395,9 @@ class Simulation(CratermakerBase):
                 if not np.isscalar(time_end):
                     raise ValueError("time_end must be a scalar value")
             elif time_end is not None:
-                raise ValueError("time_end cannot be used without time_start")
+                if self._time is None:
+                    raise ValueError("time_end cannot be used without time_start")
+                time_start = self.time
             elif diameter_number is None:
                 raise ValueError("Must provide one of age, time_start, or diameter_number")
 
@@ -480,20 +482,56 @@ class Simulation(CratermakerBase):
         time_end = arguments.pop("time_end", None)
         time_interval = arguments.pop("time_interval", None)
         diameter_number = arguments.pop("diameter_number", None)
-        diameter_number_end = arguments.pop("diameter_number_end", None)
         diameter_number_interval = arguments.pop("diameter_number_interval", None)
         ninterval = arguments.pop("ninterval", None)
         is_time_interval = arguments.pop("is_time_interval", None)
+        validate_inputs = kwargs.pop("validate_inputs", False)
         if ninterval == 1:
             is_time_interval = True
-            time_interval = age
+            time_interval = time_start - time_end
 
-        validate_inputs = kwargs.pop("validate_inputs", False)
-        self.save(**kwargs)
+        if not is_time_interval:
+            diameter_number_density_start = (
+                diameter_number[0],
+                diameter_number[1] / self.surface.area,
+            )
+            time_start = self.production.age_from_D_N(*diameter_number_density_start, validate_inputs=validate_inputs)
+
+        # If this is a fresh run, we need to set the value of the current time based on the requested starting condition.
+        if self._time is None:
+            self.time = time_start
+            self.interval = 0
+
+        # If this is a restarted run, we need to distinguish between a true restart and a continuation with different parameters
+        if time_start < self.time:
+            raise RuntimeError(
+                "Starting time cannot be later than the current time. Choose a starting time value equal to or larger than the current time, or reset this simulation."
+            )
+        if is_time_interval:
+            initial_interval = int((time_start - self.time) / time_interval)
+        else:
+            delta_n1_start = self.production.function(
+                diameter=1000.0,
+                time_start=time_start,
+                time_end=self.time,
+                validate_inputs=validate_inputs,
+            ).item()
+            n1_interval = (
+                self.production.function(
+                    diameter=1000.0,
+                    time_start=time_start,
+                    time_end=time_end,
+                    validate_inputs=validate_inputs,
+                ).item()
+                / ninterval
+            )
+            initial_interval = int(delta_n1_start / n1_interval)
+
+        self.save(merge_with_existing=False, **kwargs)
         for i in tqdm(
-            range(self.interval, ninterval),
+            range(initial_interval, ninterval),
             total=ninterval,
-            initial=self.interval,
+            initial=initial_interval,
             desc="Simulation interval",
             unit="interval",
             position=3,
@@ -501,7 +539,6 @@ class Simulation(CratermakerBase):
         ):
             if self.do_counting:
                 self.counting._emplaced = []
-            self.interval = i + 1
             if is_time_interval:
                 time = time_start - i * time_interval
                 current_time_end = time_start - (i + 1) * time_interval
@@ -549,8 +586,9 @@ class Simulation(CratermakerBase):
                 validate_inputs=validate_inputs,
             ).item()
             self.time = current_time_end
+            self.interval += 1
 
-            self.save(**kwargs)
+            self.save(merge_with_existing=False, **kwargs)
 
         return
 
@@ -959,9 +997,9 @@ class Simulation(CratermakerBase):
             f.unlink(missing_ok=True)
 
         self._interval = 0
-        self._elapsed_time = 0.0
-        self._current_time = 0.0
-        self._elapsed_n1 = 0.0
+        self._elapsed_time = None
+        self._time = None
+        self._elapsed_n1 = None
         self._smallest_crater = 0.0  # The smallest crater will be determined by the smallest face area
         self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
         self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
@@ -1168,13 +1206,13 @@ class Simulation(CratermakerBase):
         """
         The age of the current time step in My relative to the present from the chronology of the production function.
         """
-        if self._current_time is None:
-            return 0.0
-        return self._current_time
+        if self._time is None:
+            return -1.0
+        return self._time
 
     @time.setter
     def time(self, value):
-        self._current_time = float(value)
+        self._time = float(value)
 
     @parameter
     def elapsed_n1(self):
