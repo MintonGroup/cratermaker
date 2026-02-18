@@ -7,7 +7,7 @@ What's New
 
 :release:`v2026.2.3-alpha`
 
-- Increased performance by reducing the number of computations when forming craters, and continued make the restart capabilities more robust. :pull:77 `David Minton`_ 
+- Increased performance by reducing the number of computations when forming craters and to hold off on sorting the tag layers on save and tally. This also improved memory usage by explicitly removing complex data from the crater lists after tallying is finished. :pull:77 `David Minton`_ 
 
 .. _whats-new.2026.2.2-alpha:
 
