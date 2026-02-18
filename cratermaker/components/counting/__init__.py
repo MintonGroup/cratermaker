@@ -435,8 +435,8 @@ class Counting(ComponentBase):
 
         return xr.concat(new_data, dim="id")
 
-    def _merge_with_file(
-        self, craters: dict[int, Crater] | list[Crater], filename: Path | str, interval: int = 0, save_merged: bool = True
+    def _to_file(
+        self, craters: dict[int, Crater] | list[Crater], filename: Path | str, interval: int = 0, merge_with_existing: bool = True
     ) -> xr.Dataset | None:
         """
         Merge a list or dictionary of Crater objects with an existing file.
@@ -449,8 +449,8 @@ class Counting(ComponentBase):
             The path to the file to merge with.
         interval : int, optional
             The interval number. This is added to the coordinates of the dataset created from the craters before merging with the file. Default is 0.
-        save_merged : bool, optional
-            If True, save the merged data back to the file. Default is True.
+        merged_with_existing : bool, optional
+            If True, merge with any existing files. Otherwise, overwrite any existing files. Default is True.
 
         Returns
         -------
@@ -463,15 +463,18 @@ class Counting(ComponentBase):
 
         # If the file already exists, read it and merge
         if filename.exists():
-            with xr.open_dataset(filename) as ds:
-                combined_data = xr.merge([combined_data, ds], compat="no_conflicts")
+            if merge_with_existing:
+                with xr.open_dataset(filename) as ds:
+                    combined_data = xr.merge([combined_data, ds], compat="no_conflicts", join="outer")
+            else:
+                filename.unlink()
 
         # Write merged data back to file
-        if save_merged and combined_data:
+        if combined_data:
             combined_data.to_netcdf(filename)
         return combined_data
 
-    def save(self, interval: int = 0, **kwargs: Any) -> None:
+    def save(self, interval: int = 0, merge_with_existing: bool = True, **kwargs: Any) -> None:
         """
         Dump the crater lists to a file and reset the emplaced crater list.
 
@@ -479,15 +482,15 @@ class Counting(ComponentBase):
         ----------
         interval : int, default=0
             The interval number for the output file naming.
+        merge_with_existing : bool, optional
+            If True, merge with any existing files. Otherwise, overwrite any existing files. Default is True.
         **kwargs : Any
             |kwargs|
         """
-        if self.emplaced:
-            filename = self.output_dir / f"emplaced_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
-            self._merge_with_file(self.emplaced, filename, interval)
-        if self.observed:
-            filename = self.output_dir / f"observed_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
-            self._merge_with_file(self.observed, filename, interval)
+        for craters, name in zip([self.observed, self.emplaced], ["observed", "emplaced"], strict=True):
+            if craters:
+                filename = self.output_dir / f"{name}_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
+                self._to_file(craters, filename, interval, merge_with_existing)
         return
 
     def export(
@@ -613,11 +616,11 @@ class Counting(ComponentBase):
                 emplaced_interval = emplaced.interval.values[-1]
                 if emplaced_interval == interval:
                     emplaced = self.from_xarray(emplaced, interval=interval)
-            filename = self.surface.plot_dir / f"{file_prefix}{interval:06d}.png"
+            filename = self.surface.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
         else:
             observed = [c for _, c in self.observed.items()]
             emplaced = self.emplaced
-            filename = self.surface.plot_dir / f"{file_prefix}_{self.output_file_prefix}.png"
+            filename = self.surface.plot_dir / f"{file_prefix}_{self.output_file_prefix}.{self.surface.output_image_file_extension}"
         if ax is None:
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
