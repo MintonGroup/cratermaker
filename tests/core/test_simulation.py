@@ -104,6 +104,12 @@ class TestSimulation(unittest.TestCase):
             # Test runs with a single time interval between time_start and time_end
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
             sim.run(time_start=1010, time_end=1000, time_interval=10)
+
+            # Tests if a run can continue where a previous run left off
+            sim.run(time_start=1000, time_end=900, time_interval=10)
+
+            # Tests that runs can continue without passing time_start explicitly
+            sim.run(time_end=880, time_interval=10)
         return
 
     def test_invalid_run_args(self):

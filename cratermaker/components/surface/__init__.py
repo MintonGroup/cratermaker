@@ -108,6 +108,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_output_dir_name", "surface")
         object.__setattr__(self, "_grid_file_prefix", "grid")
         object.__setattr__(self, "_output_file_extension", "nc")
+        object.__setattr__(self, "_output_image_file_extension", "png")
 
         self._output_file_pattern = [
             f"{self._output_file_prefix}*.{self._output_file_extension}",
@@ -221,6 +222,9 @@ class Surface(ComponentBase):
         # remove grid file from the list, as it is not removed during reset
         if self.grid_file in output_files:
             output_files.remove(self.grid_file)
+
+        # Add surface image files to the list
+        output_files.extend(list(self.plot_dir.glob(f"*.{self.output_image_file_extension}")))
         return output_files
 
     def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
@@ -1968,6 +1972,25 @@ class Surface(ComponentBase):
         plotdir.mkdir(parents=True, exist_ok=True)
         return plotdir
 
+    @property
+    def output_image_file_extension(self) -> str:
+        """
+        The file extension to use for output images.
+        """
+        return self._output_image_file_extension
+
+    @output_image_file_extension.setter
+    def output_image_file_extension(self, value: str):
+        """
+        Set the file extension to use for output images.
+
+        Parameters
+        ----------
+        value : str
+            The file extension to use for output images (e.g., "png", "jpg", "tif").
+        """
+        self._output_image_file_extension = value
+
 
 class LocalSurface(CratermakerBase):
     """
@@ -3328,12 +3351,12 @@ class LocalSurface(CratermakerBase):
         file_prefix = f"{self.output_file_prefix}_{plot_style}"
         if interval is None:
             uxds = self.uxds
-            filename = self.plot_dir / f"{file_prefix}.png"
+            filename = self.plot_dir / f"{file_prefix}.{self.surface.output_image_file_extension}"
         else:
             uxds = self.read_saved_output(interval=interval, reset=False)
             interval = uxds.interval.values.item()
             uxds = uxds.sel(interval=interval)
-            filename = self.plot_dir / f"{file_prefix}{interval:06d}.png"
+            filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
 
         if variable_name is not None and variable_name not in uxds:
             raise ValueError(f"Variable '{variable_name}' not found in the surface data.")
