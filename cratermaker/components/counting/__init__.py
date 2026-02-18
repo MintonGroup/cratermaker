@@ -195,10 +195,10 @@ class Counting(ComponentBase):
             )
 
         # Tag a region just outside crater rim with the id
-        count_region = crater.count_region
+        crater_region = crater.crater_region
 
-        if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            count_region.add_tag(
+        if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING:
+            crater_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
                 tag=crater.id,
@@ -213,7 +213,7 @@ class Counting(ComponentBase):
                 return
 
             # Cookie cutting: remove any smaller craters that are overlapped by this new crater
-            unique_ids = np.unique(count_region.crater_id)
+            unique_ids = np.unique(crater_region.crater_id)
             unique_ids = unique_ids[unique_ids > 0]  # Remove the 0 id which corresponds to no crater
             if len(unique_ids) > 0:
                 # Compute cookie cutting removes list
@@ -221,7 +221,7 @@ class Counting(ComponentBase):
                 removes = [id for id, v in observed.items() if v.id in unique_ids and v.diameter < crater.diameter]
                 # For every id that appears in the removes list, set it to 0 in the data array
                 for remove_id in removes:
-                    count_region.remove_tag(name="crater_id", tag=remove_id)
+                    crater_region.remove_tag(name="crater_id", tag=remove_id)
                     if not np.any(
                         self.surface.uxds.crater_id.data == remove_id
                     ):  # Check to see if this crater id still appears, and if not, it's gone man.
@@ -311,6 +311,7 @@ class Counting(ComponentBase):
             raise TypeError("crater must be an instance of Crater")
 
         region = crater.crater_region
+        region.compute_desloped_face_elevation()
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
         return region
 

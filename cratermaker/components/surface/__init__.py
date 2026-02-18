@@ -34,7 +34,6 @@ from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 if TYPE_CHECKING:
     from cratermaker.components.target import Target
 
-surface_lock = threading.Lock()
 _N_TAG_LAYERS = 8
 
 
@@ -2058,6 +2057,7 @@ class LocalSurface(CratermakerBase):
         object.__setattr__(self, "_face_proj_y", None)
         object.__setattr__(self, "_node_proj_x", None)
         object.__setattr__(self, "_node_proj_y", None)
+        object.__setattr__(self, "_desloped_face_elevation", None)
 
         self._output_dir_name = self.surface._output_dir_name
 
@@ -2184,12 +2184,10 @@ class LocalSurface(CratermakerBase):
                 dtype=dtype,
             )
 
-        # This prevents concurrent writes to the same data variable when used in threading
-        with surface_lock:
-            if overwrite:
-                self.surface.uxds[name].data[indices] = data
-            else:
-                self.surface.uxds[name].data[indices] += data
+        if overwrite:
+            self.surface.uxds[name].data[indices] = data
+        else:
+            self.surface.uxds[name].data[indices] += data
 
         return
 
@@ -2283,46 +2281,46 @@ class LocalSurface(CratermakerBase):
             |kwargs|
         """
         # Reset the tag layers if the tag is None or does not yet exist on the surface
-        with surface_lock:
-            if name not in self.uxds or tag is None:
-                dims = ("n_face", "layer")
-                data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint32)
-                if long_name is not None:
-                    attrs = {"long_name": long_name}
+        if name not in self.uxds or tag is None:
+            dims = ("n_face", "layer")
+            data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint32)
+            if long_name is not None:
+                attrs = {"long_name": long_name}
+            else:
+                attrs = None
+
+            uxda = uxr.UxDataArray(
+                data=data,
+                dims=dims,
+                name=name,
+                attrs=attrs,
+                uxgrid=self.surface.uxgrid,
+            )
+
+            self.surface._uxds[name] = uxda
+            if tag is None:
+                return
+
+        insert_layer = -1
+
+        # Find the first layer that contains a contiguous set of empty spots
+        for attempt in range(2):
+            for i in range(_N_TAG_LAYERS):
+                if np.all(self.uxds[name].data[:, i] == 0):
+                    insert_layer = i
+                    break
+            if insert_layer == -1:  # If at first we don't succed, try sorting the tags and try again.
+                if attempt == 0:
+                    self.sort_tags(name)
+                    break
                 else:
-                    attrs = None
-
-                uxda = uxr.UxDataArray(
-                    data=data,
-                    dims=dims,
-                    name=name,
-                    attrs=attrs,
-                    uxgrid=self.surface.uxgrid,
-                )
-
-                self.surface._uxds[name] = uxda
-                if tag is None:
-                    return
-
-            insert_layer = -1
-
-            # Find the first layer that contains a contiguous set of empty spots
-            for attempt in range(2):
-                for i in range(_N_TAG_LAYERS):
-                    if np.all(self.uxds[name].data[:, i] == 0):
-                        insert_layer = i
-                        break
-                if insert_layer == -1:  # If at first we don't succed, try sorting the tags and try again.
-                    if attempt == 0:
-                        self.sort_tags(name)
-                        break
-                    else:
-                        # TODO: Implement an option to expand the number of layers if all layers are full
-                        warnings.warn(f"All {name} layers are full. Overwriting the first layer.", stacklevel=2)
-                        insert_layer = 0
-            data = self.uxds[name].data
-            data[:, insert_layer] = tag
-            self.surface.uxds[name].data[self.face_indices, :] = data
+                    # TODO: Implement an option to expand the number of layers if all layers are full
+                    warnings.warn(f"All {name} layers are full. Overwriting the first layer.", stacklevel=2)
+                    insert_layer = 0
+        data = self.uxds[name].data
+        data[:, insert_layer] = tag
+        self.surface.uxds[name].data[self.face_indices, :] = data
+        self._desloped_face_elevation = None  # Invalidate the desloped elevation cache since tags are often used for tracking craters, and we want to be able to get the original elevation of the crater faces if we need to.
 
         return
 
@@ -2335,14 +2333,13 @@ class LocalSurface(CratermakerBase):
         tag : int
             The integer tag to be removed.
         """
-        with surface_lock:
-            if name not in self.uxds:
-                raise ValueError(f"Tag {name} does not exist on the surface")
+        if name not in self.uxds:
+            raise ValueError(f"Tag {name} does not exist on the surface")
 
-            data = self.uxds[name].data
-            if tag in data:
-                data[data == tag] = 0
-                self.surface.uxds[name].data[self.face_indices, :] = data
+        data = self.uxds[name].data
+        if tag in data:
+            data[data == tag] = 0
+            self.surface.uxds[name].data[self.face_indices, :] = data
 
         return
 
@@ -4413,11 +4410,13 @@ class LocalSurface(CratermakerBase):
         """
         The face elevations with the mean slope of the region removed.
         """
-        if self.location is not None:
+        return self._desloped_face_elevation
+
+    def compute_desloped_face_elevation(self):
+        if self.location is not None and self._desloped_face_elevation is None:
             reference_elevation = self.get_reference_surface(only_faces=True)
-            return self.uxds.face_elevation.data - reference_elevation
-        else:
-            return None
+            self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
+        return
 
 
 import_components(__name__, __path__)

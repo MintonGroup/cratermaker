@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation
 
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.scaling import Scaling
-from cratermaker.components.surface import LocalSurface, Surface, surface_lock
+from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import (
