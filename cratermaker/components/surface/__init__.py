@@ -2307,16 +2307,22 @@ class LocalSurface(CratermakerBase):
             insert_layer = -1
 
             # Find the first layer that contains a contiguous set of empty spots
-            for i in range(_N_TAG_LAYERS):
-                if np.all(self.uxds[name].data[:, i] == 0):
-                    insert_layer = i
-                    break
-            if insert_layer == -1:
-                warnings.warn(f"All {name} layers are full", stacklevel=2)
-                # TODO: Implement an option to expand the number of layers if all layers are full
+            for attempt in range(2):
+                for i in range(_N_TAG_LAYERS):
+                    if np.all(self.uxds[name].data[:, i] == 0):
+                        insert_layer = i
+                        break
+                if insert_layer == -1:  # If at first we don't succed, try sorting the tags and try again.
+                    if attempt == 0:
+                        self.sort_tags(name)
+                        break
+                    else:
+                        # TODO: Implement an option to expand the number of layers if all layers are full
+                        warnings.warn(f"All {name} layers are full. Overwriting the first layer.", stacklevel=2)
+                        insert_layer = 0
             data = self.uxds[name].data
             data[:, insert_layer] = tag
-            self._sort_and_add_tag(name, data)
+            self.surface.uxds[name].data[self.face_indices, :] = data
 
         return
 
@@ -2336,15 +2342,21 @@ class LocalSurface(CratermakerBase):
             data = self.uxds[name].data
             if tag in data:
                 data[data == tag] = 0
-                self._sort_and_add_tag(name, data)
+                self.surface.uxds[name].data[self.face_indices, :] = data
 
         return
 
-    def _sort_and_add_tag(self, name: str, data: np.ndarray) -> np.ndarray:
-        # Sort each n_face row so that empty layers are always at the end. This effectively "compresses" the layers so that tags can be added along the maximum set of contiguous empty layers.
-        sorted_indices = np.argsort(data, axis=1)[:, ::-1]
-        self.surface.uxds[name].data[self.face_indices, :] = data
+    def sort_tags(self, name: str) -> None:
+        """
+        Sort the tag layers in descending order based on the tag values. This is used to ensure that the most recently added tags are in the first available layer, which is important for the add_tag method to function properly.
+
+        Parameters
+        ----------
+        name : str
+            The name of the tag to be sorted.
+        """
         ds = self.surface.uxds[name].sel(n_face=self.face_indices)
+        sorted_indices = np.argsort(ds.data, axis=1)[:, ::-1]
         ds = ds.isel(layer=xr.DataArray(sorted_indices, dims=["n_face", "layer"]))
         self.surface.uxds[name].data[self.face_indices, :] = ds.data
         return
@@ -3254,6 +3266,11 @@ class LocalSurface(CratermakerBase):
         else:
             if not isinstance(time_variables, dict):
                 raise TypeError("time_variables must be a dictionary")
+
+        # Sort any layers that we might have before saving
+        for var in self.uxds.data_vars:
+            if "layer" in self.uxds[var].dims:
+                self.sort_tags(name=var)
 
         self.uxds.close()
 
