@@ -195,10 +195,10 @@ class Counting(ComponentBase):
             )
 
         # Tag a region just outside crater rim with the id
-        count_region = crater.count_region
+        crater_region = crater.crater_region
 
-        if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            count_region.add_tag(
+        if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING:
+            crater_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
                 tag=crater.id,
@@ -213,7 +213,7 @@ class Counting(ComponentBase):
                 return
 
             # Cookie cutting: remove any smaller craters that are overlapped by this new crater
-            unique_ids = np.unique(count_region.crater_id)
+            unique_ids = np.unique(crater_region.crater_id)
             unique_ids = unique_ids[unique_ids > 0]  # Remove the 0 id which corresponds to no crater
             if len(unique_ids) > 0:
                 # Compute cookie cutting removes list
@@ -221,7 +221,7 @@ class Counting(ComponentBase):
                 removes = [id for id, v in observed.items() if v.id in unique_ids and v.diameter < crater.diameter]
                 # For every id that appears in the removes list, set it to 0 in the data array
                 for remove_id in removes:
-                    count_region.remove_tag(name="crater_id", tag=remove_id)
+                    crater_region.remove_tag(name="crater_id", tag=remove_id)
                     if not np.any(
                         self.surface.uxds.crater_id.data == remove_id
                     ):  # Check to see if this crater id still appears, and if not, it's gone man.
@@ -311,6 +311,7 @@ class Counting(ComponentBase):
             raise TypeError("crater must be an instance of Crater")
 
         region = crater.crater_region
+        region.compute_desloped_face_elevation()
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
         return region
 
@@ -390,6 +391,8 @@ class Counting(ComponentBase):
                 )
             for id in iterable:
                 self.remove(id)
+
+        self.remove_complex_data()
 
         return
 
@@ -487,6 +490,7 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
+        self.remove_complex_data()
         for craters, name in zip([self.observed, self.emplaced], ["observed", "emplaced"], strict=True):
             if craters:
                 filename = self.output_dir / f"{name}_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
@@ -1361,6 +1365,16 @@ class Counting(ComponentBase):
             craters.append(crater)
 
         return craters
+
+    def remove_complex_data(self):
+        """
+        Remove complex data from all observed and emplaced craters to free up memory. This is typically called after the tally step to clear out things like the affect node and face index sets.
+        """
+        for v in self.observed.values():
+            v.remove_complex_data()
+        for v in self.emplaced:
+            v.remove_complex_data()
+        return
 
     @property
     def surface(self):
