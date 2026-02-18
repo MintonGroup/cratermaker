@@ -391,6 +391,8 @@ class Counting(ComponentBase):
             for id in iterable:
                 self.remove(id)
 
+        self.remove_complex_data()
+
         return
 
     @abstractmethod
@@ -487,6 +489,7 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
+        self.remove_complex_data()
         for craters, name in zip([self.observed, self.emplaced], ["observed", "emplaced"], strict=True):
             if craters:
                 filename = self.output_dir / f"{name}_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
@@ -1361,6 +1364,16 @@ class Counting(ComponentBase):
             craters.append(crater)
 
         return craters
+
+    def remove_complex_data(self):
+        """
+        Remove complex data from all observed and emplaced craters to free up memory. This is typically called after the tally step to clear out things like the affect node and face index sets.
+        """
+        for v in self.observed.values():
+            v.remove_complex_data()
+        for v in self.emplaced:
+            v.remove_complex_data()
+        return
 
     @property
     def surface(self):
