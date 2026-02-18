@@ -239,20 +239,7 @@ class MorphologyCrater(Crater):
             self._var._crater_region = self.ejecta_region.extract_subregion(
                 subregion_radius=self.crater_rmax,
             )
-            if self._var._crater_region is not None:
-                self._emplaceable = True
-                region = self.ejecta_region
-                if isinstance(region.node_indices, slice) or isinstance(region.face_indices, slice):
-                    self._var._affected_node_indices, self._var._affected_face_indices = (
-                        set(np.arange(self.morphology.surface.n_node)[region.node_indices]),
-                        set(np.arange(self.morphology.surface.n_face)[region.face_indices]),
-                    )
-                else:
-                    self._var._affected_node_indices, self._var._affected_face_indices = (
-                        set(region.node_indices),
-                        set(region.face_indices),
-                    )
-            else:
+            if self._var._crater_region is None:
                 self._var._emplaceable = False
                 self._var._affected_face_indices = set()
                 self._var._affected_node_indices = set()
@@ -261,12 +248,30 @@ class MorphologyCrater(Crater):
     @property
     def count_region(self) -> LocalSurface | None:
         """
-        The LocalSurface view extracted around the crater center that encompasses the crater rim, as determined by the morphology model.
+        The LocalSurface view extracted around the crater center that encompasses a buffered region around the cratered rim.
 
-        This is extracted from the morphology's associated Surface object based on the location of the crater and a radius that extends beyond the crater_rmax by a factor of the `_RIM_BUFFER_FACTOR` constant. If the crater region cannot be extracted (e.g. if it is smaller than a single face of the mesh) this property will be set to None and the crater will be marked as not emplaceable.
+        This is extracted from the morphology's associated Surface object based on the location of the crater and a radius that extends by a `_RIM_BUFFER_FACTOR` constant times the crater radius. If the crater region cannot be extracted (e.g. if it is smaller than a single face of the mesh) this property will be set to None and the crater will be marked as not emplaceable.
         """
-        if self.crater_region is not None:
+        if self._var._count_region is None and self._has_initialized_surface_data and self.crater_region is not None:
             self._var._count_region = self.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * self.radius)
+
+            if self._var._count_region is not None:
+                self._emplaceable = True
+                biggest_region = self.ejecta_region
+                if isinstance(biggest_region.node_indices, slice) or isinstance(biggest_region.face_indices, slice):
+                    self._var._affected_node_indices, self._var._affected_face_indices = (
+                        set(np.arange(self.morphology.surface.n_node)[biggest_region.node_indices]),
+                        set(np.arange(self.morphology.surface.n_face)[biggest_region.face_indices]),
+                    )
+                else:
+                    self._var._affected_node_indices, self._var._affected_face_indices = (
+                        set(biggest_region.node_indices),
+                        set(biggest_region.face_indices),
+                    )
+            else:
+                self._var._emplaceable = False
+                self._var._affected_face_indices = set()
+                self._var._affected_node_indices = set()
         return self._var._count_region
 
     @property
@@ -277,7 +282,7 @@ class MorphologyCrater(Crater):
         This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously.
         """
         if self._var._affected_face_indices is None and self._has_initialized_surface_data:
-            _ = self.crater_region
+            _ = self.count_region
         return self._var._affected_face_indices
 
     @property
@@ -288,7 +293,7 @@ class MorphologyCrater(Crater):
         This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously.
         """
         if self._var._affected_node_indices is None and self._has_initialized_surface_data:
-            _ = self.crater_region
+            _ = self.count_region
         return self._var._affected_node_indices
 
     @property
