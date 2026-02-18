@@ -306,7 +306,7 @@ class MorphologyCrater(Crater):
         The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region.
         """
         if self.crater_region is not None:
-            self._var._measured_rim_height = counting_bindings.measure_rim_height(self.crater_region, self)
+            self._var._measured_rim_height = counting_bindings.measure_rim_height(self.count_region, self)
         return self._var._measured_rim_height
 
     @property
@@ -315,7 +315,7 @@ class MorphologyCrater(Crater):
         The measured floor depth of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region.
         """
         if self.crater_region is not None:
-            self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.crater_region, self)
+            self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.count_region, self)
         return self._var._measured_floor_depth
 
 
