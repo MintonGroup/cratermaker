@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import cProfile
 from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -462,9 +461,8 @@ class Morphology(ComponentBase):
         if isinstance(craters, list) and len(craters) > 0:
             for c in craters:
                 self._enqueue_crater(c)
-        with cProfile.Profile() as pr:
-            self._process_queue()
-            pr.dump_stats("profile.prof")
+
+        self._process_queue()
 
         return craters
 
@@ -585,8 +583,8 @@ class Morphology(ComponentBase):
             if self.surface is None:
                 raise RuntimeError("Surface must be provided to initialize queue manager.")
             self._init_queue_manager()
-
-        self._queue_manager.push(crater)
+        if crater.emplaceable:
+            self._queue_manager.push(crater)
 
     def _process_queue(self) -> None:
         """
