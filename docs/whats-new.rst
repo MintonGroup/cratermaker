@@ -3,6 +3,12 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.3-alpha:
+
+:release:`v2026.2.3-alpha`
+
+- Increased performance by reducing the number of computations when forming craters, and continued make the restart capabilities more robust. :pull:77 `David Minton`_ 
+
 .. _whats-new.2026.2.2-alpha:
 
 :release:`v2026.2.2-alpha`
