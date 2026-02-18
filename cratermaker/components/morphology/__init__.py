@@ -657,20 +657,16 @@ class Morphology(ComponentBase):
                 batch = self._queue_manager.peek_next_batch()
 
                 # TODO: Setting max_workers=1 until some lingering issues that cause simulations to occassionally hang are worked out.
-                # with ThreadPoolExecutor() as executor:
-                #     futures = [executor.submit(self.form_crater, crater) for crater in batch]
-                #     for future in as_completed(futures):
-                #         try:
-                #             future.result()
-                #         except Exception as e:
-                #             raise RuntimeError("Error processing crater in batch\n") from e
-                #         else:
-                #             if pbar is not None:
-                #                 pbar.update(1)
-                for crater in batch:
-                    self.form_crater(crater)
-                    if pbar is not None:
-                        pbar.update(1)
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    futures = [executor.submit(self.form_crater, crater) for crater in batch]
+                    for future in as_completed(futures):
+                        try:
+                            future.result()
+                        except Exception as e:
+                            raise RuntimeError("Error processing crater in batch\n") from e
+                        else:
+                            if pbar is not None:
+                                pbar.update(1)
 
                 if self.do_subpixel_degradation and len(batch) > 1:
                     # If the craters have time values attached to them, we can perform subpixel degradation between time values
