@@ -690,7 +690,10 @@ class SimpleMoon(Morphology):
         tuple[set[int], set[int]]
             The affected node and face indices for the crater.
         """
-        return crater.affected_node_indices, crater.affected_face_indices
+        if not crater.emplaceable or crater.affected_node_indices is None or crater.affected_face_indices is None:
+            return set(), set()
+        else:
+            return crater.affected_node_indices, crater.affected_face_indices
 
     @parameter
     def ejecta_truncation(self) -> float:
