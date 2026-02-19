@@ -277,11 +277,12 @@ def validate_and_normalize_location(location):
         - A tuple, list, or array with two elements (longitude, latitude).
         - A dictionary with keys 'lon' and 'lat'.
         - A structured numpy array with 'lon' and 'lat' fields.
+        - A 2D array of shape (N, 2) where each row is a (longitude, latitude) pair.
 
     Returns
     -------
-    tuple
-        longitude and latitude as a tuple of floats.
+    tuple or list of tuples
+        longitude and latitude as a tuple of floats in degrees.
 
     Raises
     ------
@@ -308,8 +309,30 @@ def validate_and_normalize_location(location):
     if isinstance(location, np.ndarray) and location.dtype.names == ("lat", "lon"):
         return normalize_coords((location[1], location[0]))
 
+    if isinstance(location, np.ndarray) and len(location.shape) == 2 and location.shape[1] == 2:
+        if location.shape[0] == 1:
+            return validate_and_normalize_location(location[0])
+        elif location.shape[0] > 1:
+            validated_loc = []
+            for loc in location:
+                validated_loc.append(validate_and_normalize_location(loc))
+            return validated_loc
+
     if isinstance(location, (tuple | list | np.ndarray)) and len(location) == 2:
         return normalize_coords(location)
+
+    if (
+        isinstance(location, (tuple | list | np.ndarray))
+        and isinstance(location[0], (tuple | list | np.ndarray))
+        and len(location[0]) == 2
+    ):
+        if len(location) == 1:
+            return validate_and_normalize_location(location[0])
+        else:
+            validated_loc = []
+            for loc in location:
+                validated_loc.append(validate_and_normalize_location(loc))
+            return validated_loc
 
     # Check if it's a dictionary with 'lon' and 'lat' keys
     if isinstance(location, dict) and "lon" in location and "lat" in location:
