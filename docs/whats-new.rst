@@ -2,6 +2,13 @@
 
 What's New
 ==========
+
+.. _whats-new.2026.2.5-alpha:
+
+:release:`v2026.2.5-alpha`
+
+- Fixed some issues with the tally system and added a new function for Surface that can compute the lon,lat location of a point given its distance and bearing from a known location, or the center of a local surface if called from one. This is useful to place a crater on a HiResLocalSurface at a specific location relative to the center without trying to figure out what lat,lon coordinates to use. `David Minton`_
+
 .. _whats-new.2026.2.4-alpha:
 
 :release:`v2026.2.4-alpha`

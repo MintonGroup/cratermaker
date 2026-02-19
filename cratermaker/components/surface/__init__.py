@@ -3615,8 +3615,8 @@ class LocalSurface(CratermakerBase):
                 plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
             return
 
+        pv.set_plot_theme("dark")
         plotter = pv.Plotter()
-        plotter.set_background("black")
 
         mesh = self.to_vtk_mesh(self.uxds)
 
