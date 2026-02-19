@@ -528,6 +528,9 @@ class Simulation(CratermakerBase):
             initial_interval = int(delta_n1_start / n1_interval)
 
         self.save(merge_with_existing=False, **kwargs)
+        show = kwargs.pop("show", False)
+        _ = kwargs.pop("save", True)
+        self.plot(show=show, save=True, **kwargs)
         for i in tqdm(
             range(initial_interval, ninterval),
             total=ninterval,
@@ -589,6 +592,7 @@ class Simulation(CratermakerBase):
             self.interval += 1
 
             self.save(merge_with_existing=False, **kwargs)
+            self.plot(show=show, save=True, **kwargs)
 
         return
 
@@ -777,7 +781,6 @@ class Simulation(CratermakerBase):
             self.counting.save(interval=self.interval, **kwargs)
 
         self.to_config(**kwargs)
-        self.plot(show=False, save=True, **kwargs)
 
         return
 
@@ -810,7 +813,7 @@ class Simulation(CratermakerBase):
             ask_overwrite = self.ask_overwrite
         if interval < 0:
             interval = self.interval + 1 + interval
-        self.save()
+        self.save(**kwargs)
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"
             counting_driver = "SCC"
@@ -851,6 +854,7 @@ class Simulation(CratermakerBase):
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
+        self.save(**kwargs)
         label = kwargs.pop("label", f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
         plot_style = kwargs.pop("plot_style", "hillshade")
         if include_counting and self.do_counting:
@@ -870,6 +874,7 @@ class Simulation(CratermakerBase):
         **kwargs : Any
         |kwargs|
         """
+        self.save(**kwargs)
         if "interval" not in kwargs:
             kwargs["interval"] = self.interval
         if self.do_counting:
