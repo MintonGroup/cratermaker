@@ -999,6 +999,7 @@ class Simulation(CratermakerBase):
         self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
         self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
+        self.save()
 
         return
 
