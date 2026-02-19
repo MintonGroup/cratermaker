@@ -664,9 +664,9 @@ class HiResLocalSurface(Surface):
 
         return points
 
-    def _load_from_files(self, **kwargs: Any):
+    def _load_from_files(self, reset: bool = False, ask_overwrite: bool = True, **kwargs: Any):
         is_same_grid = self._is_same_grid
-        super()._load_from_files(**kwargs)
+        super()._load_from_files(reset=reset, ask_overwrite=ask_overwrite, **kwargs)
         if is_same_grid and self.local_grid_indices_file is not None and Path(self.local_grid_indices_file).exists():
             with np.load(self.local_grid_indices_file) as grid_data:
                 face_indices = grid_data["face_indices"]
@@ -680,6 +680,10 @@ class HiResLocalSurface(Surface):
                     location=self.local_location,
                     region_radius=self.local_radius,
                 )
+        else:
+            _ = self.local  # triggers extraction of local surface and saving of local grid indices file
+        if reset:
+            self.reset(reset=reset, ask_overwrite=ask_overwrite, **kwargs)
         return
 
     @property

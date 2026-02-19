@@ -217,14 +217,7 @@ class Surface(ComponentBase):
         list[Path]
             A list of Path objects representing the files that would be removed during a reset operation. Returns an empty list if no files found
         """
-        output_files = super().saved_output_files(**kwargs)
-        # remove grid file from the list, as it is not removed during reset
-        if self.grid_file in output_files:
-            output_files.remove(self.grid_file)
-
-        # Add surface image files to the list
-        output_files.extend(list(self.plot_dir.glob(f"*.{self.output_image_file_extension}")))
-        return output_files
+        return self._full().saved_output_files(**kwargs)
 
     def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
         """
@@ -3913,6 +3906,24 @@ class LocalSurface(CratermakerBase):
 
         return remapped
 
+    def saved_output_files(self, **kwargs: Any) -> list[Path]:
+        """
+        Check if the component has any output files in its output directory.
+
+        Returns
+        -------
+        list[Path]
+            A list of Path objects representing the files that would be removed during a reset operation. Returns an empty list if no files found
+        """
+        output_files = super().saved_output_files(**kwargs)
+        # remove grid file from the list, as it is not removed during reset
+        if self.grid_file in output_files:
+            output_files.remove(self.grid_file)
+
+        # Add surface image files to the list
+        output_files.extend(list(self.plot_dir.glob(f"*.{self.output_image_file_extension}")))
+        return output_files
+
     @property
     def surface(self) -> Surface:
         """
@@ -4500,6 +4511,13 @@ class LocalSurface(CratermakerBase):
             reference_elevation = self.get_reference_surface(only_faces=True)
             self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
         return
+
+    @property
+    def output_image_file_extension(self) -> str:
+        """
+        The file extension to use when saving images of the surface.
+        """
+        return self.surface.output_image_file_extension
 
 
 import_components(__name__, __path__)
