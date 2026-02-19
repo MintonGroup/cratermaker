@@ -4366,12 +4366,18 @@ class LocalSurface(CratermakerBase):
         return self._to_surface
 
     def set_face_proj(self):
+        """
+        Set the projected x and y coordinates of the faces relative to the LocalSurface center.
+        """
         if self.face_distance is not None and self.face_bearing is not None and self._face_proj_x is None:
             self._face_proj_x = self.face_distance * np.sin(np.radians(self.face_bearing))
             self._face_proj_y = self.face_distance * np.cos(np.radians(self.face_bearing))
         return
 
     def set_node_proj(self):
+        """
+        Set the projected x and y coordinates of the nodes relative to the LocalSurface center.
+        """
         if self.node_distance is not None and self.node_bearing is not None and self._node_proj_x is None:
             self._node_proj_x = self.node_distance * np.sin(np.radians(self.node_bearing))
             self._node_proj_y = self.node_distance * np.cos(np.radians(self.node_bearing))
