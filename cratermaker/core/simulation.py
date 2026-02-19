@@ -991,11 +991,6 @@ class Simulation(CratermakerBase):
             if component not in skip_component and hasattr(self, component):
                 getattr(self, component).reset(ask_overwrite=False)
 
-        # Remove any old local surface output files
-        files_to_remove = self.surface.output_dir.glob("local_*")
-        for f in files_to_remove:
-            f.unlink(missing_ok=True)
-
         self._interval = 0
         self._elapsed_time = None
         self._time = None

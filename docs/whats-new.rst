@@ -2,6 +2,12 @@
 
 What's New
 ==========
+.. _whats-new.2026.2.4-alpha:
+
+:release:`v2026.2.4-alpha`
+
+- Fixed a bug causing local grid files to be deleted on a Simulation reset. `David Minton`_
+
 
 .. _whats-new.2026.2.3-alpha:
 
