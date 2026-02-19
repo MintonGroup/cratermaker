@@ -217,14 +217,7 @@ class Surface(ComponentBase):
         list[Path]
             A list of Path objects representing the files that would be removed during a reset operation. Returns an empty list if no files found
         """
-        output_files = super().saved_output_files(**kwargs)
-        # remove grid file from the list, as it is not removed during reset
-        if self.grid_file in output_files:
-            output_files.remove(self.grid_file)
-
-        # Add surface image files to the list
-        output_files.extend(list(self.plot_dir.glob(f"*.{self.output_image_file_extension}")))
-        return output_files
+        return self._full().saved_output_files(**kwargs)
 
     def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
         """
@@ -932,18 +925,18 @@ class Surface(ComponentBase):
 
     def compute_distances(
         self,
-        center_location: PairOfFloats,
         locations: ArrayLike,
+        center_location: PairOfFloats,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
 
         Parameters
         ----------
-        center_location : PairOfFloats
-            (lon, lat) location of the center point in degrees.
         locations : FloatLike or ArrayLike
             Array of (lon, lat) locations of the second point or array of points in degrees.
+        center_location : PairOfFloats
+            (lon, lat) location of the center point in degrees.
 
         Returns
         -------
@@ -954,36 +947,55 @@ class Surface(ComponentBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        center_location = np.radians(center_location)
-        locations = np.radians(locations)
+        return self._full().compute_distances(locations=locations, center_location=center_location)
 
-        return surface_bindings.compute_distances(
-            lon1=center_location[0], lat1=center_location[1], lon2=locations[:, 0], lat2=locations[:, 1], radius=self.radius
-        )
-
-    @staticmethod
     def compute_bearings(
-        center_location: PairOfFloats,
+        self,
         locations: ArrayLike,
+        center_location: PairOfFloats,
     ) -> NDArray[np.float64]:
         """
         Calculate the initial bearing relative to North from one point to one or more other points in degrees.
 
         Parameters
         ----------
-        center_location : PairOfFloats
-            Longitude and latitude of the first point in degrees.
         locations : ArrayLike
             Longitude and latitude of the second point or array of points in degrees.
-        lat2 : FloatLike or ArrayLike
-            Latitude of the second point or array of points in degrees.
+        center_location : PairOfFloats
+            Longitude and latitude of the first point in degrees.
 
         Returns
         -------
         NDArray
             Initial bearing from the first point to the second point or points in degrees.
         """
-        return LocalSurface.compute_bearings(center_location=center_location, locations=locations)
+        return self._full().compute_bearings(locations=locations, center_location=center_location)
+
+    def compute_location_from_distance_bearing(
+        self, distances: ArrayLike, bearings: ArrayLike, center_location: PairOfFloats
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the longitude and latitude of one or more points given a center point, initial bearings, and distances.
+
+        Parameters
+        ----------
+        bearings : ArrayLike
+            Initial bearing from the center point to the target point or points in degrees.
+        distances : ArrayLike
+            Great circle distance from the center point to the target point or points in meters.
+        center_location : PairOfFloats
+            Longitude and latitude of the center point in degrees.
+
+        Returns
+        -------
+        NDArray
+            Longitude and latitude of the target point or points in degrees.
+        """
+        return self._full().compute_location_from_distance_bearing(
+            distances=distances,
+            bearings=bearings,
+            center_location=center_location,
+        )
 
     @staticmethod
     def _compute_elevation_to_cartesian(position: NDArray, elevation: NDArray) -> NDArray:
@@ -1771,7 +1783,10 @@ class Surface(ComponentBase):
         """
         if self._edge_face_distance is None:
             self._edge_face_distance = surface_bindings.compute_edge_distances(
-                self.edge_face_connectivity, np.radians(self.face_lon), np.radians(self.face_lat), self.radius
+                edge_connectivity=self.edge_face_connectivity,
+                lon=np.radians(self.face_lon),
+                lat=np.radians(self.face_lat),
+                radius=self.radius,
             )
         return self._edge_face_distance
 
@@ -1786,7 +1801,10 @@ class Surface(ComponentBase):
         """
         if self._edge_lengths is None:
             self._edge_lengths = surface_bindings.compute_edge_distances(
-                self.edge_node_connectivity, np.radians(self.node_lon), np.radians(self.node_lat), self.radius
+                edge_connectivity=self.edge_node_connectivity,
+                lon=np.radians(self.node_lon),
+                lat=np.radians(self.node_lat),
+                radius=self.radius,
             )
         return self._edge_lengths
 
@@ -2497,7 +2515,9 @@ class LocalSurface(CratermakerBase):
         location = validate_and_normalize_location(location)
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(location, face_locations), self.compute_distances(location, node_locations)
+        return self.compute_distances(locations=face_locations, center_location=location), self.compute_distances(
+            locations=node_locations, center_location=location
+        )
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -2552,7 +2572,7 @@ class LocalSurface(CratermakerBase):
         -------
         None
         """
-        node_elevation = surface_bindings.interpolate_node_elevation_from_faces(self)
+        node_elevation = surface_bindings.interpolate_node_elevation_from_faces(region=self)
         self.add_data(name="node_elevation", data=node_elevation, overwrite=True)
         return
 
@@ -3596,6 +3616,7 @@ class LocalSurface(CratermakerBase):
             return
 
         plotter = pv.Plotter()
+        plotter.set_background("black")
 
         mesh = self.to_vtk_mesh(self.uxds)
 
@@ -3731,19 +3752,18 @@ class LocalSurface(CratermakerBase):
 
     def compute_distances(
         self,
-        center_location: PairOfFloats,
         locations: ArrayLike,
+        center_location: PairOfFloats | None = None,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
 
         Parameters
         ----------
-        center_location : PairOfFloats
-            Longitude and latitude of the first point in degrees.
         locations : ArrayLike
             Longitude and latitude of the second point or array of points in degrees.
-        lon2 : FloatLike or ArrayLike
+        center_location : PairOfFloats | None, optional
+            Longitude and latitude of the first point in degrees. If None, then the center of the local region will be used. Default is None.
 
         Returns
         -------
@@ -3754,22 +3774,31 @@ class LocalSurface(CratermakerBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        return self.surface.compute_distances(center_location, locations)
+        if center_location is None:
+            if self.location is not None:
+                center_location = self.location
+            else:
+                raise ValueError("center_location must be provided for global surfaces")
 
-    @staticmethod
-    def compute_bearings(
-        center_location: PairOfFloats,
-        locations: ArrayLike,
-    ) -> NDArray[np.float64]:
+        locations = np.radians(validate_and_normalize_location(locations))
+        lon1, lat1 = np.radians(validate_and_normalize_location(center_location))
+        if locations.ndim == 1 and locations.size == 2:
+            locations = np.expand_dims(locations, axis=0)
+
+        return surface_bindings.compute_distances(
+            lon1=lon1, lat1=lat1, lon2=locations[:, 0], lat2=locations[:, 1], radius=self.surface.radius
+        )
+
+    def compute_bearings(self, locations: ArrayLike, center_location: PairOfFloats | None = None) -> NDArray[np.float64]:
         """
         Calculate the initial bearing from one point to one or more other points in degrees.
 
         Parameters
         ----------
-        center_location : PairOfFloats
-            Longitude and latitude of the first point in degrees.
         locations : ArrayLike
             Longitude and latitude of the second point or array of points in degrees.
+        center_location : PairOfFloats | None, optional
+            Longitude and latitude of the first point in degrees. If None, then the center of the local region will be used. Default is None.
 
         Returns
         -------
@@ -3780,14 +3809,55 @@ class LocalSurface(CratermakerBase):
         -----
         This is intended to be used as a helper to calculate_face_and_node_bearings.
         """
+        if center_location is None:
+            if self.location is not None:
+                center_location = self.location
+            else:
+                raise ValueError("center_location must be provided for global surfaces")
         locations = np.asarray(locations, dtype=np.float64)
         if locations.ndim == 1 and locations.size == 2:
             locations = locations.reshape((1, 2))
 
-        lon1, lat1 = np.radians(center_location)
+        lon1, lat1 = np.radians(validate_and_normalize_location(center_location))
         lon2, lat2 = np.radians(locations[:, 0]), np.radians(locations[:, 1])
         bearing = surface_bindings.compute_bearings(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2)
         return np.degrees(bearing)
+
+    def compute_location_from_distance_bearing(
+        self,
+        distances: ArrayLike,
+        bearings: ArrayLike,
+        center_location: PairOfFloats | None = None,
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the longitude and latitude of one or more points given a center point, initial bearings, and distances.
+
+        Parameters
+        ----------
+        bearings : ArrayLike
+            Initial bearing from the center point to the target point or points in degrees.
+        distances : ArrayLike
+            Great circle distance from the center point to the target point or points in meters.
+        center_location : PairOfFloats | None, optional
+            Longitude and latitude of the center point in degrees. If None, then the center of the local region will be used. Default is None.
+
+        Returns
+        -------
+        tuple or list of tuples
+            longitude and latitude as a tuple of floats in degrees.
+        """
+        if center_location is None:
+            if self.location is not None:
+                center_location = self.location
+            else:
+                raise ValueError("center_location must be provided for global surfaces")
+        lon1, lat1 = np.radians(validate_and_normalize_location(center_location))
+        bearings = np.atleast_1d(np.radians(bearings))
+        distances = np.atleast_1d(distances).astype(np.float64)
+        lonlat2 = surface_bindings.compute_location_from_distance_bearing(
+            lon1=lon1, lat1=lat1, distances=distances, bearings=bearings, radius=self.surface.radius
+        )
+        return validate_and_normalize_location(np.degrees(lonlat2))
 
     @staticmethod
     def _remap_connectivity_to_local(
@@ -3835,6 +3905,24 @@ class LocalSurface(CratermakerBase):
         remapped[valid] = mapping[subset[valid]]
 
         return remapped
+
+    def saved_output_files(self, **kwargs: Any) -> list[Path]:
+        """
+        Check if the component has any output files in its output directory.
+
+        Returns
+        -------
+        list[Path]
+            A list of Path objects representing the files that would be removed during a reset operation. Returns an empty list if no files found
+        """
+        output_files = super().saved_output_files(**kwargs)
+        # remove grid file from the list, as it is not removed during reset
+        if self.grid_file in output_files:
+            output_files.remove(self.grid_file)
+
+        # Add surface image files to the list
+        output_files.extend(list(self.plot_dir.glob(f"*.{self.output_image_file_extension}")))
+        return output_files
 
     @property
     def surface(self) -> Surface:
@@ -4366,12 +4454,18 @@ class LocalSurface(CratermakerBase):
         return self._to_surface
 
     def set_face_proj(self):
+        """
+        Set the projected x and y coordinates of the faces relative to the LocalSurface center.
+        """
         if self.face_distance is not None and self.face_bearing is not None and self._face_proj_x is None:
             self._face_proj_x = self.face_distance * np.sin(np.radians(self.face_bearing))
             self._face_proj_y = self.face_distance * np.cos(np.radians(self.face_bearing))
         return
 
     def set_node_proj(self):
+        """
+        Set the projected x and y coordinates of the nodes relative to the LocalSurface center.
+        """
         if self.node_distance is not None and self.node_bearing is not None and self._node_proj_x is None:
             self._node_proj_x = self.node_distance * np.sin(np.radians(self.node_bearing))
             self._node_proj_y = self.node_distance * np.cos(np.radians(self.node_bearing))
@@ -4417,6 +4511,13 @@ class LocalSurface(CratermakerBase):
             reference_elevation = self.get_reference_surface(only_faces=True)
             self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
         return
+
+    @property
+    def output_image_file_extension(self) -> str:
+        """
+        The file extension to use when saving images of the surface.
+        """
+        return self.surface.output_image_file_extension
 
 
 import_components(__name__, __path__)
