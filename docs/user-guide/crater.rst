@@ -1,9 +1,17 @@
 .. currentmodule:: cratermaker
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
 .. image:: ../_static/crater_icon.svg
     :alt: Production
     :align: center
     :width: 300px
+    :class: dark-light
 
 .. _ug-crater:
 
@@ -14,8 +22,8 @@ The :ref:`Crater <api-crater>` class is one of the core components of Cratermake
 
 At a minimum, you need to specify exactly one size input, which can be one of the following:
 
-- `final_diameter`: The final rim-to-rim diameter (post collapse phase) of the crater in meters.
-- `final_radius`: The final rim-to-rim radius (post collapse phase) of the crater in meters.
+- `diameter`: The final rim-to-rim diameter (post collapse phase) of the crater in meters.
+- `radius`: The final rim-to-rim radius (post collapse phase) of the crater in meters.
 - `transient_diameter`: The transient diameter (pre-collapse phase) of the crater in meters.  
 - `transient_radius`: The transient radius (pre-collapse phase) of the crater in meters.  
 - `projectile_diameter`: The diameter of the projectile that formed the crater in meters.
@@ -28,7 +36,7 @@ All other parameters are optional, and if not specified, will be determined by t
 
     from cratermaker import Crater
 
-    crater = Crater.maker(final_diameter=100.0)
+    crater = Crater.maker(diameter=100.0)
     print(crater)
 
 As we can see, the Crater object contains values for the transient crater diameter, projectile properties, including size, mass, and impact velocity, angle and direction. It also contains a set of location coordinates on the target body, and a string value of the morphology type indicating that this is a simple crater. 
@@ -37,7 +45,7 @@ Because we didn't specify them, the :ref:`default values <ug-defaults>` of :ref:
 
 .. ipython:: python
 
-    crater = Crater.maker(final_diameter=100.0, 
+    crater = Crater.maker(diameter=100.0, 
                           target="Moon", 
                           projectile="asteroids", 
                           scaling="montecarlo")
@@ -127,3 +135,10 @@ Next we will feed our custom target body to the :meth:`Crater.maker()` method to
         projectile_velocity=5000,     
     )
     print(crater)
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

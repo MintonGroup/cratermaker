@@ -1,16 +1,15 @@
+use crate::ArrayResult;
 use itertools::Itertools;
+use libm::erf;
 use numpy::ndarray::prelude::*;
 use rand::prelude::*;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use crate::ArrayResult;
 use std::f64::{
     self,
-    consts::{PI, TAU, SQRT_2},
+    consts::{PI, SQRT_2, TAU},
 };
-use libm::erf;
-
 
 const RIMDROP: f64 = 4.20; // The exponent for the uplifted rim dropoff.
 const EJPROFILE: f64 = 3.0; // The exponent for the ejecta profile
@@ -53,7 +52,7 @@ pub fn crater_profile(
     assert_eq!(radial_distances.len(), reference_elevations.len());
     const A: f64 = 4.0 / 11.0;
     const B: f64 = -32.0 / 187.0;
-    
+
     // Calculate the floor radius relative to the final crater radius
     let flrad = floor_diameter / diameter;
     let radius = diameter / 2.0;
@@ -105,7 +104,6 @@ pub fn crater_profile(
     ))
 }
 
-
 /// Calculates the elevation of a crater as a function of distance from the center.
 ///
 /// This function applies a polynomial profile for the crater interior (r < 1.0) and a rim dropoff
@@ -148,7 +146,6 @@ fn crater_profile_function(
     }
 }
 
-
 /// Computes only the radial ejecta profile without ray modulation.
 ///
 /// This is a simple power-law decay of ejecta intensity with radial distance.
@@ -174,8 +171,6 @@ pub fn ejecta_profile(
             .collect(),
     ))
 }
-
-
 
 /// Computes the ejecta profile scaling at a given radial distance.
 ///
@@ -316,8 +311,6 @@ pub fn ray_intensity(
     Ok(Array1::from_vec(intensity))
 }
 
-
-
 /// Computes the intensity contribution of all rays for a single radial/angular location.
 ///
 /// Applies a distance-dependent decay of ray count, and for each ray evaluates its contribution
@@ -376,7 +369,8 @@ fn ray_intensity_func(
                     let w = (rmax / length).powf(1.0);
                     let rw = PI / (w * NRAYMAX as f64)
                         * (rmin / r)
-                        * (1.0 - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(RAY_WIDTH_EXPONENT)).exp());
+                        * (1.0
+                            - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(RAY_WIDTH_EXPONENT)).exp());
                     ejecta_ray_func(theta, thetari[i as usize], r, n, rw)
                 }
             })

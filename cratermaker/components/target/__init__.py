@@ -19,8 +19,7 @@ class Target(ComponentBase):
     """
     Represents the target body in a crater simulation.
 
-    This class encapsulates the properties of the target that is impacted, including
-    its material composition, size, and other relevant physical characteristics.
+    This class encapsulates the properties of the target that is impacted, including its material composition, size, and other relevant physical characteristics.
     """
 
     _catalogue_header = [
@@ -85,7 +84,7 @@ class Target(ComponentBase):
         **kwargs: Any,
     ):
         """
-        Initialize the target object, setting properties from the provided arguments.
+        **Warning:** This object should not be instantiated directly. Instead, use the ``.maker()`` method.
 
         Parameters
         ----------
@@ -103,9 +102,8 @@ class Target(ComponentBase):
             Name of the material composition of the target body.
         density : FloatLike or None
             Volumetric density of the surface of the target body in kg/m^3.
-
         **kwargs : Any
-            Additional keyword argumments that could be set by the user.
+            |kwargs|
 
         Notes
         -----
@@ -163,6 +161,79 @@ class Target(ComponentBase):
             f"Escape Velocity: {escape_velocity}\n"
             f"Gravity: {self.gravity:.3f} m/s²"
         )
+
+    @classmethod
+    def maker(
+        cls: type[Target],
+        target: Target | str = "Moon",
+        radius: FloatLike | None = None,
+        diameter: FloatLike | None = None,
+        mass: FloatLike | None = None,
+        transition_scale_type: str | None = None,
+        material: str | None = None,
+        density: FloatLike | None = None,
+        **kwargs: Any,
+    ) -> Target:
+        """
+        Initialize the target object, setting properties from the provided arguments.
+
+        Parameters
+        ----------
+        target : str, Target, or None
+            Name of the target body or a Target object.
+        radius : FloatLike or None
+            Radius of the target body in km.
+        diameter : FloatLike or None
+            Diameter of the target body in km.
+        mass : FloatLike or None
+            Mass of the target body in kg.
+        transition_scale_type : str or None
+            Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
+        material : str or None
+            Name of the material composition of the target body.
+        density : FloatLike or None
+            Volumetric density of the surface of the target body in kg/m^3.
+        **kwargs : Any
+            |kwargs|
+
+        Notes
+        -----
+        - The `radius` and `diameter` parameters are mutually exclusive. Only one of them should be provided.
+        - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
+        """
+        if target is None:
+            try:
+                target = cls(
+                    name="Moon",
+                    radius=radius,
+                    diameter=diameter,
+                    mass=mass,
+                    transition_scale_type=transition_scale_type,
+                    material=material,
+                    density=density,
+                    **kwargs,
+                )
+            except Exception as e:
+                raise RuntimeError("Error initializing target.") from e
+        elif isinstance(target, str):
+            try:
+                target = cls(
+                    name=target,
+                    radius=radius,
+                    diameter=diameter,
+                    mass=mass,
+                    transition_scale_type=transition_scale_type,
+                    material=material,
+                    density=density,
+                    **kwargs,
+                )
+            except KeyError as e:
+                raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.") from e
+        elif not isinstance(target, Target):
+            raise TypeError("target must be a string or a Target object")
+        target._component_name = target.name
+
+        return target
 
     @parameter
     def radius(self) -> float | None:
@@ -319,79 +390,6 @@ class Target(ComponentBase):
             Gravitational acceleration in m/s^2.
         """
         return G.value * self.mass / (self.radius**2)
-
-    @classmethod
-    def maker(
-        cls: type[Target],
-        target: Target | str = "Moon",
-        radius: FloatLike | None = None,
-        diameter: FloatLike | None = None,
-        mass: FloatLike | None = None,
-        transition_scale_type: str | None = None,
-        material: str | None = None,
-        density: FloatLike | None = None,
-        **kwargs: Any,
-    ) -> Target:
-        """
-        Initialize the target object, setting properties from the provided arguments.
-
-        Parameters
-        ----------
-        target : str, Target, or None
-            Name of the target body or a Target object.
-        radius : FloatLike or None
-            Radius of the target body in km.
-        diameter : FloatLike or None
-            Diameter of the target body in km.
-        mass : FloatLike or None
-            Mass of the target body in kg.
-        transition_scale_type : str or None
-            Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
-        material : str or None
-            Name of the material composition of the target body.
-        density : FloatLike or None
-            Volumetric density of the surface of the target body in kg/m^3.
-        **kwargs : Any
-            Additional keyword argumments that could be set by the user.
-
-        Notes
-        -----
-        - The `radius` and `diameter` parameters are mutually exclusive. Only one of them should be provided.
-        - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
-        """
-        if target is None:
-            try:
-                target = cls(
-                    name="Moon",
-                    radius=radius,
-                    diameter=diameter,
-                    mass=mass,
-                    transition_scale_type=transition_scale_type,
-                    material=material,
-                    density=density,
-                    **kwargs,
-                )
-            except Exception as e:
-                raise RuntimeError("Error initializing target.") from e
-        elif isinstance(target, str):
-            try:
-                target = cls(
-                    name=target,
-                    radius=radius,
-                    diameter=diameter,
-                    mass=mass,
-                    transition_scale_type=transition_scale_type,
-                    material=material,
-                    density=density,
-                    **kwargs,
-                )
-            except KeyError as e:
-                raise ValueError(f"Target '{target}' not found in the catalogue. Please provide a valid target name.") from e
-        elif not isinstance(target, Target):
-            raise TypeError("target must be a string or a Target object")
-        target._component_name = target.name
-
-        return target
 
 
 import_components(__name__, __path__)

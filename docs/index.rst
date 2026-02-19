@@ -19,6 +19,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
     .. grid-item-card::  User guide
         :img-top: _static/crater_icon.svg
+        :class-img-top: dark-light
         :link: user-guide/index
         :link-type: doc
 
@@ -26,6 +27,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
     .. grid-item-card::  Example gallery
         :img-top: _static/index_gallery.svg
+        :class-img-top: dark-light
         :link: auto_examples/index
         :link-type: doc
 
@@ -33,6 +35,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
     .. grid-item-card::  API reference
         :img-top: _static/index_api_reference.svg
+        :class-img-top: dark-light
         :link: api/index
         :link-type: doc
 
@@ -42,6 +45,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
     .. grid-item-card:: Contributor's guide
         :img-top: _static/index_contributing.svg
+        :class-img-top: dark-light
         :link: contributing/index
         :link-type: doc
 

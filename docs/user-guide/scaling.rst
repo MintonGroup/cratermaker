@@ -1,9 +1,17 @@
 .. currentmodule:: cratermaker
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
 .. image:: ../_static/scaling_icon.svg
     :alt: Production
     :align: center
     :width: 600px
+    :class: dark-light
 
 
 .. _ug-scaling: 
@@ -113,3 +121,8 @@ More Scaling examples
 
 See more examples at  :ref:`gal-projectiles_and_scaling`
 
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

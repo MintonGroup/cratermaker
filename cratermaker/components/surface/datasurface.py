@@ -50,7 +50,7 @@ class DataSurface(HiResLocalSurface):
     ask_overwrite : bool, optional
         If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
-        The main project simulation directory. Default is the current working directory if None.
+        |simdir|
     pix : FloatLike | None, optional
         The approximate face size inside the local region in meters. This will be used to determine the target resolution of the DEM data to be used. The actual resolution may be different based on the available DEM data. Note that if you provide a list of DEM files using the `dem_file_list` parameter, this value will be ignored. If None, is set, and no file(s) are provided, a default resolution that creates approximately 1e6 faces in the local region will be used.
     local_radius : FloatLike
@@ -394,7 +394,7 @@ class DataSurface(HiResLocalSurface):
             raise ValueError("No DEM files provided to extract data from.")
 
         _EXPANSION_BUFFER = 1.05
-        _NODATA = -1.0e-9
+        _NODATA = np.finfo(np.float32).min
         region_radius = self.local_radius
         box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
         half_box_size = box_size / 2
@@ -412,7 +412,7 @@ class DataSurface(HiResLocalSurface):
         except Exception as e:
             raise RuntimeError(f"Error reading DEM file(s): {e}") from e
         nodata_val = src_list[0].nodata
-        if nodata_val is None or np.isnan(nodata_val):
+        if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
             nodata_val = _NODATA
         target_res = min(s.res[0] for s in src_list)
         dst_width = int(np.ceil(2 * half_box_size / target_res))
@@ -426,7 +426,6 @@ class DataSurface(HiResLocalSurface):
                 width=dst_width,
                 height=dst_height,
                 resampling=Resampling.bilinear,
-                dst_nodata=nodata_val,
             )
             for src in src_list
         ]
@@ -445,6 +444,7 @@ class DataSurface(HiResLocalSurface):
                 "width": mosaic.shape[2],
                 "transform": transform,
                 "crs": dst_crs,
+                "nodata": nodata_val,
             }
         )
 
@@ -574,7 +574,7 @@ class DataSurface(HiResLocalSurface):
         ask_overwrite : bool, optional
             If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
-            Additional keyword arguments for subclasses.
+            |kwargs|
 
         """
         super().reset(ask_overwrite=ask_overwrite, **kwargs)
@@ -583,8 +583,8 @@ class DataSurface(HiResLocalSurface):
             self._add_global_dem_elevation()
         elif (self.output_dir / self._dem_output_file).exists():
             with xr.open_dataset(self.output_dir / self._dem_output_file) as ds:
-                self.update_elevation(ds.isel(time=0).face_elevation)
-                self.update_elevation(ds.isel(time=0).node_elevation)
+                elevation = np.concatenate([ds.isel(interval=0).face_elevation, ds.isel(interval=0).node_elevation])
+                self.update_elevation(elevation)
 
         return
 
@@ -635,9 +635,8 @@ class DataSurface(HiResLocalSurface):
         lut2 = LinearNDInterpolator(lonlat, self._local_dem_data["elevation"], fill_value=0.0)
         face_elevations = lut2(np.c_[self.local.face_lon, self.local.face_lat])
         node_elevations = lut2(np.c_[self.local.node_lon, self.local.node_lat])
-
-        self.local.update_elevation(face_elevations)
-        self.local.update_elevation(node_elevations)
+        elevation = np.concatenate([face_elevations, node_elevations])
+        self.local.update_elevation(elevation)
 
         # Now save the surface to a file that we can reload later if we want to avoid re-downloading the DEM data
         self.local.save(filename=self._dem_output_file)
@@ -724,8 +723,8 @@ class DataSurface(HiResLocalSurface):
         node_elevations[self._global_dem_data["node_indices"]] = node_samples
 
         # Apply elevations to the global (superdomain) surface
-        self.update_elevation(face_elevations)
-        self.update_elevation(node_elevations)
+        elevation = np.concatenate([face_elevations, node_elevations])
+        self.update_elevation(elevation)
 
         # Save so we can reload later without re-downloading / re-sampling the DEM
         self.save(filename=self._dem_output_file)

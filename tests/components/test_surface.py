@@ -310,7 +310,7 @@ class TestSurface(unittest.TestCase):
                     uxds["test_data"].sel(n_face=face_indices).values,
                     np.full(n_face, test_value),
                 )
-
+                assert hasattr(obj, "test_data")
                 obj.add_data(
                     name="test_data",
                     data=-test_value,
@@ -330,6 +330,7 @@ class TestSurface(unittest.TestCase):
                 # Add scalar node data
                 obj.add_data(name="scalar_node", data=test_value, isfacedata=False)
                 self.assertIn("scalar_node", uxds)
+                assert hasattr(obj, "scalar_node")
                 np.testing.assert_array_equal(
                     uxds["scalar_node"].sel(n_node=node_indices).values,
                     np.full(n_node, test_value),
@@ -338,6 +339,7 @@ class TestSurface(unittest.TestCase):
                 # Add array face data
                 data_array = np.arange(n_face)
                 obj.add_data(name="array_face", data=data_array)
+                assert hasattr(obj, "array_face")
                 np.testing.assert_array_equal(uxds["array_face"].sel(n_face=face_indices).values, data_array)
 
                 # Overwrite behavior
@@ -405,29 +407,31 @@ class TestSurface(unittest.TestCase):
         export_args_list = [
             {
                 "driver": "GPKG",
-                "interval_number": None,
+                "interval": None,
             },
             {
                 "driver": "VTK",
-                "interval_number": None,
+                "interval": None,
             },
             {
                 "driver": "ESRI Shapefile",
-                "interval_number": None,
+                "interval": None,
             },
             {
                 "driver": "VTK",
-                "interval_number": 0,
+                "interval": 0,
             },
             {
                 "driver": "VTK",
-                "interval_number": 4,
+                "interval": 4,
             },
             {
                 "driver": "VTK",
-                "interval_number": -1,
+                "interval": -1,
             },
         ]
+        for i, _ in enumerate(export_args_list):
+            export_args_list[i]["ask_overwrite"] = False
 
         # Expected output files:
         expected_file_list = [
@@ -438,8 +442,8 @@ class TestSurface(unittest.TestCase):
             + [f"surface{i:06d}.dbf" for i in save_intervals]
             + [f"surface{i:06d}.cpg" for i in save_intervals]
             + [f"surface{i:06d}.prj" for i in save_intervals],
-            [f"surface{export_args_list[3]['interval_number']:06d}.vtp"] + ["grid.vtp"],
-            [f"surface{export_args_list[4]['interval_number']:06d}.vtp"] + ["grid.vtp"],
+            [f"surface{export_args_list[3]['interval']:06d}.vtp"] + ["grid.vtp"],
+            [f"surface{export_args_list[4]['interval']:06d}.vtp"] + ["grid.vtp"],
             [f"surface{save_intervals[-1]:06d}.vtp"] + ["grid.vtp"],
         ]
 
@@ -451,8 +455,8 @@ class TestSurface(unittest.TestCase):
             + [f"local_surface{i:06d}.dbf" for i in save_intervals]
             + [f"local_surface{i:06d}.cpg" for i in save_intervals]
             + [f"local_surface{i:06d}.prj" for i in save_intervals],
-            [f"local_surface{export_args_list[3]['interval_number']:06d}.vtp"] + ["local_grid.vtp"],
-            [f"local_surface{export_args_list[4]['interval_number']:06d}.vtp"] + ["local_grid.vtp"],
+            [f"local_surface{export_args_list[3]['interval']:06d}.vtp"] + ["local_grid.vtp"],
+            [f"local_surface{export_args_list[4]['interval']:06d}.vtp"] + ["local_grid.vtp"],
             [f"local_surface{save_intervals[-1]:06d}.vtp"] + ["local_grid.vtp"],
         ]
 
@@ -466,8 +470,8 @@ class TestSurface(unittest.TestCase):
                             f.unlink()
 
                     surface = Surface.maker(surface=surface_name, simdir=simdir, **gridargs[surface_name])
-                    for interval_number in save_intervals:
-                        surface.save(interval_number=interval_number)
+                    for interval in save_intervals:
+                        surface.save(interval=interval)
 
                     expected_files = expected_file_list[i].copy()
                     if isinstance(surface, HiResLocalSurface):
@@ -476,7 +480,7 @@ class TestSurface(unittest.TestCase):
                     else:
                         surface.export(**export_args)
                     for file in expected_files:
-                        output_file = surface.output_dir / file
+                        output_file = surface.export_dir / file
                         if not output_file.exists():
                             raise FileNotFoundError(f"{surface_name} test {i}: Expected output file not created: {output_file}")
 

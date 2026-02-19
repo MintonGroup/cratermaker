@@ -1,35 +1,34 @@
-use std::f64::consts::{PI, TAU};
+use crate::ArrayResult;
 use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
 use numpy::ndarray::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use crate::ArrayResult;
-
+use std::f64::consts::{PI, TAU};
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct LocalSurfaceView<'a> {
-    pub n_face:         usize,
-    pub pix:            f64,
-    pub face_area:      ArrayView1<'a, f64>,
+    pub n_face: usize,
+    pub pix: f64,
+    pub face_area: ArrayView1<'a, f64>,
     pub face_elevation: ArrayView1<'a, f64>,
-    pub face_indices:   ArrayView1<'a, i64>,
-    pub face_lon:       ArrayView1<'a, f64>,
-    pub face_lat:       ArrayView1<'a, f64>,
-    pub face_x:         ArrayView1<'a, f64>,
-    pub face_y:         ArrayView1<'a, f64>,
-    pub face_z:         ArrayView1<'a, f64>,
+    pub face_indices: ArrayView1<'a, i64>,
+    pub face_lon: ArrayView1<'a, f64>,
+    pub face_lat: ArrayView1<'a, f64>,
+    pub face_x: ArrayView1<'a, f64>,
+    pub face_y: ArrayView1<'a, f64>,
+    pub face_z: ArrayView1<'a, f64>,
 
-    pub n_node:         usize,
+    pub n_node: usize,
     pub node_elevation: ArrayView1<'a, f64>,
-    pub node_indices:   ArrayView1<'a, i64>,
-    pub node_lon:       ArrayView1<'a, f64>,
-    pub node_lat:       ArrayView1<'a, f64>,
-    pub node_x:         ArrayView1<'a, f64>,
-    pub node_y:         ArrayView1<'a, f64>,
-    pub node_z:         ArrayView1<'a, f64>,
+    pub node_indices: ArrayView1<'a, i64>,
+    pub node_lon: ArrayView1<'a, f64>,
+    pub node_lat: ArrayView1<'a, f64>,
+    pub node_x: ArrayView1<'a, f64>,
+    pub node_y: ArrayView1<'a, f64>,
+    pub node_z: ArrayView1<'a, f64>,
 
-    pub n_edge:                 usize,
-    pub edge_indices:           ArrayView1<'a, i64>,
-    pub edge_length:            ArrayView1<'a, f64>,
+    pub n_edge: usize,
+    pub edge_indices: ArrayView1<'a, i64>,
+    pub edge_length: ArrayView1<'a, f64>,
 
     pub face_edge_connectivity: ArrayView2<'a, i64>,
     pub face_node_connectivity: ArrayView2<'a, i64>,
@@ -37,15 +36,19 @@ pub struct LocalSurfaceView<'a> {
     pub node_face_connectivity: ArrayView2<'a, i64>,
     pub edge_face_connectivity: ArrayView2<'a, i64>,
     pub edge_node_connectivity: ArrayView2<'a, i64>,
-    pub edge_face_distance:     ArrayView1<'a, f64>,
+    pub edge_face_distance: ArrayView1<'a, f64>,
 
     // The following are optional, as they will not be present if the LocalSurfaceView represents a global Surface object
-    pub face_proj_x:    Option<ArrayView1<'a, f64>>,
-    pub face_proj_y:    Option<ArrayView1<'a, f64>>,
-    pub face_distance:  Option<ArrayView1<'a, f64>>,
-    pub face_bearing:   Option<ArrayView1<'a, f64>>,
-    pub region_radius:  Option<f64>,
-    pub location:       Option<(f64, f64)>,
+    pub face_proj_x: Option<ArrayView1<'a, f64>>,
+    pub face_proj_y: Option<ArrayView1<'a, f64>>,
+    pub node_proj_x: Option<ArrayView1<'a, f64>>,
+    pub node_proj_y: Option<ArrayView1<'a, f64>>,
+    pub face_distance: Option<ArrayView1<'a, f64>>,
+    pub face_bearing: Option<ArrayView1<'a, f64>>,
+    pub region_radius: Option<f64>,
+    pub location: Option<(f64, f64)>,
+    pub crater_id: Option<ArrayView2<'a, u32>>,
+    pub desloped_face_elevation: Option<ArrayView1<'a, f64>>,
 }
 
 /// Applies one explicit diffusion update step over a surface mesh with variable diffusivity.
@@ -65,17 +68,14 @@ pub struct LocalSurfaceView<'a> {
 /// # Returns
 ///
 /// A NumPy array of shape (n_face,) giving the elevation change per face of the local mesh for this update step.
-/// 
+///
 pub fn apply_diffusion(
     face_kappa: ArrayView1<'_, f64>,
     face_variable: ArrayView1<'_, f64>,
     region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
     // Compute initial dt von neumann stability condition
-    let dt_max = compute_dt_max(
-        face_kappa,
-        region
-    );
+    let dt_max = compute_dt_max(face_kappa, region);
 
     let mut face_delta = Array1::<f64>::zeros(region.n_face);
 
@@ -87,14 +87,12 @@ pub fn apply_diffusion(
     let dt = 1.0 / nloops as f64;
     let fac = dt / 2.0;
 
-
     for _ in 0..nloops {
         // Initialize dhdt as zeros with length n_face
         let mut dhdt = Array1::<f64>::zeros(region.n_face);
 
         // Loop over edges, accumulate flux contributions to each face
         for (e, faces) in region.edge_face_connectivity.outer_iter().enumerate() {
-
             let (f1, f2) = match extract_edge_faces(faces, e, region.n_face, "apply_diffusion") {
                 Some(pair) => pair,
                 None => continue,
@@ -104,7 +102,6 @@ pub fn apply_diffusion(
             let length = region.edge_length[e];
 
             debug_assert!(distance > 0.0, "non-positive distance at edge {}", e);
-
 
             let h1 = face_variable[f1] + face_delta[f1];
             let h2 = face_variable[f2] + face_delta[f2];
@@ -133,30 +130,29 @@ pub fn apply_diffusion(
 ///
 /// # Arguments
 /// * `variable` - The variable to compute the gradient for at each face (1D array).
-/// * `region` - Reference to the local surface data structure containing mesh information. 
+/// * `region` - Reference to the local surface data structure containing mesh information.
 ///
 /// # Returns
 /// An arrays of radial gradient values same length as `face_indices`.
-/// 
+///
 pub fn compute_radial_gradient(
-    variable: ArrayView1<'_,f64>,
+    variable: ArrayView1<'_, f64>,
     region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
-    let bearing = region.face_bearing.as_ref().ok_or("face_bearing required")?;
+    let bearing = region
+        .face_bearing
+        .as_ref()
+        .ok_or("face_bearing required")?;
     let bearing_rad = bearing.mapv(|b| b.to_radians());
-    let radgrad: Vec<f64> = (0..region.n_face).into_par_iter()
+    let radgrad: Vec<f64> = (0..region.n_face)
+        .into_par_iter()
         .map(|f| {
-            let (grad_zonal, grad_meridional) = compute_one_face_gradient(
-                f,
-                variable,
-                region
-            );
+            let (grad_zonal, grad_meridional) = compute_one_face_gradient(f, variable, region);
             grad_meridional * bearing_rad[f].cos() + grad_zonal * bearing_rad[f].sin()
         })
         .collect();
     Ok(Array1::from_vec(radgrad))
 }
-
 
 /// Computes the slope squared at a face using the Green-Gauss method.
 ///
@@ -169,31 +165,24 @@ pub fn compute_radial_gradient(
 /// and estimate the gradient using the Green-Gauss formula.
 /// Since we lack explicit (x, y) positions, we approximate dx, dy as unit vectors around the face.
 /// This provides a reasonable local coordinate system for gradient estimation.
-/// 
+///
 /// # Arguments
 /// * `f` - Index of the face to compute the slope squared for.
 /// * `face_elevation` - The variable to compute the gradient for at each face (1D array).
 /// * `region` - Reference to the local surface data structure containing mesh information.
-/// 
+///
 /// # Returns
-/// 
+///
 /// The squared magnitude of the gradient vector at face `f`.
-/// 
+///
 fn compute_face_slope_squared(
     f: usize,
-    face_elevation: ArrayView1<'_,f64>,
+    face_elevation: ArrayView1<'_, f64>,
     region: &LocalSurfaceView<'_>,
 ) -> f64 {
-
-    let (dh_dx, dh_dy) = compute_one_face_gradient(
-        f,
-        face_elevation,
-        region
-    ); 
+    let (dh_dx, dh_dy) = compute_one_face_gradient(f, face_elevation, region);
     return dh_dx * dh_dx + dh_dy * dh_dy;
-    
 }
-
 
 /// Computes the gradient vector (∂h/∂x, ∂h/∂y) at a face using the Green-Gauss method.
 ///
@@ -204,19 +193,19 @@ fn compute_face_slope_squared(
 ///
 /// For each neighbor, we take the vector (dx, dy) in the tangent plane and the elevation difference dh,
 /// and estimate the gradient using the Green-Gauss formula.
-/// 
+///
 /// # Arguments
 /// * `f` - Index of the face to compute the gradient for.
 /// * `variable` - The variable to compute the gradient for at each face (1D array same length as number of faces).
 /// * `region` - Reference to the local surface data structure containing mesh information.
-/// 
+///
 /// # Returns
 /// A tuple representing the zonal and meridional components of the gradient vector at face `f`.
-/// 
+///
 #[inline(always)]
 fn compute_one_face_gradient(
     f: usize,
-    variable: ArrayView1<'_,f64>,
+    variable: ArrayView1<'_, f64>,
     region: &LocalSurfaceView<'_>,
 ) -> (f64, f64) {
     let connected_edges: ArrayView1<'_, i64> = region.face_edge_connectivity.row(f);
@@ -234,12 +223,23 @@ fn compute_one_face_gradient(
         }
         let e = edge_id as usize;
 
-        let (f1, f2) = match extract_edge_faces(region.edge_face_connectivity.row(e), e, region.n_face, "compute_one_face_gradient") {
+        let (f1, f2) = match extract_edge_faces(
+            region.edge_face_connectivity.row(e),
+            e,
+            region.n_face,
+            "compute_one_face_gradient",
+        ) {
             Some(pair) => pair,
             None => continue,
         };
 
-        let other = if f == f1 { f2 } else if f == f2 { f1 } else { continue };
+        let other = if f == f1 {
+            f2
+        } else if f == f2 {
+            f1
+        } else {
+            continue;
+        };
         let d = region.edge_face_distance[e];
         let l = region.edge_length[e];
         if d <= 0.0 || l <= 0.0 {
@@ -260,7 +260,7 @@ fn compute_one_face_gradient(
             lat_f.to_radians(),
             region.face_lon[other].to_radians(),
             region.face_lat[other].to_radians(),
-        );  
+        );
         let dir_zonal = theta.sin();
         let dir_meridional = theta.cos();
         let dz = variable[other] - variable[f];
@@ -280,7 +280,6 @@ fn compute_one_face_gradient(
     (0.0, 0.0)
 }
 
-
 /// Computes the square root of the maximum squared slope at each face in a surface mesh.
 ///
 /// For each face in the given `face_indices` subset, this function calculates the steepest
@@ -296,25 +295,18 @@ fn compute_one_face_gradient(
 ///
 /// # Returns
 /// A NumPy array of slope values (1D array), same length as `face_indices`.
-/// 
-pub fn compute_slope(
-    region: &LocalSurfaceView<'_>,
-) -> ArrayResult {
-
+///
+pub fn compute_slope(region: &LocalSurfaceView<'_>) -> ArrayResult {
     let n_face = region.n_face;
-    let slope_vec: Vec<_> = (0..n_face).into_par_iter()
+    let slope_vec: Vec<_> = (0..n_face)
+        .into_par_iter()
         .map(|f| {
-            let slope_sq = compute_face_slope_squared(
-                f,
-                region.face_elevation.view(),
-                region
-            );
+            let slope_sq = compute_face_slope_squared(f, region.face_elevation.view(), region);
             slope_sq.sqrt()
         })
         .collect();
     Ok(Array1::from_vec(slope_vec))
 }
-
 
 /// Computes the spatially varying diffusivity (`face_kappa`) for a slope collapse step.
 ///
@@ -329,21 +321,15 @@ pub fn compute_slope(
 /// # Returns
 ///
 /// A NumPy array of `face_kappa` values.
-/// 
-pub fn slope_collapse(
-    critical_slope: f64,
-    region: &LocalSurfaceView<'_>,
-) -> ArrayResult {
+///
+pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> ArrayResult {
     let n_face = region.n_face;
     let critical_slope_sq = critical_slope * critical_slope;
 
     // face_kappa_ones should be an array view
     let face_kappa_ones = Array1::<f64>::ones(n_face);
 
-    let diffmax = compute_dt_max(
-        face_kappa_ones.view(),
-        region,
-    );
+    let diffmax = compute_dt_max(face_kappa_ones.view(), region);
     let looplimit = 1000 as usize;
 
     let mut new_face_elevation = region.face_elevation.to_owned();
@@ -357,11 +343,7 @@ pub fn slope_collapse(
         let slope_kappa: Vec<_> = (0..n_face)
             .into_par_iter()
             .map(|f| {
-                let slope_sq = compute_face_slope_squared(
-                    f,
-                    new_face_elevation.view(),
-                    region,
-                );
+                let slope_sq = compute_face_slope_squared(f, new_face_elevation.view(), region);
                 let kappa = if slope_sq > critical_slope_sq {
                     diffmax * (1.0 + slope_sq / critical_slope_sq) * 10.0
                 } else {
@@ -371,18 +353,14 @@ pub fn slope_collapse(
             })
             .collect();
 
-        let face_kappa=  Array1::from_vec(slope_kappa);
+        let face_kappa = Array1::from_vec(slope_kappa);
 
         let n_active = face_kappa.iter().filter(|&&k| k > 0.0).count();
         if n_active == 0 {
             break;
         }
 
-        let delta = apply_diffusion(
-            face_kappa.view(),
-            new_face_elevation.view(),
-            region,
-        )?;
+        let delta = apply_diffusion(face_kappa.view(), new_face_elevation.view(), region)?;
         face_delta_elevation += &delta;
     }
     Ok(face_delta_elevation)
@@ -397,11 +375,8 @@ pub fn slope_collapse(
 /// # Returns
 ///
 /// A NumPy array of node elevations (1D array).
-/// 
-pub fn interpolate_node_elevation_from_faces(
-    region: &LocalSurfaceView<'_>,
-) -> ArrayResult {
-
+///
+pub fn interpolate_node_elevation_from_faces(region: &LocalSurfaceView<'_>) -> ArrayResult {
     let mut result = Array1::<f64>::zeros(region.n_node);
 
     for (node_id, row) in region.node_face_connectivity.outer_iter().enumerate() {
@@ -455,7 +430,6 @@ pub fn turbulence_noise(
     anchor: ArrayView2<'_, f64>,
     seed: u32,
 ) -> ArrayResult {
-
     // Get the maximum value in the x array as the scale
     let n_points = x.len();
     let mut result = Array1::<f64>::zeros(n_points);
@@ -474,7 +448,6 @@ pub fn turbulence_noise(
         let base = SuperSimplex::new(seed);
         let scaled = ScalePoint::new(base).set_scale(spatial_fac);
         let noise_source = RotatePoint::new(scaled).set_angles(rot_x, rot_y, rot_z, 0.0);
-
 
         let noise_values: Vec<f64> = (0..n_points)
             .into_par_iter()
@@ -497,9 +470,6 @@ pub fn turbulence_noise(
     Ok(result)
 }
 
-
-
-
 /// Constructs the edge-other distances for a surface mesh
 ///
 /// This will compute the haversine distance between the coordinates of the two components (faces, nodes, etc) that are associated with each edge.
@@ -516,7 +486,6 @@ pub fn compute_edge_distances(
     lat: ArrayView1<'_, f64>,
     radius: f64,
 ) -> ArrayResult {
-
     let n_edge = edge_connectivity.nrows();
     let edge_distances_vec: Vec<f64> = (0..n_edge)
         .into_par_iter()
@@ -529,17 +498,12 @@ pub fn compute_edge_distances(
             } else {
                 let o1u = o1 as usize;
                 let o2u = o2 as usize;
-                compute_one_distance(
-                    lon[o1u], lat[o1u],
-                    lon[o2u], lat[o2u],
-                    radius,
-                )
+                compute_one_distance(lon[o1u], lat[o1u], lon[o2u], lat[o2u], radius)
             }
         })
         .collect();
     Ok(Array1::from_vec(edge_distances_vec))
 }
-
 
 /// Computes the Haversine distance between a single point and an array of points on a sphere given their longitude and latitude in radians.
 ///
@@ -557,7 +521,6 @@ pub fn compute_distances(
     lat2: ArrayView1<'_, f64>,
     radius: f64,
 ) -> ArrayResult {
-
     let n = lon2.len();
 
     let result_vec: Vec<f64> = (0..n)
@@ -571,7 +534,6 @@ pub fn compute_distances(
 
     Ok(Array1::from_vec(result_vec))
 }
-
 
 /// Computes the Haversine distance between two points on a sphere given their longitude and latitude in radians.
 ///
@@ -587,12 +549,10 @@ fn compute_one_distance(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius: f64)
     // Make sure to deal with edge cases near the dateline
     let dlon = positive_mod(lon2 - lon1 + PI, TAU) - PI;
     let dlat = lat2 - lat1;
-    let a = (dlat / 2.0).sin().powi(2)
-        + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
+    let a = (dlat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
     let c = 2.0 * a.sqrt().asin();
     radius * c
 }
-
 
 /// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
 ///
@@ -622,7 +582,7 @@ pub fn compute_bearings(
             let lon2_i = lon2[i];
             let lat2_i = lat2[i];
             let initial_bearing = compute_one_bearing(lon1, lat1, lon2_i, lat2_i);
-            // Normalize bearing to 0 to 2*PI radians 
+            // Normalize bearing to 0 to 2*PI radians
             positive_mod(initial_bearing, TAU)
         })
         .collect();
@@ -638,7 +598,6 @@ fn compute_one_bearing(lon1: f64, lat1: f64, lon2: f64, lat2: f64) -> f64 {
     x.atan2(y)
 }
 
-
 /// Computes the positive modulus of `x` with respect to `m`.
 /// Ensures the result is always in the range `[0, m)`.
 #[inline]
@@ -646,23 +605,19 @@ fn positive_mod(x: f64, m: f64) -> f64 {
     ((x % m) + m) % m
 }
 
-
 /// Computes a conservative explicit timestep for stability using per-face aggregated flux contributions.
 ///
 /// This method loops over all edges and accumulates inverse dt estimates for each face.
 /// The final dt is the minimum over all faces of the reciprocal flux sum.
-/// 
+///
 /// # Arguments
 /// * `face_kappa` - Topographic diffusivity (1D array of length n_face)
 /// * `region` - A LocalSurfaceView object representing the local mesh region.
-/// 
+///
 /// # Returns
 /// A single f64 value giving the maximum stable timestep for the diffusion operation.
-/// 
-fn compute_dt_max(
-    face_kappa: ArrayView1<'_, f64>,
-    region: &LocalSurfaceView<'_>,
-) -> f64 {
+///
+fn compute_dt_max(face_kappa: ArrayView1<'_, f64>, region: &LocalSurfaceView<'_>) -> f64 {
     let mut inverse_dt_sum = Array1::<f64>::zeros(region.n_face);
 
     for (e, faces) in region.edge_face_connectivity.outer_iter().enumerate() {
@@ -694,7 +649,6 @@ fn compute_dt_max(
         .map(|&x| 1.0 / x)
         .fold(f64::INFINITY, f64::min)
 }
-
 
 use numpy::ndarray::ArrayView1; // you already have prelude, so this is just for clarity
 

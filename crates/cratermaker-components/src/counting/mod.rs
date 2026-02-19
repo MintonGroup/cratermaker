@@ -1,36 +1,140 @@
-use std::f64::consts::{FRAC_PI_2, PI, TAU};
-use numpy::ndarray::prelude::*; 
-use ndarray_linalg::error::LinalgError;
-use ndarray_linalg::{Inverse, Eig};
-use rayon::prelude::*;
-use crate::ArrayResult;
-use crate::surface::LocalSurfaceView;
 use crate::crater::Crater;
+use crate::surface::LocalSurfaceView;
+use crate::ArrayResult;
+use ndarray_linalg::error::LinalgError;
+use ndarray_linalg::{Eig, Inverse};
+use numpy::ndarray::prelude::*;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
+const _RIM_RADIUS_MAX: f64 = 1.20;
+const _RIM_RADIUS_MIN: f64 = 0.95;
+const _FLOOR_RADIUS: f64 = 0.2;
+
+pub fn mask_crater_faces(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<Array1<bool>, &'static str> {
+    let ids = region.crater_id.as_ref().ok_or("crater_id required")?;
+
+    // `ids` is shaped (n_face, n_layer). A face is part of the crater if ANY layer id matches.
+    let mask_vec: Vec<bool> = ids
+        .axis_iter(Axis(0))
+        .map(|row| row.iter().any(|&id| id == crater.id))
+        .collect();
+
+    Ok(Array1::from(mask_vec))
+}
+
+fn filter_crater_faces(
+    arr: &Array1<f64>,
+    mask: &Array1<bool>,
+) -> Result<Array1<f64>, &'static str> {
+    if arr.len() != mask.len() {
+        return Err("filter_crater_faces: arr and mask must have the same length");
+    }
+
+    let vals: Vec<f64> = arr
+        .iter()
+        .zip(mask.iter())
+        .filter_map(|(&e, &m)| if m && !e.is_nan() { Some(e) } else { None })
+        .collect();
+
+    Ok(Array1::from(vals))
+}
+
+pub fn measure_floor_depth(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<f64, &'static str> {
+    let mut elev_sum: f64 = 0.0;
+    let mut n_floor: usize = 0;
+    let mask_crater = mask_crater_faces(region, crater)?;
+    let elevation = &region
+        .desloped_face_elevation
+        .unwrap_or(region.face_elevation)
+        .to_owned();
+    let elevation = filter_crater_faces(&elevation, &mask_crater)?;
+    let n_face = elevation.len();
+    let floor_distance = _FLOOR_RADIUS * crater.measured_radius;
+    let face_distance = region.face_distance.ok_or("face_distance required")?;
+    let face_distance = filter_crater_faces(&face_distance.to_owned(), &mask_crater)?;
+
+    let mask_floor: Vec<bool> = (0..n_face)
+        .into_par_iter()
+        .map(|f| face_distance[f] <= floor_distance)
+        .collect();
+
+    for (&elev, &mask) in elevation.iter().zip(mask_floor.iter()) {
+        if mask && !elev.is_nan() {
+            elev_sum += elev;
+            n_floor += 1;
+        }
+    }
+    if n_floor == 0 {
+        return Err("no valid faces inside floor boundary");
+    }
+    Ok(elev_sum / (n_floor as f64))
+}
+
+pub fn measure_rim_height(
+    region: &LocalSurfaceView<'_>,
+    crater: &Crater,
+) -> Result<f64, &'static str> {
+    let mut elev_sum: f64 = 0.0;
+    let mut n_rim: usize = 0;
+    let mask_crater = mask_crater_faces(region, crater)?;
+    let elevation = &region
+        .desloped_face_elevation
+        .unwrap_or(region.face_elevation)
+        .to_owned();
+    let elevation = filter_crater_faces(&elevation, &mask_crater)?;
+    let n_face = elevation.len();
+    let rim_distance_min = _RIM_RADIUS_MIN * crater.measured_radius;
+    let rim_distance_max = _RIM_RADIUS_MAX * crater.measured_radius;
+    let face_distance = region.face_distance.ok_or("face_distance required")?;
+    let face_distance = filter_crater_faces(&face_distance.to_owned(), &mask_crater)?;
+
+    let mask_rim: Vec<bool> = (0..n_face)
+        .into_par_iter()
+        .map(|f| face_distance[f] >= rim_distance_min && face_distance[f] <= rim_distance_max)
+        .collect();
+
+    for (&elev, &mask) in elevation.iter().zip(mask_rim.iter()) {
+        if mask && !elev.is_nan() {
+            elev_sum += elev;
+            n_rim += 1;
+        }
+    }
+    if n_rim == 0 {
+        return Err("no valid faces inside rim boundary");
+    }
+    Ok(elev_sum / (n_rim as f64))
+}
 
 /// Fits a crater rim ellipse to a local surface region.
 /// This function performs an iterative fitting procedure to refine
 /// the parameters of a crater rim ellipse based on the local surface data.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `region` - A view of the local surface region containing the crater.
 /// * `x0`, `y0` - Initial center of the crater ellipse in crater-centered coordinates.
 /// * `crater` - Initial crater parameters.
 /// * `score_quantile` - Quantile of rim scores to consider.
 /// * `fit_center` - Whether to fit the crater center or keep it fixed.
-/// * `fit_ellipse` - Whether to fit an ellipse. If false, a circle is fitted instead. 
+/// * `fit_ellipse` - Whether to fit an ellipse. If false, a circle is fitted instead.
 /// * `gradmult`, `curvmult`, `heightmult` - Multipliers for gradient, curvature, and height-based scoring.
-/// 
+///
 /// # Returns
-/// 
+///
 /// * On success, returns a tuple `(x0_fit, y0_fit, a_fit, b_fit, o_fit)`
 ///  containing the fitted crater center coordinates, semi-major axis,
 /// semi-minor axis, and orientation angle (in radians).
-/// 
+///
 /// # Errors
-/// 
+///
 /// * Returns `Err(String)` if any error occurs during the fitting process.
-/// 
+///
 pub fn fit_one_rim(
     region: &LocalSurfaceView<'_>,
     x0: f64,
@@ -42,61 +146,47 @@ pub fn fit_one_rim(
     gradmult: f64,
     curvmult: f64,
     heightmult: f64,
-) ->Result<(f64, f64, f64, f64, f64, numpy::ndarray::Array1<f64>), String> { 
+) -> Result<(f64, f64, f64, f64, f64, numpy::ndarray::Array1<f64>), String> {
     let x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
     let y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
     let mut x0_fit = x0;
     let mut y0_fit = y0;
     let a_fit: f64;
-    let b_fit:f64;
-    let o_fit:f64;
+    let b_fit: f64;
+    let o_fit: f64;
     let _wrms: f64;
 
     // Score the rim using the current multipliers
     let rimscore = score_rim(
         region,
-        x0, 
-        y0, 
-        &crater, 
-        score_quantile, 
-        gradmult, 
-        curvmult, 
-        heightmult
-    ).map_err(|e| e.to_string())?;
+        x0,
+        y0,
+        &crater,
+        score_quantile,
+        gradmult,
+        curvmult,
+        heightmult,
+    )
+    .map_err(|e| e.to_string())?;
 
     // Fit an ellipse to the weighted points using either the floating or fixed center fitter, depending on user input
     if fit_ellipse {
         if fit_center {
-            (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse(
-                x.view(),
-                y.view(),
-                rimscore.view()
-            ).map_err(|e| e.to_string())?;
+            (x0_fit, y0_fit, a_fit, b_fit, o_fit, _wrms) =
+                fit_one_ellipse(x.view(), y.view(), rimscore.view()).map_err(|e| e.to_string())?;
         } else {
-            (a_fit, b_fit, o_fit, _wrms) = fit_one_ellipse_fixed_center(
-                x.view(),
-                y.view(),
-                rimscore.view(),
-                x0,
-                y0,
-            ).map_err(|e| e.to_string())?;
-
+            (a_fit, b_fit, o_fit, _wrms) =
+                fit_one_ellipse_fixed_center(x.view(), y.view(), rimscore.view(), x0, y0)
+                    .map_err(|e| e.to_string())?;
         }
     } else {
         if fit_center {
-            (x0_fit, y0_fit, a_fit, _wrms) = fit_one_circle(
-                x.view(),
-                y.view(),
-                rimscore.view()
-            ).map_err(|e| e.to_string())?;
+            (x0_fit, y0_fit, a_fit, _wrms) =
+                fit_one_circle(x.view(), y.view(), rimscore.view()).map_err(|e| e.to_string())?;
         } else {
-            (a_fit, _wrms) = fit_one_circle_fixed_center(
-                x.view(),
-                y.view(),
-                rimscore.view(),
-                x0,
-                y0,
-            ).map_err(|e| e.to_string())?;
+            (a_fit, _wrms) =
+                fit_one_circle_fixed_center(x.view(), y.view(), rimscore.view(), x0, y0)
+                    .map_err(|e| e.to_string())?;
         }
         b_fit = a_fit;
         o_fit = 0.0;
@@ -121,7 +211,7 @@ pub fn fit_one_rim(
 /// * Values **< 0** indicate points inside the ellipse.
 /// * Values **≈ 0** lie close to the ellipse boundary.
 ///
-/// The orientation is given in radians. 
+/// The orientation is given in radians.
 ///
 /// # Arguments
 ///
@@ -147,8 +237,8 @@ pub fn radial_distance_to_crater_rim(
     x: &ArrayView1<'_, f64>,
     y: &ArrayView1<'_, f64>,
     crater: &Crater,
-    x0: f64, 
-    y0:f64
+    x0: f64,
+    y0: f64,
 ) -> ArrayResult {
     let phi = TAU - FRAC_PI_2 - crater.measured_orientation.to_radians();
     let a = crater.measured_semimajor_axis;
@@ -227,14 +317,14 @@ fn ellipse_coefficients_to_parameters(
     c: f64,
     d: f64,
     f: f64,
-    g: f64) -> (f64, f64, f64, f64, f64) {
-
-    // We use the formulas from https://mathworld.wolfram.com/Ellipse.html which assumes a cartesian form ax^2 + 2bxy + cy^2 + 2dx + 2fy + g = 0.  
+    g: f64,
+) -> (f64, f64, f64, f64, f64) {
+    // We use the formulas from https://mathworld.wolfram.com/Ellipse.html which assumes a cartesian form ax^2 + 2bxy + cy^2 + 2dx + 2fy + g = 0.
     // Therefore, B, D and F must be scaled.
-    let b = b /2.0;
-    let d = d / 2.0; 
+    let b = b / 2.0;
+    let d = d / 2.0;
     let f = f / 2.0;
-    let den = b*b - a*c;
+    let den = b * b - a * c;
     if den > 0.0 {
         panic!("The provided coefficients do not represent an ellipse.");
     }
@@ -244,7 +334,7 @@ fn ellipse_coefficients_to_parameters(
     let fac = ((a - c).powi(2) + 4.0 * b * b).sqrt();
 
     // Compute unsorted semi-major and semi-minor axes
-    let _ap = (numerator / (den * (fac - (a + c)))) .sqrt();
+    let _ap = (numerator / (den * (fac - (a + c)))).sqrt();
     let _bp = (numerator / (den * (-fac - (a + c)))).sqrt();
     // Sort the semi-major and semiminor axis but keep track of orientation
     let (ap, bp, width_gt_height) = if _bp >= _ap {
@@ -253,17 +343,16 @@ fn ellipse_coefficients_to_parameters(
         (_ap, _bp, false)
     };
 
-
     // compute the orientation with respect to the x-axis and deal with special cases
     let mut phi = if b.abs() < 1e-12 {
-            if a < c {
-                0.0
-            } else {
-                FRAC_PI_2
-            }
+        if a < c {
+            0.0
         } else {
-            0.5 * (2.0 * b).atan2(a - c)
-        }; 
+            FRAC_PI_2
+        }
+    } else {
+        0.5 * (2.0 * b).atan2(a - c)
+    };
     if a.abs() > c.abs() {
         phi += FRAC_PI_2;
     }
@@ -271,7 +360,6 @@ fn ellipse_coefficients_to_parameters(
         phi += FRAC_PI_2;
     }
     let orientation = phi % PI;
-    
 
     (x0, y0, ap, bp, orientation)
 }
@@ -305,7 +393,7 @@ fn ellipse_coefficients_to_parameters(
 /// `a x² + b x y + c y² + d x + e y + f = 0`
 // #[inline]
 // fn ellipse_parameters_to_coefficients(x0: f64, y0: f64, a: f64, b: f64, orientation: f64) -> (f64, f64, f64, f64, f64, f64) {
-//     let phi = orientation; 
+//     let phi = orientation;
 //     let s2 = phi.sin().powi(2);
 //     let c2 = phi.cos().powi(2);
 //     let sc = phi.sin() * phi.cos();
@@ -321,7 +409,6 @@ fn ellipse_coefficients_to_parameters(
 
 //     (a, b, c, d, e, f)
 // }
-
 
 /// Approximates geometric distances from points to an ellipse.
 ///
@@ -362,14 +449,14 @@ fn ellipse_coefficients_to_parameters(
 /// robust ellipse fitting (e.g., computing a weighted RMS distance).
 #[inline]
 fn geometric_distances(
-    x: ArrayView1<'_,f64>, 
-    y: ArrayView1<'_,f64>, 
-    a: f64, 
-    b: f64, 
-    c: f64, 
-    d: f64, 
-    e: f64, 
-    f: f64
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    a: f64,
+    b: f64,
+    c: f64,
+    d: f64,
+    e: f64,
+    f: f64,
 ) -> Array1<f64> {
     let (x0, y0, a, b, orientation) = ellipse_coefficients_to_parameters(a, b, c, d, e, f);
 
@@ -405,8 +492,9 @@ fn geometric_distances(
 ///
 /// Internally, it:
 ///
-/// * Computes the radial gradient of `face_elevation` on the surface mesh,
-///   using `compute_radial_gradient`.
+/// * Computes the radial gradient of `desloped_face_elevation`
+///   (or `face_elevation` if the desloped value is not available)
+///   on the surface mesh,using `compute_radial_gradient`.
 /// * (Planned) Uses that gradient together with the projected rim geometry
 ///   to assign a score to each point, e.g., emphasizing locations where
 ///   the gradient pattern supports a crater rim interpretation.
@@ -433,37 +521,42 @@ fn geometric_distances(
 #[inline]
 pub fn score_rim(
     region: &LocalSurfaceView<'_>,
-    x0: f64, 
-    y0: f64, 
+    x0: f64,
+    y0: f64,
     crater: &Crater,
     quantile: f64,
     gradmult: f64,
     curvmult: f64,
     heightmult: f64,
-) ->ArrayResult { 
+) -> ArrayResult {
     let n = region.n_face;
-    const MIN_POINTS_FOR_FIT: usize = 3; // It will try to use at least this many points per sector in the fit
+    let min_points_for_fit: usize = 3; // It will try to use at least this many points per sector in the fit
     const EXTENT_RADIUS_CUTOFF: f64 = 1.5; // Max radial extent as a multiple of crater semi-major axis
-    const N_SECTORS: usize = 36; // Number of bearing sectors for scoring
-    let sector_width = 360.0 / N_SECTORS as f64;
+    const N_SECTOR_MAX: usize = 36;
+    const N_SECTOR_MIN: usize = 9;
+    const N_PER_SECTOR: usize = 100;
+    let n_sectors = (n / N_PER_SECTOR).clamp(N_SECTOR_MIN, N_SECTOR_MAX);
+    let sector_width = 360.0 / n_sectors as f64;
 
-    let radial_gradient = crate::surface::compute_radial_gradient(
-        region.face_elevation.view(),
-        region,
-    )?; 
-    let radial_curvature = crate::surface::compute_radial_gradient(
-        radial_gradient.view(),
-        region,
-    )?;
+    let elevation = &region
+        .desloped_face_elevation
+        .unwrap_or(region.face_elevation)
+        .to_owned();
+    let radial_gradient = crate::surface::compute_radial_gradient(elevation.view(), region)?;
+    let radial_curvature = crate::surface::compute_radial_gradient(radial_gradient.view(), region)?;
     let proj_x = region.face_proj_x.as_ref().ok_or("face_proj_x required")?;
     let proj_y = region.face_proj_y.as_ref().ok_or("face_proj_y required")?;
     let ap = crater.measured_semimajor_axis;
     let bp = crater.measured_semiminor_axis;
-    let distances = radial_distance_to_crater_rim(proj_x, proj_y, crater, x0, y0)?; 
+    let distances = radial_distance_to_crater_rim(proj_x, proj_y, crater, x0, y0)?;
 
     // Region mask based on radial distance from origin
     let max_distance = EXTENT_RADIUS_CUTOFF * ap.max(bp);
-    let mask_region: Array1<bool> = region.face_distance.as_ref().ok_or("face_distance required")?.mapv(|ri| ri > max_distance);
+    let mask_region: Array1<bool> = region
+        .face_distance
+        .as_ref()
+        .ok_or("face_distance required")?
+        .mapv(|ri| ri > max_distance);
 
     // Distance score: closer to current best fit for rim = higher score
     let scale = crater.measured_diameter;
@@ -487,7 +580,7 @@ pub fn score_rim(
     }
 
     // Height score: high elevations (relative to mean) score high
-    let mut heightscore = region.face_elevation.to_owned();
+    let mut heightscore = elevation.to_owned();
     if let (Some(min_h), Some(max_h)) = (nanmin(&heightscore), nanmax(&heightscore)) {
         let range = max_h - min_h;
         if range > 0.0 {
@@ -525,7 +618,6 @@ pub fn score_rim(
             *v *= dscore;
         }
     }
-
 
     if let Some(max_g) = nanmax(&gradscore) {
         if max_g > 0.0 {
@@ -573,7 +665,7 @@ pub fn score_rim(
         }
     }
 
-    // Combine into rimscore 
+    // Combine into rimscore
     let mut rimscore = Array1::<f64>::zeros(n);
     for i in 0..n {
         let g = gradscore[i];
@@ -583,15 +675,17 @@ pub fn score_rim(
         if g.is_nan() || c.is_nan() || h.is_nan() {
             rimscore[i] = f64::NAN;
         } else {
-            rimscore[i] =
-                gradmult * g + curvmult * c + heightmult * h;
+            rimscore[i] = gradmult * g + curvmult * c + heightmult * h;
         }
     }
     // Bin into bearing sectors:
-    let mut rimscore_sector_index = Array1::<usize>::from_elem(n, N_SECTORS);
-    let bearing = region.face_bearing.as_ref().ok_or("face_bearing required")?; 
+    let mut rimscore_sector_index = Array1::<usize>::from_elem(n, n_sectors);
+    let bearing = region
+        .face_bearing
+        .as_ref()
+        .ok_or("face_bearing required")?;
     // First pass: compute max rimscore per sector (ignoring NaNs)
-    let mut sector_max = [f64::NEG_INFINITY; N_SECTORS];
+    let mut sector_max = [f64::NEG_INFINITY; N_SECTOR_MAX];
 
     for i in 0..n {
         let v = rimscore[i];
@@ -604,8 +698,8 @@ pub fn score_rim(
         let mut idx = (b / sector_width).floor() as isize;
         if idx < 0 {
             idx = 0;
-        } else if idx >= N_SECTORS as isize {
-            idx = N_SECTORS as isize - 1;
+        } else if idx >= n_sectors as isize {
+            idx = n_sectors as isize - 1;
         }
         let idx = idx as usize;
         rimscore_sector_index[i] = idx;
@@ -631,49 +725,50 @@ pub fn score_rim(
             // No valid points in this sector; treat as invalid
             rimscore[i] = f64::NAN;
         }
-
     }
 
     // Third pass: Apply quantile threshold to keep only highest scores in each sector
     let mut high_scores = Array1::<bool>::from_elem(n, false);
-    for sector in 0..N_SECTORS {
+    for sector in 0..n_sectors {
         let sector_indices: Vec<usize> = (0..n)
             .filter(|&i| rimscore_sector_index[i] == sector && !rimscore[i].is_nan())
             .collect();
         if sector_indices.is_empty() {
             continue;
         }
-        let mut sector_scores: Vec<f64> = sector_indices
+        let sector_scores: Vec<f64> = sector_indices
             .iter()
             .map(|&i| rimscore[i])
             .filter(|v| !v.is_nan())
             .collect();
-        sector_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let threshold_idx = (quantile * sector_scores.len() as f64) as usize;
-        let threshold = sector_scores[threshold_idx];
-        for &i in sector_indices.iter() {
-            high_scores[i] = rimscore[i] >= threshold;
+
+        let sector_scores = Array1::from(sector_scores);
+
+        if let Some(threshold) = nanquantile(&sector_scores, quantile) {
+            for &i in sector_indices.iter() {
+                high_scores[i] = rimscore[i] >= threshold;
+            }
+        } else {
+            for &i in sector_indices.iter() {
+                high_scores[i] = true;
+            }
         }
     }
 
     let num_high = high_scores.iter().filter(|&&b| b).count();
     let num_valid = rimscore.iter().filter(|v| !v.is_nan()).count();
 
-    if num_high < MIN_POINTS_FOR_FIT * N_SECTORS {
-        if num_valid < MIN_POINTS_FOR_FIT * N_SECTORS {
+    if num_high < min_points_for_fit * n_sectors {
+        if num_valid < min_points_for_fit * n_sectors {
             // use all valid points
             for i in 0..n {
                 high_scores[i] = !rimscore[i].is_nan();
             }
         } else {
-            // take top MIN_POINTS_FOR_FIT scores
-            let mut vals: Vec<f64> = rimscore
-                .iter()
-                .copied()
-                .filter(|v| !v.is_nan())
-                .collect();
+            // take top min_points_for_fit scores
+            let mut vals: Vec<f64> = rimscore.iter().copied().filter(|v| !v.is_nan()).collect();
             vals.sort_by(|a, b| b.partial_cmp(a).unwrap()); // descending order
-            let threshold = vals[MIN_POINTS_FOR_FIT * N_SECTORS - 1];
+            let threshold = vals[min_points_for_fit * n_sectors - 1];
 
             for i in 0..n {
                 let v = rimscore[i];
@@ -763,11 +858,11 @@ pub fn score_rim(
 /// * Panics if `x`, `y`, and `weights` do not all have the same length.
 /// * Panics if no eigenvector satisfies the ellipse condition `4ac - b² > 0`, indicating
 ///   that the data do not admit a valid ellipse under this formulation.
-#[inline] 
+#[inline]
 pub fn fit_one_ellipse(
-    x: ArrayView1<'_,f64>, 
-    y: ArrayView1<'_,f64>, 
-    weights: ArrayView1<'_,f64>
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    weights: ArrayView1<'_, f64>,
 ) -> Result<(f64, f64, f64, f64, f64, f64), LinalgError> {
     assert_eq!(x.len(), y.len());
     assert_eq!(x.len(), weights.len());
@@ -803,11 +898,7 @@ pub fn fit_one_ellipse(
     let t = -s3_inv.dot(&s2.t());
     let m_tmp = s1 + s2.dot(&t);
 
-    let c = arr2(&[
-        [0.0, 0.0, 2.0],
-        [0.0, -1.0, 0.0],
-        [2.0, 0.0, 0.0],
-    ]);
+    let c = arr2(&[[0.0, 0.0, 2.0], [0.0, -1.0, 0.0], [2.0, 0.0, 0.0]]);
     let c_inv = c.inv()?;
     let m = c_inv.dot(&m_tmp);
 
@@ -844,14 +935,13 @@ pub fn fit_one_ellipse(
     let den = weights.sum();
     let wrms = (num / den).sqrt();
 
-    let (x0, y0, ap, bp, phi) = ellipse_coefficients_to_parameters(a, b, c, d, f, g,);
+    let (x0, y0, ap, bp, phi) = ellipse_coefficients_to_parameters(a, b, c, d, f, g);
 
     // Convert back to the mapping convention for bearings (0)
     let orientation = (TAU - phi) % TAU;
 
     Ok((x0, y0, ap, bp, orientation, wrms))
 }
-
 
 /// Fits a single weighted ellipse to 2D points with a fixed center.
 ///
@@ -923,7 +1013,8 @@ pub fn fit_one_ellipse_fixed_center(
 
     // 1) Build centered features fa, fb, fc
     let fa = x.mapv(|xi| xi * xi - 2.0 * x0 * xi);
-    let fb = x.iter()
+    let fb = x
+        .iter()
         .zip(y.iter())
         .map(|(&xi, &yi)| xi * yi - y0 * xi - x0 * yi)
         .collect::<Array1<f64>>();
@@ -963,17 +1054,12 @@ pub fn fit_one_ellipse_fixed_center(
         });
     }
 
-
     let s3_inv = 1.0 / s3_scalar;
-    let t = s2.t().mapv(|v| -s3_inv * v);     // t: Array2<f64>
-    let m_tmp = s1 + s2.dot(&t);     // 3x3
+    let t = s2.t().mapv(|v| -s3_inv * v); // t: Array2<f64>
+    let m_tmp = s1 + s2.dot(&t); // 3x3
 
     // 6) Ellipse constraint matrix, same as before
-    let c = arr2(&[
-        [0.0, 0.0, 2.0],
-        [0.0, -1.0, 0.0],
-        [2.0, 0.0, 0.0],
-    ]);
+    let c = arr2(&[[0.0, 0.0, 2.0], [0.0, -1.0, 0.0], [2.0, 0.0, 0.0]]);
     let c_inv = c.inv()?;
     let m = c_inv.dot(&m_tmp);
 
@@ -1009,8 +1095,7 @@ pub fn fit_one_ellipse_fixed_center(
     let e = -b * x0 - 2.0 * c * y0;
 
     // 10) Geometric parameters (we ignore x0_fit,y0_fit and trust the fixed center)
-    let (_x0_fit, _y0_fit, ap, bp, phi) =
-        ellipse_coefficients_to_parameters(a, b, c, d, e, g);
+    let (_x0_fit, _y0_fit, ap, bp, phi) = ellipse_coefficients_to_parameters(a, b, c, d, e, g);
 
     // 11) Compute WRMS distance (you can keep using geometric_distances;
     //     it will be very close to using the fixed center, since coefficients
@@ -1147,7 +1232,6 @@ pub fn fit_one_circle(
     Ok((x0, y0, r, wrms))
 }
 
-
 /// Fits a single weighted circle to 2D points with a fixed center.
 ///
 /// With the center fixed at `(x0, y0)`, the only remaining parameter is the radius `r`.
@@ -1237,7 +1321,6 @@ pub fn fit_one_circle_fixed_center(
     Ok((r, wrms))
 }
 
-
 // Helper functions to reproduce numpy.nanmax, nanmin, nanquantile behavior
 fn nanmax(arr: &Array1<f64>) -> Option<f64> {
     arr.iter()
@@ -1263,4 +1346,15 @@ fn nanmin(arr: &Array1<f64>) -> Option<f64> {
         })
 }
 
+fn nanquantile(arr: &Array1<f64>, q: f64) -> Option<f64> {
+    let mut vals: Vec<f64> = arr.iter().copied().filter(|v| !v.is_nan()).collect();
 
+    if vals.is_empty() {
+        return None;
+    }
+
+    vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let q_clamped = q.clamp(0.0, 1.0);
+    let idx = ((vals.len() - 1) as f64 * q_clamped).floor() as usize;
+    Some(vals[idx.min(vals.len() - 1)])
+}

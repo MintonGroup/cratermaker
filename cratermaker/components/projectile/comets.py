@@ -99,11 +99,11 @@ class CometProjectiles(Projectile):
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         rng : Generator | None
-            A random number generator for Monte Carlo simulations. If None, a default generator will be used.
+            |rng|
         rng_seed : int | None
             The random rng_seed for the simulation if rng is not provided. If None, a random rng_seed is used.
         rng_state : dict, optional
-            The state of the random number generator. If None, a new state is created.
+            |rng_state|
 
         Notes
         -----
@@ -116,7 +116,7 @@ class CometProjectiles(Projectile):
 
 
         **kwargs : Any
-            Additional keyword arguments to be passed to internal functions.
+            |kwargs|
         """
         density = 500.0 if density is None else density
         kwargs.pop("mean_velocity", None)

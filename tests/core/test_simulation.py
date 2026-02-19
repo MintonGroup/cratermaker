@@ -57,11 +57,11 @@ class TestSimulation(unittest.TestCase):
             sim.save()
             filename = (
                 Path(sim.surface.output_dir)
-                / f"{sim.surface._output_file_prefix}{sim.interval_number:06d}.{sim.surface._output_file_extension}"
+                / f"{sim.surface._output_file_prefix}{sim.interval:06d}.{sim.surface._output_file_extension}"
             )
             self.assertTrue(filename.exists())
             with xr.open_dataset(filename) as ds:
-                ds = ds.isel(time=-1)
+                ds = ds.isel(interval=-1)
                 np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
                 np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))
 
@@ -71,11 +71,11 @@ class TestSimulation(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             cdiam = 2 * self.pix
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
-            crater = cratermaker.Crater.maker(final_diameter=cdiam)
+            crater = cratermaker.Crater.maker(diameter=cdiam)
             sim.emplace(crater)
             pdiam = crater.projectile_diameter
 
-            sim.emplace(final_diameter=cdiam)
+            sim.emplace(diameter=cdiam)
             sim.emplace(projectile_diameter=pdiam)
         return
 
@@ -90,16 +90,27 @@ class TestSimulation(unittest.TestCase):
     def test_run(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             sim = cratermaker.Simulation(
-                simdir=simdir, gridlevel=self.gridlevel, dosubpixel_degradation=True, reset=True, ask_overwrite=False
+                simdir=simdir, gridlevel=self.gridlevel, do_subpixel_degradation=True, reset=True, ask_overwrite=False
             )
             sim.run(age=1000)
 
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
-            sim.run(age=1000, age_interval=100)
+            sim.run(age=1000, time_interval=100)
 
-            # Test that the simulation doesn't fail when the age doesn't divide evenly by the age_interval
+            # Test that the simulation doesn't fail when the age doesn't divide evenly by the time_interval
             sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
-            sim.run(age=1010, age_interval=100)
+            sim.run(age=1010, time_interval=100)
+
+            # Test runs with a single time interval between time_start and time_end
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
+            sim.run(time_start=1010, time_end=1000, time_interval=10)
+
+            # Tests if a run can continue where a previous run left off
+            sim.run(time_start=1000, time_end=900, time_interval=10)
+
+            # Tests that runs can continue without passing time_start explicitly
+            sim.run(time_end=880, time_interval=10)
+        return
 
     def test_invalid_run_args(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
@@ -113,25 +124,25 @@ class TestSimulation(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sim.run(age=3.8e3, diameter_number=(300e3, 80))
 
-            # Test case: Both the age_end and diameter_number_end arguments are provided
+            # Test case: Both the time_end and diameter_number_end arguments are provided
             with self.assertRaises(ValueError):
-                sim.run(age_end=3.0e3, diameter_number_end=(300e3, 80))
+                sim.run(time_end=3.0e3, diameter_number_end=(300e3, 80))
 
             # Test case: The age argument is provided but is not a scalar
             with self.assertRaises(ValueError):
                 sim.run(age=[3.8e3])
 
-            # Test case: The age_end argument is provided but is not a scalar
+            # Test case: The time_end argument is provided but is not a scalar
             with self.assertRaises(ValueError):
-                sim.run(age_end=[3.0e3])
+                sim.run(time_end=[3.0e3])
 
-            # Test case: The age_interval is provided but is not a positive scalar
+            # Test case: The time_interval is provided but is not a positive scalar
             with self.assertRaises(ValueError):
-                sim.run(age=3.8e3, age_interval=-100.0)
+                sim.run(time_start=3.8e3, time_interval=-100.0)
 
-            # Test case: The age_interval provided is negative, or is greater than age - age_end
+            # Test case: The time_interval provided is negative, or is greater than age - time_end
             with self.assertRaises(ValueError):
-                sim.run(age=3.8e3, age_end=3.0e3, age_interval=1000.0)
+                sim.run(time_start=3.8e3, time_end=3.0e3, time_interval=1000.0)
 
             # Test case: The diameter_number argument is not a pair of values, or any of them are less than 0
             with self.assertRaises(ValueError):
@@ -145,25 +156,13 @@ class TestSimulation(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sim.run(diameter_number_interval=(300e3, -80))
 
-            # Test case: The age_interval and diameter_number_interval arguments are both provided
-            with self.assertRaises(ValueError):
-                sim.run(age=3.8e3, age_interval=100.0, diameter_number_interval=(300e3, 80))
-
-            # Test case: The diameter_number_interval provided is negative, or is greater than diameter_number - diameter_number_end
-            with self.assertRaises(ValueError):
-                sim.run(
-                    diameter_number=(300e3, 80),
-                    diameter_number_end=(300e3, 30),
-                    diameter_number_interval=(300e3, 100),
-                )
-
             # Test case: The ninterval is provided but is not an integer or is less than 1
             with self.assertRaises(ValueError):
                 sim.run(age=3.8e3, ninterval=0)
 
-            # Test case: The ninterval is provided and either age_interval or diameter_number_interval is also provided
+            # Test case: The ninterval is provided and  time_interval is also provided
             with self.assertRaises(ValueError):
-                sim.run(age=3.8e3, ninterval=100, age_interval=100.0)
+                sim.run(age=3.8e3, ninterval=100, time_interval=100.0)
 
         return
 

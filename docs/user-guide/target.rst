@@ -1,9 +1,19 @@
 .. currentmodule:: cratermaker
 
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
 .. image:: ../_static/target_icon.svg
     :alt: Target
     :align: center
     :width: 300px
+    :class: dark-light
 
 
 .. _ug-target:
@@ -65,3 +75,11 @@ Below are examples of how to use the Target class to explore planetary propertie
         transition_scale_type="ice"
     )
     print(eris)
+
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

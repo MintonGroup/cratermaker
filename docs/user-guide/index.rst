@@ -25,6 +25,7 @@ Components of Cratermaker
     .. grid-item-card:: Simulation
         :columns: 12
         :img-top: ../_static/full_simulation.png
+        :class-img-top: dark-light
         :link: simulation
         :link-type: doc
 
@@ -34,6 +35,7 @@ Components of Cratermaker
     .. grid-item-card::  Surface
         :columns: 12 6 4 3
         :img-top: ../_static/surface_icon.svg
+        :class-img-top: dark-light
         :link: surface
         :link-type: doc
 
@@ -43,6 +45,7 @@ Components of Cratermaker
     .. grid-item-card::  Morphology
         :columns: 12 6 4 3
         :img-top: ../_static/morphology_icon.svg
+        :class-img-top: dark-light
         :link: morphology
         :link-type: doc
 
@@ -51,6 +54,7 @@ Components of Cratermaker
     .. grid-item-card::  Production
         :columns: 12 6 4 3
         :img-top: ../_static/production_icon.svg
+        :class-img-top: dark-light
         :link: production
         :link-type: doc
 
@@ -59,6 +63,7 @@ Components of Cratermaker
     .. grid-item-card:: Counting
         :columns: 12 6 4 3
         :img-top: ../_static/counting_icon.svg
+        :class-img-top: dark-light
         :link: counting
         :link-type: doc
 
@@ -67,6 +72,7 @@ Components of Cratermaker
     .. grid-item-card::  Target
         :columns: 12 6 4 3
         :img-top: ../_static/target_icon.svg
+        :class-img-top: dark-light
         :link: target
         :link-type: doc
 
@@ -76,6 +82,7 @@ Components of Cratermaker
     .. grid-item-card::  Projectile
         :columns: 12 6 4 3
         :img-top: ../_static/projectile_icon.svg
+        :class-img-top: dark-light
         :link: projectile
         :link-type: doc
 
@@ -85,6 +92,7 @@ Components of Cratermaker
     .. grid-item-card::  Scaling
         :columns: 12 6 4 3
         :img-top: ../_static/scaling_icon.svg
+        :class-img-top: dark-light
         :link: scaling
         :link-type: doc
 
@@ -94,6 +102,7 @@ Components of Cratermaker
     .. grid-item-card::  Crater
         :columns: 12 6 4 3
         :img-top: ../_static/crater_icon.svg
+        :class-img-top: dark-light
         :link: crater
         :link-type: doc
 
@@ -107,6 +116,7 @@ Components of Cratermaker
     .. grid-item-card::  Example gallery
         :columns: 12 6 6 6
         :img-top: ../_static/index_gallery.svg
+        :class-img-top: dark-light
         :link: ../auto_examples/index
         :link-type: doc
 
@@ -115,6 +125,7 @@ Components of Cratermaker
     .. grid-item-card::  API reference
         :columns: 12 6 6 6
         :img-top: ../_static/index_api_reference.svg
+        :class-img-top: dark-light
         :link: ../api/index
         :link-type: doc
 

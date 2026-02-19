@@ -27,7 +27,7 @@ class IcosphereSurface(Surface):
     ask_overwrite : bool, optional
         If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
-        The main project simulation directory. Default is the current working directory if None.
+        |simdir|
 
     Returns
     -------

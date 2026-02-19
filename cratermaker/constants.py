@@ -20,6 +20,41 @@ _SMALLFAC = 1.0e-5
 _VSMALL = 10 * np.finfo(np.float64).tiny
 _LOGVSMALL = np.log10(_VSMALL)
 
+# Map of OGR drivers to file extensions
+EXPORT_DRIVER_TO_EXTENSION_MAP = {
+    "PCIDSK": "pix",
+    "PDS4": "xml",
+    "PDF": "pdf",
+    "MBTILES": "mbtiles",
+    "ESRI SHAPEFILE": "shp",
+    "MAPINFO FILE": "tab",
+    "S57": "000",
+    "DGN": "dgn",
+    "CSV": "csv",
+    "GML": "gml",
+    "GPX": "gpx",
+    "KML": "kml",
+    "GEOJSON": "json",
+    "GEOJSONSEQ": "geojsonl",
+    "OGR_GMT": "gmt",
+    "GPKG": "gpkg",
+    "SQLite": "sqlite",
+    "WASP": "map",
+    "OPENFILEGDB": "gdb",
+    "DXF": "dxf",
+    "FLATGEOBUF": "fgb",
+    "PGDUMP": "sql",
+    "GPSBABEL": "mps",
+    "ODS": "ods",
+    "XLSX": "xlsx",
+    "JML": "jml",
+    "VDV": "txt",
+    "MVT": "mvt",
+    "PMTiles": "pmtiles",
+    "JSONFG": "json",
+    "MIRAMONVECTOR": "pol",
+}
+
 
 # Optional: controlled public API
 __all__ = []

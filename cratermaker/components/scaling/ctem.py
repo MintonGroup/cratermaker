@@ -30,7 +30,7 @@ class CTEMScaling(MonteCarloScaling):
     density : FloatLike, optional
         Volumentric density of target material, (kg/m^3)
     **kwargs : Any
-        Additional keyword arguments.
+        |kwargs|
 
     Notes
     -----

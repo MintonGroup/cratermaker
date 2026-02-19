@@ -13,10 +13,11 @@ import numpy as np
 
 from cratermaker import Crater, Morphology
 
-crater = Crater.maker(final_radius=1.0e3)
-morphology = Morphology.maker("simplemoon")
+crater = Crater.maker(radius=1.0e3)
+# Because we are not explicitly passing a Surface object, the Morphology constructor will generate a default surface. We pass the "simdir" and "gridlevel" arguments to control the Surface generation, even though we don't make use of it directly here.
+morphology = Morphology.maker("simplemoon", simdir="simdata-unused", gridlevel=4)
 
-rc = crater.final_radius
+rc = crater.radius
 rvals = np.linspace(0, 3.0 * rc, 1000)
 hvals = morphology.crater_profile(crater, rvals)
 ejvals = morphology.ejecta_profile(crater, rvals)

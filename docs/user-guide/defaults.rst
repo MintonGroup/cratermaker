@@ -1,3 +1,13 @@
+.. currentmodule:: cratermaker
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    # Remove any existing output for a clean environment so we don't get prompted about overwriting files
+    from cratermaker import cleanup
+    cleanup()
+
 .. _ug-defaults:
 
 Default Behavior
@@ -10,20 +20,11 @@ As Cratermaker is designed to be easy to use, all of its component classes are b
 - **Projectile**: There are two projectile velocity and density models available: ``asteroids`` and ``comets``. The default projectile model is determined by the target body. If the body is an inner solar system body, then ``asteroids`` is chosen, otherwise ``comets`` is chosen. The asteroid velocity distributions for the Moon are from Yue et al. (2013) [#]_, and for all other inner planets from Minton et al. (2010) [#]_. Comet velocities are from Zahnle et al. (2003) [#]_.
 - **Grid**: There are three grid models available: ``icosphere``, ``arbitrary_resolution``, and ``hireslocal``. The default is ``icosphere``, which builds fast an efficient representation of a sphere. The *resolution* of the grid (the number of faces of the mesh) is determined by the formula :math:`20 \times 4^n`, where :math:`n` is given by the argument ``gridlevel`` with a default value of 8.
 - **Morphology**: Currently one morphology model is available: ``simplemoon``. This is a model that similar to that used by CTEM. Most of the parameters are taken from Pike (1977) [#]_, except for simple crater profiles, which use a model from Fassett and Thomson (2014) [#]_. Ejecta blanket scaling is from McGetchin et al. (1973) [#]_.  
+- **Counting**:Currently one counting model available: ``minton2019``. This is a model that is similar to that used by CTEM. It is based on a depth-to-diameter cutoff value determined by Minton et al. (2019) [#]_ with corrections for complex craters given by Riedel et al. (2020) [#]_
 
 Because the ``Simulation`` class contains all other components, the defaults for all of the components can be viewed from printing a simulation object to the console, or by inspecting the ``cratermaker.yaml`` configuration file of a simulation with no arguments passed to it.
 
-.. ipython:: python
-    :okwarning:
-    :suppress:
 
-    # Remove any existing output directory for a clean test
-    from pathlib import Path
-    out_dirs = ["surface","craters","export"]
-    for d in out_dirs:
-        if Path(d).exists():
-            import shutil
-            shutil.rmtree(d)
 
 .. ipython:: python
     :okwarning:
@@ -48,3 +49,13 @@ References
 .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
 .. [#] Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271. https://doi.org/10.1002/2014JE004698
 .. [#] McGetchin, T.R., Settle, M., Head, J.W., 1973. Radial thickness variation in impact crater ejecta: Implications for lunar basin deposits. Earth Planet. Sci. Lett. 20, 226-236. https://doi.org/10.1016/0012-821X(73)90162-3
+.. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
+.. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. https://doi.org/10.1029/2019JE006273
+
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()

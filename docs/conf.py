@@ -84,6 +84,7 @@ autodoc_default_options = {
     "members": True,
     "undoc-members": False,
     "show-inheritance": True,
+    "member-order": "bysource",
 }
 
 intersphinx_mapping = {
@@ -193,10 +194,22 @@ def linkcode_resolve(domain, info):
     else:
         linespec = ""
 
-    fn = os.path.relpath(fn, start=os.path.dirname(cratermaker.__file__))
+    fn = os.path.relpath(fn, start=Path(cratermaker.__file__).parent)
 
 
 def html_page_context(app, pagename, templatename, context, doctree):
     # Disable edit button for docstring generated pages
     if "generated" in pagename:
         context["theme_use_edit_page_button"] = False
+
+
+rst_prolog = """
+.. |simdir| replace:: The main project simulation directory. Default is the current working directory if None.
+.. |rng| replace:: A numpy random number generator. If None, a new generator is created using the rng_seed if it is provided.
+.. |rng_seed| replace:: The rng_seed for the RNG. If None, a new RNG is created.
+.. |rng_state| replace:: The state of the random number generator. If None, a new state is created.
+.. |ask_overwrite_default_true| replace:: If True, the user is prompted before overwriting existing files. Default is True.
+.. |ask_overwrite_default_false| replace:: If True, the user is prompted before overwriting existing files. Default is False.
+.. |kwargs| replace:: Additional keyword arguments that are either ignored or passed to internal functions as needed.
+.. |interval_export| replace:: The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+"""
