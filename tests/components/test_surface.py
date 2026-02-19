@@ -239,15 +239,50 @@ class TestSurface(unittest.TestCase):
 
     def test_calculate_initial_bearing(self):
         # Example coordinates (lat/lon in radians)
-        center_location = (0, 0)  # Equator, prime meridian
-        locations = [(90, 0)]  # 90 degrees East, equator
+        center_location = (0, 0)
+        locations = [(90, 0)]
 
         # The bearing from (0, 0) to (90, 0) should be 90 degrees
         expected_bearing = 90.0
-        calculated_bearing = Surface.compute_bearings(center_location, locations)
 
-        # Compare the expected and calculated bearings
-        self.assertAlmostEqual(calculated_bearing, expected_bearing, places=1)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, gridlevel=gridlevel, target=target, reset=True)
+            calculated_bearing = surface.compute_bearings(locations=locations, center_location=center_location).item()
+
+            # Compare the expected and calculated bearings
+            self.assertAlmostEqual(calculated_bearing, expected_bearing, places=1)
+
+    def test_compute_location_from_distance_bearing(self):
+        # Example coordinates (lat/lon in radians)
+        center_locations = [(0, 0), (180, 0), (270, 0), (0, 90), (0, -90), (45, 45)]
+        center_locations = [(0, 0), (180, 0), (270, 0), (0, 89.99), (0, -89.99), (45, 45)]
+        distances = np.array([1.0, 1.0e3, 1.0e4])
+        bearings = np.array([0, 45, 90, 135, 180, 225, 270, 315])
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, gridlevel=gridlevel, target=target, reset=True, ask_overwrite=False)
+            for center_location in center_locations:
+                for distance in distances:
+                    dist_arr = np.full_like(bearings, distance)
+                    computed_locations = surface.compute_location_from_distance_bearing(
+                        center_location=center_location, distances=dist_arr, bearings=bearings
+                    )
+                    computed_distances = surface.compute_distances(center_location=center_location, locations=computed_locations)
+                    computed_bearings = surface.compute_bearings(center_location=center_location, locations=computed_locations)
+
+                    # Compare the expected and calculated locations
+                    np.testing.assert_array_almost_equal(
+                        computed_distances,
+                        dist_arr,
+                        decimal=5,
+                        err_msg=f"Center location: {center_location}, Distance: {distance}, Distance differences: {computed_distances - dist_arr}",
+                    )
+                    np.testing.assert_array_almost_equal(
+                        computed_bearings,
+                        bearings,
+                        decimal=5,
+                        err_msg=f"Center location: {center_location}, Distance: {distance}, Bearing differences: {computed_bearings - bearings}",
+                    )
 
     def test_get_random_on_face(self):
         # Tests that the random location is within the face we expect

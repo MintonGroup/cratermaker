@@ -1,4 +1,4 @@
-use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
+use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PySlice;
@@ -506,4 +506,26 @@ pub fn compute_bearings<'py>(
     let result = cratermaker_components::surface::compute_bearings(lon1, lat1, lon2_v, lat2_v)
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
+}
+
+#[pyfunction]
+pub fn compute_location_from_distance_bearing<'py>(
+    py: Python<'py>,
+    lon1: f64,
+    lat1: f64,
+    distances: PyReadonlyArray1<'py, f64>,
+    bearings: PyReadonlyArray1<'py, f64>,
+    radius: f64,
+) -> PyResult<Bound<'py, PyArray2<f64>>> {
+    let distances_v = distances.as_array();
+    let bearings_v = bearings.as_array();
+    let lonlat2_v = cratermaker_components::surface::compute_location_from_distance_bearing(
+        lon1,
+        lat1,
+        distances_v,
+        bearings_v,
+        radius,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray2::from_owned_array(py, lonlat2_v))
 }

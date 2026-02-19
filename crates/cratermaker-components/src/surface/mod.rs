@@ -1,4 +1,4 @@
-use crate::ArrayResult;
+use crate::{ArrayResult, ArrayResult2D};
 use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
 use numpy::ndarray::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -535,6 +535,57 @@ pub fn compute_distances(
     Ok(Array1::from_vec(result_vec))
 }
 
+/// Computes the (lon, lat) coordinates of a point on a sphere given a distance and bearing.
+///
+/// # Arguments
+/// * `lon1`, `lat` - Coordinates of the origin point in radians
+/// * `distance` - Distance from origin in meters.
+/// * `bearing` - Initial bearing from the origin in radians.
+/// * `radius` - Radius of the sphere in meters
+///
+/// # Returns
+///
+/// The (lon, lat) coordinates in radians.
+#[inline]
+fn compute_one_location_from_distance_bearing(
+    lon1: f64,
+    lat1: f64,
+    distance: f64,
+    bearing: f64,
+    radius: f64,
+) -> (f64, f64) {
+    let lat2 = (lat1.sin() * (distance / radius).cos()
+        + lat1.cos() * (distance / radius).sin() * bearing.cos())
+    .asin();
+    let lon2 = lon1
+        + (bearing.sin() * (distance / radius).sin() * lat1.cos())
+            .atan2((distance / radius).cos() - lat1.sin() * lat2.sin());
+    (lon2, lat2)
+}
+
+pub fn compute_location_from_distance_bearing(
+    lon1: f64,
+    lat1: f64,
+    distances: ArrayView1<'_, f64>,
+    bearings: ArrayView1<'_, f64>,
+    radius: f64,
+) -> ArrayResult2D {
+    let n = distances.len();
+    let mut result = Array2::<f64>::zeros((n, 2));
+    for i in 0..n {
+        let (lon2, lat2) = compute_one_location_from_distance_bearing(
+            lon1,
+            lat1,
+            distances[i],
+            bearings[i],
+            radius,
+        );
+        result[[i, 0]] = positive_mod(lon2 + PI, TAU) - PI;
+        result[[i, 1]] = positive_mod(lat2 + PI, TAU) - PI;
+    }
+    Ok(result)
+}
+
 /// Computes the Haversine distance between two points on a sphere given their longitude and latitude in radians.
 ///
 /// # Arguments
@@ -543,6 +594,7 @@ pub fn compute_distances(
 /// * `radius` - Radius of the sphere in meters.
 ///
 /// # Returns
+///
 /// Distance in meters between the two points along the surface of the sphere.
 #[inline]
 fn compute_one_distance(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius: f64) -> f64 {
