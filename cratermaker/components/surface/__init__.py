@@ -3623,6 +3623,7 @@ class LocalSurface(CratermakerBase):
             return
 
         plotter = pv.Plotter()
+        plotter.set_background("black")
 
         mesh = self.to_vtk_mesh(self.uxds)
 
