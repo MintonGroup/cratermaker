@@ -866,8 +866,11 @@ class LocalHiResLocalSurface(LocalSurface):
         **kwargs : Any
             |kwargs|
         """
-        if not tag_superdomain and self.local_overlap:
-            return self.local_overlap.add_tag(name=name, tag=tag, long_name=long_name, tag_superdomain=False, **kwargs)
+        if not tag_superdomain:
+            if self.local_overlap:
+                return self.local_overlap.add_tag(name=name, tag=tag, long_name=long_name, tag_superdomain=False, **kwargs)
+            else:
+                return None
         else:
             return super().add_tag(name=name, tag=tag, long_name=long_name, **kwargs)
 
