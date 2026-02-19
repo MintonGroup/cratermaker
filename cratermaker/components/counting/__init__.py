@@ -195,10 +195,10 @@ class Counting(ComponentBase):
             )
 
         # Tag a region just outside crater rim with the id
-        count_region = crater.count_region
+        crater_region = crater.crater_region
 
-        if count_region and count_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            count_region.add_tag(
+        if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING:
+            crater_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
                 tag=crater.id,
@@ -213,7 +213,7 @@ class Counting(ComponentBase):
                 return
 
             # Cookie cutting: remove any smaller craters that are overlapped by this new crater
-            unique_ids = np.unique(count_region.crater_id)
+            unique_ids = np.unique(crater_region.crater_id)
             unique_ids = unique_ids[unique_ids > 0]  # Remove the 0 id which corresponds to no crater
             if len(unique_ids) > 0:
                 # Compute cookie cutting removes list
@@ -221,7 +221,7 @@ class Counting(ComponentBase):
                 removes = [id for id, v in observed.items() if v.id in unique_ids and v.diameter < crater.diameter]
                 # For every id that appears in the removes list, set it to 0 in the data array
                 for remove_id in removes:
-                    count_region.remove_tag(name="crater_id", tag=remove_id)
+                    crater_region.remove_tag(name="crater_id", tag=remove_id)
                     if not np.any(
                         self.surface.uxds.crater_id.data == remove_id
                     ):  # Check to see if this crater id still appears, and if not, it's gone man.
@@ -311,6 +311,7 @@ class Counting(ComponentBase):
             raise TypeError("crater must be an instance of Crater")
 
         region = crater.crater_region
+        region.compute_desloped_face_elevation()
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
         return region
 
@@ -391,6 +392,8 @@ class Counting(ComponentBase):
             for id in iterable:
                 self.remove(id)
 
+        self.remove_complex_data()
+
         return
 
     @abstractmethod
@@ -435,8 +438,12 @@ class Counting(ComponentBase):
 
         return xr.concat(new_data, dim="id")
 
-    def _merge_with_file(
-        self, craters: dict[int, Crater] | list[Crater], filename: Path | str, interval: int = 0, save_merged: bool = True
+    def _to_file(
+        self,
+        craters: dict[int, Crater] | list[Crater],
+        filename: Path | str,
+        interval: int = 0,
+        merge_with_existing: bool = False,
     ) -> xr.Dataset | None:
         """
         Merge a list or dictionary of Crater objects with an existing file.
@@ -449,8 +456,8 @@ class Counting(ComponentBase):
             The path to the file to merge with.
         interval : int, optional
             The interval number. This is added to the coordinates of the dataset created from the craters before merging with the file. Default is 0.
-        save_merged : bool, optional
-            If True, save the merged data back to the file. Default is True.
+        merged_with_existing : bool, optional
+            If True, merge with any existing files. Otherwise, overwrite any existing files. Default is False.
 
         Returns
         -------
@@ -463,15 +470,18 @@ class Counting(ComponentBase):
 
         # If the file already exists, read it and merge
         if filename.exists():
-            with xr.open_dataset(filename) as ds:
-                combined_data = xr.merge([combined_data, ds], compat="no_conflicts")
+            if merge_with_existing:
+                with xr.open_dataset(filename) as ds:
+                    combined_data = xr.merge([combined_data, ds], compat="no_conflicts", join="outer")
+            else:
+                filename.unlink()
 
         # Write merged data back to file
-        if save_merged and combined_data:
+        if combined_data:
             combined_data.to_netcdf(filename)
         return combined_data
 
-    def save(self, interval: int = 0, **kwargs: Any) -> None:
+    def save(self, interval: int = 0, merge_with_existing: bool = False, **kwargs: Any) -> None:
         """
         Dump the crater lists to a file and reset the emplaced crater list.
 
@@ -479,21 +489,23 @@ class Counting(ComponentBase):
         ----------
         interval : int, default=0
             The interval number for the output file naming.
+        merge_with_existing : bool, optional
+            If True, merge with any existing files. Otherwise, overwrite any existing files. Default is False.
         **kwargs : Any
             |kwargs|
         """
-        if self.emplaced:
-            filename = self.output_dir / f"emplaced_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
-            self._merge_with_file(self.emplaced, filename, interval)
-        if self.observed:
-            filename = self.output_dir / f"observed_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
-            self._merge_with_file(self.observed, filename, interval)
+        self.remove_complex_data()
+        for craters, name in zip([self.observed, self.emplaced], ["observed", "emplaced"], strict=True):
+            if craters:
+                filename = self.output_dir / f"{name}_{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
+                self._to_file(craters, filename, interval, merge_with_existing)
         return
 
     def export(
         self,
+        crater_type: Literal["observed", "emplaced", "both"] = "both",
         interval: int | None = None,
-        driver: str = "GPKG",
+        driver: str = "SCC",
         ask_overwrite: bool = True,
         **kwargs: Any,
     ) -> None:
@@ -502,6 +514,8 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
+        crater_type : str, optional
+            The type of craters to export. Options are "observed", "emplaced", and "both". Default is "both".
         interval : int | None, optional
             |interval_export|
         driver : str, default='GPKG'
@@ -513,31 +527,59 @@ class Counting(ComponentBase):
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
-        if driver.upper() in ["VTK", "VTP"]:
-            self.to_vtk_file(
-                interval=interval,
-                ask_overwrite=ask_overwrite,
-                **kwargs,
-            )
-        elif driver.upper() == "CSV":
-            self.to_csv_file(
-                interval=interval,
-                ask_overwrite=ask_overwrite,
-                **kwargs,
-            )
-        elif driver.upper() == "SCC":
-            self.to_scc_file(
-                interval=interval,
-                ask_overwrite=ask_overwrite,
-                **kwargs,
-            )
-        elif driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
-            self.to_vector_file(
-                interval=interval,
-                driver=driver,
-                ask_overwrite=ask_overwrite,
-                **kwargs,
-            )
+        crater_names = ["observed", "emplaced"]
+        output_ds = self.read_saved_output(interval=interval)
+        for name, crater_ds in zip(crater_names, output_ds, strict=True):
+            if crater_type == "observed" and name != "observed":
+                continue
+            if crater_type == "emplaced" and name != "emplaced":
+                continue
+
+            if type(crater_ds) is dict:
+                interval_numbers = list(crater_ds.keys())
+            elif crater_ds is None or "interval" not in crater_ds:
+                if interval is None:
+                    interval_numbers = [0]
+                else:
+                    interval_numbers = [interval]
+            else:
+                interval_numbers = crater_ds.interval.values
+            for interval in interval_numbers:
+                if driver.upper() in ["VTK", "VTP"] and crater_ds is not None:
+                    self.to_vtk_file(
+                        crater_ds=crater_ds,
+                        interval=interval,
+                        name=name,
+                        ask_overwrite=ask_overwrite,
+                        **kwargs,
+                    )
+                elif driver.upper() == "CSV" and crater_ds is not None:
+                    self.to_csv_file(
+                        crater_ds=crater_ds,
+                        interval=interval,
+                        name=name,
+                        ask_overwrite=ask_overwrite,
+                        **kwargs,
+                    )
+                elif driver.upper() == "SCC":
+                    if crater_ds is None:
+                        crater_ds = []  # Allow for empty SCC files because they can still have the region polygon
+                    self.to_scc_file(
+                        crater_ds=crater_ds,
+                        interval=interval,
+                        name=name,
+                        ask_overwrite=ask_overwrite,
+                        **kwargs,
+                    )
+                elif driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP and crater_ds is not None:
+                    self.to_vector_file(
+                        crater_ds=crater_ds,
+                        interval=interval,
+                        name=name,
+                        driver=driver,
+                        ask_overwrite=ask_overwrite,
+                        **kwargs,
+                    )
 
         return
 
@@ -613,11 +655,11 @@ class Counting(ComponentBase):
                 emplaced_interval = emplaced.interval.values[-1]
                 if emplaced_interval == interval:
                     emplaced = self.from_xarray(emplaced, interval=interval)
-            filename = self.surface.plot_dir / f"{file_prefix}{interval:06d}.png"
+            filename = self.surface.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
         else:
             observed = [c for _, c in self.observed.items()]
             emplaced = self.emplaced
-            filename = self.surface.plot_dir / f"{file_prefix}_{self.output_file_prefix}.png"
+            filename = self.surface.plot_dir / f"{file_prefix}_{self.output_file_prefix}.{self.surface.output_image_file_extension}"
         if ax is None:
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
@@ -774,10 +816,39 @@ class Counting(ComponentBase):
             )
         return pd.concat(crater_gs)
 
+    def _validate_export_args(
+        self,
+        name: Literal["observed", "emplaced"] = "observed",
+        interval: int | None = None,
+        crater_ds: xr.Dataset | list[Crater] | dict[int, Crater] | None = None,
+    ) -> list[Crater]:
+        if crater_ds is None:
+            crater_list = getattr(self, name)
+        if type(crater_ds) is dict:
+            if type(list(crater_ds.values())[0]) is xr.Dataset:  # like multi-interval dicts keyed by interval
+                crater_ds = crater_ds.get(
+                    interval, []
+                )  # Get the dataset for the specified interval, or an empty dataset if not found
+            else:
+                return list(crater_ds.values())  # like observed dicts keyed by crater id
+
+        if type(crater_ds) is list:
+            crater_list = crater_ds
+        elif type(crater_ds) is dict:
+            crater_list = list(crater_ds.values())
+        elif type(crater_ds) is xr.Dataset:
+            crater_list = self.from_xarray(crater_ds, interval=interval)
+        else:
+            raise ValueError(f"Unrecognized type for crater_ds: {type(crater_ds)}")
+
+        return crater_list
+
     def to_vector_file(
         self,
-        driver: str = "GPKG",
+        name: Literal["observed", "emplaced"] = "observed",
+        crater_ds: xr.Dataset | list[Crater] | dict[int, Crater] | None = None,
         interval: int | None = None,
+        driver: str = "GPKG",
         use_measured_properties: bool = True,
         ask_overwrite: bool = True,
         **kwargs,
@@ -787,14 +858,14 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
-        craters : list[Crater]
-            A list of Crater objects.
-        driver : str, optional
-            The file format to save. Supported formats are 'GPKG', 'ESRI Shapefile', etc. Default is 'GPKG'.
+        name : Literal["observed", "emplaced"], optional
+            The name of the crater dataset to export, either "observed" or "emplaced
+        crater_ds : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
+            The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the name parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
             |interval_export|
-        name : str, optional
-            The name of the layer in the GeoPackage file or the file name if the format does not support layers, by default "craters".
+        driver : str, optional
+            The file format to save. Supported formats are 'GPKG', 'ESRI Shapefile', etc. Default is 'GPKG'.
         use_measured_properties : bool, optional
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
         ask_overwrite : bool, optional
@@ -802,115 +873,105 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
-        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
-
-        def shp_key_fix(key: str) -> str:
-            """
-            ESRI Shapefile format limits field names to 10 characters, so this function substitues longer names with shorter alternatives, truncates the results, and sets them to upper case.
-            """
-            alt_names = {
-                "projectile_": "proj",
-                "morphology_": "morph",
-                "diameter": "diam",
-                "longitude": "lon",
-                "latitude": "lat",
-                "density": "dens",
-                "velocity": "vel",
-                "direction": "dir",
-                "location": "loc",
-                "angle": "ang",
-                "transient_": "tr",
-                "semimajor_axis": "a",
-                "semiminor_axis": "b",
-                "orientation": "orient",
-                "measured_": "meas",
-                "degradation_state": "kdeg",
-            }
-            for long, short in alt_names.items():
-                if long in key:
-                    key = key.replace(long, short)
-            return key[:10].upper()
-
-        # Common alias for Shapefile
-        if driver.upper() == "SHP":
-            driver = "ESRI Shapefile"
-        if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
-            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
-        else:
-            raise ValueError("Cannot infer file extension from driver {driver}.")
-
-        if file_extension == "shp":
-            format_has_layers = False
-        else:
-            format_has_layers = True
-
-        surface = self.surface
-        split_antimeridian = True
-
-        crater_names = ["observed", "emplaced"]
-        output_ds = self.read_saved_output(interval=interval)
-        for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if type(crater_ds) is dict:
-                interval_numbers = list(crater_ds.keys())
-            elif crater_ds is None or "interval" not in crater_ds:
-                continue
-            else:
-                interval_numbers = crater_ds.interval.values
-            for interval in interval_numbers:
-                if crater_ds is not None:
-                    crater_list = self.from_xarray(crater_ds, interval=interval)
-                else:
-                    crater_list = []
-                geoms = []
-                attrs = []
-                for crater in tqdm(
-                    crater_list,
-                    total=len(crater_list),
-                    desc=f"Converting {name} craters to geometries for export",
-                    unit="craters",
-                    position=0,
-                    leave=False,
-                ):
-                    poly = crater.to_geoseries(
-                        surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=use_measured_properties
-                    ).item()
-                    df = crater_ds.sel(id=[crater.id]).to_dataframe()
-                    if isinstance(poly, GeometryCollection):
-                        for p in poly.geoms:
-                            geoms.append(p)
-                            attrs.append(df)
-                    else:
-                        geoms.append(poly)
-                        attrs.append(df)
-
-                if len(geoms) > 0:
-                    attrs_df = pd.concat(attrs, ignore_index=True)
-                else:
-                    attrs_df = pd.DataFrame()
-                if driver.upper() == "ESRI SHAPEFILE":
-                    attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
-
-                gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
-                if format_has_layers:
-                    output_file = self.export_dir / f"{self.output_file_prefix}{interval:06d}.{file_extension}"
-                    print(f"Saving {name} layer to vector file: '{output_file}'...")
-                else:
-                    output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.{file_extension}"
-                    if ask_overwrite and not self._overwrite_check(output_file):
-                        return
-                if driver.upper() == "ESRI SHAPEFILE" and hasattr(self.surface, "local"):
-                    # Create the _AREA file
-                    self.surface.local.export_region_polygon(driver=driver)
-
-                try:
-                    if format_has_layers:
-                        gdf.to_file(output_file, layer=name)
-                    else:
-                        gdf.to_file(output_file)
-                except Exception as e:
-                    raise RuntimeError(f"Error saving {output_file}: {e}") from e
-
         return
+        # TODO Fix this
+        # from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
+        # crater_list = self._validate_export_args(name=name, interval=interval, crater_ds=crater_ds)
+
+        # def shp_key_fix(key: str) -> str:
+        #     """
+        #     ESRI Shapefile format limits field names to 10 characters, so this function substitues longer names with shorter alternatives, truncates the results, and sets them to upper case.
+        #     """
+        #     alt_names = {
+        #         "projectile_": "proj",
+        #         "morphology_": "morph",
+        #         "diameter": "diam",
+        #         "longitude": "lon",
+        #         "latitude": "lat",
+        #         "density": "dens",
+        #         "velocity": "vel",
+        #         "direction": "dir",
+        #         "location": "loc",
+        #         "angle": "ang",
+        #         "transient_": "tr",
+        #         "semimajor_axis": "a",
+        #         "semiminor_axis": "b",
+        #         "orientation": "orient",
+        #         "measured_": "meas",
+        #         "degradation_state": "kdeg",
+        #     }
+        #     for long, short in alt_names.items():
+        #         if long in key:
+        #             key = key.replace(long, short)
+        #     return key[:10].upper()
+
+        # # Common alias for Shapefile
+        # if driver.upper() == "SHP":
+        #     driver = "ESRI Shapefile"
+        # if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
+        #     file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
+        # else:
+        #     raise ValueError("Cannot infer file extension from driver {driver}.")
+
+        # if file_extension == "shp":
+        #     format_has_layers = False
+        # else:
+        #     format_has_layers = True
+
+        # surface = self.surface
+        # split_antimeridian = False
+
+        # geoms = []
+        # attrs = []
+        # for crater in tqdm(
+        #     crater_list,
+        #     total=len(crater_list),
+        #     desc=f"Converting {name} craters to geometries for export",
+        #     unit="craters",
+        #     position=0,
+        #     leave=False,
+        # ):
+        #     poly = crater.to_geoseries(
+        #         surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=use_measured_properties
+        #     ).item()
+        #     df = crater_ds.sel(id=[crater.id]).to_dataframe()
+        #     if isinstance(poly, GeometryCollection):
+        #         for p in poly.geoms:
+        #             geoms.append(p)
+        #             attrs.append(df)
+        #     else:
+        #         geoms.append(poly)
+        #         attrs.append(df)
+
+        # if len(geoms) > 0:
+        #     attrs_df = pd.concat(attrs, ignore_index=True)
+        # else:
+        #     attrs_df = pd.DataFrame()
+        # if driver.upper() == "ESRI SHAPEFILE":
+        #     attrs_df.rename(mapper=shp_key_fix, axis=1, inplace=True)
+
+        # gdf = gpd.GeoDataFrame(data=attrs_df, geometry=geoms, crs=surface.crs)
+        # if format_has_layers:
+        #     output_file = self.export_dir / f"{self.output_file_prefix}{interval:06d}.{file_extension}"
+        #     print(f"Saving {name} layer to vector file: '{output_file}'...")
+        # else:
+        #     output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.{file_extension}"
+        #     if ask_overwrite and not self._overwrite_check(output_file):
+        #         return
+        # if driver.upper() == "ESRI SHAPEFILE" and hasattr(self.surface, "local"):
+        #     # Create the _AREA file
+        #     self.surface.local.export_region_polygon(driver=driver)
+
+        # try:
+        #     if format_has_layers:
+        #         gdf.to_file(output_file, layer=name)
+        #     else:
+        #         gdf.to_file(output_file)
+        # except Exception as e:
+        #     raise RuntimeError(f"Error saving {output_file}: {e}") from e
+
+        # return
 
     def to_vtk_mesh(self, craters: list[Crater], use_measured_properties: bool = True, **kwargs: Any) -> vtkPolyData:
         """
@@ -998,6 +1059,8 @@ class Counting(ComponentBase):
 
     def to_vtk_file(
         self,
+        name: Literal["observed", "emplaced"] = "observed",
+        crater_ds: xr.Dataset | list[Crater] | dict[int, Crater] | None = None,
         interval: int | None = None,
         ask_overwrite: bool = True,
         **kwargs,
@@ -1009,6 +1072,10 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
+        name : Literal["observed", "emplaced"], optional
+            The name of the crater dataset to export, either "observed" or "emplaced
+        crater_ds : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
+            The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the name parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
            |interval_export|
         ask_overwrite : bool, optional
@@ -1018,38 +1085,28 @@ class Counting(ComponentBase):
         """
         from vtk import vtkXMLPolyDataWriter
 
-        crater_names = ["observed", "emplaced"]
-        output_ds = self.read_saved_output(interval=interval)
-        for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if type(crater_ds) is dict:
-                interval_numbers = list(crater_ds.keys())
-            elif crater_ds is None or "interval" not in crater_ds:
-                continue
-            else:
-                interval_numbers = crater_ds.interval.values
-            for interval in interval_numbers:
-                if crater_ds is not None:
-                    crater_list = self.from_xarray(crater_ds, interval=interval)
-                else:
-                    crater_list = []
-                output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.vtp"
-                if ask_overwrite and not self._overwrite_check(output_file):
-                    return
-                print(f"Saving crater data to VTK file: '{output_file}'...")
-                poly_data = self.to_vtk_mesh(craters=crater_list)
+        crater_list = self._validate_export_args(name=name, interval=interval, crater_ds=crater_ds)
 
-                # Write the poly_data to a VTK file
-                writer = vtkXMLPolyDataWriter()
-                writer.SetFileName(output_file)
-                writer.SetInputData(poly_data)
+        output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.vtp"
+        if ask_overwrite and not self._overwrite_check(output_file):
+            return
+        print(f"Saving crater data to VTK file: '{output_file}'...")
+        poly_data = self.to_vtk_mesh(craters=crater_list)
 
-                # Optional: set the data mode to binary to save disk space
-                writer.SetDataModeToBinary()
-                writer.Write()
+        # Write the poly_data to a VTK file
+        writer = vtkXMLPolyDataWriter()
+        writer.SetFileName(output_file)
+        writer.SetInputData(poly_data)
+
+        # Optional: set the data mode to binary to save disk space
+        writer.SetDataModeToBinary()
+        writer.Write()
         return
 
     def to_csv_file(
         self,
+        name: Literal["observed", "emplaced"] = "observed",
+        crater_ds: xr.Dataset | list[Crater] | dict[int, Crater] | None = None,
         interval: int | None = None,
         ask_overwrite: bool = True,
         **kwargs,
@@ -1059,6 +1116,10 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
+        name : Literal["observed", "emplaced"], optional
+            The name of the crater dataset to export, either "observed" or "emplaced
+        crater_ds : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
+            The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the name parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
             |interval_export|
         ask_overwrite : bool, optional
@@ -1068,62 +1129,54 @@ class Counting(ComponentBase):
         """
         import csv
 
-        crater_names = ["observed", "emplaced"]
-        output_ds = self.read_saved_output(interval=interval)
-        for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if type(crater_ds) is dict:
-                interval_numbers = list(crater_ds.keys())
-            elif crater_ds is None or "interval" not in crater_ds:
-                continue
-            else:
-                interval_numbers = crater_ds.interval.values
-            for interval in interval_numbers:
-                if crater_ds is not None:
-                    crater_list = self.from_xarray(crater_ds, interval=interval)
-                else:
-                    crater_list = []
-                output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.csv"
-                if ask_overwrite and not self._overwrite_check(output_file):
-                    return
-                print(f"Saving crater data to CSV file: '{output_file}'...")
-                with output_file.open(mode="w", newline="") as csvfile:
-                    writer = csv.writer(csvfile)
-                    header_written = False
-                    for crater in crater_list:
-                        crater_dict = crater.as_dict(skip_complex_data=True)
+        crater_list = self._validate_export_args(name=name, interval=interval, crater_ds=crater_ds)
 
-                        # Convert location fields from tuples into lon/lat
-                        location = crater_dict.pop("location")
-                        crater_dict["longitude"] = location[0]
-                        crater_dict["latitude"] = location[1]
-                        measured_location = crater_dict.pop("measured_location")
-                        crater_dict["measured_longitude"] = measured_location[0]
-                        crater_dict["measured_latitude"] = measured_location[1]
+        output_file = self.export_dir / f"{name}_{self.output_file_prefix}{interval:06d}.csv"
+        if ask_overwrite and not self._overwrite_check(output_file):
+            return
+        print(f"Saving crater data to CSV file: '{output_file}'...")
+        with output_file.open(mode="w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            header_written = False
+            for crater in crater_list:
+                crater_dict = crater.as_dict(skip_complex_data=True)
 
-                        # Check if the crater is circular, and if so convert semimajor/semiminor to diameter
-                        if crater_dict["measured_semimajor_axis"] == crater_dict["measured_semiminor_axis"]:
-                            measured_diameter = 2.0 * crater_dict.pop("measured_semimajor_axis")
-                            crater_dict.pop("measured_semiminor_axis")
-                            items = list(crater_dict.items())
-                            crater_dict = {"id": crater_dict["id"], "measured_diameter": measured_diameter}
-                            crater_dict.update(items[1:])
+                # Convert location fields from tuples into lon/lat
+                location = crater_dict.pop("location")
+                crater_dict["longitude"] = location[0]
+                crater_dict["latitude"] = location[1]
+                measured_location = crater_dict.pop("measured_location")
+                crater_dict["measured_longitude"] = measured_location[0]
+                crater_dict["measured_latitude"] = measured_location[1]
 
-                        if crater_dict["semimajor_axis"] == crater_dict["semiminor_axis"]:
-                            diameter = 2.0 * crater_dict.pop("semimajor_axis")
-                            crater_dict.pop("semiminor_axis")
-                            items = list(crater_dict.items())
-                            crater_dict = {"id": crater_dict["id"], "diameter": diameter}
-                            crater_dict.update(items[1:])
+                # Check if the crater is circular, and if so convert semimajor/semiminor to diameter
+                if (
+                    "measured_semimajor_axis" in crater_dict
+                    and "measured_semiminor_axis" in crater_dict
+                    and crater_dict["measured_semimajor_axis"] == crater_dict["measured_semiminor_axis"]
+                ):
+                    measured_diameter = 2.0 * crater_dict.pop("measured_semimajor_axis")
+                    crater_dict.pop("measured_semiminor_axis")
+                    items = list(crater_dict.items())
+                    crater_dict = {"id": crater_dict["id"], "measured_diameter": measured_diameter}
+                    crater_dict.update(items[1:])
 
-                        # Pop out any None values
-                        crater_dict = {k: v for k, v in crater_dict.items() if v is not None}
+                if crater_dict["semimajor_axis"] == crater_dict["semiminor_axis"]:
+                    diameter = 2.0 * crater_dict.pop("semimajor_axis")
+                    crater_dict.pop("semiminor_axis")
+                    items = list(crater_dict.items())
+                    crater_dict = {"id": crater_dict["id"], "diameter": diameter}
+                    crater_dict.update(items[1:])
 
-                        if not header_written:
-                            header = list(crater_dict.keys())
-                            writer.writerow(header)
-                            header_written = True
-                        row = [crater_dict[key] for key in header]
-                        writer.writerow(row)
+                # Pop out any None values
+                crater_dict = {k: v for k, v in crater_dict.items() if v is not None}
+
+                if not header_written:
+                    header = list(crater_dict.keys())
+                    writer.writerow(header)
+                    header_written = True
+                row = [crater_dict[key] for key in header]
+                writer.writerow(row)
 
         return
 
@@ -1180,6 +1233,8 @@ class Counting(ComponentBase):
 
     def to_scc_file(
         self,
+        name: Literal["observed", "emplaced"] = "observed",
+        crater_ds: xr.Dataset | list[Crater] | dict[int, Crater] | None = None,
         interval: int | None = None,
         ask_overwrite: bool = True,
         **kwargs,
@@ -1189,6 +1244,10 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
+        name : Literal["observed", "emplaced"], optional
+            The name of the crater dataset to export, either "observed" or "emplaced
+        crater_ds : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
+            The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the name parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
             |interval_export|
         ask_overwrite : bool, optional
@@ -1197,6 +1256,8 @@ class Counting(ComponentBase):
             |kwargs|
         """
         import datetime
+
+        crater_list = self._validate_export_args(name=name, interval=interval, crater_ds=crater_ds)
 
         def overlap_fraction(crater, region_poly=None):
             if region_poly is None:
@@ -1211,74 +1272,57 @@ class Counting(ComponentBase):
             else:
                 return 1.0
 
-        crater_names = ["observed", "emplaced"]
-        output_ds = self.read_saved_output(interval=interval)
         region_poly = None
-        for name, crater_ds in zip(crater_names, output_ds, strict=True):
-            if type(crater_ds) is dict:
-                interval_numbers = list(crater_ds.keys())
-            elif crater_ds is None or "interval" not in crater_ds:
-                interval_numbers = [0]
+
+        output_file = self.export_dir / f"{name}{interval:06d}.scc"
+        if ask_overwrite and not self._overwrite_check(output_file):
+            return
+        print(f"Saving crater data to {output_file}")
+        with output_file.open(mode="w") as f:
+            f.write(f"# Spatial crater count Cratermaker version {cratermaker_version}\n")
+            f.write("#\n")
+            f.write(f"# Exported on {datetime.datetime.now().isoformat()}\n")
+            f.write("#\n")
+            f.write("# Ellipsoid axes\n")
+            f.write(f"a-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
+            f.write(f"b-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
+            f.write(f"c-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
+
+            # Start with regional area
+            boundary_points = []
+
+            if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
+                f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
+                if region_poly is None:  # We only need to do this the first time through
+                    region_circle = self.crater_cls.maker(radius=self.surface.local_radius, location=self.surface.local_location)
+                    region_poly = (
+                        region_circle.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False)
+                        .to_crs(self.surface.crs)
+                        .item()
+                    )
+                    boundary_points = list(region_poly.exterior.coords)
+                    area = self.surface.local.area
             else:
-                interval_numbers = crater_ds.interval.values
-            for interval in interval_numbers:
-                if crater_ds is not None:
-                    crater_list = self.from_xarray(crater_ds, interval=interval)
-                else:
-                    crater_list = []
-                output_file = self.export_dir / f"{name}{interval:06d}.scc"
-                if ask_overwrite and not self._overwrite_check(output_file):
-                    return
-                print(f"Saving crater data to {output_file}")
-                with output_file.open(mode="w") as f:
-                    f.write(f"# Spatial crater count Cratermaker version {cratermaker_version}\n")
-                    f.write("#\n")
-                    f.write(f"# Exported on {datetime.datetime.now().isoformat()}\n")
-                    f.write("#\n")
-                    f.write("# Ellipsoid axes\n")
-                    f.write(f"a-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
-                    f.write(f"b-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
-                    f.write(f"c-axis radius = {self.surface.radius * 1e-3:.3f} <km>\n")
-
-                    # Start with regional area
-                    boundary_points = []
-
-                    if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
-                        f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
-                        if region_poly is None:  # We only need to do this the first time through
-                            region_circle = self.crater_cls.maker(
-                                radius=self.surface.local_radius, location=self.surface.local_location
-                            )
-                            region_poly = (
-                                region_circle.to_geoseries(
-                                    surface=self.surface, split_antimeridian=False, use_measured_properties=False
-                                )
-                                .to_crs(self.surface.crs)
-                                .item()
-                            )
-                            boundary_points = list(region_poly.exterior.coords)
-                            area = self.surface.local.area
-                    else:
-                        f.write(f"coordinate_system_name = {self.surface.crs.name}\n")
-                        boundary_points = [(-180.0, -90.0), (180.0, -90.0), (180.0, 90.0), (-180.0, 90.0), (-180.0, -90.0)]
-                        area = self.surface.area
-                        region_poly = None
-                    f.write("# area_shapes:\n")
-                    f.write("unit_boundary = {vertex, sub_area, tag, lon, lat\n")
-                    for i, p in enumerate(boundary_points):
-                        f.write(f"{i}\t1\text\t{p[0]}\t{p[1]}\n")
-                    f.write("}\n")
-                    f.write("#\n")
-                    f.write("# area_info:\n")
-                    f.write(f"Total_area = {area * 1e-6} <km^2>\n")
-                    f.write("#\n")
-                    f.write("# crater_diameters\n")
-                    f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")
-                    for crater in crater_list:
-                        f.write(
-                            f"{crater.measured_diameter * 1e-3}\t{overlap_fraction(crater, region_poly)}\t{crater.measured_location[0]}\t{crater.measured_location[1]}\t 1\n"
-                        )
-                    f.write("}\n")
+                f.write(f"coordinate_system_name = {self.surface.crs.name}\n")
+                boundary_points = [(-180.0, -90.0), (180.0, -90.0), (180.0, 90.0), (-180.0, 90.0), (-180.0, -90.0)]
+                area = self.surface.area
+                region_poly = None
+            f.write("# area_shapes:\n")
+            f.write("unit_boundary = {vertex, sub_area, tag, lon, lat\n")
+            for i, p in enumerate(boundary_points):
+                f.write(f"{i}\t1\text\t{p[0]}\t{p[1]}\n")
+            f.write("}\n")
+            f.write("#\n")
+            f.write("# area_info:\n")
+            f.write(f"Total_area = {area * 1e-6} <km^2>\n")
+            f.write("#\n")
+            f.write("# crater_diameters\n")
+            f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")
+            for crater in crater_list:
+                f.write(
+                    f"{crater.measured_diameter * 1e-3}\t{overlap_fraction(crater, region_poly)}\t{crater.measured_location[0]}\t{crater.measured_location[1]}\t 1\n"
+                )
+            f.write("}\n")
 
         return
 
@@ -1344,6 +1388,8 @@ class Counting(ComponentBase):
         for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
             crater_data = dataset.sel(id=id).to_dict()["data_vars"]
             crater_data = {k: v["data"] for k, v in crater_data.items()}
+            if np.isnan(crater_data["semimajor_axis"]):
+                continue
             if "longitude" in crater_data and "latitude" in crater_data:
                 crater_data["location"] = (crater_data.pop("longitude"), crater_data.pop("latitude"))
             if "measured_longitude" in crater_data and "measured_latitude" in crater_data:
@@ -1358,6 +1404,16 @@ class Counting(ComponentBase):
             craters.append(crater)
 
         return craters
+
+    def remove_complex_data(self):
+        """
+        Remove complex data from all observed and emplaced craters to free up memory. This is typically called after the tally step to clear out things like the affect node and face index sets.
+        """
+        for v in self.observed.values():
+            v.remove_complex_data()
+        for v in self.emplaced:
+            v.remove_complex_data()
+        return
 
     @property
     def surface(self):
