@@ -587,7 +587,6 @@ class Simulation(CratermakerBase):
             ).item()
             self.time = current_time_end
             self.interval += 1
-
             self.save(merge_with_existing=False, **kwargs)
 
         return
@@ -758,26 +757,28 @@ class Simulation(CratermakerBase):
             crater_args["scaling"] = self.scaling
         return self.morphology.emplace(craters=craters, **crater_args)
 
-    def save(self, **kwargs: Any) -> None:
+    def save(self, show: bool = False, **kwargs: Any) -> None:
         """
         Save the current simulation state to a file.
 
         Parameters
         ----------
+        show : bool, optional
+            On some surface types, such as HiResLocal, the current state of the surface will be plotted after saving. Default is False.
         **kwargs : Any
             Additional keyword argumments to pass to the component save methods.
         """
         self.surface.save(
             interval=self.interval,
             time_variables=self.time_variables,
+            show=show,
             **kwargs,
         )
 
         if self.do_counting:
-            self.counting.save(interval=self.interval, **kwargs)
+            self.counting.save(interval=self.interval, show=show, **kwargs)
 
         self.to_config(**kwargs)
-        self.plot(show=False, save=True, **kwargs)
 
         return
 
@@ -810,7 +811,7 @@ class Simulation(CratermakerBase):
             ask_overwrite = self.ask_overwrite
         if interval < 0:
             interval = self.interval + 1 + interval
-        self.save()
+        self.save(**kwargs)
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"
             counting_driver = "SCC"
@@ -851,6 +852,7 @@ class Simulation(CratermakerBase):
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
+        self.save(**kwargs)
         label = kwargs.pop("label", f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
         plot_style = kwargs.pop("plot_style", "hillshade")
         if include_counting and self.do_counting:
@@ -870,6 +872,7 @@ class Simulation(CratermakerBase):
         **kwargs : Any
         |kwargs|
         """
+        self.save(**kwargs)
         if "interval" not in kwargs:
             kwargs["interval"] = self.interval
         if self.do_counting:
@@ -991,11 +994,6 @@ class Simulation(CratermakerBase):
             if component not in skip_component and hasattr(self, component):
                 getattr(self, component).reset(ask_overwrite=False)
 
-        # Remove any old local surface output files
-        files_to_remove = self.surface.output_dir.glob("local_*")
-        for f in files_to_remove:
-            f.unlink(missing_ok=True)
-
         self._interval = 0
         self._elapsed_time = None
         self._time = None
@@ -1004,6 +1002,7 @@ class Simulation(CratermakerBase):
         self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
         self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
+        self.save()
 
         return
 

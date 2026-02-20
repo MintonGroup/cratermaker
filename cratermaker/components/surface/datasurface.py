@@ -483,7 +483,9 @@ class DataSurface(HiResLocalSurface):
 
             # Transform to longitude and latitude
             longitudes, latitudes = transformer_to_geodetic.transform(x_coords, y_coords)
-            r_vals = self.compute_distances(self.local_location, list(zip(longitudes, latitudes, strict=False)))
+            r_vals = self.compute_distances(
+                center_location=self.local_location, locations=list(zip(longitudes, latitudes, strict=False))
+            )
             local_dem_data = {
                 "elevation": elevation,
                 "mask": r_vals <= region_radius + self.pix / 4,
