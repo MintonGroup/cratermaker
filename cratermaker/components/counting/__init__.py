@@ -664,10 +664,16 @@ class Counting(ComponentBase):
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
         ax = self.surface.plot(
-            show=False, save=False, ax=ax, plot_style=plot_style, variable_name=variable_name, cmap=cmap, **kwargs
+            interval=interval,
+            show=False,
+            save=False,
+            ax=ax,
+            plot_style=plot_style,
+            variable_name=variable_name,
+            cmap=cmap,
+            **kwargs,
         )
-        if observed_color is not None and observed is not None:
-            print("Plotting observed craters...")
+        if observed_color is not None and observed is not None and len(observed) > 0:
             gs = self.to_geoseries(craters=observed, use_measured_properties=True, split_antimeridian=split_antimeridian).to_crs(
                 crs
             )
@@ -676,8 +682,7 @@ class Counting(ComponentBase):
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
-        if observed_original_color is not None and observed is not None:
-            print("Plotting observed craters with original properties...")
+        if observed_original_color is not None and observed is not None and len(observed) > 0:
             gs = self.to_geoseries(craters=observed, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
                 crs
             )
@@ -686,8 +691,7 @@ class Counting(ComponentBase):
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
-        if emplaced_color is not None and emplaced is not None:
-            print("Plotting emplaced craters...")
+        if emplaced_color is not None and emplaced is not None and len(emplaced) > 0:
             gs = self.to_geoseries(craters=emplaced, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
                 crs
             )
@@ -698,6 +702,7 @@ class Counting(ComponentBase):
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
 
         if save:
+            print(f"Saving crater count plot to {filename}...")
             plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=W)
         if show:
             plt.show()
