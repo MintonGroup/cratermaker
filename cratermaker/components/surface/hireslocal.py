@@ -209,12 +209,10 @@ class HiResLocalSurface(Surface):
             filename=filename,
             **kwargs,
         )
-        plot_style = kwargs.get("plot_style", "hillshade")
         self.local.save(
             interval=interval,
             time_variables=time_variables,
             filename=f"local_{filename}" if filename else None,
-            plot_style=plot_style,
             **kwargs,
         )
         return
@@ -973,7 +971,7 @@ class LocalHiResLocalSurface(LocalSurface):
         interval: int = 0,
         time_variables: dict | None = None,
         filename: str | None = None,
-        plot_style: str | None = "hillshade",
+        plot_style: str | None = None,
         show: bool = False,
         **kwargs,
     ) -> None:
@@ -991,9 +989,9 @@ class LocalHiResLocalSurface(LocalSurface):
         filename : str or Path, optional
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         plot_style : str, optional
-            The style of plot to generate. Set to None to skip generating a plot.
+            The style of plot to generate. Set to None to skip generating a plot. Default is None
         show : bool, optional
-            If True, display the plot after saving. Default is False.
+            If True, display the plot after saving. Default is False
         **kwargs : Any
             |kwargs|
         """

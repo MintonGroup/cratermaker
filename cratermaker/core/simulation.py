@@ -766,9 +766,11 @@ class Simulation(CratermakerBase):
         **kwargs : Any
             Additional keyword argumments to pass to the component save methods.
         """
+        plot_style = kwargs.pop("plot_style", "hillshade")
         self.surface.save(
             interval=self.interval,
             time_variables=self.time_variables,
+            plot_style=plot_style,
             **kwargs,
         )
 
