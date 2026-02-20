@@ -314,8 +314,6 @@ For instance, suppose we'd like to extract a 16 km radius region at the south po
     print(region)
 
 
-
-
 As we can see, this selects only 33 of the full 655362 faces, which is a significant reduction in the number of faces and nodes that need to be processed. All faces with their centers interior to circle defined by location and region_radius are included, as well as their associated edges and nodes (highlighted in the diagram above). In addition, the region will also contain a "buffer" of all faces that surround the outermost border of the local region, such that any operations that require neighboring faces across included edges or nodes can have access to them. 
 
 .. note::
