@@ -28,12 +28,14 @@ class TestMorphology(unittest.TestCase):
         self.assertIn("simplemoon", models)
 
     def test_model_instantiation(self):
-        for model_name in morphology_models:
-            morphology = Morphology.maker(model_name)
-            self.assertIsInstance(morphology, object)
-            self.assertEqual(morphology.name, model_name)
-            morphology.crater = self.dummy_crater
-            self.assertIs(morphology.crater, self.dummy_crater)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, gridlevel=self.gridlevel, target=self.target, reset=True)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(model_name, surface=surface)
+                self.assertIsInstance(morphology, object)
+                self.assertEqual(morphology.name, model_name)
+                morphology.crater = self.dummy_crater
+                self.assertIs(morphology.crater, self.dummy_crater)
 
     def test_form_crater_executes(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
@@ -77,7 +79,7 @@ class TestMorphology(unittest.TestCase):
         diameter_list = [100e3, 200e3, 500e3, 1000e3]
         delta_vals = [0.4, 0.3, 0.3, 0.2]
 
-        gridargs = {
+        surface_args = {
             "icosphere": {"gridlevel": 6},
             "arbitrary_resolution": {
                 "pix": 30e3,
@@ -90,7 +92,7 @@ class TestMorphology(unittest.TestCase):
         }
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            for name, args in gridargs.items():
+            for name, args in surface_args.items():
                 sim = Simulation(simdir=simdir, surface=name, ask_overwrite=False, **args)
                 for diameter, delta in zip(diameter_list, delta_vals, strict=False):
                     sim.reset()

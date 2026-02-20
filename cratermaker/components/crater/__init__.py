@@ -758,15 +758,16 @@ class Crater:
                 mt = kwargs.pop("morphology_type", "UNKNOWN")
 
         else:
-            # --- Normalize RNG, rng_seed, simdir using CratermakerBase ---
-            argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state)
+            # --- Merge the CommonArgs with any arguments passed here using CratermakerBase ---
+            argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
             if scaling is not None and isinstance(scaling, Scaling):
                 if projectile is None:
                     projectile = scaling.projectile
                 if target is None:
                     target = scaling.target
 
-            target = Target.maker(target, **vars(argproc.common_args), **kwargs)
+            kwargs = {**kwargs, **vars(argproc.common_args)}
+            target = Target.maker(target, **kwargs)
 
             projectile_args = {
                 "velocity": args["projectile_velocity"],
@@ -778,7 +779,6 @@ class Crater:
             projectile = Projectile.maker(
                 projectile,
                 target=target,
-                **vars(argproc.common_args),
                 **kwargs,
             ).new_projectile(
                 **projectile_args,
@@ -788,7 +788,6 @@ class Crater:
                 scaling,
                 target=target,
                 projectile=projectile,
-                **vars(argproc.common_args),
                 **kwargs,
             )
             projectile = scaling.projectile

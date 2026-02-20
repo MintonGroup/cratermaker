@@ -10,7 +10,7 @@ pix = target.radius / 10000.0
 local_location = (0, 0)
 local_radius = pix * 50
 superdomain_scale_factor = 10000
-gridargs = {
+surface_args = {
     "icosphere": {
         "gridlevel": 6,
     },
@@ -30,9 +30,9 @@ crater = {
 
 class TestCounting(unittest.TestCase):
     def test_emplace(self):
-        for surface_type, surface_args in gridargs.items():
+        for surface_type, args in surface_args.items():
             with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-                surface = Surface.maker(surface_type, simdir=simdir, target=target, ask_overwrite=False, reset=True, **surface_args)
+                surface = Surface.maker(surface_type, simdir=simdir, target=target, ask_overwrite=False, reset=True, **args)
                 counting = Counting.maker(surface=surface)
                 morphology = Morphology.maker(counting=counting, ejecta_truncation=4.0)
                 morphology.emplace(**crater[surface_type])
@@ -43,9 +43,9 @@ class TestCounting(unittest.TestCase):
                 del morphology
 
     def test_cookie_cutting(self):
-        for surface_type, surface_args in gridargs.items():
+        for surface_type, args in surface_args.items():
             with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-                surface = Surface.maker(surface_type, simdir=simdir, target=target, ask_overwrite=False, reset=True, **surface_args)
+                surface = Surface.maker(surface_type, simdir=simdir, target=target, ask_overwrite=False, reset=True, **args)
                 counting = Counting.maker(surface=surface)
                 morphology = Morphology.maker(counting=counting, ejecta_truncation=4.0)
                 diameter = crater[surface_type]["diameter"]

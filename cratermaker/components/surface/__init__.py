@@ -148,7 +148,7 @@ class Surface(ComponentBase):
         surface: str | Surface | None = None,
         target: Target | str | None = None,
         reset: bool = True,
-        ask_overwrite: bool = False,
+        save_actions: dict[str, dict] | None = None,
         regrid: bool = False,
         simdir: str | Path | None = None,
         **kwargs,
@@ -166,8 +166,6 @@ class Surface(ComponentBase):
             Flag to indicate whether to reset the surface. Default is True.
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
-        ask_overwrite : bool, optional
-            |ask_overwrite_default_false|
         simdir : str | Path
             |simdir|
         **kwargs : Any
@@ -186,7 +184,6 @@ class Surface(ComponentBase):
             target=target,
             reset=reset,
             regrid=regrid,
-            ask_overwrite=ask_overwrite,
             simdir=simdir,
             **kwargs,
         )
@@ -219,18 +216,16 @@ class Surface(ComponentBase):
         """
         return self._full().saved_output_files(**kwargs)
 
-    def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
+    def reset(self, **kwargs: Any) -> None:
         """
         Reset the surface to its initial state.
 
         Parameters
         ----------
-        ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             |kwargs|
         """
-        super().reset(ask_overwrite=ask_overwrite, **kwargs)
+        super().reset(**kwargs)
 
         # Remove all old data from the dataset
         varlist = list(self.uxds.data_vars)
@@ -671,8 +666,6 @@ class Surface(ComponentBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        filename : str or Path, optional
-            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         **kwargs : Any
             |kwargs|
         """
@@ -683,7 +676,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def export(self, driver: str = "GPKG", interval: int | None = None, ask_overwrite: bool = True, **kwargs: Any) -> None:
+    def export(self, driver: str = "GPKG", interval: int | None = None, **kwargs: Any) -> None:
         """
         Export the surface data to the specified format.
 
@@ -693,15 +686,12 @@ class Surface(ComponentBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval : int | None, optional
             |interval_export|
-        ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before overwriting existing files. Default is True.
         **kwargs : Any
             |kwargs|
         """
         return self._full().export(
             driver=driver,
             interval=interval,
-            ask_overwrite=ask_overwrite,
             **kwargs,
         )
 
@@ -709,7 +699,6 @@ class Surface(ComponentBase):
         self,
         driver: str = "GPKG",
         interval: int | None = None,
-        ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -1038,9 +1027,7 @@ class Surface(ComponentBase):
         """
         return self._full().read_saved_output(interval=interval, reset=reset, **kwargs)
 
-    def _load_from_files(
-        self, interval: int = -1, reset: bool = False, regrid: bool = False, ask_overwrite: bool = True, **kwargs: Any
-    ) -> None:
+    def _load_from_files(self, interval: int = -1, reset: bool = False, regrid: bool = False, **kwargs: Any) -> None:
         """
         Load the grid and data files into the surface object.
 
@@ -1054,8 +1041,6 @@ class Surface(ComponentBase):
             Flag to indicate whether to reset the surface. Default is False.
         regrid : bool, optional
             Flag to indicate whether to regrid the surface. Default is False.
-        ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is True.
         """
         # Get the names of all data files in the data directory that are not the grid file
         regrid = self._regrid_if_needed(regrid=regrid, **kwargs)
@@ -1068,7 +1053,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_uxds", uxds)
 
         if reset:
-            self.reset(ask_overwrite=ask_overwrite, **kwargs)
+            self.reset(**kwargs)
 
         return
 
@@ -1200,12 +1185,12 @@ class Surface(ComponentBase):
             edge_indices=slice(None),
         )
 
-    @staticmethod
     def _save_data(
+        self,
         ds: xr.Dataset | xr.DataArray,
-        filename: Path,
-        output_dir: Path,
         interval: int = 0,
+        filename: Path | None = None,
+        reset: bool = False,
     ) -> None:
         """
         Save the data to the specified directory.
@@ -1214,12 +1199,10 @@ class Surface(ComponentBase):
         ----------
         ds : xr.Dataset or xr.DataArray
             The data to be saved.
-        filename : Path
-            The name of the data file to save.
-        output_dir : Path
-            The directory to save the data file to.
         interval : int, Default is 0.
             Interval number to append to the data file name. Default is 0.
+        filename : Path | None = None
+            The name of the data file. If None, the name will be generated from the variable name and interval number.
 
         Notes
         -----
@@ -1235,8 +1218,12 @@ class Surface(ComponentBase):
             ds = ds.assign_coords({"interval": [interval]})
 
         ds.load()
+        if filename is None:
+            filename = self.output_filename(interval)
+        else:
+            filename = Path(filename)
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            data_file = output_dir / filename
+            data_file = self.output_dir / filename
             if data_file.exists():
                 with xr.open_mfdataset(data_file) as ds_old:
                     ds_old = ds_old.load()
@@ -1332,13 +1319,9 @@ class Surface(ComponentBase):
         self._uxds[name] = uxda
 
         if save_to_file:
-            filename = Path(f"{self._output_file_prefix}{interval:06d}.{self._output_file_extension}")
-
             self._save_data(
                 uxda,
                 interval=interval,
-                filename=filename,
-                output_dir=self.output_dir,
             )
         return
 
@@ -2784,7 +2767,6 @@ class LocalSurface(CratermakerBase):
         self,
         driver: str = "GPKG",
         interval: int | None = None,
-        ask_overwrite: bool = True,
         **kwargs: Any,
     ) -> None:
         """
@@ -2798,32 +2780,27 @@ class LocalSurface(CratermakerBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval : int | None, optional
             |interval_export|
-        ask_overwrite : bool, optional
-            If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
             |kwargs|
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
         if interval is not None:
-            self.save(interval=interval, *kwargs)
+            self.surface.save(interval=interval, **kwargs)
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
                 interval=interval,
-                ask_overwrite=ask_overwrite,
                 **kwargs,
             )
         elif driver.upper() in ["GEOTIFF", "GTIFF", "TIFF", "TIF"]:
             self.to_geotiff_file(
                 interval=interval,
-                ask_overwrite=ask_overwrite,
                 **kwargs,
             )
         elif driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
             self.to_vector_file(
                 driver=driver,
                 interval=interval,
-                ask_overwrite=ask_overwrite,
                 **kwargs,
             )
         return
@@ -2832,7 +2809,6 @@ class LocalSurface(CratermakerBase):
         self,
         driver: str = "GPKG",
         interval: int | None = None,
-        ask_overwrite: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -2846,8 +2822,6 @@ class LocalSurface(CratermakerBase):
             The file format driver to use for exporting. Default is 'GPKG'.
         interval : int | None, optional
             |interval_export|
-        ask_overwrite : bool, optional
-            If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
             |kwargs|
         """
@@ -2885,7 +2859,7 @@ class LocalSurface(CratermakerBase):
                 gdf = gdf.rename(columns={col: shp_key_fix(col) for col in gdf.columns})
 
             print(f"Exporting to {filename} using driver {driver}")
-            if ask_overwrite and not self._overwrite_check(filename):
+            if not self._overwrite_check(filename):
                 return
             gdf.to_file(filename, layer=layer_name, driver=driver, **kwargs)
             return
@@ -2919,7 +2893,7 @@ class LocalSurface(CratermakerBase):
 
         for interval in interval_numbers:
             uxdsi = uxds.sel(interval=interval).load()
-            filename = self.export_dir / f"{self._output_file_prefix}{interval:06d}.{file_extension}"
+            filename = self.export_dir / self.output_filename(interval).replace(self.output_file_extension, file_extension)
             _write_dataset(
                 uxdsi,
                 filename=filename,
@@ -3014,7 +2988,6 @@ class LocalSurface(CratermakerBase):
     def to_vtk_file(
         self,
         interval: int | None = None,
-        ask_overwrite: bool = True,
         **kwargs: Any,
     ) -> None:
         """
@@ -3024,8 +2997,6 @@ class LocalSurface(CratermakerBase):
         ----------
         interval : int, optional
             |interval_export|
-        ask_overwrite : bool, optional
-            If True, the user will be prompted before overwriting an existing file. Default is True
         **kwargs : Any
             |kwargs|
         """
@@ -3036,7 +3007,7 @@ class LocalSurface(CratermakerBase):
             writer = vtkXMLPolyDataWriter()
             writer.SetDataModeToBinary()
             writer.SetCompressorTypeToZLib()
-            if ask_overwrite and not self._overwrite_check(output_filename):
+            if not self._overwrite_check(output_filename):
                 return
             if output_filename.exists():
                 output_filename.unlink()
@@ -3065,7 +3036,7 @@ class LocalSurface(CratermakerBase):
             uxdsi = uxds.sel(interval=interval).load()
             mesh = self.to_vtk_mesh(uxds=uxdsi)
 
-            filename = self.export_dir / f"{self._output_file_prefix}{interval:06d}.vtp"
+            filename = self.export_dir / self.output_filename(interval=interval).replace(self.output_file_extension, "vtp")
             _write_current_mesh(mesh, filename)
 
         return
@@ -3255,7 +3226,7 @@ class LocalSurface(CratermakerBase):
         self,
         interval: int = 0,
         time_variables: dict | None = None,
-        filename: str | None = None,
+        filename: Path | str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -3269,9 +3240,8 @@ class LocalSurface(CratermakerBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        filename : str or Path, optional
-            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
-
+        filename : Path | str, optional
+            The path to the output file. If None, the file will be saved to the default
         **kwargs : Any
             |kwargs|
         """
@@ -3295,15 +3265,10 @@ class LocalSurface(CratermakerBase):
         for k, v in time_variables.items():
             ds[k] = xr.DataArray(data=[v], name=k, dims=["interval"], coords={"interval": [interval]})
 
-        if filename is None:
-            filename = Path(f"{self._output_file_prefix}{interval:06d}.{self._output_file_extension}")
-        (self.surface.output_dir / filename).unlink(missing_ok=True)
-
         self.surface._save_data(
             ds,
             interval=interval,
             filename=filename,
-            output_dir=self.surface.output_dir,
         )
 
         if self.location is not None:  # Save the local grid if this is a local surface
@@ -4306,9 +4271,9 @@ class LocalSurface(CratermakerBase):
         Parameters
         ----------
         interval : int | None, optional
-            Interval number of data file to read. Default is None (all intervals are read)
+            Interval number of data file to read. Default is None (all intervals are read).
         reset : bool, optional
-            Flag to indicate whether to reset the surface. If True it reads in the grid but creates an empty dataset. Default is False.
+            Flag to indicate whether to reset the surface. If True it reads in the grid but creates an empty dataset and saves it to interval 0. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -4319,12 +4284,25 @@ class LocalSurface(CratermakerBase):
         Dataset
             The xarray Dataset containing only the local surface data.
         """
-        ds, grid = super().read_saved_output(interval=interval, **kwargs)
+        if reset:
+            interval = 0
+            filename = self.output_dir / self.output_filename(interval)
+            filename.unlink(missing_ok=True)
+        files = super().read_saved_output(interval=interval, **kwargs)
+        if isinstance(files, tuple):
+            ds, grid = files
+        else:
+            grid = files
+            ds = None
         if grid is None:
             raise ValueError("No grid file found.")
-        if ds is None:
-            reset = True
         uxgrid = uxr.Grid.from_dataset(grid)
+        if self.is_local:
+            uxds_global = self.surface.read_saved_output(interval=interval, **kwargs)
+            if not reset:
+                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=uxgrid)
+        elif ds is None:
+            reset = True
         if reset:
             uxds = uxr.UxDataset(uxgrid=uxgrid)
         else:
@@ -4518,6 +4496,13 @@ class LocalSurface(CratermakerBase):
         The file extension to use when saving images of the surface.
         """
         return self.surface.output_image_file_extension
+
+    @property
+    def is_local(self) -> bool:
+        """
+        Whether this surface is a local region or the full global surface.
+        """
+        return self.location is not None
 
 
 import_components(__name__, __path__)

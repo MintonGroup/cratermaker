@@ -21,10 +21,17 @@ from cratermaker.utils.general_utils import parameter
 
 @dataclass
 class CommonArgs:
+    """
+    Stores the common arguments that are shared among all components of the project.
+
+    This is used to pass these common arguments to the maker functions of each component when they are initialized from other components. For example, the Scaling component will store an instance of Target and Projectile. If defaults of these components are used, then the Scaling.maker will pass the arguments stored here to the Target.maker and Projectile.maker functions when it initializes the Target and Projectile objects. This way, if the user has specified any non-default arguments for the simulation (e.g. a custom simdir or rng_seed), then those arguments will be passed to the Target and Projectile makers when they are initialized from the Scaling maker, ensuring that all components of the simulation are initialized with the same common arguments.
+    """
+
     simdir: Path
     rng: Generator | None
     rng_seed: int | None
     rng_state: dict | None
+    ask_overwrite: bool = True
 
 
 class CratermakerBase:
@@ -41,6 +48,8 @@ class CratermakerBase:
         |rng_seed|
     rng_state : dict, optional
         |rng_state|
+    ask_overwrite : bool, optional
+        If True, prompt the user for confirmation before overwriting any existing files when saving output. Default is True.
     **kwargs : Any
         |kwargs|
     """
@@ -51,6 +60,7 @@ class CratermakerBase:
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
+        ask_overwrite: bool | None = None,
         **kwargs,
     ):
         object.__setattr__(self, "_user_defined", set())
@@ -63,14 +73,36 @@ class CratermakerBase:
         object.__setattr__(self, "_output_file_prefix", None)
         object.__setattr__(self, "_output_file_extension", None)
         object.__setattr__(self, "_export_dir_name", "export")
-        object.__setattr__(self, "_ask_overwrite", True)
+        object.__setattr__(self, "_ask_overwrite", None)
 
         self.simdir = simdir
+        self.ask_overwrite = ask_overwrite
 
         self._rng_seed = rng_seed
         self.rng, self.rng_state = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state)
 
         super().__init__()
+
+    def reset(
+        self,
+        files_to_remove: list[Path | str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Reset the component by removing its output files.
+
+        Parameters
+        ----------
+        files_to_remove : list[Path | str], optional
+            If set, this is the list of files that will be removed. If not set, then the removed files will be determined using the component's output_dir and output_file_pattern attributes.
+        **kwargs : Any
+            |kwargs|
+        """
+        if files_to_remove is None:
+            files_to_remove = self.saved_output_files()
+        if files_to_remove and not self._overwrite_check(files_to_remove):
+            print("Reset operation cancelled by user.")
+            return
 
     def to_config(self, remove_common_args: bool = False, **kwargs: Any) -> dict[str, Any]:
         """
@@ -97,17 +129,12 @@ class CratermakerBase:
         """
         return _to_config(self, remove_common_args=remove_common_args, **kwargs)
 
-    def reprocess(self, interval_range: ArrayLike = (-1), **kwargs: Any) -> None:
-        """
-        Reprocess the output from this component.
-
-        This is a placeholder method that can be overridden by subclasses to implement specific reprocessing logic.
-
-        Parameters
-        ----------
-        interval_range : ArrayLike, optional
-            The range of intervals to reprocess. Default is (-1), which indicates the last interval.
-        """
+    def save(
+        self,
+        interval: int | None = None,
+        filename: str | None = None,
+        **kwargs,
+    ) -> None:
         pass
 
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
@@ -131,44 +158,28 @@ class CratermakerBase:
         else:
             return []
 
-    def reset(
-        self,
-        ask_overwrite: bool = False,
-        files_to_remove: list[Path | str] | None = None,
-        **kwargs: Any,
-    ) -> None:
+    def output_filename(self, interval: int | None = None, **kwargs: Any) -> str:
         """
-        Reset the component by removing its output files.
+        Generate the base output filename for a given interval, but does not include the output directory.
 
         Parameters
         ----------
-        ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is False.
-        files_to_remove : list[Path | str], optional
-            If set, this is the list of files that will be removed. If not set, then the removed files will be determined using the component's output_dir and output_file_pattern attributes.
+        interval : int or None, optional
+            The interval number to generate the filename for. If None, the filename will not include an interval number. Default is None.
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        str
+            The generated output filename for the given interval.
         """
-        if files_to_remove is None:
-            files_to_remove = self.saved_output_files()
-        if files_to_remove:
-            if ask_overwrite:
-                print(f"The following files will be deleted in {self.output_dir}:")
-                for f in files_to_remove:
-                    print(f"  {f}")
-                print("To disable this message, pass `ask_overwrite=False` to this function.")
-                response = input(f"Are you sure you want to delete {len(files_to_remove)} files in {self.output_dir}? [y/N]: ")
-                if response.lower() != "y":
-                    raise RuntimeError("User aborted the reset operation.")
-            for file_path in files_to_remove:
-                try:
-                    p = Path(file_path)
-                    if p.is_dir():
-                        shutil.rmtree(p)
-                    else:
-                        p.unlink()
-                except Exception as e:
-                    print(f"Error removing file {file_path}: {e}", file=sys.stderr)
+        if self.output_file_prefix is None or self.output_file_extension is None:
+            raise ValueError("output_file_prefix and output_file_extension must be set to generate an output filename")
+        if interval is not None:
+            return f"{self.output_file_prefix}{interval:06d}.{self.output_file_extension}"
+        else:
+            return f"{self.output_file_prefix}.{self.output_file_extension}"
 
     def _output_file_processor(self, data_file_list, interval_index: int | None = None, **kwargs: Any) -> xr.Dataset:
         """
@@ -203,20 +214,61 @@ class CratermakerBase:
             ds.close()
         return ds
 
-    @staticmethod
-    def _overwrite_check(output_file: Path | list[Path]) -> bool:
-        if not isinstance(output_file, list):
-            output_file = [output_file]
-        for file in output_file:
-            if file.exists():
-                response = input(
-                    f"File '{str(file)}' already exists. To disable this message, pass `ask_overwrite=False` to this function. Overwrite? (y/n): "
-                )
-                if response.lower() != "y":
-                    print("Operation cancelled by user.")
+    def _overwrite_check(self, files_to_remove: Path | list[Path] | str | list[str]) -> bool:
+        """
+        Check if the user wants to overwrite existing files or directories, and if they do either from a prompt or based on the `ask_overwrite` attribute, then delete them.
+
+        The user will be prompted to confirm that they want to overwrite existing files or directories if the `ask_overwrite` attribute is set to True. If the user confirms that they want to overwrite the files, then the specified files or directories will be deleted. If the user cancels the operation, then the files will not be deleted and the function will return False. Selecting 'a' will suppress prompts about overwriting files for this operation, but not for future ones.
+
+        Parameters
+        ----------
+        files_to_remove : Path or list of Path or str or list of str
+            The file or list of files that will be removed.
+
+        Returns
+        -------
+        bool
+            True if the user confirmed that they wanted to overwrite the files and that all requested files and/or directories were removed. False if they cancel the operation.
+        """
+        if self.ask_overwrite:
+            ask_overwrite = self.ask_overwrite  # This will allow us to temporarily disable prompts about overwriting files for this operation if the user selects 'a' to suppress prompts about overwriting files, without changing the value of self.ask_overwrite for future operations.
+            if not isinstance(files_to_remove, list):
+                files_to_remove = [files_to_remove]
+            for file in files_to_remove:
+                file = Path(file)
+                if file.exists() and ask_overwrite:
+                    response = input(
+                        f"File '{str(file)}' already exists. To disable this message, set ask_overwrite=False to this instance. Overwrite? (y/N/a): "
+                    )
+                    if response.lower() == "a":
+                        ask_overwrite = False
+                    elif response.lower() != "y":
+                        print("Operation cancelled by user.")
+                        return False
+                try:
+                    if file.is_dir():
+                        shutil.rmtree(file)
+                    else:
+                        file.unlink(missing_ok=True)
+                except Exception as e:
+                    print(f"Error removing file {file}: {e}")
                     return False
-            file.unlink(missing_ok=True)
         return True
+
+    @parameter
+    def ask_overwrite(self):
+        """
+        Flag to indicate whether the user should be prompted to overwrite any old files or not.
+        """
+        return self._ask_overwrite
+
+    @ask_overwrite.setter
+    def ask_overwrite(self, value):
+        if value is None:
+            value = True
+        if not isinstance(value, bool):
+            raise TypeError("ask_overwrite must be a bool")
+        self._ask_overwrite = value
 
     def read_saved_output(self, interval: int | None = None, **kwargs) -> tuple[xr.Dataset, ...] | None:
         """
@@ -427,6 +479,7 @@ class CratermakerBase:
             rng=self.rng,
             rng_seed=self.rng_seed,
             rng_state=self.rng_state,
+            ask_overwrite=self.ask_overwrite,
         )
 
 
@@ -450,12 +503,39 @@ class ComponentBase(CratermakerBase, ABC):
         **kwargs : Any
             |kwargs|
         """
+        object.__setattr__(self, "_save_actions", {})
         super().__init__(**kwargs)
 
     def __str__(self) -> str:
         # Return just the name of the class
         base_class = type(self).__mro__[1].__name__
         return f"<{base_class}: {self._component_name}>"
+
+    @parameter
+    def save_actions(self) -> dict:
+        """
+        A dictionary where the keys are the names of actions that can be performed on this component (e.g. "plot") when calling the save function and the values are the arguments that should be passed to that action when it is called by the save function.
+        """
+        return self._save_actions
+
+    @save_actions.setter
+    def save_actions(self, value) -> None:
+        if not isinstance(value, dict):
+            raise TypeError(
+                "save_actions must be a dictionary where each key is a valid action for this component (e.g. 'plot') and the values are the arguments"
+            )
+        for action, args in value.items():
+            if hasattr(self, action):
+                action_method = getattr(self, action)
+                if not callable(action_method):
+                    raise ValueError(f"{action} is not a valid action for {self.name}")
+            else:
+                raise ValueError(f"{action} is not a valid action for {self.name}")
+            if not isinstance(args, dict):
+                raise TypeError(
+                    f"Arguments for action {action} must be a dictionary of keyword arguments to be passed to the {self.name}.{action}() method."
+                )
+        self._save_actions = value
 
     @classmethod
     def maker(

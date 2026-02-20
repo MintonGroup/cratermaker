@@ -17,7 +17,7 @@ pix = target.radius / 10.0
 local_location = (0, 0)
 local_radius = pix * 2
 superdomain_scale_factor = 100
-gridargs = {
+surface_args = {
     "icosphere": {
         "gridlevel": gridlevel,
     },
@@ -37,6 +37,9 @@ gridargs = {
         ],
     },
 }
+
+for surface_type in surface_args:
+    surface_args[surface_type]["ask_overwrite"] = False
 
 
 class TestSurface(unittest.TestCase):
@@ -313,8 +316,8 @@ class TestSurface(unittest.TestCase):
 
     def test_generate_grid(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            for name, args in gridargs.items():
-                surface = Surface.maker(name, simdir=simdir, ask_overwrite=False, **args)
+            for name, args in surface_args.items():
+                surface = Surface.maker(name, simdir=simdir, **args)
                 self.assertTrue(Path(surface.grid_file).exists())
 
         return
@@ -326,7 +329,7 @@ class TestSurface(unittest.TestCase):
             region = surface.extract_region(location=(0, 0), region_radius=100e3)
 
             for obj, uxds in zip([surface, region], [surface.uxds, region.surface.uxds], strict=False):
-                surface.reset(ask_overwrite=False)
+                surface.reset()
                 obj.add_data(
                     name="test_data",
                     long_name="data for testing",
@@ -465,8 +468,6 @@ class TestSurface(unittest.TestCase):
                 "interval": -1,
             },
         ]
-        for i, _ in enumerate(export_args_list):
-            export_args_list[i]["ask_overwrite"] = False
 
         # Expected output files:
         expected_file_list = [
@@ -495,7 +496,6 @@ class TestSurface(unittest.TestCase):
             [f"local_surface{save_intervals[-1]:06d}.vtp"] + ["local_grid.vtp"],
         ]
 
-        # for surface_name in surfacetypes:
         for surface_name in surfacetypes:
             for i, export_args in enumerate(export_args_list):
                 with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
@@ -504,7 +504,7 @@ class TestSurface(unittest.TestCase):
                         for f in surface_dir.iterdir():
                             f.unlink()
 
-                    surface = Surface.maker(surface=surface_name, simdir=simdir, **gridargs[surface_name])
+                    surface = Surface.maker(surface=surface_name, simdir=simdir, **surface_args[surface_name])
                     for interval in save_intervals:
                         surface.save(interval=interval)
 

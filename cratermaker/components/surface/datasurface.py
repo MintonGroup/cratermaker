@@ -47,8 +47,6 @@ class DataSurface(HiResLocalSurface):
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
-    ask_overwrite : bool, optional
-        If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
         |simdir|
     pix : FloatLike | None, optional
@@ -79,7 +77,6 @@ class DataSurface(HiResLocalSurface):
         target: Target | str | None = None,
         reset: bool = True,
         regrid: bool = False,
-        ask_overwrite: bool = False,
         simdir: str | Path | None = None,
         pix: FloatLike | None = None,
         dem_file_list: list[str] | list[Path] | None = None,
@@ -128,7 +125,6 @@ class DataSurface(HiResLocalSurface):
             target=self.target,
             reset=reset,
             regrid=regrid,
-            ask_overwrite=ask_overwrite,
             simdir=self.simdir,
             **kwargs,
         )
@@ -567,19 +563,17 @@ class DataSurface(HiResLocalSurface):
 
         return points
 
-    def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
+    def reset(self, **kwargs: Any) -> None:
         """
         Reset the surface to its initial state.
 
         Parameters
         ----------
-        ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             |kwargs|
 
         """
-        super().reset(ask_overwrite=ask_overwrite, **kwargs)
+        super().reset(**kwargs)
         if self._local_dem_data is not None:
             self._add_local_dem_elevation()
             self._add_global_dem_elevation()
@@ -639,9 +633,6 @@ class DataSurface(HiResLocalSurface):
         node_elevations = lut2(np.c_[self.local.node_lon, self.local.node_lat])
         elevation = np.concatenate([face_elevations, node_elevations])
         self.local.update_elevation(elevation)
-
-        # Now save the surface to a file that we can reload later if we want to avoid re-downloading the DEM data
-        self.local.save(filename=self._dem_output_file)
         self._local_dem_data = None  # Clear temporary DEM data storage
         return
 

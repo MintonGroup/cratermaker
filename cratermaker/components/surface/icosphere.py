@@ -24,8 +24,6 @@ class IcosphereSurface(Surface):
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
-    ask_overwrite : bool, optional
-        If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
         |simdir|
 
@@ -53,13 +51,12 @@ class IcosphereSurface(Surface):
         target: Target | str | None = None,
         reset: bool = True,
         regrid: bool = False,
-        ask_overwrite: bool = False,
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
         super().__init__(target=target, simdir=simdir, **kwargs)
         self.gridlevel = gridlevel
-        self._load_from_files(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
+        self._load_from_files(reset=reset, regrid=regrid, **kwargs)
 
     def __str__(self) -> str:
         base = super().__str__()
