@@ -528,9 +528,6 @@ class Simulation(CratermakerBase):
             initial_interval = int(delta_n1_start / n1_interval)
 
         self.save(merge_with_existing=False, **kwargs)
-        show = kwargs.pop("show", False)
-        _ = kwargs.pop("save", True)
-        self.plot(show=show, save=True, **kwargs)
         for i in tqdm(
             range(initial_interval, ninterval),
             total=ninterval,
@@ -590,9 +587,7 @@ class Simulation(CratermakerBase):
             ).item()
             self.time = current_time_end
             self.interval += 1
-
             self.save(merge_with_existing=False, **kwargs)
-            self.plot(show=show, save=True, **kwargs)
 
         return
 
@@ -762,23 +757,26 @@ class Simulation(CratermakerBase):
             crater_args["scaling"] = self.scaling
         return self.morphology.emplace(craters=craters, **crater_args)
 
-    def save(self, **kwargs: Any) -> None:
+    def save(self, show: bool = False, **kwargs: Any) -> None:
         """
         Save the current simulation state to a file.
 
         Parameters
         ----------
+        show : bool, optional
+            On some surface types, such as HiResLocal, the current state of the surface will be plotted after saving. Default is False.
         **kwargs : Any
             Additional keyword argumments to pass to the component save methods.
         """
         self.surface.save(
             interval=self.interval,
             time_variables=self.time_variables,
+            show=show,
             **kwargs,
         )
 
         if self.do_counting:
-            self.counting.save(interval=self.interval, **kwargs)
+            self.counting.save(interval=self.interval, show=show, **kwargs)
 
         self.to_config(**kwargs)
 
