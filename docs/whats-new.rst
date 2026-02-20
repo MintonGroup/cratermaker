@@ -3,6 +3,12 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.6-alpha:
+
+:release:`v2026.2.6-alpha`
+
+- Fixed minor issues with plotting and documentation. `David Minton`_
+
 .. _whats-new.2026.2.5-alpha:
 
 :release:`v2026.2.5-alpha`
