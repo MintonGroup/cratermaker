@@ -2806,7 +2806,7 @@ class LocalSurface(CratermakerBase):
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
         if interval is not None:
-            self.save(interval=interval, **kwargs)
+            self.save(interval=interval, *kwargs)
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
                 interval=interval,
