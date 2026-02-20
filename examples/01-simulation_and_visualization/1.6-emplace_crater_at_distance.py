@@ -21,9 +21,6 @@ sim = cm.Simulation(
     local_location=(0, 0),
     pix=10.0,
     local_radius=2000.0,
-    ask_overwrite=False,
-    reset=True,
-    rng_seed=349572341965,
 )
 
 # Put a 500 m crater 1 km due north of the center
