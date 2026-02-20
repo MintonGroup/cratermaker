@@ -48,8 +48,6 @@ class HiResLocalSurface(Surface):
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
-    ask_overwrite : bool, optional
-        If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
         |simdir|
 
@@ -68,7 +66,6 @@ class HiResLocalSurface(Surface):
         target: Target | str | None = None,
         reset: bool = True,
         regrid: bool = False,
-        ask_overwrite: bool = False,
         simdir: str | Path | None = None,
         **kwargs: Any,
     ):
@@ -84,10 +81,10 @@ class HiResLocalSurface(Surface):
         self.local_location = local_location
         if superdomain_scale_factor is not None:
             if superdomain_scale_factor < 0:
-                self.set_superdomain(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
+                self.set_superdomain(reset=reset, regrid=regrid, **kwargs)
             else:
                 self.superdomain_scale_factor = superdomain_scale_factor
-            self._load_from_files(reset=reset, regrid=regrid, ask_overwrite=ask_overwrite, **kwargs)
+            self._load_from_files(reset=reset, regrid=regrid, **kwargs)
 
         return
 
@@ -180,13 +177,12 @@ class HiResLocalSurface(Surface):
         if local is None:
             return None
 
-        return LocalHiResLocalSurface(local)
+        return LocalHiResLocalSurface(local, **vars(self.common_args))
 
     def save(
         self,
         interval: int = 0,
         time_variables: dict | None = None,
-        filename: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -200,21 +196,15 @@ class HiResLocalSurface(Surface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        filename : str or Path, optional
-            The filename to save the data to. If None, a default filename will be used based on the interval number. If provided, the file associated with the local surface will have 'local' prepended. Default is None.
         """
         self._full().save(
             interval=interval,
             time_variables=time_variables,
-            filename=filename,
             **kwargs,
         )
-        self.local.save(
-            interval=interval,
-            time_variables=time_variables,
-            filename=f"local_{filename}" if filename else None,
-            **kwargs,
-        )
+        if not self.local.grid_file.exists():
+            self.local._write_grid_file()
+
         return
 
     def export(
@@ -405,7 +395,7 @@ class HiResLocalSurface(Surface):
         else:
             return self.local.show_pyvista(variable=variable, variable_name=variable_name, **kwargs)
 
-    def show(
+    def show3d(
         self,
         engine: str = "pyvista",
         variable_name: str | None = None,
@@ -430,9 +420,9 @@ class HiResLocalSurface(Surface):
             |kwargs|
         """
         if superdomain:
-            return self._full().show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
+            return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
         else:
-            return self.local.show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
+            return self.local.show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
 
     def set_superdomain(
         self,
@@ -514,7 +504,7 @@ class HiResLocalSurface(Surface):
         """
         Set the face projection for the local surface.
         """
-        if self.local is not None:
+        if self.is_local:
             self.local.set_face_proj()
         return
 
@@ -522,7 +512,7 @@ class HiResLocalSurface(Surface):
         """
         Set the node projection for the local surface.
         """
-        if self.local is not None:
+        if self.is_local:
             self.local.set_node_proj()
         return
 
@@ -664,9 +654,10 @@ class HiResLocalSurface(Surface):
 
         return points
 
-    def _load_from_files(self, reset: bool = False, ask_overwrite: bool = True, **kwargs: Any):
+    def _load_from_files(self, reset: bool = False, **kwargs: Any):
         is_same_grid = self._is_same_grid
-        super()._load_from_files(reset=reset, ask_overwrite=ask_overwrite, **kwargs)
+        ask_overwrite = self.ask_overwrite  # Store the current value so we can temporarily turn it off for the reset
+        super()._load_from_files(reset=reset, **kwargs)
         if is_same_grid and self.local_grid_indices_file is not None and Path(self.local_grid_indices_file).exists():
             with np.load(self.local_grid_indices_file) as grid_data:
                 face_indices = grid_data["face_indices"]
@@ -679,11 +670,15 @@ class HiResLocalSurface(Surface):
                     edge_indices=edge_indices,
                     location=self.local_location,
                     region_radius=self.local_radius,
+                    **vars(self.common_args),
                 )
+                self._set_local_identifiers()
         else:
             _ = self.local  # triggers extraction of local surface and saving of local grid indices file
+            self.ask_overwrite = False
         if reset:
-            self.reset(reset=reset, ask_overwrite=ask_overwrite, **kwargs)
+            self.reset(reset=reset, **kwargs)
+            self.ask_overwrite = ask_overwrite  # Restore the original value of ask_overwrite after the reset
         return
 
     @property
@@ -701,7 +696,32 @@ class HiResLocalSurface(Surface):
                 edge_indices=self.local.edge_indices,
                 allow_pickle=False,
             )
+            self._set_local_identifiers()
+
         return self._local
+
+    def _set_local_identifiers(self):
+        """
+        Set the local identifiers for the local surface.
+        """
+        if self._local is not None:
+            self.add_data(
+                name="is_local_face",
+                data=np.isin(np.arange(self.n_face), self.local.face_indices),
+                long_name="Is local face",
+                units=None,
+                dtype=bool,
+                overwrite=True,
+            )
+            self.add_data(
+                name="is_local_node",
+                data=np.isin(np.arange(self.n_node), self.local.node_indices),
+                long_name="Is local node",
+                units=None,
+                dtype=bool,
+                overwrite=True,
+            )
+        return
 
     @parameter
     def pix(self):
@@ -966,47 +986,6 @@ class LocalHiResLocalSurface(LocalSurface):
 
         return LocalHiResLocalSurface(region)
 
-    def save(
-        self,
-        interval: int = 0,
-        time_variables: dict | None = None,
-        filename: str | None = None,
-        plot_style: str | None = None,
-        show: bool = False,
-        **kwargs,
-    ) -> None:
-        """
-        Save the surface data to the specified directory.
-
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
-
-        Parameters
-        ----------
-        interval : int, optional
-            Interval number to append to the data file name. Default is 0.
-        time_variables : dict, optional
-            Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-        filename : str or Path, optional
-            The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
-        plot_style : str, optional
-            The style of plot to generate. Set to None to skip generating a plot. Default is None
-        show : bool, optional
-            If True, display the plot after saving. Default is False
-        **kwargs : Any
-            |kwargs|
-        """
-        super().save(
-            interval=interval,
-            time_variables=time_variables,
-            filename=filename,
-            **kwargs,
-        )
-        if plot_style is not None:
-            if time_variables and "label" not in kwargs:
-                kwargs["label"] = f"Time (BP)\n{time_variables.get('time', -1.0):.1f} Ma"
-            self.plot(plot_style, show=show, save=True, interval=interval, **kwargs)
-        return
-
     @property
     def local_grid_indices_file(self) -> Path:
         """
@@ -1057,6 +1036,7 @@ class LocalHiResLocalSurface(LocalSurface):
                 node_indices=shared_nodes,
                 edge_indices=shared_edges,
                 region_radius=self._region_radius,
+                **vars(self.common_args),
             )
             self._local_overlap._location = self.location
             self._local_overlap._face_distance = self.face_distance[self._face_mask]
