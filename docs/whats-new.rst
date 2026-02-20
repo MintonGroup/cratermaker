@@ -3,6 +3,18 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.7-alpha:
+
+:release:`v2026.2.7-alpha`
+
+- Fixed bugs introduced due to hastily trying to get the last two releases out. `David Minton`_
+
+.. _whats-new.2026.2.6-alpha:
+
+:release:`v2026.2.6-alpha`
+
+- Fixed minor issues with plotting and documentation. `David Minton`_
+
 .. _whats-new.2026.2.5-alpha:
 
 :release:`v2026.2.5-alpha`
