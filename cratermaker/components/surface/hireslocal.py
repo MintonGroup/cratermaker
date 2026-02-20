@@ -209,10 +209,12 @@ class HiResLocalSurface(Surface):
             filename=filename,
             **kwargs,
         )
+        plot_style = kwargs.get("plot_style", "hillshade")
         self.local.save(
             interval=interval,
             time_variables=time_variables,
             filename=f"local_{filename}" if filename else None,
+            plot_style=plot_style,
             **kwargs,
         )
         return
