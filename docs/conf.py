@@ -84,6 +84,7 @@ autodoc_default_options = {
     "members": True,
     "undoc-members": False,
     "show-inheritance": True,
+    "member-order": "bysource",
 }
 
 intersphinx_mapping = {
@@ -193,7 +194,7 @@ def linkcode_resolve(domain, info):
     else:
         linespec = ""
 
-    fn = os.path.relpath(fn, start=os.path.dirname(cratermaker.__file__))
+    fn = os.path.relpath(fn, start=Path(cratermaker.__file__).parent)
 
 
 def html_page_context(app, pagename, templatename, context, doctree):
