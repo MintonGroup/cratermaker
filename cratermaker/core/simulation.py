@@ -757,26 +757,23 @@ class Simulation(CratermakerBase):
             crater_args["scaling"] = self.scaling
         return self.morphology.emplace(craters=craters, **crater_args)
 
-    def save(self, show: bool = False, **kwargs: Any) -> None:
+    def save(self, **kwargs: Any) -> None:
         """
         Save the current simulation state to a file.
 
         Parameters
         ----------
-        show : bool, optional
-            On some surface types, such as HiResLocal, the current state of the surface will be plotted after saving. Default is False.
         **kwargs : Any
             Additional keyword argumments to pass to the component save methods.
         """
         self.surface.save(
             interval=self.interval,
             time_variables=self.time_variables,
-            show=show,
             **kwargs,
         )
 
         if self.do_counting:
-            self.counting.save(interval=self.interval, show=show, **kwargs)
+            self.counting.save(interval=self.interval, **kwargs)
 
         self.to_config(**kwargs)
 

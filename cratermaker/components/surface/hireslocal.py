@@ -973,7 +973,8 @@ class LocalHiResLocalSurface(LocalSurface):
         interval: int = 0,
         time_variables: dict | None = None,
         filename: str | None = None,
-        plot_style: str | None = None,
+        plot_style: str | None = "hillshade",
+        show: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -991,6 +992,8 @@ class LocalHiResLocalSurface(LocalSurface):
             The filename to save the data to. If None, a default filename will be used based on the interval number. Default is None.
         plot_style : str, optional
             The style of plot to generate. Set to None to skip generating a plot.
+        show : bool, optional
+            If True, display the plot after saving. Default is False.
         **kwargs : Any
             |kwargs|
         """
@@ -1001,10 +1004,9 @@ class LocalHiResLocalSurface(LocalSurface):
             **kwargs,
         )
         if plot_style is not None:
-            imagefile = self.plot_dir / f"{plot_style}{interval:06d}.{self.surface.output_image_file_extension}"
             if time_variables and "label" not in kwargs:
                 kwargs["label"] = f"Time (BP)\n{time_variables.get('time', -1.0):.1f} Ma"
-            self.plot(plot_style, imagefile=imagefile, **kwargs)
+            self.plot(plot_style, show=show, save=True, interval=interval, **kwargs)
         return
 
     @property
