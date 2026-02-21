@@ -35,16 +35,18 @@ sim = cm.Simulation(
     simdir=simdir,
 )
 # This will automatically generate a hillshade plot every time the simulation is saved. All components of Cratermaker have a save_actions property that can be used to specify actions to be performed when the save function is called. This is useful for automatically generating plots or other outputs at specified intervals during the simulation.
-sim.save_actions = {
-    "plot": {
-        "plot_style": "hillshade",
-        "cmap": "pink",
-        "scalebar": True,
-        "label": "Mars region simulation",
-        "show": True,
-        "save": True,
+sim.save_actions = [
+    {
+        "plot": {
+            "plot_style": "hillshade",
+            "cmap": "pink",
+            "scalebar": True,
+            "label": "Mars region simulation",
+            "show": True,
+            "save": True,
+        }
     }
-}
+]
 sim.run(age=1000)
 sim.show3d(variable_name="face_elevation", cmap="pink")
 
