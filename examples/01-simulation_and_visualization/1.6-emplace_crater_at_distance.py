@@ -17,7 +17,7 @@ cm.cleanup(simdir)
 
 sim = cm.Simulation(
     surface="hireslocal",
-    simdir="craterstats_compare_lores",
+    simdir=simdir,
     local_location=(0, 0),
     pix=10.0,
     local_radius=2000.0,
