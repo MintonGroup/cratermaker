@@ -68,7 +68,7 @@ class Counting(ComponentBase):
 
         object.__setattr__(self, "_emplaced", [])
         object.__setattr__(self, "_observed", {})
-        object.__setattr__(self, "_output_dir_name", "craters")
+        object.__setattr__(self, "_output_dir_name", "counting")
         object.__setattr__(self, "_output_file_prefix", "craters")
         object.__setattr__(self, "_output_file_extension", "nc")
         object.__setattr__(self, "_crater_cls", crater_cls)
@@ -637,11 +637,11 @@ class Counting(ComponentBase):
                 emplaced_interval = emplaced.interval.values[-1]
                 if emplaced_interval == interval:
                     emplaced = self.from_xarray(emplaced, interval=interval)
-            filename = self.surface.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
+            filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
         else:
             observed = [c for _, c in self.observed.items()]
             emplaced = self.emplaced
-            filename = self.surface.plot_dir / f"{file_prefix}_{self.output_file_prefix}.{self.surface.output_image_file_extension}"
+            filename = self.plot_dir / f"{file_prefix}_{self.output_file_prefix}.{self.surface.output_image_file_extension}"
         if ax is None:
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
