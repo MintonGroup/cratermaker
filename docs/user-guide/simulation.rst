@@ -97,6 +97,90 @@ The following example configures a simulation targeting the Moon and runs it for
     print(f"Number of true emplaced craters: {len(sim.emplaced)}")
     print(f"Number of observed craters: {len(sim.observed)}")
 
+Multi-interval Simulations
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The :meth:`~cratermaker.core.simulation.Simulation.run` method can also be used to run a simulation in multiple intervals, which is useful for tracking the evolution of the cratered surface over time. To do this, you can pass either the `time_interval` or `ninterval` arguments. These two arguments are mutually exlusive, as they divide up the simulation in different ways. 
+
+Equal time intervals
+""""""""""""""""""""
+
+When passing the `time_interval` argument, the simulation is divided up into equal intervals of time. Depdning on which production function is enabled (see :ref:`Production <ug-production>`) the rate of cratering may be different at different points in time. For instance, in the default Neukum production function for the Moon, the cratering rate is significantly hire prior to about 3 Ga before present, so a simulation that spans these early times will produce more craters in the early time intervals than in the later ones. 
+
+In the example below, we demonstrate how a simulation with `time_interval=1000` would behave by drawing the numbers of craters larger than 10 km between equal time intervals on the surface of the Moon.
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()
+
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Production, Target
+
+    target = Target.maker("Moon")
+    # We'll pass a rng_seed value so that the example always gives the same answer. 
+    production = Production.maker("neukum", target=target, rng_seed=2029821)
+
+    diameters1, _ = production.sample(time_start=4000, time_end=3000, diameter_range=(10e3, 10000e3), area=target.surface_area, return_age=False)
+    print(f"Number of craters emplaced between 4000 Ma and 3000 Ma: {len(diameters1)}")
+    diameters2, _ = production.sample(time_start=3000, time_end=2000, diameter_range=(10e3, 10000e3), area=target.surface_area, return_age=False)
+    print(f"Number of craters emplaced between 3000 Ma and 2000 Ma: {len(diameters2)}")
+    print(f"Ratio of craters emplaced between 4000-3000 Ma to 3000-2000 Ma: {len(diameters1) / len(diameters2)}")
+
+
+In this example the first billion years (from 4000 Ma to 3000 Ma before present) of a simulation using this production function would produce almost 70 times more craters than the second billion years (from 3000 Ma to 2000 Ma before present).
+
+Equal number of craters per interval
+""""""""""""""""""""""""""""""""""""
+
+When passing the `ninterval` argument, the simulation is divided up into intervals that each contain approximately the same number of emplaced craters. The true number of craters produced in each interval won't be exactly the same because the number of craters is goverened by the Poisson distribution. 
+
+In the example below, we will demonstrate how a simulation with equal number intervals would behave by sampling an expected number of 100 craters larger than 10 km: 
+
+.. ipython:: python
+    :okwarning:
+
+    diameters1, _ = production.sample(diameter_number=(10e3, 100), diameter_range=(10e3, 10000e3), area=target.surface_area, return_age=False)
+    print(f"Number of craters in sample 1: {len(diameters1)}")
+    diameters2, _ = production.sample(diameter_number=(10e3, 100), diameter_range=(10e3, 10000e3), area=target.surface_area, return_age=False)
+    print(f"Number of craters in sample 2: {len(diameters2)}")
+
+As can be seen, the toltal numbers of craters is somewhat different in each sample, but they are both within the expected variability of the Poisson distribution for a mean of 100 craters in the sample.
+
+Save Actions
+------------
+
+The :class:`~cratermaker.core.simulation.Simulation` class has a "save_actions" parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial condiations, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()
+
+.. ipython:: python
+    :okwarning:
+
+    sim = Simulation(gridlevel=4)
+    print(sim.save_actions)
+
+If you wanted to automatically export the crater count data to Spatial Crater Count (SCC) format that can be read in by Craterstats, you could set the following save actions:
+
+.. code-block:: python
+
+    from cratermaker import Simulation
+
+    sim = Simulation()
+    sim.counting.save_actions = {"export": {"driver": "SCC"}}
+    sim.run(time_start=3000, time_interval=1000)
+    
+
+More Examples
+-------------
+
 More detailed component examples are provided in the Gallery section.
 
 .. seealso::

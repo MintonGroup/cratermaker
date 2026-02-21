@@ -117,20 +117,25 @@ class DataSurface(HiResLocalSurface):
         self._local_location = local_location
         self._pix = pix
         self.dem_file_list = dem_file_list
-        super().__init__(
-            pix=self.pix,
-            local_radius=local_radius,
-            local_location=local_location,
-            superdomain_scale_factor=superdomain_scale_factor,
-            target=self.target,
-            reset=reset,
-            regrid=regrid,
-            simdir=self.simdir,
+        # Temporarily disable ask_overwrite to avoid prompts during initialization
+        ask_overwrite = self.ask_overwrite
+        self.ask_overwrite = False
+        super_kwargs = {
             **kwargs,
-        )
+            "pix": self.pix,
+            "local_radius": local_radius,
+            "local_location": local_location,
+            "superdomain_scale_factor": superdomain_scale_factor,
+            "target": self.target,
+            "reset": reset,
+            "regrid": regrid,
+            "simdir": self.simdir,
+            "ask_overwrite": self.ask_overwrite,
+        }
+        super().__init__(**super_kwargs)
 
         self._superdomain_dem_file = superdomain_dem_file
-
+        self.ask_overwrite = ask_overwrite
         return
 
     def _get_lola_dem_file_list(
@@ -645,12 +650,14 @@ class DataSurface(HiResLocalSurface):
         from pyproj import Transformer
         from scipy.interpolate import LinearNDInterpolator
 
+        ask_overwrite = self.ask_overwrite
         # If we haven't cached global DEM samples yet, build the exterior lon/lat lists
         if self._global_dem_data is None:
             # This will trigger setting the file automatically from the superdomain_scale_factor if not already set.
             self.superdomain_dem_file = self._superdomain_dem_file
 
         if self._global_dem_data is None:
+            self.ask_overwrite = False
             self._global_dem_data = {}
 
             # Build index arrays for exterior faces/nodes (sorted for reproducibility)
@@ -722,6 +729,7 @@ class DataSurface(HiResLocalSurface):
         # Save so we can reload later without re-downloading / re-sampling the DEM
         self.save(filename=self._dem_output_file, skip_actions=True)
         self._global_dem_data = None  # Clear temporary DEM data storage
+        self.ask_overwrite = ask_overwrite
         return
 
     @parameter

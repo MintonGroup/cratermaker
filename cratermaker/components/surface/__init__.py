@@ -1145,9 +1145,9 @@ class Surface(ComponentBase):
                 uxgrid = uxr.Grid.from_dataset(ds)
                 old_id = uxgrid.attrs.get("_id")
                 return old_id == self._id
-        except Exception as e:
+        except Exception:
             # Failed to open an old file for whatever reason, so we'll need to regrid
-            print(f"Failed to read existing grid file {self.grid_file}, will create a new grid {e}")
+            print("Generating a new grid.")
             return False
 
     def _regrid_if_needed(self, regrid: bool = False, **kwargs: Any) -> bool:
