@@ -32,4 +32,4 @@ cm.cleanup(simdir)
 sim = cm.Simulation(target="Moon", gridlevel=6, do_counting=False, simdir=simdir)
 
 sim.run(age=4310)
-sim.show(variable_name="face_elevation", cmap="Greys_r")
+sim.show3d(variable_name="face_elevation", cmap="Greys_r")

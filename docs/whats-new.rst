@@ -3,6 +3,12 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.8-alpha:
+
+:release:`v2026.2.8-alpha`
+
+- Added a new "save_actions" parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. :pull:82 `David Minton`_
+
 .. _whats-new.2026.2.7-alpha:
 
 :release:`v2026.2.7-alpha`

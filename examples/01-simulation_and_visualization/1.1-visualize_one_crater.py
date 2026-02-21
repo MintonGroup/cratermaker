@@ -17,4 +17,4 @@ cm.cleanup(simdir)
 
 sim = cm.Simulation(gridlevel=6, simdir=simdir)
 sim.emplace(diameter=500e3, location=(45, 60))
-sim.show(variable_name="face_elevation", cmap="cividis")
+sim.show3d(variable_name="face_elevation", cmap="cividis")

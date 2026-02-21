@@ -251,6 +251,21 @@ class Target(ComponentBase):
             return 2 * self._radius
 
     @property
+    def surface_area(self) -> float | None:
+        if self.radius is not None:
+            return 4 * np.pi * self.radius**2
+
+    @property
+    def volume(self) -> float | None:
+        if self.radius is not None:
+            return (4 / 3) * np.pi * self.radius**3
+
+    @property
+    def circumference(self) -> float | None:
+        if self.radius is not None:
+            return 2 * np.pi * self.radius
+
+    @property
     def mass(self) -> float | None:
         return self._mass
 

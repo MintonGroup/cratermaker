@@ -47,8 +47,6 @@ class DataSurface(HiResLocalSurface):
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
         Flag to indicate whether to regrid the surface. Default is False.
-    ask_overwrite : bool, optional
-        If True, prompt the user for confirmation before deleting files. Default is False.
     simdir : str | Path
         |simdir|
     pix : FloatLike | None, optional
@@ -79,7 +77,6 @@ class DataSurface(HiResLocalSurface):
         target: Target | str | None = None,
         reset: bool = True,
         regrid: bool = False,
-        ask_overwrite: bool = False,
         simdir: str | Path | None = None,
         pix: FloatLike | None = None,
         dem_file_list: list[str] | list[Path] | None = None,
@@ -120,21 +117,25 @@ class DataSurface(HiResLocalSurface):
         self._local_location = local_location
         self._pix = pix
         self.dem_file_list = dem_file_list
-        super().__init__(
-            pix=self.pix,
-            local_radius=local_radius,
-            local_location=local_location,
-            superdomain_scale_factor=superdomain_scale_factor,
-            target=self.target,
-            reset=reset,
-            regrid=regrid,
-            ask_overwrite=ask_overwrite,
-            simdir=self.simdir,
+        # Temporarily disable ask_overwrite to avoid prompts during initialization
+        ask_overwrite = self.ask_overwrite
+        self.ask_overwrite = False
+        super_kwargs = {
             **kwargs,
-        )
+            "pix": self.pix,
+            "local_radius": local_radius,
+            "local_location": local_location,
+            "superdomain_scale_factor": superdomain_scale_factor,
+            "target": self.target,
+            "reset": reset,
+            "regrid": regrid,
+            "simdir": self.simdir,
+            "ask_overwrite": self.ask_overwrite,
+        }
+        super().__init__(**super_kwargs)
 
         self._superdomain_dem_file = superdomain_dem_file
-
+        self.ask_overwrite = ask_overwrite
         return
 
     def _get_lola_dem_file_list(
@@ -567,19 +568,17 @@ class DataSurface(HiResLocalSurface):
 
         return points
 
-    def reset(self, ask_overwrite: bool = False, **kwargs: Any) -> None:
+    def reset(self, **kwargs: Any) -> None:
         """
         Reset the surface to its initial state.
 
         Parameters
         ----------
-        ask_overwrite : bool, optional
-            If True, prompt the user for confirmation before deleting files. Default is False.
         **kwargs : Any
             |kwargs|
 
         """
-        super().reset(ask_overwrite=ask_overwrite, **kwargs)
+        super().reset(**kwargs)
         if self._local_dem_data is not None:
             self._add_local_dem_elevation()
             self._add_global_dem_elevation()
@@ -639,9 +638,6 @@ class DataSurface(HiResLocalSurface):
         node_elevations = lut2(np.c_[self.local.node_lon, self.local.node_lat])
         elevation = np.concatenate([face_elevations, node_elevations])
         self.local.update_elevation(elevation)
-
-        # Now save the surface to a file that we can reload later if we want to avoid re-downloading the DEM data
-        self.local.save(filename=self._dem_output_file)
         self._local_dem_data = None  # Clear temporary DEM data storage
         return
 
@@ -654,12 +650,14 @@ class DataSurface(HiResLocalSurface):
         from pyproj import Transformer
         from scipy.interpolate import LinearNDInterpolator
 
+        ask_overwrite = self.ask_overwrite
         # If we haven't cached global DEM samples yet, build the exterior lon/lat lists
         if self._global_dem_data is None:
             # This will trigger setting the file automatically from the superdomain_scale_factor if not already set.
             self.superdomain_dem_file = self._superdomain_dem_file
 
         if self._global_dem_data is None:
+            self.ask_overwrite = False
             self._global_dem_data = {}
 
             # Build index arrays for exterior faces/nodes (sorted for reproducibility)
@@ -729,8 +727,9 @@ class DataSurface(HiResLocalSurface):
         self.update_elevation(elevation)
 
         # Save so we can reload later without re-downloading / re-sampling the DEM
-        self.save(filename=self._dem_output_file)
+        self.save(filename=self._dem_output_file, skip_actions=True)
         self._global_dem_data = None  # Clear temporary DEM data storage
+        self.ask_overwrite = ask_overwrite
         return
 
     @parameter
