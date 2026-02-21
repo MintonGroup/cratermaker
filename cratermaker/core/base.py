@@ -74,6 +74,7 @@ class CratermakerBase:
         object.__setattr__(self, "_output_file_extension", None)
         object.__setattr__(self, "_export_dir_name", "export")
         object.__setattr__(self, "_ask_overwrite", None)
+        object.__setattr__(self, "_save_actions", {})
 
         self.simdir = simdir
         self.ask_overwrite = ask_overwrite
@@ -132,10 +133,33 @@ class CratermakerBase:
     def save(
         self,
         interval: int | None = None,
-        filename: str | None = None,
-        **kwargs,
+        filename: str | Path | None = None,
+        **kwargs: Any,
     ) -> None:
-        pass
+        """
+        Save the component's output files for a given interval.
+
+        Parameters
+        ----------
+        interval : int or None, optional
+            The interval number to save. If None, save without an interval number. Default is None.
+        filename : str or Path or None, optional
+            The base filename to save to, without the output directory or file extension. If None, the filename will be generated using the output_file_prefix and output_file_extension properties. Default is None.
+        """
+        if filename is None:
+            filename = self.output_filename(interval=interval)
+
+        for action, action_kwargs in self.save_actions.items():
+            if hasattr(self, action):
+                action_method = getattr(self, action)
+                if callable(action_method):
+                    args = {**action_kwargs, **kwargs, "interval": interval, "filename": filename}
+                    action_method(**args)
+                else:
+                    raise ValueError(f"{action} is not a valid action for {self.name}")
+            else:
+                raise ValueError(f"{action} is not a valid action for {self.name}")
+        return
 
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
         """
@@ -254,6 +278,32 @@ class CratermakerBase:
                     print(f"Error removing file {file}: {e}")
                     return False
         return True
+
+    @parameter
+    def save_actions(self) -> dict:
+        """
+        A dictionary where the keys are the names of actions that can be performed on this component (e.g. "plot") when calling the save function and the values are the arguments that should be passed to that action when it is called by the save function.
+        """
+        return self._save_actions
+
+    @save_actions.setter
+    def save_actions(self, value) -> None:
+        if not isinstance(value, dict):
+            raise TypeError(
+                "save_actions must be a dictionary where each key is a valid action for this component (e.g. 'plot') and the values are the arguments"
+            )
+        for action, args in value.items():
+            if hasattr(self, action):
+                action_method = getattr(self, action)
+                if not callable(action_method):
+                    raise ValueError(f"{action} is not a valid action for {self.name}")
+            else:
+                raise ValueError(f"{action} is not a valid action for {self.name}")
+            if not isinstance(args, dict):
+                raise TypeError(
+                    f"Arguments for action {action} must be a dictionary of keyword arguments to be passed to the {self.name}.{action}() method."
+                )
+        self._save_actions = value
 
     @parameter
     def ask_overwrite(self):
@@ -510,32 +560,6 @@ class ComponentBase(CratermakerBase, ABC):
         # Return just the name of the class
         base_class = type(self).__mro__[1].__name__
         return f"<{base_class}: {self._component_name}>"
-
-    @parameter
-    def save_actions(self) -> dict:
-        """
-        A dictionary where the keys are the names of actions that can be performed on this component (e.g. "plot") when calling the save function and the values are the arguments that should be passed to that action when it is called by the save function.
-        """
-        return self._save_actions
-
-    @save_actions.setter
-    def save_actions(self, value) -> None:
-        if not isinstance(value, dict):
-            raise TypeError(
-                "save_actions must be a dictionary where each key is a valid action for this component (e.g. 'plot') and the values are the arguments"
-            )
-        for action, args in value.items():
-            if hasattr(self, action):
-                action_method = getattr(self, action)
-                if not callable(action_method):
-                    raise ValueError(f"{action} is not a valid action for {self.name}")
-            else:
-                raise ValueError(f"{action} is not a valid action for {self.name}")
-            if not isinstance(args, dict):
-                raise TypeError(
-                    f"Arguments for action {action} must be a dictionary of keyword arguments to be passed to the {self.name}.{action}() method."
-                )
-        self._save_actions = value
 
     @classmethod
     def maker(

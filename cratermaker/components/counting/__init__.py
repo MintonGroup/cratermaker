@@ -489,6 +489,8 @@ class Counting(ComponentBase):
             if craters:
                 filename = self.output_dir / f"{name}_{self.output_filename(interval)}"
                 self._to_file(craters, filename, interval, merge_with_existing)
+        save_args = {"interval": interval, **kwargs}
+        super().save(**save_args)
         return
 
     def export(

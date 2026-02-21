@@ -982,33 +982,6 @@ class LocalHiResLocalSurface(LocalSurface):
 
         return LocalHiResLocalSurface(region)
 
-    # def save(
-    #     self,
-    #     interval: int = 0,
-    #     time_variables: dict | None = None,
-    #     **kwargs,
-    # ) -> None:
-    #     """
-    #     Save the surface data to the specified directory.
-
-    #     Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
-
-    #     Parameters
-    #     ----------
-    #     interval : int, optional
-    #         Interval number to append to the data file name. Default is 0.
-    #     time_variables : dict, optional
-    #         Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
-    #     **kwargs : Any
-    #         |kwargs|
-    #     """
-    #     super().save(
-    #         interval=interval,
-    #         time_variables=time_variables,
-    #         **kwargs,
-    #     )
-    #     return
-
     @property
     def local_grid_indices_file(self) -> Path:
         """

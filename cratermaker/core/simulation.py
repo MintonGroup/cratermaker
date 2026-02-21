@@ -766,18 +766,14 @@ class Simulation(CratermakerBase):
         **kwargs : Any
             Additional keyword argumments to pass to the component save methods.
         """
-        plot_style = kwargs.pop("plot_style", "hillshade")
-        self.surface.save(
-            interval=self.interval,
-            time_variables=self.time_variables,
-            plot_style=plot_style,
-            **kwargs,
-        )
+        save_args = {"interval": self.interval, "time_variables": self.time_variables, **kwargs}
+        self.surface.save(**save_args)
 
         if self.do_counting:
-            self.counting.save(interval=self.interval, **kwargs)
+            self.counting.save(**save_args)
 
         self.to_config(**kwargs)
+        super().save(**save_args)
 
         return
 
@@ -844,13 +840,13 @@ class Simulation(CratermakerBase):
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
-        self.save(**kwargs)
         label = kwargs.pop("label", f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
         plot_style = kwargs.pop("plot_style", "hillshade")
+        plot_args = {"interval": self.interval, "plot_style": plot_style, "label": label, **kwargs}
         if include_counting and self.do_counting:
-            ax = self.counting.plot(interval=self.interval, plot_style=plot_style, label=label, **kwargs)
+            ax = self.counting.plot(**plot_args)
         else:
-            ax = self.surface.plot(interval=self.interval, plot_style=plot_style, label=label, **kwargs)
+            ax = self.surface.plot(**plot_args)
         return ax
 
     def show(self, engine: str = "pyvista", **kwargs: Any) -> None:
@@ -1390,3 +1386,6 @@ class Simulation(CratermakerBase):
             return self.counting.n_emplaced
         else:
             return None
+
+    def output_filename(self, interval=None, **kwargs):
+        return None

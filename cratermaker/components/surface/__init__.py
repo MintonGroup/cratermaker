@@ -3274,6 +3274,14 @@ class LocalSurface(CratermakerBase):
         if self.location is not None:  # Save the local grid if this is a local surface
             self._write_grid_file()
 
+        save_args = {
+            "interval": interval,
+            "time_variables": time_variables,
+            "filename": filename,
+            **kwargs,
+        }
+        super().save(**save_args)
+
         return
 
     def _write_grid_file(self, uxgrid: uxr.Grid | None = None, grid_file: Path | str | None = None, **kwargs: Any) -> None:
