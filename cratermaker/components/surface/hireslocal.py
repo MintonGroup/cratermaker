@@ -177,7 +177,7 @@ class HiResLocalSurface(Surface):
         if local is None:
             return None
 
-        return LocalHiResLocalSurface(local)
+        return LocalHiResLocalSurface(local, **vars(self.common_args))
 
     def save(
         self,
@@ -669,6 +669,7 @@ class HiResLocalSurface(Surface):
                     edge_indices=edge_indices,
                     location=self.local_location,
                     region_radius=self.local_radius,
+                    **vars(self.common_args),
                 )
                 self._set_local_identifiers()
         else:
@@ -1032,6 +1033,7 @@ class LocalHiResLocalSurface(LocalSurface):
                 node_indices=shared_nodes,
                 edge_indices=shared_edges,
                 region_radius=self._region_radius,
+                **vars(self.common_args),
             )
             self._local_overlap._location = self.location
             self._local_overlap._face_distance = self.face_distance[self._face_mask]

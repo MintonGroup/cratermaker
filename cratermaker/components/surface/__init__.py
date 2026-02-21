@@ -317,6 +317,7 @@ class Surface(ComponentBase):
             edge_indices=edge_indices,
             location=location,
             region_radius=region_radius,
+            **vars(self.common_args),
         )
 
     def add_data(
@@ -1179,10 +1180,7 @@ class Surface(ComponentBase):
 
     def _full(self):
         return LocalSurface(
-            self,
-            face_indices=slice(None),
-            node_indices=slice(None),
-            edge_indices=slice(None),
+            self, face_indices=slice(None), node_indices=slice(None), edge_indices=slice(None), **vars(self.common_args)
         )
 
     def _save_data(
@@ -2027,7 +2025,7 @@ class LocalSurface(CratermakerBase):
         **kwargs: Any,
     ):
         object.__setattr__(self, "_surface", Surface.maker(surface))
-        super().__init__(simdir=self.surface.simdir, **kwargs)
+        super().__init__(**{**kwargs, "simdir": self.surface.simdir})
 
         object.__setattr__(self, "_uxds", None)
         object.__setattr__(self, "_uxgrid", None)
@@ -2691,6 +2689,7 @@ class LocalSurface(CratermakerBase):
             edge_indices=edge_indices,
             location=self.location,
             region_radius=subregion_radius,
+            **vars(self.common_args),
         )
 
     def compute_volume(self, elevation: NDArray) -> NDArray:
