@@ -148,7 +148,6 @@ class Surface(ComponentBase):
         surface: str | Surface | None = None,
         target: Target | str | None = None,
         reset: bool = True,
-        save_actions: dict[str, dict] | None = None,
         regrid: bool = False,
         simdir: str | Path | None = None,
         **kwargs,

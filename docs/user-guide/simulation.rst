@@ -174,9 +174,30 @@ If you wanted to automatically export the crater count data to Spatial Crater Co
     from cratermaker import Simulation
 
     sim = Simulation()
-    sim.counting.save_actions = {"export": {"driver": "SCC"}}
+    sim.counting.save_actions = [{"export": {"driver": "SCC"}}]
     sim.run(time_start=3000, time_interval=1000)
-    
+
+You can also can have multiple save actions that use the same method, but with different arguments. So for instance, suppose you want to generate a plot with the craters overlaied onto the hillshade of the standard suface plot. You could set up a simulation like this:
+
+.. code-block:: python
+
+    from cratermaker import Simulation
+        
+    sim = Simulation(
+        surface="hireslocal",
+        local_location=(0, 0),
+        pix=10.0,
+        local_radius=2500.0,
+        ask_overwrite=False,
+        reset=True,
+    )
+    # Add an extra plot command on top of the default one for Simulation so that we plot both the standard hillshade but also one with the craters overlaid.
+    sim.save_actions = sim.save_actions + [
+        {"plot": {"include_counting": True, "show": False, "save": True}}
+    ]
+    # Also export the craters in SCC format at the end of each interval as part of the Counting object's save_actions.
+    sim.counting.save_actions = [{"export": {"driver": "SCC"}}]
+    sim.run(age=3540.0, time_interval=10.0)
 
 More Examples
 -------------

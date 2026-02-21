@@ -161,16 +161,17 @@ class CratermakerBase:
         if filename is None:
             filename = self.output_filename(interval=interval)
 
-        for action, action_kwargs in self.save_actions.items():
-            if hasattr(self, action):
-                action_method = getattr(self, action)
-                if callable(action_method):
-                    args = {**action_kwargs, **kwargs, "interval": interval, "filename": filename}
-                    action_method(**args)
+        for entry in self.save_actions:
+            for action, action_kwargs in entry.items():
+                if hasattr(self, action):
+                    action_method = getattr(self, action)
+                    if callable(action_method):
+                        args = {**action_kwargs, **kwargs, "interval": interval, "filename": filename}
+                        action_method(**args)
+                    else:
+                        raise ValueError(f"{action} is not a valid action for {self.name}")
                 else:
                     raise ValueError(f"{action} is not a valid action for {self.name}")
-            else:
-                raise ValueError(f"{action} is not a valid action for {self.name}")
         return
 
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
@@ -300,21 +301,26 @@ class CratermakerBase:
 
     @save_actions.setter
     def save_actions(self, value) -> None:
-        if not isinstance(value, dict):
+        if not isinstance(value, list):
             raise TypeError(
-                "save_actions must be a dictionary where each key is a valid action for this component (e.g. 'plot') and the values are the arguments"
+                "save_actions must be a list where each entry is a dictionary containing a key with a valid action for this component (e.g. 'plot') and the values are the arguments"
             )
-        for action, args in value.items():
-            if hasattr(self, action):
-                action_method = getattr(self, action)
-                if not callable(action_method):
-                    raise ValueError(f"{action} is not a valid action for {self.name}")
-            else:
-                raise ValueError(f"{action} is not a valid action for {self.name}")
-            if not isinstance(args, dict):
+        for entry in value:
+            if not isinstance(entry, dict):
                 raise TypeError(
-                    f"Arguments for action {action} must be a dictionary of keyword arguments to be passed to the {self.name}.{action}() method."
+                    "save_actions must be a list where each entry is a dictionary containing a key with a valid action for this component (e.g. 'plot') and the values are the arguments"
                 )
+            for action, args in entry.items():
+                if hasattr(self, action):
+                    action_method = getattr(self, action)
+                    if not callable(action_method):
+                        raise ValueError(f"{action} is not a valid action for {self.name}")
+                else:
+                    raise ValueError(f"{action} is not a valid action for {self.name}")
+                if not isinstance(args, dict):
+                    raise TypeError(
+                        f"Arguments for action {action} must be a dictionary of keyword arguments to be passed to the {self.name}.{action}() method."
+                    )
         self._save_actions = value
 
     @parameter

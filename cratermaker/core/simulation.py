@@ -65,8 +65,8 @@ class Simulation(CratermakerBase):
         Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is False if `ask_overwrite=False` and a config file is detected, otherwise default is True.
     do_counting : bool, optional
         If True, the counting component will keep track of emplaced craters during the simulation. Default is True.
-    save_actions : dict, optional
-        A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions={"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved.
+    save_actions: list[dict[str, dict]], optional
+        A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved.
     **kwargs : Any
         |kwargs|, including those for component function constructors. Refer to the documentation of each component module for details.
     """
@@ -88,7 +88,7 @@ class Simulation(CratermakerBase):
         reset: bool = None,
         ask_overwrite: bool = True,
         do_counting: bool = True,
-        save_actions: dict | None = None,
+        save_actions: list[dict[str, dict]] | None = None,
         **kwargs: Any,
     ):
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
@@ -237,7 +237,7 @@ class Simulation(CratermakerBase):
             self._config_readonly = False
 
         if save_actions is None:
-            self.save_actions = {"plot": {"plot_style": "hillshade", "scalebar": True, "show": False, "save": True}}
+            self.save_actions = [{"plot": {"plot_style": "hillshade", "scalebar": True, "show": False, "save": True}}]
 
         self.to_config()
 
