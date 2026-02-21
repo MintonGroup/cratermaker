@@ -2815,7 +2815,8 @@ class LocalSurface(CratermakerBase):
         self,
         driver: str = "GPKG",
         interval: int | None = None,
-        **kwargs,
+        to_file_kwargs: dict | None = None,
+        **kwargs: Any,
     ) -> None:
         """
         Export the face-associated data from the surface view data to a vector file using GeoPandas.
@@ -2828,6 +2829,8 @@ class LocalSurface(CratermakerBase):
             The file format driver to use for exporting. Default is 'GPKG'.
         interval : int | None, optional
             |interval_export|
+        to_file_kwargs : dict | None, optional
+            Additional keyword arguments to pass to the GeoDataFrame.to_file method.
         **kwargs : Any
             |kwargs|
         """
@@ -2905,7 +2908,7 @@ class LocalSurface(CratermakerBase):
                 filename=filename,
                 layer_name="face_data",
                 driver=driver,
-                **kwargs,
+                **to_file_kwargs if to_file_kwargs is not None else {},
             )
         return
 
