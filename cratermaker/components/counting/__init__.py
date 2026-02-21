@@ -31,10 +31,7 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 _N_LAYER = 8
 
 # The minimum number of faces required in a region to perform crater counting
-_MIN_FACE_FOR_COUNTING = 20
-
-# The factor by radius over which the local region that is extracted to evaluate the crater rim
-_EXTENT_RADIUS_RATIO = 2.0
+_MIN_FACE_FOR_COUNTING = 50
 
 
 class Counting(ComponentBase):
