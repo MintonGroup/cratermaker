@@ -24,7 +24,7 @@ We can then open up the mesh in PyVista for visualization
     import cratermaker as cm
     sim = cm.Simulation(gridlevel=6)
     sim.emplace(diameter=500e3, location=(45,60))
-    sim.show(driver="pyvista")
+    sim.show3d(driver="pyvista")
 
 
 We can also export the surface mesh to a VTK file that can be opened up with other visualization tools, like Paraview.

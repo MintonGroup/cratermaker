@@ -30,7 +30,7 @@ cratermaker.cleanup(simdir)
 
 # Run a lunar simulation for 4 Gy and export the global surface to GeoPackage
 sim = cratermaker.Simulation(gridlevel=6, simdir=simdir)
-sim.run(age=4000)
+sim.run(age=3000)
 sim.export(driver="GPKG")
 
 gdf = gpd.read_file(sim.surface.export_dir / "surface000001.gpkg")
@@ -40,7 +40,6 @@ gdf.plot("face_elevation", cmap="Greys_r")
 # Extract a 1000km radius region at the equator/prime merdian and export to GeoPackage
 local = sim.surface.extract_region(location=(0, 0), region_radius=1000e3)
 # Pass the interval number explicitly so that the file number matches the last frame of the simulation
-local.save(interval=sim.interval)
-local.export(interval=sim.interval, driver="GPKG", ask_overwrite=False)
+local.export(interval=sim.interval, driver="GPKG")
 gdf = gpd.read_file(sim.surface.export_dir / "local_surface000001.gpkg")
 gdf.plot("face_elevation", cmap="Greys_r")

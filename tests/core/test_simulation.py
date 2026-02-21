@@ -34,7 +34,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_simulation_defaults(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
             self.assertEqual(sim.target.name, "Moon")
 
     def test_simulation_save(self):
@@ -70,7 +70,7 @@ class TestSimulation(unittest.TestCase):
     def test_emplace(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             cdiam = 2 * self.pix
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
             crater = cratermaker.Crater.maker(diameter=cdiam)
             sim.emplace(crater)
             pdiam = crater.projectile_diameter
@@ -81,7 +81,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_populate(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
             # Test that populate will work even if no craters are returned
             sim.populate(age=1e-6)
             sim.populate(age=3.8e3)
