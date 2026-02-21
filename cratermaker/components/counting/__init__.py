@@ -358,7 +358,7 @@ class Counting(ComponentBase):
             # Update the crater size measurement before computing the degradation and visibility functions
             crater = self.observed[id]
             # TODO: Make the fit_rim function more reliable before turning it on permanently
-            # crater = self.fit_rim(crater=crater, fit_center=False, fit_ellipse=False, **kwargs)
+            crater = self.fit_rim(crater=crater, fit_center=False, fit_ellipse=False, **kwargs)
             crater = self.measure_degradation_state(crater, **kwargs)
             Kd = crater.degradation_state
             Kv = self.visibility_function(crater, **kwargs)
@@ -659,27 +659,27 @@ class Counting(ComponentBase):
             **kwargs,
         )
         if observed_color is not None and observed is not None and len(observed) > 0:
-            gs = self.to_geoseries(craters=observed, use_measured_properties=True, split_antimeridian=split_antimeridian).to_crs(
-                crs
-            )
+            gs = self.to_geoseries(
+                craters=observed, use_measured_properties=True, split_antimeridian=split_antimeridian, autolim=False
+            ).to_crs(crs)
             facecolor = kwargs.pop("facecolor", "none")
             edgecolor = observed_color
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
         if observed_original_color is not None and observed is not None and len(observed) > 0:
-            gs = self.to_geoseries(craters=observed, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
-                crs
-            )
+            gs = self.to_geoseries(
+                craters=observed, use_measured_properties=False, split_antimeridian=split_antimeridian, autolim=False
+            ).to_crs(crs)
             facecolor = kwargs.pop("facecolor", "none")
             edgecolor = observed_original_color
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
         if emplaced_color is not None and emplaced is not None and len(emplaced) > 0:
-            gs = self.to_geoseries(craters=emplaced, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
-                crs
-            )
+            gs = self.to_geoseries(
+                craters=emplaced, use_measured_properties=False, split_antimeridian=split_antimeridian, autolim=False
+            ).to_crs(crs)
             facecolor = kwargs.pop("facecolor", "none")
             edgecolor = emplaced_color
             linewidth = kwargs.pop("linewidth", 0.1)
