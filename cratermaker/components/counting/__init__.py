@@ -760,7 +760,7 @@ class Counting(ComponentBase):
 
         return plotter
 
-    def show(self, engine: str = "pyvista", observed_color: str = "white", emplaced_color: str = "red", **kwargs: Any) -> None:
+    def show3d(self, engine: str = "pyvista", observed_color: str = "white", emplaced_color: str = "red", **kwargs: Any) -> None:
         """
         Passes through to the surface show method and adds crater counts to it.
 

@@ -46,7 +46,7 @@ sim.save_actions = {
     }
 }
 sim.run(age=1000)
-sim.show(variable_name="face_elevation", cmap="pink")
+sim.show3d(variable_name="face_elevation", cmap="pink")
 
 # Alternatively, this will generate hillshade images with a default time stamp
 # sim.run(age=1000)

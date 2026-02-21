@@ -22,5 +22,5 @@ cleanup(simdir)
 surface = Surface.maker(
     "datasurface", local_location=(321.9913, 8.121), local_radius=50.0e3, pix=200.0, simdir=simdir, ask_overwrite=False
 )
-surface.show(superdomain=False)
-surface.show(superdomain=True)
+surface.show3d(superdomain=False)
+surface.show3d(superdomain=True)

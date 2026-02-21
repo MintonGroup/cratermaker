@@ -395,7 +395,7 @@ class HiResLocalSurface(Surface):
         else:
             return self.local.show_pyvista(variable=variable, variable_name=variable_name, **kwargs)
 
-    def show(
+    def show3d(
         self,
         engine: str = "pyvista",
         variable_name: str | None = None,
@@ -420,9 +420,9 @@ class HiResLocalSurface(Surface):
             |kwargs|
         """
         if superdomain:
-            return self._full().show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
+            return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
         else:
-            return self.local.show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
+            return self.local.show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
 
     def set_superdomain(
         self,
@@ -504,7 +504,7 @@ class HiResLocalSurface(Surface):
         """
         Set the face projection for the local surface.
         """
-        if self.local is not None:
+        if self.is_local:
             self.local.set_face_proj()
         return
 
@@ -512,7 +512,7 @@ class HiResLocalSurface(Surface):
         """
         Set the node projection for the local surface.
         """
-        if self.local is not None:
+        if self.is_local:
             self.local.set_node_proj()
         return
 
@@ -656,6 +656,7 @@ class HiResLocalSurface(Surface):
 
     def _load_from_files(self, reset: bool = False, **kwargs: Any):
         is_same_grid = self._is_same_grid
+        ask_overwrite = self.ask_overwrite  # Store the current value so we can temporarily turn it off for the reset
         super()._load_from_files(reset=reset, **kwargs)
         if is_same_grid and self.local_grid_indices_file is not None and Path(self.local_grid_indices_file).exists():
             with np.load(self.local_grid_indices_file) as grid_data:
@@ -674,8 +675,10 @@ class HiResLocalSurface(Surface):
                 self._set_local_identifiers()
         else:
             _ = self.local  # triggers extraction of local surface and saving of local grid indices file
+            self.ask_overwrite = False
         if reset:
             self.reset(reset=reset, **kwargs)
+            self.ask_overwrite = ask_overwrite  # Restore the original value of ask_overwrite after the reset
         return
 
     @property

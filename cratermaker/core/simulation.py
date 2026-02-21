@@ -534,7 +534,7 @@ class Simulation(CratermakerBase):
             )
             initial_interval = int(delta_n1_start / n1_interval)
 
-        self.save(merge_with_existing=False, **kwargs)
+        self.save(**kwargs)
         for i in tqdm(
             range(initial_interval, ninterval),
             total=ninterval,
@@ -594,7 +594,7 @@ class Simulation(CratermakerBase):
             ).item()
             self.time = current_time_end
             self.interval += 1
-            self.save(merge_with_existing=False, **kwargs)
+            self.save(**kwargs)
 
         return
 
@@ -808,7 +808,7 @@ class Simulation(CratermakerBase):
         """
         if interval < 0:
             interval = self.interval + 1 + interval
-        self.save(**kwargs)
+        self.save(**kwargs, skip_actions=True)
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"
             counting_driver = "SCC"
@@ -831,7 +831,17 @@ class Simulation(CratermakerBase):
 
         return
 
-    def plot(self, include_counting: bool = False, **kwargs: Any) -> Axes:
+    def plot(
+        self,
+        include_counting: bool = False,
+        interval: int | None = None,
+        plot_style: str = "hillshade",
+        label=None,
+        show=False,
+        save=True,
+        ax: Axes | None = None,
+        **kwargs: Any,
+    ) -> Axes:
         """
         Plot the current state of the surface.
 
@@ -839,24 +849,39 @@ class Simulation(CratermakerBase):
         ----------
         include_counting : bool, optional
             If True, the counting data will be included in the plot if counting is enabled. Default is False
+        interval : int, optional
+            The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
+        plot_style : str, optional
+            The style to use for surface plots. See :meth:`Surface.plot` for more details. Default is 'hillshade'.
+        label : str, optional
+            The label to use for the plot. Default is None, which will use a label based on the current time and elapsed time of the simulation.
+        show : bool, optional
+            If True, the plot will be displayed. Default is False.
+        save : bool, optional
+            If True, the plot will be saved to a file. Default is True.
+        ax : matplotlib.axes.Axes, optional
+            An optional matplotlib Axes object to plot on. If not provided, a new figure and Axes will be created. Default is None.
         **kwargs : Any
-        |kwargs|
+            |kwargs|
 
         Returns
         -------
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
-        label = kwargs.pop("label", f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My")
-        plot_style = kwargs.pop("plot_style", "hillshade")
-        plot_args = {"interval": self.interval, "plot_style": plot_style, "label": label, **kwargs}
+        if label is None:
+            label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
+        if interval is None:
+            interval = self.interval
+
+        plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
         if include_counting and self.do_counting:
             ax = self.counting.plot(**plot_args)
         else:
             ax = self.surface.plot(**plot_args)
         return ax
 
-    def show(self, engine: str = "pyvista", **kwargs: Any) -> None:
+    def show3d(self, engine: str = "pyvista", **kwargs: Any) -> None:
         """
         Show the current state of the simulated surface.
 
@@ -867,13 +892,13 @@ class Simulation(CratermakerBase):
         **kwargs : Any
         |kwargs|
         """
-        self.save(**kwargs)
+        self.save(**kwargs, skip_actions=True)
         if "interval" not in kwargs:
             kwargs["interval"] = self.interval
         if self.do_counting:
-            self.counting.show(engine=engine, **kwargs)
+            self.counting.show3d(engine=engine, **kwargs)
         else:
-            self.surface.show(engine=engine, **kwargs)
+            self.surface.show3d(engine=engine, **kwargs)
 
         return
 
@@ -998,7 +1023,7 @@ class Simulation(CratermakerBase):
         self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
         self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
-        self.save()
+        self.save(skip_actions=True)
 
         return
 

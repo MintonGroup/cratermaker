@@ -28,4 +28,4 @@ location = sim.surface.local.compute_location_from_distance_bearing(distances=10
 sim.emplace(diameter=500.0, location=location)
 
 # Use the "c" key to show the circle representing the crater
-sim.show(variable_name="face_elevation", cmap="cividis")
+sim.show3d(variable_name="face_elevation", cmap="cividis")

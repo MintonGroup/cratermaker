@@ -846,7 +846,7 @@ class Surface(ComponentBase):
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default for global surfaces is False.
+            If True, a scalebar will be added to the plot. Default is False for global surfaces.
         show : bool, optional
             If True, the plot will be displayed. Default is True.
         save : bool, optional
@@ -894,7 +894,7 @@ class Surface(ComponentBase):
         """
         return self._full().show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
 
-    def show(
+    def show3d(
         self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
     ) -> None:
         """
@@ -911,7 +911,7 @@ class Surface(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
-        return self._full().show(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
+        return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
 
     def compute_distances(
         self,
@@ -1046,6 +1046,9 @@ class Surface(ComponentBase):
         # Get the names of all data files in the data directory that are not the grid file
         regrid = self._regrid_if_needed(regrid=regrid, **kwargs)
         reset = reset or regrid
+        ask_overwrite = self.ask_overwrite  # Store this in case of regridding. If regridding, we need it to be False for the reset
+        if regrid:
+            self.ask_overwrite = False
 
         # Read in only the last saved data file
         uxds = self.read_saved_output(interval=interval, reset=reset, **kwargs)
@@ -1055,6 +1058,8 @@ class Surface(ComponentBase):
 
         if reset:
             self.reset(**kwargs)
+
+        self.ask_overwrite = ask_overwrite  # Restore in case we had to set it to False for the reset during regridding
 
         return
 
@@ -2082,7 +2087,7 @@ class LocalSurface(CratermakerBase):
         String representation of the LocalSurface object.
         """
         base = "<LocalSurface>"
-        if self.location:
+        if self.is_local:
             base += f"\nLocation: {self.location[0]:.2f}°, {self.location[1]:.2f}°"
 
         if self.region_radius:
@@ -2485,9 +2490,10 @@ class LocalSurface(CratermakerBase):
             Array of node distances in meters.
         """
         if location is None:
-            if self.location is None:
-                raise ValueError("location must be set.")
-            location = self.location
+            if self.is_local:
+                location = self.location
+            else:
+                raise ValueError("A value for location must be provided for global surfaces.")
 
         if len(location) == 1:
             location = location.item()
@@ -2517,9 +2523,10 @@ class LocalSurface(CratermakerBase):
             Array of initial bearings for each node in degrees.
         """
         if location is None:
-            if self.location is None:
-                raise ValueError("location must be set.")
-            location = self.location
+            if self.is_local:
+                location = self.location
+            else:
+                raise ValueError("A value for location must be provided for global surfaces.")
 
         if len(location) == 1:
             location = location.item()
@@ -2785,7 +2792,7 @@ class LocalSurface(CratermakerBase):
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
         if interval is not None:
-            self.surface.save(interval=interval, **kwargs)
+            self.surface.save(interval=interval, **kwargs, skip_actions=True)
         if driver.upper() in ["VTK", "VTP"]:
             self.to_vtk_file(
                 interval=interval,
@@ -2828,7 +2835,7 @@ class LocalSurface(CratermakerBase):
         from cratermaker.utils.general_utils import get_saved_interval_numbers
 
         def _write_dataset(uxds, filename, layer_name, driver, **kwargs):
-            if self.location is None:
+            if self.is_global:
                 # Exclude periodic elements for global surfaces. For some reason, UxArray gets the windings wrong when using the split argument, so we have to exclude instead.
                 gdfargs = {"engine": "geopandas", "periodic_elements": "exclude"}
             else:
@@ -3079,7 +3086,7 @@ class LocalSurface(CratermakerBase):
             uxda = self.uxds["face_elevation"].load()
 
         W, H = self.get_raster_dims()
-        if self.location is None:
+        if self.is_global:
             # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
             gdf = uxda.to_geodataframe(engine="geopandas", periodic_elements="exclude").set_crs(self.crs)
             xmin, xmax = -180.0, 180.0
@@ -3133,7 +3140,7 @@ class LocalSurface(CratermakerBase):
         tuple[int, int]
             The width and height of the raster in pixels.
         """
-        if self.location is None:
+        if self.is_global:
             # Splitting doesn't work well and makes a hash of the raster. So we'll just drop the periodic elements instead
             xmin, xmax = -180.0, 180.0
             ymin, ymax = -90.0, 90.0
@@ -3174,7 +3181,7 @@ class LocalSurface(CratermakerBase):
         from cartopy import crs as ccrs
 
         def _write_dataset(uxda, output_filename, **kwargs):
-            if self.location is None:
+            if self.is_global:
                 projection = ccrs.PlateCarree()
             else:
                 projection = ccrs.AzimuthalEquidistant(central_longitude=self.location[0], central_latitude=self.location[1])
@@ -3270,7 +3277,7 @@ class LocalSurface(CratermakerBase):
             filename=filename,
         )
 
-        if self.location is not None:  # Save the local grid if this is a local surface
+        if self.is_local:  # Save the local grid if this is a local surface
             self._write_grid_file()
 
         save_args = {
@@ -3567,7 +3574,7 @@ class LocalSurface(CratermakerBase):
             return help_actor
 
         def reset_view(plotter):
-            if self.location is None:
+            if self.is_global:
                 plotter.reset_camera()
             else:
                 # Compute camera position so that it sits over the local region and the region fills the frame
@@ -3678,7 +3685,7 @@ class LocalSurface(CratermakerBase):
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
         # If this is a local surface, we will use the Crater functionality to generate a polygon representation of it
-        if self.location is not None:
+        if self.is_local:
             region = Crater.maker(radius=self.region_radius, location=self.location)
             geoms = region.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False).to_crs(
                 self.crs
@@ -3697,7 +3704,7 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def show(
+    def show3d(
         self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
     ) -> None:
         """
@@ -3747,7 +3754,7 @@ class LocalSurface(CratermakerBase):
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
         if center_location is None:
-            if self.location is not None:
+            if self.is_local:
                 center_location = self.location
             else:
                 raise ValueError("center_location must be provided for global surfaces")
@@ -3782,7 +3789,7 @@ class LocalSurface(CratermakerBase):
         This is intended to be used as a helper to calculate_face_and_node_bearings.
         """
         if center_location is None:
-            if self.location is not None:
+            if self.is_local:
                 center_location = self.location
             else:
                 raise ValueError("center_location must be provided for global surfaces")
@@ -3819,7 +3826,7 @@ class LocalSurface(CratermakerBase):
             longitude and latitude as a tuple of floats in degrees.
         """
         if center_location is None:
-            if self.location is not None:
+            if self.is_local:
                 center_location = self.location
             else:
                 raise ValueError("center_location must be provided for global surfaces")
@@ -4291,6 +4298,13 @@ class LocalSurface(CratermakerBase):
         Dataset
             The xarray Dataset containing only the local surface data.
         """
+        if self.is_local:
+            uxds_global = self.surface.read_saved_output(interval=interval, **kwargs)
+            if not reset:
+                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
+            else:
+                return uxr.UxDataset(uxgrid=self.uxgrid)
+
         if reset:
             interval = 0
             filename = self.output_dir / self.output_filename(interval)
@@ -4304,11 +4318,8 @@ class LocalSurface(CratermakerBase):
         if grid is None:
             raise ValueError("No grid file found.")
         uxgrid = uxr.Grid.from_dataset(grid)
-        if self.is_local:
-            uxds_global = self.surface.read_saved_output(interval=interval, **kwargs)
-            if not reset:
-                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=uxgrid)
-        elif ds is None:
+
+        if ds is None:
             reset = True
         if reset:
             uxds = uxr.UxDataset(uxgrid=uxgrid)
@@ -4327,7 +4338,7 @@ class LocalSurface(CratermakerBase):
         Return a uxr.Grid representation of the local surface.
         """
         if self._uxgrid is None:
-            if self.location is None:
+            if self.is_global:
                 self._uxgrid = self.surface.uxgrid
             else:
                 grid_ds = xr.Dataset(
@@ -4379,7 +4390,7 @@ class LocalSurface(CratermakerBase):
         """
         Return a UxDataset representation of the local surface.
         """
-        if self.location is None:
+        if self.is_global:
             return self.surface.uxds
         return uxr.UxDataset(self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
 
@@ -4492,7 +4503,7 @@ class LocalSurface(CratermakerBase):
         return self._desloped_face_elevation
 
     def compute_desloped_face_elevation(self):
-        if self.location is not None and self._desloped_face_elevation is None:
+        if self.is_local and self._desloped_face_elevation is None:
             reference_elevation = self.get_reference_surface(only_faces=True)
             self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
         return
@@ -4510,6 +4521,13 @@ class LocalSurface(CratermakerBase):
         Whether this surface is a local region or the full global surface.
         """
         return self.location is not None
+
+    @property
+    def is_global(self) -> bool:
+        """
+        Whether this surface is the full global surface.
+        """
+        return self.location is None
 
 
 import_components(__name__, __path__)

@@ -720,7 +720,7 @@ class DataSurface(HiResLocalSurface):
         self.update_elevation(elevation)
 
         # Save so we can reload later without re-downloading / re-sampling the DEM
-        self.save(filename=self._dem_output_file)
+        self.save(filename=self._dem_output_file, skip_actions=True)
         self._global_dem_data = None  # Clear temporary DEM data storage
         return
 

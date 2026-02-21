@@ -134,10 +134,11 @@ class CratermakerBase:
         self,
         interval: int | None = None,
         filename: str | Path | None = None,
+        skip_actions: bool = False,
         **kwargs: Any,
     ) -> None:
         """
-        Save the component's output files for a given interval.
+        Runs the action methods specified in the save_actions property of this component, which should be a dictionary where the keys are the names of actions that can be performed on this component (e.g. "plot") when calling the save function and the values are the arguments that should be passed to that action when it is called by the save function.
 
         Parameters
         ----------
@@ -145,7 +146,18 @@ class CratermakerBase:
             The interval number to save. If None, save without an interval number. Default is None.
         filename : str or Path or None, optional
             The base filename to save to, without the output directory or file extension. If None, the filename will be generated using the output_file_prefix and output_file_extension properties. Default is None.
+        skip_actions : bool, optional
+            If True, skip running the actions specified in the save_actions property and just return without doing anything. Default is False.
+        **kwargs : Any
+            |kwargs|
+
+        Notes
+        -----
+        - skip_actions should be set to True if the save method is called from inside another method of the same object that could potentially be included in a save_actions entry. This will prevent recursive calls to save.
         """
+        if skip_actions:
+            return
+
         if filename is None:
             filename = self.output_filename(interval=interval)
 
