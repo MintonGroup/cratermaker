@@ -293,7 +293,7 @@ class CratermakerBase:
         return True
 
     @parameter
-    def save_actions(self) -> dict:
+    def save_actions(self) -> list[dict[str, dict]]:
         """
         A dictionary where the keys are the names of actions that can be performed on this component (e.g. "plot") when calling the save function and the values are the arguments that should be passed to that action when it is called by the save function.
         """
