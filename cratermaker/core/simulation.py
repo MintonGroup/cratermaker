@@ -292,7 +292,6 @@ class Simulation(CratermakerBase):
             and callable(getattr(self, "to_config", None))
             and _convert_for_yaml(value) is not None
         ):
-            # with suppress(Exception):
             self.to_config()
 
     def run(
