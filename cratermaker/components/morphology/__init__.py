@@ -462,7 +462,7 @@ class Morphology(ComponentBase):
             for c in craters:
                 self._enqueue_crater(c)
 
-        self._process_queue()
+        self._process_queue(**kwargs)
 
         return craters
 
@@ -586,7 +586,7 @@ class Morphology(ComponentBase):
         if crater.emplaceable:
             self._queue_manager.push(crater)
 
-    def _process_queue(self) -> None:
+    def _process_queue(self, **kwargs) -> None:
         """
         Process all queued craters in the order they were added, forming non-overlapping batches and applying each to the surface.
 
@@ -615,12 +615,13 @@ class Morphology(ComponentBase):
                     # If the craters have time values attached to them, we can perform subpixel degradation between time values
                     timevals = [crater.time for crater in batch if crater.time is not None]
                     if len(timevals) > 1:
-                        self.compute_subpixel_degradation(time_start=max(timevals), time_end=min(timevals))
+                        self.compute_subpixel_degradation(time_start=max(timevals), time_end=min(timevals), **kwargs)
 
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)
                 if self.do_counting and nacumulated >= tally_cadence:
-                    self.counting.tally(quiet=False)
+                    measure_rim = kwargs.pop("measure_rim", False)
+                    self.counting.tally(measure_rim=measure_rim, quiet=False, **kwargs)
                     nacumulated = 0
 
             return
@@ -640,9 +641,9 @@ class Morphology(ComponentBase):
             _batch_process()
 
         if self.do_subpixel_degradation:
-            self.apply_subpixel_degradation()
+            self.apply_subpixel_degradation(**kwargs)
         if self.do_counting:
-            self.counting.tally()
+            self.counting.tally(**kwargs)
         return
 
     @abstractmethod

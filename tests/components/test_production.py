@@ -96,7 +96,7 @@ class TestProduction(unittest.TestCase):
         self.assertEqual(diameter.size, 0)
         self.assertEqual(age.size, 0)
 
-    def testmake_production(self):
+    def test_make_production(self):
         # Test that Production.maker returns a valid production model
         for model_name in production_models:
             production = Production.maker(production=model_name)

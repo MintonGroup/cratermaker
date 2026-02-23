@@ -77,9 +77,9 @@ The :meth:`~cratermaker.core.simulation.Simulation.populate` method does not tra
 Running a Simulation
 --------------------
 
-Once a :class:`~cratermaker.core.simulation.Simulation` instance has been created, the simulation can be run using the :meth:`~cratermaker.core.simulation.Simulation.run` method. This method requires an `age` argument specifying the duration of the simulation in million years (My).  
+Once a :class:`~cratermaker.core.simulation.Simulation` instance has been created, the simulation can be run using the :meth:`~cratermaker.core.simulation.Simulation.run` method. This method requires an ``age`` argument specifying the duration of the simulation in million years (My).  
 
-The following example configures a simulation targeting the Moon and runs it for 4 Gy, then we plot the number of true emplaced craters as well as the number of observed craters that the crater counting algorithm has determined are observable. To speed up the example, we have reduced the resolution of the surface grid from the default value of 8 to 6 using the ``gridlevel`` argument.
+The following example configures a simulation targeting the Moon and runs it for 4 Gy, then we plot the number of true emplaced (countable) craters as well as the number of observed craters that the crater counting algorithm has determined are observable. To speed up the example, we have reduced the resolution of the surface grid from the default value of 8 to 6 using the ``gridlevel`` argument.
 
 
 .. ipython:: python
@@ -92,10 +92,13 @@ The following example configures a simulation targeting the Moon and runs it for
     :okwarning:
 
     from cratermaker import Simulation
-    sim = Simulation(target="Moon", gridlevel=6)
+    sim = Simulation(target="Moon", gridlevel=6, rng_seed=7636830)
     sim.run(age=4000)
-    print(f"Number of true emplaced craters: {len(sim.emplaced)}")
-    print(f"Number of observed craters: {len(sim.observed)}")
+    print(f"Number of true emplaced craters: {sim.n_emplaced}")
+    print(f"Number of observed craters: {sim.n_observed}")
+
+.. note::
+    You may notice that the number of craters emplaced during the Simulation is much larger than the value of true emplaced craters given by ``sim.n_emplaced``. This is because the :ref:`Counting <ug-counting>` object only tracks craters that are potentially countable. Most of the craters that are emplaced during a simulation are too small to be reliably counted, so while they are still modify the surface, they are not tracked by the counting system.
 
 Multi-interval Simulations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -178,6 +181,12 @@ If you wanted to automatically export the crater count data to Spatial Crater Co
     sim.run(time_start=3000, time_interval=1000)
 
 You can also can have multiple save actions that use the same method, but with different arguments. So for instance, suppose you want to generate a plot with the craters overlaied onto the hillshade of the standard suface plot. You could set up a simulation like this:
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()
 
 .. code-block:: python
 

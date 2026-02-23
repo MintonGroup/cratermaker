@@ -95,14 +95,23 @@ class Production(ComponentBase):
             If there is an error initializing the production model.
 
         """
-        version = kwargs.pop("version", None)
-        if production is None or production == "neukum":
-            if target is None and version in ["Moon", "Mars"]:
-                target = version
+        set_version = False
+        version = None
+        if production is None:
+            set_version = True
+        elif isinstance(production, str):
+            production = production.lower()
+            if production == "neukum":
+                set_version = True
+        elif isinstance(production, Production) and production.name.lower() == "neukum":
+            set_version = True
+
+        if set_version:
+            version = kwargs.pop("version", None)
             target = Target.maker(target, **kwargs)
             if target.name in ["Mercury", "Venus", "Earth", "Moon", "Mars"]:
                 production = "neukum"
-                if version is None:
+                if version is None or version != "projectile":
                     if target.name in ["Moon", "Mars"]:
                         version = target.name
                     else:
