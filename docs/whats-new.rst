@@ -3,6 +3,15 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.9-alpha:
+
+:release:`v2026.2.9-alpha`
+
+- Improved counting stability by increasing the number of faces required for a crater to be countable to 100.
+- the `.tally()` method in `Counting` now takes a `measure_rim` argument, which calls `fit_rim()`. Because of how expensive rim fitting is, by default it is only called at the end of an interval. 
+- Improved handling of config file saving and initializing simulations from config.
+- Fixed fixed problem that was causing neukum production functions to select the wrong version when the target body changed on a reload from config files.
+
 .. _whats-new.2026.2.8-alpha:
 
 :release:`v2026.2.8-alpha`
