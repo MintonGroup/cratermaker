@@ -305,7 +305,7 @@ class Counting(ComponentBase):
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
         return region
 
-    def tally(self, region: LocalSurface | None = None, measure_rim: bool = True, quiet: bool = False, **kwargs: Any) -> None:
+    def tally(self, region: LocalSurface | None = None, measure_rim: bool = False, quiet: bool = False, **kwargs: Any) -> None:
         """
         Tally the craters on the surface using the method of Minton et al. (2019) [#]_.
 
@@ -314,7 +314,7 @@ class Counting(ComponentBase):
         region : LocalSurface, optional
             A LocalSurface region to count. If not supplied, then the associated surface property is used.
         measure_rim : bool, optional
-            If True, measure the rim of each crater. Default is True.
+            If True, measure the rim of each crater. Default is False.
         quiet : bool, optional
             If True, suppress progress output. Default is False.
         **kwargs : Any
@@ -359,7 +359,7 @@ class Counting(ComponentBase):
 
             # Update the crater size measurement before computing the degradation and visibility functions
             crater = self.observed[id]
-            # TODO: Make the fit_rim function more reliable before turning it on permanently
+            # TODO: Make the fit_rim function more reliable before turning it on by default. It is currently very slow and not reliable enough.
             if measure_rim:
                 fit_center = kwargs.pop("fit_center", False)
                 fit_ellipse = kwargs.pop("fit_ellipse", False)

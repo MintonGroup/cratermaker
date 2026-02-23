@@ -641,7 +641,7 @@ class Morphology(ComponentBase):
             _batch_process()
 
         if self.do_subpixel_degradation:
-            self.apply_subpixel_degradation()
+            self.apply_subpixel_degradation(**kwargs)
         if self.do_counting:
             self.counting.tally(**kwargs)
         return

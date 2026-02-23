@@ -546,7 +546,7 @@ class SimpleMoon(Morphology):
 
         return
 
-    def apply_subpixel_degradation(self) -> None:
+    def apply_subpixel_degradation(self, **kwargs) -> None:
         """
         Apply subpixel degradation to the surface using the current Kdiff values.
 
