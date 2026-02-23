@@ -943,44 +943,19 @@ class Simulation(CratermakerBase):
         - The function will convert Numpy types to their native Python types.
         """
         sim_config = super().to_config(remove_common_args=False)
-        if self.target is not None:
-            sim_config["target"] = self.target.name
-            sim_config["target_config"] = self.target.to_config(remove_common_args=True)
-        if self.scaling is not None:
-            sim_config["scaling"] = self.scaling._component_name
-            sim_config["scaling_config"] = self.scaling.to_config(remove_common_args=True)
-        if self.production is not None:
-            sim_config["production"] = self.production._component_name
-            sim_config["production_config"] = self.production.to_config(remove_common_args=True)
-        if self.surface is not None:
-            sim_config["surface"] = self.surface._component_name
-            sim_config["surface_config"] = self.surface.to_config(remove_common_args=True)
-        if self.projectile is not None:
-            sim_config["projectile"] = self.projectile._component_name
-            sim_config["projectile_config"] = self.projectile.to_config(remove_common_args=True)
-        if self.morphology is not None:
-            sim_config["morphology"] = self.morphology._component_name
-            sim_config["morphology_config"] = self.morphology.to_config(remove_common_args=True)
-        if self.counting is not None:
-            sim_config["counting"] = self.counting._component_name
-            sim_config["counting_config"] = self.counting.to_config(remove_common_args=True)
+        for component_name in _COMPONENT_NAMES:
+            component_config = component_name + "_config"
+            component = getattr(self, component_name, None)
+            if component is not None:
+                sim_config[component_name] = component.name if hasattr(component, "name") else component
+                if hasattr(component, "to_config") and callable(getattr(component, "to_config", None)):
+                    sim_config[component_config] = component.to_config(remove_common_args=True)
 
-        for config in [
-            "target",
-            "scaling",
-            "production",
-            "projectile",
-            "morphology",
-            "surface",
-            "counting",
-        ]:
             # drop any empty values or {} from either f"{config} or f"{config}_config" if when they are either None or empty
-            if config in sim_config and (sim_config[config] is None or sim_config[config] == {}):
-                sim_config.pop(config)
-            if f"{config}_config" in sim_config and (
-                sim_config[f"{config}_config"] is None or sim_config[f"{config}_config"] == {}
-            ):
-                sim_config.pop(f"{config}_config")
+            if component_name in sim_config and (sim_config[component_name] is None or sim_config[component_name] == {}):
+                sim_config.pop(component_name)
+            if component_config in sim_config and (sim_config[component_config] is None or sim_config[component_config] == {}):
+                sim_config.pop(component_config)
 
         # Write the combined configuration to a YAML file
         if save_to_file and not self._config_readonly:
