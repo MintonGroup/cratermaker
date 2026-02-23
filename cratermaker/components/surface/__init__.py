@@ -107,6 +107,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_output_dir_name", "surface")
         object.__setattr__(self, "_grid_file_prefix", "grid")
         object.__setattr__(self, "_output_file_extension", "nc")
+        object.__setattr__(self, "_is_new", None)
 
         self._output_file_pattern = [
             f"{self._output_file_prefix}*.{self._output_file_extension}",
@@ -239,6 +240,7 @@ class Surface(ComponentBase):
                 isfacedata=entry["isfacedata"],
                 save_to_file=True,
             )
+        self.is_new = True
 
         return
 
@@ -1044,6 +1046,7 @@ class Surface(ComponentBase):
         # Get the names of all data files in the data directory that are not the grid file
         regrid = self._regrid_if_needed(regrid=regrid, **kwargs)
         reset = reset or regrid
+        self.is_new = reset
         ask_overwrite = self.ask_overwrite  # Store this in case of regridding. If regridding, we need it to be False for the reset
         if regrid:
             self.ask_overwrite = False
@@ -1963,6 +1966,28 @@ class Surface(ComponentBase):
         if self._crs is None:
             self._crs = self.get_crs(radius=self.radius, name=self.target.name)
         return self._crs
+
+    @property
+    def is_new(self) -> bool:
+        """
+        Whether this surface is newly created or has been loaded from disk and not reset.
+        """
+        return self._is_new
+
+    @is_new.setter
+    def is_new(self, value: bool) -> None:
+        """
+        Set the is_new flag for this surface.
+
+        Parameters
+        ----------
+        value : bool
+            The value to set for the is_new flag.
+        """
+        if not isinstance(value, bool):
+            raise TypeError("is_new must be a boolean value.")
+        self._is_new = value
+        return
 
 
 class LocalSurface(CratermakerBase):

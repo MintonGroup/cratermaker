@@ -190,7 +190,7 @@ class SimpleMoon(Morphology):
                 "Invalid input for crater emplacement. Must be a Crater object, a list of Crater objects, or None with additional arguments for Crater.maker()."
             )
 
-        return super().emplace(craters)
+        return super().emplace(craters, **kwargs)
 
     def form_crater(self, crater: Crater | SimpleMoonCrater, **kwargs: Any) -> None:
         """
@@ -541,7 +541,8 @@ class SimpleMoon(Morphology):
         if np.any(self._Kdiff / self.surface.face_area > 1):
             self.apply_subpixel_degradation()
             if self.do_counting:
-                self.counting.tally()
+                measure_rim = kwargs.pop("measure_rim", False)
+                self.counting.tally(measure_rim=measure_rim, **kwargs)
 
         return
 

@@ -3,7 +3,7 @@ use cratermaker_components::crater::Crater;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-const _FITTING_RADIUS_RATIO: f64 = 3.0;
+const _FITTING_RADIUS_RATIO: f64 = 2.0;
 
 #[pyfunction]
 pub fn measure_rim_height<'py>(

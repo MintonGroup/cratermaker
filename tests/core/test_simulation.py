@@ -177,6 +177,7 @@ class TestSimulation(unittest.TestCase):
             # Second simulation: override target with "Mars"
             sim = cratermaker.Simulation(simdir=simdir, target="Mars", reset=False, ask_overwrite=False)
             self.assertEqual(sim.target.name, "Mars")
+            self.assertEqual(sim.production.version, "Mars")
             del sim
 
             # Third simulation: no target passed, should read "Mars" from config

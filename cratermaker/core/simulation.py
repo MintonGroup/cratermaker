@@ -91,14 +91,13 @@ class Simulation(CratermakerBase):
         save_actions: list[dict[str, dict]] | None = None,
         **kwargs: Any,
     ):
-        super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
-        object.__setattr__(self, "_target", target)
-        object.__setattr__(self, "_scaling", scaling)
-        object.__setattr__(self, "_production", production)
-        object.__setattr__(self, "_morphology", morphology)
-        object.__setattr__(self, "_projectile", projectile)
-        object.__setattr__(self, "_surface", surface)
-        object.__setattr__(self, "_counting", counting)
+        object.__setattr__(self, "_target", None)
+        object.__setattr__(self, "_scaling", None)
+        object.__setattr__(self, "_production", None)
+        object.__setattr__(self, "_morphology", None)
+        object.__setattr__(self, "_projectile", None)
+        object.__setattr__(self, "_surface", None)
+        object.__setattr__(self, "_counting", None)
         object.__setattr__(self, "_interval", None)
         object.__setattr__(self, "_elapsed_time", None)
         object.__setattr__(self, "_time", None)
@@ -107,7 +106,10 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_smallest_projectile", None)
         object.__setattr__(self, "_largest_crater", None)
         object.__setattr__(self, "_largest_projectile", None)
-        object.__setattr__(self, "_config_readonly", False)
+        object.__setattr__(self, "_config_readonly", True)
+        object.__setattr__(self, "_is_new", False)
+
+        super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
 
         if reset is None:
             if self.ask_overwrite and self.config_file.exists():
@@ -125,8 +127,10 @@ class Simulation(CratermakerBase):
                     reset = False
             else:
                 reset = False
+        self.is_new = reset
+        object.__setattr__(self, "_config_readonly", not reset)
 
-        if not reset and self.config_file.exists():
+        if not self.is_new and self.config_file.exists():
             config_file = self.config_file
             object.__setattr__(self, "_config_readonly", True)
         else:
@@ -194,16 +198,19 @@ class Simulation(CratermakerBase):
         self.surface = Surface.maker(
             self.surface,
             target=self.target,
-            reset=reset,
+            reset=self.is_new,
             **surface_config,
         )
+        # If the surface had to be regridded, then we will need to reset the simulation. HiResLocal surfaces are deferred, so won't have the flag set
+        if self.surface.is_new is not None:
+            self.is_new = self.surface.is_new
 
         if do_counting:
             counting_config = {**counting_config, **kwargs}
             self.counting = Counting.maker(
                 self.counting,
                 surface=self.surface,
-                reset=reset,
+                reset=self.is_new,
                 **counting_config,
             )
 
@@ -222,19 +229,19 @@ class Simulation(CratermakerBase):
             self.surface.set_superdomain(
                 scaling=self.scaling,
                 morphology=self.morphology,
-                reset=reset,
+                reset=self.is_new,
                 **surface_config,
             )
+            # The surface should now hav its is_new attribute set and will be set to True if it had to be regridded
+            self.is_new = self.surface.is_new
 
-        if reset:
+        if self.is_new:
+            object.__setattr__(self, "_config_readonly", False)
             # The Surface has already had its reset method called.
             skip_components = ["surface"]
             if not do_counting:
                 skip_components.append("counting")
             self.reset(skip_component=skip_components)
-        else:
-            # Now that all components are initialized, we turn off the config_readonly flag so that any changes to the simulation parameters will be saved to the config file.
-            self._config_readonly = False
 
         if save_actions is None:
             self.save_actions = [{"plot": {"plot_style": "hillshade", "scalebar": True, "show": False, "save": True}}]
@@ -279,9 +286,14 @@ class Simulation(CratermakerBase):
         if name not in self._user_defined:
             return
         # Avoid recursive calls during initialization or early access
-        if hasattr(self, "to_config") and callable(getattr(self, "to_config", None)) and _convert_for_yaml(value) is not None:
-            with suppress(Exception):
-                self.to_config()
+        if (
+            not self._config_readonly
+            and hasattr(self, "to_config")
+            and callable(getattr(self, "to_config", None))
+            and _convert_for_yaml(value) is not None
+        ):
+            # with suppress(Exception):
+            self.to_config()
 
     def run(
         self,
@@ -534,67 +546,71 @@ class Simulation(CratermakerBase):
             )
             initial_interval = int(delta_n1_start / n1_interval)
 
-        self.save(**kwargs)
-        for i in tqdm(
-            range(initial_interval, ninterval),
+        if self.is_new:
+            self.save(**kwargs)
+
+        with tqdm(
             total=ninterval,
             initial=initial_interval,
-            desc="Simulation interval",
             unit="interval",
             position=3,
             leave=True,
-        ):
-            if self.do_counting:
-                self.counting._emplaced = []
-            if is_time_interval:
-                time = time_start - i * time_interval
-                current_time_end = time_start - (i + 1) * time_interval
-                if current_time_end < time_end:
-                    current_time_end = time_end
-                self.populate(time_start=time, time_end=current_time_end)
-            else:
-                current_diameter_number = (
-                    diameter_number[0],
-                    diameter_number[1] - i * diameter_number_interval[1],
-                )
-                current_diameter_number_end = (
-                    diameter_number[0],
-                    diameter_number[1] - (i + 1) * diameter_number_interval[1],
-                )
-                self.populate(
-                    diameter_number=current_diameter_number,
-                    diameter_number_end=current_diameter_number_end,
-                )
-                current_diameter_number_density = (
-                    current_diameter_number[0],
-                    current_diameter_number[1] / self.surface.area,
-                )
-                time = self.production.age_from_D_N(*current_diameter_number_density, validate_inputs=validate_inputs)
-                if current_diameter_number_end[1] > 0:
-                    current_diameter_number_density_end = (
-                        current_diameter_number_end[0],
-                        current_diameter_number_end[1] / self.surface.area,
-                    )
-
-                    current_time_end = self.production.age_from_D_N(
-                        *current_diameter_number_density_end,
-                        validate_inputs=validate_inputs,
-                    )
+        ) as pbar:
+            for i in range(initial_interval, ninterval):
+                if self.do_counting:
+                    self.counting._emplaced = []
+                if is_time_interval:
+                    time = time_start - i * time_interval
+                    current_time_end = time_start - (i + 1) * time_interval
+                    if current_time_end < time_end:
+                        current_time_end = time_end
+                    time_str = format_large_units(time, quantity="time")
+                    elapsed_str = format_large_units(self.elapsed_time, quantity="time")
+                    pbar.set_description(f"Current: {time_str} bp; Elapsed: {elapsed_str}")
+                    self.populate(time_start=time, time_end=current_time_end, **kwargs)
                 else:
-                    current_time_end = 0.0
-                if current_time_end < 0.0:
-                    current_time_end = 0.0
-                time_interval = time - current_time_end
-            self.elapsed_time += time_interval
-            self.elapsed_n1 += self.production.function(
-                diameter=1000.0,
-                time_start=time,
-                time_end=current_time_end,
-                validate_inputs=validate_inputs,
-            ).item()
-            self.time = current_time_end
-            self.interval += 1
-            self.save(**kwargs)
+                    current_diameter_number = (
+                        diameter_number[0],
+                        diameter_number[1] - i * diameter_number_interval[1],
+                    )
+                    current_diameter_number_end = (
+                        diameter_number[0],
+                        diameter_number[1] - (i + 1) * diameter_number_interval[1],
+                    )
+                    self.populate(
+                        diameter_number=current_diameter_number, diameter_number_end=current_diameter_number_end, **kwargs
+                    )
+                    current_diameter_number_density = (
+                        current_diameter_number[0],
+                        current_diameter_number[1] / self.surface.area,
+                    )
+                    time = self.production.age_from_D_N(*current_diameter_number_density, validate_inputs=validate_inputs)
+                    if current_diameter_number_end[1] > 0:
+                        current_diameter_number_density_end = (
+                            current_diameter_number_end[0],
+                            current_diameter_number_end[1] / self.surface.area,
+                        )
+
+                        current_time_end = self.production.age_from_D_N(
+                            *current_diameter_number_density_end,
+                            validate_inputs=validate_inputs,
+                        )
+                    else:
+                        current_time_end = 0.0
+                    if current_time_end < 0.0:
+                        current_time_end = 0.0
+                    time_interval = time - current_time_end
+                self.elapsed_time += time_interval
+                self.elapsed_n1 += self.production.function(
+                    diameter=1000.0,
+                    time_start=time,
+                    time_end=current_time_end,
+                    validate_inputs=validate_inputs,
+                ).item()
+                self.time = current_time_end
+                self.interval += 1
+                self.save(**kwargs)
+                pbar.update(1)
 
         return
 
@@ -709,7 +725,7 @@ class Simulation(CratermakerBase):
                         **kwargs,
                     )
                 )
-            self.emplace(craterlist)
+            self.emplace(craterlist, **kwargs)
 
         return
 
@@ -759,10 +775,10 @@ class Simulation(CratermakerBase):
             sim.emplace(craters)
 
         """
-        crater_args = {**kwargs, **vars(self.common_args)}
-        if craters is None and "scaling" not in crater_args:
-            crater_args["scaling"] = self.scaling
-        return self.morphology.emplace(craters=craters, **crater_args)
+        if craters is None and "scaling" not in kwargs:
+            kwargs["scaling"] = self.scaling
+        self.is_new = False
+        return self.morphology.emplace(craters=craters, **kwargs)
 
     def save(self, **kwargs: Any) -> None:
         """
@@ -1024,6 +1040,7 @@ class Simulation(CratermakerBase):
         self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
         self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
         self.save(skip_actions=True)
+        self.is_new = True
 
         return
 
@@ -1421,3 +1438,16 @@ class Simulation(CratermakerBase):
 
     def output_filename(self, interval=None, **kwargs):
         return None
+
+    @property
+    def is_new(self) -> bool:
+        """
+        A boolean flag indicating that this is a new simulation run, which will trigger a reset action when run is called.
+        """
+        return self._is_new
+
+    @is_new.setter
+    def is_new(self, value: bool):
+        if not isinstance(value, bool):
+            raise TypeError("is_new must be a boolean value")
+        self._is_new = value

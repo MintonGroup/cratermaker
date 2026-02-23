@@ -396,7 +396,7 @@ def csfd_geometric_saturation(diameter: FloatLike | ArrayLike) -> FloatLike | Ar
     """
     Calculate the cumulative number of craters at geometric saturation for a given diameter.
 
-    We use the definition of geomatric saturation from Melosh (1989)[#]_
+    We use the definition of geomatric saturation from Melosh (1989) [#]_.
 
     Parameter
     ----------
@@ -425,7 +425,7 @@ def csfd_equilibrium(diameter: FloatLike | ArrayLike, f_geometric=0.0218) -> Flo
     diameter : FloatLike or ArrayLike
         The diameter(s) for which to calculate the cumulative number of craters at equilibrium.
     f_geometric : float, optional
-        The fraction of geometric saturation at which equilibrium occurs. The default value is 0.0218, which is the value used in Minton et al. (2019)[#]_.
+        The fraction of geometric saturation at which equilibrium occurs. The default value is 0.0218, which is the value used in Minton et al. (2019) [#]_.
 
 
     Returns
@@ -436,6 +436,7 @@ def csfd_equilibrium(diameter: FloatLike | ArrayLike, f_geometric=0.0218) -> Flo
     References
     ----------
     .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
+
     """
     return f_geometric * csfd_geometric_saturation(diameter)
 
@@ -575,21 +576,20 @@ def cleanup(simdir: str | Path | None = None):
     -----
     This function is useful for cleaning up after tests or before starting new simulations to avoid conflicts with existing files.
     """
-    from cratermaker.constants import _CONFIG_FILE_NAME
+    import shutil
+    from cratermaker.constants import _CONFIG_FILE_NAME, _COMPONENT_NAMES
 
     if simdir is None:
         simdir = Path.cwd()
     else:
         simdir = Path(simdir)
 
-    out_dirs = ["surface", "craters", "export", "surface_images"]
     config = simdir / _CONFIG_FILE_NAME
     if config.exists():
         config.unlink()
-    for d in out_dirs:
-        dir_path = simdir / d
-        if dir_path.exists():
-            import shutil
-
-            shutil.rmtree(dir_path)
+    for component in _COMPONENT_NAMES:
+        for d in [component, component + "_images"]:
+            dir_path = simdir / d
+            if dir_path.exists():
+                shutil.rmtree(dir_path)
     return

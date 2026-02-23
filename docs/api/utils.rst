@@ -28,7 +28,6 @@ General utilities
     :toctree: generated/
 
     general_utils.Parameter
-    general_utils.parameter
     general_utils.normalize_coords
     general_utils.validate_and_normalize_location
     general_utils.R_to_CSFD

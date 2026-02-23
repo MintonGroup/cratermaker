@@ -532,7 +532,7 @@ pub fn score_rim(
     let n = region.n_face;
     let min_points_for_fit: usize = 3; // It will try to use at least this many points per sector in the fit
     const EXTENT_RADIUS_CUTOFF: f64 = 1.5; // Max radial extent as a multiple of crater semi-major axis
-    const N_SECTOR_MAX: usize = 36;
+    const N_SECTOR_MAX: usize = 18;
     const N_SECTOR_MIN: usize = 9;
     const N_PER_SECTOR: usize = 100;
     let n_sectors = (n / N_PER_SECTOR).clamp(N_SECTOR_MIN, N_SECTOR_MAX);
