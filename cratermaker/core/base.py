@@ -71,7 +71,8 @@ class CratermakerBase:
         object.__setattr__(self, "_output_dir_name", None)
         object.__setattr__(self, "_output_file_pattern", [])
         object.__setattr__(self, "_output_file_prefix", None)
-        object.__setattr__(self, "_output_file_extension", None)
+        object.__setattr__(self, "_output_file_extension", "nc")
+        object.__setattr__(self, "_output_image_file_extension", "png")
         object.__setattr__(self, "_export_dir_name", "export")
         object.__setattr__(self, "_ask_overwrite", None)
         object.__setattr__(self, "_save_actions", {})
@@ -190,6 +191,10 @@ class CratermakerBase:
         output_file_list = []
         for pattern in self.output_file_pattern:
             output_file_list.extend(self.output_dir.glob(pattern))
+
+        # Add surface image files to the list
+        output_file_list.extend(list(self.plot_dir.glob(f"*.{self.output_image_file_extension}")))
+
         if output_file_list:
             return output_file_list
         else:
@@ -447,6 +452,40 @@ class CratermakerBase:
             except Exception as e:
                 raise RuntimeError(f"Could not create export directory at {export_dir}") from e
         return export_dir
+
+    @property
+    def plot_dir(self) -> Path:
+        """
+        The directory for plots.
+        """
+        if self._output_dir_name is None:
+            return None
+        plot_dir = self.simdir / f"{self._output_dir_name}_images"
+        if not plot_dir.exists():
+            try:
+                plot_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                raise RuntimeError(f"Could not create output directory at {plot_dir}") from e
+        return plot_dir
+
+    @property
+    def output_image_file_extension(self) -> str:
+        """
+        The file extension to use for output images.
+        """
+        return self._output_image_file_extension
+
+    @output_image_file_extension.setter
+    def output_image_file_extension(self, value: str):
+        """
+        Set the file extension to use for output images.
+
+        Parameters
+        ----------
+        value : str
+            The file extension to use for output images (e.g., "png", "jpg", "tif").
+        """
+        self._output_image_file_extension = value
 
     @property
     def output_file_pattern(self) -> list[str]:

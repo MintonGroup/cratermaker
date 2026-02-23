@@ -107,7 +107,7 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_output_dir_name", "surface")
         object.__setattr__(self, "_grid_file_prefix", "grid")
         object.__setattr__(self, "_output_file_extension", "nc")
-        object.__setattr__(self, "_output_image_file_extension", "png")
+        object.__setattr__(self, "_is_new", None)
 
         self._output_file_pattern = [
             f"{self._output_file_prefix}*.{self._output_file_extension}",
@@ -240,6 +240,7 @@ class Surface(ComponentBase):
                 isfacedata=entry["isfacedata"],
                 save_to_file=True,
             )
+        self.is_new = True
 
         return
 
@@ -1045,6 +1046,7 @@ class Surface(ComponentBase):
         # Get the names of all data files in the data directory that are not the grid file
         regrid = self._regrid_if_needed(regrid=regrid, **kwargs)
         reset = reset or regrid
+        self.is_new = reset
         ask_overwrite = self.ask_overwrite  # Store this in case of regridding. If regridding, we need it to be False for the reset
         if regrid:
             self.ask_overwrite = False
@@ -1966,32 +1968,26 @@ class Surface(ComponentBase):
         return self._crs
 
     @property
-    def plot_dir(self) -> Path:
+    def is_new(self) -> bool:
         """
-        The directory to save plots to.
+        Whether this surface is newly created or has been loaded from disk and not reset.
         """
-        plotdir = self.simdir / "surface_images"
-        plotdir.mkdir(parents=True, exist_ok=True)
-        return plotdir
+        return self._is_new
 
-    @property
-    def output_image_file_extension(self) -> str:
+    @is_new.setter
+    def is_new(self, value: bool) -> None:
         """
-        The file extension to use for output images.
-        """
-        return self._output_image_file_extension
-
-    @output_image_file_extension.setter
-    def output_image_file_extension(self, value: str):
-        """
-        Set the file extension to use for output images.
+        Set the is_new flag for this surface.
 
         Parameters
         ----------
-        value : str
-            The file extension to use for output images (e.g., "png", "jpg", "tif").
+        value : bool
+            The value to set for the is_new flag.
         """
-        self._output_image_file_extension = value
+        if not isinstance(value, bool):
+            raise TypeError("is_new must be a boolean value.")
+        self._is_new = value
+        return
 
 
 class LocalSurface(CratermakerBase):
@@ -3366,12 +3362,12 @@ class LocalSurface(CratermakerBase):
         file_prefix = f"{self.output_file_prefix}_{plot_style}"
         if interval is None:
             uxds = self.uxds
-            filename = self.plot_dir / f"{file_prefix}.{self.surface.output_image_file_extension}"
+            filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
         else:
             uxds = self.read_saved_output(interval=interval, reset=False)
             interval = uxds.interval.values.item()
             uxds = uxds.sel(interval=interval)
-            filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
+            filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
 
         if variable_name is not None and variable_name not in uxds:
             raise ValueError(f"Variable '{variable_name}' not found in the surface data.")
@@ -3901,8 +3897,6 @@ class LocalSurface(CratermakerBase):
         if self.grid_file in output_files:
             output_files.remove(self.grid_file)
 
-        # Add surface image files to the list
-        output_files.extend(list(self.plot_dir.glob(f"*.{self.output_image_file_extension}")))
         return output_files
 
     @property
@@ -4509,13 +4503,6 @@ class LocalSurface(CratermakerBase):
             reference_elevation = self.get_reference_surface(only_faces=True)
             self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
         return
-
-    @property
-    def output_image_file_extension(self) -> str:
-        """
-        The file extension to use when saving images of the surface.
-        """
-        return self.surface.output_image_file_extension
 
     @property
     def is_local(self) -> bool:

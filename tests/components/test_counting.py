@@ -24,7 +24,7 @@ surface_args = {
 
 crater = {
     "icosphere": {"diameter": 1000.0e3, "location": local_location},
-    "hireslocal": {"diameter": 1000.0, "location": local_location},
+    "hireslocal": {"diameter": 2000.0, "location": local_location},
 }
 
 

@@ -31,10 +31,7 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 _N_LAYER = 8
 
 # The minimum number of faces required in a region to perform crater counting
-_MIN_FACE_FOR_COUNTING = 20
-
-# The factor by radius over which the local region that is extracted to evaluate the crater rim
-_EXTENT_RADIUS_RATIO = 2.0
+_MIN_FACE_FOR_COUNTING = 100
 
 
 class Counting(ComponentBase):
@@ -71,7 +68,7 @@ class Counting(ComponentBase):
 
         object.__setattr__(self, "_emplaced", [])
         object.__setattr__(self, "_observed", {})
-        object.__setattr__(self, "_output_dir_name", "craters")
+        object.__setattr__(self, "_output_dir_name", "counting")
         object.__setattr__(self, "_output_file_prefix", "craters")
         object.__setattr__(self, "_output_file_extension", "nc")
         object.__setattr__(self, "_crater_cls", crater_cls)
@@ -232,7 +229,9 @@ class Counting(ComponentBase):
         self.observed.pop(crater_id, None)
         return
 
-    def fit_rim(self, crater: Crater, tol=0.01, nloops=10, score_quantile=0.95, fit_center=False, fit_ellipse=False) -> Crater:
+    def fit_rim(
+        self, crater: Crater, tol=0.01, nloops=4, score_quantile=0.95, fit_center=False, fit_ellipse=False, **kwargs
+    ) -> Crater:
         """
         Find the rim region of a crater on the surface.
 
@@ -241,16 +240,17 @@ class Counting(ComponentBase):
         crater : Crater
             The crater for which to find the rim region.
         tol : float, optional
-            The tolerance for the rim fitting algorithm. Default is 0.001.
+            The tolerance for the rim fitting algorithm. Default is 0.01.
         nloops : int, optional
-            The number of iterations for the rim fitting algorithm. Default is 10.
+            The number of iterations for the rim fitting algorithm. Default is 4.
         score_quantile : float, optional
             The quantile of rim scores to consider. Default is 0.95.
         fit_center : bool, optional
             If True, fit the crater center as well. Default is False.
         fit_ellipse : bool, optional
             If True, fit an ellipse to the rim, otherwise fit a circle. Default is False.
-
+        **kwargs : Any
+            |kwargs|
         Returns
         -------
         Crater
@@ -305,7 +305,7 @@ class Counting(ComponentBase):
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
         return region
 
-    def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> None:
+    def tally(self, region: LocalSurface | None = None, measure_rim: bool = False, quiet: bool = False, **kwargs: Any) -> None:
         """
         Tally the craters on the surface using the method of Minton et al. (2019) [#]_.
 
@@ -313,6 +313,8 @@ class Counting(ComponentBase):
         ----------
         region : LocalSurface, optional
             A LocalSurface region to count. If not supplied, then the associated surface property is used.
+        measure_rim : bool, optional
+            If True, measure the rim of each crater. Default is False.
         quiet : bool, optional
             If True, suppress progress output. Default is False.
         **kwargs : Any
@@ -357,8 +359,11 @@ class Counting(ComponentBase):
 
             # Update the crater size measurement before computing the degradation and visibility functions
             crater = self.observed[id]
-            # TODO: Make the fit_rim function more reliable before turning it on permanently
-            # crater = self.fit_rim(crater=crater, fit_center=False, fit_ellipse=False, **kwargs)
+            # TODO: Make the fit_rim function more reliable before turning it on by default. It is currently very slow and not reliable enough.
+            if measure_rim:
+                fit_center = kwargs.pop("fit_center", False)
+                fit_ellipse = kwargs.pop("fit_ellipse", False)
+                crater = self.fit_rim(crater=crater, fit_center=fit_center, fit_ellipse=fit_ellipse, **kwargs)
             crater = self.measure_degradation_state(crater, **kwargs)
             Kd = crater.degradation_state
             Kv = self.visibility_function(crater, **kwargs)
@@ -640,11 +645,11 @@ class Counting(ComponentBase):
                 emplaced_interval = emplaced.interval.values[-1]
                 if emplaced_interval == interval:
                     emplaced = self.from_xarray(emplaced, interval=interval)
-            filename = self.surface.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
+            filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
         else:
             observed = [c for _, c in self.observed.items()]
             emplaced = self.emplaced
-            filename = self.surface.plot_dir / f"{file_prefix}_{self.output_file_prefix}.{self.surface.output_image_file_extension}"
+            filename = self.plot_dir / f"{file_prefix}_{self.output_file_prefix}.{self.surface.output_image_file_extension}"
         if ax is None:
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
@@ -658,30 +663,33 @@ class Counting(ComponentBase):
             cmap=cmap,
             **kwargs,
         )
-        if observed_color is not None and observed is not None and len(observed) > 0:
-            gs = self.to_geoseries(craters=observed, use_measured_properties=True, split_antimeridian=split_antimeridian).to_crs(
-                crs
-            )
+
+        if emplaced_color is not None and emplaced is not None and len(emplaced) > 0:
+            gs = self.to_geoseries(
+                craters=emplaced, use_measured_properties=False, split_antimeridian=split_antimeridian, autolim=False
+            ).to_crs(crs)
             facecolor = kwargs.pop("facecolor", "none")
-            edgecolor = observed_color
+            edgecolor = emplaced_color
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+
         if observed_original_color is not None and observed is not None and len(observed) > 0:
-            gs = self.to_geoseries(craters=observed, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
-                crs
-            )
+            gs = self.to_geoseries(
+                craters=observed, use_measured_properties=False, split_antimeridian=split_antimeridian, autolim=False
+            ).to_crs(crs)
             facecolor = kwargs.pop("facecolor", "none")
             edgecolor = observed_original_color
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
-        if emplaced_color is not None and emplaced is not None and len(emplaced) > 0:
-            gs = self.to_geoseries(craters=emplaced, use_measured_properties=False, split_antimeridian=split_antimeridian).to_crs(
-                crs
-            )
+
+        if observed_color is not None and observed is not None and len(observed) > 0:
+            gs = self.to_geoseries(
+                craters=observed, use_measured_properties=True, split_antimeridian=split_antimeridian, autolim=False
+            ).to_crs(crs)
             facecolor = kwargs.pop("facecolor", "none")
-            edgecolor = emplaced_color
+            edgecolor = observed_color
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
@@ -1243,7 +1251,7 @@ class Counting(ComponentBase):
             if region_poly is None:
                 return 1.0
             distance = self.surface.compute_distances(center_location=self.surface.local_location, locations=[crater.location])
-            if distance + crater.radius > self.surface.local_radius:
+            if distance + crater.measured_radius > self.surface.local_radius:
                 crater_poly = crater.to_geoseries(
                     surface=self.surface, split_antimeridian=False, use_measured_properties=True
                 ).to_crs(self.surface.crs)

@@ -31,6 +31,12 @@ General utilities
     general_utils.normalize_coords
     general_utils.validate_and_normalize_location
     general_utils.R_to_CSFD
+    general_utils.csfd_geometric_saturation
+    general_utils.csfd_equilibrium
+    general_utils.get_saved_interval_numbers
     general_utils.format_large_units
+    general_utils.toggle_pyvista_actor
+    general_utils.update_pyvista_help_message
+    general_utils.cleanup
 
 

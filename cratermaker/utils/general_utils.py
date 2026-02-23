@@ -392,6 +392,55 @@ def R_to_CSFD(
     return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
 
 
+def csfd_geometric_saturation(diameter: FloatLike | ArrayLike) -> FloatLike | ArrayLike:
+    """
+    Calculate the cumulative number of craters at geometric saturation for a given diameter.
+
+    We use the definition of geomatric saturation from Melosh (1989) [#]_.
+
+    Parameter
+    ----------
+    diameter : FloatLike or ArrayLike
+        The diameter(s) for which to calculate the cumulative number of craters at geometric saturation.
+
+    Returns
+    -------
+    FloatLike or ArrayLike
+        The cumulative number of craters at geometric saturation for the given diameter(s).
+
+    References
+    ----------
+    .. [#] Melosh, H.J., 1989. Impact cratering: A geologic process. Oxford University Press, New York, New York.
+
+    """
+    return 1.54 * diameter ** (-2)
+
+
+def csfd_equilibrium(diameter: FloatLike | ArrayLike, f_geometric=0.0218) -> FloatLike | ArrayLike:
+    """
+    Calculate the cumulative number of craters at equilibrium for a given diameter.
+
+    Parameter
+    ----------
+    diameter : FloatLike or ArrayLike
+        The diameter(s) for which to calculate the cumulative number of craters at equilibrium.
+    f_geometric : float, optional
+        The fraction of geometric saturation at which equilibrium occurs. The default value is 0.0218, which is the value used in Minton et al. (2019) [#]_.
+
+
+    Returns
+    -------
+    FloatLike or ArrayLike
+        The cumulative number of craters at equilibrium for the given diameter(s).
+
+    References
+    ----------
+    .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
+
+    """
+    return f_geometric * csfd_geometric_saturation(diameter)
+
+
 def get_saved_interval_numbers(
     output_dir: str | Path, output_file_prefix: str, output_file_extension: str
 ) -> tuple[list[int], list[Path]]:
@@ -527,21 +576,20 @@ def cleanup(simdir: str | Path | None = None):
     -----
     This function is useful for cleaning up after tests or before starting new simulations to avoid conflicts with existing files.
     """
-    from cratermaker.constants import _CONFIG_FILE_NAME
+    import shutil
+    from cratermaker.constants import _CONFIG_FILE_NAME, _COMPONENT_NAMES
 
     if simdir is None:
         simdir = Path.cwd()
     else:
         simdir = Path(simdir)
 
-    out_dirs = ["surface", "craters", "export", "surface_images"]
     config = simdir / _CONFIG_FILE_NAME
     if config.exists():
         config.unlink()
-    for d in out_dirs:
-        dir_path = simdir / d
-        if dir_path.exists():
-            import shutil
-
-            shutil.rmtree(dir_path)
+    for component in _COMPONENT_NAMES:
+        for d in [component, component + "_images"]:
+            dir_path = simdir / d
+            if dir_path.exists():
+                shutil.rmtree(dir_path)
     return
