@@ -1,6 +1,10 @@
 [package]
 name = "cratermaker-components"
+<<<<<<< HEAD
 version = "2026.2.8-a5+g9af6208d"
+=======
+version = "2026.2.8-a10+g49fc801d"
+>>>>>>> 37-implement-crater-statistics-functionality
 edition = "2021"
 
 
