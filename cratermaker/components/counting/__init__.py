@@ -649,7 +649,7 @@ class Counting(ComponentBase):
         else:
             observed = [c for _, c in self.observed.items()]
             emplaced = self.emplaced
-            filename = self.plot_dir / f"{file_prefix}_{self.output_file_prefix}.{self.surface.output_image_file_extension}"
+            filename = self.plot_dir / f"{file_prefix}.{self.surface.output_image_file_extension}"
         if ax is None:
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
