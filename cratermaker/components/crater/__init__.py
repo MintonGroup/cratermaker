@@ -650,6 +650,7 @@ class Crater:
             "projectile_mass": projectile_mass,
             "projectile_velocity": projectile_velocity,
             "projectile_angle": projectile_angle,
+            "projectile_density": projectile_density,
             "morphology_type": "Not Set",
             "location": location,
             "time": time,
