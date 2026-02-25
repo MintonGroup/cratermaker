@@ -30,7 +30,7 @@ class Minton2019Counting(Counting):
         super().__init__(surface=surface, **kwargs)
         self._component_name = "minton2019"
 
-    def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> Crater:
+    def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> float:
         """
         Measure the degradation state of a crater by measuring its depth-to-diameter ratio and using eq. 9 from Minton et al. (2019) [#]_ with a correction factor for complex craters from Riedel et al. (2020) [#]_.
 
@@ -43,8 +43,8 @@ class Minton2019Counting(Counting):
 
         Returns
         -------
-        crater : Crater
-            The updated Crater object with the measured degradation state and updated depth properties.
+        float
+           The estimated degradation state of the crater in m**2. The crater object will also have its degradation state value updated in place
 
         References
         ----------
@@ -68,7 +68,7 @@ class Minton2019Counting(Counting):
         K = (a / np.sqrt(depth_diam) - b) * crater.measured_radius**2
         crater.degradation_state = K
 
-        return crater
+        return K
 
     def visibility_function(self, crater: Crater, Kv1: float = 0.17, gamma: float = 2.0, **kwargs: Any) -> float:
         """

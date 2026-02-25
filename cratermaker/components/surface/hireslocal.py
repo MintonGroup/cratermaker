@@ -248,13 +248,14 @@ class HiResLocalSurface(Surface):
 
     def plot(
         self,
-        style: Literal["map", "hillshade"] = "map",
+        plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
+        interval: int | None = None,
         cmap: str | None = None,
-        imagefile=None,
         label=None,
         scalebar=True,
         show=True,
+        save=False,
         ax: Axes | None = None,
         superdomain: bool = False,
         **kwargs: Any,
@@ -264,20 +265,22 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        style : str, optional
+        plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
             The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        interval: int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used.
         cmap : str, optional
-            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
-        imagefile : str | Path, optional
-            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is True unless `superdomain` is True, in which case the scalebar will not be displayed by default.
+            If True, a scalebar will be added to the plot. Default is True.
         show : bool, optional
-            If True, the plot will be displayed.
+            If True, the plot will be displayed. Default for local surfaces is True.
+        save : bool, optional
+            If True, the plot will be saved to the default plot directory. Default is False.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         superdomain : bool, optional
@@ -287,10 +290,10 @@ class HiResLocalSurface(Surface):
         """
         if superdomain:
             return self._full().plot(
-                style=style,
+                plot_style=plot_style,
                 variable_name=variable_name,
+                inteval=interval,
                 cmap=cmap,
-                imagefile=imagefile,
                 label=label,
                 scalebar=False,
                 show=show,
@@ -299,12 +302,12 @@ class HiResLocalSurface(Surface):
             )
         else:
             return self.local.plot(
-                style=style,
+                plot_style=plot_style,
                 variable_name=variable_name,
+                inteval=interval,
                 cmap=cmap,
-                imagefile=imagefile,
                 label=label,
-                scalebar=scalebar,
+                scalebar=True,
                 show=show,
                 ax=ax,
                 **kwargs,

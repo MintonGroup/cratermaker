@@ -33,8 +33,8 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
 _N_LAYER = 8
 
-# The minimum number of faces required in a region to perform crater counting
-_MIN_FACE_FOR_COUNTING = 100
+# The minimum number of faces required in a region to perform crater counting, which corresponds to a roughly 3 pix diameter crater
+_MIN_FACE_FOR_COUNTING = 30
 
 
 class Counting(ComponentBase):
@@ -375,8 +375,7 @@ class Counting(ComponentBase):
                 fit_center = kwargs.pop("fit_center", False)
                 fit_ellipse = kwargs.pop("fit_ellipse", False)
                 crater = self.fit_rim(crater=crater, fit_center=fit_center, fit_ellipse=fit_ellipse, **kwargs)
-            crater = self.measure_degradation_state(crater, **kwargs)
-            Kd = crater.degradation_state
+            Kd = self.measure_degradation_state(crater, **kwargs)
             Kv = self.visibility_function(crater, **kwargs)
             if Kd >= Kv:
                 remove_ids.append(id)
@@ -403,7 +402,7 @@ class Counting(ComponentBase):
         return
 
     @abstractmethod
-    def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> Crater: ...
+    def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> float: ...
 
     @abstractmethod
     def visibility_function(self, crater: Crater, Kv1: float = 0.17, gamma: float = 2.0, **kwargs: Any) -> float: ...

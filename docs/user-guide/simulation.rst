@@ -201,11 +201,10 @@ You can also can have multiple save actions that use the same method, but with d
         reset=True,
     )
     # Add an extra plot command on top of the default one for Simulation so that we plot both the standard hillshade but also one with the craters overlaid.
-    sim.save_actions = sim.save_actions + [
-        {"plot": {"include_counting": True, "show": False, "save": True}}
-    ]
+    sim.add_save_action({"plot": {"include_counting": True, "show": False, "save": True}})
+    
     # Also export the craters in SCC format at the end of each interval as part of the Counting object's save_actions.
-    sim.counting.save_actions = [{"export": {"driver": "SCC"}}]
+    sim.counting.add_save_action({"export": {"driver": "SCC"}})
     sim.run(age=3540.0, time_interval=10.0)
 
 More Examples

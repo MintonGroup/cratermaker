@@ -75,7 +75,7 @@ class CratermakerBase:
         object.__setattr__(self, "_output_image_file_extension", "png")
         object.__setattr__(self, "_export_dir_name", "export")
         object.__setattr__(self, "_ask_overwrite", None)
-        object.__setattr__(self, "_save_actions", {})
+        object.__setattr__(self, "_save_actions", [])
 
         self.simdir = simdir
         self.ask_overwrite = ask_overwrite
@@ -309,6 +309,33 @@ class CratermakerBase:
                     print(f"Error removing file {file}: {e}")
                     return False
         return True
+
+    def add_save_action(self, action: dict[str, dict]) -> None:
+        """
+        Add an action to the save_actions property of this component.
+
+        Parameters
+        ----------
+        action : dict[str, dict]
+            A dictionary where the keys are the names of actions that can be performed on this component (e.g. "plot") when calling the save function and the values are the arguments that should be passed to that action when it is called by the save function.
+        """
+        if not isinstance(action, dict):
+            raise TypeError(
+                "action must be a dictionary containing a key with a valid action for this component (e.g. 'plot') and the values are the arguments"
+            )
+        for action_name, args in action.items():
+            if hasattr(self, action_name):
+                action_method = getattr(self, action_name)
+                if not callable(action_method):
+                    raise ValueError(f"{action_name} is not a valid action for {self.name}")
+            else:
+                raise ValueError(f"{action_name} is not a valid action for {self.name}")
+            if not isinstance(args, dict):
+                raise TypeError(
+                    f"Arguments for action {action_name} must be a dictionary of keyword arguments to be passed to the {self.name}.{action_name}() method."
+                )
+        self._save_actions.append(action)
+        return
 
     @parameter
     def save_actions(self) -> list[dict[str, dict]]:
