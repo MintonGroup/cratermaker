@@ -863,7 +863,7 @@ class Simulation(CratermakerBase):
         include_counting: bool = False,
         interval: int | None = None,
         plot_style: str = "hillshade",
-        label=None,
+        label="default",
         show=False,
         save=True,
         ax: Axes | None = None,
@@ -896,7 +896,7 @@ class Simulation(CratermakerBase):
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
-        if label is None:
+        if label == "default":
             label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
         if interval is None:
             interval = self.interval
