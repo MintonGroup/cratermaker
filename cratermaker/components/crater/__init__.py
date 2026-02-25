@@ -732,6 +732,7 @@ class Crater:
             pm = args.pop("projectile_mass")
             pv = args.pop("projectile_velocity")
             pang = args.pop("projectile_angle")
+            prho = args.pop("projectile_density")
             location = args.pop("location")
             if "measured_diameter" in args:
                 measured_diameter = args.pop("measured_diameter")
@@ -775,6 +776,7 @@ class Crater:
                 "angle": args["projectile_angle"],
                 "direction": args["orientation"],
                 "location": args["location"],
+                "density": args["projectile_density"],
             }
             projectile = Projectile.maker(
                 projectile,
