@@ -25,7 +25,7 @@ from cratermaker.constants import FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 
 if TYPE_CHECKING:
-    from cratermaker.components.morphology import MorphologyCrater
+    from cratermaker.components.morphology import Morphology, MorphologyCrater
     from cratermaker.components.surface import LocalSurface, Surface
 
 _TALLY_LONG_NAME = "Unique crater identification number"
@@ -75,6 +75,8 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_output_file_prefix", "craters")
         object.__setattr__(self, "_output_file_extension", "nc")
         object.__setattr__(self, "_Crater", None)
+        object.__setattr__(self, "_surface", None)
+        object.__setattr__(self, "_morphology", None)
         self._surface = Surface.maker(surface, reset=reset, **kwargs)
         self.Crater = Crater
         self._output_file_pattern += [
@@ -1226,7 +1228,7 @@ class Counting(ComponentBase):
                     crater_data.pop("location")
                 if None in crater_data["measured_location"]:
                     crater_data.pop("measured_location")
-                crater = self.Crater.maker(**crater_data, check_redundant_inputs=False)
+                crater = self.Crater.maker(**crater_data, morphology=self.morphology, check_redundant_inputs=False)
                 craters.append(crater)
 
         return craters
@@ -1259,7 +1261,7 @@ class Counting(ComponentBase):
         def overlap_fraction(crater, region_poly=None):
             if region_poly is None:
                 return 1.0
-            distance = self.surface.compute_distances(center_location=self.surface.local_location, locations=[crater.location])
+            distance = self.surface.compute_distances(reference_location=self.surface.local_location, locations=[crater.location])
             if distance + crater.measured_radius > self.surface.local_radius:
                 crater_poly = crater.to_geoseries(
                     surface=self.surface, split_antimeridian=False, use_measured_properties=True
@@ -1291,7 +1293,9 @@ class Counting(ComponentBase):
             if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
                 f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
                 if region_poly is None:  # We only need to do this the first time through
-                    region_circle = self.Crater.maker(radius=self.surface.local_radius, location=self.surface.local_location)
+                    region_circle = Crater.maker(
+                        radius=self.surface.local_radius, location=self.surface.local_location
+                    )  # We can get away with using just the base class for Crater here
                     region_poly = (
                         region_circle.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False)
                         .to_crs(self.surface.crs)
@@ -1347,7 +1351,7 @@ class Counting(ComponentBase):
             raise ValueError(f"Input file '{input_file}' is not a .scc file.")
         scc = Spatialcount(filename=str(input_file))
         for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
-            crater = self.Crater.maker(diameter=diam * 1e3, location=(lon, lat))
+            crater = self.Crater.maker(diameter=diam * 1e3, location=(lon, lat), morphology=self.morphology)
             craters.append(crater)
 
         return craters
@@ -1399,7 +1403,7 @@ class Counting(ComponentBase):
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
-            crater = self.Crater.maker(**crater_data, check_redundant_inputs=False)
+            crater = self.Crater.maker(**crater_data, morphology=self.morphology, check_redundant_inputs=False)
             craters.append(crater)
 
         return craters
@@ -1480,6 +1484,24 @@ class Counting(ComponentBase):
         if not isinstance(value, type) or not issubclass(value, Crater):
             raise TypeError("Crater must be a subclass of the base Crater class.")
         self._Crater = value
+
+    @property
+    def morphology(self) -> Morphology:
+        """
+        The morphology component used for this counting component, which determines the Crater class and the crater properties that are tracked in the simulation.
+        """
+        return self._morphology
+
+    @morphology.setter
+    def morphology(self, value):
+        from cratermaker.components.morphology import Morphology
+
+        if not isinstance(value, Morphology):
+            raise TypeError("morphology must be an instance of the Morphology class.")
+        self._morphology = value
+        if not issubclass(self.Crater, value.Crater):
+            self.Crater = value.Crater  # Set the Crater class to the one specified by the morphology component if they don't match
+        return
 
 
 def R_to_CSFD(

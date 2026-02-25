@@ -2,7 +2,7 @@
 Emplace a crater a specific distance and bearing from the center of a HiResLocalSurface
 =======================================================================================
 
-This example shows how to emplace a crater at a specific distance and bearing from the center of a HiResLocalSurface using the new `compute_location_from_distance_bearing` function of the Surface class. This is useful to place a crater on a HiResLocalSurface at a specific location relative to the center without trying to figure out what lat,lon coordinates to use.
+This example shows how to emplace a crater at a specific distance and bearing from the center of a HiResLocalSurface using the new `relative_location` arguments that can be passed to the `emplace` method. This is useful to place a crater on a HiResLocalSurface at a specific location relative to the center without trying to figure out what lat,lon coordinates to use. In this example, we will emplace a sequence of craters in a spiral pattern. This not meant to be a realistic planetary surface, but it looks pretty cool!
 
 """
 
@@ -21,11 +21,19 @@ sim = cm.Simulation(
     local_location=(0, 0),
     pix=10.0,
     local_radius=2000.0,
+    do_counting=False,
 )
 
-# Put a 500 m crater 1 km due north of the center
-location = sim.surface.local.compute_location_from_distance_bearing(distances=1000.0, bearings=0)
-sim.emplace(diameter=500.0, location=location)
+# Emplace craters in a spiral pattern with craters getting slightly largers as they get farther from the center
+total_rotation = 3 * 360.0
+ncraters = 36
+bearing_spacing = int(total_rotation / ncraters)
+distance_spacing = sim.surface.local_radius / ncraters
+for i in range(ncraters):
+    bearing = i * bearing_spacing
+    distance = i * distance_spacing
+    diameter = 50.0 + i * 2.5
+    sim.emplace(diameter=diameter, relative_location={"distance": distance, "bearing": bearing})
 
 # Use the "c" key to show the circle representing the crater
 sim.show3d(variable_name="face_elevation", cmap="cividis")

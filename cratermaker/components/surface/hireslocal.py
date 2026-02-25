@@ -681,6 +681,35 @@ class HiResLocalSurface(Surface):
             self.ask_overwrite = ask_overwrite  # Restore the original value of ask_overwrite after the reset
         return
 
+    def compute_location_from_distance_bearing(
+        self,
+        distance: FloatLike | ArrayLike,
+        bearing: FloatLike | ArrayLike,
+        reference_location: PairOfFloats | None = None,
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the longitude and latitude of one or more points given a reference point, initial bearings, and distances.
+
+        Parameters
+        ----------
+        bearings : FloatLike or ArrayLike
+            Initial bearing from the reference point to the target point or points in degrees.
+        distances : FloatLike or ArrayLike
+            Great circle distance from the reference point to the target point or points in meters.
+        reference_location : PairOfFloats, optional
+            Longitude and latitude of the reference point in degrees. Default is the value of `local_location`
+
+        Returns
+        -------
+        NDArray
+            Longitude and latitude of the target point or points in degrees.
+        """
+        if reference_location is None:
+            reference_location = self.local_location
+        return super().compute_location_from_distance_bearing(
+            distance=distance, bearing=bearing, reference_location=reference_location
+        )
+
     @property
     def local(self):
         """

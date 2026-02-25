@@ -69,7 +69,7 @@ class SimpleMoonCrater(MorphologyCrater):
         """
         morphology = Morphology.maker(morphology, **kwargs)
         if crater is None:
-            crater = super().maker(**kwargs)
+            crater = super().maker(morphology=morphology, **kwargs)
         args = {}
         diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
