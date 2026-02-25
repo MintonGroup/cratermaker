@@ -167,7 +167,7 @@ class CratermakerBase:
                 if hasattr(self, action):
                     action_method = getattr(self, action)
                     if callable(action_method):
-                        args = {**action_kwargs, **kwargs, "interval": interval, "filename": filename}
+                        args = {**action_kwargs, **kwargs, "interval": interval}
                         action_method(**args)
                     else:
                         raise ValueError(f"{action} is not a valid action for {self.name}")
