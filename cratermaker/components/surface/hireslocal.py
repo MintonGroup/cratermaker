@@ -253,7 +253,7 @@ class HiResLocalSurface(Surface):
         interval: int | None = None,
         cmap: str | None = None,
         label=None,
-        scalebar=True,
+        scalebar=None,
         show=True,
         save=False,
         ax: Axes | None = None,
@@ -289,26 +289,32 @@ class HiResLocalSurface(Surface):
             |kwargs|
         """
         if superdomain:
+            if scalebar is None:
+                scalebar = False
             return self._full().plot(
                 plot_style=plot_style,
                 variable_name=variable_name,
-                inteval=interval,
+                interval=interval,
                 cmap=cmap,
                 label=label,
-                scalebar=False,
+                scalebar=scalebar,
                 show=show,
+                save=save,
                 ax=ax,
                 **kwargs,
             )
         else:
+            if scalebar is None:
+                scalebar = True
             return self.local.plot(
                 plot_style=plot_style,
                 variable_name=variable_name,
-                inteval=interval,
+                interval=interval,
                 cmap=cmap,
                 label=label,
-                scalebar=True,
+                scalebar=scalebar,
                 show=show,
+                save=save,
                 ax=ax,
                 **kwargs,
             )

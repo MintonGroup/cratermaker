@@ -285,29 +285,28 @@ class CratermakerBase:
         bool
             True if the user confirmed that they wanted to overwrite the files and that all requested files and/or directories were removed. False if they cancel the operation.
         """
-        if self.ask_overwrite:
-            ask_overwrite = self.ask_overwrite  # This will allow us to temporarily disable prompts about overwriting files for this operation if the user selects 'a' to suppress prompts about overwriting files, without changing the value of self.ask_overwrite for future operations.
-            if not isinstance(files_to_remove, list):
-                files_to_remove = [files_to_remove]
-            for file in files_to_remove:
-                file = Path(file)
-                if file.exists() and ask_overwrite:
-                    response = input(
-                        f"File '{str(file)}' already exists. To disable this message, set ask_overwrite=False to this instance. Overwrite? (y/N/a): "
-                    )
-                    if response.lower() == "a":
-                        ask_overwrite = False
-                    elif response.lower() != "y":
-                        print("Operation cancelled by user.")
-                        return False
-                try:
-                    if file.is_dir():
-                        shutil.rmtree(file)
-                    else:
-                        file.unlink(missing_ok=True)
-                except Exception as e:
-                    print(f"Error removing file {file}: {e}")
+        ask_overwrite = self.ask_overwrite  # This will allow us to temporarily disable prompts about overwriting files for this operation if the user selects 'a' to suppress prompts about overwriting files, without changing the value of self.ask_overwrite for future operations.
+        if not isinstance(files_to_remove, list):
+            files_to_remove = [files_to_remove]
+        for file in files_to_remove:
+            file = Path(file)
+            if file.exists() and ask_overwrite:
+                response = input(
+                    f"File '{str(file)}' already exists. To disable this message, set ask_overwrite=False to this instance. Overwrite? (y/N/a): "
+                )
+                if response.lower() == "a":
+                    ask_overwrite = False
+                elif response.lower() != "y":
+                    print("Operation cancelled by user.")
                     return False
+            try:
+                if file.is_dir():
+                    shutil.rmtree(file)
+                else:
+                    file.unlink(missing_ok=True)
+            except Exception as e:
+                print(f"Error removing file {file}: {e}")
+                return False
         return True
 
     def add_save_action(self, action: dict[str, dict]) -> None:
