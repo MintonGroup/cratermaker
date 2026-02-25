@@ -731,6 +731,7 @@ class HiResLocalSurface(Surface):
         """
         if self._local is None:
             self._local = self.extract_region(location=self.local_location, region_radius=self.local_radius)
+            self.local.grid_file.unlink(missing_ok=True)
             self.local_grid_indices_file.unlink(missing_ok=True)
             np.savez_compressed(
                 file=self.local_grid_indices_file,
