@@ -47,7 +47,7 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
-        crater_cls: type[Crater] | None = None,
+        Crater: type[Crater] | None = None,
         reset: bool = True,
         **kwargs: Any,
     ):
@@ -58,7 +58,7 @@ class Counting(ComponentBase):
         ----------
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
-        crater_cls : type[Crater], optional
+        Crater : type[Crater], optional
             The Crater class associated with this counting model. This is used to ensure that the correct variable properties are available for the counting model when creating new craters. If not supplied, then the base Crater class is used.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True.
@@ -74,7 +74,7 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_output_dir_name", "counting")
         object.__setattr__(self, "_output_file_prefix", "craters")
         object.__setattr__(self, "_output_file_extension", "nc")
-        object.__setattr__(self, "_crater_cls", crater_cls)
+        object.__setattr__(self, "_Crater", Crater)
         self._surface = Surface.maker(surface, reset=reset, **kwargs)
         self._output_file_pattern += [
             f"observed_{self._output_file_prefix}*.{self._output_file_extension}",
@@ -1221,7 +1221,7 @@ class Counting(ComponentBase):
                     crater_data.pop("location")
                 if None in crater_data["measured_location"]:
                     crater_data.pop("measured_location")
-                crater = self.crater_cls.maker(**crater_data, check_redundant_inputs=False)
+                crater = self.Crater.maker(**crater_data, check_redundant_inputs=False)
                 craters.append(crater)
 
         return craters
@@ -1286,7 +1286,7 @@ class Counting(ComponentBase):
             if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
                 f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
                 if region_poly is None:  # We only need to do this the first time through
-                    region_circle = self.crater_cls.maker(radius=self.surface.local_radius, location=self.surface.local_location)
+                    region_circle = self.Crater.maker(radius=self.surface.local_radius, location=self.surface.local_location)
                     region_poly = (
                         region_circle.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False)
                         .to_crs(self.surface.crs)
@@ -1342,7 +1342,7 @@ class Counting(ComponentBase):
             raise ValueError(f"Input file '{input_file}' is not a .scc file.")
         scc = Spatialcount(filename=str(input_file))
         for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
-            crater = self.crater_cls.maker(diameter=diam * 1e3, location=(lon, lat))
+            crater = self.Crater.maker(diameter=diam * 1e3, location=(lon, lat))
             craters.append(crater)
 
         return craters
@@ -1394,7 +1394,7 @@ class Counting(ComponentBase):
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
-            crater = self.crater_cls.maker(**crater_data, check_redundant_inputs=False)
+            crater = self.Crater.maker(**crater_data, check_redundant_inputs=False)
             craters.append(crater)
 
         return craters
@@ -1460,13 +1460,13 @@ class Counting(ComponentBase):
         return len(self._observed)
 
     @property
-    def crater_cls(self) -> type[Crater]:
+    def Crater(self) -> type[Crater]:
         """
         The Crater class used for this counting component, which is determined by the morphology component.
         """
-        if self._crater_cls is None:
+        if self._Crater is None:
             return Crater
-        return self._crater_cls
+        return self._Crater
 
 
 def R_to_CSFD(
