@@ -289,6 +289,7 @@ class Morphology(ComponentBase):
         counting: Counting | str | None = None,
         do_subpixel_degradation: bool = True,
         do_slope_collapse: bool = True,
+        do_counting: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -306,6 +307,8 @@ class Morphology(ComponentBase):
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         do_slope_collapse : bool, optional
             If True, slope collapse will be performed during the emplacement of craters. Default is True.
+        do_counting : bool or None, optional
+            If True, counting will be performed during emplacement if a Counting object is provided. If False, no counting will be performed even if a Counting object is provided. If None (default), the presence or absence of a Counting object will determine whether counting is performed.
         **kwargs : Any
             |kwargs|
 
@@ -317,7 +320,7 @@ class Morphology(ComponentBase):
         super().__init__(**kwargs)
         object.__setattr__(self, "_production", None)
         object.__setattr__(self, "_counting", None)
-        object.__setattr__(self, "_do_counting", False)
+        object.__setattr__(self, "_do_counting", None)
         object.__setattr__(self, "_excavated_volume", None)
 
         # Because a Surface object is associated with a Counting object, we should first check to see if we are receiving a Counting object first so that we don't end up creating a spurious Surface object that we don't want.
@@ -327,7 +330,14 @@ class Morphology(ComponentBase):
         else:
             self.surface = Surface.maker(surface, **kwargs)
             if counting is not None:
-                self.counting = Counting.maker(counting, surface=self.surface, **kwargs)
+                crater_cls = kwargs.pop("Crater", self.Crater)
+                self.counting = Counting.maker(counting, surface=self.surface, Crater=crater_cls, **kwargs)
+
+        if do_counting is not None:
+            if do_counting and self.counting is None:
+                raise ValueError("do_counting is True but no counting object was provided or created.")
+            else:
+                self.do_counting = do_counting
 
         self.do_subpixel_degradation = do_subpixel_degradation
         self.do_slope_collapse = do_slope_collapse
@@ -731,9 +741,12 @@ class Morphology(ComponentBase):
         from cratermaker.components.counting import Counting
 
         if isinstance(counting, Counting):
+            # Make sure the associated Crater class is correct for this Morphology class
+            if not issubclass(counting.Crater, self.Crater):
+                counting.Crater = self.Crater
             self._counting = counting
         elif isinstance(counting, str):
-            self._counting = Counting.maker(counting, surface=self.surface)
+            self._counting = Counting.maker(counting, surface=self.surface, Crater=self.Crater)
         elif counting is None:
             self.do_counting = False
             self._counting = None
@@ -789,6 +802,13 @@ class Morphology(ComponentBase):
         if not isinstance(value, bool):
             raise TypeError("do_counting must be a boolean value")
         self._do_counting = value
+
+    @property
+    def Crater(self) -> type[Crater]:
+        """
+        The Crater class used for this counting component, which is determined by the morphology component.
+        """
+        return MorphologyCrater
 
 
 class CraterQueueManager:

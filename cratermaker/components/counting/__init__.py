@@ -59,7 +59,7 @@ class Counting(ComponentBase):
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
         Crater : type[Crater], optional
-            The Crater class associated with this counting model. This is used to ensure that the correct variable properties are available for the counting model when creating new craters. If not supplied, then the base Crater class is used.
+            The Crater class associated with this counting model. This is used to ensure that the correct variable properties for from a specialized Crater class are available (such as one associated with a Morphology class) when importing craters from file. If not supplied, then the base Crater class is used.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True.
         **kwargs : Any
@@ -74,8 +74,9 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_output_dir_name", "counting")
         object.__setattr__(self, "_output_file_prefix", "craters")
         object.__setattr__(self, "_output_file_extension", "nc")
-        object.__setattr__(self, "_Crater", Crater)
+        object.__setattr__(self, "_Crater", None)
         self._surface = Surface.maker(surface, reset=reset, **kwargs)
+        self.Crater = Crater
         self._output_file_pattern += [
             f"observed_{self._output_file_prefix}*.{self._output_file_extension}",
             f"emplaced_{self._output_file_prefix}*.{self._output_file_extension}",
@@ -97,6 +98,7 @@ class Counting(ComponentBase):
         cls,
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
+        Crater: type[Crater] | None = None,
         reset: bool = True,
         **kwargs: Any,
     ) -> Counting:
@@ -109,6 +111,8 @@ class Counting(ComponentBase):
             The name of the counting model to initialize. If None, the default model is used.
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
+        Crater : type[Crater], optional
+            The Crater class associated with this counting model. This is used to ensure that the correct variable properties for from a specialized Crater class are available (such as one associated with a Morphology class) when importing craters from file. If not supplied, then the base Crater class is used.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True
         **kwargs : Any
@@ -133,6 +137,7 @@ class Counting(ComponentBase):
             component=counting,
             surface=surface,
             reset=reset,
+            Crater=Crater,
             **kwargs,
         )
 
@@ -1467,6 +1472,14 @@ class Counting(ComponentBase):
         if self._Crater is None:
             return Crater
         return self._Crater
+
+    @Crater.setter
+    def Crater(self, value):
+        if value is None:
+            return
+        if not isinstance(value, type) or not issubclass(value, Crater):
+            raise TypeError("Crater must be a subclass of the base Crater class.")
+        self._Crater = value
 
 
 def R_to_CSFD(
