@@ -677,7 +677,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def export(self, driver: str = "GPKG", interval: int | None = None, **kwargs: Any) -> None:
+    def export(self, driver: str = "GPKG", interval: int | None = None, ask_overwrite: bool | None = None, **kwargs: Any) -> None:
         """
         Export the surface data to the specified format.
 
@@ -687,12 +687,15 @@ class Surface(ComponentBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval : int | None, optional
             |interval_export|
+        ask_overwrite : bool, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
         return self._full().export(
             driver=driver,
             interval=interval,
+            ask_overwrite=ask_overwrite,
             **kwargs,
         )
 
@@ -2771,6 +2774,7 @@ class LocalSurface(CratermakerBase):
         self,
         driver: str = "GPKG",
         interval: int | None = None,
+        ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -2784,10 +2788,17 @@ class LocalSurface(CratermakerBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval : int | None, optional
             |interval_export|
+        ask_overwrite : bool | None, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
+        # Temporarily set the ask_overwrite attribute for the duration of the export, but reset it to its original value afterwards.
+        ask_overwrite_orig = self.ask_overwrite
+        if ask_overwrite is not None:
+            self.ask_overwrite = ask_overwrite
 
         if interval is not None:
             self.surface.save(interval=interval, **kwargs, skip_actions=True)
@@ -2807,6 +2818,7 @@ class LocalSurface(CratermakerBase):
                 interval=interval,
                 **kwargs,
             )
+        self.ask_overwrite = ask_overwrite_orig
         return
 
     def to_vector_file(

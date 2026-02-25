@@ -212,6 +212,7 @@ class HiResLocalSurface(Surface):
         driver: str = "GPKG",
         interval: int | None = None,
         superdomain: bool = False,
+        ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -225,6 +226,8 @@ class HiResLocalSurface(Surface):
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         superdomain : bool, optional
             If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
+        ask_overwrite : bool | None, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
@@ -232,11 +235,13 @@ class HiResLocalSurface(Surface):
             self._full().export(
                 driver=driver,
                 interval=interval,
+                ask_overwrite=ask_overwrite,
                 **kwargs,
             )
         self.local.export(
             driver=driver,
             interval=interval,
+            ask_overwrite=ask_overwrite,
             **kwargs,
         )
         return

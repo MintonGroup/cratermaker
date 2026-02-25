@@ -210,4 +210,5 @@ rst_prolog = """
 .. |rng_state| replace:: The state of the random number generator. If None, a new state is created.
 .. |kwargs| replace:: Additional keyword arguments that are either ignored or passed to internal functions as needed.
 .. |interval_export| replace:: The interval number to export. If None, all intervals currently saved will be exported. Default is None.
+.. |ask_overwrite_methods| replace:: If True, the user will be prompted to confirm before overwriting any existing files. If False, existing files will be overwritten without confirmation. If None, the default behavior of the class will be used. This will only persist for the duration of the export, and will be reset to its original value afterwards.
 """

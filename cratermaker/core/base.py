@@ -175,6 +175,19 @@ class CratermakerBase:
                     raise ValueError(f"{action} is not a valid action for {self.name}")
         return
 
+    def export(self, **kwargs: Any) -> None:
+        """
+        Export the component data to the specified format.
+
+        This is a stub that acts as a pass-through for components that don't have an export method defined.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            |kwargs|
+        """
+        pass
+
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
         """
         Check if the component has any output files in its output directory.

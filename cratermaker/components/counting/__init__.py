@@ -514,6 +514,7 @@ class Counting(ComponentBase):
         crater_type: Literal["observed", "emplaced", "both"] = "both",
         interval: int | None = None,
         driver: str = "SCC",
+        ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -527,10 +528,17 @@ class Counting(ComponentBase):
             |interval_export|
         driver : str, default='GPKG'
             The file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', 'CSV', 'SCC'.
+        ask_overwrite : bool, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
+        # Temporarily set the ask_overwrite attribute for the duration of the export, but reset it to its original value afterwards.
+        ask_overwrite_orig = self.ask_overwrite
+        if ask_overwrite is not None:
+            self.ask_overwrite = ask_overwrite
 
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
@@ -582,6 +590,7 @@ class Counting(ComponentBase):
                         **kwargs,
                     )
 
+        self.ask_overwrite = ask_overwrite_orig
         return
 
     def plot(
