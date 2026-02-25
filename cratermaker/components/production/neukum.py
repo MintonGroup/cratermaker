@@ -2,12 +2,13 @@ from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
+from cratermaker.general_utils import format_large_units, parameter
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 
+from cratermaker.components.counting import R_to_CSFD
 from cratermaker.components.production import Production
 from cratermaker.constants import FloatLike
-from cratermaker.utils.general_utils import R_to_CSFD, format_large_units, parameter
 
 
 @Production.register("neukum")
