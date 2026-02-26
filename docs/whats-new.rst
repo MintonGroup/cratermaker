@@ -3,6 +3,17 @@
 What's New
 ==========
 
+.. _whats-new.2026.2.10-alpha:
+
+:release:`v2026.2.10-alpha`
+
+- Added new function `add_save_action()` that will append a single item to a component's `save_actions` list.
+- Fixed a number of issues with saving and plotting HiResLocal surfaces.
+- Added a new `relative_location` argument that can be used with the `MorphologyCrater` and its derivatives, and thus can be passed down via the emplace method. Updated the example that uses it to generate a spiral of craters.
+- Now both the `Morphology` and `Counting `models have a Crater attribute that can be used to instantiate specialty craters by their chosen Morphology type.  When a Counting object is associated with a Morphology, its Crater attribute takes on the the class defined by its Morphology's Crater attribute.
+- Added `ask_overwrite` flags to the export functions that can temporarily override the object's set value during an export operation.
+- Changed `measure_degradation_state` to return the degradation state instead of a Crater. Dropped the number of faces down to for counting from 100 to 30 to capture 3 pix diameter craters. :pull:86 `David Minton`_
+
 .. _whats-new.2026.2.9-alpha:
 
 :release:`v2026.2.9-alpha`

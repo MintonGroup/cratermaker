@@ -10,6 +10,7 @@ import numpy as np
 from geopandas import GeoSeries
 from numpy.random import Generator
 
+from cratermaker.constants import PairOfFloats
 from cratermaker.core.base import CratermakerBase
 from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
 
@@ -31,7 +32,7 @@ class CraterFixed:
     projectile_velocity: float | None = None
     projectile_angle: float | None = None
     projectile_mass: float | None = None
-    location: tuple[float, float] | None = None
+    location: PairOfFloats | None = None
     morphology_type: str | None = None
     time: float | None = None
     radius: float | None = field(default=None, init=False)
@@ -71,7 +72,7 @@ class CraterVariable:
         measured_semimajor_axis: float | None = None,
         measured_semiminor_axis: float | None = None,
         measured_orientation: float | None = None,
-        measured_location: tuple[float, float] | None = None,
+        measured_location: PairOfFloats | None = None,
         measured_rim_height: float | None = None,
         measured_floor_depth: float | None = None,
         degradation_state: float | None = None,
@@ -413,15 +414,15 @@ class Crater:
         projectile_vertical_velocity=None,
         projectile_angle: float | None = None,
         projectile_direction: float | None = None,
-        projectile_location: tuple[float, float] | None = None,
-        location: tuple[float, float] | None = None,
+        projectile_location: PairOfFloats | None = None,
+        location: PairOfFloats | None = None,
         time: float | None = None,
         measured_semimajor_axis: float | None = None,
         measured_semiminor_axis: float | None = None,
         measured_orientation: float | None = None,
         measured_diameter: float | None = None,
         measured_radius: float | None = None,
-        measured_location: tuple[float, float] | None = None,
+        measured_location: PairOfFloats | None = None,
         measured_rim_height: float | None = None,
         measured_floor_depth: float | None = None,
         degradation_state: float | None = None,
@@ -481,9 +482,9 @@ class Crater:
             The impact angle in degrees (0-90).
         projectile_direction : float, optional
             The direction of the impact in degrees (0-360).
-        projectile_location : tuple of float, optional
+        projectile_location : pair of float, optional
             The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence
-        location : tuple of float, optional
+        location : pair of floats, optional
             The (longitude, latitude) location of the crater.
         time : float, optional
             The time of the crater impact in Myr before present.
@@ -497,7 +498,7 @@ class Crater:
             The measured diameter of the crater in meters.
         measured_radius : float, optional
             The measured radius of the crater in meters.
-        measured_location : tuple of float, optional
+        measured_location : pair of floats, optional
             The measured (longitude, latitude) location of the crater.
         measured_rim_height : float, optional
             The measured rim height of the crater in meters.
@@ -583,6 +584,11 @@ class Crater:
 
         if location is None:
             location = projectile_location
+        elif projectile_location is not None:
+            if check_redundant_inputs:
+                raise ValueError("Only one of location or projectile_location may be set.")
+            else:
+                projectile_location = None  # Give priority to location if both are set and we aren't checking for redundant inputs
 
         # Validate ellipticity parameters
         if semimajor_axis is not None or semiminor_axis is not None:
@@ -650,6 +656,7 @@ class Crater:
             "projectile_mass": projectile_mass,
             "projectile_velocity": projectile_velocity,
             "projectile_angle": projectile_angle,
+            "projectile_density": projectile_density,
             "morphology_type": "Not Set",
             "location": location,
             "time": time,
@@ -732,6 +739,7 @@ class Crater:
             pm = args.pop("projectile_mass")
             pv = args.pop("projectile_velocity")
             pang = args.pop("projectile_angle")
+            prho = args.pop("projectile_density")
             location = args.pop("location")
             if "measured_diameter" in args:
                 measured_diameter = args.pop("measured_diameter")
@@ -775,6 +783,7 @@ class Crater:
                 "angle": args["projectile_angle"],
                 "direction": args["orientation"],
                 "location": args["location"],
+                "density": args["projectile_density"],
             }
             projectile = Projectile.maker(
                 projectile,

@@ -13,9 +13,9 @@ from scipy.integrate import quad
 from tqdm import tqdm
 
 from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
-from cratermaker.constants import FloatLike
+from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, import_components
-from cratermaker.utils.general_utils import format_large_units, parameter
+from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
 
 if TYPE_CHECKING:
     from cratermaker.components.counting import Counting
@@ -123,6 +123,54 @@ class MorphologyCrater(Crater):
             output += f"Crater region: {self.crater_region}\n"
             output += f"Ejecta region: {self.ejecta_region}\n"
         return output
+
+    @classmethod
+    def maker(
+        cls,
+        crater: Crater | None = None,
+        morphology: Morphology | None = None,
+        location: PairOfFloats | None = None,
+        relative_location: dict | None = None,
+        check_redundant_inputs: bool = True,
+        **kwargs: Any,
+    ) -> MorphologyCrater:
+        """
+        Initialize a MorphologyCrater object either from an existing Crater object or from parameters.
+
+        This generates a specialized Crater object with morphology parameters.
+
+        Parameters
+        ----------
+        crater : Crater, optional
+            The crater object to be converted into a SimpleMoonCrater. If None, then a new crater is created using the provided parameters.
+        morphology : Morphology, optional
+            The morphology model to use for generating morphology parameters.
+        location : pair of floats, optional
+            The (longitude, latitude) location of the crater.
+        relative_location : dict
+            Set the crater's location based on the distance and bearing from a reference location. The dictionary is required to have the keys: "distance" and "bearing" with values of distance (in meters) and bearing (in degrees) from the reference point. A third key, "reference_location" should be in the form of a tuple of floats representing the longitude and latitude pair that defines the reference location. The "reference_location" is optional if the morphology.surface contains a `local_location` attribute (such as in the case of a HiResLocal surface type and its derivatives) which will be used if the key is missing or set to None, otherwise it is required. Both location and relative_location cannot be set unless check_redundant_inputs is set to False.
+        check_redundant_inputs : bool, optional
+            If True, check for redundant inputs such as providing both diameter and radius. Default is True.
+        kwargs : Any
+            The keyword arguments provided are passed down to :func:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+        """
+        morphology = Morphology.maker(morphology, **kwargs)
+        if relative_location is not None:
+            if location is not None and check_redundant_inputs:
+                raise ValueError("Cannot provide both location and relative_location")
+            if not isinstance(relative_location, dict) or "distance" not in relative_location or "bearing" not in relative_location:
+                raise TypeError("relative_location must be a dict with keys 'distance' and 'bearing'.")
+            location = morphology.surface.compute_location_from_distance_bearing(**relative_location)
+
+        if crater is None:
+            crater = super().maker(location=location, check_redundant_inputs=check_redundant_inputs, **kwargs)
+        args = {}
+
+        return cls(
+            crater=crater,
+            morphology=morphology,
+            **args,
+        )
 
     def as_dict(self, ignore_keys: list[str] | tuple[str] = (), skip_complex_data: bool = False, **kwargs) -> dict:
         """
@@ -289,6 +337,7 @@ class Morphology(ComponentBase):
         counting: Counting | str | None = None,
         do_subpixel_degradation: bool = True,
         do_slope_collapse: bool = True,
+        do_counting: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -306,6 +355,8 @@ class Morphology(ComponentBase):
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         do_slope_collapse : bool, optional
             If True, slope collapse will be performed during the emplacement of craters. Default is True.
+        do_counting : bool or None, optional
+            If True, counting will be performed during emplacement if a Counting object is provided. If False, no counting will be performed even if a Counting object is provided. If None (default), the presence or absence of a Counting object will determine whether counting is performed.
         **kwargs : Any
             |kwargs|
 
@@ -317,7 +368,7 @@ class Morphology(ComponentBase):
         super().__init__(**kwargs)
         object.__setattr__(self, "_production", None)
         object.__setattr__(self, "_counting", None)
-        object.__setattr__(self, "_do_counting", False)
+        object.__setattr__(self, "_do_counting", None)
         object.__setattr__(self, "_excavated_volume", None)
 
         # Because a Surface object is associated with a Counting object, we should first check to see if we are receiving a Counting object first so that we don't end up creating a spurious Surface object that we don't want.
@@ -327,7 +378,17 @@ class Morphology(ComponentBase):
         else:
             self.surface = Surface.maker(surface, **kwargs)
             if counting is not None:
-                self.counting = Counting.maker(counting, surface=self.surface, **kwargs)
+                crater_cls = kwargs.pop("Crater", self.Crater)
+                self.counting = Counting.maker(counting, surface=self.surface, Crater=crater_cls, **kwargs)
+
+        if self.counting is not None:
+            self.counting.morphology = self  # Associated counting and morphology with each other
+
+        if do_counting is not None:
+            if do_counting and self.counting is None:
+                raise ValueError("do_counting is True but no counting object was provided or created.")
+            else:
+                self.do_counting = do_counting
 
         self.do_subpixel_degradation = do_subpixel_degradation
         self.do_slope_collapse = do_slope_collapse
@@ -731,9 +792,12 @@ class Morphology(ComponentBase):
         from cratermaker.components.counting import Counting
 
         if isinstance(counting, Counting):
+            # Make sure the associated Crater class is correct for this Morphology class
+            if not issubclass(counting.Crater, self.Crater):
+                counting.Crater = self.Crater
             self._counting = counting
         elif isinstance(counting, str):
-            self._counting = Counting.maker(counting, surface=self.surface)
+            self._counting = Counting.maker(counting, surface=self.surface, Crater=self.Crater)
         elif counting is None:
             self.do_counting = False
             self._counting = None
@@ -789,6 +853,13 @@ class Morphology(ComponentBase):
         if not isinstance(value, bool):
             raise TypeError("do_counting must be a boolean value")
         self._do_counting = value
+
+    @property
+    def Crater(self) -> type[Crater]:
+        """
+        The Crater class used for this counting component, which is determined by the morphology component.
+        """
+        return MorphologyCrater
 
 
 class CraterQueueManager:

@@ -212,6 +212,7 @@ class HiResLocalSurface(Surface):
         driver: str = "GPKG",
         interval: int | None = None,
         superdomain: bool = False,
+        ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -225,6 +226,8 @@ class HiResLocalSurface(Surface):
             The interval number to export. If None, all intervals currently saved will be exported. Default is None.
         superdomain : bool, optional
             If True, export the full surface including the superdomain. If False, export only the local region. Default is False.
+        ask_overwrite : bool | None, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
@@ -232,24 +235,27 @@ class HiResLocalSurface(Surface):
             self._full().export(
                 driver=driver,
                 interval=interval,
+                ask_overwrite=ask_overwrite,
                 **kwargs,
             )
         self.local.export(
             driver=driver,
             interval=interval,
+            ask_overwrite=ask_overwrite,
             **kwargs,
         )
         return
 
     def plot(
         self,
-        style: Literal["map", "hillshade"] = "map",
+        plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
+        interval: int | None = None,
         cmap: str | None = None,
-        imagefile=None,
         label=None,
-        scalebar=True,
+        scalebar=None,
         show=True,
+        save=False,
         ax: Axes | None = None,
         superdomain: bool = False,
         **kwargs: Any,
@@ -259,20 +265,22 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        style : str, optional
+        plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
             The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
+        interval: int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used.
         cmap : str, optional
-            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when style=="hillshade" and variable=="face_elevation").
-        imagefile : str | Path, optional
-            The file path to save the hillshade image. If None, the image will be displayed instead of saved.
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is True unless `superdomain` is True, in which case the scalebar will not be displayed by default.
+            If True, a scalebar will be added to the plot. Default is True.
         show : bool, optional
-            If True, the plot will be displayed.
+            If True, the plot will be displayed. Default for local surfaces is True.
+        save : bool, optional
+            If True, the plot will be saved to the default plot directory. Default is False.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         superdomain : bool, optional
@@ -281,26 +289,32 @@ class HiResLocalSurface(Surface):
             |kwargs|
         """
         if superdomain:
+            if scalebar is None:
+                scalebar = False
             return self._full().plot(
-                style=style,
+                plot_style=plot_style,
                 variable_name=variable_name,
+                interval=interval,
                 cmap=cmap,
-                imagefile=imagefile,
                 label=label,
-                scalebar=False,
+                scalebar=scalebar,
                 show=show,
+                save=save,
                 ax=ax,
                 **kwargs,
             )
         else:
+            if scalebar is None:
+                scalebar = True
             return self.local.plot(
-                style=style,
+                plot_style=plot_style,
                 variable_name=variable_name,
+                interval=interval,
                 cmap=cmap,
-                imagefile=imagefile,
                 label=label,
                 scalebar=scalebar,
                 show=show,
+                save=save,
                 ax=ax,
                 **kwargs,
             )
@@ -681,6 +695,35 @@ class HiResLocalSurface(Surface):
             self.ask_overwrite = ask_overwrite  # Restore the original value of ask_overwrite after the reset
         return
 
+    def compute_location_from_distance_bearing(
+        self,
+        distance: FloatLike | ArrayLike,
+        bearing: FloatLike | ArrayLike,
+        reference_location: PairOfFloats | None = None,
+    ) -> NDArray[np.float64]:
+        """
+        Calculate the longitude and latitude of one or more points given a reference point, initial bearings, and distances.
+
+        Parameters
+        ----------
+        bearings : FloatLike or ArrayLike
+            Initial bearing from the reference point to the target point or points in degrees.
+        distances : FloatLike or ArrayLike
+            Great circle distance from the reference point to the target point or points in meters.
+        reference_location : PairOfFloats, optional
+            Longitude and latitude of the reference point in degrees. Default is the value of `local_location`
+
+        Returns
+        -------
+        NDArray
+            Longitude and latitude of the target point or points in degrees.
+        """
+        if reference_location is None:
+            reference_location = self.local_location
+        return super().compute_location_from_distance_bearing(
+            distance=distance, bearing=bearing, reference_location=reference_location
+        )
+
     @property
     def local(self):
         """
@@ -688,6 +731,7 @@ class HiResLocalSurface(Surface):
         """
         if self._local is None:
             self._local = self.extract_region(location=self.local_location, region_radius=self.local_radius)
+            self.local.grid_file.unlink(missing_ok=True)
             self.local_grid_indices_file.unlink(missing_ok=True)
             np.savez_compressed(
                 file=self.local_grid_indices_file,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -12,6 +13,7 @@ from cratermaker._cratermaker import counting_bindings
 from geopandas import GeoSeries
 from matplotlib.axes import Axes
 from matplotlib.image import AxesImage
+from numpy.typing import ArrayLike
 from shapely.geometry import GeometryCollection
 from shapely.ops import transform
 from tqdm import tqdm
@@ -19,10 +21,11 @@ from vtk import vtkPolyData
 
 from cratermaker import __version__ as cratermaker_version
 from cratermaker.components.crater import Crater
+from cratermaker.constants import FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 
 if TYPE_CHECKING:
-    from cratermaker.components.morphology import MorphologyCrater
+    from cratermaker.components.morphology import Morphology, MorphologyCrater
     from cratermaker.components.surface import LocalSurface, Surface
 
 _TALLY_LONG_NAME = "Unique crater identification number"
@@ -30,8 +33,8 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
 _N_LAYER = 8
 
-# The minimum number of faces required in a region to perform crater counting
-_MIN_FACE_FOR_COUNTING = 100
+# The minimum number of faces required in a region to perform crater counting, which corresponds to a roughly 3 pix diameter crater
+_MIN_FACE_FOR_COUNTING = 30
 
 
 class Counting(ComponentBase):
@@ -44,7 +47,7 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
-        crater_cls: type[Crater] | None = None,
+        Crater: type[Crater] | None = None,
         reset: bool = True,
         **kwargs: Any,
     ):
@@ -55,8 +58,8 @@ class Counting(ComponentBase):
         ----------
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
-        crater_cls : type[Crater], optional
-            The Crater class associated with this counting model. This is used to ensure that the correct variable properties are available for the counting model when creating new craters. If not supplied, then the base Crater class is used.
+        Crater : type[Crater], optional
+            The Crater class associated with this counting model. This is used to ensure that the correct variable properties for from a specialized Crater class are available (such as one associated with a Morphology class) when importing craters from file. If not supplied, then the base Crater class is used.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True.
         **kwargs : Any
@@ -71,8 +74,11 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_output_dir_name", "counting")
         object.__setattr__(self, "_output_file_prefix", "craters")
         object.__setattr__(self, "_output_file_extension", "nc")
-        object.__setattr__(self, "_crater_cls", crater_cls)
+        object.__setattr__(self, "_Crater", None)
+        object.__setattr__(self, "_surface", None)
+        object.__setattr__(self, "_morphology", None)
         self._surface = Surface.maker(surface, reset=reset, **kwargs)
+        self.Crater = Crater
         self._output_file_pattern += [
             f"observed_{self._output_file_prefix}*.{self._output_file_extension}",
             f"emplaced_{self._output_file_prefix}*.{self._output_file_extension}",
@@ -94,6 +100,7 @@ class Counting(ComponentBase):
         cls,
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
+        Crater: type[Crater] | None = None,
         reset: bool = True,
         **kwargs: Any,
     ) -> Counting:
@@ -106,6 +113,8 @@ class Counting(ComponentBase):
             The name of the counting model to initialize. If None, the default model is used.
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
+        Crater : type[Crater], optional
+            The Crater class associated with this counting model. This is used to ensure that the correct variable properties for from a specialized Crater class are available (such as one associated with a Morphology class) when importing craters from file. If not supplied, then the base Crater class is used.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True
         **kwargs : Any
@@ -130,6 +139,7 @@ class Counting(ComponentBase):
             component=counting,
             surface=surface,
             reset=reset,
+            Crater=Crater,
             **kwargs,
         )
 
@@ -251,6 +261,7 @@ class Counting(ComponentBase):
             If True, fit an ellipse to the rim, otherwise fit a circle. Default is False.
         **kwargs : Any
             |kwargs|
+
         Returns
         -------
         Crater
@@ -364,8 +375,7 @@ class Counting(ComponentBase):
                 fit_center = kwargs.pop("fit_center", False)
                 fit_ellipse = kwargs.pop("fit_ellipse", False)
                 crater = self.fit_rim(crater=crater, fit_center=fit_center, fit_ellipse=fit_ellipse, **kwargs)
-            crater = self.measure_degradation_state(crater, **kwargs)
-            Kd = crater.degradation_state
+            Kd = self.measure_degradation_state(crater, **kwargs)
             Kv = self.visibility_function(crater, **kwargs)
             if Kd >= Kv:
                 remove_ids.append(id)
@@ -392,7 +402,7 @@ class Counting(ComponentBase):
         return
 
     @abstractmethod
-    def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> Crater: ...
+    def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> float: ...
 
     @abstractmethod
     def visibility_function(self, crater: Crater, Kv1: float = 0.17, gamma: float = 2.0, **kwargs: Any) -> float: ...
@@ -503,6 +513,7 @@ class Counting(ComponentBase):
         crater_type: Literal["observed", "emplaced", "both"] = "both",
         interval: int | None = None,
         driver: str = "SCC",
+        ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -516,10 +527,17 @@ class Counting(ComponentBase):
             |interval_export|
         driver : str, default='GPKG'
             The file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', 'CSV', 'SCC'.
+        ask_overwrite : bool, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
+        # Temporarily set the ask_overwrite attribute for the duration of the export, but reset it to its original value afterwards.
+        ask_overwrite_orig = self.ask_overwrite
+        if ask_overwrite is not None:
+            self.ask_overwrite = ask_overwrite
 
         crater_names = ["observed", "emplaced"]
         output_ds = self.read_saved_output(interval=interval)
@@ -571,6 +589,7 @@ class Counting(ComponentBase):
                         **kwargs,
                     )
 
+        self.ask_overwrite = ask_overwrite_orig
         return
 
     def plot(
@@ -649,7 +668,7 @@ class Counting(ComponentBase):
         else:
             observed = [c for _, c in self.observed.items()]
             emplaced = self.emplaced
-            filename = self.plot_dir / f"{file_prefix}_{self.output_file_prefix}.{self.surface.output_image_file_extension}"
+            filename = self.plot_dir / f"{file_prefix}.{self.surface.output_image_file_extension}"
         if ax is None:
             W, H = self.surface.get_raster_dims()
             _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
@@ -1217,7 +1236,7 @@ class Counting(ComponentBase):
                     crater_data.pop("location")
                 if None in crater_data["measured_location"]:
                     crater_data.pop("measured_location")
-                crater = self.crater_cls.maker(**crater_data, check_redundant_inputs=False)
+                crater = self.Crater.maker(**crater_data, morphology=self.morphology, check_redundant_inputs=False)
                 craters.append(crater)
 
         return craters
@@ -1250,7 +1269,7 @@ class Counting(ComponentBase):
         def overlap_fraction(crater, region_poly=None):
             if region_poly is None:
                 return 1.0
-            distance = self.surface.compute_distances(center_location=self.surface.local_location, locations=[crater.location])
+            distance = self.surface.compute_distances(reference_location=self.surface.local_location, locations=[crater.location])
             if distance + crater.measured_radius > self.surface.local_radius:
                 crater_poly = crater.to_geoseries(
                     surface=self.surface, split_antimeridian=False, use_measured_properties=True
@@ -1282,7 +1301,9 @@ class Counting(ComponentBase):
             if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
                 f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
                 if region_poly is None:  # We only need to do this the first time through
-                    region_circle = self.crater_cls.maker(radius=self.surface.local_radius, location=self.surface.local_location)
+                    region_circle = Crater.maker(
+                        radius=self.surface.local_radius, location=self.surface.local_location
+                    )  # We can get away with using just the base class for Crater here
                     region_poly = (
                         region_circle.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False)
                         .to_crs(self.surface.crs)
@@ -1338,7 +1359,7 @@ class Counting(ComponentBase):
             raise ValueError(f"Input file '{input_file}' is not a .scc file.")
         scc = Spatialcount(filename=str(input_file))
         for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
-            crater = self.crater_cls.maker(diameter=diam * 1e3, location=(lon, lat))
+            crater = self.Crater.maker(diameter=diam * 1e3, location=(lon, lat), morphology=self.morphology)
             craters.append(crater)
 
         return craters
@@ -1390,7 +1411,7 @@ class Counting(ComponentBase):
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
-            crater = self.crater_cls.maker(**crater_data, check_redundant_inputs=False)
+            crater = self.Crater.maker(**crater_data, morphology=self.morphology, check_redundant_inputs=False)
             craters.append(crater)
 
         return craters
@@ -1456,13 +1477,134 @@ class Counting(ComponentBase):
         return len(self._observed)
 
     @property
-    def crater_cls(self) -> type[Crater]:
+    def Crater(self) -> type[Crater]:
         """
         The Crater class used for this counting component, which is determined by the morphology component.
         """
-        if self._crater_cls is None:
+        if self._Crater is None:
             return Crater
-        return self._crater_cls
+        return self._Crater
+
+    @Crater.setter
+    def Crater(self, value):
+        if value is None:
+            return
+        if not isinstance(value, type) or not issubclass(value, Crater):
+            raise TypeError("Crater must be a subclass of the base Crater class.")
+        self._Crater = value
+
+    @property
+    def morphology(self) -> Morphology:
+        """
+        The morphology component used for this counting component, which determines the Crater class and the crater properties that are tracked in the simulation.
+        """
+        return self._morphology
+
+    @morphology.setter
+    def morphology(self, value):
+        from cratermaker.components.morphology import Morphology
+
+        if not isinstance(value, Morphology):
+            raise TypeError("morphology must be an instance of the Morphology class.")
+        self._morphology = value
+        if not issubclass(self.Crater, value.Crater):
+            self.Crater = value.Crater  # Set the Crater class to the one specified by the morphology component if they don't match
+        return
+
+
+def R_to_CSFD(
+    R: Callable[[FloatLike | ArrayLike], FloatLike | ArrayLike],
+    D: FloatLike | ArrayLike,
+    Dlim: FloatLike = 1e6,
+    *args: Any,
+) -> FloatLike | ArrayLike:
+    """
+    Convert R values to cumulative N values for a given D using the R-plot function.
+
+    Parameter
+    ----------
+    R : R = f(D)
+        A function that computes R given D.
+    D : FloatLike or ArrayLike
+        diameter in units of km.
+    Dlim : FloatLike
+        Upper limit on the diameter over which to evaluate the integral
+    args : Any
+        Additional arguments to pass to the R function
+
+    Returns
+    -------
+    float or ArrayLike
+        The cumulative number of craters greater than D in diameter.
+    """
+
+    def _R_to_CSFD_scalar(R, D, Dlim, *args):
+        # Helper function to integrate the R function
+        def integrand(D):
+            return R(D, *args) / D**3  # This is dN/dD
+
+        N = 0.0
+        D_i = D
+        while D_i < Dlim:
+            D_next = D_i * np.sqrt(2.0)
+            D_mid = (D_i + D_next) / 2  # Mid-point of the bin
+            bin_width = D_next - D_i
+            R_value = integrand(D_mid)
+            N += R_value * bin_width
+            D_i = D_next  # Move to the next bin
+
+        return N
+
+    return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
+
+
+def csfd_geometric_saturation(diameter: FloatLike | ArrayLike) -> FloatLike | ArrayLike:
+    """
+    Calculate the cumulative number of craters at geometric saturation for a given diameter.
+
+    We use the definition of geomatric saturation from Melosh (1989) [#]_.
+
+    Parameter
+    ----------
+    diameter : FloatLike or ArrayLike
+        The diameter(s) for which to calculate the cumulative number of craters at geometric saturation.
+
+    Returns
+    -------
+    FloatLike or ArrayLike
+        The cumulative number of craters at geometric saturation for the given diameter(s).
+
+    References
+    ----------
+    .. [#] Melosh, H.J., 1989. Impact cratering: A geologic process. Oxford University Press, New York, New York.
+
+    """
+    return 1.54 * diameter ** (-2)
+
+
+def csfd_equilibrium(diameter: FloatLike | ArrayLike, f_geometric=0.0218) -> FloatLike | ArrayLike:
+    """
+    Calculate the cumulative number of craters at equilibrium for a given diameter.
+
+    Parameter
+    ----------
+    diameter : FloatLike or ArrayLike
+        The diameter(s) for which to calculate the cumulative number of craters at equilibrium.
+    f_geometric : float, optional
+        The fraction of geometric saturation at which equilibrium occurs. The default value is 0.0218, which is the value used in Minton et al. (2019) [#]_.
+
+
+    Returns
+    -------
+    FloatLike or ArrayLike
+        The cumulative number of craters at equilibrium for the given diameter(s).
+
+    References
+    ----------
+    .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
+
+    """
+    return f_geometric * csfd_geometric_saturation(diameter)
 
 
 import_components(__name__, __path__)

@@ -61,28 +61,21 @@ class TestCounting(unittest.TestCase):
                 del counting
                 del morphology
 
-    def test_visibility_function(self):
-        pass
-        # local_radius = 2000.0
-        # pix = 10.0
-        # local_location = (0, 0)
-        # h0 = 100.0
-        # sigma = 200.0
-        # kdiff = 20000.0
-        # superdomain_scale_factor = 10000.0
-        # with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-        #     surface = Surface.maker(
-        #         "hireslocal",
-        #         simdir=simdir,
-        #         local_location=local_location,
-        #         pix=pix,
-        #         local_radius=local_radius,
-        #         superdomain_scale_factor=superdomain_scale_factor,
-        #         ask_overwrite=False,
-        #     )
-        #     counting = Counting.maker("minton2019", surface=surface)
-        #     morphology = Morphology.maker(counting=counting, ejecta_truncation=4)
-        #     morphology.emplace(diameter=1000.0)
+    def test_crater_type(self):
+        # Tests that the associated Crater type is correct for the morphology model
+        from cratermaker.components.morphology import MorphologyCrater
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            # Create a lightweight Surface for the Counting object
+            surface = Surface.maker(simdir=simdir, target=target, gridlevel=4, ask_overwrite=False, reset=True)
+            counting = Counting.maker(surface=surface)
+            # The default counting model Crater type should be the base Crater, not derived from a MorphologyCrater
+            self.assertTrue(issubclass(counting.Crater, Crater))
+            self.assertFalse(issubclass(counting.Crater, MorphologyCrater))
+
+            # Once it is associated with a Morphology model, the counting model's Crater type should match that of the morphology type
+            morphology = Morphology.maker(counting=counting, ejecta_truncation=4.0)
+            self.assertTrue(issubclass(counting.Crater, morphology.Crater))
 
 
 if __name__ == "__main__":

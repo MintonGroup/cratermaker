@@ -677,7 +677,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def export(self, driver: str = "GPKG", interval: int | None = None, **kwargs: Any) -> None:
+    def export(self, driver: str = "GPKG", interval: int | None = None, ask_overwrite: bool | None = None, **kwargs: Any) -> None:
         """
         Export the surface data to the specified format.
 
@@ -687,12 +687,15 @@ class Surface(ComponentBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval : int | None, optional
             |interval_export|
+        ask_overwrite : bool, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
         return self._full().export(
             driver=driver,
             interval=interval,
+            ask_overwrite=ask_overwrite,
             **kwargs,
         )
 
@@ -916,7 +919,7 @@ class Surface(ComponentBase):
     def compute_distances(
         self,
         locations: ArrayLike,
-        center_location: PairOfFloats,
+        reference_location: PairOfFloats,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
@@ -925,8 +928,8 @@ class Surface(ComponentBase):
         ----------
         locations : FloatLike or ArrayLike
             Array of (lon, lat) locations of the second point or array of points in degrees.
-        center_location : PairOfFloats
-            (lon, lat) location of the center point in degrees.
+        reference_location : PairOfFloats
+            (lon, lat) location of the reference point in degrees.
 
         Returns
         -------
@@ -937,12 +940,12 @@ class Surface(ComponentBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        return self._full().compute_distances(locations=locations, center_location=center_location)
+        return self._full().compute_distances(locations=locations, reference_location=reference_location)
 
     def compute_bearings(
         self,
         locations: ArrayLike,
-        center_location: PairOfFloats,
+        reference_location: PairOfFloats,
     ) -> NDArray[np.float64]:
         """
         Calculate the initial bearing relative to North from one point to one or more other points in degrees.
@@ -951,7 +954,7 @@ class Surface(ComponentBase):
         ----------
         locations : ArrayLike
             Longitude and latitude of the second point or array of points in degrees.
-        center_location : PairOfFloats
+        reference_location : PairOfFloats
             Longitude and latitude of the first point in degrees.
 
         Returns
@@ -959,22 +962,25 @@ class Surface(ComponentBase):
         NDArray
             Initial bearing from the first point to the second point or points in degrees.
         """
-        return self._full().compute_bearings(locations=locations, center_location=center_location)
+        return self._full().compute_bearings(locations=locations, reference_location=reference_location)
 
     def compute_location_from_distance_bearing(
-        self, distances: ArrayLike, bearings: ArrayLike, center_location: PairOfFloats
+        self,
+        distance: FloatLike | ArrayLike,
+        bearing: FloatLike | ArrayLike,
+        reference_location: PairOfFloats,
     ) -> NDArray[np.float64]:
         """
-        Calculate the longitude and latitude of one or more points given a center point, initial bearings, and distances.
+        Calculate the longitude and latitude of one or more points given a reference point, initial bearings, and distances.
 
         Parameters
         ----------
-        bearings : ArrayLike
-            Initial bearing from the center point to the target point or points in degrees.
-        distances : ArrayLike
-            Great circle distance from the center point to the target point or points in meters.
-        center_location : PairOfFloats
-            Longitude and latitude of the center point in degrees.
+        bearings : FloatLike or ArrayLike
+            Initial bearing from the reference point to the target point or points in degrees.
+        distances : FloatLike or ArrayLike
+            Great circle distance from the reference point to the target point or points in meters.
+        reference_location : PairOfFloats
+            Longitude and latitude of the reference point in degrees.
 
         Returns
         -------
@@ -982,9 +988,9 @@ class Surface(ComponentBase):
             Longitude and latitude of the target point or points in degrees.
         """
         return self._full().compute_location_from_distance_bearing(
-            distances=distances,
-            bearings=bearings,
-            center_location=center_location,
+            distance=distance,
+            bearing=bearing,
+            reference_location=reference_location,
         )
 
     @staticmethod
@@ -2497,8 +2503,8 @@ class LocalSurface(CratermakerBase):
         location = validate_and_normalize_location(location)
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(locations=face_locations, center_location=location), self.compute_distances(
-            locations=node_locations, center_location=location
+        return self.compute_distances(locations=face_locations, reference_location=location), self.compute_distances(
+            locations=node_locations, reference_location=location
         )
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
@@ -2768,6 +2774,7 @@ class LocalSurface(CratermakerBase):
         self,
         driver: str = "GPKG",
         interval: int | None = None,
+        ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -2781,10 +2788,17 @@ class LocalSurface(CratermakerBase):
             The driver to use export the data to. Supported formats are 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.), and 'GeoTIFF'.
         interval : int | None, optional
             |interval_export|
+        ask_overwrite : bool | None, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+
+        # Temporarily set the ask_overwrite attribute for the duration of the export, but reset it to its original value afterwards.
+        ask_overwrite_orig = self.ask_overwrite
+        if ask_overwrite is not None:
+            self.ask_overwrite = ask_overwrite
 
         if interval is not None:
             self.surface.save(interval=interval, **kwargs, skip_actions=True)
@@ -2804,6 +2818,7 @@ class LocalSurface(CratermakerBase):
                 interval=interval,
                 **kwargs,
             )
+        self.ask_overwrite = ask_overwrite_orig
         return
 
     def to_vector_file(
@@ -3730,7 +3745,7 @@ class LocalSurface(CratermakerBase):
     def compute_distances(
         self,
         locations: ArrayLike,
-        center_location: PairOfFloats | None = None,
+        reference_location: PairOfFloats | None = None,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
@@ -3739,7 +3754,7 @@ class LocalSurface(CratermakerBase):
         ----------
         locations : ArrayLike
             Longitude and latitude of the second point or array of points in degrees.
-        center_location : PairOfFloats | None, optional
+        reference_location : PairOfFloats | None, optional
             Longitude and latitude of the first point in degrees. If None, then the center of the local region will be used. Default is None.
 
         Returns
@@ -3751,14 +3766,14 @@ class LocalSurface(CratermakerBase):
         -----
         This is a wrapper for a compiled Rust function and is intended to be used as a helper to calculate_face_and_node_distances.
         """
-        if center_location is None:
+        if reference_location is None:
             if self.is_local:
-                center_location = self.location
+                reference_location = self.location
             else:
-                raise ValueError("center_location must be provided for global surfaces")
+                raise ValueError("reference_location must be provided for global surfaces")
 
         locations = np.radians(validate_and_normalize_location(locations))
-        lon1, lat1 = np.radians(validate_and_normalize_location(center_location))
+        lon1, lat1 = np.radians(validate_and_normalize_location(reference_location))
         if locations.ndim == 1 and locations.size == 2:
             locations = np.expand_dims(locations, axis=0)
 
@@ -3766,7 +3781,7 @@ class LocalSurface(CratermakerBase):
             lon1=lon1, lat1=lat1, lon2=locations[:, 0], lat2=locations[:, 1], radius=self.surface.radius
         )
 
-    def compute_bearings(self, locations: ArrayLike, center_location: PairOfFloats | None = None) -> NDArray[np.float64]:
+    def compute_bearings(self, locations: ArrayLike, reference_location: PairOfFloats | None = None) -> NDArray[np.float64]:
         """
         Calculate the initial bearing from one point to one or more other points in degrees.
 
@@ -3774,7 +3789,7 @@ class LocalSurface(CratermakerBase):
         ----------
         locations : ArrayLike
             Longitude and latitude of the second point or array of points in degrees.
-        center_location : PairOfFloats | None, optional
+        reference_location : PairOfFloats | None, optional
             Longitude and latitude of the first point in degrees. If None, then the center of the local region will be used. Default is None.
 
         Returns
@@ -3786,53 +3801,57 @@ class LocalSurface(CratermakerBase):
         -----
         This is intended to be used as a helper to calculate_face_and_node_bearings.
         """
-        if center_location is None:
+        if reference_location is None:
             if self.is_local:
-                center_location = self.location
+                reference_location = self.location
             else:
-                raise ValueError("center_location must be provided for global surfaces")
+                raise ValueError("reference_location must be provided for global surfaces")
         locations = np.asarray(locations, dtype=np.float64)
         if locations.ndim == 1 and locations.size == 2:
             locations = locations.reshape((1, 2))
 
-        lon1, lat1 = np.radians(validate_and_normalize_location(center_location))
+        lon1, lat1 = np.radians(validate_and_normalize_location(reference_location))
         lon2, lat2 = np.radians(locations[:, 0]), np.radians(locations[:, 1])
         bearing = surface_bindings.compute_bearings(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2)
         return np.degrees(bearing)
 
     def compute_location_from_distance_bearing(
         self,
-        distances: ArrayLike,
-        bearings: ArrayLike,
-        center_location: PairOfFloats | None = None,
+        distance: FloatLike | ArrayLike,
+        bearing: FloatLike | ArrayLike,
+        reference_location: PairOfFloats | None = None,
     ) -> NDArray[np.float64]:
         """
-        Calculate the longitude and latitude of one or more points given a center point, initial bearings, and distances.
+        Calculate the longitude and latitude of one or more points given a reference point, initial bearings, and distances.
 
         Parameters
         ----------
-        bearings : ArrayLike
-            Initial bearing from the center point to the target point or points in degrees.
-        distances : ArrayLike
-            Great circle distance from the center point to the target point or points in meters.
-        center_location : PairOfFloats | None, optional
-            Longitude and latitude of the center point in degrees. If None, then the center of the local region will be used. Default is None.
+        bearing : FloatLike | ArrayLike
+            One or more initial bearing values from the reference point to the target point or points in degrees.
+        distance : FloatLike | ArrayLike
+            One or more great circle distance from the reference point to the target point or points in meters.
+        reference_location : PairOfFloats | None, optional
+            One pair of longitude and latitude of the reference point in degrees. If None, then the center of the local region will be used. Default is None.
 
         Returns
         -------
-        tuple or list of tuples
+        tuple or list of tuples the same length as bearing and distance.
             longitude and latitude as a tuple of floats in degrees.
         """
-        if center_location is None:
+        if reference_location is None:
             if self.is_local:
-                center_location = self.location
+                reference_location = self.location
             else:
-                raise ValueError("center_location must be provided for global surfaces")
-        lon1, lat1 = np.radians(validate_and_normalize_location(center_location))
-        bearings = np.atleast_1d(np.radians(bearings))
-        distances = np.atleast_1d(distances).astype(np.float64)
+                raise ValueError("reference_location must be provided for global surfaces")
+        lon1, lat1 = np.radians(validate_and_normalize_location(reference_location))
+        bearing = np.atleast_1d(np.radians(bearing))
+        distance = np.atleast_1d(distance).astype(np.float64)
+        if bearing.shape != distance.shape:
+            raise ValueError("bearing and distance must have the same shape")
+        if bearing.ndim > 1:
+            raise ValueError("bearing and distance must have the same number of elements")
         lonlat2 = surface_bindings.compute_location_from_distance_bearing(
-            lon1=lon1, lat1=lat1, distances=distances, bearings=bearings, radius=self.surface.radius
+            lon1=lon1, lat1=lat1, distances=distance, bearings=bearing, radius=self.surface.radius
         )
         return validate_and_normalize_location(np.degrees(lonlat2))
 

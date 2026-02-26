@@ -254,8 +254,9 @@ class Simulation(CratermakerBase):
         """
         Returns a string representation of the Simulation object.
         """
-        return (
+        output = (
             f"<Simulation>\n\n"
+            f"simdir      : {str(self.simdir)}\n"
             f"{self.counting}\n\n"
             f"{self.morphology}\n\n"
             f"{self.production}\n\n"
@@ -264,12 +265,15 @@ class Simulation(CratermakerBase):
             f"{self.surface}\n\n"
             f"{self.target}\n\n"
             f"<Current state>\n"
-            f"Current time : {format_large_units(self.time, quantity='time')} before present\n"
-            f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
-            f"Elapsed N_1 : {self.elapsed_n1} #/m^2\n"
             f"Interval    : {self.interval}\n"
-            f"simdir      : {str(self.simdir)}\n"
         )
+        if self.time is not None:
+            output += (
+                f"Current time : {format_large_units(self.time, quantity='time')} before present\n"
+                f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
+                f"Elapsed N_1 : {self.elapsed_n1} #/m^2\n"
+            )
+        return output
 
     def __repr__(self) -> str:
         config = self.to_config(save_to_file=False)
@@ -803,6 +807,7 @@ class Simulation(CratermakerBase):
         self,
         driver: str = "OpenCraterTool",
         interval: int = -1,
+        ask_overwrite: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -814,6 +819,8 @@ class Simulation(CratermakerBase):
             The driver to use export the data to. Supported formats are 'OpenCraterTool', 'VTK' or a driver supported by GeoPandas ('GPKG', 'ESRI Shapefile', etc.). This is overridden if either the filename or file_extension parameters are provided. Default is 'OpenCraterTool'.
         interval : int, optional
             The interval number to export. Default is -1 (the most current interval saved in the simulation).
+        ask_overwrite : bool, optional
+            |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
 
@@ -821,9 +828,14 @@ class Simulation(CratermakerBase):
         -----
         The default driver is 'OpenCraterTool', which is designed to output data into a format that is relatively easy to import into QGIS with the OpenCraterTool plugin. This will create a GeoTIFF file representation of the surface, and a set of SCC files for the crater counting data if counting is enabled.
         """
+        # Temporarily set the ask_overwrite attribute for the duration of the export, but reset it to its original value afterwards.
+        ask_overwrite_orig = self.ask_overwrite
+        if ask_overwrite is not None:
+            self.ask_overwrite = ask_overwrite
+
         if interval < 0:
             interval = self.interval + 1 + interval
-        self.save(**kwargs, skip_actions=True)
+        self.save(**kwargs, skip_actions=True, ask_overwrite=ask_overwrite)
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"
             counting_driver = "SCC"
@@ -833,6 +845,7 @@ class Simulation(CratermakerBase):
         self.surface.export(
             driver=surface_driver,
             interval=interval,
+            ask_overwrite=ask_overwrite,
             **kwargs,
         )
 
@@ -841,8 +854,11 @@ class Simulation(CratermakerBase):
                 craters=self.counting.observed,
                 interval=interval,
                 driver=counting_driver,
+                ask_overwrite=ask_overwrite,
                 **kwargs,
             )
+
+        self.ask_overwrite = ask_overwrite_orig
 
         return
 
@@ -851,7 +867,7 @@ class Simulation(CratermakerBase):
         include_counting: bool = False,
         interval: int | None = None,
         plot_style: str = "hillshade",
-        label=None,
+        label="default",
         show=False,
         save=True,
         ax: Axes | None = None,
@@ -884,10 +900,13 @@ class Simulation(CratermakerBase):
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
-        if label is None:
-            label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
         if interval is None:
             interval = self.interval
+        if label == "default":
+            if self.time is None:
+                label = f"Interval: {interval}"
+            else:
+                label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
 
         plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
         if include_counting and self.do_counting:
@@ -1217,8 +1236,6 @@ class Simulation(CratermakerBase):
         """
         The age of the current time step in My relative to the present from the chronology of the production function.
         """
-        if self._time is None:
-            return -1.0
         return self._time
 
     @time.setter
@@ -1352,11 +1369,14 @@ class Simulation(CratermakerBase):
             - "elapsed_time": The elapsed time in My since the start of the simulation.
             - "elapsed_n1": The elapsed number of craters larger than 1 km in diameter.
         """
-        return {
-            "time": self.time,
-            "elapsed_time": self.elapsed_time,
-            "elapsed_n1": self.elapsed_n1,
-        }
+        if self.time is None:
+            return {}
+        else:
+            return {
+                "time": self.time,
+                "elapsed_time": self.elapsed_time,
+                "elapsed_n1": self.elapsed_n1,
+            }
 
     @property
     def do_counting(self) -> bool:
