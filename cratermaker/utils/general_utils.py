@@ -346,101 +346,6 @@ def validate_and_normalize_location(location):
     )
 
 
-def R_to_CSFD(
-    R: Callable[[FloatLike | ArrayLike], FloatLike | ArrayLike],
-    D: FloatLike | ArrayLike,
-    Dlim: FloatLike = 1e6,
-    *args: Any,
-) -> FloatLike | ArrayLike:
-    """
-    Convert R values to cumulative N values for a given D using the R-plot function.
-
-    Parameter
-    ----------
-    R : R = f(D)
-        A function that computes R given D.
-    D : FloatLike or ArrayLike
-        diameter in units of km.
-    Dlim : FloatLike
-        Upper limit on the diameter over which to evaluate the integral
-    args : Any
-        Additional arguments to pass to the R function
-
-    Returns
-    -------
-    float or ArrayLike
-        The cumulative number of craters greater than D in diameter.
-    """
-
-    def _R_to_CSFD_scalar(R, D, Dlim, *args):
-        # Helper function to integrate the R function
-        def integrand(D):
-            return R(D, *args) / D**3  # This is dN/dD
-
-        N = 0.0
-        D_i = D
-        while D_i < Dlim:
-            D_next = D_i * np.sqrt(2.0)
-            D_mid = (D_i + D_next) / 2  # Mid-point of the bin
-            bin_width = D_next - D_i
-            R_value = integrand(D_mid)
-            N += R_value * bin_width
-            D_i = D_next  # Move to the next bin
-
-        return N
-
-    return _R_to_CSFD_scalar(R, D, Dlim, *args) if np.isscalar(D) else np.vectorize(_R_to_CSFD_scalar)(R, D, Dlim, *args)
-
-
-def csfd_geometric_saturation(diameter: FloatLike | ArrayLike) -> FloatLike | ArrayLike:
-    """
-    Calculate the cumulative number of craters at geometric saturation for a given diameter.
-
-    We use the definition of geomatric saturation from Melosh (1989) [#]_.
-
-    Parameter
-    ----------
-    diameter : FloatLike or ArrayLike
-        The diameter(s) for which to calculate the cumulative number of craters at geometric saturation.
-
-    Returns
-    -------
-    FloatLike or ArrayLike
-        The cumulative number of craters at geometric saturation for the given diameter(s).
-
-    References
-    ----------
-    .. [#] Melosh, H.J., 1989. Impact cratering: A geologic process. Oxford University Press, New York, New York.
-
-    """
-    return 1.54 * diameter ** (-2)
-
-
-def csfd_equilibrium(diameter: FloatLike | ArrayLike, f_geometric=0.0218) -> FloatLike | ArrayLike:
-    """
-    Calculate the cumulative number of craters at equilibrium for a given diameter.
-
-    Parameter
-    ----------
-    diameter : FloatLike or ArrayLike
-        The diameter(s) for which to calculate the cumulative number of craters at equilibrium.
-    f_geometric : float, optional
-        The fraction of geometric saturation at which equilibrium occurs. The default value is 0.0218, which is the value used in Minton et al. (2019) [#]_.
-
-
-    Returns
-    -------
-    FloatLike or ArrayLike
-        The cumulative number of craters at equilibrium for the given diameter(s).
-
-    References
-    ----------
-    .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
-
-    """
-    return f_geometric * csfd_geometric_saturation(diameter)
-
-
 def get_saved_interval_numbers(
     output_dir: str | Path, output_file_prefix: str, output_file_extension: str
 ) -> tuple[list[int], list[Path]]:
@@ -577,7 +482,8 @@ def cleanup(simdir: str | Path | None = None):
     This function is useful for cleaning up after tests or before starting new simulations to avoid conflicts with existing files.
     """
     import shutil
-    from cratermaker.constants import _CONFIG_FILE_NAME, _COMPONENT_NAMES
+
+    from cratermaker.constants import _COMPONENT_NAMES, _CONFIG_FILE_NAME
 
     if simdir is None:
         simdir = Path.cwd()

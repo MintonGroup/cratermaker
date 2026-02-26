@@ -75,7 +75,7 @@ class CratermakerBase:
         object.__setattr__(self, "_output_image_file_extension", "png")
         object.__setattr__(self, "_export_dir_name", "export")
         object.__setattr__(self, "_ask_overwrite", None)
-        object.__setattr__(self, "_save_actions", {})
+        object.__setattr__(self, "_save_actions", [])
 
         self.simdir = simdir
         self.ask_overwrite = ask_overwrite
@@ -167,13 +167,26 @@ class CratermakerBase:
                 if hasattr(self, action):
                     action_method = getattr(self, action)
                     if callable(action_method):
-                        args = {**action_kwargs, **kwargs, "interval": interval, "filename": filename}
+                        args = {**action_kwargs, **kwargs, "interval": interval}
                         action_method(**args)
                     else:
                         raise ValueError(f"{action} is not a valid action for {self.name}")
                 else:
                     raise ValueError(f"{action} is not a valid action for {self.name}")
         return
+
+    def export(self, **kwargs: Any) -> None:
+        """
+        Export the component data to the specified format.
+
+        This is a stub that acts as a pass-through for components that don't have an export method defined.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            |kwargs|
+        """
+        pass
 
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
         """
@@ -272,30 +285,56 @@ class CratermakerBase:
         bool
             True if the user confirmed that they wanted to overwrite the files and that all requested files and/or directories were removed. False if they cancel the operation.
         """
-        if self.ask_overwrite:
-            ask_overwrite = self.ask_overwrite  # This will allow us to temporarily disable prompts about overwriting files for this operation if the user selects 'a' to suppress prompts about overwriting files, without changing the value of self.ask_overwrite for future operations.
-            if not isinstance(files_to_remove, list):
-                files_to_remove = [files_to_remove]
-            for file in files_to_remove:
-                file = Path(file)
-                if file.exists() and ask_overwrite:
-                    response = input(
-                        f"File '{str(file)}' already exists. To disable this message, set ask_overwrite=False to this instance. Overwrite? (y/N/a): "
-                    )
-                    if response.lower() == "a":
-                        ask_overwrite = False
-                    elif response.lower() != "y":
-                        print("Operation cancelled by user.")
-                        return False
-                try:
-                    if file.is_dir():
-                        shutil.rmtree(file)
-                    else:
-                        file.unlink(missing_ok=True)
-                except Exception as e:
-                    print(f"Error removing file {file}: {e}")
+        ask_overwrite = self.ask_overwrite  # This will allow us to temporarily disable prompts about overwriting files for this operation if the user selects 'a' to suppress prompts about overwriting files, without changing the value of self.ask_overwrite for future operations.
+        if not isinstance(files_to_remove, list):
+            files_to_remove = [files_to_remove]
+        for file in files_to_remove:
+            file = Path(file)
+            if file.exists() and ask_overwrite:
+                response = input(
+                    f"File '{str(file)}' already exists. To disable this message, set ask_overwrite=False to this instance. Overwrite? (y/N/a): "
+                )
+                if response.lower() == "a":
+                    ask_overwrite = False
+                elif response.lower() != "y":
+                    print("Operation cancelled by user.")
                     return False
+            try:
+                if file.is_dir():
+                    shutil.rmtree(file)
+                else:
+                    file.unlink(missing_ok=True)
+            except Exception as e:
+                print(f"Error removing file {file}: {e}")
+                return False
         return True
+
+    def add_save_action(self, action: dict[str, dict]) -> None:
+        """
+        Add an action to the save_actions property of this component.
+
+        Parameters
+        ----------
+        action : dict[str, dict]
+            A dictionary where the keys are the names of actions that can be performed on this component (e.g. "plot") when calling the save function and the values are the arguments that should be passed to that action when it is called by the save function.
+        """
+        if not isinstance(action, dict):
+            raise TypeError(
+                "action must be a dictionary containing a key with a valid action for this component (e.g. 'plot') and the values are the arguments"
+            )
+        for action_name, args in action.items():
+            if hasattr(self, action_name):
+                action_method = getattr(self, action_name)
+                if not callable(action_method):
+                    raise ValueError(f"{action_name} is not a valid action for {self.name}")
+            else:
+                raise ValueError(f"{action_name} is not a valid action for {self.name}")
+            if not isinstance(args, dict):
+                raise TypeError(
+                    f"Arguments for action {action_name} must be a dictionary of keyword arguments to be passed to the {self.name}.{action_name}() method."
+                )
+        self._save_actions.append(action)
+        return
 
     @parameter
     def save_actions(self) -> list[dict[str, dict]]:

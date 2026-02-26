@@ -69,7 +69,7 @@ class SimpleMoonCrater(MorphologyCrater):
         """
         morphology = Morphology.maker(morphology, **kwargs)
         if crater is None:
-            crater = super().maker(**kwargs)
+            crater = super().maker(morphology=morphology, **kwargs)
         args = {}
         diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
@@ -121,8 +121,6 @@ class SimpleMoon(Morphology):
         ----------
         surface : str or Surface, optional
             The name of a Surface object, or an instance of Surface, to be associated the morphology model.
-        crater : Crater, optional
-            The crater currently attached to the morphology model.
         ejecta_truncation : float, optional
             The relative distance from the rim of the crater to truncate the ejecta blanket, default is None, which will compute a
             truncation distance based on where the ejecta thickness reaches a small value.
@@ -137,11 +135,12 @@ class SimpleMoon(Morphology):
         **kwargs : Any
             |kwargs|
         """
+        super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_ejecta_truncation", None)
         object.__setattr__(self, "_node", None)
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
-        super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        return
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -732,3 +731,10 @@ class SimpleMoon(Morphology):
         if not isinstance(value, bool):
             raise TypeError("dorays must be of type bool")
         self._dorays = value
+
+    @property
+    def Crater(self) -> type[Crater]:
+        """
+        The Crater class used for this counting component, which is determined by the morphology component.
+        """
+        return SimpleMoonCrater
