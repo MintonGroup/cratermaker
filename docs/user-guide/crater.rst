@@ -67,7 +67,7 @@ Because we chose Europa as a target, the default projectile population is "comet
 Specifying Crater Properties 
 --------------------------------
 
-Besides the crater or projectile sizes values, which are required, there are a number of optional arguments you can pass to :meth:`Crater.maker()`, including
+Besides the crater or projectile sizes values, which are required, there are a number of optional arguments you can pass to :py:meth:`Crater.maker()`, including
 
 - `projectile_density`: The density of the projectile in kg/m\ :sup:`3`. If not provided, it will be defined through the Projectile component provided. (e.g., "asteroids" or "comets").
 - `projectile_mean_velocity`: The mean velocity in m/s from which to sample a projectile velocity. This will override the value from the Projectile model.
@@ -124,7 +124,7 @@ The following example uses a custom-defined :ref:`Target <ug-target>` object. He
     )
     print(kuip_belt_obj)
 
-Next we will feed our custom target body to the :meth:`Crater.maker()` method to create a crater on it. We will use a rocky projectile with a diameter of 500 m, an impact velocity of 5 km/s. All other properties will be computed.
+Next we will feed our custom target body to the :py:meth:`Crater.maker()` method to create a crater on it. We will use a rocky projectile with a diameter of 500 m, an impact velocity of 5 km/s. All other properties will be computed.
 
 .. ipython:: python
 

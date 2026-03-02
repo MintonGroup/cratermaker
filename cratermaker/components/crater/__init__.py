@@ -369,7 +369,7 @@ class Crater:
             f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
             f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
             f"projectile_mass: {self.projectile_mass:.4e} kg\n"
-            f"projectile_density: {self.projectile_density:.0f} kg/m^3\n"
+            f"projectile_density: {self.projectile_density:.0f} kg/m³\n"
             f"projectile_velocity: {format_large_units(self.projectile_velocity, quantity='velocity')}\n"
             f"projectile_angle: {self.projectile_angle:.1f}°\n"
             f"projectile_direction: {self.projectile_direction:.1f}°\n"
@@ -471,7 +471,7 @@ class Crater:
         projectile_mass : float, optional
             The mass of the projectile in kilograms.
         projectile_density : float, optional
-            The density of the projectile in kg/m^3. If not provided, it will be defined through the projectile population model provided.
+            The density of the projectile in kg/m³. If not provided, it will be defined through the projectile population model provided.
         projectile_velocity : float, optional
             The total impact velocity of the projectile in m/s.
         projectile_mean_velocity : float, optional

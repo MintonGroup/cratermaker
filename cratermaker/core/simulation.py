@@ -271,7 +271,7 @@ class Simulation(CratermakerBase):
             output += (
                 f"Current time : {format_large_units(self.time, quantity='time')} before present\n"
                 f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
-                f"Elapsed N_1 : {self.elapsed_n1} #/m^2\n"
+                f"Elapsed N_1 : {self.elapsed_n1} #/m²\n"
             )
         return output
 
@@ -754,7 +754,7 @@ class Simulation(CratermakerBase):
 
         Notes
         -----
-        The keyword arguments provided are passed down to :meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+        The keyword arguments provided are passed down to :py:meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
         Examples
         --------
@@ -883,7 +883,7 @@ class Simulation(CratermakerBase):
         interval : int, optional
             The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
         plot_style : str, optional
-            The style to use for surface plots. See :meth:`Surface.plot` for more details. Default is 'hillshade'.
+            The style to use for surface plots. See :py:meth:`Surface.plot` for more details. Default is 'hillshade'.
         label : str, optional
             The label to use for the plot. Default is None, which will use a label based on the current time and elapsed time of the simulation.
         show : bool, optional

@@ -397,7 +397,7 @@ class NeukumProduction(Production):
         diameter: FloatLike | ArrayLike,
     ) -> FloatLike | ArrayLike:
         """
-        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m^2.
+        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m².
 
         Parameters
         ----------

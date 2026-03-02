@@ -160,7 +160,7 @@ class Production(ComponentBase):
         diameter_range : PairOfFloats
             The minimum and maximum crater diameter to sample from in meters.
         area : FloatLike, optional
-            The area in m^2 over which the production function is evaluated to generate the expected number, which is the production
+            The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
         return_age : bool, optional
             If True, the function will return the sampled ages in addition to the diameters. The default is True.
@@ -298,7 +298,7 @@ class Production(ComponentBase):
         diameter : float-like or array-like
             diameter of the crater in m
         cumulative_number_density : float-like or array-like
-            number density of craters per m^2 surface area greater than the input diameter
+            number density of craters per m² surface area greater than the input diameter
         validate_inputs : bool, optional
             If True, the function will validate the inputs. The default is True.
         **kwargs: Any
@@ -369,7 +369,7 @@ class Production(ComponentBase):
         Parameters
         ----------
         cumulative_number_density : float-like or array-like
-            number density of craters per m^2 surface area greater than the input diameter
+            number density of craters per m² surface area greater than the input diameter
         time_start : FloatLike or ArrayLike, default=1.0
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
         time_end, FloatLike or ArrayLike, optional
@@ -521,7 +521,7 @@ class Production(ComponentBase):
         diameter_range : PairOfFloats
             The minimum and maximum crater diameter to sample from in meters.
         area : FloatLike, optional
-            The area in m^2 over which the production function is evaluated to generate the expected number, which is the production
+            The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
         return_age : bool, optional
             If True, the function will return the sampled ages in addition to the diameters. The default is True.
@@ -539,7 +539,7 @@ class Production(ComponentBase):
         PairOfFloats
             The minimum and maximum diameter values to sample from in meters.
         FloatLike
-            The area in m^2 over which the production function is evaluated to generate the expected number, which is the production
+            The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input time/cumulative number range at the minimum diameter.
 
         Raises

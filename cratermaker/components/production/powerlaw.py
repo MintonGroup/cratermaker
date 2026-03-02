@@ -14,7 +14,7 @@ class PowerLawProduction(Production):
     """
     An operations class for computing the production function for craters and projectiles.
 
-    This impliments a very simple power law production function that can be used as either a crater or projectile production function. The production function is defined as the cumulative number of craters greater than a given diameter per unit m^2 surface area.
+    This impliments a very simple power law production function that can be used as either a crater or projectile production function. The production function is defined as the cumulative number of craters greater than a given diameter per unit m² surface area.
 
     """
 
@@ -174,7 +174,7 @@ class PowerLawProduction(Production):
 
     def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike:
         """
-        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m^2.
+        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m².
 
         Parameters
         ----------

@@ -24,7 +24,7 @@ The :ref:`Counting <api-counting>` class will be used to tally craters on the su
 Tracking emplaced and observed craters
 --------------------------------------
 
-One of the core responsibilities of the :class:`Counting` class is to to keep track of the craters that have been emplaced onto the surface and to tally up the total population of craters that are observable on the surface at the present time. These are stored as two attributes, ``emplaced`` and ``observed``, and are primarily meant to be used as part of a :ref:`Simulation <ug-simulation>` instance. The ``emplaced`` list contains all of the craters that have been emplaced onto the surface *in the current run interval*, while ``observed`` is a dictionary containing all observable craters on the surface as values and keyed by each crater's unique id. During a simulation run, craters are periodically tallied, and if they are determined to be too degraded to observe, are removed from the ``observed`` dictionary. 
+One of the core responsibilities of the :py:class:`Counting` class is to to keep track of the craters that have been emplaced onto the surface and to tally up the total population of craters that are observable on the surface at the present time. These are stored as two attributes, ``emplaced`` and ``observed``, and are primarily meant to be used as part of a :ref:`Simulation <ug-simulation>` instance. The ``emplaced`` list contains all of the craters that have been emplaced onto the surface *in the current run interval*, while ``observed`` is a dictionary containing all observable craters on the surface as values and keyed by each crater's unique id. During a simulation run, craters are periodically tallied, and if they are determined to be too degraded to observe, are removed from the ``observed`` dictionary. 
 
 
 The criteria for whether a crater is observable or not depends on the specific version of `Counting` that is being used, however currently there is only one available ("minton2019"). The counting method uses the concepts of the "degradation state" and "visibility function" defined in Minton et al. (2019) [#]_. The degradation state is a measure of diffusive topographic diffusion, but the current model it uses the depth-to-diameter ratio  as a proxy by way of eq. 9 of Minton et al., with a correction factor for complex craters from Riedel et al. (2020) [#]_. 
@@ -33,7 +33,7 @@ The criteria for whether a crater is observable or not depends on the specific v
 Refining a crater's size and location with fit_rim
 --------------------------------------------------
 
-``fit_rim`` refines the *measured* rim geometry of a :class:`~cratermaker.crater.Crater` by searching for a high-scoring set of rim points on the current surface and fitting either a circle or an ellipse to those points. It returns a **new** :class:`~cratermaker.crater.Crater` with updated ``measured_location``, ``measured_semimajor_axis``, ``measured_semiminor_axis``, and ``measured_orientation``.
+``fit_rim`` refines the *measured* rim geometry of a :py:class:`~cratermaker.crater.Crater` by searching for a high-scoring set of rim points on the current surface and fitting either a circle or an ellipse to those points. It returns a **new** :py:class:`~cratermaker.crater.Crater` with updated ``measured_location``, ``measured_semimajor_axis``, ``measured_semiminor_axis``, and ``measured_orientation``.
 
 Basic usage
 ^^^^^^^^^^^

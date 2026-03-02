@@ -101,7 +101,7 @@ class Target(ComponentBase):
         material : str or None
             Name of the material composition of the target body.
         density : FloatLike or None
-            Volumetric density of the surface of the target body in kg/m^3.
+            Volumetric density of the surface of the target body in kg/m³.
         **kwargs : Any
             |kwargs|
 
@@ -192,7 +192,7 @@ class Target(ComponentBase):
         material : str or None
             Name of the material composition of the target body.
         density : FloatLike or None
-            Volumetric density of the surface of the target body in kg/m^3.
+            Volumetric density of the surface of the target body in kg/m³.
         **kwargs : Any
             |kwargs|
 
@@ -312,7 +312,7 @@ class Target(ComponentBase):
     @parameter
     def density(self):
         """
-        The volumetric density of the surface of the target body in kg/m^3.
+        The volumetric density of the surface of the target body in kg/m³.
 
         Returns
         -------

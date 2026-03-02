@@ -25,7 +25,7 @@ ax.set_ylabel("$\\mathregular{N(1) (km^{-2})}$")
 ax.set_xlabel("Time (Gy ago)")
 ax.set_xlim(4.5, 0)
 
-# Convert age from My to Gy and N1 from m^2 to km^2 for plotting
+# Convert age from My to Gy and N1 from m² to km² for plotting
 ax.plot(
     age_vals * 1e-3,
     N1_moon * 1e6,

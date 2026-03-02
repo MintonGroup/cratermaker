@@ -4,7 +4,7 @@ Plot a distribution of random velocities given a mean
 
 .. rubric:: By David Minton
 
-This example demonstrates the generation of random velocities using the :func:`get_random_velocity` function from the :ref:`montecarlo_utils <api-utils-montecarlo>` module. The expected distribution of imapct velocities is a modified Maxwell-Boltzmann distribution. The modification is related to the relationship between the mean velocity and the escape velocity. If vmean > vescape, then the distribution will adjusted so that the escape velocity is the minimum velocity by computing an encounter velocity then summing the encounter and escape velocities in quadrature. If vmean < vescape, then the distirbution will be a truncated maxwellian.
+This example demonstrates the generation of random velocities using the :py:meth:`get_random_velocity` function from the :ref:`montecarlo_utils <api-utils-montecarlo>` module. The expected distribution of imapct velocities is a modified Maxwell-Boltzmann distribution. The modification is related to the relationship between the mean velocity and the escape velocity. If vmean > vescape, then the distribution will adjusted so that the escape velocity is the minimum velocity by computing an encounter velocity then summing the encounter and escape velocities in quadrature. If vmean < vescape, then the distirbution will be a truncated maxwellian.
 
 Here we sample 10000 velocities with a mean of 0.5 and 2x the escape velocity of the Moon, both with and without the escape velocity argument. Then we will compare a histogram of generated velocities with .
 
@@ -31,16 +31,11 @@ for col, vmean in enumerate(vmean_values):
     v_no_escape = get_random_velocity(vmean=vmean, size=size)
     v_with_escape = get_random_velocity(vmean=vmean, size=size, vescape=vescape)
 
-    for row, (velocities, label) in enumerate(
-        [(v_no_escape, "No Escape Velocity"), (v_with_escape, "With Escape Velocity")]
-    ):
+    for row, (velocities, label) in enumerate([(v_no_escape, "No Escape Velocity"), (v_with_escape, "With Escape Velocity")]):
         bins = np.linspace(0, vmean * 3 / vescape, 50)
         histogram, bins = np.histogram(velocities / vescape, bins=bins, density=True)
         bin_centers = 0.5 * (bins[1:] + bins[:-1])
-        theoretical_dist = (
-            maxwell.pdf(bin_centers * vescape, scale=vmean / np.sqrt(8 / np.pi))
-            * vescape
-        )
+        theoretical_dist = maxwell.pdf(bin_centers * vescape, scale=vmean / np.sqrt(8 / np.pi)) * vescape
 
         ax = axs[row, col]
         ax.bar(

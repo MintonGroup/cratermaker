@@ -20,7 +20,7 @@
 Morphology
 ==========
 
-The Morphology component is used to alter the topography of a :ref:`Surface <ug-surface>` object using a :ref:`Crater <ug-crater>` object. The available morphology models (currently only "simplemoon") determine how crater geometry and ejecta are emplaced. Like other components, a :ref:`Morphology <api-morphology>` model is generated using its :meth:`maker` method:
+The Morphology component is used to alter the topography of a :ref:`Surface <ug-surface>` object using a :ref:`Crater <ug-crater>` object. The available morphology models (currently only "simplemoon") determine how crater geometry and ejecta are emplaced. Like other components, a :ref:`Morphology <api-morphology>` model is generated using its :py:meth:`maker` method:
 
 .. ipython:: python
 
@@ -31,7 +31,7 @@ The Morphology component is used to alter the topography of a :ref:`Surface <ug-
 Crater Emplacement
 ------------------
 
-The main purpose of a Morphology model is to emplace craters on a surface. This can now be done using the queue-aware :meth:`emplace` method, which automatically handles crater preparation, overlap resolution, and surface modification. If you do not provide a surface object, the method will create a default one for you (see :ref:`ug-surface` for more details). 
+The main purpose of a Morphology model is to emplace craters on a surface. This can now be done using the queue-aware :py:meth:`emplace` method, which automatically handles crater preparation, overlap resolution, and surface modification. If you do not provide a surface object, the method will create a default one for you (see :ref:`ug-surface` for more details). 
 
 .. ipython:: python
 
@@ -44,7 +44,7 @@ Internally, a morphology model maintains a queue of craters that can be processe
 Batch Emplacement
 -----------------
 
-You can enqueue multiple craters using :meth:`emplace`. Craters are emplaced in chronological order in batches of non-overlapping ejecta.
+You can enqueue multiple craters using :py:meth:`emplace`. Craters are emplaced in chronological order in batches of non-overlapping ejecta.
 
 .. ipython:: python
 

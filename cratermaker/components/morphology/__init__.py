@@ -152,7 +152,7 @@ class MorphologyCrater(Crater):
         check_redundant_inputs : bool, optional
             If True, check for redundant inputs such as providing both diameter and radius. Default is True.
         kwargs : Any
-            The keyword arguments provided are passed down to :func:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+            The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
         """
         morphology = Morphology.maker(morphology, **kwargs)
         if relative_location is not None:
@@ -486,7 +486,7 @@ class Morphology(ComponentBase):
 
         Notes
         -----
-        The keyword arguments provided are passed down to :meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+        The keyword arguments provided are passed down to :py:meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
         Examples
         --------

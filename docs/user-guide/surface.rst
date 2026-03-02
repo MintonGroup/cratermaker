@@ -91,7 +91,7 @@ In the next section we will describe the different types of surfaces that can be
 Surface Types
 -------------
 
-Like all Cratermaker components, a Surface object is instantiated with a special factory method called :meth:`maker()`, along with arguments that control how the Surface is created. There are currently three different surface types of surface implementations that can be chosen by the user, which are selected by passing the `surface` argument to the :meth:`maker()` method. The available surface types are:
+Like all Cratermaker components, a Surface object is instantiated with a special factory method called :py:meth:`maker()`, along with arguments that control how the Surface is created. There are currently three different surface types of surface implementations that can be chosen by the user, which are selected by passing the `surface` argument to the :py:meth:`maker()` method. The available surface types are:
 
 
 - "icosphere": This is the default surface type, which generates a uniform grid configuration with polygonal faces that will be subdivided by the input value for the `gridlevel` argument. The icosphere surface will have the most uniform face sizes, but is limited to a few resolutions. It is best suited for general use and is the default surface type.
@@ -294,7 +294,7 @@ Extracting a local subsection of the surface
     :class: dark-light
 
 
-Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that contains the faces, nodes, and edges within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters. This will return a LocalSurface object that contains all faces within a specified radius, plus a buffer of surrounding faces. All nodes and edges associated with the faces inside the primary local region are included, but only nodes associated with the buffer faces are included, but not edges (see the diagram above). This is done to prevent array out of bounds issues when performing operations that require neighboring faces across included edges, as is done when computing topographic diffusion calculations.
+Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :py:class:`LocalSurface` object, which is a view of the original surface that contains the faces, nodes, and edges within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a LocalSurface, you can use the :py:meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters. This will return a LocalSurface object that contains all faces within a specified radius, plus a buffer of surrounding faces. All nodes and edges associated with the faces inside the primary local region are included, but only nodes associated with the buffer faces are included, but not edges (see the diagram above). This is done to prevent array out of bounds issues when performing operations that require neighboring faces across included edges, as is done when computing topographic diffusion calculations.
 
 For instance, suppose we'd like to extract a 16 km radius region at the south pole of the Moon:
 
@@ -323,19 +323,19 @@ Using a Surface object
 ----------------------
 Once you have either a Surface or LocalSurface object, you are now able to perform numerous surface-related computations. 
 
-- :meth:`extract_region`: Extracts a local region of the surface, which is useful for performing operations on a small portion of the surface without affecting the full surface. This returns a `LocalSurface`` object.
-- :meth:`add_data`: Adds a new data variable that is associated with either faces (default) or nodes of the surface. 
-- :meth:`update_elevation`: Updates the elevation data of the surface using the `new_elevation` argument. The data is added to the existing elevation data by default, unless the user specifies `overwrite=True`.
-- :meth:`apply_diffusion`: Applies diffusive degradation to the surface, which is a process that smooths out the surface by averaging the elevations of neighboring faces. This is useful for simulating the effects of erosion over time.
-- :meth:`slope_collapse`: Applies diffusion only to surfaces that are steeper than a given threshold  given by the argument `critical_slope_angle`, which is set to 35 degrees by default (a typical value for the angle of repose). 
-- :meth:`apply_noise`: Applies tubulence-style simplex noise to the surface. This can be useful for generating realistic surface features, such as hills and valleys. The noise is applied to the elevation data of the surface.
-- :meth:`calculate_face_and_node_distances`: Returns one array for distances between a point and all faces, and another array with distances between that point and all nodes.
-- :meth:`calculate_face_and_node_bearings`: Returns two arrays: Bearings (direction in degrees) between a point and all faces, Bearing between a point and all nodes.
-- :meth:`find_nearest_face`: Returns the index of the face that is closest to a given point. 
-- :meth:`find_nearest_node`: Returns the index of the node that is closest to a given point. 
-- :meth:`interpolate_node_elevation_from_faces`: Some operations only affect faces, and so this method can be used to interpolate the elevation of nodes from the face elevations.
-- :meth:`elevation_to_cartesian`: Convert elevation values to Cartesian coordinates. This is a basic utility function that takes the cartesian positions of the surface of a sphere and elevation values and returns the Cartesian coordinates of the surface with the elevations applied. This is used because the mesh is never altered in Cratermaker, but rather the elevations are applied to the mesh when it is visualized.
-- :meth:`get_random_location_on_face`: Given a face index, this method will return a random location on that face. This is used to generate craters on a surface, as some surfaces have highly variable faces and therefore production functions must be evaluated on a face-by-face basis.
+- :py:meth:`extract_region`: Extracts a local region of the surface, which is useful for performing operations on a small portion of the surface without affecting the full surface. This returns a `LocalSurface`` object.
+- :py:meth:`add_data`: Adds a new data variable that is associated with either faces (default) or nodes of the surface. 
+- :py:meth:`update_elevation`: Updates the elevation data of the surface using the `new_elevation` argument. The data is added to the existing elevation data by default, unless the user specifies `overwrite=True`.
+- :py:meth:`apply_diffusion`: Applies diffusive degradation to the surface, which is a process that smooths out the surface by averaging the elevations of neighboring faces. This is useful for simulating the effects of erosion over time.
+- :py:meth:`slope_collapse`: Applies diffusion only to surfaces that are steeper than a given threshold  given by the argument `critical_slope_angle`, which is set to 35 degrees by default (a typical value for the angle of repose). 
+- :py:meth:`apply_noise`: Applies tubulence-style simplex noise to the surface. This can be useful for generating realistic surface features, such as hills and valleys. The noise is applied to the elevation data of the surface.
+- :py:meth:`calculate_face_and_node_distances`: Returns one array for distances between a point and all faces, and another array with distances between that point and all nodes.
+- :py:meth:`calculate_face_and_node_bearings`: Returns two arrays: Bearings (direction in degrees) between a point and all faces, Bearing between a point and all nodes.
+- :py:meth:`find_nearest_face`: Returns the index of the face that is closest to a given point. 
+- :py:meth:`find_nearest_node`: Returns the index of the node that is closest to a given point. 
+- :py:meth:`interpolate_node_elevation_from_faces`: Some operations only affect faces, and so this method can be used to interpolate the elevation of nodes from the face elevations.
+- :py:meth:`elevation_to_cartesian`: Convert elevation values to Cartesian coordinates. This is a basic utility function that takes the cartesian positions of the surface of a sphere and elevation values and returns the Cartesian coordinates of the surface with the elevations applied. This is used because the mesh is never altered in Cratermaker, but rather the elevations are applied to the mesh when it is visualized.
+- :py:meth:`get_random_location_on_face`: Given a face index, this method will return a random location on that face. This is used to generate craters on a surface, as some surfaces have highly variable faces and therefore production functions must be evaluated on a face-by-face basis.
 
 .. note::
     The LocalSurface object comes with distances and bearings from the center of the local region pre-computed. See below:
@@ -375,7 +375,7 @@ The ``region`` object now contains a view of all faces (along with their corresp
 Distances and bearings 
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The :class:`LocalSurface` object has two attributes called `face_distance` and `face_bearing` (and also `node_distance` and `node_bearing`), which are pre-computed distances and bearings from the center of the local region to all faces (nodes). This is useful for quickly accessing these values without having to compute them yourself.
+The :py:class:`LocalSurface` object has two attributes called `face_distance` and `face_bearing` (and also `node_distance` and `node_bearing`), which are pre-computed distances and bearings from the center of the local region to all faces (nodes). This is useful for quickly accessing these values without having to compute them yourself.
 
 .. ipython:: python
     :okwarning:
@@ -385,7 +385,7 @@ The :class:`LocalSurface` object has two attributes called `face_distance` and `
 
 We can see that the local region contains points outside of the 10 km region. We can see that this region contains 20 faces and 25 nodes, but only 7 of the faces actually lie within the 10 km local region, while the other 13 are part of the buffer. From here, we can perform many of the calculations as seen in the list above. 
 
-We can also calculate these for any arbitrary point within the local region (or full surface) using the methods :meth:`calculate_face_and_node_distances` and :meth:`calculate_face_and_node_bearings`. For instance, suppose we want to find the distances and bearings between a point at (205,45) and all faces and nodes in the local region:
+We can also calculate these for any arbitrary point within the local region (or full surface) using the methods :py:meth:`calculate_face_and_node_distances` and :py:meth:`calculate_face_and_node_bearings`. For instance, suppose we want to find the distances and bearings between a point at (205,45) and all faces and nodes in the local region:
 
 .. ipython:: python
     :okwarning:
@@ -442,7 +442,7 @@ There are corresponding methods for finding the nearest node, as well as connect
 Converting elevation to Cartesian coordinates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Cratermaker saves the face and node elevations independently of the mesh geometry. Suppose you want to visualize the surface with the elevations applied. You can use the :meth:`elevation_to_cartesian` method to convert the elevations to Cartesian coordinates. This method takes one argument, `element`, which can either be "face" or "node". The method will return an (n, 3) array of Cartesian coordinates, where n is the number of faces or nodes, depending on the value of `element`.
+Cratermaker saves the face and node elevations independently of the mesh geometry. Suppose you want to visualize the surface with the elevations applied. You can use the :py:meth:`elevation_to_cartesian` method to convert the elevations to Cartesian coordinates. This method takes one argument, `element`, which can either be "face" or "node". The method will return an (n, 3) array of Cartesian coordinates, where n is the number of faces or nodes, depending on the value of `element`.
 
 .. ipython:: python
     :okwarning:

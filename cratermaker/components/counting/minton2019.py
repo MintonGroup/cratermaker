@@ -55,8 +55,9 @@ class Minton2019Counting(Counting):
         """
         from cratermaker.constants import _VSMALL
 
-        a = 0.07
-        b = 0.15
+        # Recalibrated parameters based on Cratermaker's depth/diam calculations
+        a = 0.165395114041537
+        b = 0.2676532073705029
         diam_correction = 20e3  # depth/diameter correction transition diameter from Riedel et al. (2020)
         correction_factor = 2.0e-7
         depth = crater.measured_rim_height - crater.measured_floor_depth
@@ -65,12 +66,12 @@ class Minton2019Counting(Counting):
             depth_diam = _VSMALL
         if crater.measured_diameter > diam_correction:
             depth_diam += (crater.measured_diameter - diam_correction) * correction_factor
-        K = (a / np.sqrt(depth_diam) - b) * crater.measured_radius**2
+        K = (a / (depth_diam) ** (1.0 / 3.0) - b) * crater.measured_radius**2
         crater.degradation_state = K
 
         return K
 
-    def visibility_function(self, crater: Crater, Kv1: float = 0.17, gamma: float = 2.0, **kwargs: Any) -> float:
+    def visibility_function(self, crater: Crater, Kv1: float = 0.1813, gamma: float = 2.0, **kwargs: Any) -> float:
         """
         Calculate the visibility function for a crater using eq. 7 from Minton et al. (2019) [#]_.
 
@@ -79,16 +80,16 @@ class Minton2019Counting(Counting):
         crater : Crater
             The crater to calculate the visibility function for.
         Kv1: float
-            The visibility function parameter Kv1 from Minton et al. (2019).
+            The visibility function parameter Kv1 from Minton et al. (2019). Default value is 0.1813, which is updated based on Cratermaker's depth/diam calculations.
         gamma: float
-            The visibility function parameter gamma from Minton et al. (2019).
+            The visibility function parameter gamma from Minton et al. (2019). Default value is 2.0.
         **kwargs : Any
             |kwargs|
 
         Returns
         -------
         float
-            The visibility function value for the crater.
+            The visibility function value for the crater in units of m².
 
         References
         ----------

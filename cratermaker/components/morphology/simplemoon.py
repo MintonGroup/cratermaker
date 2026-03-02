@@ -65,7 +65,7 @@ class SimpleMoonCrater(MorphologyCrater):
         morphology : Morphology, optional
             The morphology model to use for generating morphology parameters.
         kwargs : Any
-            The keyword arguments provided are passed down to :func:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+            The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
         """
         morphology = Morphology.maker(morphology, **kwargs)
         if crater is None:

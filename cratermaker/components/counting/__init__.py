@@ -1323,7 +1323,7 @@ class Counting(ComponentBase):
             f.write("}\n")
             f.write("#\n")
             f.write("# area_info:\n")
-            f.write(f"Total_area = {area * 1e-6} <km^2>\n")
+            f.write(f"Total_area = {area * 1e-6} <km²>\n")
             f.write("#\n")
             f.write("# crater_diameters\n")
             f.write("crater = {diam, fraction, lon, lat, topo_scale_factor\n")

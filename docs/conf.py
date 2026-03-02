@@ -35,6 +35,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "sphinx.ext.doctest",
     "IPython.sphinxext.ipython_directive",
     "IPython.sphinxext.ipython_console_highlighting",
     "sphinx_autosummary_accessors",

@@ -78,10 +78,10 @@ Once you have a scaling object, you can use it to compute between projectile, tr
 .. currentmodule:: cratermaker.Scaling
 
 
-- :meth:`projectile_to_transient`: Takes the projectile diameter and returns the transient crater diameter.
-- :meth:`transient_to_projectile`: Takes the transient crater diameter and returns the projectile diameter.
-- :meth:`transient_to_final`: Takes the transient crater diameter and returns both the final crater diameter and the morphology type.
-- :meth:`final_to_transient`: Takes the final crater diameter and returns the transient crater diameter. Optionally, you can also provide the morphology type, but if you don't provide it, it will be computed (though it might not be the same as the one used to create the final crater!)
+- :py:meth:`projectile_to_transient`: Takes the projectile diameter and returns the transient crater diameter.
+- :py:meth:`transient_to_projectile`: Takes the transient crater diameter and returns the projectile diameter.
+- :py:meth:`transient_to_final`: Takes the transient crater diameter and returns both the final crater diameter and the morphology type.
+- :py:meth:`final_to_transient`: Takes the final crater diameter and returns the transient crater diameter. Optionally, you can also provide the morphology type, but if you don't provide it, it will be computed (though it might not be the same as the one used to create the final crater!)
 
 
 .. ipython:: python
@@ -99,7 +99,7 @@ Once you have a scaling object, you can use it to compute between projectile, tr
     print(f"Final crater -> projectile: {pd*1e-3:.3f} km")
 
 
-Because the scaling model is probabilistic, the results will vary slightly each time you run it. This is particualrly true when the crater size is near the simple-to-complex transition. Remember how passing the morphology type to :meth:`final_to_transient` is optional? In the above example we used the morphology type that was returned from the :meth:`transient_to_final` method. If we had not passed it, the :meth:`final_to_transient` method would have computed it again, and it might not be the same as the one used to create the final crater. Here is an example showing this effect:
+Because the scaling model is probabilistic, the results will vary slightly each time you run it. This is particualrly true when the crater size is near the simple-to-complex transition. Remember how passing the morphology type to :py:meth:`final_to_transient` is optional? In the above example we used the morphology type that was returned from the :py:meth:`transient_to_final` method. If we had not passed it, the :py:meth:`final_to_transient` method would have computed it again, and it might not be the same as the one used to create the final crater. Here is an example showing this effect:
 
 .. ipython:: python
     :okwarning:

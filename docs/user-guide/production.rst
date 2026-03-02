@@ -32,13 +32,13 @@ The output shows that by default, the production function is the Neukum model fo
 
 The Neukum Moon model has a valid range of ages over which it is valid, which is also reported in the output. The valid range of ages is between 0 and 4.5 Ga, though caution must be used when interpreting ages older than about 3.9 Ga, as these are poorly calibrated. The total crater number density of the most ancient terrains on the Moon correspond to a model age of 4.31 Ga, though the actual crust could potentially be must older than that. Nevertheless, the Neukum model is a well-established and widely used model for inner solar system crater chronology.
 
-The Production class has two primary methods that are used to compute the production function. The first is :func:`Production.function`, which computes the expected cumulative number density of craters greater than a given diameter of a surface of a given age. 
-The second is :func:`Production.sample`, which samples crater diameters and ages from the production function using Monte Carlo methods.
+The Production class has two primary methods that are used to compute the production function. The first is :py:meth:`Production.function`, which computes the expected cumulative number density of craters greater than a given diameter of a surface of a given age. 
+The second is :py:meth:`Production.sample`, which samples crater diameters and ages from the production function using Monte Carlo methods.
 
 Production function
 -------------------
 
-:func:`Production.function` returns the cumulative size-frequency distribution (CSFD) of craters over a given age range and crater diameter. It takes the following arguments:
+:py:meth:`Production.function` returns the cumulative size-frequency distribution (CSFD) of craters over a given age range and crater diameter. It takes the following arguments:
 
 - **diameter**: Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
 - **time_start**: Starting time in units of My relative to the present, used to compute the CSFD. Default is ``1.0``, corresponding to 1 Ma. Alternatively `age` can be used as an alias for `time_start`.
@@ -47,7 +47,7 @@ Production function
 Example: Using Production.function
 ----------------------------------
 
-For this example, we are going to use :func:`Production.function` to find the cumulative number of craters greater than 1 km² to form on a surface in 3 Gy using a power law with a slope of -2. 
+For this example, we are going to use :py:meth:`Production.function` to find the cumulative number of craters greater than 1 km² to form on a surface in 3 Gy using a power law with a slope of -2. 
 
 .. ipython:: python
    :okwarning:
@@ -86,12 +86,12 @@ Example: Plot a power law production function with a slope of -3 for craters 1 m
 Example: Using Production.age_from_D_N
 ------------------------------------------
 
-:func:`Production.age_from_D_N` returns the age in My for a given crater number density and diameter. It has the following parameters:
+:py:meth:`Production.age_from_D_N` returns the age in My for a given crater number density and diameter. It has the following parameters:
 
 - **diameter**: Diameter of the crater in m
 - **cumulative_number_density**: Number density of craters per m² surface area greater than the input diameter.
 
-For this example, we are going to use :func:`Production.age_from_D_N` to plot the age in Ma for a number density of 1e-6 craters per m² from 1 m to 1 km in diameter. 
+For this example, we are going to use :py:meth:`Production.age_from_D_N` to plot the age in Ma for a number density of 1e-6 craters per m² from 1 m to 1 km in diameter. 
 
 
 .. ipython:: python
