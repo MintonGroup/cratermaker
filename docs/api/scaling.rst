@@ -9,22 +9,18 @@ Use the `Scaling.maker` method to create a specific scaling model.
 Available Scaling Implementations
 ---------------------------------
 
-+-------------------+----------------+--------------------------------------------------------+
-| Class             | Instantiation  | Example Usage                                          |
-+===================+================+========================================================+
-| MonteCarloScaling | "montecarlo"   | scaling_model = Scaling.maker("montecarlo",            |
-|                   |                |                                target="Mars",          |
-|                   |                |                                projectile="asteroids") |
-+-------------------+----------------+--------------------------------------------------------+
-| CTEMScaling       | "ctem"         | scaling_model = Scaling.maker("ctem",                  |
-|                   |                |                               target="Mars",           |
-|                   |                |                               projectile="asteroids")  |
-+-------------------+----------------+--------------------------------------------------------+
++--------------------------------------------------------------------------+----------------+------------------------------------------------------------------------------------+
+| Class                                                                    | Instantiation  | Example Usage                                                                      |
++==========================================================================+================+====================================================================================+
+| :py:class:`~cratermaker.components.scaling.montecarlo.MonteCarloScaling` | "montecarlo"   | scaling_model = Scaling.maker("montecarlo", target="Mars", projectile="asteroids") |
++--------------------------------------------------------------------------+----------------+------------------------------------------------------------------------------------+
+| :py:class:`~cratermaker.components.scaling.ctem.CTEMScaling`             | "ctem"         | scaling_model = Scaling.maker("ctem", target="Mars", projectile="asteroids")       |
++--------------------------------------------------------------------------+----------------+------------------------------------------------------------------------------------+
 
 .. autoclass:: cratermaker.components.scaling.Scaling
    :members:
    :undoc-members:
-   :no-index:
+   :no-index-entry:
 
 
 .. _api-MonteCarloScaling:
@@ -39,7 +35,7 @@ See `Scaling`_ for inherited methods and attributes.
 .. autoclass:: cratermaker.components.scaling.montecarlo.MonteCarloScaling
    :members:
    :undoc-members:
-   :no-index:
+   :no-index-entry:
 
 Usage example
 -------------
@@ -63,7 +59,7 @@ See `Scaling`_ for inherited methods and attributes.
 .. autoclass:: cratermaker.components.scaling.ctem.CTEMScaling
    :members:
    :undoc-members:
-   :no-index:
+   :no-index-entry:
 
 Usage example
 -------------

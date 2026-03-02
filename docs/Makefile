@@ -68,7 +68,7 @@ html: version
 
 .PHONY: rtdhtml
 rtdhtml: version
-	$(SPHINXBUILD) -T -j 1 -E -W --keep-going -b html -d $(BUILDDIR)/doctrees -D language=en . $(BUILDDIR)/html
+	$(SPHINXBUILD) -T -j 1 -E -W -v --keep-going -b html -d $(BUILDDIR)/doctrees -D language=en . $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 

@@ -8,36 +8,28 @@ The Surface class is used for handling surface-related data and operations in th
 Available Surface Implementations
 ---------------------------------
 
-+-----------------------------+------------------------+-----------------------------------------------------------+
-| Class                       | Instantiation          | Example Usage                                             |
-+=============================+========================+===========================================================+
-| IcosphereSurface            | "icosphere"            | surface = Surface.maker("icosphere",                      |
-|                             |                        |                          gridlevel=7)                     |
-+-----------------------------+------------------------+-----------------------------------------------------------+
-| ArbitraryResolutionSurface  | "arbitrary_resolution" | surface = Surface.maker("arbitrary_resolution",           |
-|                             |                        |                         pix=100)                          |
-+-----------------------------+------------------------+-----------------------------------------------------------+
-| HiResLocalSurface           | "hireslocal"           | surface = Surface.maker("hireslocal",                     |
-|                             |                        |                         pix=50,                           |  
-|                             |                        |                         local_radius=1e3,                 |
-|                             |                        |                         local_location=(0,9))             |
-+-----------------------------+------------------------+-----------------------------------------------------------+
-| DataSurface                 | "datasurface"          | surface = Surface.maker("datasurface",                    |
-|                             |                        |                         local_location=(321.9913, 8.121), |
-|                             |                        |                         local_radius=50.0e3,              | 
-|                             |                        |                         pix=200.0)                        |
-+-----------------------------+------------------------+-----------------------------------------------------------+
++----------------------------------------------------------------------------------------------+------------------------+----------------------------------------------------------------------------------------------------------+
+| Class                                                                                        | Instantiation          | Example Usage                                                                                            |
++==============================================================================================+========================+==========================================================================================================+
+| :py:class:`~cratermaker.components.surface.icosphere.IcosphereSurface`                       | "icosphere"            | surface = Surface.maker("icosphere",gridlevel=7)                                                         |
++----------------------------------------------------------------------------------------------+------------------------+----------------------------------------------------------------------------------------------------------+
+| :py:class:`~cratermaker.components.surface.arbitrary_resolution.ArbitraryResolutionSurface`  | "arbitrary_resolution" | surface = Surface.maker("arbitrary_resolution",pix=100)                                                  |
++----------------------------------------------------------------------------------------------+------------------------+----------------------------------------------------------------------------------------------------------+
+| :py:class:`~cratermaker.components.surface.hireslocal.HiResLocalSurface`                     | "hireslocal"           | surface = Surface.maker("hireslocal",pix=50,local_radius=1e3,local_location=(0,9))                       |
++----------------------------------------------------------------------------------------------+------------------------+----------------------------------------------------------------------------------------------------------+
+| :py:class:`~cratermaker.components.surface.datasurface.DataSurface`                          | "datasurface"          | surface = Surface.maker("datasurface", local_location=(321.9913, 8.121), local_radius=50.0e3, pix=200.0) |
++----------------------------------------------------------------------------------------------+------------------------+----------------------------------------------------------------------------------------------------------+
 
 .. autoclass:: cratermaker.components.surface.Surface
    :members:
    :undoc-members:
-   :no-index:
+   :no-index-entry:
 
 
 .. autoclass:: cratermaker.components.surface.LocalSurface
    :members:
    :undoc-members:
-   :no-index:
+   :no-index-entry:
 
 .. _api-IcosphereSurface:
 

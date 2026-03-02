@@ -1,4 +1,4 @@
-.. module:: cratermaker
+.. py:module:: cratermaker
 
 Cratermaker
 ====================

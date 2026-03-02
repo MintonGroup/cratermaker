@@ -201,7 +201,7 @@ class Surface(ComponentBase):
             raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
         uxds = object.__getattribute__(self, "uxds")
         if name in uxds:
-            return uxds[name].values
+            return uxds[name].data
         raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
 
     def saved_output_files(self, **kwargs: Any) -> list[Path]:

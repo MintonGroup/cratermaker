@@ -13,10 +13,10 @@ from cratermaker.components.crater import Crater
 from cratermaker.components.surface import LocalSurface, Surface
 
 
-@Counting.register("minton2019")
-class Minton2019Counting(Counting):
+@Counting.register("simplecount")
+class SimpleCount(Counting):
     """
-    Minton 2019 crater counting model.
+    A basic crater counting model that uses depth-to-diameter values to estimate degradation states of craters for counting.
 
     Parameters
     ----------
@@ -28,7 +28,7 @@ class Minton2019Counting(Counting):
 
     def __init__(self, surface, **kwargs: Any):
         super().__init__(surface=surface, **kwargs)
-        self._component_name = "minton2019"
+        self._component_name = "simplecount"
 
     def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> float:
         """

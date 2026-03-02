@@ -133,7 +133,7 @@ class Counting(ComponentBase):
             If the specified counting model is not a string or a subclass of Scaling.
         """
         if counting is None:
-            counting = "minton2019"
+            counting = "simplecount"
 
         counting = super().maker(
             component=counting,

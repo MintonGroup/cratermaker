@@ -10,4 +10,16 @@ The ``Crater`` class represents a single crater in the simulation. It is used to
 .. autoclass:: cratermaker.components.crater.Crater
     :members:
     :undoc-members:
-    :no-index:
+    :no-index-entry:
+
+
+.. autoclass:: cratermaker.components.crater.CraterFixed
+    :members:
+    :undoc-members:
+    :no-index-entry:
+
+.. autoclass:: cratermaker.components.crater.CraterVariable
+    :members:
+    :undoc-members:
+    :no-index-entry:
+

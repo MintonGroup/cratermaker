@@ -14,4 +14,4 @@ Creating a Simulation
 .. autoclass:: cratermaker.core.simulation.Simulation
    :members:
    :undoc-members:
-   :no-index:
+   :no-index-entry:

@@ -9,5 +9,5 @@ The Target class represents the target body in a crater simulation. It encapsula
 .. autoclass:: cratermaker.components.target.Target
     :members:
     :inherited-members:
-    :no-index:
+    :no-index-entry:
 

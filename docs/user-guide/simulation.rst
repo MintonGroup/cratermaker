@@ -1,4 +1,4 @@
-.. currentmodule:: cratermaker
+.. py:currentmodule:: cratermaker
 
 .. ipython:: python
     :okwarning:
@@ -36,12 +36,12 @@ Any valid arguments for these components can be passed directly to the :py:class
 Creating craters and populations of craters
 -------------------------------------------
 
-The :py:class:`~cratermaker.core.simulation.Simulation` class has set of core methods that can be used to generate craters, using the requested (or default) Production and Morphology components onto the requested Surface component. These are :py:meth:`~cratermaker.core.simulation.Simulation.emplace`, :py:meth:`~cratermaker.core.simulation.Simulation.populate`, and :py:meth:`~cratermaker.core.simulation.Simulation.run`. Each successive method makes use of the others (that is, `populate` calls `emplace` on the craters in generates, and `run` calls `populate` for each interval of time in the simulation). We will discuss each of these in turn:
+The :py:class:`~cratermaker.core.simulation.Simulation` class has set of core methods that can be used to generate craters, using the requested (or default) Production and Morphology components onto the requested Surface component. These are :py:meth:`~cratermaker.core.simulation.Simulation.emplace`, :py:meth:`~cratermaker.core.simulation.Simulation.populate`, and :py:meth:`~cratermaker.core.simulation.Simulation.run`. Each successive method makes use of the others (that is, :py:meth:`~cratermaker.core.simulation.Simulation.populate` calls :py:meth:`~cratermaker.core.simulation.Simulation.emplace` on the craters in generates, and :py:meth:`~cratermaker.core.simulation.Simulation.run` calls :py:meth:`~cratermaker.core.simulation.Simulation.populate` for each interval of time in the simulation). We will discuss each of these in turn:
 
 Emplace one or more specific craters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :py:meth:`~cratermaker.core.simulation.Simulation.emplace` is used to emplace one or more craters onto a surface. The arguments are either the parameters that you would pass to :py:meth:`~cratermaker.components.crater.Crater.maker` to generate a single crater, a single :py:class:`~cratermaker.components.crater.Crater` object, or a list of :py:class:`~cratermaker.components.crater.Crater` objects. So for instance, you can emplace a single 300 km crater onto a random location on a surface, you would do:
+The :py:meth:`~cratermaker.core.simulation.Simulation.emplace` is used to emplace one or more craters onto a surface. The arguments are either the parameters that you would pass to :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>` to generate a single crater, a single :py:class:`~cratermaker.components.crater.Crater` object, or a list of :py:class:`~cratermaker.components.crater.Crater` objects. So for instance, you can emplace a single 300 km crater onto a random location on a surface, you would do:
 
 .. code-block:: python
 
