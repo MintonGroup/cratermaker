@@ -40,7 +40,7 @@ class MonteCarloScaling(Scaling):
     Ybar : FloatLike, optional
         The strength of the target material, (Pa)
     density : FloatLike, optional
-        Volumentric density of target material, (kg/m^3)
+        Volumentric density of target material, (kg/m³)
     monte_carlo_scaling : bool, default=True
         If True, the scaling laws will be applied using monte carlo methods to account for the uncertainty in the scaling laws. If False, the scaling laws will be applied deterministically.
     rng : numpy.random.Generator | None

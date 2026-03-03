@@ -1,7 +1,8 @@
 .. _api-simulation:
 
+##########
 Simulation
-==========
+##########
 
 The Simulation class is the main class for the cratermaker project. It is used to create a simulation of a crater on a given target 
 body. The Simulation class is used to generate craters of a given size and morphology based on the production function, morphology
@@ -14,4 +15,4 @@ Creating a Simulation
 .. autoclass:: cratermaker.core.simulation.Simulation
    :members:
    :undoc-members:
-   :no-index:
+   :no-index-entry:

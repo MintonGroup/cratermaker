@@ -11,13 +11,14 @@ This section of the documentation provides a detailed reference for the core fun
 .. toctree::
     :maxdepth: 2
 
+    simulation
     crater
     morphology
     production
     projectile
     scaling
-    simulation
     surface
     target
     counting
     utils
+    base

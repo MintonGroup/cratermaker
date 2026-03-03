@@ -214,7 +214,7 @@ def normalize_coords(location: tuple[FloatLike, FloatLike]) -> tuple[float, floa
 
     This function takes a tuple of longitude and latitude values in degrees, normalizes them to the specified ranges, and handles cases where latitude values exceed the polar extremes, adjusting both latitude and longitude accordingly.
 
-    Parameter
+    Parameters
     ----------
     location : tuple
         A tuple containing two elements: (longitude, latitude) in degrees.
@@ -386,13 +386,43 @@ def get_saved_interval_numbers(
     return interval_numbers, matched_files
 
 
-def format_large_units(value: float, quantity: str = "length") -> str:
+def format_large_units(value: float, quantity) -> str:
     """
     Format a value and automatically shift units based on threshold.
+
+    Parameters
+    ----------
+    value : float
+        The value to be formatted and converted to appropriate units.
+    quantity : {'length', 'area', 'volume', 'velocity', 'time', 'pressure'}
+        The type of quantity being formatted. "area". The function will determine the appropriate units and thresholds based on the quantity type.
+
+    Returns
+    -------
+    str
+        A string representation of the value with appropriate units, formatted to a reasonable number of significant digits based on the magnitude of the value.
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> from cratermaker.utils.general_utils import format_large_units
+        >>> format_large_units(1500, "length")
+        '1.500 km'
+        >>> format_large_units(3920, "time")
+        '3.920 Gy'
+
     """
     if quantity == "length":
         units = ["m", "km"]
         threshold = 1.0e3
+    elif quantity == "area":
+        units = ["m²", "km²"]
+        threshold = 1.0e6
+    elif quantity == "volume":
+        units = ["m³", "km³"]
+        threshold = 1.0e9
     elif quantity == "velocity":
         units = ["m/s", "km/s"]
         threshold = 1.0e3
@@ -402,9 +432,6 @@ def format_large_units(value: float, quantity: str = "length") -> str:
     elif quantity == "pressure":
         units = ["Pa", "kPa", "MPa", "GPa"]
         threshold = 1.0e3
-    elif quantity == "volume":
-        units = ["m³", "km³"]
-        threshold = 1.0e6
 
     if value is None:
         return "N/A"

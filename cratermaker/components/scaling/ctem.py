@@ -28,7 +28,7 @@ class CTEMScaling(MonteCarloScaling):
     Ybar : FloatLike, optional
         The strength of the target material, (Pa)
     density : FloatLike, optional
-        Volumentric density of target material, (kg/m^3)
+        Volumentric density of target material, (kg/m³)
     **kwargs : Any
         |kwargs|
 

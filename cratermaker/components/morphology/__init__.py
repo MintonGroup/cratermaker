@@ -152,7 +152,7 @@ class MorphologyCrater(Crater):
         check_redundant_inputs : bool, optional
             If True, check for redundant inputs such as providing both diameter and radius. Default is True.
         kwargs : Any
-            The keyword arguments provided are passed down to :func:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+            The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
         """
         morphology = Morphology.maker(morphology, **kwargs)
         if relative_location is not None:
@@ -323,6 +323,21 @@ class MorphologyCrater(Crater):
             self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.crater_region, self)
         return self._var._measured_floor_depth
 
+    @property
+    def measured_depth_to_diameter(self) -> float | None:
+        """
+        The measured depth to diameter ratio of the crater.
+
+        This is computed from `measured_rim_height`-`measured_floor_depth`
+        """
+        if self.crater_region is not None:
+            self.crater_region._desloped_face_elevation = None
+            floor_depth = self.measured_floor_depth
+            rim_height = self.measured_rim_height
+            return (rim_height - floor_depth) / self.measured_diameter
+        else:
+            return None
+
 
 class Morphology(ComponentBase):
     _registry: dict[str, Morphology] = {}
@@ -486,7 +501,7 @@ class Morphology(ComponentBase):
 
         Notes
         -----
-        The keyword arguments provided are passed down to :meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+        The keyword arguments provided are passed down to :py:meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
         Examples
         --------

@@ -201,7 +201,7 @@ class Surface(ComponentBase):
             raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
         uxds = object.__getattribute__(self, "uxds")
         if name in uxds:
-            return uxds[name].values
+            return uxds[name].data
         raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
 
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
@@ -629,7 +629,7 @@ class Surface(ComponentBase):
 
         Notes
         -----
-        This method is a wrapper for :func:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`.
+        This method is a wrapper for :py:meth:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`.
         """
         return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
 
@@ -2780,7 +2780,7 @@ class LocalSurface(CratermakerBase):
         """
         Export the surface view data to a specified file format and stores it in the default export directory.
 
-        If the format is "VTK," the data will be exported using the :meth:`Surface.to_vtk` method. Otherwise, it will use the :meth:`Surface.to_vector_file` to export the data.
+        If the format is "VTK," the data will be exported using the :py:meth:`Surface.to_vtk` method. Otherwise, it will use the :py:meth:`Surface.to_vector_file` to export the data.
 
         Parameters
         ----------

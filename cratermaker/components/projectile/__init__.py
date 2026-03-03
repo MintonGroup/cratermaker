@@ -74,7 +74,7 @@ class Projectile(ComponentBase):
         velocity : float | None
             The impact velocity in m/s. If `sample` is True, this value is ignored. If `sample` is False, this value is required.
         density : float, optional
-            The density of the projectile in kg/m^3.
+            The density of the projectile in kg/m³.
         angle : float, optional
             The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
         direction : float | None
@@ -190,7 +190,7 @@ class Projectile(ComponentBase):
         mean_velocity : float
             The mean velocity of the projectile in m/s.
         density : float
-            The density of the projectile in kg/m^3.
+            The density of the projectile in kg/m³.
         sample : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
@@ -461,7 +461,7 @@ class Projectile(ComponentBase):
     @parameter
     def density(self):
         """
-        The density of the projectile in kg/m^3.
+        The density of the projectile in kg/m³.
 
         Returns
         -------
@@ -472,12 +472,12 @@ class Projectile(ComponentBase):
     @density.setter
     def density(self, value):
         """
-        Sets the density of the projectile in kg/m^3.
+        Sets the density of the projectile in kg/m³.
 
         Parameters
         ----------
         value : float | None
-            The density in kg/m^3 or None to use a default value.
+            The density in kg/m³ or None to use a default value.
 
         Raises
         ------

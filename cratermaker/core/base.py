@@ -28,10 +28,15 @@ class CommonArgs:
     """
 
     simdir: Path
+    """The root directory of the simulation."""
     rng: Generator | None
+    """The random number generat or object."""
     rng_seed: int | None
+    """The random number seed."""
     rng_state: dict | None
+    """The current state of the random number generator."""
     ask_overwrite: bool = True
+    """Flag indicating whether to prompt the user before overwriting a file."""
 
 
 class CratermakerBase:

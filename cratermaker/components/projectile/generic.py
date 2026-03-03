@@ -38,7 +38,7 @@ class GenericProjectiles(Projectile):
         velocity : float | None
             The impact velocity in m/s. If `sample` is True, this value is ignored. If `sample` is False, this value is required.
         density : float, optional
-            The density of the projectile in kg/m^3. Default is 1000 kg/m^3.
+            The density of the projectile in kg/m³. Default is 1000 kg/m³.
         angle : float, optional
             The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
         direction : float | None

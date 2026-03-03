@@ -24,24 +24,43 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class CraterFixed:
     id: np.uint32 = None
+    """A unique identifyer for the crater, which can be used to track it across time steps in a simulation. This is automatically generated when a crater is emplaced in a simulation as a hash of its fixed attributes."""
     semimajor_axis: float | None = None
+    """The semimajor axis of the crater in meters. For a circular crater, this is equal to the semiminor axis and the radius."""
     semiminor_axis: float | None = None
+    """The semiminor axis of the crater in meters. For a circular crater, this is equal to the semimajor axis and the radius."""
     orientation: float | None = None
+    """Orientation of the crater in degrees, measured clockwise from north. For a circular crater, this value is not meaningful, but will be set to the same value as `projectile_orientation`."""
     transient_diameter: float | None = None
+    """The transient diameter of the crater in meters."""
     projectile_diameter: float | None = None
+    """The diameter of the projectile in meters."""
     projectile_velocity: float | None = None
+    """The velocity of the projectile in meters per second."""
     projectile_angle: float | None = None
+    """The impact angle of the projectile relative to the surfacein degrees."""
     projectile_mass: float | None = None
+    """The mass of the projectile in kg."""
     location: PairOfFloats | None = None
+    """The location of the crater center in (longitude, latitude) in degrees."""
     morphology_type: str | None = None
+    """The morphology type of the crater, i.e. "simple", "complex", etc."""
     time: float | None = None
+    """The time in My before present at which the crater was emplaced or observed."""
     radius: float | None = field(default=None, init=False)
+    """The radius of the crater in meters. For a circular crater, this is equal to the semimajor and semiminor axes. For a non-circular crater, this is the geometric mean of the semimajor and semiminor axes."""
     diameter: float | None = field(default=None, init=False)
+    """The diameter of the crater in meters. For a circular crater, this is equal to twice the semimajor and semiminor axes. For a non-circular crater, this is twice the geometric mean of the semimajor and semiminor axes."""
     transient_radius: float | None = field(default=None, init=False)
+    """The transient radius of the crater in meters, which is half the transient diameter."""
     projectile_radius: float | None = field(default=None, init=False)
+    """The radius of the projectile in meters, which is half the projectile diameter."""
     projectile_density: float | None = field(default=None, init=False)
+    """The density of the projectile in kg/m³."""
     projectile_vertical_velocity: float | None = field(default=None, init=False)
+    """The vertical component of the projectile velocity in meters per second."""
     projectile_direction: float | None = field(default=None, init=False)
+    """The direction of the projectile in degrees, measured clockwise from north. This is the same as `orientation`."""
 
     def __post_init__(self):
         # Compute derived attributes that depend on other fields and cannot be set directly
@@ -151,7 +170,11 @@ class CraterVariable:
 
     @property
     def measured_radius(self) -> float | None:
-        """Final radius of the crater in meters."""
+        """
+        The measured radius of the crater in meters. For a circular crater, this is equal to the measured semimajor and semiminor axes.
+
+        For a non-circular crater, this is the geometric mean of the measured semimajor and measured semiminor axes. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
         if self.measured_semimajor_axis is not None and self.measured_semiminor_axis is not None:
             return math.sqrt(self.measured_semimajor_axis * self.measured_semiminor_axis)
         return None
@@ -168,6 +191,11 @@ class CraterVariable:
 
     @property
     def measured_semimajor_axis(self) -> float | None:
+        """
+        The measured semimajor axis of the crater in meters.
+
+        For a circular crater, this is equal to the measured semiminor axis and the measured radius. For a non-circular crater, this is the longest axis of the crater. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
         return self._measured_semimajor_axis
 
     @measured_semimajor_axis.setter
@@ -186,10 +214,20 @@ class CraterVariable:
 
     @property
     def measured_semiminor_axis(self) -> float | None:
+        """
+        The measured semiminor axis of the crater in meters.
+
+        For a circular crater, this is equal to the measured semimajor axis and the measured radius. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
         return self._measured_semiminor_axis
 
     @measured_semiminor_axis.setter
     def measured_semiminor_axis(self, value: float | None):
+        """
+        The measured semiminor axis of the crater in meters.
+
+        For a circular crater, this is equal to the measured semimajor axis and the measured radius. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
         if value is None:
             self._measured_semiminor_axis = None
             return
@@ -204,6 +242,11 @@ class CraterVariable:
 
     @property
     def measured_orientation(self) -> float | None:
+        """
+        The measured orientation of the crater in degrees, measured clockwise from north.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed orientation attribute.
+        """
         return self._measured_orientation
 
     @measured_orientation.setter
@@ -220,6 +263,11 @@ class CraterVariable:
 
     @measured_location.setter
     def measured_location(self, value: tuple[float, float] | None):
+        """
+        The measured location of the crater as a tuple of (longitude, latitude) in degrees.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed location attribute.
+        """
         if value is None:
             self._measured_location = None
             return
@@ -232,6 +280,11 @@ class CraterVariable:
 
     @measured_rim_height.setter
     def measured_rim_height(self, value: float | None):
+        """
+        The measured rim height above the local reference plane of the crater in meters.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
+        """
         if value is None:
             self._measured_rim_height = None
             return
@@ -240,6 +293,11 @@ class CraterVariable:
 
     @property
     def measured_floor_depth(self) -> float | None:
+        """
+        The measured floor depth below the local reference plane of the crater in meters.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
+        """
         return self._measured_floor_depth
 
     @measured_floor_depth.setter
@@ -252,6 +310,10 @@ class CraterVariable:
 
     @property
     def degradation_state(self) -> float | None:
+        """The degradation state of the crater in m², which is a measure of how much the crater has degraded diffusively from its original state.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
+        """
         return self._degradation_state
 
     @degradation_state.setter
@@ -369,7 +431,7 @@ class Crater:
             f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
             f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
             f"projectile_mass: {self.projectile_mass:.4e} kg\n"
-            f"projectile_density: {self.projectile_density:.0f} kg/m^3\n"
+            f"projectile_density: {self.projectile_density:.0f} kg/m³\n"
             f"projectile_velocity: {format_large_units(self.projectile_velocity, quantity='velocity')}\n"
             f"projectile_angle: {self.projectile_angle:.1f}°\n"
             f"projectile_direction: {self.projectile_direction:.1f}°\n"
@@ -471,7 +533,7 @@ class Crater:
         projectile_mass : float, optional
             The mass of the projectile in kilograms.
         projectile_density : float, optional
-            The density of the projectile in kg/m^3. If not provided, it will be defined through the projectile population model provided.
+            The density of the projectile in kg/m³. If not provided, it will be defined through the projectile population model provided.
         projectile_velocity : float, optional
             The total impact velocity of the projectile in m/s.
         projectile_mean_velocity : float, optional
@@ -959,7 +1021,6 @@ class Crater:
         -------
         A GeoSeries containing a Shapely Polygon in lon/lat degrees.
         """
-        from cratermaker._cratermaker import counting_bindings
         from pyproj import Geod
         from shapely.geometry import GeometryCollection, LineString, Polygon
         from shapely.ops import split, transform

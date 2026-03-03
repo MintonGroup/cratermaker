@@ -2,13 +2,14 @@
 
 .. currentmodule:: cratermaker.utils
 
+#################
 Utility functions
-=================
+#################
 
 .. _api-utils-montecarlo:
 
 Monte Carlo
------------
+===========
 
 .. autosummary::
    :toctree: generated/
@@ -22,7 +23,7 @@ Monte Carlo
 .. _api-utils-general:
 
 General utilities
------------------
+=================
 
 .. autosummary::
     :toctree: generated/

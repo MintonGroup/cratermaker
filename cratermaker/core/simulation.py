@@ -50,7 +50,7 @@ class Simulation(CratermakerBase):
     surface : str, optional
         The name of the surface used for the surface. Default is "icosphere".
     counting : Counting or str, optional
-        The crater counting model to use from the components library. Default is "minton2019".
+        The crater counting model to use from the components library. Default is "simplecount".
     simdir : str | Path
         |simdir|
     rng : numpy.random.Generator | None
@@ -254,8 +254,9 @@ class Simulation(CratermakerBase):
         """
         Returns a string representation of the Simulation object.
         """
-        return (
+        output = (
             f"<Simulation>\n\n"
+            f"simdir      : {str(self.simdir)}\n"
             f"{self.counting}\n\n"
             f"{self.morphology}\n\n"
             f"{self.production}\n\n"
@@ -264,12 +265,15 @@ class Simulation(CratermakerBase):
             f"{self.surface}\n\n"
             f"{self.target}\n\n"
             f"<Current state>\n"
-            f"Current time : {format_large_units(self.time, quantity='time')} before present\n"
-            f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
-            f"Elapsed N_1 : {self.elapsed_n1} #/m^2\n"
             f"Interval    : {self.interval}\n"
-            f"simdir      : {str(self.simdir)}\n"
         )
+        if self.time is not None:
+            output += (
+                f"Current time : {format_large_units(self.time, quantity='time')} before present\n"
+                f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
+                f"Elapsed N_1 : {self.elapsed_n1} #/m²\n"
+            )
+        return output
 
     def __repr__(self) -> str:
         config = self.to_config(save_to_file=False)
@@ -750,7 +754,7 @@ class Simulation(CratermakerBase):
 
         Notes
         -----
-        The keyword arguments provided are passed down to :meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+        The keyword arguments provided are passed down to :py:meth:`Crater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
         Examples
         --------
@@ -879,7 +883,7 @@ class Simulation(CratermakerBase):
         interval : int, optional
             The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
         plot_style : str, optional
-            The style to use for surface plots. See :meth:`Surface.plot` for more details. Default is 'hillshade'.
+            The style to use for surface plots. See :py:meth:`Surface.plot` for more details. Default is 'hillshade'.
         label : str, optional
             The label to use for the plot. Default is None, which will use a label based on the current time and elapsed time of the simulation.
         show : bool, optional
@@ -896,10 +900,13 @@ class Simulation(CratermakerBase):
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
-        if label == "default":
-            label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
         if interval is None:
             interval = self.interval
+        if label == "default":
+            if self.time is None:
+                label = f"Interval: {interval}"
+            else:
+                label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
 
         plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
         if include_counting and self.do_counting:
@@ -1229,8 +1236,6 @@ class Simulation(CratermakerBase):
         """
         The age of the current time step in My relative to the present from the chronology of the production function.
         """
-        if self._time is None:
-            return -1.0
         return self._time
 
     @time.setter
@@ -1364,11 +1369,14 @@ class Simulation(CratermakerBase):
             - "elapsed_time": The elapsed time in My since the start of the simulation.
             - "elapsed_n1": The elapsed number of craters larger than 1 km in diameter.
         """
-        return {
-            "time": self.time,
-            "elapsed_time": self.elapsed_time,
-            "elapsed_n1": self.elapsed_n1,
-        }
+        if self.time is None:
+            return {}
+        else:
+            return {
+                "time": self.time,
+                "elapsed_time": self.elapsed_time,
+                "elapsed_n1": self.elapsed_n1,
+            }
 
     @property
     def do_counting(self) -> bool:

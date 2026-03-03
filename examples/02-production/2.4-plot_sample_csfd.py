@@ -4,7 +4,7 @@ Sample a power law and lunar Neukum Production Function
 
 .. rubric:: By Austin Blevins and David Minton
 
-In this example, we use the :func:`Production.sample` method to sample populations of craters from a production function. We will sample 1000 craters from each production function and repeat this 100 times. The population samples are then plotted against the expected value given by :func:`Production.function`
+In this example, we use the :py:meth:`Production.sample` method to sample populations of craters from a production function. We will sample 1000 craters from each production function and repeat this 100 times. The population samples are then plotted against the expected value given by :py:meth:`Production.function`
 """
 
 import matplotlib.pyplot as plt
@@ -41,19 +41,13 @@ for name, ax in axes.items():
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
     ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-    ax.yaxis.set_minor_locator(
-        ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100)
-    )
+    ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100))
     ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-    ax.xaxis.set_minor_locator(
-        ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100)
-    )
+    ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100))
 
     # Plot each sampled population Monte Carlo style
     for i in range(Nevaluations):
-        Dsampled, _ = production[name].sample(
-            age=age, diameter_range=diameter_range, area=area, return_age=False
-        )
+        Dsampled, _ = production[name].sample(age=age, diameter_range=diameter_range, area=area, return_age=False)
         Dsampled = np.sort(Dsampled)[::-1]
         Nsampled = range(1, len(Dsampled) + 1)
         ax.plot(
