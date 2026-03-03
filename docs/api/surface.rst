@@ -1,7 +1,8 @@
 .. _api-surface:
 
+#######
 Surface
-=======
+#######
 
 The Surface class is used for handling surface-related data and operations in the cratermaker project. It provides methods for setting elevation data, calculating distances and bearings, and other surface-related computations. The Surface class extends UxDataset for the cratermaker project.
 

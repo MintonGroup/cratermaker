@@ -56,12 +56,13 @@ class SimpleCount(Counting):
         from cratermaker.constants import _VSMALL
 
         # Recalibrated parameters based on Cratermaker's depth/diam calculations
-        a = 0.165395114041537
-        b = 0.2676532073705029
+        a = 0.148594703440242
+        b = 0.23568002443030067
         diam_correction = 20e3  # depth/diameter correction transition diameter from Riedel et al. (2020)
         correction_factor = 2.0e-7
-        depth = crater.measured_rim_height - crater.measured_floor_depth
-        depth_diam = depth / crater.measured_diameter
+        depth_diam = crater.measured_depth_to_diameter
+        if depth_diam is None:
+            return 0.0
         if depth_diam < _VSMALL:
             depth_diam = _VSMALL
         if crater.measured_diameter > diam_correction:

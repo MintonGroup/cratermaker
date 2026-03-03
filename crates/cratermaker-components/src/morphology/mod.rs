@@ -28,9 +28,9 @@ const FRAYREDUCTION: f64 = 0.90;
 /// * `r_array` - 1D array of radial distances from crater center (in meters).
 /// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
 /// * `diameter` - Total diameter of the crater (in meters).
-/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters).
+/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters, relative to datum).
 /// * `floor_diameter` - Diameter of the crater floor (in meters).
-/// * `rim_height` - Height of the crater rim above mean surface level (in meters).
+/// * `rim_height` - Height of the crater rim above mean surface level (in meters, relative to datum).
 /// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
 ///
 /// # Returns
@@ -58,7 +58,7 @@ pub fn crater_profile(
     let radius = diameter / 2.0;
 
     // Use polynomial crater profile similar to that of Fassett and Thomson (2014), but the parameters are set by the crater dimensions
-    let c1 = (-floor_depth - rim_height)
+    let c1 = (floor_depth - rim_height)
         / (flrad - 1.0 + A * (flrad.powi(2) - 1.0) + B * (flrad.powi(3) - 1.0));
     let c0 = rim_height - c1 * (1.0 + A + B);
     let c2 = A * c1;
@@ -81,7 +81,7 @@ pub fn crater_profile(
             .sum::<f64>()
             / ninc as f64
     };
-    let min_elevation = meanref - floor_depth;
+    let min_elevation = meanref + floor_depth;
 
     Ok(Array1::from_iter(
         reference_elevations

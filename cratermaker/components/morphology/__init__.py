@@ -323,6 +323,21 @@ class MorphologyCrater(Crater):
             self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.crater_region, self)
         return self._var._measured_floor_depth
 
+    @property
+    def measured_depth_to_diameter(self) -> float | None:
+        """
+        The measured depth to diameter ratio of the crater.
+
+        This is computed from `measured_rim_height`-`measured_floor_depth`
+        """
+        if self.crater_region is not None:
+            self.crater_region._desloped_face_elevation = None
+            floor_depth = self.measured_floor_depth
+            rim_height = self.measured_rim_height
+            return (rim_height - floor_depth) / self.measured_diameter
+        else:
+            return None
+
 
 class Morphology(ComponentBase):
     _registry: dict[str, Morphology] = {}

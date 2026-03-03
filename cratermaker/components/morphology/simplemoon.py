@@ -22,11 +22,31 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 @dataclass(frozen=True, slots=True)
 class SimpleMoonCraterFixed(CraterFixed):
     rim_height: float | None = None
+    """Original rim height of the crater in meters relative to the reference surface."""
     rim_width: float | None = None
+    """Original rim width of the crater in meters."""
     floor_depth: float | None = None
+    """Original floor depth of the crater in meters relative to the reference surface."""
     floor_diameter: float | None = None
+    """Original floor diameter of the crater in meters."""
     peak_height: float | None = None
+    """Original central peak height of the crater in meters relative to the reference surface. None for simple craters."""
     ejrim: float | None = None
+    """Original ejecta rim thickness of the crater in meters."""
+
+    @property
+    def depth_to_diameter(self) -> float | None:
+        """
+        The depth to diameter ratio of the crater.
+
+        This is computed from `rim_height`-`floor_depth`
+        """
+        floor_depth = self.floor_depth
+        rim_height = self.rim_height
+        if floor_depth is not None and rim_height is not None:
+            return (rim_height - floor_depth) / self.diameter
+        else:
+            return None
 
 
 class SimpleMoonCrater(MorphologyCrater):
@@ -77,13 +97,13 @@ class SimpleMoonCrater(MorphologyCrater):
         if crater.morphology_type in ["simple", "transitional"]:
             args["rim_height"] = 0.043 * diameter_km**1.014 * 1e3
             args["rim_width"] = 0.257 * diameter_km**1.011 * 1e3
-            args["floor_depth"] = 0.224 * diameter_km**1.010 * 1e3
+            args["floor_depth"] = -0.224 * diameter_km**1.010 * 1e3
             args["floor_diameter"] = 0.200 * diameter_km**1.143 * 1e3
             args["peak_height"] = None
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
             args["rim_height"] = 0.236 * diameter_km**0.399 * 1e3
             args["rim_width"] = 0.467 * diameter_km**0.836 * 1e3
-            args["floor_depth"] = 1.044 * diameter_km**0.301 * 1e3
+            args["floor_depth"] = -1.044 * diameter_km**0.301 * 1e3
             args["floor_diameter"] = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
             args["peak_height"] = 0.032 * diameter_km**0.900 * 1e3
         else:

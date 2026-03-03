@@ -1021,7 +1021,6 @@ class Crater:
         -------
         A GeoSeries containing a Shapely Polygon in lon/lat degrees.
         """
-        from cratermaker._cratermaker import counting_bindings
         from pyproj import Geod
         from shapely.geometry import GeometryCollection, LineString, Polygon
         from shapely.ops import split, transform

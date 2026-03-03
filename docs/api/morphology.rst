@@ -20,6 +20,16 @@ Available Morphology Implementations
    :undoc-members:
    :no-index-entry:
 
+.. autoclass:: cratermaker.components.morphology.MorphologyCrater
+   :members:
+   :undoc-members:
+   :no-index-entry:
+
+.. autoclass:: cratermaker.components.morphology.MorphologyCraterVariable
+   :members:
+   :undoc-members:
+   :no-index-entry:
+
 
 .. currentmodule:: cratermaker.components.morphology.simplemoon
 
@@ -29,6 +39,16 @@ SimpleMoon
 See `Morphology`_ for inherited methods and attributes.
 
 .. autoclass:: cratermaker.components.morphology.simplemoon.SimpleMoon
+   :members:
+   :undoc-members:
+   :no-index-entry:
+
+.. autoclass:: cratermaker.components.morphology.simplemoon.SimpleMoonCrater
+   :members:
+   :undoc-members:
+   :no-index-entry:
+
+.. autoclass:: cratermaker.components.morphology.simplemoon.SimpleMoonCraterFixed
    :members:
    :undoc-members:
    :no-index-entry:

@@ -1,7 +1,8 @@
 .. _api-scaling:
 
+#######
 Scaling
-=======
+#######
 
 The `Scaling` class is an abstract base class for crater scaling relationships. 
 Use the `Scaling.maker` method to create a specific scaling model.
