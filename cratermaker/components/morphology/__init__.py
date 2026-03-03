@@ -72,40 +72,42 @@ class MorphologyCraterVariable(CraterVariable):
 
     @property
     def morphology(self) -> Morphology:
-        """
-        The morphology model associated with this crater variable object.
-        """
+        """The morphology model associated with this crater variable object."""
         return self._morphology
 
     @property
     def emplaceable(self) -> bool | None:
-        """
-        Whether this crater is large enough to be emplaced on the surface mesh, which is determined based on whether the crater region could be successfully extracted.
-        """
+        """Whether this crater is large enough to be emplaced on the surface mesh, which is determined based on whether the crater region could be successfully extracted."""
         return self._emplaceable
 
     @property
     def face_index(self) -> int | None:
+        """The index of the face on the surface mesh where the crater is centered."""
         return self._face_index
 
     @property
     def ejecta_rmax(self) -> float | None:
+        """The maximum radius of the ejecta region for this crater, as determined by the morphology model and is based on the distance that the ejecta thickness falls below the value of the `smallest_length` attribute of the morphology's associated Surface object."""
         return self._ejecta_rmax
 
     @property
     def affected_face_indices(self) -> set[int] | None:
+        """The set of face indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
         return self._affected_face_indices
 
     @property
     def affected_node_indices(self) -> set[int] | None:
+        """The set of node indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
         return self._affected_node_indices
 
     @property
     def ejecta_region(self) -> LocalSurface | None:
+        """The LocalSurface view extracted around the crater center that encompasses the ejecta blanket, as determined by the morphology model."""
         return self._ejecta_region
 
     @property
     def crater_region(self) -> LocalSurface | None:
+        """The LocalSurface view extracted around the crater center that encompasses a buffered region around the cratered rim, as determined by the morphology model."""
         return self._crater_region
 
 
@@ -208,18 +210,14 @@ class MorphologyCrater(Crater):
 
     @property
     def face_index(self) -> int | None:
-        """
-        The index of the face on the surface mesh where the crater is centered.
-        """
+        """The index of the face on the surface mesh where the crater is centered."""
         if self._var._face_index is None and self._has_initialized_surface_data:
             self._var._face_index = self.morphology.surface.find_nearest_face(self.location)
         return self._var._face_index
 
     @property
     def ejecta_rmax(self) -> float | None:
-        """
-        The maximum radius of the ejecta region for this crater, as determined by the morphology model and is based on the distance that the ejecta thickness falls below the value of the `smallest_length` attribute of the morphology's associated Surface object.
-        """
+        """The maximum radius of the ejecta region for this crater, as determined by the morphology model and is based on the distance that the ejecta thickness falls below the value of the `smallest_length` attribute of the morphology's associated Surface object."""
         if self._var._ejecta_rmax is None and self._has_initialized_surface_data:
             self._var._ejecta_rmax = self.morphology.rmax(
                 self, minimum_thickness=self.morphology.surface.smallest_length, feature="ejecta"
@@ -296,18 +294,14 @@ class MorphologyCrater(Crater):
 
     @property
     def emplaceable(self) -> bool | None:
-        """
-        Whether this crater is large enough to be emplaced on the surface mesh, which is determined based on whether the crater region could be successfully extracted.
-        """
+        """Whether this crater is large enough to be emplaced on the surface mesh, which is determined based on whether the crater region could be successfully extracted."""
         if self._var._emplaceable is None and self._has_initialized_surface_data:
             self._var._emplaceable = self.crater_region is not None
         return self._var._emplaceable
 
     @property
     def measured_rim_height(self) -> float | None:
-        """
-        The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region.
-        """
+        """The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region."""
         if self.crater_region is not None:
             self.crater_region.compute_desloped_face_elevation()
             self._var._measured_rim_height = counting_bindings.measure_rim_height(self.crater_region, self)
@@ -315,9 +309,7 @@ class MorphologyCrater(Crater):
 
     @property
     def measured_floor_depth(self) -> float | None:
-        """
-        The measured floor depth of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region.
-        """
+        """The measured floor depth of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region."""
         if self.crater_region is not None:
             self.crater_region.compute_desloped_face_elevation()
             self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.crater_region, self)
@@ -679,7 +671,7 @@ class Morphology(ComponentBase):
         def _batch_process(pbar=None):
             tally_cadence = 2000
             nacumulated = 0
-            while not self._queue_manager.is_empty():
+            while not self._queue_manager.is_empty:
                 batch = self._queue_manager.peek_next_batch()
 
                 for crater in batch:
@@ -754,16 +746,12 @@ class Morphology(ComponentBase):
 
     @property
     def surface(self) -> Surface:
-        """
-        The surface object associated with this morphology model.
-        """
+        """The Surface object associated with this morphology model."""
         return self._surface
 
     @surface.setter
     def surface(self, surface: Surface) -> None:
-        """
-        Set the surface object associated with this morphology model.
-        """
+        """Set the Surface object associated with this morphology model."""
         from cratermaker.components.surface import Surface
 
         if isinstance(surface, Surface):
@@ -776,9 +764,7 @@ class Morphology(ComponentBase):
 
     @property
     def production(self) -> Production:
-        """
-        The production object associated with this morphology model.
-        """
+        """The Production object associated with this morphology model."""
         return self._production
 
     @production.setter
@@ -794,16 +780,12 @@ class Morphology(ComponentBase):
 
     @property
     def counting(self) -> Counting:
-        """
-        The counting object associated with this morphology model.
-        """
+        """The Counting object associated with this morphology model."""
         return self._counting
 
     @counting.setter
     def counting(self, counting: Counting) -> None:
-        """
-        Set the Counting object associated with this morphology model.
-        """
+        """Set the Counting object associated with this morphology model."""
         from cratermaker.components.counting import Counting
 
         if isinstance(counting, Counting):
@@ -823,57 +805,40 @@ class Morphology(ComponentBase):
 
     @parameter
     def do_subpixel_degradation(self) -> bool:
-        """
-        Whether to perform subpixel degradation during crater emplacement.
-        """
+        """Whether to perform subpixel degradation during crater emplacement."""
         return self._do_subpixel_degradation
 
     @do_subpixel_degradation.setter
     def do_subpixel_degradation(self, value: bool) -> None:
-        """
-        Set whether to perform subpixel degradation during crater emplacement.
-        """
         if not isinstance(value, bool):
             raise TypeError("do_subpixel_degradation must be a boolean value")
         self._do_subpixel_degradation = value
 
     @parameter
     def do_slope_collapse(self) -> bool:
-        """
-        Whether to perform slope collapse during crater emplacement.
-        """
+        """Whether to perform slope collapse during crater emplacement."""
         return self._do_slope_collapse
 
     @do_slope_collapse.setter
     def do_slope_collapse(self, value: bool) -> None:
-        """
-        Set whether to perform slope collapse during crater emplacement.
-        """
         if not isinstance(value, bool):
             raise TypeError("do_slope_collapse must be a boolean value")
         self._do_slope_collapse = value
 
     @parameter
     def do_counting(self) -> bool:
-        """
-        Whether to perform crater counting during crater emplacement.
-        """
+        """Whether to perform crater counting during crater emplacement."""
         return self._do_counting
 
     @do_counting.setter
     def do_counting(self, value: bool) -> None:
-        """
-        Set whether to perform crater counting during crater emplacement.
-        """
         if not isinstance(value, bool):
             raise TypeError("do_counting must be a boolean value")
         self._do_counting = value
 
     @property
     def Crater(self) -> type[Crater]:
-        """
-        The Crater class used for this counting component, which is determined by the morphology component.
-        """
+        """The Crater class used for this counting component, which is determined by the morphology component."""
         return MorphologyCrater
 
 
@@ -892,13 +857,32 @@ class CraterQueueManager:
         self._overlap_fn = overlap_fn
 
     def push(self, crater: Crater) -> None:
+        """
+        Add a crater to the end of the queue.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater to be added to the queue.
+
+        Raises
+        ------
+        TypeError
+            If the provided crater is not an instance of Crater.
+        """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
         self._queue.append(crater)
+        return
 
     def peek_next_batch(self) -> list[Crater]:
         """
         Return a list of the next batch of craters that do not overlap with each other or the current active region.
+
+        Returns
+        -------
+        list of Crater
+            The next batch of craters that can be processed simultaneously without overlap.
         """
         batch = []
         reserved_nodes = set()
@@ -916,13 +900,25 @@ class CraterQueueManager:
     def pop_batch(self, batch: list[Crater]) -> None:
         """
         Remove a processed batch of craters from the queue.
+
+        Parameters
+        ----------
+        batch : list of Crater
+            The batch of craters to be removed from the queue.
+
+        Raises
+        ------
+        ValueError
+            If any crater in the batch is not found in the queue.
         """
         for crater in batch:
             self._queue.remove(crater)
             crater.remove_complex_data()
         return
 
+    @property
     def is_empty(self) -> bool:
+        """Return True if the queue is empty, False otherwise."""
         return len(self._queue) == 0
 
 

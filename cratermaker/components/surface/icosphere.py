@@ -89,6 +89,7 @@ class IcosphereSurface(Surface):
 
     @parameter
     def gridlevel(self) -> int:
+        """The subdivision level of the icosphere."""
         return self._gridlevel
 
     @gridlevel.setter
@@ -99,9 +100,7 @@ class IcosphereSurface(Surface):
 
     @property
     def pix(self) -> float:
-        """
-        The approximate face size for a cell of the mesh.
-        """
+        """The approximate face size for a cell of the mesh in meters."""
         if self._pix is None:
             nfaces = 10 * 4**self.gridlevel + 2
             self._pix = (4 * math.pi * self.radius**2 / nfaces) ** 0.5

@@ -137,13 +137,7 @@ class Scaling(ComponentBase):
 
     @property
     def target(self):
-        """
-        The target body for the impact.
-
-        Returns
-        -------
-        Target
-        """
+        """The Target object associated with this Scaling object."""
         return self._target
 
     @target.setter
@@ -155,13 +149,7 @@ class Scaling(ComponentBase):
 
     @property
     def projectile(self):
-        """
-        The projectile model for the impact.
-
-        Returns
-        -------
-        Projectile
-        """
+        """The Projectile object associated with this Scaling object."""
         return self._projectile
 
     @projectile.setter
@@ -173,13 +161,7 @@ class Scaling(ComponentBase):
 
     @property
     def model(self):
-        """
-        The name of the scaling model.
-
-        Returns
-        -------
-        str
-        """
+        """The name of the scaling model."""
         return self._component_name
 
 

@@ -18,11 +18,9 @@ import cratermaker as cm
 
 simdir = "simdata-1_3"
 
-# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
-# prevent prompts that will prevent these examples from running on their own when building the documentation pages. Alternatively,
-# passing ask_overwrite=False and reset=True to Simulation will also allow the example to run without requiring any prompts.
-cm.cleanup(simdir)
-
+# Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
+# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 # Run a simple Mars sim
 sim = cm.Simulation(
@@ -33,6 +31,8 @@ sim = cm.Simulation(
     local_radius=20.0e3,
     rng_seed=86186233405,  # This will ensure we get the same crater population each time we run the example
     simdir=simdir,
+    ask_overwrite=False,
+    reset=True,
 )
 # This will automatically generate a hillshade plot every time the simulation is saved. All components of Cratermaker have a save_actions property that can be used to specify actions to be performed when the save function is called. This is useful for automatically generating plots or other outputs at specified intervals during the simulation.
 sim.save_actions = [

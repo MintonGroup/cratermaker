@@ -85,7 +85,9 @@ autodoc_default_options = {
     "undoc-members": False,
     "show-inheritance": True,
     "member-order": "bysource",
+    "no-index-entry": True,
 }
+autoapi_generate_api_docs = False
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
