@@ -8,10 +8,12 @@ What's New
 :release:`v2026.3.0-alpha`
 --------------------------
 
-- Recalibrated the visibility and degradation functions based on how Cratermaker computes depth-to-diameter ratios, which is slightly different than how CTEM did it. `David Minton`_
-- Added a new example showing how to use the degradation state function to estimate the degradation state of a crater based on its depth-to-diameter ratio and how it compares with applied diffusion. `David Minton`_
-- Fixed issue causing cross references to not render as links in the documentation. `David Minton`_
-- Fixed bug in :py:func:`~cratermaker.utils.general_utils.format_large_units` that would cause it to give the wrong units for volume. Also added an area formatting option. `David Minton`_
+- Major improvements to documentation and recalibration of the degradation function. :pull:`87` `David Minton`_
+
+   - Recalibrated the visibility and degradation functions based on how Cratermaker computes depth-to-diameter ratios, which is slightly different than how CTEM did it. 
+   - Added a new example showing how to use the degradation state function to estimate the degradation state of a crater based on its depth-to-diameter ratio and how it compares with applied diffusion. 
+   - Fixed issue causing cross references to not render as links in the documentation. 
+   - Fixed bug in :py:func:`~cratermaker.utils.general_utils.format_large_units` that would cause it to give the wrong units for volume. Also added an area formatting option. 
 
 
 .. _whats-new.2026.2.10-alpha:
