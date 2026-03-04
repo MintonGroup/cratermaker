@@ -81,6 +81,7 @@ class CratermakerBase:
         object.__setattr__(self, "_export_dir_name", "export")
         object.__setattr__(self, "_ask_overwrite", None)
         object.__setattr__(self, "_save_actions", [])
+        object.__setattr__(self, "_driver_to_extension_map", {})
 
         self.simdir = simdir
         self.ask_overwrite = ask_overwrite
@@ -188,6 +189,21 @@ class CratermakerBase:
 
         Parameters
         ----------
+        **kwargs : Any
+            |kwargs|
+        """
+        pass
+
+    def from_file(self, filename: str | Path, **kwargs: Any) -> None:
+        """
+        Load the component data from a file.
+
+        This is a stub that acts as a pass-through for components that don't have a from_file method defined.
+
+        Parameters
+        ----------
+        filename : str or Path
+            The path to the file to load the component data from.
         **kwargs : Any
             |kwargs|
         """
@@ -632,6 +648,21 @@ class CratermakerBase:
             rng_state=self.rng_state,
             ask_overwrite=self.ask_overwrite,
         )
+
+    @property
+    def driver_to_extension_map(self) -> dict[str, str]:
+        """A dictionary mapping valid export/from_file drivers for this component to the corresponding file extensions that can be used when exporting files with that driver."""
+        return self._driver_to_extension_map
+
+    @property
+    def valid_drivers(self) -> list[str]:
+        """A list of valid export/from_file drivers for this component."""
+        return list(self._driver_to_extension_map.keys())
+
+    @property
+    def valid_extensions(self) -> list[str]:
+        """A list of valid export/from_file file extensions for this component."""
+        return list(self._driver_to_extension_map.values())
 
 
 class ComponentBase(CratermakerBase, ABC):
