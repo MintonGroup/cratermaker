@@ -1428,9 +1428,7 @@ class Counting(ComponentBase):
 
     @property
     def surface(self):
-        """
-        Surface mesh data for the simulation. Set during initialization.
-        """
+        """The Surface object associated with this Counting object."""
         return self._surface
 
     @surface.setter
@@ -1443,44 +1441,32 @@ class Counting(ComponentBase):
 
     @property
     def n_layer(self) -> int:
-        """
-        Number of layers in the counting model.
-        """
+        """Number of layers in the counting model."""
         return _N_LAYER
 
     @property
     def observed(self) -> dict[int, Crater]:
-        """
-        Dictionary of observed craters on the surface keyed to the crater id.
-        """
+        """Dictionary of observed craters on the surface keyed to the crater id."""
         return self._observed
 
     @property
     def emplaced(self) -> list[Crater]:
-        """
-        List of craters that have been emplaced in the simulation in the current interval in chronological order.
-        """
+        """List of craters that have been emplaced in the simulation in the current interval in chronological order."""
         return self._emplaced
 
     @property
     def n_emplaced(self) -> int:
-        """
-        Number of craters that have been emplaced in the simulation in the current interval.
-        """
+        """Number of craters that have been emplaced in the simulation in the current interval."""
         return len(self._emplaced)
 
     @property
     def n_observed(self) -> int:
-        """
-        Number of craters that have been observed on the surface in the current interval.
-        """
+        """Number of craters that have been observed on the surface in the current interval."""
         return len(self._observed)
 
     @property
     def Crater(self) -> type[Crater]:
-        """
-        The Crater class used for this counting component, which is determined by the morphology component.
-        """
+        """The Crater class used for this counting component, which is determined by the morphology component."""
         if self._Crater is None:
             return Crater
         return self._Crater
@@ -1495,9 +1481,7 @@ class Counting(ComponentBase):
 
     @property
     def morphology(self) -> Morphology:
-        """
-        The morphology component used for this counting component, which determines the Crater class and the crater properties that are tracked in the simulation.
-        """
+        """The morphology component associated with this counting component, which determines the Crater class and the crater properties that are tracked in the simulation."""
         return self._morphology
 
     @morphology.setter

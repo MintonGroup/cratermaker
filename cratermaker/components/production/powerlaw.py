@@ -140,7 +140,7 @@ class PowerLawProduction(Production):
         **kwargs: Any,
     ) -> NDArray[np.float64]:
         """
-        Returns the age in My. Because the powerlaw model assumes constant impact rate, the returned age is the same as the input age.
+        The chronology function, which returns the number of craters relative to the amount produced in the last 1 My.
 
         Parameters
         ----------
@@ -158,6 +158,10 @@ class PowerLawProduction(Production):
         NDArray
             The number of craters relative to the amount produced in the last 1 My.
 
+        Notes
+        -----
+        For a simple power law production function, the chronology function assumes a constant impact rate and so crater accumulation is linear with time. Therefore, the chronology function is simply the ratio of the cumulative SFD at the given age to the cumulative SFD at 1 My.
+
         """
         if "age" in kwargs:
             time_start = kwargs.pop("age")
@@ -170,11 +174,13 @@ class PowerLawProduction(Production):
                 else:
                     time_end = np.zeros_like(time_start)
 
-        return time_start - time_end
+        N1km = self.csfd(1000.0, time_start=time_start, time_end=time_start, validate_inputs=False)
+
+        return N1km
 
     def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike:
         """
-        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m².
+        The cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m².
 
         Parameters
         ----------
@@ -190,12 +196,11 @@ class PowerLawProduction(Production):
 
     @property
     def N1_coef(self):
-        """Get the N1 coefficient of the power law production function."""
+        """The N1 coefficient of the power law production function."""
         return self._N1_coef
 
     @N1_coef.setter
     def N1_coef(self, value):
-        """Set the N1 coefficient of the power law production function."""
         if not isinstance(value, FloatLike):
             raise TypeError("N1_coef must be a numeric value (float or int)")
         if value < 0:
@@ -204,12 +209,11 @@ class PowerLawProduction(Production):
 
     @property
     def slope(self):
-        """Get the slope of the power law production function."""
+        """The slope of the power law production function."""
         return self._slope
 
     @slope.setter
     def slope(self, value):
-        """Set the slope of the power law production function."""
         if not isinstance(value, FloatLike):
             raise TypeError("slope must be a numeric value (float or int)")
         self._slope = value

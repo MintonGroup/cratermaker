@@ -10,11 +10,9 @@ import cratermaker as cm
 
 simdir = "simdata-1_6"
 
-# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
-# prevent prompts that will prevent these examples from running on their own when building the documentation pages. Alternatively,
-# passing ask_overwrite=False and reset=True to Simulation will also allow the example to run without requiring any prompts.
-cm.cleanup(simdir)
-
+# Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
+# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 sim = cm.Simulation(
     surface="hireslocal",
     simdir=simdir,
@@ -22,6 +20,8 @@ sim = cm.Simulation(
     pix=10.0,
     local_radius=2000.0,
     do_counting=False,
+    ask_overwrite=False,
+    reset=True,
 )
 
 # Emplace craters in a spiral pattern with craters getting slightly largers as they get farther from the center

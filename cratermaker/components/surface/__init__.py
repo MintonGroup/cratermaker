@@ -1143,9 +1143,7 @@ class Surface(ComponentBase):
 
     @property
     def _is_same_grid(self):
-        """
-        Check if the existing grid matches the one defined by the current parameters.
-        """
+        """Check if the existing grid matches the one defined by the current parameters and returns True if they match after regridding."""
         try:
             with xr.open_dataset(self.grid_file) as ds:
                 ds.load()
@@ -1380,38 +1378,28 @@ class Surface(ComponentBase):
 
     @property
     def uxds(self) -> UxDataset:
-        """
-        The data associated with the surface. This is an instance of UxDataset.
-        """
+        """The data associated with the surface as an instance of UxDataset."""
         return self._uxds
 
     @property
     def uxgrid(self):
-        """
-        The grid object.
-        """
+        """The grid object as an instance of a UxArray Grid."""
         if self.uxds is not None:
             return self.uxds.uxgrid
 
     @property
     def gridtype(self):
-        """
-        The name of the grid type.
-        """
+        """The name of the grid type."""
         return self._component_name
 
     @property
     def grid_file(self):
-        """
-        Path to the grid file.
-        """
+        """Path to the grid file."""
         return self.output_dir / f"{self._grid_file_prefix}.{self._output_file_extension}"
 
     @property
     def target(self):
-        """
-        The target body for the impact simulation. Set during initialization.
-        """
+        """The Target object associated with this Surface object."""
         return self._target
 
     @target.setter
@@ -1423,200 +1411,147 @@ class Surface(ComponentBase):
 
     @property
     def pix(self) -> float:
-        """
-        The effective pixel size of the mesh.
-        """
+        """The effective pixel size of the mesh in meters."""
         if self._pix is None:
             self._pix = self.pix_mean
         return self._pix
 
     @property
     def pix_mean(self) -> float:
-        """
-        The mean pixel size of the mesh.
-        """
+        """The mean pixel size of the mesh in meters."""
         if self._pix_mean is None and self.uxgrid is not None:
             self._compute_face_size()
         return self._pix_mean
 
     @property
     def pix_std(self) -> float:
-        """
-        The standard deviation of the pixel size of the mesh.
-        """
+        """The standard deviation of the pixel size of the mesh in meters."""
         if self._pix_std is None and self.uxgrid is not None:
             self._compute_face_size()
         return self._pix_std
 
     @property
     def pix_min(self) -> float:
-        """
-        The minimum pixel size of the mesh.
-        """
+        """The minimum pixel size of the mesh in meters."""
         if self._pix_min is None and self.uxgrid is not None:
             self._compute_face_size()
         return self._pix_min
 
     @property
     def pix_max(self) -> float:
-        """
-        The maximum pixel size of the mesh.
-        """
+        """The maximum pixel size of the mesh in meters."""
         if self._pix_max is None and self.uxgrid is not None:
             self._compute_face_size()
         return self._pix_max
 
     @property
-    def radius(self):
-        """
-        Radius of the target body.
-        """
+    def radius(self) -> float:
+        """Radius of the target body in meters."""
         return self.target.radius
 
     @property
     def area(self) -> float:
-        """
-        Total surface area of the target body.
-        """
+        """Total surface area of the target body in m²."""
         if self._area is None:
             self._area = float(self.face_area.sum())
         return self._area
 
     @property
     def face_area(self) -> NDArray[np.float64]:
-        """
-        The areas of each face.
-
-        Notes
-        -----
-        Unlike uxarray.Grid.face_area, this is in meters squared rather than normalized to a unit sphere.
-
-        """
+        """An array of areas of each individual face in m²."""
         if self._face_area is None:
             self._compute_face_size()
         return self._face_area
 
     @property
     def face_size(self) -> NDArray[np.float64]:
-        """
-        The effective size of each face in meters.
-
-        This is simply the square root of the face area, but is useful for certain comparisons and is equivalent to the `pix` variable from CTEM
-        """
+        """The effective size of each face in meters, which s simply the square root of the face area, but is useful for certain comparisons and is equivalent to the `pix` variable from CTEM."""
         if self._face_size is None:
             self._compute_face_size()
         return self._face_size
 
     @property
     def smallest_length(self) -> float:
-        """
-        The smallest length of the mesh.
-        """
+        """The smallest length of the mesh in meters."""
         if self._smallest_length is None:
             self._smallest_length = float(np.min(self.face_size) * _SMALLFAC)
         return self._smallest_length
 
     @property
     def face_lat(self) -> NDArray[np.float64]:
-        """
-        Latitude of the center of each face in degrees.
-        """
+        """Latitude of the center of each face in degrees."""
         return self.uxgrid.face_lat.values
 
     @property
     def face_lon(self) -> NDArray[np.float64]:
-        """
-        Longitude of the center of each face in degrees.
-        """
+        """Longitude of the center of each face in degrees."""
         return self.uxgrid.face_lon.values
 
     @property
     def face_x(self) -> NDArray[np.float64]:
-        """
-        Cartesian x location of the center of each face in meters.
-        """
+        """Cartesian x location of the center of each face in meters."""
         if self._face_x is None:
             self._face_x = self.uxgrid.face_x.values * self.radius
         return self._face_x
 
     @property
     def face_y(self) -> NDArray[np.float64]:
-        """
-        Cartesian y location of the center of each face in meters.
-        """
+        """Cartesian y location of the center of each face in meters."""
         if self._face_y is None:
             self._face_y = self.uxgrid.face_y.values * self.radius
         return self._face_y
 
     @property
     def face_z(self) -> NDArray[np.float64]:
-        """
-        Cartesian z location of the center of each face in meters.
-        """
+        """Cartesian z location of the center of each face in meters."""
         if self._face_z is None:
             self._face_z = self.uxgrid.face_z.values * self.radius
         return self._face_z
 
     @property
     def node_lat(self) -> NDArray[np.float64]:
-        """
-        Latitude of each node in degrees.
-        """
+        """Latitude of each node in degrees."""
         return self.uxgrid.node_lat.values
 
     @property
     def node_lon(self) -> NDArray[np.float64]:
-        """
-        Longitude of each node in degrees.
-        """
+        """Longitude of each node in degrees."""
         return self.uxgrid.node_lon.values
 
     @property
     def node_x(self) -> NDArray[np.float64]:
-        """
-        Cartesian x location of each node in meters.
-        """
+        """Cartesian x location of each node in meters."""
         if self._node_x is None:
             self._node_x = self.uxgrid.node_x.values * self.radius
         return self._node_x
 
     @property
     def node_y(self) -> NDArray[np.float64]:
-        """
-        Cartesian y location of each node in meters.
-        """
+        """Cartesian y location of each node in meters."""
         if self._node_y is None:
             self._node_y = self.uxgrid.node_y.values * self.radius
         return self._node_y
 
     @property
     def node_z(self) -> NDArray[np.float64]:
-        """
-        Cartesian z location of each node in meters.
-        """
+        """Cartesian z location of each node in meters."""
         if self._node_z is None:
             self._node_z = self.uxgrid.node_z.values * self.radius
         return self._node_z
 
     @property
     def face_indices(self) -> NDArray[np.int64]:
-        """
-        The indices of the faces of the surface.
-        """
+        """The indices of the faces of the surface."""
         return self.uxds.n_face.values
 
     @property
     def node_indices(self) -> NDArray[np.int64]:
-        """
-        The indices of the nodes of the surface.
-        """
+        """The indices of the nodes of the surface."""
         return self.uxds.n_node.values
 
     @property
     def edge_indices(self) -> NDArray[np.int64]:
-        """
-        The indices of the edges of the surface.
-        """
+        """The indices of the edges of the surface."""
         if self._edge_indices is None:
             self._edge_indices = np.arange(self.uxgrid.n_edge, dtype=np.int64)
         return self._edge_indices
@@ -1664,9 +1599,7 @@ class Surface(ComponentBase):
 
     @property
     def face_bin_area(self) -> list[float]:
-        """
-        The total area of all faces in each bin.
-        """
+        """The total area of all faces in each bin in m²."""
         if self._face_bin_area is None:
             self._compute_face_bins()
 
@@ -1674,9 +1607,7 @@ class Surface(ComponentBase):
 
     @property
     def face_bin_argmin(self) -> list[int]:
-        """
-        The index of the smallest face in each bin.
-        """
+        """The index of the smallest face in each bin."""
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
@@ -1684,9 +1615,7 @@ class Surface(ComponentBase):
 
     @property
     def face_bin_argmax(self) -> list[int]:
-        """
-        The index of the largest face in each bin.
-        """
+        """The index of the largest face in each bin."""
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
@@ -1694,9 +1623,7 @@ class Surface(ComponentBase):
 
     @property
     def face_bin_min_areas(self) -> list[float]:
-        """
-        The area of the smallest face in each bin.
-        """
+        """The area of the smallest face in each bin in m²."""
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
@@ -1704,9 +1631,7 @@ class Surface(ComponentBase):
 
     @property
     def face_bin_max_areas(self) -> list[float]:
-        """
-        The area of the largest face in each bin.
-        """
+        """The area of the largest face in each bin in m²."""
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
@@ -1714,9 +1639,7 @@ class Surface(ComponentBase):
 
     @property
     def face_bin_min_sizes(self) -> list[float]:
-        """
-        The effective size of the smallest face in each bin.
-        """
+        """The effective size of the smallest face in each bin in meters."""
         if self._face_bin_argmin is None:
             self._compute_face_bins()
 
@@ -1724,9 +1647,7 @@ class Surface(ComponentBase):
 
     @property
     def face_bin_max_sizes(self) -> list[float]:
-        """
-        The effective size of the largest face in each bin.
-        """
+        """The effective size of the largest face in each bin in meters."""
         if self._face_bin_argmax is None:
             self._compute_face_bins()
 
@@ -1734,23 +1655,17 @@ class Surface(ComponentBase):
 
     @property
     def n_face(self) -> int:
-        """
-        Total number of faces.
-        """
+        """Total number of faces."""
         return int(self.uxgrid.n_face)
 
     @property
     def n_node(self) -> int:
-        """
-        Total number of nodes.
-        """
+        """Total number of nodes."""
         return int(self.uxgrid.n_node)
 
     @property
     def n_edge(self) -> int:
-        """
-        Total number of edges.
-        """
+        """Total number of edges."""
         return int(self.uxgrid.n_edge)
 
     @property
@@ -1764,16 +1679,12 @@ class Surface(ComponentBase):
 
     @property
     def n_max_face_faces(self) -> int:
-        """
-        The maximum number of faces that surround a face.
-        """
+        """The maximum number of faces that surround a face."""
         return int(self.uxgrid.n_max_face_faces)
 
     @property
     def edge_face_distance(self) -> NDArray[np.float64]:
-        """
-        Distances between the centers of the faces that saddle each edge in meters.
-        """
+        """Distances between the centers of the faces that saddle each edge in meters."""
         if self._edge_face_distance is None:
             self._edge_face_distance = surface_bindings.compute_edge_distances(
                 edge_connectivity=self.edge_face_connectivity,
@@ -1862,6 +1773,7 @@ class Surface(ComponentBase):
 
     @property
     def face_tree(self):
+        """The BallTree for the face centers, which can be used for efficient spatial queries."""
         if self._face_tree is None:
             self._face_tree = self.uxgrid.get_ball_tree(
                 "face centers",
@@ -1874,6 +1786,7 @@ class Surface(ComponentBase):
 
     @property
     def node_tree(self):
+        """The BallTree for the nodes, which can be used for efficient spatial queries."""
         if self._node_tree is None:
             self._node_tree = self.uxgrid.get_ball_tree(
                 "nodes",
@@ -1886,6 +1799,7 @@ class Surface(ComponentBase):
 
     @property
     def edge_tree(self):
+        """The BallTree for the edge centers, which can be used for efficient spatial queries."""
         if self._edge_tree is None:
             self._edge_tree = self.uxgrid.get_ball_tree(
                 "edge centers",
@@ -1966,30 +1880,18 @@ class Surface(ComponentBase):
 
     @property
     def crs(self) -> CRS:
-        """
-        Return a geographic CRS (lon/lat in degrees) on a sphere using the target radius from the surface. Axis order is Lon/East, Lat/North.
-        """
+        """Return a geographic CRS (lon/lat in degrees) on a sphere using the target radius from the surface. Axis order is Lon/East, Lat/North."""
         if self._crs is None:
             self._crs = self.get_crs(radius=self.radius, name=self.target.name)
         return self._crs
 
     @property
     def is_new(self) -> bool:
-        """
-        Whether this surface is newly created or has been loaded from disk and not reset.
-        """
+        """Whether this surface is newly created or has been loaded from disk and not reset."""
         return self._is_new
 
     @is_new.setter
     def is_new(self, value: bool) -> None:
-        """
-        Set the is_new flag for this surface.
-
-        Parameters
-        ----------
-        value : bool
-            The value to set for the is_new flag.
-        """
         if not isinstance(value, bool):
             raise TypeError("is_new must be a boolean value.")
         self._is_new = value
@@ -3920,23 +3822,17 @@ class LocalSurface(CratermakerBase):
 
     @property
     def surface(self) -> Surface:
-        """
-        The surface object that contains the mesh data.
-        """
+        """The Surface object that contains the mesh data for the global surface."""
         return self._surface
 
     @property
     def target(self):
-        """
-        The target body for the impact simulation. Set during initialization.
-        """
+        """The Target object associated with the LocalSurface."""
         return self.surface.target
 
     @property
     def n_edge(self) -> int:
-        """
-        The number of edges in the view.
-        """
+        """The number of edges in the view."""
         if self._n_edge is None:
             if isinstance(self._edge_indices, slice):
                 if np.isscalar(self._surface._uxds.uxgrid.n_edge):
@@ -3949,9 +3845,7 @@ class LocalSurface(CratermakerBase):
 
     @property
     def n_face(self) -> int:
-        """
-        The number of faces in the view.
-        """
+        """The number of faces in the view."""
         if self._n_face is None:
             if isinstance(self.face_indices, slice):
                 if np.isscalar(self.surface.face_elevation.size):
@@ -3965,9 +3859,7 @@ class LocalSurface(CratermakerBase):
 
     @property
     def n_node(self) -> int:
-        """
-        The number of nodes in the view.
-        """
+        """The number of nodes in the view."""
         if self._n_node is None:
             if isinstance(self.node_indices, slice):
                 if np.isscalar(self.surface.node_elevation.size):
@@ -3981,116 +3873,86 @@ class LocalSurface(CratermakerBase):
 
     @property
     def n_nodes_per_face(self) -> NDArray:
-        """
-        The number of nodes per face in the view.
-        """
+        """The number of nodes per face in the view."""
         return self.surface.n_nodes_per_face[self.face_indices]
 
     @property
     def face_size(self) -> NDArray:
-        """
-        The effective pixel size of faces in the view.
-        """
+        """The effective pixel size of faces in the view in meters."""
         return self.surface.face_size[self.face_indices]
 
     @property
     def location(self) -> tuple[float, float]:
-        """
-        The location of the center of the view.
-        """
+        """The (longitude, latitude) location of the center of the view in degrees."""
         return self._location
 
     @property
     def region_radius(self) -> FloatLike:
-        """
-        The radius of the region to include in the view in meters.
-        """
+        """The radius of the region to include in the view in meters."""
         return self._region_radius
 
     @property
     def face_bearing(self) -> NDArray:
-        """
-        The initial bearing from the location to the faces relative to North.
-        """
+        """The initial bearing from the location to the faces measured clockwise relative to North in degrees."""
         if self._location is not None and self._face_bearing is None:
             self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
         return self._face_bearing
 
     @property
     def node_bearing(self) -> NDArray:
-        """
-        The initial bearing from the location to the nodes relative to North.
-        """
+        """The initial bearing from the location to the nodes measured clockwise relative to North in degrees."""
         if self._location is not None and self._node_bearing is None:
             self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
         return self._node_bearing
 
     @property
     def face_distance(self) -> NDArray:
-        """
-        The distance from the location to the faces.
-        """
+        """The distance from the location to the faces in meters."""
         if self._location is not None and self._face_distance is None:
             self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
         return self._face_distance
 
     @property
     def node_distance(self) -> NDArray:
-        """
-        The distance from the location to the nodes.
-        """
+        """The distance from the location to the nodes in meters."""
         if self._location is not None and self._node_distance is None:
             self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
         return self._node_distance
 
     @property
     def face_area(self) -> NDArray:
-        """
-        The areas of the faces.
-        """
+        """The areas of the faces in the view in m²."""
         return self.surface.face_area[self.face_indices]
 
     @property
     def face_lat(self) -> NDArray:
-        """
-        Latitude of the center of the faces in degrees.
-        """
+        """Latitude of the center of the faces in the view in degrees."""
         return self.surface.face_lat[self.face_indices]
 
     @property
     def face_lon(self) -> NDArray:
-        """
-        Longitude of the center of the faces in degrees.
-        """
+        """Longitude of the center of the faces in the viewin degrees."""
         return self.surface.face_lon[self.face_indices]
 
     @property
     def face_x(self) -> NDArray:
-        """
-        Cartesian x location of the center of the faces in meters.
-        """
+        """Cartesian x location of the center of the faces in the view in meters."""
         return self.surface.face_x[self.face_indices]
 
     @property
     def face_y(self) -> NDArray:
-        """
-        Cartesian y location of the center of the faces in meters.
-
-        """
+        """Cartesian y location of the center of the faces in the view in meters."""
         return self.surface.face_y[self.face_indices]
 
     @property
     def face_z(self) -> NDArray:
-        """
-        Cartesian z location of the center of the faces in meters.
-
-        """
+        """Cartesian z location of the center of the faces in the view in meters."""
         return self.surface.face_z[self.face_indices]
 
     @property
     def edge_face_distance(self) -> NDArray:
         """
-        Distances between the edges and the faces.
+        Distances between the edges and the faces in the view in meters.
 
         Dimensions: `(n_edge)`
         """
@@ -4099,7 +3961,7 @@ class LocalSurface(CratermakerBase):
     @property
     def edge_length(self) -> NDArray:
         """
-        Lengths of the edges in meters.
+        Lengths of the edges in the view in meters.
 
         Dimensions: `(n_edge)`
         """
@@ -4107,62 +3969,46 @@ class LocalSurface(CratermakerBase):
 
     @property
     def node_lat(self) -> NDArray:
-        """
-        Latitude of the nodes in degrees.
-        """
+        """Latitude of the nodes in the view in degrees."""
         return self.surface.node_lat[self.node_indices]
 
     @property
     def node_lon(self) -> NDArray:
-        """
-        Longitude of the nodes in degrees.
-        """
+        """Longitude of the nodes in the view in degrees."""
         return self.surface.node_lon[self.node_indices]
 
     @property
     def node_x(self) -> NDArray:
-        """
-        Cartesian x location of the nodes in meters.
-        """
+        """Cartesian x location of the nodes in the view in meters."""
         return self.surface.node_x[self.node_indices]
 
     @property
     def node_y(self) -> NDArray:
-        """
-        Cartesian y location of the nodes in meters.
-        """
+        """Cartesian y location of the nodes in the view in meters."""
         return self.surface.node_y[self.node_indices]
 
     @property
     def node_z(self) -> NDArray:
-        """
-        Cartesian z location of the nodes in meters.
-        """
+        """Cartesian z location of the nodes in the view in meters."""
         return self.surface.node_z[self.node_indices]
 
     @property
     def area(self) -> float:
-        """
-        The total area of the faces in the view.
-        """
+        """The total area of the faces in the view in m²."""
         if self._area is None:
             self._area = float(self.face_area.sum())
         return self._area
 
     @property
     def face_indices(self) -> NDArray:
-        """
-        The indices of the faces in the view.
-        """
+        """The indices of the faces in the view."""
         if self._face_indices is None:
             raise ValueError("face_indices must be set to use this object.")
         return self._face_indices
 
     @property
     def node_indices(self) -> NDArray:
-        """
-        The indices of the nodes in the view.
-        """
+        """The indices of the nodes in the view."""
         if self._node_indices is None:
             self._node_indices = np.unique(self.surface.face_node_connectivity[self.face_indices].ravel())
             self._node_indices = self._node_indices[self._node_indices != INT_FILL_VALUE]
@@ -4171,9 +4017,7 @@ class LocalSurface(CratermakerBase):
 
     @property
     def edge_indices(self) -> NDArray:
-        """
-        The indices of the edges in the view.
-        """
+        """The indices of the edges in the view."""
         if self._edge_indices is None:
             self._edge_indices = np.unique(self.surface.face_edge_connectivity[self.face_indices].ravel())
             self._edge_indices = self._edge_indices[self._edge_indices != INT_FILL_VALUE]
@@ -4349,9 +4193,7 @@ class LocalSurface(CratermakerBase):
 
     @property
     def uxgrid(self) -> uxr.Grid:
-        """
-        Return a uxr.Grid representation of the local surface.
-        """
+        """The Uxarrray Grid representation of the local surface."""
         if self._uxgrid is None:
             if self.is_global:
                 self._uxgrid = self.surface.uxgrid
@@ -4402,46 +4244,34 @@ class LocalSurface(CratermakerBase):
 
     @property
     def uxds(self) -> UxDataset:
-        """
-        Return a UxDataset representation of the local surface.
-        """
+        """The UxDataset representation of the local surface."""
         if self.is_global:
             return self.surface.uxds
         return uxr.UxDataset(self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
 
     @property
     def grid_file(self):
-        """
-        Path to the grid file.
-        """
+        """Path to the grid file."""
         return self.output_dir / f"{self._grid_file_prefix}.{self._output_file_extension}"
 
     @property
     def pix(self) -> float:
-        """
-        The effective pixel size of the base surface in meters.
-        """
+        """The effective pixel size of the base surface in meters."""
         return self.surface.pix
 
     @property
     def radius(self) -> float:
-        """
-        The radius of the local region in meters.
-        """
+        """The radius of the local region in meters."""
         return self.region_radius
 
     @property
     def plot_dir(self) -> Path:
-        """
-        The directory to save plots to.
-        """
+        """The directory to save plots to."""
         return self.surface.plot_dir
 
     @property
     def from_surface(self) -> Transformer:
-        """
-        A pyproj Transformer object to convert from the surface CRS to the local CRS.
-        """
+        """A pyproj Transformer object to convert from the surface CRS to the local CRS."""
         if self._from_surface is None:
             self._from_surface = Transformer.from_crs(
                 self.surface.crs,
@@ -4452,10 +4282,7 @@ class LocalSurface(CratermakerBase):
 
     @property
     def to_surface(self) -> Transformer:
-        """
-        A pyproj Transformer object to convert from the local CRS to the surface CRS.
-
-        """
+        """A pyproj Transformer object to convert from the local CRS to the surface CRS."""
         if self._to_surface is None:
             self._to_surface = Transformer.from_crs(
                 self.crs,
@@ -4484,40 +4311,31 @@ class LocalSurface(CratermakerBase):
 
     @property
     def face_proj_x(self) -> NDArray:
-        """
-        The projected x coordinates of the faces relative to the LocalSurface center.
-        """
+        """The projected x coordinates of the faces relative to the LocalSurface center in meters."""
         return self._face_proj_x
 
     @property
     def face_proj_y(self) -> NDArray:
-        """
-        The projected y coordinates of the faces relative to the LocalSurface center.
-        """
+        """The projected y coordinates of the faces relative to the LocalSurface center in meters."""
         return self._face_proj_y
 
     @property
     def node_proj_x(self) -> NDArray:
-        """
-        The projected x coordinates of the nodes relative to the LocalSurface center.
-        """
+        """The projected x coordinates of the nodes relative to the LocalSurface center in meters."""
         return self._node_proj_x
 
     @property
     def node_proj_y(self) -> NDArray:
-        """
-        The projected y coordinates of the nodes relative to the LocalSurface center.
-        """
+        """The projected y coordinates of the nodes relative to the LocalSurface center in meters."""
         return self._node_proj_y
 
     @property
     def desloped_face_elevation(self) -> NDArray:
-        """
-        The face elevations with the mean slope of the region removed.
-        """
+        """The face elevations with the mean slope of the region removed in meters."""
         return self._desloped_face_elevation
 
     def compute_desloped_face_elevation(self):
+        """Compute the face elevations with the mean slope of the region removed."""
         if self.is_local and self._desloped_face_elevation is None:
             reference_elevation = self.get_reference_surface(only_faces=True)
             self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
@@ -4525,16 +4343,12 @@ class LocalSurface(CratermakerBase):
 
     @property
     def is_local(self) -> bool:
-        """
-        Whether this surface is a local region or the full global surface.
-        """
+        """Whether this surface is a local region or the full global surface."""
         return self.location is not None
 
     @property
     def is_global(self) -> bool:
-        """
-        Whether this surface is the full global surface.
-        """
+        """Whether this surface is the full global surface."""
         return self.location is None
 
 

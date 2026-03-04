@@ -7,12 +7,12 @@ Counting
 The ``Counting`` class contains methods for counting craters and tracking size-frequency distributions.
 
 
-
-Available Counting Implementations
-----------------------------------
+*************************
+Available Implementations
+*************************
 
 +----------------------------------------------------------------------+---------------+------------------------------------------+
-| Class                                                                | Instantiation | Example Usage                            |
+| Class                                                                | Argument name | Example Usage                            |
 +======================================================================+===============+==========================================+
 | :py:class:`~cratermaker.components.counting.simplecount.SimpleCount` | "simplecount" | counting = Counting.maker("simplecount") |
 +----------------------------------------------------------------------+---------------+------------------------------------------+
@@ -26,8 +26,9 @@ Available Counting Implementations
 
 .. currentmodule:: cratermaker.components.counting.simplecount
 
+***********
 SimpleCount
-===========
+***********
 
 See `Counting`_ for inherited methods and attributes.
 

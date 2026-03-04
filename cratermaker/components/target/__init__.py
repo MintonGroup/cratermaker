@@ -237,6 +237,7 @@ class Target(ComponentBase):
 
     @parameter
     def radius(self) -> float | None:
+        """The radius of the target body in meters."""
         return self._radius
 
     @radius.setter
@@ -247,26 +248,31 @@ class Target(ComponentBase):
 
     @property
     def diameter(self) -> float | None:
+        """The diameter of the target body in meters."""
         if self._radius is not None:
             return 2 * self._radius
 
     @property
     def surface_area(self) -> float | None:
+        """The surface area of the target body in m²."""
         if self.radius is not None:
             return 4 * np.pi * self.radius**2
 
     @property
     def volume(self) -> float | None:
+        """The volume of the target body in m³."""
         if self.radius is not None:
             return (4 / 3) * np.pi * self.radius**3
 
     @property
     def circumference(self) -> float | None:
+        """The circumference of the target body in meters."""
         if self.radius is not None:
             return 2 * np.pi * self.radius
 
     @property
     def mass(self) -> float | None:
+        """The mass of the target body in kilograms."""
         return self._mass
 
     @mass.setter
@@ -277,13 +283,7 @@ class Target(ComponentBase):
 
     @property
     def name(self):
-        """
-        The name of the target body.
-
-        Returns
-        -------
-        str
-        """
+        """The name of the target body."""
         return self._name
 
     @name.setter
@@ -294,13 +294,7 @@ class Target(ComponentBase):
 
     @parameter
     def material(self):
-        """
-        The name of the material composition of the target body.
-
-        Returns
-        -------
-        str
-        """
+        """The name of the material composition of the target body's surface, which is used for crater scaling."""
         return self._material
 
     @material.setter
@@ -311,13 +305,7 @@ class Target(ComponentBase):
 
     @parameter
     def density(self):
-        """
-        The volumetric density of the surface of the target body in kg/m³.
-
-        Returns
-        -------
-        float
-        """
+        """The volumetric density of the surface of the target body in kg/m³."""
         return self._density
 
     @density.setter
@@ -334,6 +322,7 @@ class Target(ComponentBase):
 
     @property
     def catalogue(self) -> str:
+        """Catalogue of predefined target bodies."""
         from cratermaker.utils.general_utils import format_large_units
 
         if self.__class__._catalogue is None:
@@ -358,20 +347,12 @@ class Target(ComponentBase):
 
     @property
     def catalogue_key(self):
-        """
-        The key used to identify the property used as the key in a catalogue.
-        """
+        """The key used to identify the property used as the key in a catalogue."""
         return "name"
 
     @property
     def transition_scale_type(self):
-        """
-        The type of simple-to-complex transition scaling used for the surface, either 'silicate' or 'ice'.
-
-        Returns
-        -------
-        str
-        """
+        """The type of simple-to-complex transition scaling used for the surface, either 'silicate' or 'ice'."""
         return self._transition_scale_type
 
     @transition_scale_type.setter
@@ -381,29 +362,14 @@ class Target(ComponentBase):
             raise ValueError(f"Invalid transition_scale_type: {value}. Must be one of {valid_types} or None")
         self._transition_scale_type = value
 
-    # The following are computed properties based on radius and mass
     @property
     def escape_velocity(self) -> float:
-        """
-        Calculate the escape velocity for the target body in SI units.
-
-        Returns
-        -------
-        float
-            Escape velocity in m/s.
-        """
+        """The escape velocity for the target body in m/s."""
         return np.sqrt(2 * self.radius * self.gravity)
 
     @property
     def gravity(self) -> float | None:
-        """
-        Calculate the gravitational acceleration at the surface of the target body in SI units.
-
-        Returns
-        -------
-        float
-            Gravitational acceleration in m/s^2.
-        """
+        """The gravitational acceleration at the surface of the target body in m/s²."""
         return G.value * self.mass / (self.radius**2)
 
 

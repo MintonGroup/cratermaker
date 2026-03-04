@@ -7,11 +7,12 @@ Scaling
 The `Scaling` class is an abstract base class for crater scaling relationships. 
 Use the `Scaling.maker` method to create a specific scaling model.
 
-Available Scaling Implementations
----------------------------------
+*************************
+Available Implementations
+*************************
 
 +--------------------------------------------------------------------------+----------------+------------------------------------------------------------------------------------+
-| Class                                                                    | Instantiation  | Example Usage                                                                      |
+| Class                                                                    | Argument name  | Example Usage                                                                      |
 +==========================================================================+================+====================================================================================+
 | :py:class:`~cratermaker.components.scaling.montecarlo.MonteCarloScaling` | "montecarlo"   | scaling_model = Scaling.maker("montecarlo", target="Mars", projectile="asteroids") |
 +--------------------------------------------------------------------------+----------------+------------------------------------------------------------------------------------+
@@ -28,8 +29,9 @@ Available Scaling Implementations
 
 .. currentmodule:: cratermaker.components.scaling.montecarlo
 
-Monte Carlo scaling model
-=========================
+*****************
+MonteCarloScaling
+*****************
 
 See `Scaling`_ for inherited methods and attributes.
 
@@ -39,7 +41,7 @@ See `Scaling`_ for inherited methods and attributes.
    :no-index-entry:
 
 Usage example
--------------
+=============
 
 .. code-block:: python
    :linenos:
@@ -51,11 +53,11 @@ Usage example
 
 .. currentmodule:: cratermaker.components.scaling.ctem
 
+***********
+CTEMScaling
+***********
 
-CTEM Scaling model
-==================
-
-See `Scaling`_ for inherited methods and attributes.
+See `MonteCarloScaling`_ for inherited methods and attributes.
 
 .. autoclass:: cratermaker.components.scaling.ctem.CTEMScaling
    :members:
@@ -63,7 +65,7 @@ See `Scaling`_ for inherited methods and attributes.
    :no-index-entry:
 
 Usage example
--------------
+=============
 
 .. code-block:: python
    :linenos:
