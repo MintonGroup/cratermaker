@@ -33,8 +33,8 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
 _N_LAYER = 8
 
-# The minimum number of faces required in a region to perform crater counting, which corresponds to a roughly 3 pix diameter crater
-_MIN_FACE_FOR_COUNTING = 30
+# The minimum number of faces required in a region to perform crater counting, which corresponds to a roughly 6-8 pix diameter crater
+_MIN_FACE_FOR_COUNTING = 100
 
 
 class Counting(ComponentBase):
