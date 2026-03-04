@@ -72,7 +72,7 @@ class SimpleCount(Counting):
 
         return K
 
-    def visibility_function(self, crater: Crater, Kv1: float = 0.3, gamma: float = 2.0, **kwargs: Any) -> float:
+    def visibility_function(self, crater: Crater, Kv1: float = 0.17, gamma: float = 2.0, **kwargs: Any) -> float:
         """
         Calculate the visibility function for a crater using eq. 7 from Minton et al. (2019) [#]_.
 
@@ -81,7 +81,7 @@ class SimpleCount(Counting):
         crater : Crater
             The crater to calculate the visibility function for.
         Kv1: float
-            The visibility function parameter Kv1 from Minton et al. (2019). Default value is 0.3, which is updated from the old value of 0.17 and is based on newer calibration using real lunar surface data.
+            The visibility function parameter Kv1 from Minton et al. (2019). Default value is 0.17.
         gamma: float
             The visibility function parameter gamma from Minton et al. (2019). Default value is 2.0.
         **kwargs : Any
