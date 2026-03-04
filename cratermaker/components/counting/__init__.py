@@ -510,7 +510,7 @@ class Counting(ComponentBase):
 
     def export(
         self,
-        crater_type: Literal["observed", "emplaced", "both"] = "both",
+        crater_type: Literal["observed", "emplaced", "both"] = "observed",
         interval: int | None = None,
         driver: str = "SCC",
         ask_overwrite: bool | None = None,
@@ -534,6 +534,10 @@ class Counting(ComponentBase):
         """
         from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
 
+        # Check if the requested driver is a supported one for crater counts, and return silently if not.
+        valid_drivers = ["VTK", "VTP", "CSV", "SCC"] + list(EXPORT_DRIVER_TO_EXTENSION_MAP.keys())
+        if driver.upper() not in valid_drivers:
+            return
         # Temporarily set the ask_overwrite attribute for the duration of the export, but reset it to its original value afterwards.
         ask_overwrite_orig = self.ask_overwrite
         if ask_overwrite is not None:
