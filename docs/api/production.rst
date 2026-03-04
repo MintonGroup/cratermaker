@@ -4,11 +4,12 @@
 Production
 ##########
 
-Available Production Implementations
-------------------------------------
+*************************
+Available Implementations
+*************************
 
 +----------------------------------------------------------------------------+-------------------+-----------------------------------------------------------------------+
-| Class                                                                      | Instantiation     | Example Usage                                                         |
+| Class                                                                      | Argument name     | Example Usage                                                         |
 +============================================================================+===================+=======================================================================+
 | :py:class:`~cratermaker.components.production.neukum.NeukumProduction`     | "neukum"          | production = Production.maker("neukum",version="projectile")          |
 +----------------------------------------------------------------------------+-------------------+-----------------------------------------------------------------------+
@@ -25,8 +26,9 @@ Available Production Implementations
 
 .. currentmodule:: cratermaker.components.production.neukum
 
+****************
 NeukumProduction
-================
+****************
 
 See `Production`_ for inherited methods and attributes.
 
@@ -36,7 +38,7 @@ See `Production`_ for inherited methods and attributes.
    :no-index-entry:
 
 Usage example
--------------
+=============
 
 .. code-block:: python
    :linenos:
@@ -49,8 +51,9 @@ Usage example
 
 .. currentmodule:: cratermaker.components.production.powerlaw
 
-Power law production function
-=============================
+******************
+PowerLawProduction
+******************
 
 See `Production`_ for inherited methods and attributes.
 
@@ -60,7 +63,7 @@ See `Production`_ for inherited methods and attributes.
    :no-index-entry:
 
 Usage example
--------------
+=============
 
 .. code-block:: python
    :linenos:

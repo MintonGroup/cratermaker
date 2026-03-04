@@ -37,12 +37,14 @@ class IcosphereSurface(Surface):
     The number of faces of the icosphere is given by the formula:
 
     .. math::
-        n_face = 10 * 4^{gridlevel} + 2
+
+        n_{face} = 10 * 4^{gridlevel} + 2
 
     The number of nodes is given by the formula:
 
     .. math::
-        n_node = 20 * 4^{gridlevel}
+
+        n_{node} = 20 * 4^{gridlevel}
     """
 
     def __init__(

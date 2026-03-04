@@ -6,11 +6,12 @@ Morphology
 
 The Morphology class is an operations class for computing the morphology of a crater based on its size and target properties. It encapsulates the logic for altering the topography of the surface based on the crater properties.
 
-Available Morphology Implementations
-------------------------------------
+*************************
+Available Implementations
+*************************
 
 +----------------------------------------------------------------------+----------------+---------------------------------------------+
-| Class                                                                | Instantiation  | Example Usage                               |
+| Class                                                                | Argument name  | Example Usage                               |
 +======================================================================+================+=============================================+
 | :py:class:`~cratermaker.components.morphology.simplemoon.SimpleMoon` | "simplemoon"   | morphology = Morphology.maker("simplemoon") |
 +----------------------------------------------------------------------+----------------+---------------------------------------------+
@@ -38,8 +39,9 @@ Available Morphology Implementations
 
 .. currentmodule:: cratermaker.components.morphology.simplemoon
 
+**********
 SimpleMoon
-==========
+**********
 
 See `Morphology`_ for inherited methods and attributes.
 
@@ -59,7 +61,7 @@ See `Morphology`_ for inherited methods and attributes.
    :no-index-entry:
 
 Usage example
--------------
+=============
 
 .. code-block:: python
    :linenos:

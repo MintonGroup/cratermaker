@@ -6,11 +6,12 @@ Projectile
 
 The Projectile class is an operations class defining the interface for generating projectile velocities, angles, and densities for a given target body.
 
-Available Projectile Implementations
-------------------------------------
+*************************
+Available Implementations
+*************************
 
 +------------------------------------------------------------------------------+-------------------+-------------------------------------------------------------------------------------+
-| Class                                                                        | Instantiation     | Example Usage                                                                       |
+| Class                                                                        | Argument name     | Example Usage                                                                       |
 +==============================================================================+===================+=====================================================================================+
 | :py:class:`~cratermaker.components.projectile.asteroids.AsteroidProjectiles` | "asteroids"       | asteroids = Projectile.maker("asteroids")                                           |
 +------------------------------------------------------------------------------+-------------------+-------------------------------------------------------------------------------------+
@@ -26,8 +27,9 @@ Available Projectile Implementations
 
 .. currentmodule:: cratermaker.components.projectile.asteroids
 
-Asteroid projectiles
-==================== 
+*******************
+AsteroidProjectiles
+*******************
 
 See `Projectile`_ for inherited methods and attributes.
 
@@ -37,7 +39,7 @@ See `Projectile`_ for inherited methods and attributes.
    :no-index-entry:
 
 Usage example
--------------
+=============
 
 .. code-block:: python
    :linenos:
@@ -48,8 +50,9 @@ Usage example
 
 .. currentmodule:: cratermaker.components.projectile.comets
 
-Comet projectiles
-=================
+****************
+CometProjectiles
+****************
 
 See `Projectile`_ for inherited methods and attributes.
 
@@ -59,7 +62,7 @@ See `Projectile`_ for inherited methods and attributes.
    :no-index-entry:
 
 Usage example
--------------
+=============
 
 .. code-block:: python
    :linenos:
@@ -71,8 +74,9 @@ Usage example
 
 .. currentmodule:: cratermaker.components.projectile.generic
 
-Generic projectiles
-===================
+******************
+GenericProjectiles
+******************
 
 See `Projectile`_ for inherited methods and attributes.
 
@@ -82,7 +86,7 @@ See `Projectile`_ for inherited methods and attributes.
    :no-index-entry:
 
 Usage example
--------------
+=============
 
 .. code-block:: python
    :linenos:
