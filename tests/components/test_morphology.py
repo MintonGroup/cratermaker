@@ -71,7 +71,7 @@ class TestMorphology(unittest.TestCase):
                     )
 
     def test_crater_depth_surface(self):
-        from cratermaker.components.morphology.simplemoon import SimpleMoonCrater
+        from cratermaker.components.crater.simplemooncrater import SimpleMoonCrater
         # Tests that the surface elevations are expected
 
         diameter_list = [100e3, 200e3, 500e3, 1000e3]

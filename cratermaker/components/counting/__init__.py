@@ -185,7 +185,7 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
-        from cratermaker.components.morphology import MorphologyCrater
+        from cratermaker.components.crater.morphologycrater import MorphologyCrater
 
         if not isinstance(crater, MorphologyCrater):
             raise TypeError("crater must be an instance of MorphologyCrater")

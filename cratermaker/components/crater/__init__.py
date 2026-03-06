@@ -4,7 +4,7 @@ import hashlib
 import math
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from geopandas import GeoSeries
