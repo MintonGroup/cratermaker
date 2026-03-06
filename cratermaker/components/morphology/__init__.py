@@ -851,7 +851,7 @@ class Morphology(ComponentBase):
     class Crater(MorphologyCrater):
         def __init__(self, crater: Crater | None = None, **kwargs):
             kwargs["morphology"] = self
-            super().__init__(crater=crater)
+            super().__init__(crater=crater, **kwargs)
             return
 
     class CraterQueueManager:
