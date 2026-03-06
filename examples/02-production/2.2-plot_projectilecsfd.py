@@ -24,7 +24,7 @@ Nvals = production.function(diameter=Dvals, age=1000.0)
 
 fig, ax = plt.subplots(figsize=(4, 7))
 Dvals *= 1e-3  # Convert from m to km
-Nvals *= 1e6  # Convert from m^2 to km^2
+Nvals *= 1e6  # Convert from m² to km²
 x_min = Dvals[0]
 x_max = Dvals[-1]
 ax.set_xscale("log")
@@ -33,13 +33,9 @@ ax.set_ylabel("$\\mathregular{N_{>D}}$")
 ax.set_xlabel("Projectile Diameter (km)")
 ax.set_xlim(x_min, x_max)
 ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-ax.yaxis.set_minor_locator(
-    ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100)
-)
+ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100))
 ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-ax.xaxis.set_minor_locator(
-    ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100)
-)
+ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100))
 ax.grid(True, which="minor", ls="-", lw=0.5, zorder=5)
 ax.grid(True, which="major", ls="-", lw=1, zorder=10)
 Dlo = production.sfd_range[0] * 1e-3

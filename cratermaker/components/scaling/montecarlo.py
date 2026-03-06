@@ -40,7 +40,7 @@ class MonteCarloScaling(Scaling):
     Ybar : FloatLike, optional
         The strength of the target material, (Pa)
     density : FloatLike, optional
-        Volumentric density of target material, (kg/m^3)
+        Volumentric density of target material, (kg/m³)
     monte_carlo_scaling : bool, default=True
         If True, the scaling laws will be applied using monte carlo methods to account for the uncertainty in the scaling laws. If False, the scaling laws will be applied deterministically.
     rng : numpy.random.Generator | None
@@ -488,68 +488,32 @@ class MonteCarloScaling(Scaling):
 
     @property
     def transition_diameter(self) -> float:
-        """
-        The transition diameter between simple and complex craters in m.
-
-        Returns
-        -------
-        float
-        """
+        """The transition diameter between simple and complex craters in m."""
         return self._transition_diameter
 
     @property
     def transition_nominal(self) -> float:
-        """
-        The nominal transition diameter between simple and complex craters in m.
-
-        Returns
-        -------
-        float
-        """
+        """The nominal transition diameter between simple and complex craters in m."""
         return self._transition_nominal
 
     @property
     def simple_enlargement_factor(self) -> float:
-        """
-        The enlargement factor for simple craters.
-
-        Returns
-        -------
-        float
-        """
+        """The enlargement factor for simple craters."""
         return self._simple_enlargement_factor
 
     @property
     def complex_enlargement_factor(self) -> float:
-        """
-        The enlargement factor for complex craters.
-
-        Returns
-        -------
-        float
-        """
+        """The enlargement factor for complex craters."""
         return self._complex_enlargement_factor
 
     @property
     def final_exp(self) -> float:
-        """
-        The exponent used in the final rim radius to simple crater radius relationship.
-
-        Returns
-        -------
-        float
-        """
+        """The exponent used in the final rim radius to simple crater radius relationship."""
         return self._final_exp
 
     @parameter
     def K1(self):
-        """
-        K1 crater scaling relationship term.
-
-        Returns
-        -------
-        float
-        """
+        """The K₁ term in the crater scaling relationship."""
         return self._K1
 
     @K1.setter
@@ -562,14 +526,7 @@ class MonteCarloScaling(Scaling):
 
     @parameter
     def mu(self):
-        """
-        Mu crater scaling relationship term.
-
-        Returns
-        -------
-        float
-
-        """
+        """The μ term in the crater scaling relationship."""
         return self._mu
 
     @mu.setter
@@ -582,14 +539,7 @@ class MonteCarloScaling(Scaling):
 
     @parameter
     def Ybar(self):
-        """
-        The strength of the material in Pa.
-
-        Returns
-        -------
-        float
-
-        """
+        """The Ȳ term in the crater scaling relationship, which is the strength of the material in Pa."""
         return self._Ybar
 
     @Ybar.setter
@@ -602,20 +552,12 @@ class MonteCarloScaling(Scaling):
 
     @property
     def catalogue_key(self):
-        """
-        The key used to identify the property used as the key in a catalogue.
-        """
+        """The key used to identify the property used as the key in a catalogue."""
         return "material"
 
     @parameter
     def material(self):
-        """
-        The name of the material composition of the target body.
-
-        Returns
-        -------
-        str
-        """
+        """The name of the material composition of the target body."""
         return self._material
 
     @material.setter
@@ -633,13 +575,7 @@ class MonteCarloScaling(Scaling):
 
     @parameter
     def monte_carlo_scaling(self):
-        """
-        If True, the scaling laws will be applied using monte carlo methods to account for the uncertainty in the scaling laws. If False, the scaling laws will be applied deterministically.
-
-        Returns
-        -------
-        bool
-        """
+        """If True, the scaling laws will be applied using monte carlo methods to account for the uncertainty in the scaling laws. If False, the scaling laws will be applied deterministically."""
         return self._montecarlo_scaling
 
     @monte_carlo_scaling.setter

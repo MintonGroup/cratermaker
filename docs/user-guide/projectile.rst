@@ -18,9 +18,9 @@
 Projectile
 ==========
 
-The ``Projectile`` method contains information about the populations of projectiles used to scale between crater and projectile sizes.
+The :py:class:`~cratermaker.components.projectile.Projectile` class contains information about the populations of projectiles used to scale between crater and projectile sizes.
 
-To define a projectile, a :ref:`Target <ug-target>` must be created first. If you're unsure how to define a target, see the :ref:`Target documentation <ug-target>` for guidance.
+To define a projectile, a :py:class:`~cratermaker.components.target.Target` must be created first. If you're unsure how to define a target, see the :ref:`Target documentation <ug-target>` for guidance.
 
 Creating a Projectile
 ---------------------
@@ -41,7 +41,7 @@ Creating a Projectile
     # Print projectile properties
     print(f"cratermaker projectile: {projectile}")
 
-If no projectile parameters are specified, CraterMaker will use a default asteroid population suitable for the specified target.
+If no projectile parameters are specified, Cratermaker will use a default asteroid population suitable for the specified target.
 
 **Example 2: Creating a custom projectile**
 

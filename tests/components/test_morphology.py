@@ -125,13 +125,13 @@ class TestMorphology(unittest.TestCase):
 
                     # Verify that the crater depth and rim heights are close to the expected values
                     self.assertAlmostEqual(
-                        -sim.surface.node_elevation.min() / crater.floor_depth,
+                        sim.surface.node_elevation.min() / crater.floor_depth,
                         1.0,
                         delta=delta,
                         msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
-                        -sim.surface.face_elevation.min() / crater.floor_depth,
+                        sim.surface.face_elevation.min() / crater.floor_depth,
                         1.0,
                         delta=delta,
                         msg=f"Failed for {name} with diameter {diameter}",

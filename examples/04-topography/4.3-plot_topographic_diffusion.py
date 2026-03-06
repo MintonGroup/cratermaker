@@ -4,7 +4,7 @@ Topographic Diffusion
 
 .. rubric:: By Dennise Valadez and David Minton
 
-This example demonstrates how to use the :meth:`apply_diffusion` method in the :ref:`Surface <ug-surface>` class to model topographic diffusion. In this example, we will simulate the change in elevation over time of a hill with a Gaussian profile. This example has an analytical solution, which we will compare against the numerical solution provided by the diffusion method.
+This example demonstrates how to use the :py:meth:`apply_diffusion` method in the :ref:`Surface <ug-surface>` class to model topographic diffusion. In this example, we will simulate the change in elevation over time of a hill with a Gaussian profile. This example has an analytical solution, which we will compare against the numerical solution provided by the diffusion method.
 
 For this example we will use the "hireslocal" surface type, which will give us a high-resolution local region of the surface that will be approximately a flat surface.
 
@@ -18,12 +18,9 @@ from cratermaker import Surface
 
 simdir = "simdata-4_3"
 
-# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
-# prevent prompts that will prevent these examples from running on their own when building the documentation pages.Alternatively,
-# passing ask_overwrite=False to Surface.maker() also allow the example to run without requiring any prompts.
-from cratermaker import cleanup
-
-cleanup(simdir)
+# Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
+# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 
 def analytical_elevation(r, h0, sigma, kappa, t):
@@ -55,6 +52,8 @@ surface = Surface.maker(
     local_radius=local_radius,
     superdomain_scale_factor=superdomain_scale_factor,
     simdir=simdir,
+    ask_overwrite=False,
+    reset=True,
 )
 
 # Generate the initial elevation profile and apply it to the surface

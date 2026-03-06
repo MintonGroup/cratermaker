@@ -16,12 +16,9 @@ from cratermaker.utils.general_utils import format_large_units
 
 simdir = "simdata-5_1"
 
-# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
-# prevent prompts that will prevent these examples from running on their own when building the documentation pages. Alternatively,
-# passing ask_overwrite=False to Surface.maker() also allow the example to run without requiring any prompts.
-from cratermaker import cleanup
-
-cleanup(simdir)
+# Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
+# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 
 def plot_fits(ax, surface, crater=None, plot_score=False, imagefile=None):
@@ -79,6 +76,8 @@ surface = Surface.maker(
     local_location=lansberg_b.location,
     local_radius=lansberg_b.radius * 3.0,
     simdir=simdir,
+    ask_overwrite=False,
+    reset=True,
 )
 
 # Now refine the fit of the crater rim using the Counting class.

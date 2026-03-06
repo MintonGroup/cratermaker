@@ -357,7 +357,7 @@ class TestSurface(unittest.TestCase):
                     name="test_data",
                     data=-test_value,
                     long_name="this should be ignored",
-                    units="slug angstrom^2 / fortnight^2",
+                    units="slug angstrom² / fortnight^2",
                     overwrite=True,
                 )
                 # test that the attributes were ignored but the data was added

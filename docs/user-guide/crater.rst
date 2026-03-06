@@ -18,7 +18,7 @@
 Crater
 ======
 
-The :ref:`Crater <api-crater>` class is one of the core components of Cratermaker. It is a dataclass that represents the properties of a crater and the projectile that formed it. Like all other components, it is instantiated with its `maker` factory method. You can create a crater by either specifying either its size or the size of a projectile. In either case, the crater and projectile properties will be computed using :ref:`Target <ug-scaling>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` objects. These can be provided to :ref:`Crater.maker() <api-crater>`, but if not, then the :ref:`default <ug-defaults>` values will be used. 
+The :py:class:`~cratermaker.components.crater.Crater` class is one of the core components of Cratermaker. It is a dataclass that represents the properties of a crater and the projectile that formed it. Like all other components, it is instantiated with its `maker` factory method. You can create a crater by either specifying either its size or the size of a projectile. In either case, the crater and projectile properties will be computed using :ref:`Target <ug-scaling>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` objects. These can be provided to :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>`, but if not, then the :ref:`default <ug-defaults>` values will be used. 
 
 At a minimum, you need to specify exactly one size input, which can be one of the following:
 
@@ -30,7 +30,7 @@ At a minimum, you need to specify exactly one size input, which can be one of th
 - `projectile_radius`: The radius of the projectile that formed the crater in meters.
 - `projectile_mass`: The mass of the projectile that formed the crater in kilograms.
 
-All other parameters are optional, and if not specified, will be determined by the provided (or default) Target, Scaling, and Projectile objects. We can demonstrate this behavior by specifiying the minimum set of arguments for a Crater, in which we define a crater with a final rim-to-rim diameter of 100 meters and then printing the resulting crater object to show its full set of properties:
+All other parameters are optional, and if not specified, will be determined by the provided (or default) :ref:`Target <ug-target>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` objects. We can demonstrate this behavior by specifiying the minimum set of arguments for a Crater, in which we define a crater with a final rim-to-rim diameter of 100 meters and then printing the resulting crater object to show its full set of properties:
 
 .. ipython:: python
 
@@ -67,7 +67,7 @@ Because we chose Europa as a target, the default projectile population is "comet
 Specifying Crater Properties 
 --------------------------------
 
-Besides the crater or projectile sizes values, which are required, there are a number of optional arguments you can pass to :meth:`Crater.maker()`, including
+Besides the crater or projectile sizes values, which are required, there are a number of optional arguments you can pass to :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>`, including
 
 - `projectile_density`: The density of the projectile in kg/m\ :sup:`3`. If not provided, it will be defined through the Projectile component provided. (e.g., "asteroids" or "comets").
 - `projectile_mean_velocity`: The mean velocity in m/s from which to sample a projectile velocity. This will override the value from the Projectile model.
@@ -109,7 +109,7 @@ We can specify the projectile angle from a combination of the vertical velocity 
 
 Crater on a Custom Target
 -------------------------
-The following example uses a custom-defined :ref:`Target <ug-target>` object. Here we will create a 300 km diameter body in the Kuiper belt with a mass of 10 :sup:`19` kg (about 700 kg/m\ :sup:`3` bulk density). It will use both the ice model for its surface material and simple-to-complex scaling model. 
+The following example uses a custom-defined :ref:`Target <ug-target>` object. Here we will create a 300 km diameter body in the Kuiper belt with a mass of 10\ :sup:`19` kg (about 700 kg/m\ :sup:`3` bulk density). It will use both the ice model for its surface material and simple-to-complex scaling model. 
 
 .. ipython:: python
 
@@ -124,7 +124,7 @@ The following example uses a custom-defined :ref:`Target <ug-target>` object. He
     )
     print(kuip_belt_obj)
 
-Next we will feed our custom target body to the :meth:`Crater.maker()` method to create a crater on it. We will use a rocky projectile with a diameter of 500 m, an impact velocity of 5 km/s. All other properties will be computed.
+Next we will feed our custom target body to the :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>` method to create a crater on it. We will use a rocky projectile with a diameter of 500 m, an impact velocity of 5 km/s. All other properties will be computed.
 
 .. ipython:: python
 

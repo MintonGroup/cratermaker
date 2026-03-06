@@ -1,4 +1,4 @@
-.. currentmodule:: cratermaker
+.. py:currentmodule:: cratermaker
 
 .. ipython:: python
     :okwarning:
@@ -18,7 +18,7 @@
 Simulation
 ==========
 
-The :class:`~cratermaker.core.simulation.Simulation` class manages the evolution of cratered planetary surfaces. It contains components such as target bodies, impactor distributions, and emplacement to simulate crater formation over time.
+The :py:class:`~cratermaker.core.simulation.Simulation` class manages the evolution of cratered planetary surfaces. It contains components such as target bodies, impactor distributions, and emplacement to simulate crater formation over time.
 
 A `Simulation` instance can be initiated with keyword arguments specifying the various component models to be used in the simulation. These components include:
 
@@ -30,18 +30,18 @@ A `Simulation` instance can be initiated with keyword arguments specifying the v
 - :ref:`Projectile <ug-projectile>`
 - :ref:`Counting <ug-counting>`
 
-Any valid arguments for these components can be passed directly to the :class:`~cratermaker.core.simulation.Simulation` constructor, otherwise default values will be used (see the guide for :ref:`Default Behavior <ug-defaults>`).
+Any valid arguments for these components can be passed directly to the :py:class:`~cratermaker.core.simulation.Simulation` constructor, otherwise default values will be used (see the guide for :ref:`Default Behavior <ug-defaults>`).
 
 
 Creating craters and populations of craters
 -------------------------------------------
 
-The :class:`~cratermaker.core.simulation.Simulation` class has set of core methods that can be used to generate craters, using the requested (or default) Production and Morphology components onto the requested Surface component. These are :meth:`~cratermaker.core.simulation.Simulation.emplace`, :meth:`~cratermaker.core.simulation.Simulation.populate`, and :meth:`~cratermaker.core.simulation.Simulation.run`. Each successive method makes use of the others (that is, `populate` calls `emplace` on the craters in generates, and `run` calls `populate` for each interval of time in the simulation). We will discuss each of these in turn:
+The :py:class:`~cratermaker.core.simulation.Simulation` class has set of core methods that can be used to generate craters, using the requested (or default) Production and Morphology components onto the requested Surface component. These are :py:meth:`~cratermaker.core.simulation.Simulation.emplace`, :py:meth:`~cratermaker.core.simulation.Simulation.populate`, and :py:meth:`~cratermaker.core.simulation.Simulation.run`. Each successive method makes use of the others (that is, :py:meth:`~cratermaker.core.simulation.Simulation.populate` calls :py:meth:`~cratermaker.core.simulation.Simulation.emplace` on the craters in generates, and :py:meth:`~cratermaker.core.simulation.Simulation.run` calls :py:meth:`~cratermaker.core.simulation.Simulation.populate` for each interval of time in the simulation). We will discuss each of these in turn:
 
 Emplace one or more specific craters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :meth:`~cratermaker.core.simulation.Simulation.emplace` is used to emplace one or more craters onto a surface. The arguments are either the parameters that you would pass to :meth:`~cratermaker.components.crater.Crater.maker` to generate a single crater, a single :class:`~cratermaker.components.crater.Crater` object, or a list of :class:`~cratermaker.components.crater.Crater` objects. So for instance, you can emplace a single 300 km crater onto a random location on a surface, you would do:
+The :py:meth:`~cratermaker.core.simulation.Simulation.emplace` is used to emplace one or more craters onto a surface. The arguments are either the parameters that you would pass to :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>` to generate a single crater, a single :py:class:`~cratermaker.components.crater.Crater` object, or a list of :py:class:`~cratermaker.components.crater.Crater` objects. So for instance, you can emplace a single 300 km crater onto a random location on a surface, you would do:
 
 .. code-block:: python
 
@@ -62,22 +62,22 @@ To place 3 craters onto the surface, you could do the following:
 Emplace a population of craters drawn from a production function
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The next level of methods is :meth:`~cratermaker.core.simulation.Simulation.populate`, which is used to generate a population of craters drawn from whichever :ref:`Production <ug-production>` component module is loaded into the simulation. The arguments for this method are the same as those for :meth:`~cratermaker.components.production.Production.populate`, which can either be the time interval over which to draw from the production function, or a pair of diameter/number values that specify the position in the production function to draw from. For instance, to emplace a population of craters corresponding to the production function between 200 My to 100 My before present, you would do:
+The next level of methods is :py:meth:`~cratermaker.core.simulation.Simulation.populate`, which is used to generate a population of craters drawn from whichever :ref:`Production <ug-production>` component module is loaded into the simulation. The arguments for this method are the same as those for :py:meth:`~cratermaker.components.production.Production.populate`, which can either be the time interval over which to draw from the production function, or a pair of diameter/number values that specify the position in the production function to draw from. For instance, to emplace a population of craters corresponding to the production function between 200 My to 100 My before present, you would do:
 
 .. code-block:: python
 
     sim.populate(time_start=200, time_end=100)
 
 
-The :meth:`~cratermaker.core.simulation.Simulation.populate` method is really meant to be a helper method for the :meth:`~cratermaker.core.simulation.Simulation.run` method, which is used to run a full simulation over a specified time interval. For instance, the 
-The :meth:`~cratermaker.core.simulation.Simulation.populate` method does not track the time of emplacement or advance the time interval of the simulation.
+The :py:meth:`~cratermaker.core.simulation.Simulation.populate` method is really meant to be a helper method for the :py:meth:`~cratermaker.core.simulation.Simulation.run` method, which is used to run a full simulation over a specified time interval. For instance, the 
+The :py:meth:`~cratermaker.core.simulation.Simulation.populate` method does not track the time of emplacement or advance the time interval of the simulation.
 
 
 
 Running a Simulation
 --------------------
 
-Once a :class:`~cratermaker.core.simulation.Simulation` instance has been created, the simulation can be run using the :meth:`~cratermaker.core.simulation.Simulation.run` method. This method requires an ``age`` argument specifying the duration of the simulation in million years (My).  
+Once a :py:class:`~cratermaker.core.simulation.Simulation` instance has been created, the simulation can be run using the :py:meth:`~cratermaker.core.simulation.Simulation.run` method. This method requires an ``age`` argument specifying the duration of the simulation in million years (My).  
 
 The following example configures a simulation targeting the Moon and runs it for 4 Gy, then we plot the number of true emplaced (countable) craters as well as the number of observed craters that the crater counting algorithm has determined are observable. To speed up the example, we have reduced the resolution of the surface grid from the default value of 8 to 6 using the ``gridlevel`` argument.
 
@@ -103,7 +103,7 @@ The following example configures a simulation targeting the Moon and runs it for
 Multi-interval Simulations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :meth:`~cratermaker.core.simulation.Simulation.run` method can also be used to run a simulation in multiple intervals, which is useful for tracking the evolution of the cratered surface over time. To do this, you can pass either the `time_interval` or `ninterval` arguments. These two arguments are mutually exlusive, as they divide up the simulation in different ways. 
+The :py:meth:`~cratermaker.core.simulation.Simulation.run` method can also be used to run a simulation in multiple intervals, which is useful for tracking the evolution of the cratered surface over time. To do this, you can pass either the `time_interval` or `ninterval` arguments. These two arguments are mutually exlusive, as they divide up the simulation in different ways. 
 
 Equal time intervals
 """"""""""""""""""""
@@ -156,7 +156,7 @@ As can be seen, the toltal numbers of craters is somewhat different in each samp
 Save Actions
 ------------
 
-The :class:`~cratermaker.core.simulation.Simulation` class has a "save_actions" parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial condiations, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
+The :py:class:`~cratermaker.core.simulation.Simulation` class has a "save_actions" parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial condiations, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
 
 .. ipython:: python
     :okwarning:

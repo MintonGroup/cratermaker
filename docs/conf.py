@@ -35,10 +35,10 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "sphinx.ext.doctest",
     "IPython.sphinxext.ipython_directive",
     "IPython.sphinxext.ipython_console_highlighting",
     "sphinx_autosummary_accessors",
-    "sphinx.ext.linkcode",
     "sphinxext.opengraph",
     "sphinx_copybutton",
     "sphinx_design",
@@ -85,7 +85,9 @@ autodoc_default_options = {
     "undoc-members": False,
     "show-inheritance": True,
     "member-order": "bysource",
+    "no-index-entry": True,
 }
+autoapi_generate_api_docs = False
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
@@ -153,48 +155,6 @@ ogp_image = "https://cratermaker.readthedocs.io/en/stable/_static/logos/Craterma
 ogp_custom_meta_tags = [
     '<meta name="image" property="og:image" content="https://cratermaker.readthedocs.io/en/stable/_static/logos/Cratermaker_Social_Preview.png" />',
 ]
-
-
-# based on numpy doc/source/conf.py
-def linkcode_resolve(domain, info):
-    """
-    Determine the URL corresponding to Python object.
-    """
-    if domain != "py":
-        return None
-
-    modname = info["module"]
-    fullname = info["fullname"]
-
-    submod = sys.modules.get(modname)
-    if submod is None:
-        return None
-
-    obj = submod
-    for part in fullname.split("."):
-        try:
-            obj = getattr(obj, part)
-        except AttributeError:
-            return None
-
-    try:
-        fn = inspect.getsourcefile(inspect.unwrap(obj))
-    except TypeError:
-        fn = None
-    if not fn:
-        return None
-
-    try:
-        source, lineno = inspect.getsourcelines(obj)
-    except OSError:
-        lineno = None
-
-    if lineno:
-        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
-    else:
-        linespec = ""
-
-    fn = os.path.relpath(fn, start=Path(cratermaker.__file__).parent)
 
 
 def html_page_context(app, pagename, templatename, context, doctree):

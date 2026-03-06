@@ -42,7 +42,7 @@ class AsteroidProjectiles(Projectile):
         sample : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, the projectile velocity will be the mean velocity for the given target body.
         density : float, optional
-            The density of the projectile in kg/m^3. Default is 2250 kg/m^3.
+            The density of the projectile in kg/m³. Default is 2250 kg/m³.
         angle : float, optional
             The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
         direction : float | None

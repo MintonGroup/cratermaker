@@ -20,12 +20,12 @@ Surface
 
 Cratermaker's :ref:`Surface <api-surface>` component is used to represent target body's topography and other properties of its surface. Its prupose is to handle surface-related data by providing methods for setting elevation data, and calculating surface-related questions. The Surface class number of attributes and methods that allow the user to perform various operations on the surface. Every Surface object contains the following basic attributes:
 
-- :attr:`target`: The :ref:`Target <ug-target>` that the surface is associated with. The default target is "Moon."
-- :attr:`radius`: The radius of the target body in meters. This is a convenience attribute that retrieves the radius from the :ref:`Target <ug-target>` object.
-- :attr:`smallest_length`: The smallest length scale that the surface can resolve. This is used for determining minimum elevation changes, such as when ejecta deposits are added to the surface. It is set when the surface is created.
-- :attr:`gridtype`: The type of surface grid that is being used. This will be one of "icosphere," "arbitrary_resolution," "hireslocal," or "datasurface," depending on how it was created.
-- :attr:`data_dir`: The directory where the surface data files are stored. 
-- :attr:`uxds`, :attr:`uxgrid`: The UxArray dataset and grid object used to represent the surface mesh (see the next section for more details).
+- :py:attr:`~cratermaker.components.surface.Surface.target`: The :ref:`Target <ug-target>` that the surface is associated with. The default target is "Moon."
+- :py:attr:`~cratermaker.components.surface.Surface.radius`: The radius of the target body in meters. This is a convenience attribute that retrieves the radius from the :ref:`Target <ug-target>` object.
+- :py:attr:`~cratermaker.components.surface.Surface.smallest_length`: The smallest length scale that the surface can resolve. This is used for determining minimum elevation changes, such as when ejecta deposits are added to the surface. It is set when the surface is created.
+- :py:attr:`~cratermaker.components.surface.Surface.gridtype`: The type of surface grid that is being used. This will be one of "icosphere," "arbitrary_resolution," "hireslocal," or "datasurface," depending on how it was created.
+- :py:attr:`~cratermaker.core.base.CratermakerBase.output_dir`: The directory where the surface data files are stored. 
+- :py:attr:`~cratermaker.components.surface.Surface.uxds`, :py:attr:`~cratermaker.components.surface.Surface.uxgrid`: The UxArray dataset and grid object used to represent the surface mesh (see the next section for more details).
 
 The UxArray-based surface mesh
 ------------------------------
@@ -40,40 +40,39 @@ The surface of a celestial body in Cratermaker is represented as a sphere that h
 
 In the above image, show a single face with 6 nodes and 6 edges, surrounded by 6 neighboring faces. Each face, node, and edge is identified with an integer index. A Surface object contains a number of attributes that represent the mesh geometry and connectivity, such as:
 
-- :attr:`n_face`: The number of faces in the surface mesh.
-- :attr:`n_node`: The number of nodes in the surface mesh.
-- :attr:`n_edge`: The number of edges in the surface mesh.
-- :attr:`face_area` : An array that contains the area of each face in m\ :sup:`2`
-- :attr:`face_size` : The "effective" size of each face, which is defined as the square root of the area of each face in meters.
-- :attr:`pix` : The estimated effective size of the faces in meters.  
-- :attr:`pix_mean` : The mean effective size of the faces in meters. This is the average of the `face_size` array.
-- :attr:`pix_std` : The standard deviation of the effective size of the faces in meters. This is the standard deviation of the `face_size` array.
-- :attr:`pix_max` : The maximum effective size of the faces in meters. This is the maximum value of the `face_size` array.
-- :attr:`pix_min` : The minimum effective size of the faces in meters. This is the minimum value of the `face_size` array.
-- :attr:`face_x`, :attr:`face_y`, :attr:`face_z`: Arrays that contain the x, y, and z coordinates of the center of each face in Cartesian coordinates.
-- :attr:`node_x`, :attr:`node_y`, :attr:`node_z`: Arrays that contain the x, y, and z coordinates of each node in Cartesian coordinates.
-- :attr:`face_lon`, :attr:`face_lat`: Arrays that contain the longitude and latitude of the center of each face in degrees.
-- :attr:`node_lon`, :attr:`node_lat`: Arrays that contain the longitude and latitude of each node in degrees.
-- :attr:`face_elevation`: Array that contains the elevation at each face center.
-- :attr:`node_elevation`: Array that contains the elevation at each node.
+- :py:attr:`~cratermaker.components.surface.Surface.n_face`: The number of faces in the surface mesh.
+- :py:attr:`~cratermaker.components.surface.Surface.n_node`: The number of nodes in the surface mesh.
+- :py:attr:`~cratermaker.components.surface.Surface.n_edge`: The number of edges in the surface mesh.
+- :py:attr:`~cratermaker.components.surface.Surface.face_area` : An array that contains the area of each face in m\ :sup:`2`
+- :py:attr:`~cratermaker.components.surface.Surface.face_size` : The "effective" size of each face, which is defined as the square root of the area of each face in meters.
+- :py:attr:`~cratermaker.components.surface.Surface.pix` : The estimated effective size of the faces in meters.  
+- :py:attr:`~cratermaker.components.surface.Surface.pix_mean` : The mean effective size of the faces in meters. This is the average of the `face_size` array.
+- :py:attr:`~cratermaker.components.surface.Surface.pix_std` : The standard deviation of the effective size of the faces in meters. This is the standard deviation of the `face_size` array.
+- :py:attr:`~cratermaker.components.surface.Surface.pix_max` : The maximum effective size of the faces in meters. This is the maximum value of the `face_size` array.
+- :py:attr:`~cratermaker.components.surface.Surface.pix_min` : The minimum effective size of the faces in meters. This is the minimum value of the `face_size` array.
+- :py:attr:`~cratermaker.components.surface.Surface.face_x`, :py:attr:`~cratermaker.components.surface.Surface.face_y`, :py:attr:`~cratermaker.components.surface.Surface.face_z`: Arrays that contain the x, y, and z coordinates of the center of each face in Cartesian coordinates.
+- :py:attr:`~cratermaker.components.surface.Surface.node_x`, :py:attr:`~cratermaker.components.surface.Surface.node_y`, :py:attr:`~cratermaker.components.surface.Surface.node_z`: Arrays that contain the x, y, and z coordinates of each node in Cartesian coordinates.
+- :py:attr:`~cratermaker.components.surface.Surface.face_lon`, :py:attr:`~cratermaker.components.surface.Surface.face_lat`: Arrays that contain the longitude and latitude of the center of each face in degrees.
+- :py:attr:`~cratermaker.components.surface.Surface.node_lon`, :py:attr:`~cratermaker.components.surface.Surface.node_lat`: Arrays that contain the longitude and latitude of each node in degrees.
+- Variables of :py:attr:`~cratermaker.components.surface.Surface.uxds`: Any variable that is stored inside the UxDataset associated with the surface can be accessed as an attribute of Surface. For instance, the face and node elevations arrays can be retrieved by calling ``Surface.elevation_face`` and ``Surface.elevation_node``, respectively, where these variables are stored in the UxDataset as "elevation_face" and "elevation_node". This is done through the ``__getattr__`` method of Surface, which checks if the requested attribute is a variable in the UxDataset and returns its data if it is. 
 
 .. note::
     The mesh itself remains static inside Cratermaker, and so the elevations are only applied to the mesh when it is visualized.
 
-Many of the above attributes are based on similar once found in UxArray, though some are modified to be more useful for Cratermaker's purposes. For instance, the `face_area` attribute is computed using the true dimensions of the surface, rather than assuming a unit sphere, which is how UxArray computes it by default. You can access the underlying UxArray structures through the :attr:`uxds` and :attr:`uxgrid` properties.
+Many of the above attributes are based on similar once found in UxArray, though some are modified to be more useful for Cratermaker's purposes. For instance, the :py:attr:`~cratermaker.components.surface.Surface.face_area` attribute is computed using the true dimensions of the surface, rather than assuming a unit sphere, which is how UxArray computes it by default. You can access the underlying UxArray structures through the :py:attr:`~cratermaker.components.surface.Surface.uxds` and :py:attr:`~cratermaker.components.surface.Surface.uxgrid` properties.
 
 Mesh connectivity
 ^^^^^^^^^^^^^^^^^
 
 Many of the functions within Cratermaker require knowledge of the connectivity between faces, nodes, and edges. The Surface object contains several attributes that represent this connectivity:
 
-- :attr:`face_face_connectivity`: An array that contains the faces that surround each face.
-- :attr:`face_node_connectivity`: An array that contains the nodes that are associated with each face.  
-- :attr:`face_edge_connectivity`: An array that contains the edges that are associated with each face.
-- :attr:`node_face_connectivity`: An array that contains the faces that are associated with each node.
-- :attr:`edge_node_connectivity`: An array that contains the nodes that are associated with each edge.
-- :attr:`edge_length`: An array that contains the length of each edge in meters.
-- :attr:`edge_face_distance`: An array that contains the distance between the centers of the two faces that saddle each edge in meters.
+- :py:attr:`~cratermaker.components.surface.Surface.face_face_connectivity`: An array that contains the faces that surround each face.
+- :py:attr:`~cratermaker.components.surface.Surface.face_node_connectivity`: An array that contains the nodes that are associated with each face.  
+- :py:attr:`~cratermaker.components.surface.Surface.face_edge_connectivity`: An array that contains the edges that are associated with each face.
+- :py:attr:`~cratermaker.components.surface.Surface.node_face_connectivity`: An array that contains the faces that are associated with each node.
+- :py:attr:`~cratermaker.components.surface.Surface.edge_node_connectivity`: An array that contains the nodes that are associated with each edge.
+- :py:attr:`~cratermaker.components.surface.Surface.edge_length`: An array that contains the length of each edge in meters.
+- :py:attr:`~cratermaker.components.surface.Surface.edge_face_distance`: An array that contains the distance between the centers of the two faces that saddle each edge in meters.
 
 As an example of how these are structured, take the diagram shown above of a single face with 6 nodes and 6 edges. The following table shows the connectivity arrays for that face:
 
@@ -91,7 +90,7 @@ In the next section we will describe the different types of surfaces that can be
 Surface Types
 -------------
 
-Like all Cratermaker components, a Surface object is instantiated with a special factory method called :meth:`maker()`, along with arguments that control how the Surface is created. There are currently three different surface types of surface implementations that can be chosen by the user, which are selected by passing the `surface` argument to the :meth:`maker()` method. The available surface types are:
+Like all Cratermaker components, a Surface object is instantiated with a special factory method called :py:meth:`Surface.maker() <cratermaker.components.surface.Surface.maker>`, along with arguments that control how the Surface is created. There are currently three different surface types of surface implementations that can be chosen by the user, which are selected by passing the `surface` argument to the :py:meth:`Surface.maker() <cratermaker.components.surface.Surface.maker>` method. The available surface types are:
 
 
 - "icosphere": This is the default surface type, which generates a uniform grid configuration with polygonal faces that will be subdivided by the input value for the `gridlevel` argument. The icosphere surface will have the most uniform face sizes, but is limited to a few resolutions. It is best suited for general use and is the default surface type.
@@ -168,7 +167,7 @@ Arbitrary Resolution
     :class: dark-light
 
 
-While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of ^20 km per face (shown in the figure above):
+While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of 20 km per face (shown in the figure above):
 
 .. ipython:: python
     :okwarning:
@@ -206,7 +205,7 @@ In many application of Cratermaker, it is useful to model a small local region a
 .. note::
     When used as part of a :ref:`Simulation <ug-simulation>`, the `superdomain_scale_factor` can be omitted. It is computed using the Simulation's production and morphology models in order to compute the sizes of faces in the superdomain as a function of distance from the local region boundary. 
 
-For instance, suppose we want to generate a high resolution local grid on the Moon with a resolution of ^10 m per pixel, with a high resolution region radius of 5 km, centered at the equator and prime meridian (0° longitude, 0° latitude), and a superdomain scale factor of 10,000:
+For instance, suppose we want to generate a high resolution local grid on the Moon with a resolution of 10 m per pixel, with a high resolution region radius of 5 km, centered at the equator and prime meridian (0° longitude, 0° latitude), and a superdomain scale factor of 10,000:
 
 .. ipython:: python
     :okwarning:
@@ -294,7 +293,7 @@ Extracting a local subsection of the surface
     :class: dark-light
 
 
-Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :class:`LocalSurface` object, which is a view of the original surface that contains the faces, nodes, and edges within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a LocalSurface, you can use the :meth:`extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters. This will return a LocalSurface object that contains all faces within a specified radius, plus a buffer of surrounding faces. All nodes and edges associated with the faces inside the primary local region are included, but only nodes associated with the buffer faces are included, but not edges (see the diagram above). This is done to prevent array out of bounds issues when performing operations that require neighboring faces across included edges, as is done when computing topographic diffusion calculations.
+Many of the operations that Cratermaker does on a surface only affect a small portion of the full grid at a time. The Surface class has a tool that is used to efficiently extract a local subsection of a given surface without making a copy in memory. This is done by creating a :py:class:`~cratermaker.components.surface.LocalSurface` object, which is a view of the original surface that contains the faces, nodes, and edges within a specified radius of a given location. The LocalSurface object can be used to perform operations on this local region rather than on the full set of faces, nodes, and edges. To generate a :py:class:`~cratermaker.components.surface.LocalSurface`, you can use the :py:meth:`~cratermaker.components.surface.Surface.extract_region` method of the Surface class. This method takes two arguments: `location`, which is a tuple of (longitude, latitude) in degrees, and `region_radius`, which is the radius of the region in meters. This will return a LocalSurface object that contains all faces within a specified radius, plus a buffer of surrounding faces. All nodes and edges associated with the faces inside the primary local region are included, but only nodes associated with the buffer faces are included, but not edges (see the diagram above). This is done to prevent array out of bounds issues when performing operations that require neighboring faces across included edges, as is done when computing topographic diffusion calculations.
 
 For instance, suppose we'd like to extract a 16 km radius region at the south pole of the Moon:
 
@@ -317,25 +316,24 @@ For instance, suppose we'd like to extract a 16 km radius region at the south po
 As we can see, this selects only 33 of the full 655362 faces, which is a significant reduction in the number of faces and nodes that need to be processed. All faces with their centers interior to circle defined by location and region_radius are included, as well as their associated edges and nodes (highlighted in the diagram above). In addition, the region will also contain a "buffer" of all faces that surround the outermost border of the local region, such that any operations that require neighboring faces across included edges or nodes can have access to them. 
 
 .. note::
-    The "hireslocal" Surface type contains a built-in attribute called `local`, which represents the high resolution region of the surface. In addition, when `extract_region` is called on a "hireslocal" surface, it will return a special `LocalHiResLocalSurface` object that contains within it an additional object called `local_overlap`. This is a view of only the portion of the extracted region that overlaps the high resolution region (or None if there is no overlap).
+    The "hireslocal" Surface type contains a built-in attribute called `local`, which represents the high resolution region of the surface. In addition, when :py:meth:`~cratermaker.components.surface.Surface.extract_region` is called on a "hireslocal" surface, it will return a special :py:class:`~cratermaker.components.surface.LocalHiResLocalSurface` object that contains within it an additional object called `local_overlap`. This is a view of only the portion of the extracted region that overlaps the high resolution region (or None if there is no overlap).
 
 Using a Surface object
 ----------------------
-Once you have either a Surface or LocalSurface object, you are now able to perform numerous surface-related computations. 
-
-- :meth:`extract_region`: Extracts a local region of the surface, which is useful for performing operations on a small portion of the surface without affecting the full surface. This returns a `LocalSurface`` object.
-- :meth:`add_data`: Adds a new data variable that is associated with either faces (default) or nodes of the surface. 
-- :meth:`update_elevation`: Updates the elevation data of the surface using the `new_elevation` argument. The data is added to the existing elevation data by default, unless the user specifies `overwrite=True`.
-- :meth:`apply_diffusion`: Applies diffusive degradation to the surface, which is a process that smooths out the surface by averaging the elevations of neighboring faces. This is useful for simulating the effects of erosion over time.
-- :meth:`slope_collapse`: Applies diffusion only to surfaces that are steeper than a given threshold  given by the argument `critical_slope_angle`, which is set to 35 degrees by default (a typical value for the angle of repose). 
-- :meth:`apply_noise`: Applies tubulence-style simplex noise to the surface. This can be useful for generating realistic surface features, such as hills and valleys. The noise is applied to the elevation data of the surface.
-- :meth:`calculate_face_and_node_distances`: Returns one array for distances between a point and all faces, and another array with distances between that point and all nodes.
-- :meth:`calculate_face_and_node_bearings`: Returns two arrays: Bearings (direction in degrees) between a point and all faces, Bearing between a point and all nodes.
-- :meth:`find_nearest_face`: Returns the index of the face that is closest to a given point. 
-- :meth:`find_nearest_node`: Returns the index of the node that is closest to a given point. 
-- :meth:`interpolate_node_elevation_from_faces`: Some operations only affect faces, and so this method can be used to interpolate the elevation of nodes from the face elevations.
-- :meth:`elevation_to_cartesian`: Convert elevation values to Cartesian coordinates. This is a basic utility function that takes the cartesian positions of the surface of a sphere and elevation values and returns the Cartesian coordinates of the surface with the elevations applied. This is used because the mesh is never altered in Cratermaker, but rather the elevations are applied to the mesh when it is visualized.
-- :meth:`get_random_location_on_face`: Given a face index, this method will return a random location on that face. This is used to generate craters on a surface, as some surfaces have highly variable faces and therefore production functions must be evaluated on a face-by-face basis.
+Once you have either a :py:class:`~cratermaker.components.surface.Surface` or :py:class:`~cratermaker.components.surface.LocalSurface` object, you are now able to perform numerous surface-related computations. 
+- :py:meth:`~cratermaker.components.surface.Surface.extract_region`: Extracts a local region of the surface, which is useful for performing operations on a small portion of the surface without affecting the full surface. This returns a :py:class:`~cratermaker.components.surface.LocalSurface` object.
+- :py:meth:`~cratermaker.components.surface.Surface.add_data`: Adds a new data variable that is associated with either faces (default) or nodes of the surface. 
+- :py:meth:`~cratermaker.components.surface.Surface.update_elevation`: Updates the elevation data of the surface using the `new_elevation` argument. The data is added to the existing elevation data by default, unless the user specifies `overwrite=True`.
+- :py:meth:`~cratermaker.components.surface.Surface.apply_diffusion`: Applies diffusive degradation to the surface, which is a process that smooths out the surface by averaging the elevations of neighboring faces. This is useful for simulating the effects of erosion over time.
+- :py:meth:`~cratermaker.components.surface.Surface.slope_collapse`: Applies diffusion only to surfaces that are steeper than a given threshold  given by the argument `critical_slope_angle`, which is set to 35 degrees by default (a typical value for the angle of repose). 
+- :py:meth:`~cratermaker.components.surface.Surface.apply_noise`: Applies tubulence-style simplex noise to the surface. This can be useful for generating realistic surface features, such as hills and valleys. The noise is applied to the elevation data of the surface.
+- :py:meth:`~cratermaker.components.surface.Surface.calculate_face_and_node_distances`: Returns one array for distances between a point and all faces, and another array with distances between that point and all nodes.
+- :py:meth:`~cratermaker.components.surface.Surface.calculate_face_and_node_bearings`: Returns two arrays: Bearings (direction in degrees) between a point and all faces, Bearing between a point and all nodes.
+- :py:meth:`~cratermaker.components.surface.Surface.find_nearest_face`: Returns the index of the face that is closest to a given point. 
+- :py:meth:`~cratermaker.components.surface.Surface.find_nearest_node`: Returns the index of the node that is closest to a given point. 
+- :py:meth:`~cratermaker.components.surface.Surface.interpolate_node_elevation_from_faces`: Some operations only affect faces, and so this method can be used to interpolate the elevation of nodes from the face elevations.
+- :py:meth:`~cratermaker.components.surface.Surface.elevation_to_cartesian`: Convert elevation values to Cartesian coordinates. This is a basic utility function that takes the cartesian positions of the surface of a sphere and elevation values and returns the Cartesian coordinates of the surface with the elevations applied. This is used because the mesh is never altered in Cratermaker, but rather the elevations are applied to the mesh when it is visualized.
+- :py:meth:`~cratermaker.components.surface.Surface.get_random_location_on_face`: Given a face index, this method will return a random location on that face. This is used to generate craters on a surface, as some surfaces have highly variable faces and therefore production functions must be evaluated on a face-by-face basis.
 
 .. note::
     The LocalSurface object comes with distances and bearings from the center of the local region pre-computed. See below:
@@ -375,7 +373,7 @@ The ``region`` object now contains a view of all faces (along with their corresp
 Distances and bearings 
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The :class:`LocalSurface` object has two attributes called `face_distance` and `face_bearing` (and also `node_distance` and `node_bearing`), which are pre-computed distances and bearings from the center of the local region to all faces (nodes). This is useful for quickly accessing these values without having to compute them yourself.
+The :py:class:`~cratermaker.components.surface.LocalSurface` object has two attributes called :py:attr:`~cratermaker.components.surface.LocalSurface.face_distance` and :py:attr:`~cratermaker.components.surface.LocalSurface.face_bearing` (and also :py:attr:`~cratermaker.components.surface.LocalSurface.node_distance` and :py:attr:`~cratermaker.components.surface.LocalSurface.node_bearing`), which are pre-computed distances and bearings from the center of the local region to all faces (nodes). This is useful for quickly accessing these values without having to compute them yourself.
 
 .. ipython:: python
     :okwarning:
@@ -385,7 +383,7 @@ The :class:`LocalSurface` object has two attributes called `face_distance` and `
 
 We can see that the local region contains points outside of the 10 km region. We can see that this region contains 20 faces and 25 nodes, but only 7 of the faces actually lie within the 10 km local region, while the other 13 are part of the buffer. From here, we can perform many of the calculations as seen in the list above. 
 
-We can also calculate these for any arbitrary point within the local region (or full surface) using the methods :meth:`calculate_face_and_node_distances` and :meth:`calculate_face_and_node_bearings`. For instance, suppose we want to find the distances and bearings between a point at (205,45) and all faces and nodes in the local region:
+We can also calculate these for any arbitrary point within the local region (or full surface) using the methods :py:meth:`~cratermaker.components.surface.LocalSurface.calculate_face_and_node_distances` and :py:meth:`~cratermaker.components.surface.LocalSurface.calculate_face_and_node_bearings`. For instance, suppose we want to find the distances and bearings between a point at (205,45) and all faces and nodes in the local region:
 
 .. ipython:: python
     :okwarning:
@@ -425,7 +423,7 @@ As seen above, we recieve an integer that gives us the index to the nearest face
     :width: 300px
     :class: dark-light
 
-In the diagram above, we observe a point located within face :math:`f_0` with a distance :math:`d_0` from the center of the face. A neighboring face, :math:`f_1`, is adjacent to :math:`f_0` and has a corresponding distance, :math:`d_1`, to its center, where :math:`d_0 > d_1`. Hence, the find_nearest_face method will return :math:`f_1` as the closest face due to :math:`d_1` being a shorter distance. You can view which faces these are using one of the built-in connectivity arrays. In this case, :attr:`face_face_connectivity` contains the array of faces that are connected to a particular face:
+In the diagram above, we observe a point located within face :math:`f_0` with a distance :math:`d_0` from the center of the face. A neighboring face, :math:`f_1`, is adjacent to :math:`f_0` and has a corresponding distance, :math:`d_1`, to its center, where :math:`d_0 > d_1`. Hence, the find_nearest_face method will return :math:`f_1` as the closest face due to :math:`d_1` being a shorter distance. You can view which faces these are using one of the built-in connectivity arrays. In this case, :py:attr:`~cratermaker.components.surface.LocalSurface.face_face_connectivity` contains the array of faces that are connected to a particular face:
 
 
 .. ipython:: python
@@ -433,7 +431,7 @@ In the diagram above, we observe a point located within face :math:`f_0` with a 
 
     print(f'Neighboring faces of {face_index} include: {surface.face_face_connectivity[face_index]}')
 
-There are corresponding methods for finding the nearest node, as well as connectivity arrays for nodes, such as :attr:`node_face_connectivity` (faces associated with each node) and :attr:`face_node_connectivity` (nodes associated with each face).
+There are corresponding methods for finding the nearest node, as well as connectivity arrays for nodes, such as :py:attr:`~cratermaker.components.surface.LocalSurface.node_face_connectivity` (faces associated with each node) and :py:attr:`~cratermaker.components.surface.LocalSurface.face_node_connectivity` (nodes associated with each face).
 
 .. note::
     Due to the variable number of nodes and edges associated with each face, there will sometimes be unused elements of the connectivity arrays. These are set to a large negative number, and so filtering out only indices greater than or equal to 0 will give you the valid indices. 
@@ -442,7 +440,7 @@ There are corresponding methods for finding the nearest node, as well as connect
 Converting elevation to Cartesian coordinates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Cratermaker saves the face and node elevations independently of the mesh geometry. Suppose you want to visualize the surface with the elevations applied. You can use the :meth:`elevation_to_cartesian` method to convert the elevations to Cartesian coordinates. This method takes one argument, `element`, which can either be "face" or "node". The method will return an (n, 3) array of Cartesian coordinates, where n is the number of faces or nodes, depending on the value of `element`.
+Cratermaker saves the face and node elevations independently of the mesh geometry. Suppose you want to visualize the surface with the elevations applied. You can use the :py:meth:`~cratermaker.components.surface.Surface.elevation_to_cartesian` method to convert the elevations to Cartesian coordinates. This method takes one argument, `element`, which can either be "face" or "node". The method will return an (n, 3) array of Cartesian coordinates, where n is the number of faces or nodes, depending on the value of `element`.
 
 .. ipython:: python
     :okwarning:

@@ -8,21 +8,21 @@ Cratermaker is free software: you can redistribute it and/or modify it under the
 
 import warnings
 
-from ._version import version as __version__
-from .components.counting import Counting
-from .components.crater import Crater
-from .components.morphology import Morphology
-from .components.production import Production
-from .components.projectile import Projectile
-from .components.scaling import Scaling
-from .components.surface import Surface
-from .components.target import Target
-from .core.simulation import Simulation
-from .utils.general_utils import cleanup
+from cratermaker._version import version as __version__
+from cratermaker.components.counting import Counting
+from cratermaker.components.crater import Crater
+from cratermaker.components.morphology import Morphology
+from cratermaker.components.production import Production
+from cratermaker.components.projectile import Projectile
+from cratermaker.components.scaling import Scaling
+from cratermaker.components.surface import LocalSurface, Surface
+from cratermaker.components.target import Target
+from cratermaker.core.simulation import Simulation
+from cratermaker.utils.general_utils import cleanup
 
-_COMPONENT_NAMES = ["counting", "morphology", "production", "projectile", "scaling", "surface", "target"]
+_COMPONENT_NAMES = ["crater", "counting", "morphology", "production", "projectile", "scaling", "surface", "target"]
 
-__all__ = ["Crater", "Simulation", "__version__", "_COMPONENT_NAMES"] + [n.capitalize() for n in _COMPONENT_NAMES]
+__all__ = ["Simulation", "__version__"] + [n.capitalize() for n in _COMPONENT_NAMES]
 
 
 # This will suppress the warning issued by xarray starting in version 2023.12.0 about the change in the API regarding .dims

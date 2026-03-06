@@ -13,10 +13,10 @@ from cratermaker.components.crater import Crater
 from cratermaker.components.surface import LocalSurface, Surface
 
 
-@Counting.register("minton2019")
-class Minton2019Counting(Counting):
+@Counting.register("simplecount")
+class SimpleCount(Counting):
     """
-    Minton 2019 crater counting model.
+    A basic crater counting model that uses depth-to-diameter values to estimate degradation states of craters for counting.
 
     Parameters
     ----------
@@ -28,11 +28,11 @@ class Minton2019Counting(Counting):
 
     def __init__(self, surface, **kwargs: Any):
         super().__init__(surface=surface, **kwargs)
-        self._component_name = "minton2019"
+        self._component_name = "simplecount"
 
     def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> float:
         """
-        Measure the degradation state of a crater by measuring its depth-to-diameter ratio and using eq. 9 from Minton et al. (2019) [#]_ with a correction factor for complex craters from Riedel et al. (2020) [#]_.
+        Measure the degradation state of a crater by using a variation of the depth-to-diameter relationship from Minton et al. (2019) [#]_ and Riedel et al. (2020) [#]_.
 
         Parameters
         ----------
@@ -44,7 +44,7 @@ class Minton2019Counting(Counting):
         Returns
         -------
         float
-           The estimated degradation state of the crater in m**2. The crater object will also have its degradation state value updated in place
+           The estimated degradation state of the crater in m². The crater object will also have its degradation state value updated in place
 
         References
         ----------
@@ -55,22 +55,23 @@ class Minton2019Counting(Counting):
         """
         from cratermaker.constants import _VSMALL
 
-        a = 0.07
-        b = 0.15
+        # Recalibrated parameters based on Cratermaker's depth/diam calculations
+        a = 0.13984926122036828
         diam_correction = 20e3  # depth/diameter correction transition diameter from Riedel et al. (2020)
         correction_factor = 2.0e-7
-        depth = crater.measured_rim_height - crater.measured_floor_depth
-        depth_diam = depth / crater.measured_diameter
-        if depth_diam < _VSMALL:
-            depth_diam = _VSMALL
-        if crater.measured_diameter > diam_correction:
-            depth_diam += (crater.measured_diameter - diam_correction) * correction_factor
-        K = (a / np.sqrt(depth_diam) - b) * crater.measured_radius**2
+        if crater.measured_depth_to_diameter is None:
+            return 0.0
+        depth_over_depth_orig = crater.measured_depth_to_diameter / crater.depth_to_diameter
+        if depth_over_depth_orig < _VSMALL:
+            depth_over_depth_orig = _VSMALL
+        # if crater.measured_diameter > diam_correction:
+        #     depth_over_depth_orig += (crater.measured_diameter - diam_correction) * correction_factor
+        K = a * (1.0 / np.sqrt(depth_over_depth_orig) - 1.0) * crater.measured_radius**2
         crater.degradation_state = K
 
         return K
 
-    def visibility_function(self, crater: Crater, Kv1: float = 0.17, gamma: float = 2.0, **kwargs: Any) -> float:
+    def visibility_function(self, crater: Crater, Kv1: float = 0.30, gamma: float = 2.0, **kwargs: Any) -> float:
         """
         Calculate the visibility function for a crater using eq. 7 from Minton et al. (2019) [#]_.
 
@@ -79,16 +80,16 @@ class Minton2019Counting(Counting):
         crater : Crater
             The crater to calculate the visibility function for.
         Kv1: float
-            The visibility function parameter Kv1 from Minton et al. (2019).
+            The visibility function parameter Kv1 from Minton et al. (2019). Default value is 0.30 based on recalibration with Cratermaker.
         gamma: float
-            The visibility function parameter gamma from Minton et al. (2019).
+            The visibility function parameter gamma from Minton et al. (2019). Default value is 2.0.
         **kwargs : Any
             |kwargs|
 
         Returns
         -------
         float
-            The visibility function value for the crater.
+            The visibility function value for the crater in units of m².
 
         References
         ----------

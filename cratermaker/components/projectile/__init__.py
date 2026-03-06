@@ -74,7 +74,7 @@ class Projectile(ComponentBase):
         velocity : float | None
             The impact velocity in m/s. If `sample` is True, this value is ignored. If `sample` is False, this value is required.
         density : float, optional
-            The density of the projectile in kg/m^3.
+            The density of the projectile in kg/m³.
         angle : float, optional
             The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
         direction : float | None
@@ -190,7 +190,7 @@ class Projectile(ComponentBase):
         mean_velocity : float
             The mean velocity of the projectile in m/s.
         density : float
-            The density of the projectile in kg/m^3.
+            The density of the projectile in kg/m³.
         sample : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
@@ -379,13 +379,7 @@ class Projectile(ComponentBase):
 
     @property
     def angle(self):
-        """
-        The impact angle in degrees.
-
-        Returns
-        -------
-        float
-        """
+        """The impact angle relative to horizontal in degrees."""
         return self._angle
 
     @angle.setter
@@ -400,13 +394,7 @@ class Projectile(ComponentBase):
 
     @property
     def direction(self):
-        """
-        The impact direction in degrees.
-
-        Returns
-        -------
-        float
-        """
+        """The impact direction measured clockwise from North in degrees."""
         return self._direction
 
     @direction.setter
@@ -421,14 +409,7 @@ class Projectile(ComponentBase):
 
     @property
     def location(self) -> tuple[float, float]:
-        """
-        The location of the projectile on the target body.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the (lon,lat) coordinates of the projectile in degrees.
-        """
+        """The location of the projectile (longitude, latitude) in degrees on the target body."""
         return self._location
 
     @location.setter
@@ -437,13 +418,7 @@ class Projectile(ComponentBase):
 
     @property
     def velocity(self):
-        """
-        The impact velocity in m/s.
-
-        Returns
-        -------
-        float
-        """
+        """The impact velocity in m/s."""
         return self._velocity
 
     @velocity.setter
@@ -460,32 +435,11 @@ class Projectile(ComponentBase):
 
     @parameter
     def density(self):
-        """
-        The density of the projectile in kg/m^3.
-
-        Returns
-        -------
-        float
-        """
+        """The bulk density of the projectile in kg/m³."""
         return self._density
 
     @density.setter
     def density(self, value):
-        """
-        Sets the density of the projectile in kg/m^3.
-
-        Parameters
-        ----------
-        value : float | None
-            The density in kg/m^3 or None to use a default value.
-
-        Raises
-        ------
-        ValueError
-            If the provided value is negative or None.
-        TypeError
-            If the provided value is not a numeric value or None.
-        """
         if not isinstance(value, FloatLike):
             raise TypeError("density must be a numeric value")
         if value < 0:
@@ -494,35 +448,17 @@ class Projectile(ComponentBase):
 
     @property
     def vertical_velocity(self):
-        """
-        The vertical component of the impact velocity in m/s.
-
-        Returns
-        -------
-        float
-        """
+        """The vertical component of the impact velocity in m/s."""
         return self.velocity * math.sin(math.radians(self.angle))
 
     @property
     def population(self):
-        """
-        The name of the population of the projectile model.
-
-        Returns
-        -------
-        int
-        """
+        """The name of the population of the projectile model."""
         return self._component_name
 
     @property
     def target(self):
-        """
-        The target object for the projectile model.
-
-        Returns
-        -------
-        Target
-        """
+        """The Target object associated with theprojectile model."""
         return self._target
 
     @target.setter
@@ -533,6 +469,7 @@ class Projectile(ComponentBase):
 
     @property
     def catalogue(self) -> str:
+        """A string representation of the projectile catalogue for the target body."""
         from cratermaker.utils.general_utils import format_large_units
 
         if self.__class__._catalogue is None:
