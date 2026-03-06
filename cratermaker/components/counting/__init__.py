@@ -18,6 +18,7 @@ from vtk import vtkPolyData
 
 from cratermaker import __version__ as cratermaker_version
 from cratermaker.components.crater import Crater
+from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 
@@ -25,7 +26,6 @@ DRIVER_TO_EXTENSION_MAP = {"NETCDF": "nc", "SCC": "scc", "VTK": "vtp", "VTP": "v
 
 
 if TYPE_CHECKING:
-    from cratermaker.components.morphology import Morphology, MorphologyCrater
     from cratermaker.components.surface import LocalSurface, Surface
 
 _TALLY_LONG_NAME = "Unique crater identification number"
@@ -185,8 +185,6 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
-        from cratermaker.components.crater.morphologycrater import MorphologyCrater
-
         if not isinstance(crater, MorphologyCrater):
             raise TypeError("crater must be an instance of MorphologyCrater")
 

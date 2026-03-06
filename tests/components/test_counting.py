@@ -63,7 +63,7 @@ class TestCounting(unittest.TestCase):
 
     def test_crater_type(self):
         # Tests that the associated Crater type is correct for the morphology model
-        from cratermaker.components.crater.morphologycrater import MorphologyCrater
+        from cratermaker.components.morphology import MorphologyCrater
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             # Create a lightweight Surface for the Counting object
