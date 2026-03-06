@@ -15,10 +15,9 @@ import uxarray as uxr
 import xarray as xr
 from cratermaker._cratermaker import surface_bindings
 from matplotlib.axes import Axes
-from matplotlib.image import AxesImage
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
-from scipy.optimize import OptimizeWarning, curve_fit
+from scipy.optimize import OptimizeWarning
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
@@ -2695,7 +2694,7 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             |kwargs|
         """
-        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+        from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP
 
         # Temporarily set the ask_overwrite attribute for the duration of the export, but reset it to its original value afterwards.
         ask_overwrite_orig = self.ask_overwrite
@@ -2714,7 +2713,7 @@ class LocalSurface(CratermakerBase):
                 interval=interval,
                 **kwargs,
             )
-        elif driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
+        elif driver.upper() in VECTOR_DRIVER_TO_EXTENSION_MAP:
             self.to_vector_file(
                 driver=driver,
                 interval=interval,
@@ -2746,7 +2745,7 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             |kwargs|
         """
-        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+        from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP
         from cratermaker.utils.general_utils import get_saved_interval_numbers
 
         def _write_dataset(uxds, filename, layer_name, driver, **kwargs):
@@ -2804,8 +2803,8 @@ class LocalSurface(CratermakerBase):
         if driver.upper() == "SHP":
             driver = "ESRI Shapefile"
 
-        if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
-            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
+        if driver.upper() in VECTOR_DRIVER_TO_EXTENSION_MAP:
+            file_extension = VECTOR_DRIVER_TO_EXTENSION_MAP[driver.upper()]
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
@@ -3592,10 +3591,10 @@ class LocalSurface(CratermakerBase):
         import pandas as pd
 
         from cratermaker.components.crater import Crater
-        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+        from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP
 
-        if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
-            file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
+        if driver.upper() in VECTOR_DRIVER_TO_EXTENSION_MAP:
+            file_extension = VECTOR_DRIVER_TO_EXTENSION_MAP[driver.upper()]
         else:
             raise ValueError("Cannot infer file extension from driver {driver}.")
 

@@ -31,11 +31,6 @@ Available Implementations
    :undoc-members:
    :no-index-entry:
 
-.. autoclass:: cratermaker.components.morphology.CraterQueueManager
-   :members:
-   :undoc-members:
-   :no-index-entry:
-
 
 .. currentmodule:: cratermaker.components.morphology.simplemoon
 

@@ -32,7 +32,7 @@ class SimpleCount(Counting):
 
     def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> float:
         """
-        Measure the degradation state of a crater by measuring its depth-to-diameter ratio and using eq. 9 from Minton et al. (2019) [#]_ with a correction factor for complex craters from Riedel et al. (2020) [#]_.
+        Measure the degradation state of a crater by using a variation of the depth-to-diameter relationship from Minton et al. (2019) [#]_ and Riedel et al. (2020) [#]_.
 
         Parameters
         ----------
@@ -44,7 +44,7 @@ class SimpleCount(Counting):
         Returns
         -------
         float
-           The estimated degradation state of the crater in m**2. The crater object will also have its degradation state value updated in place
+           The estimated degradation state of the crater in m². The crater object will also have its degradation state value updated in place
 
         References
         ----------
@@ -56,23 +56,22 @@ class SimpleCount(Counting):
         from cratermaker.constants import _VSMALL
 
         # Recalibrated parameters based on Cratermaker's depth/diam calculations
-        a = 0.148594703440242
-        b = 0.23568002443030067
+        a = 0.13984926122036828
         diam_correction = 20e3  # depth/diameter correction transition diameter from Riedel et al. (2020)
         correction_factor = 2.0e-7
-        depth_diam = crater.measured_depth_to_diameter
-        if depth_diam is None:
+        if crater.measured_depth_to_diameter is None:
             return 0.0
-        if depth_diam < _VSMALL:
-            depth_diam = _VSMALL
-        if crater.measured_diameter > diam_correction:
-            depth_diam += (crater.measured_diameter - diam_correction) * correction_factor
-        K = (a / (depth_diam) ** (1.0 / 3.0) - b) * crater.measured_radius**2
+        depth_over_depth_orig = crater.measured_depth_to_diameter / crater.depth_to_diameter
+        if depth_over_depth_orig < _VSMALL:
+            depth_over_depth_orig = _VSMALL
+        # if crater.measured_diameter > diam_correction:
+        #     depth_over_depth_orig += (crater.measured_diameter - diam_correction) * correction_factor
+        K = a * (1.0 / np.sqrt(depth_over_depth_orig) - 1.0) * crater.measured_radius**2
         crater.degradation_state = K
 
         return K
 
-    def visibility_function(self, crater: Crater, Kv1: float = 0.1813, gamma: float = 2.0, **kwargs: Any) -> float:
+    def visibility_function(self, crater: Crater, Kv1: float = 0.30, gamma: float = 2.0, **kwargs: Any) -> float:
         """
         Calculate the visibility function for a crater using eq. 7 from Minton et al. (2019) [#]_.
 
@@ -81,7 +80,7 @@ class SimpleCount(Counting):
         crater : Crater
             The crater to calculate the visibility function for.
         Kv1: float
-            The visibility function parameter Kv1 from Minton et al. (2019). Default value is 0.1813, which is updated based on Cratermaker's depth/diam calculations.
+            The visibility function parameter Kv1 from Minton et al. (2019). Default value is 0.30 based on recalibration with Cratermaker.
         gamma: float
             The visibility function parameter gamma from Minton et al. (2019). Default value is 2.0.
         **kwargs : Any

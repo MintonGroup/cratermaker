@@ -11,7 +11,7 @@ import warnings
 from cratermaker._version import version as __version__
 from cratermaker.components.counting import Counting
 from cratermaker.components.crater import Crater
-from cratermaker.components.morphology import Morphology, MorphologyCrater
+from cratermaker.components.morphology import Morphology
 from cratermaker.components.production import Production
 from cratermaker.components.projectile import Projectile
 from cratermaker.components.scaling import Scaling

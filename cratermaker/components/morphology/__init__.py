@@ -1,21 +1,33 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from collections.abc import Callable
-from dataclasses import dataclass
-from math import pi
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from cratermaker._cratermaker import counting_bindings
-from numpy.typing import NDArray
-from scipy.integrate import quad
-from tqdm import tqdm
 
 from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
-from cratermaker.constants import FloatLike, PairOfFloats
+from cratermaker.constants import PairOfFloats
+from cratermaker.utils.general_utils import format_large_units
+
+if TYPE_CHECKING:
+    from cratermaker.components.morphology import Morphology
+    from cratermaker.components.surface import LocalSurface
+
+# The factor by which the crater tagging region is extended beyond the final rim.
+_RIM_BUFFER_FACTOR = 1.5
+
+
+from abc import abstractmethod
+from collections.abc import Callable
+from math import pi
+from typing import TYPE_CHECKING
+
+from numpy.typing import NDArray
+from tqdm import tqdm
+
+from cratermaker.constants import FloatLike
 from cratermaker.core.base import ComponentBase, import_components
-from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
+from cratermaker.utils.general_utils import parameter
 
 if TYPE_CHECKING:
     from cratermaker.components.counting import Counting
@@ -23,12 +35,9 @@ if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
 
-# The factor by which the crater tagging region is extended beyond the final rim.
-_RIM_BUFFER_FACTOR = 1.5
-
-
 class MorphologyCraterVariable(CraterVariable):
     def __init__(self, morphology: Morphology | None = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         object.__setattr__(self, "_morphology", morphology)
         object.__setattr__(self, "_ejecta_region", None)
         object.__setattr__(self, "_crater_region", None)
@@ -37,7 +46,7 @@ class MorphologyCraterVariable(CraterVariable):
         object.__setattr__(self, "_affected_node_indices", None)
         object.__setattr__(self, "_ejecta_rmax", None)
         object.__setattr__(self, "_emplaceable", None)
-        super().__init__(**kwargs)
+        object.__setattr__(self, "_Crater", None)
         return
 
     def as_dict(self) -> dict:
@@ -154,8 +163,10 @@ class MorphologyCrater(Crater):
         check_redundant_inputs : bool, optional
             If True, check for redundant inputs such as providing both diameter and radius. Default is True.
         kwargs : Any
-            The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+            The keyword arguments provided are passed down to :py:meth:`MorphologyCrater.maker() <cratermaker.components.morphology.MorphologyCrater.maker>`.  Refer to its documentation for a detailed description of valid keyword arguments.
         """
+        from cratermaker.components.morphology import Morphology
+
         morphology = Morphology.maker(morphology, **kwargs)
         if relative_location is not None:
             if location is not None and check_redundant_inputs:
@@ -377,6 +388,7 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_counting", None)
         object.__setattr__(self, "_do_counting", None)
         object.__setattr__(self, "_excavated_volume", None)
+        object.__setattr__(self, "_Crater", None)
 
         # Because a Surface object is associated with a Counting object, we should first check to see if we are receiving a Counting object first so that we don't end up creating a spurious Surface object that we don't want.
         if surface is None and isinstance(counting, Counting):
@@ -623,7 +635,7 @@ class Morphology(ComponentBase):
         """
         Initialize the crater queue manager with a surface-dependent overlap function.
         """
-        self._queue_manager = CraterQueueManager(self.overlap_function)
+        self._queue_manager = self.CraterQueueManager(self.overlap_function)
 
     def _enqueue_crater(
         self,
@@ -760,7 +772,7 @@ class Morphology(ComponentBase):
             self._surface = Surface.maker(surface)
         else:
             raise TypeError("surface must be an instance of Surface, a string, or None")
-        self._queue_manager: CraterQueueManager | None = None
+        self._queue_manager: self.CraterQueueManager | None = None
 
     @property
     def production(self) -> Production:
@@ -836,90 +848,90 @@ class Morphology(ComponentBase):
             raise TypeError("do_counting must be a boolean value")
         self._do_counting = value
 
-    @property
-    def Crater(self) -> type[Crater]:
-        """The Crater class used for this counting component, which is determined by the morphology component."""
-        return MorphologyCrater
+    class Crater(MorphologyCrater):
+        def __init__(self, crater: Crater | None = None, **kwargs):
+            kwargs["morphology"] = self
+            super().__init__(crater=crater)
+            return
 
-
-class CraterQueueManager:
-    """
-    A manager for craters awaiting emplacement. Craters are processed in order (FIFO) but batches of non-overlapping craters can be processed simultaneously.
-
-    Parameters
-    ----------
-    overlap_fn : Callable[[Crater], tuple[set[int], set[int]]]
-        A function that takes a crater and returns a tuple of (node indices, face indices) affected.
-    """
-
-    def __init__(self, overlap_fn: Callable[[Crater], tuple[set[int], set[int]]]):
-        self._queue: list[Crater] = []
-        self._overlap_fn = overlap_fn
-
-    def push(self, crater: Crater) -> None:
+    class CraterQueueManager:
         """
-        Add a crater to the end of the queue.
+        A manager for craters awaiting emplacement. Craters are processed in order (FIFO) but batches of non-overlapping craters can be processed simultaneously.
 
         Parameters
         ----------
-        crater : Crater
-            The crater to be added to the queue.
-
-        Raises
-        ------
-        TypeError
-            If the provided crater is not an instance of Crater.
+        overlap_fn : Callable[[Crater], tuple[set[int], set[int]]]
+            A function that takes a crater and returns a tuple of (node indices, face indices) affected.
         """
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-        self._queue.append(crater)
-        return
 
-    def peek_next_batch(self) -> list[Crater]:
-        """
-        Return a list of the next batch of craters that do not overlap with each other or the current active region.
+        def __init__(self, overlap_fn: Callable[[Crater], tuple[set[int], set[int]]]):
+            self._queue: list[Crater] = []
+            self._overlap_fn = overlap_fn
 
-        Returns
-        -------
-        list of Crater
-            The next batch of craters that can be processed simultaneously without overlap.
-        """
-        batch = []
-        reserved_nodes = set()
-        reserved_faces = set()
-        for crater in self._queue:
-            node_indices, face_indices = self._overlap_fn(crater)
-            if reserved_nodes.isdisjoint(node_indices) and reserved_faces.isdisjoint(face_indices):
-                batch.append(crater)
-                reserved_nodes.update(node_indices)
-                reserved_faces.update(face_indices)
-            else:
-                break
-        return batch
+        def push(self, crater: Crater) -> None:
+            """
+            Add a crater to the end of the queue.
 
-    def pop_batch(self, batch: list[Crater]) -> None:
-        """
-        Remove a processed batch of craters from the queue.
+            Parameters
+            ----------
+            crater : Crater
+                The crater to be added to the queue.
 
-        Parameters
-        ----------
-        batch : list of Crater
-            The batch of craters to be removed from the queue.
+            Raises
+            ------
+            TypeError
+                If the provided crater is not an instance of Crater.
+            """
+            if not isinstance(crater, Crater):
+                raise TypeError("crater must be an instance of Crater")
+            self._queue.append(crater)
+            return
 
-        Raises
-        ------
-        ValueError
-            If any crater in the batch is not found in the queue.
-        """
-        for crater in batch:
-            self._queue.remove(crater)
-            crater.remove_complex_data()
-        return
+        def peek_next_batch(self) -> list[Crater]:
+            """
+            Return a list of the next batch of craters that do not overlap with each other or the current active region.
 
-    @property
-    def is_empty(self) -> bool:
-        """Return True if the queue is empty, False otherwise."""
-        return len(self._queue) == 0
+            Returns
+            -------
+            list of Crater
+                The next batch of craters that can be processed simultaneously without overlap.
+            """
+            batch = []
+            reserved_nodes = set()
+            reserved_faces = set()
+            for crater in self._queue:
+                node_indices, face_indices = self._overlap_fn(crater)
+                if reserved_nodes.isdisjoint(node_indices) and reserved_faces.isdisjoint(face_indices):
+                    batch.append(crater)
+                    reserved_nodes.update(node_indices)
+                    reserved_faces.update(face_indices)
+                else:
+                    break
+            return batch
+
+        def pop_batch(self, batch: list[Crater]) -> None:
+            """
+            Remove a processed batch of craters from the queue.
+
+            Parameters
+            ----------
+            batch : list of Crater
+                The batch of craters to be removed from the queue.
+
+            Raises
+            ------
+            ValueError
+                If any crater in the batch is not found in the queue.
+            """
+            for crater in batch:
+                self._queue.remove(crater)
+                crater.remove_complex_data()
+            return
+
+        @property
+        def is_empty(self) -> bool:
+            """Return True if the queue is empty, False otherwise."""
+            return len(self._queue) == 0
 
 
 import_components(__name__, __path__)
