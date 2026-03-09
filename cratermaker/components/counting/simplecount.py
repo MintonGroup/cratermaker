@@ -32,7 +32,7 @@ class SimpleCount(Counting):
 
     def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> float:
         """
-        Measure the degradation state of a crater by using a variation of the depth-to-diameter relationship from Minton et al. (2019) [#]_ and Riedel et al. (2020) [#]_.
+        Measure the degradation state of a crater by using a variation of the depth-to-diameter proxy for degradation state from Minton et al. (2019) [#]_ and Riedel et al. (2020) [#]_.
 
         Parameters
         ----------
@@ -52,24 +52,50 @@ class SimpleCount(Counting):
         .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. https://doi.org/10.1029/2019JE006273
 
 
+        Notes
+        -----
+        The technique used here is a major improvement over the one used previously in CTEM. Rather than using the depth-to-diameter directly, it instead uses the ratio of the measured depth-to-diameter to the initial computed depth-to-diameter of the crater. Fitting functions for both simple and complex craters were developed using this metric.
         """
         from cratermaker.constants import _VSMALL
 
-        # Recalibrated parameters based on Cratermaker's depth/diam calculations
-        a = 0.13984926122036828
-        diam_correction = 20e3  # depth/diameter correction transition diameter from Riedel et al. (2020)
-        correction_factor = 2.0e-7
+        # A simplified transition diameter for the two morphology regimes. A more comprehensive study including other planetary bodies is needed to improve this
+        _DTR = 10.0e3
+
+        # The following are empirically-derived constants determined through numerical experiments
+        c0 = 0.2771649498066961
+        c1 = 0.1032775007149389
+        d_scale = 178.40182304735092
+        s0 = 0.11511000581387373
+        s1 = 0.017078961587273955
+        p0 = 2.0700104291102317
+        p1 = 0.0920770504148557
+
+        def a_vs_diameter(diameter):
+            if diameter < _DTR:
+                return s0 + s1 * np.log(diameter)
+            else:
+                dkm = diameter * 1e-3
+                dtrkm = _DTR * 1e-3
+                return c0 + c1 * (1.0 - np.exp((dtrkm - dkm) / d_scale))
+
+        def p_vs_diameter(diameter):
+            if diameter > _DTR:  # In the fit, we fixed the exponent p to be constant for complex craters
+                diameter = _DTR
+            return p0 + p1 * np.log(diameter)
+
+        def K_vs_depth_over_depth_orig(depth_over_depth_orig, a, p):
+            return a * (depth_over_depth_orig ** (-1 / p) - 1.0) * crater.measured_radius**2
+
         if crater.measured_depth_to_diameter is None:
             return 0.0
         depth_over_depth_orig = crater.measured_depth_to_diameter / crater.depth_to_diameter
         if depth_over_depth_orig < _VSMALL:
             depth_over_depth_orig = _VSMALL
-        # if crater.measured_diameter > diam_correction:
-        #     depth_over_depth_orig += (crater.measured_diameter - diam_correction) * correction_factor
-        K = a * (1.0 / np.sqrt(depth_over_depth_orig) - 1.0) * crater.measured_radius**2
-        crater.degradation_state = K
+        a = a_vs_diameter(crater.measured_diameter)
+        p = p_vs_diameter(crater.measured_diameter)
+        crater.degradation_state = K_vs_depth_over_depth_orig(depth_over_depth_orig, a, p)
 
-        return K
+        return crater.degradation_state
 
     def visibility_function(self, crater: Crater, Kv1: float = 0.30, gamma: float = 2.0, **kwargs: Any) -> float:
         """
