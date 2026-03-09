@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from cratermaker._cratermaker import morphology_bindings
@@ -13,10 +13,13 @@ from scipy.optimize import root_scalar
 from tqdm import tqdm
 
 from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
-from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterVariable
+from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
+
+if TYPE_CHECKING:
+    from cratermaker.components.surface import LocalSurface
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +90,8 @@ class SimpleMoonCrater(MorphologyCrater):
         kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
         """
+        from cratermaker.components.morphology import Morphology
+
         morphology = Morphology.maker(morphology, **kwargs)
         if crater is None:
             crater = super().maker(morphology=morphology, **kwargs)
@@ -752,9 +757,8 @@ class SimpleMoon(Morphology):
             raise TypeError("dorays must be of type bool")
         self._dorays = value
 
-    @property
-    def Crater(self) -> type[Crater]:
-        """
-        The Crater class used for this counting component, which is determined by the morphology component.
-        """
-        return SimpleMoonCrater
+    class Crater(SimpleMoonCrater):
+        def __init__(self, crater: Crater | None = None, **kwargs):
+            kwargs["morphology"] = self
+            super().__init__(crater=crater, **kwargs)
+            return

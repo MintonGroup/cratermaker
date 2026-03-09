@@ -21,7 +21,7 @@ _VSMALL = 10 * np.finfo(np.float64).tiny
 _LOGVSMALL = np.log10(_VSMALL)
 
 # Map of OGR drivers to file extensions
-EXPORT_DRIVER_TO_EXTENSION_MAP = {
+VECTOR_DRIVER_TO_EXTENSION_MAP = {
     "PCIDSK": "pix",
     "PDS4": "xml",
     "PDF": "pdf",

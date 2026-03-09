@@ -22,14 +22,13 @@ import cratermaker
 
 simdir = "simdata-1_4"
 
-# Note, that for these examples we use cratermaker's cleanup function to prepare a fresh directory for the example to run. This will
-# prevent prompts that will prevent these examples from running on their own when building the documentation pages. Alternatively,
-# passing ask_overwrite=False and reset=True to Simulation will also allow the example to run without requiring any prompts.
-cratermaker.cleanup(simdir)
+# Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
+# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 
 # Run a lunar simulation for 4 Gy and export the global surface to GeoPackage
-sim = cratermaker.Simulation(gridlevel=6, simdir=simdir)
+sim = cratermaker.Simulation(gridlevel=6, simdir=simdir, ask_overwrite=False, reset=True)
 sim.run(age=3000)
 sim.export(driver="GPKG", ask_overwrite=False)
 

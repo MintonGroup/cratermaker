@@ -9,9 +9,6 @@ body. The Simulation class is used to generate craters of a given size and morph
 function, and crater scaling relationship model. The surface of the target body is represented by a Surface attribute called
 `surface`, which contains a UxDataset object called `surface.uxds`. This is an unstructured grid dataset that contains data for the target body surface.
 
-Creating a Simulation
----------------------
-
 .. autoclass:: cratermaker.core.simulation.Simulation
    :members:
    :undoc-members:

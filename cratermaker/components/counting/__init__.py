@@ -5,27 +5,27 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
 from cratermaker._cratermaker import counting_bindings
 from geopandas import GeoSeries
 from matplotlib.axes import Axes
-from matplotlib.image import AxesImage
 from numpy.typing import ArrayLike
-from shapely.geometry import GeometryCollection
 from shapely.ops import transform
 from tqdm import tqdm
 from vtk import vtkPolyData
 
 from cratermaker import __version__ as cratermaker_version
 from cratermaker.components.crater import Crater
-from cratermaker.constants import FloatLike
+from cratermaker.components.morphology import Morphology, MorphologyCrater
+from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 
+DRIVER_TO_EXTENSION_MAP = {"NETCDF": "nc", "SCC": "scc", "VTK": "vtp", "VTP": "vtp", "CSV": "csv", **VECTOR_DRIVER_TO_EXTENSION_MAP}
+
+
 if TYPE_CHECKING:
-    from cratermaker.components.morphology import Morphology, MorphologyCrater
     from cratermaker.components.surface import LocalSurface, Surface
 
 _TALLY_LONG_NAME = "Unique crater identification number"
@@ -33,8 +33,8 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
 _N_LAYER = 8
 
-# The minimum number of faces required in a region to perform crater counting, which corresponds to a roughly 3 pix diameter crater
-_MIN_FACE_FOR_COUNTING = 30
+# The minimum number of faces required in a region to perform crater counting, which corresponds to a roughly 6-8 pix diameter crater
+_MIN_FACE_FOR_COUNTING = 100
 
 
 class Counting(ComponentBase):
@@ -77,6 +77,11 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_Crater", None)
         object.__setattr__(self, "_surface", None)
         object.__setattr__(self, "_morphology", None)
+        object.__setattr__(
+            self,
+            "_driver_to_extension_map",
+            {"SCC": "scc", "VTK": "vtk", "VTP": "vtp", "CSV": "csv", **VECTOR_DRIVER_TO_EXTENSION_MAP},
+        )
         self._surface = Surface.maker(surface, reset=reset, **kwargs)
         self.Crater = Crater
         self._output_file_pattern += [
@@ -180,9 +185,6 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
-        from cratermaker.components.morphology import MorphologyCrater
-        from cratermaker.components.surface import LocalSurface
-
         if not isinstance(crater, MorphologyCrater):
             raise TypeError("crater must be an instance of MorphologyCrater")
 
@@ -448,7 +450,6 @@ class Counting(ComponentBase):
         craters: dict[int, Crater] | list[Crater],
         filename: Path | str,
         interval: int = 0,
-        merge_with_existing: bool = False,
     ) -> xr.Dataset | None:
         """
         Merge a list or dictionary of Crater objects with an existing file.
@@ -461,8 +462,6 @@ class Counting(ComponentBase):
             The path to the file to merge with.
         interval : int, optional
             The interval number. This is added to the coordinates of the dataset created from the craters before merging with the file. Default is 0.
-        merged_with_existing : bool, optional
-            If True, merge with any existing files. Otherwise, overwrite any existing files. Default is False.
 
         Returns
         -------
@@ -475,42 +474,72 @@ class Counting(ComponentBase):
 
         # If the file already exists, read it and merge
         if filename.exists():
-            if merge_with_existing:
-                with xr.open_dataset(filename) as ds:
-                    combined_data = xr.merge([combined_data, ds], compat="no_conflicts", join="outer")
-            else:
-                filename.unlink()
+            filename.unlink()
 
         # Write merged data back to file
         if combined_data:
             combined_data.to_netcdf(filename)
         return combined_data
 
-    def save(self, interval: int = 0, merge_with_existing: bool = False, **kwargs: Any) -> None:
+    def save(
+        self,
+        crater_type: Literal["observed", "emplaced", "both"] = "both",
+        interval: int = 0,
+        craters: list[Crater] | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Dump the crater lists to a file and reset the emplaced crater list.
 
         Parameters
         ----------
+        crater_type : str, optional
+            The type of craters to export. Options are "observed", "emplaced", and "both". Default is "observed".
         interval : int, default=0
             The interval number for the output file naming.
-        merge_with_existing : bool, optional
-            If True, merge with any existing files. Otherwise, overwrite any existing files. Default is False.
+        craters: list[Crater] | None, optional
+            An arbitrary list of craters to save. If None, then the current observed and/or emplaced tallies are used. Default is None.
         **kwargs : Any
             |kwargs|
         """
-        self.remove_complex_data()
-        for craters, name in zip([self.observed, self.emplaced], ["observed", "emplaced"], strict=True):
+        if craters is None:
+            self.remove_complex_data()
+            observed = self.observed
+            emplaced = self.emplaced
+        else:
+            if crater_type == "both":
+                raise ValueError(
+                    "If supplying a custom list of craters to save, then crater_type must be either 'observed' or 'emplaced', not 'both'."
+                )
+            elif crater_type == "observed":
+                observed = {crater.id: crater for crater in craters}
+                emplaced = None
+            elif crater_type == "emplaced":
+                observed = None
+                emplaced = craters
+
+        if crater_type == "observed":
+            iter = zip([observed], ["observed"], strict=True)
+        elif crater_type == "emplaced":
+            iter = zip([emplaced], ["emplaced"], strict=True)
+        elif crater_type == "both":
+            iter = zip([observed, emplaced], ["observed", "emplaced"], strict=True)
+        else:
+            raise ValueError(f"Invalid crater_type: {crater_type}. Must be one of 'observed', 'emplaced', or 'both'.")
+        for craters, name in iter:
             if craters:
                 filename = self.output_dir / f"{name}_{self.output_filename(interval)}"
-                self._to_file(craters, filename, interval, merge_with_existing)
+                self._to_file(craters, filename, interval)
         save_args = {"interval": interval, **kwargs}
         super().save(**save_args)
         return
 
+    def from_file(self, filename: str | Path, **kwargs: Any) -> None:
+        pass
+
     def export(
         self,
-        crater_type: Literal["observed", "emplaced", "both"] = "both",
+        crater_type: Literal["observed", "emplaced", "both"] = "observed",
         interval: int | None = None,
         driver: str = "SCC",
         ask_overwrite: bool | None = None,
@@ -522,17 +551,19 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : str, optional
-            The type of craters to export. Options are "observed", "emplaced", and "both". Default is "both".
+            The type of craters to export. Options are "observed", "emplaced", and "both". Default is "observed".
         interval : int | None, optional
             |interval_export|
-        driver : str, default='GPKG'
-            The file format to save. Supported formats are 'VTK', 'GPKG', 'ESRI Shapefile', 'CSV', 'SCC'.
+        driver : str, default='SCC'
+            The export driver used to save. The valid drivers are given by the `valid_drivers` attribute of this object.
         ask_overwrite : bool, optional
             |ask_overwrite_methods|
         **kwargs : Any
             |kwargs|
         """
-        from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+        # Check if the requested driver is a supported one for crater counts, and return silently if not.
+        if driver.upper() not in self.valid_drivers:
+            return
 
         # Temporarily set the ask_overwrite attribute for the duration of the export, but reset it to its original value afterwards.
         ask_overwrite_orig = self.ask_overwrite
@@ -557,7 +588,9 @@ class Counting(ComponentBase):
             else:
                 interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
-                if driver.upper() in ["VTK", "VTP"] and crater_ds is not None:
+                if driver.upper() == "NETCDF" and crater_ds is not None:
+                    self.save(crater_type=name, interval=interval, craters=self.from_xarray(crater_ds, interval=interval), **kwargs)
+                elif driver.upper() in ["VTK", "VTP"] and crater_ds is not None:
                     self.to_vtk_file(
                         crater_ds=crater_ds,
                         interval=interval,
@@ -580,7 +613,7 @@ class Counting(ComponentBase):
                         name=name,
                         **kwargs,
                     )
-                elif driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP and crater_ds is not None:
+                elif driver.upper() in VECTOR_DRIVER_TO_EXTENSION_MAP and crater_ds is not None:
                     self.to_vector_file(
                         crater_ds=crater_ds,
                         interval=interval,
@@ -889,7 +922,7 @@ class Counting(ComponentBase):
         """
         return
         # TODO Fix this
-        # from cratermaker.constants import EXPORT_DRIVER_TO_EXTENSION_MAP
+        # from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP
 
         # crater_list = self._validate_export_args(name=name, interval=interval, crater_ds=crater_ds)
 
@@ -923,8 +956,8 @@ class Counting(ComponentBase):
         # # Common alias for Shapefile
         # if driver.upper() == "SHP":
         #     driver = "ESRI Shapefile"
-        # if driver.upper() in EXPORT_DRIVER_TO_EXTENSION_MAP:
-        #     file_extension = EXPORT_DRIVER_TO_EXTENSION_MAP[driver.upper()]
+        # if driver.upper() in VECTOR_DRIVER_TO_EXTENSION_MAP:
+        #     file_extension = VECTOR_DRIVER_TO_EXTENSION_MAP[driver.upper()]
         # else:
         #     raise ValueError("Cannot infer file extension from driver {driver}.")
 
@@ -1428,9 +1461,7 @@ class Counting(ComponentBase):
 
     @property
     def surface(self):
-        """
-        Surface mesh data for the simulation. Set during initialization.
-        """
+        """The Surface object associated with this Counting object."""
         return self._surface
 
     @surface.setter
@@ -1443,44 +1474,32 @@ class Counting(ComponentBase):
 
     @property
     def n_layer(self) -> int:
-        """
-        Number of layers in the counting model.
-        """
+        """Number of layers in the counting model."""
         return _N_LAYER
 
     @property
     def observed(self) -> dict[int, Crater]:
-        """
-        Dictionary of observed craters on the surface keyed to the crater id.
-        """
+        """Dictionary of observed craters on the surface keyed to the crater id."""
         return self._observed
 
     @property
     def emplaced(self) -> list[Crater]:
-        """
-        List of craters that have been emplaced in the simulation in the current interval in chronological order.
-        """
+        """List of craters that have been emplaced in the simulation in the current interval in chronological order."""
         return self._emplaced
 
     @property
     def n_emplaced(self) -> int:
-        """
-        Number of craters that have been emplaced in the simulation in the current interval.
-        """
+        """Number of craters that have been emplaced in the simulation in the current interval."""
         return len(self._emplaced)
 
     @property
     def n_observed(self) -> int:
-        """
-        Number of craters that have been observed on the surface in the current interval.
-        """
+        """Number of craters that have been observed on the surface in the current interval."""
         return len(self._observed)
 
     @property
     def Crater(self) -> type[Crater]:
-        """
-        The Crater class used for this counting component, which is determined by the morphology component.
-        """
+        """The Crater class used for this counting component, which is determined by the morphology component."""
         if self._Crater is None:
             return Crater
         return self._Crater
@@ -1495,9 +1514,7 @@ class Counting(ComponentBase):
 
     @property
     def morphology(self) -> Morphology:
-        """
-        The morphology component used for this counting component, which determines the Crater class and the crater properties that are tracked in the simulation.
-        """
+        """The morphology component associated with this counting component, which determines the Crater class and the crater properties that are tracked in the simulation."""
         return self._morphology
 
     @morphology.setter

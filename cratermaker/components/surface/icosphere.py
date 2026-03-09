@@ -37,12 +37,14 @@ class IcosphereSurface(Surface):
     The number of faces of the icosphere is given by the formula:
 
     .. math::
-        n_face = 10 * 4^{gridlevel} + 2
+
+        n_{face} = 10 * 4^{gridlevel} + 2
 
     The number of nodes is given by the formula:
 
     .. math::
-        n_node = 20 * 4^{gridlevel}
+
+        n_{node} = 20 * 4^{gridlevel}
     """
 
     def __init__(
@@ -89,6 +91,7 @@ class IcosphereSurface(Surface):
 
     @parameter
     def gridlevel(self) -> int:
+        """The subdivision level of the icosphere."""
         return self._gridlevel
 
     @gridlevel.setter
@@ -99,9 +102,7 @@ class IcosphereSurface(Surface):
 
     @property
     def pix(self) -> float:
-        """
-        The approximate face size for a cell of the mesh.
-        """
+        """The approximate face size for a cell of the mesh in meters."""
         if self._pix is None:
             nfaces = 10 * 4**self.gridlevel + 2
             self._pix = (4 * math.pi * self.radius**2 / nfaces) ** 0.5

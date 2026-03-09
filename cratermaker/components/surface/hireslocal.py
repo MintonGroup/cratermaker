@@ -1032,16 +1032,12 @@ class LocalHiResLocalSurface(LocalSurface):
 
     @property
     def local_grid_indices_file(self) -> Path:
-        """
-        The path to the local grid file.
-        """
+        """The path to the local grid file."""
         return self.surface.local_grid_indices_file
 
     @property
     def local_overlap(self) -> LocalSurface | None:
-        """
-        Returns a LocalSurface object that contains the overlap between this object and the high resolution local region of the surface. Returns None if there is no overlap.
-        """
+        """A LocalSurface object that contains the overlap between this object and the high resolution local region of the surface, or None if there is no overlap."""
         if self._local_overlap is None:
             if self.surface.local is None:
                 return None
@@ -1091,27 +1087,21 @@ class LocalHiResLocalSurface(LocalSurface):
 
     @property
     def edge_mask(self) -> NDArray[np.bool] | None:
-        """
-        A boolean indicating which edge indices overlap with the local region.
-        """
+        """A boolean indicating which edge indices overlap with the local region."""
         if self._edge_mask is None:
             _ = self.local_overlap
         return self._edge_mask
 
     @property
     def face_mask(self) -> NDArray[np.bool] | None:
-        """
-        A boolean indicating which face indices overlap with the local region.
-        """
+        """A boolean indicating which face indices overlap with the local region."""
         if self._face_mask is None:
             _ = self.local_overlap
         return self._face_mask
 
     @property
     def node_mask(self) -> NDArray[np.bool] | None:
-        """
-        A boolean indicating which node indices overlap with the local region.
-        """
+        """A boolean indicating which node indices overlap with the local region."""
         if self._node_mask is None:
             _ = self.local_overlap
         return self._node_mask
