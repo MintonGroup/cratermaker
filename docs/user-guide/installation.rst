@@ -137,8 +137,8 @@ In the same virtual environment that you installed Cratermaker in, activate the 
 
 For more information, see the the `Import Hook <https://www.maturin.rs/import_hook.html>`__ section of the Maturin documentation.
 
-Common problems with source installation
-========================================
+Common problems 
+===============
 
 Here are a few things you can try if you have trouble installing the Cratermaker project from source.
 
