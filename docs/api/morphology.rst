@@ -13,7 +13,7 @@ Available Implementations
 +----------------------------------------------------------------------+----------------+---------------------------------------------+
 | Class                                                                | Argument name  | Example Usage                               |
 +======================================================================+================+=============================================+
-| :py:class:`~cratermaker.components.morphology.simplemoon.SimpleMoon` | "simplemoon"   | morphology = Morphology.maker("simplemoon") |
+| :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoon` | "basicmoon"   | morphology = Morphology.maker("basicmoon") |
 +----------------------------------------------------------------------+----------------+---------------------------------------------+
 
 .. autoclass:: cratermaker.components.morphology.Morphology
@@ -32,25 +32,25 @@ Available Implementations
    :no-index-entry:
 
 
-.. currentmodule:: cratermaker.components.morphology.simplemoon
+.. currentmodule:: cratermaker.components.morphology.basicmoon
 
 **********
-SimpleMoon
+BasicMoon
 **********
 
 See `Morphology`_ for inherited methods and attributes.
 
-.. autoclass:: cratermaker.components.morphology.simplemoon.SimpleMoon
+.. autoclass:: cratermaker.components.morphology.basicmoon.BasicMoon
    :members:
    :undoc-members:
    :no-index-entry:
 
-.. autoclass:: cratermaker.components.morphology.simplemoon.SimpleMoonCrater
+.. autoclass:: cratermaker.components.morphology.basicmoon.BasicMoonCrater
    :members:
    :undoc-members:
    :no-index-entry:
 
-.. autoclass:: cratermaker.components.morphology.simplemoon.SimpleMoonCraterFixed
+.. autoclass:: cratermaker.components.morphology.basicmoon.BasicMoonCraterFixed
    :members:
    :undoc-members:
    :no-index-entry:
@@ -62,4 +62,4 @@ Usage example
    :linenos:
 
     from cratermaker import Morphology
-    morphology = Morphology.maker("simplemoon")
+    morphology = Morphology.maker("basicmoon")

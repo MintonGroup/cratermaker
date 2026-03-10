@@ -1,7 +1,6 @@
-use pyo3::prelude::*;
+use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
-use numpy::{PyReadonlyArray1,PyArray1};
-
+use pyo3::prelude::*;
 
 /// Defines crater dimensions for surface modification computations.
 ///
@@ -11,20 +10,17 @@ pub struct Crater {
     pub diameter: f64,
 }
 
-
 /// Morphological parameters for generating and modifying lunar surface craters.
 ///
 /// Includes floor geometry, rim height, and whether to apply ray modulation.
 #[derive(FromPyObject)]
-pub struct SimpleMoonMorphology {
+pub struct BasicMoonMorphology {
     pub floor_depth: f64,
     pub floor_diameter: f64,
     pub rim_height: f64,
     pub ejrim: f64,
     pub crater: Crater,
 }
-
-
 
 /// Computes a crater profile elevation array from input radial distances and reference elevations.
 ///
@@ -61,21 +57,20 @@ pub fn crater_profile<'py>(
     rim_height: f64,
     ejrim: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let radial_distances_v= radial_distances.as_array();
-    let reference_elevations_v= reference_elevations.as_array();
-    let result =  cratermaker_components::morphology::crater_profile(
-                radial_distances_v,
-                reference_elevations_v,
-                diameter,
-                floor_depth,
-                floor_diameter,
-                rim_height,
-                ejrim
-            )
-            .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    Ok(PyArray1::from_owned_array(py, result))    
+    let radial_distances_v = radial_distances.as_array();
+    let reference_elevations_v = reference_elevations.as_array();
+    let result = cratermaker_components::morphology::crater_profile(
+        radial_distances_v,
+        reference_elevations_v,
+        diameter,
+        floor_depth,
+        floor_diameter,
+        rim_height,
+        ejrim,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray1::from_owned_array(py, result))
 }
-
 
 /// Computes only the radial ejecta profile without ray modulation.
 ///
@@ -99,15 +94,14 @@ pub fn ejecta_profile<'py>(
     ejrim: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distance_v = radial_distance.as_array();
-    let result =  cratermaker_components::morphology::ejecta_profile(
-                radial_distance_v,
-                crater_diameter,
-                ejrim
-            )
-            .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    Ok(PyArray1::from_owned_array(py, result))    
+    let result = cratermaker_components::morphology::ejecta_profile(
+        radial_distance_v,
+        crater_diameter,
+        ejrim,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray1::from_owned_array(py, result))
 }
-
 
 /// Computes a ray-modulated ejecta intensity field.
 ///
@@ -136,7 +130,7 @@ pub fn ray_intensity<'py>(
         initial_bearing_v,
         crater_diameter,
         seed,
-        )
-        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
 }

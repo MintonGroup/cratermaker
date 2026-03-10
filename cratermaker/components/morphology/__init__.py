@@ -153,7 +153,7 @@ class MorphologyCrater(Crater):
         Parameters
         ----------
         crater : Crater, optional
-            The crater object to be converted into a SimpleMoonCrater. If None, then a new crater is created using the provided parameters.
+            The crater object to be converted into a BasicMoonCrater. If None, then a new crater is created using the provided parameters.
         morphology : Morphology, optional
             The morphology model to use for generating morphology parameters.
         location : pair of floats, optional
@@ -445,7 +445,7 @@ class Morphology(ComponentBase):
         Parameters
         ----------
         morphology : str or Morphology or None
-            The name of the morphology model to use, or an instance of Morphology. If None, the default "simplemoon" is used.
+            The name of the morphology model to use, or an instance of Morphology. If None, the default "basicmoon" is used.
         surface : str or Surface, optional
             The name of a Surface object, or an instance of Surface, to be associated the morphology model.
         production : str or Production, optional
@@ -462,7 +462,7 @@ class Morphology(ComponentBase):
         Returns
         -------
         Morphology
-            An instance of the specified Morphology model (e.g. SimpleMoon).
+            An instance of the specified Morphology model (e.g. BasicMoon).
 
         Raises
         ------
@@ -473,7 +473,7 @@ class Morphology(ComponentBase):
         """
         # Call the base class version of make and pass the morphology argument as the component argument
         if morphology is None:
-            morphology = "simplemoon"
+            morphology = "basicmoon"
         morphology = super().maker(
             component=morphology,
             surface=surface,

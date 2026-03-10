@@ -25,7 +25,7 @@ class TestMorphology(unittest.TestCase):
 
     def test_model_registration(self):
         models = Morphology.available()
-        self.assertIn("simplemoon", models)
+        self.assertIn("basicmoon", models)
 
     def test_model_instantiation(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
@@ -71,7 +71,7 @@ class TestMorphology(unittest.TestCase):
                     )
 
     def test_crater_depth_surface(self):
-        from cratermaker.components.morphology.simplemoon import SimpleMoonCrater
+        from cratermaker.components.morphology.basicmoon import BasicMoonCrater
         # Tests that the surface elevations are expected
 
         diameter_list = [100e3, 200e3, 500e3, 1000e3]
@@ -120,7 +120,7 @@ class TestMorphology(unittest.TestCase):
                         msg=f"Failed for {name} with diameter {diameter}",
                     )
 
-                    crater = SimpleMoonCrater.maker(diameter=diameter, location=(0, 0), morphology=sim.morphology)
+                    crater = BasicMoonCrater.maker(diameter=diameter, location=(0, 0), morphology=sim.morphology)
                     sim.emplace(crater)
 
                     # Verify that the crater depth and rim heights are close to the expected values

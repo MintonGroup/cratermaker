@@ -4,7 +4,7 @@ import numpy as np
 from cratermaker import Crater, Morphology
 
 crater = Crater.maker(radius=1.0e3)
-morphology = Morphology.maker("simplemoon")
+morphology = Morphology.maker("basicmoon")
 
 rc = crater.radius
 rvals = np.linspace(0, 3.0 * rc, 1000)

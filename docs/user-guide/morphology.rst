@@ -20,12 +20,12 @@
 Morphology
 ==========
 
-The Morphology component is used to alter the topography of a :ref:`Surface <ug-surface>` object using a :ref:`Crater <ug-crater>` object. The available morphology models (currently only "simplemoon") determine how crater geometry and ejecta are emplaced. Like other components, a :py:class:`~cratermaker.components.morphology.Morphology` model is generated using the :py:meth:`Morphology.maker() <cratermaker.components.morphology.Morphology.maker>` method:
+The Morphology component is used to alter the topography of a :ref:`Surface <ug-surface>` object using a :ref:`Crater <ug-crater>` object. The available morphology models (currently only "basicmoon") determine how crater geometry and ejecta are emplaced. Like other components, a :py:class:`~cratermaker.components.morphology.Morphology` model is generated using the :py:meth:`Morphology.maker() <cratermaker.components.morphology.Morphology.maker>` method:
 
 .. ipython:: python
 
     from cratermaker import Morphology
-    morphology = Morphology.maker("simplemoon")
+    morphology = Morphology.maker("basicmoon")
     print(morphology)
 
 Crater Emplacement

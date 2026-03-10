@@ -44,7 +44,7 @@ class Simulation(CratermakerBase):
         body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or
         Earth, and a simple power law model otherwise.
     morphology : str, optional
-        The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
+        The model used to generate the morphology of the crater. If none provided, then the default will "basicmoon", which is similar to the one used by CTEM.
     projectile : str, optional
         The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise.
     surface : str, optional

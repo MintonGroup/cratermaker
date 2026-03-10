@@ -4,7 +4,7 @@ Plot the ray intensity map for a crater
 
 .. rubric:: By David Minton
 
-This example demonstrates how to create a ray intensity map for a crater using the "simplemoon" morphology model.
+This example demonstrates how to create a ray intensity map for a crater using the "basicmoon" morphology model.
 
 The ray intensity model simulates the spatial modulation of ejecta distribution in the form of rays, a feature observed around many planetary impact craters. These rays are modeled using a layered pattern of radially aligned Gaussian contributions, whose intensity decays with radial distance from the crater rim. The number and angular spread of rays vary stochastically to produce a realistic, azimuthally varying intensity field.
 
