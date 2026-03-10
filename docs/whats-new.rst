@@ -3,6 +3,20 @@
 What's New
 ==========
 
+.. _whats-new.2026.3.2-alpha:
+
+:release:`v2026.3.2-alpha`
+--------------------------
+
+- Major refactoring, fixes to plotting tools, and improved installation documentation. :pull:`91` `David Minton`_
+
+   - Refactored the names of components to remove the word "simple" when not referring to simple crater morphology to avoid terminology confusion. This is a major API-breaking change, so be forewarned. `SimpleMoon` is now `BasicMoon`. `SimpleCount` is now `DepthCount`. `Du2025` is now `RealisticMoon`.
+   - Global surface labels now have no line break by default and are placed above the main plot. 
+   - Turned off scalebar by default in the default Simulation save_action.
+   - Placed the plt.close() call after both show and save have been called so that the plot is active until the end.
+   - Restructured installation guide page to put dependency install instructions at the beginning.
+   
+
 .. _whats-new.2026.3.1-alpha:
 
 :release:`v2026.3.1-alpha`
