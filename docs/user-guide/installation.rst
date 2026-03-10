@@ -8,12 +8,57 @@ Getting Started with Cratermaker
 
 Cratermaker is designed to be both user-friendly and highly configurable, ensuring that users can start simulations quickly with reasonable defaults or tailor their simulations to specific needs. It is built to be highly modular, and so many of the core components of Cratermaker can be run independently, outside of its core landscape evolution simulation.
 
-Normal installation
-===================
-
 Cratermaker is a Python package that is designed to work with Python 3.10 or later on MacOS, Linux, and Windows. It contains some Rust components for performance. You may need to install Rust before installing Cratermaker. Installation instructions for your operating system can be found in `the Rust documentation <https://www.rust-lang.org/tools/install>`__. 
 
-The fitting tools in Cratermaker use OpenBLAS for linear algebra operations. On some systems, you may need to install OpenBLAS separately before installing Cratermaker. Installation instructions for your operating system can be found in `the OpenBLAS documentation <http://www.openmathlib.org/OpenBLAS/docs/install/>`__.  You may also need to install OpenSSL development libraries for your system.
+Install dependencies
+====================
+
+Some components of Cratermaker use OpenBLAS for linear algebra operations. On some systems, you may need to install OpenBLAS separately before installing Cratermaker. Installation instructions for your operating system can be found in `the OpenBLAS documentation <http://www.openmathlib.org/OpenBLAS/docs/install/>`__.  You may also need to install OpenSSL development libraries for your system.
+
+Cratermaker uses a number of packages which must be installed on the system before it can be built. If any are missing, they could cause a failure to build. Try one of the following, depending on what OS you are using:
+
+Debian Linux (e.g. Ubuntu)
+--------------------------
+
+.. code-block:: console
+
+    sudo apt-get update 
+    sudo apt-get install pkg-config libssl-dev libopenblas-dev
+
+Redhat Linux (e.g. Fedora) with yum
+-----------------------------------
+
+.. code-block:: console
+
+    yum install epel-release
+    yum install pkgconfig openssl-devel openblas-devel
+
+
+Redhat Linux (e.g. Fedora) with dnf
+-----------------------------------
+
+.. code-block:: console
+    
+   dnf install pkgconf-pkg-config openssl-devel flexiblas-devel 
+
+
+MacOS with Homebrew
+--------------------
+
+.. code-block:: console
+
+    brew install openssl@3 openblas
+
+
+Windows with vcpkg
+------------------
+
+.. code-block:: console
+
+    vcpkg install openblas intel-mkl --triplet x64-windows
+
+Normal Installation
+===================
 
 You can install Cratermaker using pip into the Python environment of your choice, provided it is at least Python 3.10 or above.
 
@@ -24,6 +69,7 @@ You can install Cratermaker using pip into the Python environment of your choice
 .. note::
 
     Cratermaker is undergoing active development, as it is still in alpha stage. You may need to update your installation frequently to get the latest features and bug fixes. You can do this using the following command:
+
     .. code-block:: console
 
         pip install --upgrade cratermaker
@@ -92,58 +138,13 @@ In the same virtual environment that you installed Cratermaker in, activate the 
 For more information, see the the `Import Hook <https://www.maturin.rs/import_hook.html>`__ section of the Maturin documentation.
 
 Common problems with source installation
-----------------------------------------
+========================================
 
 Here are a few things you can try if you have trouble installing the Cratermaker project from source.
 
-Install missing dependencies
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Cratermaker uses a number of packages which must be installed on the system before it can be built. If any are missing, they could cause a failure to build. Try one of the following, depending on what OS you are using:
-
-Debian Linux (e.g. Ubuntu)
-""""""""""""""""""""""""""
-
-.. code-block:: console
-
-    sudo apt-get update 
-    sudo apt-get install pkg-config libssl-dev libopenblas-dev
-
-Redhat Linux (e.g. Fedora) with yum
-"""""""""""""""""""""""""""""""""""
-
-.. code-block:: console
-
-    yum install epel-release
-    yum install pkgconfig openssl-devel openblas-devel
-
-
-Redhat Linux (e.g. Fedora) with dnf
-"""""""""""""""""""""""""""""""""""
-
-.. code-block:: console
-    
-   dnf install pkgconf-pkg-config openssl-devel flexiblas-devel 
-
-
-MacOS with Homebrew
-"""""""""""""""""""
-
-.. code-block:: console
-
-    brew install openssl@3 openblas
-
-
-Windows with vcpkg
-""""""""""""""""""
-
-.. code-block:: console
-
-    vcpkg install openblas intel-mkl --triplet x64-windows
-
 
 Make sure Rust is up-to-date
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+----------------------------
 
 Be sure your rust install is up-to-date 
 
@@ -160,7 +161,7 @@ If you see errors related to linalg functions, you may have an old and incompata
     cargo unlock
 
 Installing polars on legacy hardware
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------------------
 
 If you ever see an error like this::
 
