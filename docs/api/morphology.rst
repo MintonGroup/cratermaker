@@ -13,7 +13,7 @@ Available Implementations
 +----------------------------------------------------------------------+----------------+---------------------------------------------+
 | Class                                                                | Argument name  | Example Usage                               |
 +======================================================================+================+=============================================+
-| :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoon` | "basicmoon"   | morphology = Morphology.maker("basicmoon") |
+| :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoon`   | "basicmoon"    | morphology = Morphology.maker("basicmoon")  |
 +----------------------------------------------------------------------+----------------+---------------------------------------------+
 
 .. autoclass:: cratermaker.components.morphology.Morphology
@@ -34,9 +34,9 @@ Available Implementations
 
 .. currentmodule:: cratermaker.components.morphology.basicmoon
 
-**********
+*********
 BasicMoon
-**********
+*********
 
 See `Morphology`_ for inherited methods and attributes.
 
