@@ -14,7 +14,7 @@ Available Implementations
 +----------------------------------------------------------------------+---------------+------------------------------------------+
 | Class                                                                | Argument name | Example Usage                            |
 +======================================================================+===============+==========================================+
-| :py:class:`~cratermaker.components.counting.simplecount.SimpleCount` | "simplecount" | counting = Counting.maker("simplecount") |
+| :py:class:`~cratermaker.components.counting.depthcount.DepthCount` | "depthcount" | counting = Counting.maker("depthcount") |
 +----------------------------------------------------------------------+---------------+------------------------------------------+
 
 
@@ -24,15 +24,15 @@ Available Implementations
     :no-index-entry:
 
 
-.. currentmodule:: cratermaker.components.counting.simplecount
+.. currentmodule:: cratermaker.components.counting.depthcount
 
 ***********
-SimpleCount
+DepthCount
 ***********
 
 See `Counting`_ for inherited methods and attributes.
 
-.. autoclass:: cratermaker.components.counting.simplecount.SimpleCount
+.. autoclass:: cratermaker.components.counting.depthcount.DepthCount
    :members:
    :undoc-members:
    :no-index-entry:

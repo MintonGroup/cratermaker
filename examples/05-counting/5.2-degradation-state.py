@@ -4,7 +4,7 @@ Compute the degradation state of a crater
 
 .. rubric:: By David Minton
 
-In this example, we will emplace a small simple crater on a HiResLocal surface, and then apply topographic diffusion to the surface in order to simulate diffusive degradation of the crater. We will then compare the applied diffusive degradation amount with the estimated degradation state of the crater using the SimpleCount model, which uses depth-to-diameter as a proxy for degradation state. If the proxy is good, the values of degradation state computed by Cratermaker vs applied degradation should plot along a 1:1 line.
+In this example, we will emplace a small simple crater on a HiResLocal surface, and then apply topographic diffusion to the surface in order to simulate diffusive degradation of the crater. We will then compare the applied diffusive degradation amount with the estimated degradation state of the crater using the DepthCount model, which uses depth-to-diameter as a proxy for degradation state. If the proxy is good, the values of degradation state computed by Cratermaker vs applied degradation should plot along a 1:1 line.
 """
 
 from pathlib import Path
