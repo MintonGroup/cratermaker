@@ -833,7 +833,7 @@ class Simulation(CratermakerBase):
         if ask_overwrite is not None:
             self.ask_overwrite = ask_overwrite
 
-        if interval < 0:
+        if interval is not None and interval < 0:
             interval = self.interval + 1 + interval
         self.save(**kwargs, skip_actions=True, ask_overwrite=ask_overwrite)
         if driver.lower() == "opencratertool":
