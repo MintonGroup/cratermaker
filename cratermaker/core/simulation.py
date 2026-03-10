@@ -44,13 +44,13 @@ class Simulation(CratermakerBase):
         body is the Moon or Mars, the NeukumProduction projectile-based scaling law if the target body is Mercury, Venus, or
         Earth, and a simple power law model otherwise.
     morphology : str, optional
-        The model used to generate the morphology of the crater. If none provided, then the default will "simplemoon", which is similar to the one used by CTEM.
+        The model used to generate the morphology of the crater. If none provided, then the default will "basicmoon", which is similar to the one used by CTEM.
     projectile : str, optional
         The projectile model to use from the components library, which is used to generate the projectile properties for the simulation, such as velocity and density. The default is "asteroids" when target is Mercury, Venus, Earth, Moon, Mars, Ceres, or Vesta, and "comets" otherwise.
     surface : str, optional
         The name of the surface used for the surface. Default is "icosphere".
     counting : Counting or str, optional
-        The crater counting model to use from the components library. Default is "simplecount".
+        The crater counting model to use from the components library. Default is "depthcount".
     simdir : str | Path
         |simdir|
     rng : numpy.random.Generator | None
@@ -244,7 +244,7 @@ class Simulation(CratermakerBase):
             self.reset(skip_component=skip_components)
 
         if save_actions is None:
-            self.save_actions = [{"plot": {"plot_style": "hillshade", "scalebar": True, "show": False, "save": True}}]
+            self.save_actions = [{"plot": {"plot_style": "hillshade", "show": False, "save": True}}]
 
         self.to_config()
 
@@ -833,7 +833,7 @@ class Simulation(CratermakerBase):
         if ask_overwrite is not None:
             self.ask_overwrite = ask_overwrite
 
-        if interval < 0:
+        if interval is not None and interval < 0:
             interval = self.interval + 1 + interval
         self.save(**kwargs, skip_actions=True, ask_overwrite=ask_overwrite)
         if driver.lower() == "opencratertool":
@@ -906,7 +906,10 @@ class Simulation(CratermakerBase):
             if self.time is None:
                 label = f"Interval: {interval}"
             else:
-                label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
+                if issubclass(self.surface.__class__, HiResLocalSurface):
+                    label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"  # The line break makes a more compact label that fits in the corner of the plot without overprinting the surface image for this style of plot.
+                else:
+                    label = f"Time: {self.time:.0f} My bp    Age : {self.elapsed_time:.0f} My"  # Prevent the label from overprinting the surface image for this style of plot.
 
         plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
         if include_counting and self.do_counting:

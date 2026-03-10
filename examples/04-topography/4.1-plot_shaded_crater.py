@@ -4,7 +4,7 @@ Create a shaded topographic representation of a crater
 
 .. rubric:: By David Minton
 
-This example showcases how to create a crater and ejecta profile using the "simplemoon" morphology model from the Cratermaker and visual its topography. This will mimic how CTEM generates a test crater, though it is much simpler to run than that venerable old Fortran-based beast of a code!. The crater is created with a radius of 1 km. The hill shade uses the same settings that CTEM uses.
+This example showcases how to create a crater and ejecta profile using the "basicmoon" morphology model from the Cratermaker and visual its topography. This will mimic how CTEM generates a test crater, though it is much simpler to run than that venerable old Fortran-based beast of a code!. The crater is created with a radius of 1 km. The hill shade uses the same settings that CTEM uses.
 
 Note, that this example is rather more complex than it really needs to be. In practice, the Morphology object is always associated with a Surface object, which contains its own set of methods for visualizing the surface morphology. For this example, we are bypassing the Surface object functionality entirely and generating our own grid for illustration purposes. Example 1.1-visualize_one_crater.py demonstrates a more "typical" approach.
 
@@ -15,7 +15,7 @@ import numpy as np
 from cratermaker import Crater, Morphology
 
 # Because we are not explicitly passing a Surface object, the Morphology constructor will generate a default surface. We pass the "simdir" and "gridlevel" arguments to control the Surface generation, even though we don't make use of it directly here.
-morphology = Morphology.maker("simplemoon", simdir="simdata-4_1", gridlevel=4)
+morphology = Morphology.maker("basicmoon", simdir="simdata-4_1", gridlevel=4)
 crater = Crater.maker(radius=1.0e3)
 
 # Generate 1000x1000 grid centered at (0, 0)

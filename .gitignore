@@ -74,6 +74,19 @@ docs/sg_execution_times.rst
 !examples/02-production/
 !examples/03-projectiles_and_scaling/
 !examples/04-topography/
+# !examples/04-topography/simdata-4_1/
+# !examples/04-topography/simdata-4_2/
+# !examples/04-topography/simdata-4_3/
+# !examples/04-topography/simdata-4_4/
+# !examples/04-topography/simdata-4_1/surface/
+# !examples/04-topography/simdata-4_2/surface/
+# !examples/04-topography/simdata-4_3/surface/
+# !examples/04-topography/simdata-4_4/surface/
+# !examples/04-topography/simdata-4_1/surface/grid.nc
+# !examples/04-topography/simdata-4_2/surface/grid.nc
+# !examples/04-topography/simdata-4_3/surface/grid.nc
+# !examples/04-topography/simdata-4_3/surface/local_grid_indices.npz
+# !examples/04-topography/simdata-4_4/surface/grid.nc
 !examples/05-counting/
 !examples/05-counting/5.1-fit_rim.png
 !examples/05-counting/5.1-fit_rim_score.png

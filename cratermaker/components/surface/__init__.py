@@ -3346,7 +3346,7 @@ class LocalSurface(CratermakerBase):
         fontsize = fontsize_px * 72 / W
         xmin, xmax, ymin, ymax = extent
         # Add scale bar before saving/showing image
-        if scalebar:
+        if scalebar and self.is_local:
             # Determine max physical size for the scale bar
             max_physical_size = xmax / 2 / np.sqrt(2)
 
@@ -3375,22 +3375,27 @@ class LocalSurface(CratermakerBase):
             )
         if label:
             # Label in the upper left corner
-            x_start = xmin  # / np.sqrt(2.0)
-            y_start = ymax * 0.85
+            x_start = xmin
+            y_start = ymax
+            if self.is_local:
+                va = "top"  # Local surfaces are a circle with empty corners, so we can put the label in the upper left corner without it overlapping the surface image.
+            else:
+                va = "bottom"  # Global surfaces fill most of the entire image, so we need to place the label above the plotting area to avoid overlap.
             ax.text(
                 x_start,
                 y_start,
                 label,
                 color="black",
                 ha="left",
-                va="bottom",
+                va=va,
                 fontsize=fontsize,
                 fontweight="bold",
             )
-        if show:
-            plt.show()
         if save:
             plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=W)
+        if show:
+            plt.show()
+        if save or show:
             plt.close()
         return ax
 
