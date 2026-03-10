@@ -186,6 +186,32 @@ class TestSimulation(unittest.TestCase):
             del sim
         return
 
+    def test_save_actions(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
+            new_sim_save_action = {
+                "plot": {
+                    "include_counting": True,
+                    "show": False,
+                    "save": True,
+                }
+            }
+            new_counting_save_action = {"export": {"driver": "SCC", "crater_type": "both"}}
+            ninterval = 4
+
+            old_sim_action_len = len(sim.save_actions)
+            old_count_action_len = len(sim.counting.save_actions)
+            sim.add_save_action(new_sim_save_action)
+            sim.counting.add_save_action(new_counting_save_action)
+            self.assertEqual(len(sim.save_actions), old_sim_action_len + 1)
+            self.assertEqual(len(sim.counting.save_actions), old_count_action_len + 1)
+            sim.run(age=4000, ninterval=ninterval)
+            img_out = list(sim.counting.plot_dir.glob(f"*.{sim.counting._output_image_file_extension}"))
+            self.assertEqual(len(img_out), ninterval + 1)
+            scc_out = list(sim.counting.export_dir.glob("*.scc"))
+            self.assertEqual(len(scc_out), 2 * (ninterval + 1))
+        return
+
 
 if __name__ == "__main__":
     unittest.main()
