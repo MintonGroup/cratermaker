@@ -244,7 +244,7 @@ class Simulation(CratermakerBase):
             self.reset(skip_component=skip_components)
 
         if save_actions is None:
-            self.save_actions = [{"plot": {"plot_style": "hillshade", "scalebar": True, "show": False, "save": True}}]
+            self.save_actions = [{"plot": {"plot_style": "hillshade", "show": False, "save": True}}]
 
         self.to_config()
 
