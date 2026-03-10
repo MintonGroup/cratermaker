@@ -50,8 +50,5 @@ sim.save_actions = [
 sim.run(age=1000)
 sim.show3d(variable_name="face_elevation", cmap="pink")
 
-# Alternatively, this will generate hillshade images with a default time stamp
-# sim.run(age=1000)
-
 # We can also display the saved image directly. The name will depend on the plot_style option used above.
 Image(filename=sim.surface.plot_dir / "local_surface_hillshade000001.png")
