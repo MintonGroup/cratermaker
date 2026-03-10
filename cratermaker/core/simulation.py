@@ -906,7 +906,10 @@ class Simulation(CratermakerBase):
             if self.time is None:
                 label = f"Interval: {interval}"
             else:
-                label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
+                if issubclass(self.surface.__class__, HiResLocalSurface):
+                    label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"  # The line break makes a more compact label that fits in the corner of the plot without overprinting the surface image for this style of plot.
+                else:
+                    label = f"Time: {self.time:.0f} My bp    Age : {self.elapsed_time:.0f} My"  # Prevent the label from overprinting the surface image for this style of plot.
 
         plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
         if include_counting and self.do_counting:
