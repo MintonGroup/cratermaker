@@ -719,7 +719,7 @@ class Simulation(CratermakerBase):
             ):
                 diam_arg = {diam_key: diameter}
                 craterlist.append(
-                    Crater.maker(
+                    self.Crater.maker(
                         location=location,
                         age=time,
                         scaling=self.scaling,
@@ -1448,3 +1448,10 @@ class Simulation(CratermakerBase):
         if not isinstance(value, bool):
             raise TypeError("is_new must be a boolean value")
         self._is_new = value
+
+    @property
+    def Crater(self):
+        """
+        The Crater class used for crater generation in the simulation. Set during initialization.
+        """
+        return self.morphology.Crater if self.morphology is not None else None

@@ -47,7 +47,6 @@ class Counting(ComponentBase):
     def __init__(
         self,
         surface: Surface | LocalSurface,
-        Crater: type[Crater] | None = None,
         reset: bool = True,
         **kwargs: Any,
     ):
@@ -74,7 +73,6 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_output_dir_name", "counting")
         object.__setattr__(self, "_output_file_prefix", "craters")
         object.__setattr__(self, "_output_file_extension", "nc")
-        object.__setattr__(self, "_Crater", None)
         object.__setattr__(self, "_surface", None)
         object.__setattr__(self, "_morphology", None)
         object.__setattr__(
@@ -83,7 +81,6 @@ class Counting(ComponentBase):
             {"SCC": "scc", "VTK": "vtk", "VTP": "vtp", "CSV": "csv", **VECTOR_DRIVER_TO_EXTENSION_MAP},
         )
         self._surface = Surface.maker(surface, reset=reset, **kwargs)
-        self.Crater = Crater
         self._output_file_pattern += [
             f"observed_{self._output_file_prefix}*.{self._output_file_extension}",
             f"emplaced_{self._output_file_prefix}*.{self._output_file_extension}",
@@ -1336,7 +1333,7 @@ class Counting(ComponentBase):
             if hasattr(self.surface, "local_radius") and hasattr(self.surface, "local_location"):
                 f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
                 if region_poly is None:  # We only need to do this the first time through
-                    region_circle = Crater.maker(
+                    region_circle = self.Crater.maker(
                         radius=self.surface.local_radius, location=self.surface.local_location
                     )  # We can get away with using just the base class for Crater here
                     region_poly = (
@@ -1502,17 +1499,10 @@ class Counting(ComponentBase):
     @property
     def Crater(self) -> type[Crater]:
         """The Crater class used for this counting component, which is determined by the morphology component."""
-        if self._Crater is None:
+        if self._morphology is None:
             return Crater
-        return self._Crater
-
-    @Crater.setter
-    def Crater(self, value):
-        if value is None:
-            return
-        if not isinstance(value, type) or not issubclass(value, Crater):
-            raise TypeError("Crater must be a subclass of the base Crater class.")
-        self._Crater = value
+        else:
+            return self._morphology.Crater
 
     @property
     def morphology(self) -> Morphology:
@@ -1526,8 +1516,11 @@ class Counting(ComponentBase):
         if not isinstance(value, Morphology):
             raise TypeError("morphology must be an instance of the Morphology class.")
         self._morphology = value
-        if not issubclass(self.Crater, value.Crater):
-            self.Crater = value.Crater  # Set the Crater class to the one specified by the morphology component if they don't match
+        # Re-run any saved emplaced or observed craters through the new object's maker function so that we promote them to the new type
+        for i, crater in enumerate(self.emplaced):
+            self.emplaced[i] = self.Crater.maker(crater=crater)
+        for id, crater in self.observed.items():
+            self.observed[id] = self.Crater.maker(crater=crater)
         return
 
 
