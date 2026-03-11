@@ -389,6 +389,7 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_do_counting", None)
         object.__setattr__(self, "_excavated_volume", None)
         object.__setattr__(self, "_Crater", None)
+        object.__setattr__(self, "_CraterType", MorphologyCrater)
 
         # Because a Surface object is associated with a Counting object, we should first check to see if we are receiving a Counting object first so that we don't end up creating a spurious Surface object that we don't want.
         if surface is None and isinstance(counting, Counting):
@@ -848,15 +849,17 @@ class Morphology(ComponentBase):
 
     @property
     def Crater(self) -> type[MorphologyCrater]:
-        morphology = self
+        if self._Crater is None:
 
-        class _WrappedMorphologyCrater(MorphologyCrater):
-            @classmethod
-            def maker(cls: type[_WrappedMorphologyCrater], **kwargs):
-                kwargs["morphology"] = morphology
-                return MorphologyCrater.maker(cls, **kwargs)
+            class _WrappedMorphologyCrater(self._CraterType):
+                @classmethod
+                def maker(cls: type[_WrappedMorphologyCrater], **kwargs):
+                    kwargs["morphology"] = self
+                    return self._CraterType.maker(**kwargs)
 
-        return _WrappedMorphologyCrater
+            self._Crater = _WrappedMorphologyCrater
+
+        return self._Crater
 
     class CraterQueueManager:
         """
