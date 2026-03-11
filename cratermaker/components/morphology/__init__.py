@@ -400,7 +400,7 @@ class Morphology(ComponentBase):
                 crater_cls = kwargs.pop("Crater", self.Crater)
                 self.counting = Counting.maker(counting, surface=self.surface, Crater=crater_cls, **kwargs)
 
-        if self.counting is not None:
+        if self.counting is not None and self.counting.morphology is not self:
             self.counting.morphology = self  # Associated counting and morphology with each other
 
         if do_counting is not None:
@@ -801,9 +801,6 @@ class Morphology(ComponentBase):
         from cratermaker.components.counting import Counting
 
         if isinstance(counting, Counting):
-            # Make sure the associated Crater class is correct for this Morphology class
-            if not issubclass(counting.Crater, self.Crater):
-                counting.Crater = self.Crater
             self._counting = counting
         elif isinstance(counting, str):
             self._counting = Counting.maker(counting, surface=self.surface, Crater=self.Crater)
@@ -814,6 +811,7 @@ class Morphology(ComponentBase):
         else:
             raise TypeError("counting must be an instance of Counting or a string")
         self.do_counting = True
+        self._counting.morphology = self
 
     @parameter
     def do_subpixel_degradation(self) -> bool:

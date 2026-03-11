@@ -75,7 +75,8 @@ class TestCounting(unittest.TestCase):
 
             # Once it is associated with a Morphology model, the counting model's Crater type should match that of the morphology type
             morphology = Morphology.maker(counting=counting, ejecta_truncation=4.0)
-            self.assertTrue(issubclass(counting.Crater, morphology.Crater))
+            self.assertTrue(issubclass(morphology.Crater, MorphologyCrater))
+            self.assertTrue(issubclass(counting.Crater, MorphologyCrater))
 
 
 if __name__ == "__main__":
