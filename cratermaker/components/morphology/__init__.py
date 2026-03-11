@@ -121,8 +121,8 @@ class MorphologyCraterVariable(CraterVariable):
 
 
 class MorphologyCrater(Crater):
-    def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, var_cls=MorphologyCraterVariable, **kwargs):
-        super().__init__(crater=crater, fixed_cls=fixed_cls, var_cls=var_cls, **kwargs)
+    def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
+        super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
     def __str__(self) -> str:
@@ -532,7 +532,7 @@ class Morphology(ComponentBase):
             self._init_queue_manager()
 
         if craters is None:
-            craters = [MorphologyCrater.maker(**kwargs)]
+            craters = [MorphologyCrater.maker(morphology=self, **kwargs)]
         elif isinstance(craters, MorphologyCrater):
             craters = [craters]
         elif isinstance(craters, Crater):

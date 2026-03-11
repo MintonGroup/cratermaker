@@ -13,7 +13,7 @@ from scipy.optimize import root_scalar
 from tqdm import tqdm
 
 from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
-from cratermaker.components.morphology import Morphology, MorphologyCrater
+from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterVariable
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
@@ -53,8 +53,10 @@ class BasicMoonCraterFixed(CraterFixed):
 
 
 class BasicMoonCrater(MorphologyCrater):
-    def __init__(self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, **kwargs):
-        super().__init__(crater=crater, fixed_cls=fixed_cls, **kwargs)
+    def __init__(
+        self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
+    ):
+        super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
     def __str__(self) -> str:
@@ -677,7 +679,7 @@ class BasicMoon(Morphology):
             """
             The mare-scale degradation function from Minton et al. (2019). See eq. (32).
             """
-            kv1 = 0.17
+            kv1 = 0.30
             neq1 = 0.0084
             eta = 3.2
             gamma = 2.0

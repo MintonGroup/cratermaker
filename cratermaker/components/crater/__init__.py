@@ -326,7 +326,7 @@ class CraterVariable:
 
 
 class Crater:
-    def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, var_cls=CraterVariable, **kwargs):
+    def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=CraterVariable, **kwargs):
         if crater is not None:
             if not isinstance(crater, Crater):
                 raise TypeError("crater must be an instance of Crater or None")
@@ -352,7 +352,7 @@ class Crater:
 
         var_fields.update({k: v for k, v in kwargs.items() if k not in fixed_fields})
         self._fixed = fixed_cls(**fixed_fields)
-        self._var = var_cls(**var_fields)
+        self._var = variable_cls(**var_fields)
         return
 
     def __getattr__(self, name: str):
