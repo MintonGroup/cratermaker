@@ -121,8 +121,8 @@ class MorphologyCraterVariable(CraterVariable):
 
 
 class MorphologyCrater(Crater):
-    def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, var_cls=MorphologyCraterVariable, **kwargs):
-        super().__init__(crater=crater, fixed_cls=fixed_cls, var_cls=var_cls, **kwargs)
+    def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
+        super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
     def __str__(self) -> str:
@@ -400,7 +400,7 @@ class Morphology(ComponentBase):
                 crater_cls = kwargs.pop("Crater", self.Crater)
                 self.counting = Counting.maker(counting, surface=self.surface, Crater=crater_cls, **kwargs)
 
-        if self.counting is not None:
+        if self.counting is not None and self.counting.morphology is not self:
             self.counting.morphology = self  # Associated counting and morphology with each other
 
         if do_counting is not None:
@@ -532,7 +532,7 @@ class Morphology(ComponentBase):
             self._init_queue_manager()
 
         if craters is None:
-            craters = [MorphologyCrater.maker(**kwargs)]
+            craters = [MorphologyCrater.maker(morphology=self, **kwargs)]
         elif isinstance(craters, MorphologyCrater):
             craters = [craters]
         elif isinstance(craters, Crater):
@@ -801,9 +801,6 @@ class Morphology(ComponentBase):
         from cratermaker.components.counting import Counting
 
         if isinstance(counting, Counting):
-            # Make sure the associated Crater class is correct for this Morphology class
-            if not issubclass(counting.Crater, self.Crater):
-                counting.Crater = self.Crater
             self._counting = counting
         elif isinstance(counting, str):
             self._counting = Counting.maker(counting, surface=self.surface, Crater=self.Crater)
@@ -814,6 +811,7 @@ class Morphology(ComponentBase):
         else:
             raise TypeError("counting must be an instance of Counting or a string")
         self.do_counting = True
+        self._counting.morphology = self
 
     @parameter
     def do_subpixel_degradation(self) -> bool:
@@ -848,11 +846,24 @@ class Morphology(ComponentBase):
             raise TypeError("do_counting must be a boolean value")
         self._do_counting = value
 
-    class Crater(MorphologyCrater):
-        def __init__(self, crater: Crater | None = None, **kwargs):
-            kwargs["morphology"] = self
-            super().__init__(crater=crater, **kwargs)
-            return
+    @property
+    def _CraterType(self) -> type[MorphologyCrater]:
+        """The Crater class associated with this morphology model."""
+        return MorphologyCrater
+
+    @property
+    def Crater(self) -> type[MorphologyCrater]:
+        if self._Crater is None:
+
+            class _WrappedMorphologyCrater(self._CraterType):
+                @classmethod
+                def maker(cls: type[_WrappedMorphologyCrater], **kwargs):
+                    kwargs["morphology"] = self
+                    return self._CraterType.maker(**kwargs)
+
+            self._Crater = _WrappedMorphologyCrater
+
+        return self._Crater
 
     class CraterQueueManager:
         """
