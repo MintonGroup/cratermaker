@@ -162,12 +162,11 @@ class BasicMoon(Morphology):
         **kwargs : Any
             |kwargs|
         """
-        super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_ejecta_truncation", None)
         object.__setattr__(self, "_node", None)
-        object.__setattr__(self, "_CraterType", BasicMoonCrater)
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
+        super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         return
 
     def __str__(self) -> str:
@@ -764,3 +763,7 @@ class BasicMoon(Morphology):
         if not isinstance(value, bool):
             raise TypeError("dorays must be of type bool")
         self._dorays = value
+
+    @property
+    def _CraterType(self) -> type[BasicMoonCrater]:
+        return BasicMoonCrater

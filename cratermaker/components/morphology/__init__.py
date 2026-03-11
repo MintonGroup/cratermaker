@@ -389,7 +389,6 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_do_counting", None)
         object.__setattr__(self, "_excavated_volume", None)
         object.__setattr__(self, "_Crater", None)
-        object.__setattr__(self, "_CraterType", MorphologyCrater)
 
         # Because a Surface object is associated with a Counting object, we should first check to see if we are receiving a Counting object first so that we don't end up creating a spurious Surface object that we don't want.
         if surface is None and isinstance(counting, Counting):
@@ -846,6 +845,11 @@ class Morphology(ComponentBase):
         if not isinstance(value, bool):
             raise TypeError("do_counting must be a boolean value")
         self._do_counting = value
+
+    @property
+    def _CraterType(self) -> type[MorphologyCrater]:
+        """The Crater class associated with this morphology model."""
+        return MorphologyCrater
 
     @property
     def Crater(self) -> type[MorphologyCrater]:
