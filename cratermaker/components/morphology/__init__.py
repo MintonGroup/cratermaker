@@ -848,11 +848,17 @@ class Morphology(ComponentBase):
             raise TypeError("do_counting must be a boolean value")
         self._do_counting = value
 
-    class Crater(MorphologyCrater):
-        def __init__(self, crater: Crater | None = None, **kwargs):
-            kwargs["morphology"] = self
-            super().__init__(crater=crater, **kwargs)
-            return
+    @property
+    def Crater(self) -> type[MorphologyCrater]:
+        morphology = self
+
+        class _WrappedMorphologyCrater(MorphologyCrater):
+            @classmethod
+            def maker(cls: type[_WrappedMorphologyCrater], **kwargs):
+                kwargs["morphology"] = morphology
+                return MorphologyCrater.maker(cls, **kwargs)
+
+        return _WrappedMorphologyCrater
 
     class CraterQueueManager:
         """

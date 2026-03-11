@@ -1527,7 +1527,13 @@ class Counting(ComponentBase):
             raise TypeError("morphology must be an instance of the Morphology class.")
         self._morphology = value
         if not issubclass(self.Crater, value.Crater):
-            self.Crater = value.Crater  # Set the Crater class to the one specified by the morphology component if they don't match
+            # Set the Crater class to the one specified by the morphology component if they don't match
+            self.Crater = value.Crater
+            # Re-run any saved emplaced or observed craters through the new object's maker function so that we promote them to the new type
+            for i, crater in enumerate(self.emplaced):
+                self.emplaced[i] = self.Crater.maker(crater=crater)
+            for id, crater in self.observed.items():
+                self.observed[id] = self.Crater.maker(crater=crater)
         return
 
 

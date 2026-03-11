@@ -207,8 +207,13 @@ class BasicMoon(Morphology):
                 position=0,
                 leave=False,
             ):
-                processed_craters.append(BasicMoonCrater.maker(c, morphology=self, **kwargs))
+                if isinstance(c, BasicMoonCrater):
+                    processed_craters.append(c)
+                else:
+                    processed_craters.append(BasicMoonCrater.maker(c, morphology=self, **kwargs))
             craters = processed_craters
+        elif isinstance(craters, BasicMoonCrater):
+            craters = [craters]
         elif isinstance(craters, Crater):
             craters = [BasicMoonCrater.maker(craters, morphology=self, **kwargs)]
         else:
@@ -759,8 +764,14 @@ class BasicMoon(Morphology):
             raise TypeError("dorays must be of type bool")
         self._dorays = value
 
-    class Crater(BasicMoonCrater):
-        def __init__(self, crater: Crater | None = None, **kwargs):
-            kwargs["morphology"] = self
-            super().__init__(crater=crater, **kwargs)
-            return
+    @property
+    def Crater(self) -> type[BasicMoonCrater]:
+        morphology = self
+
+        class _WrappedBasicMoonCrater(BasicMoonCrater):
+            @classmethod
+            def maker(cls: type[_WrappedBasicMoonCrater], **kwargs):
+                kwargs["morphology"] = morphology
+                return BasicMoonCrater.maker(**kwargs)
+
+        return _WrappedBasicMoonCrater
