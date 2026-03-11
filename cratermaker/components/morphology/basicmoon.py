@@ -13,7 +13,7 @@ from scipy.optimize import root_scalar
 from tqdm import tqdm
 
 from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
-from cratermaker.components.morphology import Morphology, MorphologyCrater
+from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterVariable
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
@@ -53,8 +53,10 @@ class BasicMoonCraterFixed(CraterFixed):
 
 
 class BasicMoonCrater(MorphologyCrater):
-    def __init__(self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, **kwargs):
-        super().__init__(crater=crater, fixed_cls=fixed_cls, **kwargs)
+    def __init__(
+        self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
+    ):
+        super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
     def __str__(self) -> str:
@@ -160,11 +162,11 @@ class BasicMoon(Morphology):
         **kwargs : Any
             |kwargs|
         """
-        super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_ejecta_truncation", None)
         object.__setattr__(self, "_node", None)
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
+        super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         return
 
     def __str__(self) -> str:
@@ -205,8 +207,13 @@ class BasicMoon(Morphology):
                 position=0,
                 leave=False,
             ):
-                processed_craters.append(BasicMoonCrater.maker(c, morphology=self, **kwargs))
+                if isinstance(c, BasicMoonCrater):
+                    processed_craters.append(c)
+                else:
+                    processed_craters.append(BasicMoonCrater.maker(c, morphology=self, **kwargs))
             craters = processed_craters
+        elif isinstance(craters, BasicMoonCrater):
+            craters = [craters]
         elif isinstance(craters, Crater):
             craters = [BasicMoonCrater.maker(craters, morphology=self, **kwargs)]
         else:
@@ -677,7 +684,7 @@ class BasicMoon(Morphology):
             """
             The mare-scale degradation function from Minton et al. (2019). See eq. (32).
             """
-            kv1 = 0.17
+            kv1 = 0.30
             neq1 = 0.0084
             eta = 3.2
             gamma = 2.0
@@ -757,8 +764,6 @@ class BasicMoon(Morphology):
             raise TypeError("dorays must be of type bool")
         self._dorays = value
 
-    class Crater(BasicMoonCrater):
-        def __init__(self, crater: Crater | None = None, **kwargs):
-            kwargs["morphology"] = self
-            super().__init__(crater=crater, **kwargs)
-            return
+    @property
+    def _CraterType(self) -> type[BasicMoonCrater]:
+        return BasicMoonCrater

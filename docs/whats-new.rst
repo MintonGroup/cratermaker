@@ -3,6 +3,14 @@
 What's New
 ==========
 
+.. _whats-new.2026.3.4-alpha:
+
+:release:`v2026.3.4-alpha`
+--------------------------
+
+- Fixed bug that was causing restarted runs to fail with the message "AttributeError: Crater has no attribute 'measured_depth_to_diameter'."  :pull:`96` `David Minton`_
+
+
 .. _whats-new.2026.3.3-alpha:
 
 :release:`v2026.3.3-alpha`
