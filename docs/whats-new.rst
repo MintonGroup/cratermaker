@@ -3,6 +3,13 @@
 What's New
 ==========
 
+.. _whats-new.2026.3.3-alpha:
+
+:release:`v2026.3.3-alpha`
+--------------------------
+
+- Fixed bug that was causing cookie cutting to extend beyond the crater rim. :pull:`92` `David Minton`_
+
 .. _whats-new.2026.3.2-alpha:
 
 :release:`v2026.3.2-alpha`
