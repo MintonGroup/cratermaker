@@ -14,6 +14,7 @@ blas = "0.23"
 rayon = "1.11"
 pyo3 = { version = "0.27", features = ["extension-module"] }
 libm = "0.2"
+openssl-sys = "=0.9.111"
 
 [target.'cfg(windows)'.dependencies]
 ndarray-linalg = { version = "0.18", features = ["intel-mkl"] }
