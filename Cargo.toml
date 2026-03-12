@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [
-    "crates/cratermaker-components",
-    "crates/cratermaker-py",
-]
+members = ["crates/cratermaker-components", "crates/cratermaker-py"]
+
+[patch.crates-io]
+openssl-sys = "=0.9.111"
