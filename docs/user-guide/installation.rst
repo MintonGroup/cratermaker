@@ -74,6 +74,7 @@ You can install Cratermaker using pip into the Python environment of your choice
 
         pip install --upgrade cratermaker
 
+.. _ug-installation-from-source:
 
 Installing Cratermaker from Source
 ==================================

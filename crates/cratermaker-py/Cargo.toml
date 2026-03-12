@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker-py"
-version = "2026.3.3-a2+gd718a1fb"
+version = "2026.3.4-a0"
 edition = "2021"
 
 [lib]
@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.27", features = ["extension-module"] }
 numpy = "0.27.1"
+openssl-sys = "=0.9.111"
 cratermaker-components = { path = "../cratermaker-components" }
 
 [profile.release]

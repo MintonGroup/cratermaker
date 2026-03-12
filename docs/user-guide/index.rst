@@ -109,13 +109,18 @@ Components of Cratermaker
         Contains the model for relating projectile size and crater size. 
 
 
+    .. grid-item-card::  Exporting and Visualization
+        :columns: 12 
+        :img-top: ../_static/visualizing_icon.svg
+        :class-img-top: dark-light
+        :link: visualizing
+        :link-type: doc
 
-.. grid:: 1 
-    :gutter: 2
+        Visualizing data and exporting it to different formats for use with other tools.
 
     .. grid-item-card::  Example gallery
-        :columns: 12 6 6 6
-        :img-top: ../_static/index_gallery.svg
+        :columns: 12 
+        :img-top: ../_static/gallery_icon.png
         :class-img-top: dark-light
         :link: ../auto_examples/index
         :link-type: doc
@@ -123,8 +128,8 @@ Components of Cratermaker
         See full working examples of how to use Cratermaker.
 
     .. grid-item-card::  API reference
-        :columns: 12 6 6 6
-        :img-top: ../_static/index_api_reference.svg
+        :columns: 12 
+        :img-top: ../_static/api_icon.svg
         :class-img-top: dark-light
         :link: ../api/index
         :link-type: doc
