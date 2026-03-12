@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker-py"
-version = "2026.3.4-a0"
+version = "2026.3.5-a0"
 edition = "2021"
 
 [lib]
@@ -10,7 +10,6 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.27", features = ["extension-module"] }
 numpy = "0.27.1"
-openssl-sys = "=0.9.111"
 cratermaker-components = { path = "../cratermaker-components" }
 
 [profile.release]
@@ -21,3 +20,7 @@ opt-level = 3
 [target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"
 features = ["disable_initial_exec_tls"]
+
+
+[target.'cfg(unix)'.dependencies]
+openssl-sys = "=0.9.111"

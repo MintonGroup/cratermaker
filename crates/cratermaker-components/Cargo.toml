@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker-components"
-version = "2026.3.4-a0"
+version = "2026.3.5-a0"
 edition = "2021"
 
 
@@ -14,7 +14,6 @@ blas = "0.23"
 rayon = "1.11"
 pyo3 = { version = "0.27", features = ["extension-module"] }
 libm = "0.2"
-openssl-sys = "=0.9.111"
 
 [target.'cfg(windows)'.dependencies]
 ndarray-linalg = { version = "0.18", features = ["intel-mkl"] }
@@ -23,6 +22,7 @@ intel-mkl-src = "0.8.1"
 [target.'cfg(unix)'.dependencies]
 ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
 native-tls = "=0.2.15"
+openssl-sys = "=0.9.111"
 
 [profile.release]
 codegen-units = 1
