@@ -1,3 +1,5 @@
+.. _index:
+
 .. py:module:: cratermaker
 
 Cratermaker
@@ -5,12 +7,11 @@ Cratermaker
 Simulate the evolution of a landscape dominated by impact bombardment.
 
 **Useful links**:
-`Home <https://cratermaker.readthedocs.io/en/latest/>`__ |
+:ref:`Installation  <ug-installation>` |
 `Code Repository <https://github.com/MintonGroup/cratermaker>`__ |
 `Issues <https://github.com/MintonGroup/cratermaker/issues>`__ |
 `Discussions <https://github.com/MintonGroup/cratermaker/discussions>`__ |
-`Releases <https://github.com/MintonGroup/cratermaker/releases>`__ |
-`Contributing Guide <contributing>`__ 
+`Releases <https://github.com/MintonGroup/cratermaker/releases>`__ 
 
 
 .. grid:: 1 1 2 2
@@ -26,7 +27,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         The user guide will show you how to install and run Cratermaker. It also contains in-depth information on how to use each of its components.  
 
     .. grid-item-card::  Example gallery
-        :img-top: _static/index_gallery.svg
+        :img-top: _static/gallery_icon.png
         :class-img-top: dark-light
         :link: auto_examples/index
         :link-type: doc
@@ -34,7 +35,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         See full working examples of how to use Cratermaker.
 
     .. grid-item-card::  API reference
-        :img-top: _static/index_api_reference.svg
+        :img-top: _static/api_icon.svg
         :class-img-top: dark-light
         :link: api/index
         :link-type: doc
@@ -44,7 +45,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         be used. It assumes that you have an understanding of the key concepts.
 
     .. grid-item-card:: Contributor's guide
-        :img-top: _static/index_contributing.svg
+        :img-top: _static/contributing_icon.svg
         :class-img-top: dark-light
         :link: contributing/index
         :link-type: doc
@@ -58,6 +59,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
    :hidden:
    :caption: For users
 
+   Installation <user-guide/installation>
    User Guide <user-guide/index>
    Gallery <auto_examples/index>
    API Reference <api/index>
