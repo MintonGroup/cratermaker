@@ -122,7 +122,6 @@ html_context = {
 html_theme_options = {
     "repository_url": "https://github.com/MintonGroup/cratermaker",
     "repository_branch": "main",
-    "navigation_with_keys": False,  # pydata/pydata-sphinx-theme#1492
     "path_to_docs": "docs",
     "use_edit_page_button": True,
     "use_repository_button": True,
@@ -130,7 +129,6 @@ html_theme_options = {
     "home_page_in_toc": False,
     "extra_footer": """<p>Development of Cratermaker was supported by NASA Lunar Data Analysis Program Grants <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC21K1719_8000">#80NSSC21K1719</a> and <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC25K7050_8000">#80NSSC25K7050</a><br>
     Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a></p>""",
-    "icon_links": [],  # workaround for pydata/pydata-sphinx-theme#1220
     "logo": {
         "image_light": "_static/logos/Cratermaker_Social_Preview_light.svg",
         "image_dark": "_static/logos/Cratermaker_Social_Preview_dark.svg",
