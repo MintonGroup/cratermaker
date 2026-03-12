@@ -918,7 +918,7 @@ class Simulation(CratermakerBase):
             ax = self.surface.plot(**plot_args)
         return ax
 
-    def show3d(self, engine: str = "pyvista", **kwargs: Any) -> None:
+    def show3d(self, engine: str = "pyvista", **kwargs: Any) -> Any:
         """
         Show the current state of the simulated surface.
 
@@ -927,17 +927,19 @@ class Simulation(CratermakerBase):
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         **kwargs : Any
-        |kwargs|
+            |kwargs|
+
+        Returns
+        -------
+        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         self.save(**kwargs, skip_actions=True)
         if "interval" not in kwargs:
             kwargs["interval"] = self.interval
         if self.do_counting:
-            self.counting.show3d(engine=engine, **kwargs)
+            return self.counting.show3d(engine=engine, **kwargs)
         else:
-            self.surface.show3d(engine=engine, **kwargs)
-
-        return
+            return self.surface.show3d(engine=engine, **kwargs)
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """

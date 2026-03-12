@@ -3,6 +3,17 @@
 What's New
 ==========
 
+.. _whats-new.2026.3.5-alpha:
+
+:release:`v2026.3.5-alpha`
+
+- Gave the documentation pages a thorough makeover. :pull:`99` `David Minton`_
+
+   - Updated the icons for the documentation pages to be more visually appealing and to better represent the content of each page. 
+   - Improved the formatting of the documentation pages to make them more readable and easier to navigate. 
+   - Added new sections to the user guide, including a new section on visualizing and exporting data. 
+
+
 .. _whats-new.2026.3.4-alpha:
 
 :release:`v2026.3.4-alpha`

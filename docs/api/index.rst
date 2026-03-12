@@ -9,7 +9,7 @@ Cratermaker API reference
 This section of the documentation provides a detailed reference for the core functionality and modular components of the Cratermaker project.
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 3
 
     simulation
     crater

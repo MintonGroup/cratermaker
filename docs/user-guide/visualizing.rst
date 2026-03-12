@@ -1,6 +1,17 @@
 .. currentmodule:: cratermaker
 
+
+
+.. image:: ../_static/visualizing_icon.svg
+    :alt: Visualizing
+    :align: center
+    :width: 300px
+    :class: dark-light
+
+
 .. _ug-visualizing:
+
+
 
 Visualizing the surface 
 =======================
@@ -11,6 +22,7 @@ The simulation will generate several files in a folder called ``surface``, inclu
 
 We can then open up the mesh in PyVista for visualization
 
+
 .. ipython:: python
     :okwarning:
     :suppress:
@@ -19,19 +31,43 @@ We can then open up the mesh in PyVista for visualization
     from cratermaker import cleanup
     cleanup()
 
+
 .. pyvista-plot::
+   :caption: Using show3d to visualize the surface mesh.
+   :include-source: true
 
-    import cratermaker as cm
-    sim = cm.Simulation(gridlevel=6)
-    sim.emplace(diameter=500e3, location=(45,60))
-    sim.show3d(driver="pyvista")
+    >>> import cratermaker as cm
+    >>> sim = cm.Simulation(gridlevel=6)
+    >>> sim.emplace(diameter=500e3, location=(45,60))
+    >>> sim.show3d()
 
+.. pyvista-plot::
+   :caption: Using show3d to visualize the surface mesh.
+   :include-source: False 
 
-We can also export the surface mesh to a VTK file that can be opened up with other visualization tools, like Paraview.
+    >>> # The pyvista-plot tool apparently doesn't recognize the show3d method, so we will just show how to do this manually with pyvista.
+    >>> import pyvista as pv
+    >>> import cratermaker as cm
+    >>> sim = cm.Simulation(reset=False)
+    >>> sim.export(driver="vtk", ask_overwrite=False)
+    >>> mesh = pv.read(sim.export_dir / "surface000000.vtp")
+    >>> mesh.plot(cmap="cividis")
+        
+
+We can also export the surface mesh to a VTK file that can be opened up with other visualization tools, like `ParaView <https://www.paraview.org/>`__.
 
 .. code-block:: python
 
     sim.export(driver="VTK")
+
+ParaView can be used to visualize the surface mesh, and also to create animations of the surface evolution. For more information on how to use ParaView, see the `ParaView documentation <https://www.paraview.org/documentation/>`__.
+
+
+.. image:: ../_static/paraview_500km_crater_moon.png
+    :alt: Simulation
+    :align: center
+    :width: 600px
+    :class: dark-light
 
 
 .. ipython:: python

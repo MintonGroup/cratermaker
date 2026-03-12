@@ -1,12 +1,5 @@
 .. currentmodule:: cratermaker
 
-.. image:: ../_static/index_gallery.svg
-    :alt: Examples
-    :align: center
-    :width: 300px
-    :class: dark-light
-
-
 ###############
 Example Gallery
 ###############

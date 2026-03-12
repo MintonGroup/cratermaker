@@ -250,15 +250,6 @@ body {
   margin-top: 10px;
 }
 
-/* .sd-card {
-  position: relative;
-  z-index: 1;
-}
-.sd-card .sd-stretched-link {
-  position: relative;
-  z-index: 2;
-} */
-
 /*
  * PyData Sphinx Theme overlays
  *
@@ -317,7 +308,6 @@ label.overlay.is-active,
   color: var(--cm-slate-blue);
 }
 
-[data-theme="light"] a:hover,
 [data-theme="light"] a:focus {
   color: var(--cm-blue-gray);
   text-decoration: underline;
@@ -327,7 +317,6 @@ label.overlay.is-active,
   color: var(--cm-blue-gray);
 }
 
-[data-theme="dark"] a:hover,
 [data-theme="dark"] a:focus {
   color: var(--cm-fog-gray);
   text-decoration: underline;
@@ -358,19 +347,7 @@ html[data-theme="dark"] .bd-footer .prev-next-area a p.prev-next-title {
   color: var(--cm-slate-blue) !important;
 }
 
-[data-theme="light"] .bd-footer .prev-next-area a:hover {
-  color: var(--cm-blue-gray) !important;
-}
 
 [data-theme="dark"] .bd-footer .prev-next-area a {
   color: var(--cm-blue-gray) !important;
-}
-
-[data-theme="dark"] .bd-footer .prev-next-area a:hover {
-  color: var(--cm-fog-gray) !important;
-}
-
-.sphx-glr-thumbcontainer[tooltip]:hover::before,
-.sphx-glr-thumbcontainer[tooltip]:hover::after {
-  display: none;
 }
