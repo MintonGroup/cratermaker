@@ -819,7 +819,7 @@ class Counting(ComponentBase):
 
         return plotter
 
-    def show3d(self, engine: str = "pyvista", observed_color: str = "white", emplaced_color: str = "red", **kwargs: Any) -> None:
+    def show3d(self, engine: str = "pyvista", observed_color: str = "white", emplaced_color: str = "red", **kwargs: Any) -> Any:
         """
         Passes through to the surface show method and adds crater counts to it.
 
@@ -833,13 +833,17 @@ class Counting(ComponentBase):
             The color to use for emplaced craters. Default is "red".
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         if engine.lower() == "pyvista":
             plotter = self.show_pyvista(observed_color=observed_color, emplaced_color=emplaced_color, **kwargs)
             plotter.show()
         else:
             raise ValueError(f"Engine '{engine}' is not supported for crater counting visualization.")
-        return
+        return plotter
 
     def to_geoseries(
         self,

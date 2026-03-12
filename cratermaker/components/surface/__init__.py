@@ -898,7 +898,7 @@ class Surface(ComponentBase):
 
     def show3d(
         self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
-    ) -> None:
+    ) -> Any:
         """
         Show the surface using an interactive 3D plot.
 
@@ -912,6 +912,10 @@ class Surface(ComponentBase):
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
 
@@ -3625,7 +3629,7 @@ class LocalSurface(CratermakerBase):
 
     def show3d(
         self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
-    ) -> None:
+    ) -> Any:
         """
         Show the local surface region using an interactive 3D plot.
 
@@ -3639,6 +3643,10 @@ class LocalSurface(CratermakerBase):
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         if engine == "pyvista":
             plotter = self.show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
@@ -3646,7 +3654,7 @@ class LocalSurface(CratermakerBase):
         else:
             raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
 
-        return
+        return plotter
 
     def compute_distances(
         self,

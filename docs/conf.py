@@ -39,7 +39,6 @@ extensions = [
     "IPython.sphinxext.ipython_directive",
     "IPython.sphinxext.ipython_console_highlighting",
     "sphinx_autosummary_accessors",
-    "sphinxext.opengraph",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_inline_tabs",
@@ -93,6 +92,7 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "numpy": ("https://numpy.org/doc/stable", None),
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
+    "uxarray": ("https://uxarray.readthedocs.io/en/latest/", None),
 }
 
 templates_path = ["_templates"]
@@ -131,30 +131,18 @@ html_theme_options = {
     "extra_footer": """<p>Development of Cratermaker was supported by NASA Lunar Data Analysis Program Grants <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC21K1719_8000">#80NSSC21K1719</a> and <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC25K7050_8000">#80NSSC25K7050</a><br>
     Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a></p>""",
     "icon_links": [],  # workaround for pydata/pydata-sphinx-theme#1220
+    "logo": {
+        "image_light": "_static/logos/Cratermaker_Social_Preview_light.svg",
+        "image_dark": "_static/logos/Cratermaker_Social_Preview_dark.svg",
+    },
 }
 
-
-# The name of an image file (relative to this directory) to place at the top
-# of the sidebar.
-html_logo = "_static/logos/Cratermaker_Social_Preview.svg"
-
-# The name of an image file (within the static path) to use as favicon of the
-# docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
-# pixels large.
-html_favicon = "_static/logos/Cratermaker_Icon.svg"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 html_css_files = ["style.css"]
-
-# configuration for sphinxext.opengraph
-ogp_site_url = "https://cratermaker.readthedocs.io/en/latest/"
-ogp_image = "https://cratermaker.readthedocs.io/en/stable/_static/logos/Cratermaker_Social_Preview.png"
-ogp_custom_meta_tags = [
-    '<meta name="image" property="og:image" content="https://cratermaker.readthedocs.io/en/stable/_static/logos/Cratermaker_Social_Preview.png" />',
-]
 
 
 def html_page_context(app, pagename, templatename, context, doctree):

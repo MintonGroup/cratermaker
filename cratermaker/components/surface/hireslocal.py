@@ -432,6 +432,10 @@ class HiResLocalSurface(Surface):
             If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         if superdomain:
             return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
