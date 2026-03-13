@@ -3,6 +3,13 @@
 What's New
 ==========
 
+.. _whats-new.2026.3.6-alpha:
+
+:release:`v2026.3.6-alpha`
+
+- More updates to the documentation, including the return of the long-running DataSurface examples thanks to an upgrade in our ReadtheDocs time limit, and a fancy new animated gif of the Moon being bombarded for the visualization user guide. :pull:`101` `David Minton`_
+
+
 .. _whats-new.2026.3.5-alpha:
 
 :release:`v2026.3.5-alpha`

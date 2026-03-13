@@ -11,13 +11,13 @@
     :alt: Surface
     :align: center
     :width: 300px
-    :class: light-only
+    :class: only-light
 
 .. image:: ../_images/surface_icon_dark.svg
     :alt: Surface
     :align: center
     :width: 300px
-    :class: dark-only
+    :class: only-dark
 
 .. _ug-surface:
 

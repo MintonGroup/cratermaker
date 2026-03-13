@@ -11,13 +11,13 @@
     :alt: Scaling
     :align: center
     :width: 300px
-    :class: light-only
+    :class: only-light
 
 .. image:: ../_images/scaling_icon_dark.svg
     :alt: Scaling
     :align: center
     :width: 300px
-    :class: dark-only
+    :class: only-dark
 
 
 .. _ug-scaling: 
