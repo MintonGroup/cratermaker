@@ -1,1 +1,58 @@
-<?xml version="1.0" encoding="UTF-8"?><svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 200 100"><defs><style>.cls-1,.cls-2,.cls-3{fill:none;}.cls-4{fill:url(#radial-gradient-2);}.cls-5{fill:url(#radial-gradient);}.cls-2{stroke-width:.25px;}.cls-2,.cls-3{stroke:#414042;stroke-miterlimit:10;}.cls-3{stroke-width:3px;}.cls-6{fill:#f87229;}</style><symbol id="Brush_Stroke_3" viewBox="0 0 22.1463 25.6029"><path class="cls-6" d="M5.9385,6.8005c1.5671,2.0008,11.1807,10.4092,14.0703,13.918.7726.9381,2.6834,5.4435,1.9878,4.8267C14.1124,18.5534,5.2632,6.7079,0,0l2.6678,2.9251c1.0506,1.5606,3.2707,3.8753,3.2707,3.8753Z"/></symbol><radialGradient id="radial-gradient" cx="89.0696" cy="29.7712" fx="89.0696" fy="29.7712" r="64.5195" gradientTransform="translate(-.776 -.526) scale(1.0104)" gradientUnits="userSpaceOnUse"><stop offset=".7248" stop-color="#fff"/><stop offset=".777" stop-color="#e1e1e1"/><stop offset=".8896" stop-color="#969697"/><stop offset=".9975" stop-color="#4a494b"/></radialGradient><radialGradient id="radial-gradient-2" cx="136.025" cy="17.1025" fx="136.025" fy="17.1025" r="6.452" gradientTransform="matrix(1,0,0,1,0,0)" xlink:href="#radial-gradient"/></defs><rect class="cls-1" width="200" height="100"/><circle class="cls-5" cx="75" cy="50" r="48.5"/><circle class="cls-3" cx="75" cy="50" r="48.5"/><circle class="cls-4" cx="134.6176" cy="19.1259" r="4.8"/><circle class="cls-2" cx="134.6176" cy="19.1259" r="4.8"/><use width="22.1463" height="25.6029" transform="translate(156.1866 17.6919) rotate(-151.8118) scale(.4978 -.3138) skewX(8.0043)" xlink:href="#Brush_Stroke_3"/><use width="22.1463" height="25.6029" transform="translate(161.3152 2.7823) rotate(131.4255) scale(.6278 .3) skewX(30.6823)" xlink:href="#Brush_Stroke_3"/><use width="22.1463" height="25.6029" transform="translate(173.1978 4.4118) rotate(129.5881) scale(1.1098 .6787) skewX(12.3002)" xlink:href="#Brush_Stroke_3"/></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 150 100">
+  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0, .st1, .st2 {
+        fill: none;
+      }
+
+      .st3 {
+        fill: url(#radial-gradient);
+      }
+
+      .st1 {
+        stroke-width: .25px;
+      }
+
+      .st1, .st2 {
+        stroke: #414042;
+        stroke-miterlimit: 10;
+      }
+
+      .st4 {
+        fill: url(#radial-gradient1);
+      }
+
+      .st2 {
+        stroke-width: 3px;
+      }
+
+      .st5 {
+        fill: #f87229;
+      }
+    </style>
+    <symbol id="Brush_Stroke_3" viewBox="0 0 22.1463 25.6029">
+      <path class="st5" d="M5.9385,6.8005c1.5671,2.0008,11.1807,10.4092,14.0703,13.918.7726.9381,2.6834,5.4435,1.9878,4.8267C14.1124,18.5534,5.2632,6.7079,0,0l2.6678,2.9251c1.0506,1.5606,3.2707,3.8753,3.2707,3.8753Z"/>
+    </symbol>
+    <radialGradient id="radial-gradient" cx="64.2874" cy="28.7403" fx="64.2874" fy="28.7403" r="64.5195" gradientTransform="translate(-.5156 .5156) scale(1.0104)" gradientUnits="userSpaceOnUse">
+      <stop offset=".7248" stop-color="#fff"/>
+      <stop offset=".777" stop-color="#e1e1e1"/>
+      <stop offset=".8896" stop-color="#969697"/>
+      <stop offset=".9975" stop-color="#4a494b"/>
+    </radialGradient>
+    <radialGradient id="radial-gradient1" cx="111.2451" cy="17.1025" fx="111.2451" fy="17.1025" r="6.452" gradientTransform="matrix(1,0,0,1,0,0)" xlink:href="#radial-gradient"/>
+  </defs>
+  <rect class="st0" x="-24.78" width="200" height="100"/>
+  <circle class="st3" cx="50.22" cy="50" r="48.5"/>
+  <circle class="st2" cx="50.22" cy="50" r="48.5"/>
+  <g>
+    <circle class="st4" cx="109.8376" cy="19.1259" r="4.8"/>
+    <circle class="st1" cx="109.8376" cy="19.1259" r="4.8"/>
+  </g>
+  <g>
+    <use width="22.1463" height="25.6029" transform="translate(131.4066 17.6919) rotate(-151.8118) scale(.4978 -.3138) skewX(8.0043)" xlink:href="#Brush_Stroke_3"/>
+    <use width="22.1463" height="25.6029" transform="translate(136.5352 2.7823) rotate(131.4255) scale(.6278 .3) skewX(30.6823)" xlink:href="#Brush_Stroke_3"/>
+    <use width="22.1463" height="25.6029" transform="translate(148.4179 4.4118) rotate(129.5881) scale(1.1098 .6787) skewX(12.3002)" xlink:href="#Brush_Stroke_3"/>
+  </g>
+</svg>

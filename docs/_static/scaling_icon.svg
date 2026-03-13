@@ -1,1 +1,178 @@
-<?xml version="1.0" encoding="UTF-8"?><svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 200 100"><defs><style>.cls-1,.cls-2,.cls-3,.cls-4,.cls-5{fill:none;}.cls-6{fill:url(#radial-gradient-2);}.cls-7{fill:#414042;}.cls-7,.cls-2,.cls-3,.cls-4,.cls-5{stroke-miterlimit:10;}.cls-7,.cls-2,.cls-5{stroke:#414042;}.cls-7,.cls-5{stroke-width:3px;}.cls-8{fill:url(#radial-gradient);}.cls-2{stroke-width:.25px;}.cls-3{stroke:#1c75bc;}.cls-4{stroke:#000;}.cls-9{fill:#1c75bc;}.cls-10{fill:#f87229;}</style><symbol id="Brush_Stroke_3" viewBox="0 0 22.1463 25.6029"><path class="cls-10" d="M5.9385,6.8005c1.5671,2.0008,11.1807,10.4092,14.0703,13.918.7726.9381,2.6834,5.4435,1.9878,4.8267C14.1124,18.5534,5.2632,6.7079,0,0l2.6678,2.9251c1.0506,1.5606,3.2707,3.8753,3.2707,3.8753Z"/></symbol><radialGradient id="radial-gradient" cx="89.0748" cy="29.7661" fx="89.0748" fy="29.7661" r="64.5195" gradientTransform="translate(-.7812 -.5208) scale(1.0104)" gradientUnits="userSpaceOnUse"><stop offset=".7248" stop-color="#fff"/><stop offset=".777" stop-color="#e1e1e1"/><stop offset=".8896" stop-color="#969697"/><stop offset=".9975" stop-color="#4a494b"/></radialGradient><radialGradient id="radial-gradient-2" cx="136.025" cy="17.1025" fx="136.025" fy="17.1025" r="6.452" gradientTransform="matrix(1,0,0,1,0,0)" xlink:href="#radial-gradient"/></defs><rect class="cls-1" width="200" height="100"/><circle class="cls-8" cx="75" cy="50" r="48.5"/><circle class="cls-5" cx="75" cy="50" r="48.5"/><circle class="cls-6" cx="134.6176" cy="19.1259" r="4.8"/><circle class="cls-2" cx="134.6176" cy="19.1259" r="4.8"/><use width="22.1463" height="25.6029" transform="translate(156.1866 17.6919) rotate(-151.8118) scale(.4978 -.3138) skewX(8.0043)" xlink:href="#Brush_Stroke_3"/><use width="22.1463" height="25.6029" transform="translate(161.3152 2.7823) rotate(131.4255) scale(.6278 .3) skewX(30.6823)" xlink:href="#Brush_Stroke_3"/><use width="22.1463" height="25.6029" transform="translate(173.1978 4.4118) rotate(129.5881) scale(1.1098 .6787) skewX(12.3002)" xlink:href="#Brush_Stroke_3"/><ellipse class="cls-7" cx="86.9931" cy="36.7625" rx="8.5911" ry="10.5685" transform="translate(18.6029 101.8936) rotate(-66.5102)"/><g id="_1_cm._Tick_Group"><path id="_1_cm._Tick_no._0" class="cls-4" d="M161.1092,96.6887h14.1732"/><path id="_1_cm._Tick_no._1" class="cls-4" d="M161.1092,89.6021h14.1732"/><path id="_1_cm._Tick_no._2" class="cls-4" d="M161.1092,82.5155h14.1732"/><path id="_1_cm._Tick_no._3" class="cls-4" d="M161.1092,75.4289h14.1732"/><path id="_1_cm._Tick_no._4" class="cls-4" d="M161.1092,68.3423h14.1732"/><path id="_1_cm._Tick_no._5" class="cls-4" d="M161.1092,61.2557h14.1732"/><path id="_1_cm._Tick_no._6" class="cls-4" d="M161.1092,54.1691h14.1732"/><path id="_1_cm._Tick_no._7" class="cls-4" d="M161.1092,47.0824h14.1732"/><path id="_1_cm._Tick_no._8" class="cls-4" d="M161.1092,39.9958h14.1732"/><path id="_1_cm._Tick_no._9" class="cls-4" d="M161.1092,32.9092h14.1732"/><path id="_1_cm._Tick_no._10" class="cls-4" d="M161.1092,25.8226h14.1732"/></g><g id="_1_2_cm._Tick_Group"><path id="_1_2_cm._Tick_no._1" class="cls-4" d="M161.1092,93.1454h7.0866"/><path id="_1_2_cm._Tick_no._3" class="cls-4" d="M161.1092,86.0588h7.0866"/><path id="_1_2_cm._Tick_no._5" class="cls-4" d="M161.1092,78.9722h7.0866"/><path id="_1_2_cm._Tick_no._7" class="cls-4" d="M161.1092,71.8856h7.0866"/><path id="_1_2_cm._Tick_no._9" class="cls-4" d="M161.1092,64.799h7.0866"/><path id="_1_2_cm._Tick_no._11" class="cls-4" d="M161.1092,57.7124h7.0866"/><path id="_1_2_cm._Tick_no._13" class="cls-4" d="M161.1092,50.6258h7.0866"/><path id="_1_2_cm._Tick_no._15" class="cls-4" d="M161.1092,43.5391h7.0866"/><path id="_1_2_cm._Tick_no._17" class="cls-4" d="M161.1092,36.4525h7.0866"/><path id="_1_2_cm._Tick_no._19" class="cls-4" d="M161.1092,29.3659h7.0866"/></g><g id="_1_4_cm._Tick_Group"><path id="_1_4_cm._Tick_no._1" class="cls-4" d="M161.1092,94.9171h3.5433"/><path id="_1_4_cm._Tick_no._3" class="cls-4" d="M161.1092,91.3738h3.5433"/><path id="_1_4_cm._Tick_no._5" class="cls-4" d="M161.1092,87.8305h3.5433"/><path id="_1_4_cm._Tick_no._7" class="cls-4" d="M161.1092,84.2872h3.5433"/><path id="_1_4_cm._Tick_no._9" class="cls-4" d="M161.1092,80.7439h3.5433"/><path id="_1_4_cm._Tick_no._11" class="cls-4" d="M161.1092,77.2006h3.5433"/><path id="_1_4_cm._Tick_no._13" class="cls-4" d="M161.1092,73.6572h3.5433"/><path id="_1_4_cm._Tick_no._15" class="cls-4" d="M161.1092,70.1139h3.5433"/><path id="_1_4_cm._Tick_no._17" class="cls-4" d="M161.1092,66.5706h3.5433"/><path id="_1_4_cm._Tick_no._19" class="cls-4" d="M161.1092,63.0273h3.5433"/><path id="_1_4_cm._Tick_no._21" class="cls-4" d="M161.1092,59.484h3.5433"/><path id="_1_4_cm._Tick_no._23" class="cls-4" d="M161.1092,55.9407h3.5433"/><path id="_1_4_cm._Tick_no._25" class="cls-4" d="M161.1092,52.3974h3.5433"/><path id="_1_4_cm._Tick_no._27" class="cls-4" d="M161.1092,48.8541h3.5433"/><path id="_1_4_cm._Tick_no._29" class="cls-4" d="M161.1092,45.3108h3.5433"/><path id="_1_4_cm._Tick_no._31" class="cls-4" d="M161.1092,41.7675h3.5433"/><path id="_1_4_cm._Tick_no._33" class="cls-4" d="M161.1092,38.2242h3.5433"/><path id="_1_4_cm._Tick_no._35" class="cls-4" d="M161.1092,34.6809h3.5433"/><path id="_1_4_cm._Tick_no._37" class="cls-4" d="M161.1092,31.1376h3.5433"/><path id="_1_4_cm._Tick_no._39" class="cls-4" d="M161.1092,27.5943h3.5433"/></g><g id="_1_8_cm._Tick_Group"><path id="_1_8_cm._Tick_no._1" class="cls-4" d="M161.1092,95.8029h1.7717"/><path id="_1_8_cm._Tick_no._3" class="cls-4" d="M161.1092,94.0313h1.7717"/><path id="_1_8_cm._Tick_no._5" class="cls-4" d="M161.1092,92.2596h1.7717"/><path id="_1_8_cm._Tick_no._7" class="cls-4" d="M161.1092,90.488h1.7717"/><path id="_1_8_cm._Tick_no._9" class="cls-4" d="M161.1092,88.7163h1.7717"/><path id="_1_8_cm._Tick_no._11" class="cls-4" d="M161.1092,86.9446h1.7717"/><path id="_1_8_cm._Tick_no._13" class="cls-4" d="M161.1092,85.173h1.7717"/><path id="_1_8_cm._Tick_no._15" class="cls-4" d="M161.1092,83.4013h1.7717"/><path id="_1_8_cm._Tick_no._17" class="cls-4" d="M161.1092,81.6297h1.7717"/><path id="_1_8_cm._Tick_no._19" class="cls-4" d="M161.1092,79.858h1.7717"/><path id="_1_8_cm._Tick_no._21" class="cls-4" d="M161.1092,78.0864h1.7717"/><path id="_1_8_cm._Tick_no._23" class="cls-4" d="M161.1092,76.3147h1.7717"/><path id="_1_8_cm._Tick_no._25" class="cls-4" d="M161.1092,74.5431h1.7717"/><path id="_1_8_cm._Tick_no._27" class="cls-4" d="M161.1092,72.7714h1.7717"/><path id="_1_8_cm._Tick_no._29" class="cls-4" d="M161.1092,70.9998h1.7717"/><path id="_1_8_cm._Tick_no._31" class="cls-4" d="M161.1092,69.2281h1.7717"/><path id="_1_8_cm._Tick_no._33" class="cls-4" d="M161.1092,67.4565h1.7717"/><path id="_1_8_cm._Tick_no._35" class="cls-4" d="M161.1092,65.6848h1.7717"/><path id="_1_8_cm._Tick_no._37" class="cls-4" d="M161.1092,63.9132h1.7717"/><path id="_1_8_cm._Tick_no._39" class="cls-4" d="M161.1092,62.1415h1.7717"/><path id="_1_8_cm._Tick_no._41" class="cls-4" d="M161.1092,60.3698h1.7717"/><path id="_1_8_cm._Tick_no._43" class="cls-4" d="M161.1092,58.5982h1.7717"/><path id="_1_8_cm._Tick_no._45" class="cls-4" d="M161.1092,56.8265h1.7717"/><path id="_1_8_cm._Tick_no._47" class="cls-4" d="M161.1092,55.0549h1.7717"/><path id="_1_8_cm._Tick_no._49" class="cls-4" d="M161.1092,53.2832h1.7717"/><path id="_1_8_cm._Tick_no._51" class="cls-4" d="M161.1092,51.5116h1.7717"/><path id="_1_8_cm._Tick_no._53" class="cls-4" d="M161.1092,49.7399h1.7717"/><path id="_1_8_cm._Tick_no._55" class="cls-4" d="M161.1092,47.9683h1.7717"/><path id="_1_8_cm._Tick_no._57" class="cls-4" d="M161.1092,46.1966h1.7717"/><path id="_1_8_cm._Tick_no._59" class="cls-4" d="M161.1092,44.425h1.7717"/><path id="_1_8_cm._Tick_no._61" class="cls-4" d="M161.1092,42.6533h1.7717"/><path id="_1_8_cm._Tick_no._63" class="cls-4" d="M161.1092,40.8817h1.7717"/><path id="_1_8_cm._Tick_no._65" class="cls-4" d="M161.1092,39.11h1.7717"/><path id="_1_8_cm._Tick_no._67" class="cls-4" d="M161.1092,37.3384h1.7717"/><path id="_1_8_cm._Tick_no._69" class="cls-4" d="M161.1092,35.5667h1.7717"/><path id="_1_8_cm._Tick_no._71" class="cls-4" d="M161.1092,33.795h1.7717"/><path id="_1_8_cm._Tick_no._73" class="cls-4" d="M161.1092,32.0234h1.7717"/><path id="_1_8_cm._Tick_no._75" class="cls-4" d="M161.1092,30.2517h1.7717"/><path id="_1_8_cm._Tick_no._77" class="cls-4" d="M161.1092,28.4801h1.7717"/><path id="_1_8_cm._Tick_no._79" class="cls-4" d="M161.1092,26.7084h1.7717"/></g><line class="cls-3" x1="100.9713" y1="30.3748" x2="125.4847" y2="22.2875"/><path class="cls-9" d="M101.8236,30.0936l.4761-2.0541-.0712-.0194-2.4241,2.0283c-.9014.5344-1.8027,1.0688-2.7041,1.6035,1.0424-.1069,2.0849-.2137,3.1274-.3204l3.1552.1877.0488-.0485-1.6081-1.377Z"/><polygon class="cls-9" points="128.8372 21.1815 124.7499 24.6704 125.2341 22.3702 123.4764 20.8101 128.8372 21.1815"/></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 150 100">
+  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0, .st1, .st2, .st3, .st4 {
+        fill: none;
+      }
+
+      .st5 {
+        fill: #414042;
+      }
+
+      .st5, .st1, .st2, .st3, .st4 {
+        stroke-miterlimit: 10;
+      }
+
+      .st5, .st1, .st4 {
+        stroke: #414042;
+      }
+
+      .st5, .st4 {
+        stroke-width: 3px;
+      }
+
+      .st6 {
+        fill: url(#radial-gradient);
+      }
+
+      .st1 {
+        stroke-width: .25px;
+      }
+
+      .st2 {
+        stroke: #1c75bc;
+      }
+
+      .st3 {
+        stroke: #000;
+      }
+
+      .st7 {
+        fill: url(#radial-gradient1);
+      }
+
+      .st8 {
+        fill: #1c75bc;
+      }
+
+      .st9 {
+        fill: #f87229;
+      }
+    </style>
+    <symbol id="Brush_Stroke_3" viewBox="0 0 22.1463 25.6029">
+      <path class="st9" d="M5.9385,6.8005c1.5671,2.0008,11.1807,10.4092,14.0703,13.918.7726.9381,2.6834,5.4435,1.9878,4.8267C14.1124,18.5534,5.2632,6.7079,0,0l2.6678,2.9251c1.0506,1.5606,3.2707,3.8753,3.2707,3.8753Z"/>
+    </symbol>
+    <radialGradient id="radial-gradient" cx="63.9278" cy="29.7661" fx="63.9278" fy="29.7661" r="64.5195" gradientTransform="translate(-.5208 -.5208) scale(1.0104)" gradientUnits="userSpaceOnUse">
+      <stop offset=".7248" stop-color="#fff"/>
+      <stop offset=".777" stop-color="#e1e1e1"/>
+      <stop offset=".8896" stop-color="#969697"/>
+      <stop offset=".9975" stop-color="#4a494b"/>
+    </radialGradient>
+    <radialGradient id="radial-gradient1" cx="110.8766" cy="17.1025" fx="110.8766" fy="17.1025" r="6.452" gradientTransform="matrix(1,0,0,1,0,0)" xlink:href="#radial-gradient"/>
+  </defs>
+  <g>
+    <rect class="st0" x="-25.1485" width="200" height="100"/>
+    <g>
+      <circle class="st6" cx="49.8515" cy="50" r="48.5"/>
+      <circle class="st4" cx="49.8515" cy="50" r="48.5"/>
+    </g>
+    <g>
+      <circle class="st7" cx="109.4691" cy="19.1259" r="4.8"/>
+      <circle class="st1" cx="109.4691" cy="19.1259" r="4.8"/>
+    </g>
+  </g>
+  <g>
+    <use width="22.1463" height="25.6029" transform="translate(131.0382 17.6919) rotate(-151.8118) scale(.4978 -.3138) skewX(8.0043)" xlink:href="#Brush_Stroke_3"/>
+    <use width="22.1463" height="25.6029" transform="translate(136.1667 2.7823) rotate(131.4255) scale(.6278 .3) skewX(30.6823)" xlink:href="#Brush_Stroke_3"/>
+    <use width="22.1463" height="25.6029" transform="translate(148.0494 4.4118) rotate(129.5881) scale(1.1098 .6787) skewX(12.3002)" xlink:href="#Brush_Stroke_3"/>
+  </g>
+  <ellipse class="st5" cx="61.8447" cy="36.7625" rx="8.5911" ry="10.5685" transform="translate(3.4783 78.8292) rotate(-66.5102)"/>
+  <g>
+    <g id="_x31__cm._Tick_Group">
+      <path id="_x31__cm._Tick_no._0" class="st3" d="M135.9608,96.6887h14.1732"/>
+      <path id="_x31__cm._Tick_no._1" class="st3" d="M135.9608,89.6021h14.1732"/>
+      <path id="_x31__cm._Tick_no._2" class="st3" d="M135.9608,82.5155h14.1732"/>
+      <path id="_x31__cm._Tick_no._3" class="st3" d="M135.9608,75.4289h14.1732"/>
+      <path id="_x31__cm._Tick_no._4" class="st3" d="M135.9608,68.3423h14.1732"/>
+      <path id="_x31__cm._Tick_no._5" class="st3" d="M135.9608,61.2557h14.1732"/>
+      <path id="_x31__cm._Tick_no._6" class="st3" d="M135.9608,54.1691h14.1732"/>
+      <path id="_x31__cm._Tick_no._7" class="st3" d="M135.9608,47.0824h14.1732"/>
+      <path id="_x31__cm._Tick_no._8" class="st3" d="M135.9608,39.9958h14.1732"/>
+      <path id="_x31__cm._Tick_no._9" class="st3" d="M135.9608,32.9092h14.1732"/>
+      <path id="_x31__cm._Tick_no._10" class="st3" d="M135.9608,25.8226h14.1732"/>
+    </g>
+    <g id="_x31__x2F_2_cm._Tick_Group">
+      <path id="_x31__x2F_2_cm._Tick_no._1" class="st3" d="M135.9608,93.1454h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._3" class="st3" d="M135.9608,86.0588h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._5" class="st3" d="M135.9608,78.9722h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._7" class="st3" d="M135.9608,71.8856h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._9" class="st3" d="M135.9608,64.799h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._11" class="st3" d="M135.9608,57.7124h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._13" class="st3" d="M135.9608,50.6258h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._15" class="st3" d="M135.9608,43.5391h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._17" class="st3" d="M135.9608,36.4525h7.0866"/>
+      <path id="_x31__x2F_2_cm._Tick_no._19" class="st3" d="M135.9608,29.3659h7.0866"/>
+    </g>
+    <g id="_x31__x2F_4_cm._Tick_Group">
+      <path id="_x31__x2F_4_cm._Tick_no._1" class="st3" d="M135.9608,94.9171h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._3" class="st3" d="M135.9608,91.3738h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._5" class="st3" d="M135.9608,87.8305h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._7" class="st3" d="M135.9608,84.2872h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._9" class="st3" d="M135.9608,80.7439h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._11" class="st3" d="M135.9608,77.2006h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._13" class="st3" d="M135.9608,73.6572h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._15" class="st3" d="M135.9608,70.1139h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._17" class="st3" d="M135.9608,66.5706h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._19" class="st3" d="M135.9608,63.0273h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._21" class="st3" d="M135.9608,59.484h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._23" class="st3" d="M135.9608,55.9407h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._25" class="st3" d="M135.9608,52.3974h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._27" class="st3" d="M135.9608,48.8541h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._29" class="st3" d="M135.9608,45.3108h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._31" class="st3" d="M135.9608,41.7675h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._33" class="st3" d="M135.9608,38.2242h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._35" class="st3" d="M135.9608,34.6809h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._37" class="st3" d="M135.9608,31.1376h3.5433"/>
+      <path id="_x31__x2F_4_cm._Tick_no._39" class="st3" d="M135.9608,27.5943h3.5433"/>
+    </g>
+    <g id="_x31__x2F_8_cm._Tick_Group">
+      <path id="_x31__x2F_8_cm._Tick_no._1" class="st3" d="M135.9608,95.8029h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._3" class="st3" d="M135.9608,94.0313h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._5" class="st3" d="M135.9608,92.2596h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._7" class="st3" d="M135.9608,90.488h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._9" class="st3" d="M135.9608,88.7163h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._11" class="st3" d="M135.9608,86.9446h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._13" class="st3" d="M135.9608,85.173h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._15" class="st3" d="M135.9608,83.4013h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._17" class="st3" d="M135.9608,81.6297h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._19" class="st3" d="M135.9608,79.858h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._21" class="st3" d="M135.9608,78.0864h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._23" class="st3" d="M135.9608,76.3147h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._25" class="st3" d="M135.9608,74.5431h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._27" class="st3" d="M135.9608,72.7714h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._29" class="st3" d="M135.9608,70.9998h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._31" class="st3" d="M135.9608,69.2281h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._33" class="st3" d="M135.9608,67.4565h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._35" class="st3" d="M135.9608,65.6848h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._37" class="st3" d="M135.9608,63.9132h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._39" class="st3" d="M135.9608,62.1415h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._41" class="st3" d="M135.9608,60.3698h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._43" class="st3" d="M135.9608,58.5982h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._45" class="st3" d="M135.9608,56.8265h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._47" class="st3" d="M135.9608,55.0549h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._49" class="st3" d="M135.9608,53.2832h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._51" class="st3" d="M135.9608,51.5116h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._53" class="st3" d="M135.9608,49.7399h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._55" class="st3" d="M135.9608,47.9683h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._57" class="st3" d="M135.9608,46.1966h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._59" class="st3" d="M135.9608,44.425h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._61" class="st3" d="M135.9608,42.6533h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._63" class="st3" d="M135.9608,40.8817h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._65" class="st3" d="M135.9608,39.11h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._67" class="st3" d="M135.9608,37.3384h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._69" class="st3" d="M135.9608,35.5667h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._71" class="st3" d="M135.9608,33.795h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._73" class="st3" d="M135.9608,32.0234h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._75" class="st3" d="M135.9608,30.2517h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._77" class="st3" d="M135.9608,28.4801h1.7717"/>
+      <path id="_x31__x2F_8_cm._Tick_no._79" class="st3" d="M135.9608,26.7084h1.7717"/>
+    </g>
+  </g>
+  <g>
+    <line class="st2" x1="75.8228" y1="30.3748" x2="100.3362" y2="22.2875"/>
+    <path class="st8" d="M76.6751,30.0936l.4761-2.0541-.0712-.0194-2.4241,2.0283c-.9014.5344-1.8027,1.0688-2.7041,1.6035,1.0424-.1069,2.0849-.2137,3.1274-.3204l3.1552.1877.0488-.0485-1.6081-1.377Z"/>
+    <polygon class="st8" points="103.6888 21.1815 99.6015 24.6704 100.0856 22.3702 98.3279 20.8101 103.6888 21.1815"/>
+  </g>
+</svg>

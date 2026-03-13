@@ -41,6 +41,10 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         :link-type: doc
         :class-item: only-light
 
+        The API guide contains a detailed description of the Cratermaker API.
+        The reference describes how the methods work and which parameters can
+        be used. It assumes that you have an understanding of the key concepts.
+
     .. grid-item-card::  API reference
         :img-top: _static/api_icon_dark.svg
         :class-img-top: only-dark
