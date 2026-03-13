@@ -129,10 +129,20 @@ Components of Cratermaker
 
     .. grid-item-card::  API reference
         :columns: 12 
-        :img-top: ../_static/api_icon.svg
-        :class-img-top: dark-light
+        :img-top: ../_static/api_icon_light.svg
+        :class-img-top: only-light
+        :class-item: only-light
         :link: ../api/index
         :link-type: doc
+
+    .. grid-item-card::  API reference
+        :columns: 12 
+        :img-top: ../_static/api_icon_dark.svg
+        :class-img-top: only-dark
+        :class-item: only-dark
+        :link: ../api/index
+        :link-type: doc
+
 
         The API guide contains a detailed description of the Cratermaker API.  The reference describes how the methods work and which parameters can be used. It assumes that you have an understanding of the key concepts.
 
