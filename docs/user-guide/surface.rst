@@ -1,5 +1,6 @@
 .. currentmodule:: cratermaker
 
+
 .. ipython:: python
     :okwarning:
     :suppress:
@@ -20,6 +21,7 @@
     :class: only-dark
 
 .. _ug-surface:
+
 
 Surface
 =======
@@ -98,11 +100,10 @@ Surface Types
 
 Like all Cratermaker components, a Surface object is instantiated with a special factory method called :py:meth:`Surface.maker() <cratermaker.components.surface.Surface.maker>`, along with arguments that control how the Surface is created. There are currently three different surface types of surface implementations that can be chosen by the user, which are selected by passing the `surface` argument to the :py:meth:`Surface.maker() <cratermaker.components.surface.Surface.maker>` method. The available surface types are:
 
-
-- "icosphere": This is the default surface type, which generates a uniform grid configuration with polygonal faces that will be subdivided by the input value for the `gridlevel` argument. The icosphere surface will have the most uniform face sizes, but is limited to a few resolutions. It is best suited for general use and is the default surface type.
-- "arbitrary_resolution": This surface type allows the user to define the approximate size of the faces of the grid using the `pix` argument. It creates a uniform grid configuration but allows for more control over the sizes of the faces. The faces on this surface will be more irregular in shape, making it less ideal for some applications, but it is useful when specific face sizes are needed.
-- "hireslocal": This surface type is used for modeling a small local region at high resolution. It requires the `pix`, `local_radius`, `local_location`, and `superdomain_scale_factor` arguments. The local region is the "primary" surface being modeled, and the superdomain is simply a source for distal ejecta from large far away craters. This surface type is useful for applications that require high resolution in a small area, but still allows for global processes to affect the small local area.
-- "datasurface": This surface type is based on "hireslocal" but will construct a surface and initialize it based on a digital elevation model (DEM). When using the Moon as a target body, can fetch DEM data from the NASA PDS automatically, and only requires a minimum of the `local_location` and `local_radius` arguments. By default, it will find data file that contains approximately :math:`10^6` faces. Passing an optional argument `pix` will override this default behavior and it will attempt to find a DEM file that comes closest to matching the requested pixel size. Optionally, the user can also pass in one or more file paths or URLs to DEM files using the `dem_file_list` argument. Like "hireslocal," this surface will contain a local region and a global superdomain. The superdomain will be initialized using a low resolution global DEM, or optionally a file path or URL to a DEM file can be passed in using the `superdomain_dem_file` argument.
+- :py:class:`"icosphere" <cratermaker.components.surface.icosphere.IcosphereSurface>`: This is the default surface type, which generates a uniform grid configuration with polygonal faces that will be subdivided by the input value for the `gridlevel` argument. The icosphere surface will have the most uniform face sizes, but is limited to a few resolutions. It is best suited for general use and is the default surface type.
+- :py:class:`"arbitrary_resolution" <cratermaker.components.surface.arbitrary_resolution.ArbitraryResolutionSurface>`: This surface type allows the user to define the approximate size of the faces of the grid using the `pix` argument. It creates a uniform grid configuration but allows for more control over the sizes of the faces. The faces on this surface will be more irregular in shape, making it less ideal for some applications, but it is useful when specific face sizes are needed.
+- :py:class:`"hireslocal" <cratermaker.components.surface.hireslocal.HiResLocalSurface>`: This surface type is used for modeling a small local region at high resolution. It requires the `pix`, `local_radius`, `local_location`, and `superdomain_scale_factor` arguments. The local region is the "primary" surface being modeled, and the superdomain is simply a source for distal ejecta from large far away craters. This surface type is useful for applications that require high resolution in a small area, but still allows for global processes to affect the small local area.
+- :py:class:`"datasurface" <cratermaker.components.surface.datasurface.DataSurface>`: This surface type is based on :py:class:`"hireslocal" <cratermaker.components.surface.hireslocal.HiResLocalSurface>` but will construct a surface and initialize it based on a digital elevation model (DEM). When using the Moon as a target body, can fetch DEM data from the NASA PDS automatically, and only requires a minimum of the `local_location` and `local_radius` arguments. By default, it will find data file that contains approximately :math:`10^6` faces. Passing an optional argument `pix` will override this default behavior and it will attempt to find a DEM file that comes closest to matching the requested pixel size. Optionally, the user can also pass in one or more file paths or URLs to DEM files using the `dem_file_list` argument. Like "hireslocal," this surface will contain a local region and a global superdomain. The superdomain will be initialized using a low resolution global DEM, or optionally a file path or URL to a DEM file can be passed in using the `superdomain_dem_file` argument.
 
 The following sections will describe each of these surface types in more detail, including how to create them and their specific attributes and methods.
 
@@ -130,7 +131,7 @@ The default Surface is "icosphere," which consists of a uniform grid configurati
     9, 2621442, 5242880, 3.80 km ± 160 m
 
 
-Though it is limited to a few resolutions, the icosphere surface will have the most uniform face sizes. Lower values of `gridlevel` will result in fewer but larger face sizes, which can be computed quickly but will not resolve detail well. Higher values of `gridlevel` will result in more faces with smaller areas, which will resolve detail better but will take longer to generate and use, and will consume more memory. The default value is 8, and we recommend keeping `gridlevel` to between ^7-9. Also, keep in mind that the value of `pix` in the table above is computed for the Moon, and will vary for other targets. 
+Though it is limited to a few resolutions, the icosphere surface will have the most uniform face sizes. Lower values of `gridlevel` will result in fewer but larger face sizes, which can be computed quickly but will not resolve detail well. Higher values of `gridlevel` will result in more faces with smaller areas, which will resolve detail better but will take longer to generate and use, and will consume more memory. The default value is 8, and we recommend keeping `gridlevel` to between ~7-9. Also, keep in mind that the value of `pix` in the table above is computed for the Moon, and will vary for other targets. 
 
 
 .. ipython:: python
@@ -173,12 +174,12 @@ Arbitrary Resolution
     :class: dark-light
 
 
-While the `icosphere` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the "arbitrary_resolution" surface type instead of "icosphere." The "arbitrary_resolution" surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of 20 km per face (shown in the figure above):
+While the :py:class:`"icosphere" <cratermaker.components.surface.icosphere.IcosphereSurface>` surface generates the most regular grids, it is limited to only a few fixed face sizes. If you wish to have more control over the sizes of your faces, you can use the :py:class:`"arbitrary_resolution" <cratermaker.components.surface.arbitrary_resolution.ArbitraryResolutionSurface>` surface type instead of "icosphere." The :py:class:`"arbitrary_resolution" <cratermaker.components.surface.arbitrary_resolution.ArbitraryResolutionSurface>` surface takes an argument called `pix`, which sets the approximate size of the faces of the grid. The value of `pix` is given in units of meter, and it is defined such that the area of each face will on average be :math:`pix^2`.  For instance, suppose we want to create a surface representation of planet Mercury with a resolution of 20 km per face (shown in the figure above):
 
 .. ipython:: python
     :okwarning:
 
-    surface=Surface.maker(surface='arbitrary_resolution', target='Mercury', pix=20e3)
+    surface=Surface.maker(surface="arbitrary_resolution", target='Mercury', pix=20e3)
     print(surface)
 
 .. ipython:: python
@@ -201,7 +202,7 @@ High Resolution Local
     :width: 400px
     :class: dark-light
 
-In many application of Cratermaker, it is useful to model a small local region at high resolution. This can be done with the "hireslocal" Surface type. This Surface requires the following 4 arguments:
+In many application of Cratermaker, it is useful to model a small local region at high resolution. This can be done with the :py:class:`"hireslocal" <cratermaker.components.surface.hireslocal.HiResLocalSurface>` Surface type. This Surface requires the following 4 arguments:
 
 - `pix`: The pixel size in meters within the high resolution local region.
 - `local_radius`: The radius of the local region in meters.
@@ -227,7 +228,8 @@ For instance, suppose we want to generate a high resolution local grid on the Mo
 
 
 The image above shows a rendering of this high resolution local grid, showing a view of the whole local region and an inset showing the high resolution portion inside. The local region will have approximately square and equal-sized faces, but the faces will be more irregular in shape as you move away from the center of the local region. The superdomain will have larger faces that are scaled by the `superdomain_scale_factor`, which allows for distal ejecta to be modeled from large far away craters. The superdomain is not a separate surface, but rather a part of the same surface that is used to model the effects of distant craters on the local region.
-The "hireslocal" surface type works somewhat differently than the others. For instance, the diffusive degradation is only applied on the local region. You can think of the local region as the "primary" surface being modeled, and the superdomain as simply a source for distal ejecta fram large far away craters. 
+
+The :py:class:`"hireslocal" <cratermaker.components.surface.hireslocal.HiResLocalSurface>` surface type works somewhat differently than the others. For instance, the diffusive degradation is only applied on the local region. You can think of the local region as the "primary" surface being modeled, and the superdomain as simply a source for distal ejecta fram large far away craters. 
 
 
 DataSurface
@@ -239,7 +241,11 @@ DataSurface
     :width: 400px
     :class: dark-light
 
-Many applications of Cratermaker could potentially use real digital elevation model (DEM) data as the starting surface topography. The "datasurface" Surface type is designed for this purpose. It is based on the "hireslocal" surface type, but will construct a surface and initialize it based on a DEM. When using the Moon as a target body, Cratermaker can fetch DEM data from the NASA PDS automatically, and only requires a minimum of the `local_location` and `local_radius` arguments. By default, it will find data file that contains approximately :math: `10^6` faces. Passing an optional argument `pix` will override this default behavior and it will attempt to find a DEM file that comes closest to matching the requested pixel size. Optionally, the user can also pass in one or more file paths or URLs to DEM files using the `dem_file_list` argument. Like "hireslocal," this surface will contain a local region and a global superdomain. The superdomain will be initialized using a low resolution global DEM, or optionally a file path or URL to a DEM file can be passed in using the `superdomain_dem_file` argument.
+Many applications of Cratermaker could potentially use real digital elevation model (DEM) data as the starting surface topography. The :py:class:`"datasurface" <cratermaker.components.surface.datasurface.DataSurface>` Surface type is designed for this purpose. It is based on the :py:class:`"hireslocal" <cratermaker.components.surface.hireslocal.HiResLocalSurface>` surface type, but will construct a surface and initialize it based on a DEM. When using the Moon as a target body, Cratermaker can fetch DEM data from the NASA PDS automatically, and only requires a minimum of the `local_location` and `local_radius` arguments. 
+
+By default, it will find data file that contains approximately :math:`10^6` faces. Passing an optional argument `pix` will override this default behavior and it will attempt to find a DEM file that comes closest to matching the requested pixel size. Optionally, the user can also pass in one or more file paths or URLs to DEM files using the `dem_file_list` argument. Like "hireslocal," this surface will contain a local region and a global superdomain. 
+
+The superdomain will be initialized using a low resolution global DEM, or optionally a file path or URL to a DEM file can be passed in using the `superdomain_dem_file` argument.
 
 
 How DataSurface chooses lunar DEM files
@@ -262,11 +268,11 @@ If ``dem_file_list`` is not provided, the class chooses DEM sources as follows:
 
 3. **Choose projection family (polar vs. cylindrical)**
    A target angular resolution (pixels/degree) is estimated from ``pix`` and the lunar radius.
-   If the implied resolution is *high* (greater than ^10 pix/deg) **and** the region extends beyond lat = 60° (North or South), the **polar** LOLA products are used.
+   If the implied resolution is *high* (greater than ~10 pix/deg) **and** the region extends beyond lat = 60° (North or South), the **polar** LOLA products are used.
    Otherwise, **cylindrical** products are used.
 
 4. **Select the closest available dataset resolution**
-   - **Cylindrical:** chooses the nearest available product from ``[4, 16, 64, 128, 256, 512]`` pix/deg.  For low-resolution global products (< 256 pix/deg), a single global file covers the domain.  For high-resolution tiled products (>= 256 pix/deg), the tile containing the center is selected, and additional neighboring tiles are added as needed to cover the bounding box corners.
+   - **Cylindrical:** chooses the nearest available product from ``[4, 16, 64, 128, 256, 512]`` pix/deg.  For low-resolution global products (<256 pix/deg), a single global file covers the domain.  For high-resolution tiled products (≥256 pix/deg), the tile containing the center is selected, and additional neighboring tiles are added as needed to cover the bounding box corners.
    - **Polar:** chooses the closest available meters-per-pixel product that covers the requested latitude range (datasets have minimum-latitude coverage thresholds that depend on the product).
 
 Global superdomain DEM (``superdomain_dem_file``)
@@ -274,7 +280,7 @@ Global superdomain DEM (``superdomain_dem_file``)
 
 If ``superdomain_dem_file`` is not provided (and the superdomain has been defined), the class:
 
-1. Computes a **coarser** target pixel size from the local resolution and ``superdomain_scale_factor`` (with a minimum corresponding to ^128 pix/deg globally), then
+1. Computes a **coarser** target pixel size from the local resolution and ``superdomain_scale_factor`` (with a minimum corresponding to ~128 pix/deg globally), then
 2. Uses the same selection logic as above (polar vs. cylindrical) to pick a suitable *global* DEM file for initializing elevations outside the local region.
 
 Overriding file selection
@@ -322,11 +328,12 @@ For instance, suppose we'd like to extract a 16 km radius region at the south po
 As we can see, this selects only 33 of the full 655362 faces, which is a significant reduction in the number of faces and nodes that need to be processed. All faces with their centers interior to circle defined by location and region_radius are included, as well as their associated edges and nodes (highlighted in the diagram above). In addition, the region will also contain a "buffer" of all faces that surround the outermost border of the local region, such that any operations that require neighboring faces across included edges or nodes can have access to them. 
 
 .. note::
-    The "hireslocal" Surface type contains a built-in attribute called `local`, which represents the high resolution region of the surface. In addition, when :py:meth:`~cratermaker.components.surface.Surface.extract_region` is called on a "hireslocal" surface, it will return a special :py:class:`~cratermaker.components.surface.LocalHiResLocalSurface` object that contains within it an additional object called `local_overlap`. This is a view of only the portion of the extracted region that overlaps the high resolution region (or None if there is no overlap).
+    The :py:class:`"hireslocal" <cratermaker.components.surface.hireslocal.HiResLocalSurface>` Surface type contains a built-in attribute called `local`, which represents the high resolution region of the surface. In addition, when :py:meth:`~cratermaker.components.surface.Surface.extract_region` is called on a "hireslocal" surface, it will return a special :py:class:`~cratermaker.components.surface.LocalHiResLocalSurface` object that contains within it an additional object called `local_overlap`. This is a view of only the portion of the extracted region that overlaps the high resolution region (or None if there is no overlap).
 
 Using a Surface object
 ----------------------
 Once you have either a :py:class:`~cratermaker.components.surface.Surface` or :py:class:`~cratermaker.components.surface.LocalSurface` object, you are now able to perform numerous surface-related computations. 
+
 - :py:meth:`~cratermaker.components.surface.Surface.extract_region`: Extracts a local region of the surface, which is useful for performing operations on a small portion of the surface without affecting the full surface. This returns a :py:class:`~cratermaker.components.surface.LocalSurface` object.
 - :py:meth:`~cratermaker.components.surface.Surface.add_data`: Adds a new data variable that is associated with either faces (default) or nodes of the surface. 
 - :py:meth:`~cratermaker.components.surface.Surface.update_elevation`: Updates the elevation data of the surface using the `new_elevation` argument. The data is added to the existing elevation data by default, unless the user specifies `overwrite=True`.

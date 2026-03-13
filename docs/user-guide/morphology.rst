@@ -63,7 +63,7 @@ More Morphology Examples
 See more advanced usage examples in the gallery: :ref:`gal-topography`
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :hidden:
 
 

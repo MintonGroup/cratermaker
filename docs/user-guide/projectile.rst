@@ -68,7 +68,7 @@ More Projectile examples
 See more examples at  :ref:`gal-projectiles_and_scaling`
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :hidden:
 
 

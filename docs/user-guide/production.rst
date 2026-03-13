@@ -124,7 +124,7 @@ More Production examples
 See more examples at  :ref:`gal-production_and_montecarlo`
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :hidden:
 
 
