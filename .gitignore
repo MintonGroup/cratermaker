@@ -54,8 +54,8 @@ cratermaker/_version.py
 !docs/conf.py
 !docs/_static/
 !docs/_static/
-!docs/images/
-!docs/images/logos/
+!docs/_images/
+!docs/_images/logos/
 !docs/_templates/
 !docs/_templates/autosummary/
 !docs/_exts/
