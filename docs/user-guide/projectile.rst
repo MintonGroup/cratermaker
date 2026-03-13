@@ -7,7 +7,7 @@
     from cratermaker import cleanup
     cleanup()
 
-.. image:: ../_static/projectile_icon.svg
+.. image:: ../_images/projectile_icon.svg
     :alt: Projectile
     :align: center
     :width: 300px

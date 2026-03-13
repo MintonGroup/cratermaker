@@ -8,7 +8,7 @@
     cleanup()
 
 
-.. image:: ../_static/counting_icon.svg
+.. image:: ../_images/counting_icon.svg
     :alt: Counting
     :align: center
     :width: 300px

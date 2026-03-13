@@ -7,11 +7,17 @@
     from cratermaker import cleanup
     cleanup()
 
-.. image:: ../_static/surface_icon.svg
+.. image:: ../_images/surface_icon_light.svg
     :alt: Surface
     :align: center
     :width: 300px
-    :class: dark-light
+    :class: light-only
+
+.. image:: ../_images/surface_icon_dark.svg
+    :alt: Surface
+    :align: center
+    :width: 300px
+    :class: dark-only
 
 .. _ug-surface:
 
@@ -32,7 +38,7 @@ The UxArray-based surface mesh
 
 The surface of a celestial body in Cratermaker is represented as a sphere that has been discretized as an unstructured polygonal mesh using the `UxArray <https://uxarray.readthedocs.io/en/latest/index.html>`_ package. UxArray provides a rich set of tools for representing unstructured mesh geometry and data associated with the mesh, through their `UxDataset <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#uxdataset>`_ and associated `Grid <https://uxarray.readthedocs.io/en/latest/user-guide/data-structures.html#grid>`_.  The surface mesh is composed of faces, nodes, and edges, where each face is a polygonal shape defined by its nodes. The faces are connected to each other through edges, and the nodes are the points in space that define the corners of the faces. A simple diagram showing the relationship between faces, nodes, and edges is shown below:
 
-.. image:: ../_static/mesh_diagram.svg
+.. image:: ../_images/mesh_diagram.svg
     :alt: Surface faces, nodes, and edges
     :align: center
     :width: 300px
@@ -104,7 +110,7 @@ The following sections will describe each of these surface types in more detail,
 Icosphere
 ^^^^^^^^^
 
-.. image:: ../_static/icosphere_grid.png
+.. image:: ../_images/icosphere_grid.png
     :alt: Icosphere grid
     :align: center
     :width: 600px
@@ -160,7 +166,7 @@ This is equivalent to:
 Arbitrary Resolution 
 ^^^^^^^^^^^^^^^^^^^^
 
-.. image:: ../_static/arbitrary_resolution_grid.png
+.. image:: ../_images/arbitrary_resolution_grid.png
     :alt: Arbitrary resolution grid
     :align: center
     :width: 400px
@@ -189,7 +195,7 @@ High Resolution Local
 ^^^^^^^^^^^^^^^^^^^^^
 
 
-.. image:: ../_static/hireslocal_grid_with_inset.png
+.. image:: ../_images/hireslocal_grid_with_inset.png
     :alt: High resolution local grid
     :align: center
     :width: 400px
@@ -227,7 +233,7 @@ The "hireslocal" surface type works somewhat differently than the others. For in
 DataSurface
 ^^^^^^^^^^^
 
-.. image:: ../_static/datasurface_copernicus.png
+.. image:: ../_images/datasurface_copernicus.png
     :alt: A DataSurface created in a region around Copernicus crater.
     :align: center
     :width: 400px
@@ -286,7 +292,7 @@ Extracting a local subsection of the surface
 --------------------------------------------
 
 
-.. image:: ../_static/localsurface_diagram.svg
+.. image:: ../_images/localsurface_diagram.svg
     :alt: LocalSurface region diagram
     :align: center
     :width: 400px
@@ -417,7 +423,7 @@ Suppose we would like to find a face correspnding to a particulal location. We c
 
 As seen above, we recieve an integer that gives us the index to the nearest face. One caveat is that this method will return the index of the face in which its center is the closest to the input location. Due to the shapes of the faces, this may or may not correspond to the face that contains the input location. However, it should correspond to at least one of the faces that borders the one containing the input location. A diagram of this is seen below:
 
-.. image:: ../_static/find_neighboring_face.svg
+.. image:: ../_images/find_neighboring_face.svg
     :alt: Find Neighboring Face
     :align: center
     :width: 300px

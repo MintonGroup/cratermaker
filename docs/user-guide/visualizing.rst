@@ -2,7 +2,7 @@
 
 
 
-.. image:: ../_static/visualizing_icon.svg
+.. image:: ../_images/visualizing_icon.svg
     :alt: Visualizing
     :align: center
     :width: 300px
@@ -63,7 +63,7 @@ We can also export the surface mesh to a VTK file that can be opened up with oth
 ParaView can be used to visualize the surface mesh, and also to create animations of the surface evolution. For more information on how to use ParaView, see the `ParaView documentation <https://www.paraview.org/documentation/>`__.
 
 
-.. image:: ../_static/paraview_500km_crater_moon.png
+.. image:: ../_images/paraview_500km_crater_moon.png
     :alt: Simulation
     :align: center
     :width: 600px

@@ -7,7 +7,7 @@
     from cratermaker import cleanup
     cleanup()
 
-.. image:: ../_static/full_simulation.png
+.. image:: ../_images/full_simulation.png
     :alt: Simulation
     :align: center
     :width: 300px

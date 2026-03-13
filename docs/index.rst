@@ -19,7 +19,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
 
 
     .. grid-item-card::  User guide
-        :img-top: _static/crater_icon.svg
+        :img-top: _images/crater_icon.svg
         :class-img-top: dark-light
         :link: user-guide/index
         :link-type: doc
@@ -27,7 +27,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         The user guide will show you how to install and run Cratermaker. It also contains in-depth information on how to use each of its components.  
 
     .. grid-item-card::  Example gallery
-        :img-top: _static/gallery_icon.png
+        :img-top: _images/gallery_icon.png
         :class-img-top: dark-light
         :link: auto_examples/index
         :link-type: doc
@@ -35,7 +35,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         See full working examples of how to use Cratermaker.
 
     .. grid-item-card::  API reference
-        :img-top: _static/api_icon_light.svg
+        :img-top: _images/api_icon_light.svg
         :class-img-top: only-light
         :link: api/index
         :link-type: doc
@@ -46,7 +46,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         be used. It assumes that you have an understanding of the key concepts.
 
     .. grid-item-card::  API reference
-        :img-top: _static/api_icon_dark.svg
+        :img-top: _images/api_icon_dark.svg
         :class-img-top: only-dark
         :link: api/index
         :link-type: doc
@@ -57,7 +57,7 @@ Simulate the evolution of a landscape dominated by impact bombardment.
         be used. It assumes that you have an understanding of the key concepts.
 
     .. grid-item-card:: Contributor's guide
-        :img-top: _static/contributing_icon.svg
+        :img-top: _images/contributing_icon.svg
         :class-img-top: dark-light
         :link: contributing/index
         :link-type: doc

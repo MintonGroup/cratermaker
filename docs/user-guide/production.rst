@@ -7,10 +7,10 @@
     from cratermaker import cleanup
     cleanup()
 
-.. image:: ../_static/production_icon.svg
+.. image:: ../_images/production_icon.svg
     :alt: Production
     :align: center
-    :width: 600px
+    :width: 300px
     :class: dark-light
 
 
