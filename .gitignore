@@ -67,6 +67,7 @@ cratermaker/_version.py
 !docs/**/*.png
 !docs/**/*.svg
 !docs/**/*.py
+!docs/**/*.gif
 docs/sg_execution_times.rst
 !examples/
 !examples/01-simulation_and_visualization/
@@ -82,7 +83,7 @@ docs/sg_execution_times.rst
 !examples/**/*.rst 
 !examples/**/*.py
 !examples/**/*.txt
-!examples/.gitattributes
+!.gitattributes
 !buildscripts/
 !buildscripts/*.py
 !buildscripts/*.sh
