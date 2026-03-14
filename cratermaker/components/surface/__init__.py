@@ -3426,6 +3426,7 @@ class LocalSurface(CratermakerBase):
         except ImportError:
             warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
             return
+        from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
         def _set_title(variable_name):
@@ -3561,19 +3562,16 @@ class LocalSurface(CratermakerBase):
         else:
             scalars = variable_name
 
-        color = kwargs.pop("color", "grey")
         cmap = kwargs.pop("cmap", "cividis")
-
-        mesh_actor = plotter.add_mesh(
-            mesh,
-            name="surface_mesh",
-            scalars=scalars,
-            show_edges=False,
-            show_scalar_bar=False,
-            component=component,
-            color=color,
-            cmap=cmap,
-        )
+        add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}
+        add_mesh_kwargs = {
+            "name": "surface_mesh",
+            "show_edges": False,
+            "show_scalar_bar": False,
+            "color": "grey",
+            **add_mesh_kwargs,
+        }
+        mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)
 
         if variable_name is None:
             mesh_actor.mapper.SetScalarVisibility(False)
@@ -3650,9 +3648,12 @@ class LocalSurface(CratermakerBase):
         -------
         plotter : pyvista.Plotter or other engine-specific plotter object
         """
+        from cratermaker.constants import PYVISTA_SHOW_KWARGS
+
         if engine == "pyvista":
             plotter = self.show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
-            plotter.show()
+            plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
+            plotter.show(**plotter_kwargs)
         else:
             raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
 

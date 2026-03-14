@@ -784,6 +784,8 @@ class Counting(ComponentBase):
             The pyvista plotter with the crater counts added.
 
         """
+        from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
+
         if surface is None:
             surface = self.surface
         plotter = surface.show_pyvista(**kwargs)
@@ -794,11 +796,15 @@ class Counting(ComponentBase):
             interval = -1
 
         observed, emplaced = self.read_saved_output(interval=interval)
+
+        add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}
+        add_mesh_kwargs = {"line_width": 2, **add_mesh_kwargs}
         if observed:
             interval = observed.interval.values[-1]
             observed = self.from_xarray(observed, interval=interval)
+            observed_kwargs = {"color": observed_color, **add_mesh_kwargs}
             observed_count_actor = plotter.add_mesh(
-                self.to_vtk_mesh(observed, use_measured_properties=True), line_width=2, color=observed_color, name="observed"
+                self.to_vtk_mesh(observed, use_measured_properties=True), name="observed", **observed_kwargs
             )
             observed_count_actor.SetVisibility(False)
             plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
@@ -807,11 +813,9 @@ class Counting(ComponentBase):
             emplaced_interval = emplaced.interval.values[-1]
             if emplaced_interval == interval:
                 emplaced = self.from_xarray(emplaced, interval=interval)
+                emplaced_kwargs = {"color": emplaced_color, **add_mesh_kwargs}
                 emplaced_count_actor = plotter.add_mesh(
-                    self.to_vtk_mesh(emplaced, use_measured_properties=False),
-                    line_width=2,
-                    color=emplaced_color,
-                    name="emplaced",
+                    self.to_vtk_mesh(emplaced, use_measured_properties=False), name="emplaced", **emplaced_kwargs
                 )
                 emplaced_count_actor.SetVisibility(False)
                 plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
@@ -838,9 +842,12 @@ class Counting(ComponentBase):
         -------
         plotter : pyvista.Plotter or other engine-specific plotter object
         """
+        from cratermaker.constants import PYVISTA_SHOW_KWARGS
+
         if engine.lower() == "pyvista":
             plotter = self.show_pyvista(observed_color=observed_color, emplaced_color=emplaced_color, **kwargs)
-            plotter.show()
+            plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
+            plotter.show(**plotter_kwargs)
         else:
             raise ValueError(f"Engine '{engine}' is not supported for crater counting visualization.")
         return plotter
