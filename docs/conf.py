@@ -137,6 +137,7 @@ html_theme_options = {
         "image_light": "_images/logos/Cratermaker_Social_Preview_light.svg",
         "image_dark": "_images/logos/Cratermaker_Social_Preview_dark.svg",
     },
+    "show_toc_level": 4,
 }
 
 

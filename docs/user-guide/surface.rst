@@ -20,6 +20,7 @@
     :width: 300px
     :class: only-dark
 
+
 .. _ug-surface:
 
 
@@ -34,6 +35,8 @@ Cratermaker's :ref:`Surface <api-surface>` component is used to represent target
 - :py:attr:`~cratermaker.components.surface.Surface.gridtype`: The type of surface grid that is being used. This will be one of "icosphere," "arbitrary_resolution," "hireslocal," or "datasurface," depending on how it was created.
 - :py:attr:`~cratermaker.core.base.CratermakerBase.output_dir`: The directory where the surface data files are stored. 
 - :py:attr:`~cratermaker.components.surface.Surface.uxds`, :py:attr:`~cratermaker.components.surface.Surface.uxgrid`: The UxArray dataset and grid object used to represent the surface mesh (see the next section for more details).
+
+.. _ug-surface-uxarray-mesh:
 
 The UxArray-based surface mesh
 ------------------------------
@@ -69,6 +72,8 @@ In the above image, show a single face with 6 nodes and 6 edges, surrounded by 6
 
 Many of the above attributes are based on similar once found in UxArray, though some are modified to be more useful for Cratermaker's purposes. For instance, the :py:attr:`~cratermaker.components.surface.Surface.face_area` attribute is computed using the true dimensions of the surface, rather than assuming a unit sphere, which is how UxArray computes it by default. You can access the underlying UxArray structures through the :py:attr:`~cratermaker.components.surface.Surface.uxds` and :py:attr:`~cratermaker.components.surface.Surface.uxgrid` properties.
 
+.. _ug-surface-mesh-connectivity:
+
 Mesh connectivity
 ^^^^^^^^^^^^^^^^^
 
@@ -95,6 +100,8 @@ As an example of how these are structured, take the diagram shown above of a sin
 
 In the next section we will describe the different types of surfaces that can be created in Cratermaker, and how they are used.
 
+.. _ug-surface-types:
+
 Surface Types
 -------------
 
@@ -107,6 +114,7 @@ Like all Cratermaker components, a Surface object is instantiated with a special
 
 The following sections will describe each of these surface types in more detail, including how to create them and their specific attributes and methods.
 
+.. _ug-surface-icosphere:
 
 Icosphere
 ^^^^^^^^^
@@ -164,6 +172,8 @@ This is equivalent to:
 
     cleanup()
 
+.. _ug-surface-arbitrary-resolution:
+
 Arbitrary Resolution 
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -191,6 +201,8 @@ While the :py:class:`"icosphere" <cratermaker.components.surface.icosphere.Icosp
 
 
 The arbitrary resolution grid is similar to the icosphphere grid in that the surface will be discretized into approximately equal-sized faces. Unlike the icosphere, the faces on the surface will be more irregular in shape, making it less ideal. 
+
+.. _ug-surface-hireslocal:
 
 High Resolution Local
 ^^^^^^^^^^^^^^^^^^^^^
@@ -231,6 +243,7 @@ The image above shows a rendering of this high resolution local grid, showing a 
 
 The :py:class:`"hireslocal" <cratermaker.components.surface.hireslocal.HiResLocalSurface>` surface type works somewhat differently than the others. For instance, the diffusive degradation is only applied on the local region. You can think of the local region as the "primary" surface being modeled, and the superdomain as simply a source for distal ejecta fram large far away craters. 
 
+.. _ug-surface-datasurface:
 
 DataSurface
 ^^^^^^^^^^^
@@ -293,6 +306,7 @@ You can bypass all automatic dataset selection by providing:
 
 Cratermaker uses `rasterio <https://rasterio.readthedocs.io/en/latest/>`_ to read DEM files, and so any format supported by rasterio should work (e.g., GeoTIFF, IMG, etc.).
 
+.. _ug-surface-extract-local:
 
 Extracting a local subsection of the surface
 --------------------------------------------
@@ -330,8 +344,11 @@ As we can see, this selects only 33 of the full 655362 faces, which is a signifi
 .. note::
     The :py:class:`"hireslocal" <cratermaker.components.surface.hireslocal.HiResLocalSurface>` Surface type contains a built-in attribute called `local`, which represents the high resolution region of the surface. In addition, when :py:meth:`~cratermaker.components.surface.Surface.extract_region` is called on a "hireslocal" surface, it will return a special :py:class:`~cratermaker.components.surface.LocalHiResLocalSurface` object that contains within it an additional object called `local_overlap`. This is a view of only the portion of the extracted region that overlaps the high resolution region (or None if there is no overlap).
 
+.. _ug-surface-using:
+
 Using a Surface object
 ----------------------
+
 Once you have either a :py:class:`~cratermaker.components.surface.Surface` or :py:class:`~cratermaker.components.surface.LocalSurface` object, you are now able to perform numerous surface-related computations. 
 
 - :py:meth:`~cratermaker.components.surface.Surface.extract_region`: Extracts a local region of the surface, which is useful for performing operations on a small portion of the surface without affecting the full surface. This returns a :py:class:`~cratermaker.components.surface.LocalSurface` object.
@@ -358,9 +375,12 @@ Once you have either a :py:class:`~cratermaker.components.surface.Surface` or :p
     print(f"Region face distances:\n{region.face_distance}")
     print(f"Region face bearings:\n{region.face_bearing}")
 
+.. _ug-surface-examples:
 
 Examples
 --------
+
+.. _ug-surface-example-extract-local:
 
 Extracting a local subset of the grid
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -382,6 +402,7 @@ Suppose we wish to extract a 10 km radius local region of the surface of the Moo
 
 The ``region`` object now contains a view of all faces (along with their corresponding nodes and edges) of a local subset of the grid. Because it is a view of the surface not a copy, it allows for fast computation on small portions of the full grid..
 
+.. _ug-surface-example-distances-bearings:
 
 Distances and bearings 
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -416,6 +437,7 @@ With this method, two arrays are returned where the first array gives us an arra
 
 As you can see from above, we recieve two arrays, which are the same sizes as the previous examples. However, they now tell us the "initial bearing" (the direction relative to due North) between a point and all faces and all nodes. 
 
+.. _ug-surface-example-finding-face-index:
 
 Finding a face index
 ^^^^^^^^^^^^^^^^^^^^
@@ -449,6 +471,7 @@ There are corresponding methods for finding the nearest node, as well as connect
 .. note::
     Due to the variable number of nodes and edges associated with each face, there will sometimes be unused elements of the connectivity arrays. These are set to a large negative number, and so filtering out only indices greater than or equal to 0 will give you the valid indices. 
 
+.. _ug-surface-example-converting-elevation:
 
 Converting elevation to Cartesian coordinates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -464,10 +487,12 @@ Cratermaker saves the face and node elevations independently of the mesh geometr
 
 This could be used to visualize the surface using a 3D plotting library, such as Matplotlib or Plotly. The Cartesian coordinates will have the elevations applied, so you can see the topography of the surface.
 
-More Surface examples
----------------------
+.. _ug-surface-seealso:
 
-See more examples at  :ref:`gal-topography`
+.. seealso::
+
+    - :ref:`api-surface` for the API reference
+    - :ref:`gal` for more examples of using the Surface component in the Gallery section.
 
 
 .. ipython:: python

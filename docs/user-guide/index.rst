@@ -2,9 +2,6 @@
 
 .. _user-guide:
 
-.. toctree::
-   :maxdepth: 3
-
 ###########
 User Guide
 ###########
@@ -191,7 +188,8 @@ Components of Cratermaker
         The API guide contains a detailed description of the Cratermaker API.  The reference describes how the methods work and which parameters can be used. It assumes that you have an understanding of the key concepts.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 4
+   :hidden:
 
    simulation
    morphology

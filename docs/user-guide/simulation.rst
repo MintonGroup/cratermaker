@@ -207,6 +207,8 @@ You can also can have multiple save actions that use the same method, but with d
     sim.counting.add_save_action({"export": {"driver": "SCC"}})
     sim.run(age=3540.0, time_interval=10.0)
 
+.. _ug-simulation-examples: 
+
 More Examples
 -------------
 

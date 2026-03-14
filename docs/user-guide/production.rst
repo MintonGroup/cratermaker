@@ -45,7 +45,7 @@ Production function
 - **time_end**: Ending time in units of My relative to the present, also used to compute the CSFD. Default is ``0.0``, which corresponds to the present day.
 
 Example: Using Production.function
-----------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For this example, we are going to use :py:meth:`~cratermaker.components.production.Production.function` to find the cumulative number of craters greater than 1 km² to form on a surface in 3 Gy using a power law with a slope of -2. 
 
@@ -60,7 +60,7 @@ For this example, we are going to use :py:meth:`~cratermaker.components.producti
    print(f"{n*1e6:.2f} D>{diameter*1e-3:.0f} km craters per km² in {age*1e-3:.0f} Gy")
 
 Example: Plot a power law production function with a slope of -3 for craters 1 m to 100 km over 1 Ga
-----------------------------------------------------------------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
 .. ipython:: python
@@ -84,7 +84,7 @@ Example: Plot a power law production function with a slope of -3 for craters 1 m
 
 
 Example: Using Production.age_from_D_N
-------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :py:meth:`~cratermaker.components.production.Production.age_from_D_N` returns the age in My for a given crater number density and diameter. It has the following parameters:
 

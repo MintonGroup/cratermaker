@@ -126,7 +126,7 @@ class BasicMoonCrater(MorphologyCrater):
 
 
 @Morphology.register("basicmoon")
-class BasicMoon(Morphology):
+class BasicMoonMorphology(Morphology):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh.
     """
