@@ -3403,7 +3403,14 @@ class LocalSurface(CratermakerBase):
             plt.close()
         return ax
 
-    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any) -> None:
+    def show_pyvista(
+        self,
+        variable_name: str | None = None,
+        variable: ArrayLike | None = None,
+        theme: str | None = None,
+        transparent_background: bool | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Show the local surface region using an interactive 3D plot with PyVista.
 
@@ -3413,6 +3420,10 @@ class LocalSurface(CratermakerBase):
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        theme : str, optional
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
+        transparent_background : bool, optional
+            If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         **kwargs : Any
             |kwargs|
 
@@ -3518,8 +3529,10 @@ class LocalSurface(CratermakerBase):
                 plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
             return
 
-        plot_theme = kwargs.pop("plot_theme", "dark")
-        pv.set_plot_theme(plot_theme)
+        if theme is not None:
+            pv.set_plot_theme(theme)
+        if transparent_background is not None:
+            pv.global_theme.transparent_background = transparent_background
         plotter = pv.Plotter()
         plotter.enable_hidden_line_removal()
 
