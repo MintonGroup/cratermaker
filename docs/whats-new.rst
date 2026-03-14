@@ -3,6 +3,15 @@
 What's New
 ==========
 
+
+.. _whats-new.2026.3.7-alpha:
+
+:release:`v2026.3.7-alpha`
+
+- Include new argument pass-throughs for the show3d methods to better control PyVista output. :pull:`104` `David Minton`_
+- Updated the README with better instructions.
+
+
 .. _whats-new.2026.3.6-alpha:
 
 :release:`v2026.3.6-alpha`
