@@ -3511,6 +3511,7 @@ class LocalSurface(CratermakerBase):
         def reset_view(plotter):
             if self.is_global:
                 plotter.reset_camera()
+                plotter.view_yz()
             else:
                 # Compute camera position so that it sits over the local region and the region fills the frame
                 center_face_ind = self.surface.find_nearest_face(self.location)
@@ -3585,6 +3586,8 @@ class LocalSurface(CratermakerBase):
             **add_mesh_kwargs,
         }
         mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)
+        if self.is_global:
+            plotter.view_yz()
 
         if variable_name is None:
             mesh_actor.mapper.SetScalarVisibility(False)
