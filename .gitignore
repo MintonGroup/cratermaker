@@ -53,7 +53,9 @@ cratermaker/_version.py
 !docs/Makefile
 !docs/conf.py
 !docs/_static/
-!docs/_static/logos/
+!docs/_static/
+!docs/_images/
+!docs/_images/logos/
 !docs/_templates/
 !docs/_templates/autosummary/
 !docs/_exts/
@@ -65,6 +67,7 @@ cratermaker/_version.py
 !docs/**/*.png
 !docs/**/*.svg
 !docs/**/*.py
+!docs/**/*.gif
 docs/sg_execution_times.rst
 !examples/
 !examples/01-simulation_and_visualization/
@@ -74,26 +77,13 @@ docs/sg_execution_times.rst
 !examples/02-production/
 !examples/03-projectiles_and_scaling/
 !examples/04-topography/
-# !examples/04-topography/simdata-4_1/
-# !examples/04-topography/simdata-4_2/
-# !examples/04-topography/simdata-4_3/
-# !examples/04-topography/simdata-4_4/
-# !examples/04-topography/simdata-4_1/surface/
-# !examples/04-topography/simdata-4_2/surface/
-# !examples/04-topography/simdata-4_3/surface/
-# !examples/04-topography/simdata-4_4/surface/
-# !examples/04-topography/simdata-4_1/surface/grid.nc
-# !examples/04-topography/simdata-4_2/surface/grid.nc
-# !examples/04-topography/simdata-4_3/surface/grid.nc
-# !examples/04-topography/simdata-4_3/surface/local_grid_indices.npz
-# !examples/04-topography/simdata-4_4/surface/grid.nc
 !examples/05-counting/
 !examples/05-counting/5.1-fit_rim.png
 !examples/05-counting/5.1-fit_rim_score.png
 !examples/**/*.rst 
 !examples/**/*.py
 !examples/**/*.txt
-!examples/.gitattributes
+!.gitattributes
 !buildscripts/
 !buildscripts/*.py
 !buildscripts/*.sh

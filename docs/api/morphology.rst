@@ -10,11 +10,11 @@ The Morphology class is an operations class for computing the morphology of a cr
 Available Implementations
 *************************
 
-+----------------------------------------------------------------------+----------------+---------------------------------------------+
-| Class                                                                | Argument name  | Example Usage                               |
-+======================================================================+================+=============================================+
-| :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoon`   | "basicmoon"    | morphology = Morphology.maker("basicmoon")  |
-+----------------------------------------------------------------------+----------------+---------------------------------------------+
++------------------------------------------------------------------------------+----------------+---------------------------------------------+
+| Class                                                                        | Argument name  | Example Usage                               |
++==============================================================================+================+=============================================+
+| :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoonMorphology` | "basicmoon"    | morphology = Morphology.maker("basicmoon")  |
++------------------------------------------------------------------------------+----------------+---------------------------------------------+
 
 .. autoclass:: cratermaker.components.morphology.Morphology
    :members:
@@ -34,13 +34,13 @@ Available Implementations
 
 .. currentmodule:: cratermaker.components.morphology.basicmoon
 
-*********
-BasicMoon
-*********
+*******************
+BasicMoonMorphology
+*******************
 
 See `Morphology`_ for inherited methods and attributes.
 
-.. autoclass:: cratermaker.components.morphology.basicmoon.BasicMoon
+.. autoclass:: cratermaker.components.morphology.basicmoon.BasicMoonMorphology
    :members:
    :undoc-members:
    :no-index-entry:

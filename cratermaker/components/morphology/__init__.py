@@ -462,7 +462,7 @@ class Morphology(ComponentBase):
         Returns
         -------
         Morphology
-            An instance of the specified Morphology model (e.g. BasicMoon).
+            An instance of the specified Morphology model (e.g. BasicMoonMorphology).
 
         Raises
         ------

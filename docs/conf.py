@@ -104,9 +104,13 @@ sphinx_gallery_conf = {
     "image_scrapers": (DynamicScraper(), "matplotlib"),
     "parallel": True,
 }
-
 html_theme = "sphinx_book_theme"
 html_title = ""
+
+# Add any paths that contain custom static files (such as style sheets) here,
+# relative to this directory. They are copied after the builtin static files,
+# so a file named "default.css" will overwrite the builtin "default.css".
+html_css_files = ["style.css"]
 html_static_path = ["_static"]
 
 html_context = {
@@ -130,17 +134,11 @@ html_theme_options = {
     "extra_footer": """<p>Development of Cratermaker was supported by NASA Lunar Data Analysis Program Grants <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC21K1719_8000">#80NSSC21K1719</a> and <a href="https://www.usaspending.gov/award/ASST_NON_80NSSC25K7050_8000">#80NSSC25K7050</a><br>
     Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a></p>""",
     "logo": {
-        "image_light": "_static/logos/Cratermaker_Social_Preview_light.svg",
-        "image_dark": "_static/logos/Cratermaker_Social_Preview_dark.svg",
+        "image_light": "_images/logos/Cratermaker_Social_Preview_light.svg",
+        "image_dark": "_images/logos/Cratermaker_Social_Preview_dark.svg",
     },
+    "show_toc_level": 4,
 }
-
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
-html_css_files = ["style.css"]
 
 
 def html_page_context(app, pagename, templatename, context, doctree):

@@ -8,11 +8,11 @@ from numpy.typing import NDArray
 from scipy import fft
 
 from cratermaker.components.morphology import Morphology
-from cratermaker.components.morphology.basicmoon import BasicMoon
+from cratermaker.components.morphology.basicmoon import BasicMoonMorphology
 
 
 @Morphology.register("realisticmoon")
-class RealisticMoon(BasicMoon):
+class RealisticMoonMorphology(BasicMoonMorphology):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh. This uses the morphology model of Du et al. 2025a,b.
 

@@ -1,5 +1,7 @@
 .. currentmodule:: cratermaker
 
+.. _gal:
+
 ###############
 Example Gallery
 ###############
