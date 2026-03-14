@@ -8,11 +8,17 @@
     cleanup()
 
 
-.. image:: ../_static/counting_icon.svg
+.. image:: ../_images/counting_icon_light.svg
     :alt: Counting
     :align: center
     :width: 300px
-    :class: dark-light
+    :class: only-light
+
+.. image:: ../_images/counting_icon_dark.svg
+    :alt: Counting
+    :align: center
+    :width: 300px
+    :class: only-dark
 
 .. _ug-counting:
 

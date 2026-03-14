@@ -3403,7 +3403,14 @@ class LocalSurface(CratermakerBase):
             plt.close()
         return ax
 
-    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any) -> None:
+    def show_pyvista(
+        self,
+        variable_name: str | None = None,
+        variable: ArrayLike | None = None,
+        theme: str | None = None,
+        transparent_background: bool | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Show the local surface region using an interactive 3D plot with PyVista.
 
@@ -3413,6 +3420,10 @@ class LocalSurface(CratermakerBase):
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        theme : str, optional
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
+        transparent_background : bool, optional
+            If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         **kwargs : Any
             |kwargs|
 
@@ -3426,6 +3437,7 @@ class LocalSurface(CratermakerBase):
         except ImportError:
             warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
             return
+        from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
         def _set_title(variable_name):
@@ -3499,6 +3511,7 @@ class LocalSurface(CratermakerBase):
         def reset_view(plotter):
             if self.is_global:
                 plotter.reset_camera()
+                plotter.view_yz()
             else:
                 # Compute camera position so that it sits over the local region and the region fills the frame
                 center_face_ind = self.surface.find_nearest_face(self.location)
@@ -3517,8 +3530,12 @@ class LocalSurface(CratermakerBase):
                 plotter.camera.clipping_range = (0.35 * plotter.camera.distance, 2.0 * plotter.camera.distance)
             return
 
-        pv.set_plot_theme("dark")
+        if theme is not None:
+            pv.set_plot_theme(theme)
+        if transparent_background is not None:
+            pv.global_theme.transparent_background = transparent_background
         plotter = pv.Plotter()
+        plotter.enable_hidden_line_removal()
 
         mesh = self.to_vtk_mesh(self.uxds)
 
@@ -3559,19 +3576,18 @@ class LocalSurface(CratermakerBase):
         else:
             scalars = variable_name
 
-        color = kwargs.pop("color", "grey")
         cmap = kwargs.pop("cmap", "cividis")
-
-        mesh_actor = plotter.add_mesh(
-            mesh,
-            name="surface_mesh",
-            scalars=scalars,
-            show_edges=False,
-            show_scalar_bar=False,
-            component=component,
-            color=color,
-            cmap=cmap,
-        )
+        add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}
+        add_mesh_kwargs = {
+            "name": "surface_mesh",
+            "show_edges": False,
+            "show_scalar_bar": False,
+            "color": "grey",
+            **add_mesh_kwargs,
+        }
+        mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)
+        if self.is_global:
+            plotter.view_yz()
 
         if variable_name is None:
             mesh_actor.mapper.SetScalarVisibility(False)
@@ -3648,9 +3664,12 @@ class LocalSurface(CratermakerBase):
         -------
         plotter : pyvista.Plotter or other engine-specific plotter object
         """
+        from cratermaker.constants import PYVISTA_SHOW_KWARGS
+
         if engine == "pyvista":
             plotter = self.show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
-            plotter.show()
+            plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
+            plotter.show(**plotter_kwargs)
         else:
             raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
 

@@ -7,7 +7,7 @@
     from cratermaker import cleanup
     cleanup()
 
-.. image:: ../_static/crater_icon.svg
+.. image:: ../_images/crater_icon.svg
     :alt: Production
     :align: center
     :width: 300px

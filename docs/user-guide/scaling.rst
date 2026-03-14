@@ -7,11 +7,17 @@
     from cratermaker import cleanup
     cleanup()
 
-.. image:: ../_static/scaling_icon.svg
-    :alt: Production
+.. image:: ../_images/scaling_icon_light.svg
+    :alt: Scaling
     :align: center
-    :width: 600px
-    :class: dark-light
+    :width: 300px
+    :class: only-light
+
+.. image:: ../_images/scaling_icon_dark.svg
+    :alt: Scaling
+    :align: center
+    :width: 300px
+    :class: only-dark
 
 
 .. _ug-scaling: 

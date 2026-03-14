@@ -3,6 +3,22 @@
 What's New
 ==========
 
+
+.. _whats-new.2026.3.7-alpha:
+
+:release:`v2026.3.7-alpha`
+
+- Include new argument pass-throughs for the show3d methods to better control PyVista output. :pull:`104` `David Minton`_
+- Updated the README with better instructions. :pull:`105` `David Minton`_
+
+
+.. _whats-new.2026.3.6-alpha:
+
+:release:`v2026.3.6-alpha`
+
+- More updates to the documentation, including the return of the long-running DataSurface examples thanks to an upgrade in our ReadtheDocs time limit, and a fancy new animated gif of the Moon being bombarded for the visualization user guide. :pull:`101` `David Minton`_
+
+
 .. _whats-new.2026.3.5-alpha:
 
 :release:`v2026.3.5-alpha`
@@ -36,7 +52,7 @@ What's New
 
 - Major refactoring, fixes to plotting tools, and improved installation documentation. :pull:`91` `David Minton`_
 
-   - Refactored the names of components to remove the word "simple" when not referring to simple crater morphology to avoid terminology confusion. This is a major API-breaking change, so be forewarned. `SimpleMoon` is now `BasicMoon`. `SimpleCount`is now `DepthCount`. `Du2025` is now `RealisticMoon`.
+   - Refactored the names of components to remove the word "simple" when not referring to simple crater morphology to avoid terminology confusion. This is a major API-breaking change, so be forewarned. `SimpleMoon` is now `BasicMoonMorphology`. `SimpleCount`is now `DepthCount`. `Du2025` is now `RealisticMoonMorphology`.
    - Global surface labels now have no line break by default and are placed above the main plot. 
    - Turned off scalebar by default in the default Simulation save_action.
    - Placed the plt.close() call after both show and save have been called so that the plot is active until the end.

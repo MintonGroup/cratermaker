@@ -9,7 +9,7 @@
     from cratermaker import cleanup
     cleanup()
 
-.. image:: ../_static/target_icon.svg
+.. image:: ../_images/target_icon.svg
     :alt: Target
     :align: center
     :width: 300px

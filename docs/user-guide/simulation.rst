@@ -7,7 +7,7 @@
     from cratermaker import cleanup
     cleanup()
 
-.. image:: ../_static/full_simulation.png
+.. image:: ../_images/full_simulation.png
     :alt: Simulation
     :align: center
     :width: 300px
@@ -206,6 +206,8 @@ You can also can have multiple save actions that use the same method, but with d
     # Also export the craters in SCC format at the end of each interval as part of the Counting object's save_actions.
     sim.counting.add_save_action({"export": {"driver": "SCC"}})
     sim.run(age=3540.0, time_interval=10.0)
+
+.. _ug-simulation-examples: 
 
 More Examples
 -------------

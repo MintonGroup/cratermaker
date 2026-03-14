@@ -1,6 +1,6 @@
 .. _contributing:
 
-.. image:: ../_static/contributing_icon.svg
+.. image:: ../_images/contributing_icon.svg
     :alt: Contributing
     :align: center
     :width: 300px

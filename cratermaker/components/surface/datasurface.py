@@ -109,6 +109,8 @@ class DataSurface(HiResLocalSurface):
             raise ValueError("DataSurface currently only supports the Moon as a target if 'dem_file_list' is not provided.")
         if superdomain_dem_file is None and self.target.name != "Moon":
             raise ValueError("DataSurface currently only supports the Moon as a target if 'superdomain_dem_file' is not provided.")
+        if local_location is None:
+            raise ValueError("local_location must be provided.")
         self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
         self._dem_output_file = f"dem_data.{self._output_file_extension}"
 

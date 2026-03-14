@@ -34,8 +34,8 @@ class HiResLocalSurface(Surface):
         The approximate face size inside the local region in meters.
     local_radius : FloatLike
         The radius of the local region in meters.
-    local_location : PairOfFloats
-        The longitude and latitude of the location in degrees.
+    local_location : PairOfFloats | None
+        The longitude and latitude of the location in degrees. If None, it will be set to (0.0, 0.0).
     superdomain_scale_factor : FloatLike, optional
         A factor defining relative size of the face at the antipode of the local region to the face size inside the local region.
         If not provided, construction of the surface will be deferred until the `set_superdomain` method is called.
@@ -61,7 +61,7 @@ class HiResLocalSurface(Surface):
         self,
         pix: FloatLike,
         local_radius: FloatLike,
-        local_location: PairOfFloats,
+        local_location: PairOfFloats | None = None,
         superdomain_scale_factor: FloatLike | None = None,
         target: Target | str | None = None,
         reset: bool = True,
@@ -78,6 +78,8 @@ class HiResLocalSurface(Surface):
 
         self.pix = pix
         self.local_radius = local_radius
+        if local_location is None:
+            local_location = (0.0, 0.0)
         self.local_location = local_location
         if superdomain_scale_factor is not None:
             if superdomain_scale_factor < 0:

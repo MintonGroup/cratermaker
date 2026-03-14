@@ -9,11 +9,17 @@
     cleanup()
 
 
-.. image:: ../_static/morphology_icon.svg
+.. image:: ../_images/morphology_icon_light.svg
     :alt: Morphology
     :align: center
     :width: 300px
-    :class: dark-light
+    :class: only-light
+
+.. image:: ../_images/morphology_icon_dark.svg
+    :alt: Morphology
+    :align: center
+    :width: 300px
+    :class: only-dark
 
 .. _ug-morphology:
 
@@ -57,7 +63,7 @@ More Morphology Examples
 See more advanced usage examples in the gallery: :ref:`gal-topography`
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :hidden:
 
 
