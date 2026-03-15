@@ -16,7 +16,7 @@ from tqdm import tqdm
 from vtk import vtkPolyData
 
 from cratermaker import __version__ as cratermaker_version
-from cratermaker._cratermaker import counting_bindings
+from cratermaker.bindings import counting_bindings
 from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike
