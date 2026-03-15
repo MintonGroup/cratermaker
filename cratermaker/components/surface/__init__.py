@@ -19,7 +19,7 @@ from scipy.optimize import OptimizeWarning
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
-from cratermaker._cratermaker import surface_bindings
+from cratermaker.bindings import surface_bindings
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location

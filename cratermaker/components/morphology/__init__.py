@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from cratermaker._cratermaker import counting_bindings
+from cratermaker.bindings import counting_bindings
 from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
 from cratermaker.constants import PairOfFloats
 from cratermaker.utils.general_utils import format_large_units

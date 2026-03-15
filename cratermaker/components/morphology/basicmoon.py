@@ -11,7 +11,7 @@ from scipy.integrate import quad
 from scipy.optimize import root_scalar
 from tqdm import tqdm
 
-from cratermaker._cratermaker import morphology_bindings
+from cratermaker.bindings import morphology_bindings
 from cratermaker.components.crater import Crater, CraterFixed
 from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterVariable
 from cratermaker.components.surface import LocalSurface, Surface
