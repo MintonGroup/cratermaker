@@ -1,16 +1,9 @@
-import json
-import math
-from pathlib import Path
 from typing import Any
 
 import numpy as np
-from cratermaker._cratermaker import counting_bindings
-from numpy.typing import NDArray
-from scipy import fft
 
-from cratermaker.components.counting import _MIN_FACE_FOR_COUNTING, _N_LAYER, Counting
+from cratermaker.components.counting import Counting
 from cratermaker.components.crater import Crater
-from cratermaker.components.surface import LocalSurface, Surface
 
 
 @Counting.register("depthcount")

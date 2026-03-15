@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 import pandas as pd
 import xarray as xr
-from cratermaker._cratermaker import counting_bindings
 from geopandas import GeoSeries
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike
@@ -17,6 +16,7 @@ from tqdm import tqdm
 from vtk import vtkPolyData
 
 from cratermaker import __version__ as cratermaker_version
+from cratermaker._cratermaker import counting_bindings
 from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike

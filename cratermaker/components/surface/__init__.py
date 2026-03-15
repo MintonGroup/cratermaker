@@ -4,7 +4,6 @@ import hashlib
 import os
 import shutil
 import tempfile
-import threading
 import warnings
 from abc import abstractmethod
 from pathlib import Path
@@ -13,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 import uxarray as uxr
 import xarray as xr
-from cratermaker._cratermaker import surface_bindings
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
@@ -21,13 +19,10 @@ from scipy.optimize import OptimizeWarning
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
+from cratermaker._cratermaker import surface_bindings
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
-from cratermaker.utils.general_utils import (
-    format_large_units,
-    parameter,
-    validate_and_normalize_location,
-)
+from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 if TYPE_CHECKING:

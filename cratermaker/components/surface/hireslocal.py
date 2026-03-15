@@ -16,11 +16,7 @@ from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
-from cratermaker.utils.general_utils import (
-    format_large_units,
-    parameter,
-    validate_and_normalize_location,
-)
+from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
 
 
 @Surface.register("hireslocal")
