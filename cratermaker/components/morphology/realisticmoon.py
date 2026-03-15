@@ -58,7 +58,7 @@ class RealisticMoonMorphology(BasicMoonMorphology):
         """
         # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
         psd_file = Path(__file__).parent / "psd_coef.json"
-        with open(psd_file) as f:
+        with Path.open(psd_file) as f:
             psd_coef = json.load(f)
         # ------------------------------------------------------------------------------------------------------------------
         num_psd_component = 5000
