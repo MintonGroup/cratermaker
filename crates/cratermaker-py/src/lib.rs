@@ -12,7 +12,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 use pyo3::prelude::*;
 
 #[pymodule]
-#[pyo3(name = "_cratermaker")]
+#[pyo3(name = "bindings")]
 mod cratermaker {
     use super::*;
 
