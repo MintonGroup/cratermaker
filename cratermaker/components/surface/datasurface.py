@@ -8,16 +8,11 @@ import numpy as np
 import xarray as xr
 from numpy.typing import NDArray
 
-from cratermaker.components.morphology import Morphology
-from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import Surface
 from cratermaker.components.surface.hireslocal import HiResLocalSurface
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
-from cratermaker.utils.general_utils import (
-    format_large_units,
-    parameter,
-)
+from cratermaker.utils.general_utils import format_large_units, parameter
 
 _DEFAULT_N_FACES_LOCAL = 1e6
 

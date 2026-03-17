@@ -93,7 +93,7 @@ include = [
 ]
 features = ["pyo3/extension-module"]
 manifest-path = "crates/cratermaker-py/Cargo.toml"
-module-name = "cratermaker._cratermaker"
+module-name = "cratermaker.bindings"
 
 [tool.ruff]
 target-version = 'py310'
@@ -179,3 +179,6 @@ convention = "numpy"
 
 [tool.ruff.lint.pep8-naming]
 staticmethod-decorators = ["pydantic.validator", "pydantic.root_validator"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cratermaker"]
