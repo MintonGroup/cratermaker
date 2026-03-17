@@ -66,6 +66,8 @@ class Simulation(CratermakerBase):
         If True, the counting component will keep track of emplaced craters during the simulation. Default is True.
     save_actions: list[dict[str, dict]], optional
         A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved.
+    quasimc_file : str | Path, optional
+        Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either time_range (time_min, time_max) or diameter_number_range (diameter, number_min, number_max).
     **kwargs : Any
         |kwargs|, including those for component function constructors. Refer to the documentation of each component module for details.
     """
@@ -88,6 +90,7 @@ class Simulation(CratermakerBase):
         ask_overwrite: bool = True,
         do_counting: bool = True,
         save_actions: list[dict[str, dict]] | None = None,
+        quasimc_file: str | Path | None = None,
         **kwargs: Any,
     ):
         object.__setattr__(self, "_target", None)
@@ -107,6 +110,8 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_largest_projectile", None)
         object.__setattr__(self, "_config_readonly", True)
         object.__setattr__(self, "_is_new", False)
+        object.__setattr__(self, "_quasimc_file", None)
+        object.__setattr__(self, "_quasimc_craters", None)
 
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
 
@@ -623,6 +628,7 @@ class Simulation(CratermakerBase):
         time_end: FloatLike | None = None,
         diameter_number: PairOfFloats | None = None,
         diameter_number_end: PairOfFloats | None = None,
+        craters: list[Crater] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -642,6 +648,8 @@ class Simulation(CratermakerBase):
         diameter_number_end : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this
             value to a corresponding reference age and use the production function for a given age.
+        craters : list[Crater] or Crater, optional
+            A list of Crater objects to include along with the randomly generated craters. The crater list must include either time or time_min, time_max values.
         """
         if not hasattr(self, "production"):
             raise RuntimeError("No production function defined for this simulation")
@@ -1456,3 +1464,28 @@ class Simulation(CratermakerBase):
         The Crater class used for crater generation in the simulation. Set during initialization.
         """
         return self.morphology.Crater if self.morphology is not None else None
+
+    @parameter
+    def quasimc_file(self) -> Path:
+        """
+        File containing the quasi-Monte Carlo craters.
+        """
+        return self._quasimc_file
+
+    @quasimc_file.setter
+    def quasimc_file(self, value) -> None:
+        if value is not None:
+            if isinstance(value, str):
+                value = Path(value)
+            if isinstance(value, Path):
+                if not value.exists():
+                    raise FileNotFoundError(f"quasimc_file {str(value)} not found")
+                self._quasimc_file = value
+                return
+
+    @property
+    def quasimc_craters(self) -> list[Crater]:
+        """
+        The list of craters used by the quasi-Monte Carlo method.
+        """
+        return self._quasimc_craters
