@@ -94,22 +94,7 @@ class GlobalDataSurface(Surface):
 
         # Set the attributes directly to avoid triggering checks before the pix value is set
         self._pix = pix
-        # Temporarily disable ask_overwrite to avoid prompts during initialization
-        ask_overwrite = self.ask_overwrite
-        self.ask_overwrite = False
-        super_kwargs = {
-            **kwargs,
-            "pix": self.pix,
-            "target": self.target,
-            "reset": reset,
-            "regrid": regrid,
-            "simdir": self.simdir,
-            "ask_overwrite": self.ask_overwrite,
-        }
-        super().__init__(**super_kwargs)
-
         self.dem_file = dem_file
-        self.ask_overwrite = ask_overwrite
         return
 
     def _get_lola_cylindrical_file(self, resolution) -> str:
