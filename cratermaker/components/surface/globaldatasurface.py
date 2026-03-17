@@ -88,9 +88,9 @@ class GlobalDataSurface(Surface):
 
         pix = None
 
-        super(Surface, self).__init__(target=target, simdir=simdir, **kwargs)
+        super().__init__(target=target, simdir=simdir, **kwargs)
         if dem_file is None and self.target.name != "Moon":
-            raise ValueError("DataSurface currently only supports the Moon as a target if 'dem_file' is not provided.")
+            raise ValueError("GlobalDataSurface currently only supports the Moon as a target if 'dem_file' is not provided.")
         self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
         self._dem_output_file = f"dem_data.{self._output_file_extension}"
 
