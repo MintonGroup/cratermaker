@@ -94,7 +94,11 @@ class GlobalDataSurface(Surface):
 
         # Set the attributes directly to avoid triggering checks before the pix value is set
         self._pix = pix
+
         self.dem_file = dem_file
+
+        super()._load_from_files(reset=reset, **kwargs)
+
         return
 
     def _get_lola_cylindrical_file(self, resolution) -> str:
