@@ -1332,7 +1332,7 @@ class Surface(ComponentBase):
         return
 
     @abstractmethod
-    def _generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray, NDArray, NDArray]: ...
+    def _generate_face_distribution(self, **kwargs: Any) -> NDArray: ...
 
     def _compute_face_size(self, uxgrid: UxDataset | None = None) -> None:
         """

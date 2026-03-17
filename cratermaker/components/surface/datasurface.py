@@ -510,11 +510,11 @@ class DataSurface(HiResLocalSurface):
             mask = self._local_dem_data["mask"]
             longitudes = np.radians(self._local_dem_data["longitudes"][mask])
             latitudes = np.radians(self._local_dem_data["latitudes"][mask])
-            x = self.target.radius * np.cos(latitudes) * np.cos(longitudes)
-            y = self.target.radius * np.cos(latitudes) * np.sin(longitudes)
-            z = self.target.radius * np.sin(latitudes)
+            x = np.cos(latitudes) * np.cos(longitudes)
+            y = np.cos(latitudes) * np.sin(longitudes)
+            z = np.sin(latitudes)
 
-            points = np.column_stack([x, y, z]) / self.target.radius
+            points = np.column_stack([x, y, z])
 
             return points
 
