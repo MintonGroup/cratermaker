@@ -156,49 +156,45 @@ class GlobalDataSurface(Surface):
         _NODATA = np.finfo(np.float32).min
         print("Reading DEM file:")
         print(f"  {self.dem_file}")
-        try:
-            dataset = rasterio.open(self.dem_file)
-        except Exception as e:
-            raise RuntimeError(f"Dem file reading failed with error: {e}") from e
+        with rasterio.open(self.dem_file) as dataset:
+            # Determine unit scaling (match local DEM logic)
+            units = getattr(dataset, "units", "") or ""
+            if isinstance(units, (list, tuple)):
+                units = units[0] if len(units) else ""
+            scale_factor = 1000.0 if "KILOMETER" in str(units).upper() else 1.0
 
-        if dataset.nodata is None or np.isnan(dataset.nodata) or np.abs(dataset.nodata) < np.abs(_NODATA):
-            dataset.nodata = _NODATA
+            # Read the data within the window
+            elevation = dataset.read(1) * scale_factor
 
-        # Determine unit scaling (match local DEM logic)
-        units = getattr(dataset, "units", "") or ""
-        if isinstance(units, (list, tuple)):
-            units = units[0] if len(units) else ""
-        scale_factor = 1000.0 if "KILOMETER" in str(units).upper() else 1.0
+            # Generate row and column indices
+            rows, cols = np.indices(elevation.shape)
 
-        # Read the data within the window
-        elevation = dataset.read(1) * scale_factor
+            # Compute the x and y coordinates of each pixel in the local CRS
+            x_coords, y_coords = dataset.xy(rows, cols)
+            x_coords = np.array(x_coords).flatten()
+            y_coords = np.array(y_coords).flatten()
+            elevation = elevation.flatten()
 
-        # Generate row and column indices
-        rows, cols = np.indices(elevation.shape)
+            # Handle nodata values
+            if dataset.nodata is None or np.isnan(dataset.nodata):
+                valid = np.isfinite(elevation)
+            else:
+                valid = np.isfinite(elevation) & (elevation != dataset.nodata)
+            mean_elevation = np.mean(elevation[valid])
+            elevation[~valid] = mean_elevation
+            elevation = elevation.astype(np.float32)
 
-        # Compute the x and y coordinates of each pixel in the local CRS
-        x_coords, y_coords = dataset.xy(rows, cols)
-        x_coords = np.array(x_coords).flatten()
-        y_coords = np.array(y_coords).flatten()
-        elevation = elevation.flatten()
+            transformer_to_geodetic = Transformer.from_crs(dataset.crs, self.crs)
 
-        # Handle nodata values
-        mask_nodata = (elevation != dataset.nodata) & ~np.isnan(elevation)
-        mean_elevation = np.mean(elevation[mask_nodata])
-        elevation[~mask_nodata] = mean_elevation
-        elevation = elevation.astype(np.float32)
+            # Transform to longitude and latitude
+            longitudes, latitudes = transformer_to_geodetic.transform(x_coords, y_coords)
+            dem_data = {
+                "elevation": elevation,
+                "latitudes": latitudes,
+                "longitudes": longitudes,
+            }
 
-        transformer_to_geodetic = Transformer.from_crs(dataset.crs, self.crs)
-
-        # Transform to longitude and latitude
-        longitudes, latitudes = transformer_to_geodetic.transform(x_coords, y_coords)
-        dem_data = {
-            "elevation": elevation,
-            "latitudes": latitudes,
-            "longitudes": longitudes,
-        }
-
-        self._dem_data = dem_data
+            self._dem_data = dem_data
         return
 
     def _generate_face_distribution(self, **kwargs: Any) -> NDArray:
@@ -221,7 +217,7 @@ class GlobalDataSurface(Surface):
         z = np.sin(latitudes)
 
         points = np.column_stack([x, y, z])
-        print(f"Generated {len(points)} points in the local region.")
+        print(f"Generated {len(points)} points.")
 
         decimals = max(6, -int(np.floor(np.log10(self.pix / self.radius))))
 

@@ -1179,10 +1179,7 @@ class Surface(ComponentBase):
 
         if regrid:
             print("Creating a new grid")
-            try:
-                self._generate_grid(**kwargs)
-            except Exception as e:
-                raise RuntimeError(f"Failed to create a new grid: {e}") from e
+            self._generate_grid(**kwargs)
 
         return regrid
 
