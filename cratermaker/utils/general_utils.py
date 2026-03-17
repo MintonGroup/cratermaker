@@ -1,11 +1,9 @@
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from warnings import warn
 
 import numpy as np
 import yaml
-from numpy.typing import ArrayLike
 
 from cratermaker.constants import FloatLike
 
