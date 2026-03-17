@@ -1296,6 +1296,32 @@ class Counting(ComponentBase):
                         crater_data["measured_location"][0] = float(value)
                     elif key == "measured_latitude":
                         crater_data["measured_location"][1] = float(value)
+                    elif key == "production_diameter":
+                        if value != "":
+                            if "diameter_number_range" not in crater_data:
+                                crater_data["diameter_number_range"] = [None, None, None]
+                            crater_data["diameter_number_range"][0] = float(value)
+                    elif key == "production_number_low":
+                        if value != "":
+                            if "diameter_number_range" not in crater_data:
+                                crater_data["diameter_number_range"] = [None, None, None]
+                            crater_data["diameter_number_range"][1] = float(value)
+                    elif key == "production_number_high":
+                        if value != "":
+                            if "diameter_number_range" not in crater_data:
+                                crater_data["diameter_number_range"] = [None, None, None]
+                            crater_data["diameter_number_range"][2] = float(value)
+                    elif key == "production_time_low":
+                        if value != "":
+                            if "time_range" not in crater_data:
+                                crater_data["time_range"] = [None, None]
+                            crater_data["time_range"][0] = float(value)
+                    elif key == "production_time_high":
+                        if value != "":
+                            if "time_range" not in crater_data:
+                                crater_data["time_range"] = [None, None]
+                            crater_data["time_range"][1] = float(value)
+
                     else:
                         try:
                             crater_data[key] = float(value)
