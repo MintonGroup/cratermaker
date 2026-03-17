@@ -155,6 +155,7 @@ class Simulation(CratermakerBase):
             surface=surface,
             counting=counting,
             config_file=config_file,
+            quasimc_file=quasimc_file,
             **vars(self.common_args),
         )
 
@@ -628,7 +629,6 @@ class Simulation(CratermakerBase):
         time_end: FloatLike | None = None,
         diameter_number: PairOfFloats | None = None,
         diameter_number_end: PairOfFloats | None = None,
-        craters: list[Crater] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -662,6 +662,8 @@ class Simulation(CratermakerBase):
                 raise ValueError("Cannot specify both age and time_start")
             time_start = age
             del age
+        if self.quasimc_craters is not None:
+            print(len(self.quasimc_craters))
 
         from_projectile = self.production.generator_type == "projectile"
         diam_key = "projectile_diameter" if from_projectile else "diameter"
@@ -1488,4 +1490,12 @@ class Simulation(CratermakerBase):
         """
         The list of craters used by the quasi-Monte Carlo method.
         """
+        if self._quasimc_craters is None and self._quasimc_file is not None:
+            self._quasimc_craters = self.counting.from_file(self._quasimc_file)
         return self._quasimc_craters
+
+    @quasimc_craters.setter
+    def quasimc_craters(self, value: list[Crater]) -> None:
+        if not isinstance(value, list) or not all(isinstance(c, Crater) for c in value):
+            raise TypeError("quasimc_craters must be a list of Crater objects")
+        self._quasimc_craters = value

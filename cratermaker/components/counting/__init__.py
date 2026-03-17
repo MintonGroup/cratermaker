@@ -533,8 +533,34 @@ class Counting(ComponentBase):
         super().save(**save_args)
         return
 
-    def from_file(self, filename: str | Path, **kwargs: Any) -> None:
-        pass
+    def from_file(self, filename: str | Path, **kwargs: Any) -> list[Crater] | None:
+        """
+        Load a list of craters from a file.
+
+        Parameters
+        ----------
+        filename : str | Path
+            The path to the file to load from.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        list[Crater] | None
+            A list of Crater objects loaded from the file, or None if no data.
+        """
+        filename = Path(filename)
+        if not filename.exists():
+            raise FileNotFoundError(f"File {filename} does not exist.")
+        extension = filename.suffix.lower().lstrip(".")
+        if extension == "nc":
+            ds = xr.open_dataset(filename)
+            craters = self.from_xarray(ds, **kwargs)
+        elif extension == "csv":
+            craters = self.from_csv_file(filename, **kwargs)
+        elif extension == "scc":
+            craters = self.from_scc_file(filename, **kwargs)
+        return craters
 
     def export(
         self,
