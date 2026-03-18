@@ -89,7 +89,7 @@ class GlobalDataSurface(Surface):
         super().__init__(target=target, simdir=simdir, **kwargs)
         if dem_file is None and self.target.name != "Moon":
             raise ValueError("GlobalDataSurface currently only supports the Moon as a target if 'dem_file' is not provided.")
-        self._output_file_pattern += [f"local_{self._output_file_prefix}*.{self._output_file_extension}"]
+        self._output_file_pattern += [f"{self._output_file_prefix}*.{self._output_file_extension}"]
         self._dem_output_file = f"dem_data.{self._output_file_extension}"
 
         # Set the attributes directly to avoid triggering checks before the pix value is set
