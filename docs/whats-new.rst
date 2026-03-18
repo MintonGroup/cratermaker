@@ -3,6 +3,11 @@
 What's New
 ==========
 
+.. _whats-new.2026.3.8-alpha:
+
+:release:`v2026.3.8-alpha`
+
+- Fixed bug that was causing incorrect polar data files from being requested from the PDS for DataSurface :pull:`112` `David Minton`_
 
 .. _whats-new.2026.3.7-alpha:
 
