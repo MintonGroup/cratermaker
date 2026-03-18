@@ -20,13 +20,11 @@ from cratermaker.utils.general_utils import (
     parameter,
 )
 
-_DEFAULT_N_FACES_LOCAL = 1e6
-
 
 @Surface.register("globaldatasurface")
 class GlobalDataSurface(Surface):
     """
-    A Surface subclass that generates a local region using DEM data.
+    A Surface subclass that generates an entire body using DEM data.
 
     Currently implements only lunar LOLA data from the PDS. Other data sources may be added in the future.
 
@@ -42,7 +40,7 @@ class GlobalDataSurface(Surface):
     simdir : str | Path
         |simdir|
     pix : FloatLike | None, optional
-        The approximate face size inside the local region in meters. This will be used to determine the target resolution of the DEM data to be used. The actual resolution may be different based on the available DEM data. Note that if you provide a list of DEM files using the `dem_file_list` parameter, this value will be ignored. If None, is set, and no file(s) are provided, a default resolution that creates approximately 1e6 faces in the local region will be used.
+        The approximate face size. This will be used to determine the target resolution of the DEM data to be used. The actual resolution may be different based on the available DEM data.
     dem_file :  str | Path, optional
         A global DEM files or urs link to a file to be used for the surface. If not provided, a DEM file will be selected based on pix.
     **kwargs : Any
@@ -156,7 +154,7 @@ class GlobalDataSurface(Surface):
         print("Reading DEM file:")
         print(f"  {self.dem_file}")
         with rasterio.open(self.dem_file) as dataset:
-            # Determine unit scaling (match local DEM logic)
+            # Determine unit scaling
             units = getattr(dataset, "units", "") or ""
             if isinstance(units, (list, tuple)):
                 units = units[0] if len(units) else ""
@@ -168,7 +166,7 @@ class GlobalDataSurface(Surface):
             # Generate row and column indices
             rows, cols = np.indices(elevation.shape)
 
-            # Compute the x and y coordinates of each pixel in the local CRS
+            # Compute the x and y coordinates of each pixel in the CRS
             x_coords, y_coords = dataset.xy(rows, cols)
             x_coords = np.array(x_coords).flatten()
             y_coords = np.array(y_coords).flatten()
@@ -262,7 +260,7 @@ class GlobalDataSurface(Surface):
         bool
             A boolean indicating whether the grid should be regenerated.
         """
-        # DEM data can come from one of two sources. If we are in the middle of building the surface as part of _generate_face_distribution, then the local DEM data should be stored in the _local_dem_data attribute.
+        # DEM data can come from one of two sources. If we are in the middle of building the surface as part of _generate_face_distribution, then the DEM data should be stored in the _dem_data attribute.
         # If this is not set but we already have a grid generated and stored in the uxgrid attribute, then we need to check if a matching DEM file exists on disk. If neither of these sources are avaailable, then we need to regrid.
         if not regrid and self._dem_data is None:
             if not (self.output_dir / self._dem_output_file).exists():
@@ -282,7 +280,7 @@ class GlobalDataSurface(Surface):
 
     def _add_dem_elevation(self):
         """
-        Sample the preserved DEM grid at the local face and node centers using bilinear interpolation.
+        Sample the preserved DEM grid at the face and node centers using bilinear interpolation.
 
         """
         from scipy.interpolate import LinearNDInterpolator
@@ -291,8 +289,8 @@ class GlobalDataSurface(Surface):
             raise ValueError("DEM data is not available for interpolation.")
         lonlat = np.c_[self._dem_data["longitudes"], self._dem_data["latitudes"]]
         lut2 = LinearNDInterpolator(lonlat, self._dem_data["elevation"], fill_value=0.0)
-        face_elevations = lut2(np.c_[self.local.face_lon, self.local.face_lat])
-        node_elevations = lut2(np.c_[self.local.node_lon, self.local.node_lat])
+        face_elevations = lut2(np.c_[self.face_lon, self.face_lat])
+        node_elevations = lut2(np.c_[self.node_lon, self.node_lat])
         elevation = np.concatenate([face_elevations, node_elevations])
         self.update_elevation(elevation)
         self._dem_data = None  # Clear temporary DEM data storage
