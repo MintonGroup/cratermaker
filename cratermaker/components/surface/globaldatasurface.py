@@ -324,4 +324,4 @@ class GlobalDataSurface(Surface):
         The variables used to generate the hash.
 
         """
-        return super()._hashvars + self._dem_file
+        return super()._hashvars + [self._dem_file]
