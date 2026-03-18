@@ -154,6 +154,7 @@ class GlobalDataSurface(Surface):
         print("Reading DEM file:")
         print(f"  {self.dem_file}")
         with rasterio.open(self.dem_file) as dataset:
+            self._pix = dataset.res[0]
             # Determine unit scaling
             units = getattr(dataset, "units", "") or ""
             if isinstance(units, (list, tuple)):

@@ -36,6 +36,9 @@ surface_args = {
             "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/ldem_4_float.xml"
         ],
     },
+    "globaldatasurface": {
+        "dem_file": "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/ldem_4_float.xml",
+    },
 }
 
 for surface_type in surface_args:
