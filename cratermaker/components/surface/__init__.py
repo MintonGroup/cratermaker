@@ -360,6 +360,8 @@ class Surface(ComponentBase):
             units=units,
             isfacedata=isfacedata,
             overwrite=overwrite,
+            fill_value=fill_value,
+            dtype=dtype,
         )
 
     def update_elevation(
