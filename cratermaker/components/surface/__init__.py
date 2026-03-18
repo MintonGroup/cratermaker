@@ -1181,10 +1181,7 @@ class Surface(ComponentBase):
 
         if regrid:
             print("Creating a new grid")
-            try:
-                self._generate_grid(**kwargs)
-            except Exception as e:
-                raise RuntimeError("Failed to create a new grid") from e
+            self._generate_grid(**kwargs)
 
         return regrid
 
@@ -1334,7 +1331,7 @@ class Surface(ComponentBase):
         return
 
     @abstractmethod
-    def _generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray, NDArray, NDArray]: ...
+    def _generate_face_distribution(self, **kwargs: Any) -> NDArray: ...
 
     def _compute_face_size(self, uxgrid: UxDataset | None = None) -> None:
         """
