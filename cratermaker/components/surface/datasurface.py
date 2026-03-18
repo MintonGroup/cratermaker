@@ -335,8 +335,8 @@ class DataSurface(HiResLocalSurface):
 
         src_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/float_img/"
 
-        AVAILABLE_RESOLUTIONS = [3000, 1000, 400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
-        MIN_LAT = [50, 50, 45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
+        AVAILABLE_RESOLUTIONS = [400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
+        MIN_LAT = [45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
 
         if lat_range[0] > 0:
             pole = "n"
