@@ -1912,16 +1912,20 @@ class Surface(ComponentBase):
 
         def add_dataset(self, dataset: DatasetReader | str | list[DatasetReader | str]) -> Surface.DataComposer:
             """
+            Adds a dataset to eventually be applied to the surface.
+
+            The dataset isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
 
             Parameters
             ----------
             dataset : DatasetReader | str | list[DatasetReader | str]
-
+                A single dataset or a list of multiple datasets to be merged. Uses the crs of the first dataset.
+                Calls ``rasterio.open`` when necessary.
 
             Returns
             -------
             Surface.DataComposer
-
+                ``self``, to allow chaining.
             """
             if self._finished:
                 raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
@@ -2029,6 +2033,8 @@ class Surface(ComponentBase):
             self._finished = True
 
         def __exit__(self, exc_type, exc_val, exc_tb):
+            if self.finished:
+                return
             if exc_type is None:
                 self.finish()
             else:
