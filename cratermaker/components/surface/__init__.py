@@ -10,23 +10,27 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
+import rasterio
 import uxarray as uxr
 import xarray as xr
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
+from rasterio import DatasetReader, MemoryFile
+from rasterio.enums import Resampling
+from rasterio.merge import merge
+from rasterio.vrt import WarpedVRT
 from scipy.optimize import OptimizeWarning
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
 from cratermaker.bindings import surface_bindings
+
+from cratermaker.components.target import Target
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
-
-if TYPE_CHECKING:
-    from cratermaker.components.target import Target
 
 _N_TAG_LAYERS = 8
 
@@ -1893,6 +1897,150 @@ class Surface(ComponentBase):
             raise TypeError("is_new must be a boolean value.")
         self._is_new = value
         return
+
+    def begin_composing_data(self) -> Surface.DataComposer:
+        return Surface.DataComposer(self)
+
+    class DataComposer:
+        def __init__(self, surface: Surface):
+            """
+            **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()``.
+            """
+            self._surface = surface
+            self._data_list: list[tuple[MemoryFile, DatasetReader]] = []
+            self._finished = False
+
+        def add_dataset(self, dataset: DatasetReader | str | list[DatasetReader | str]) -> Surface.DataComposer:
+            """
+
+            Parameters
+            ----------
+            dataset : DatasetReader | str | list[DatasetReader | str]
+
+
+            Returns
+            -------
+            Surface.DataComposer
+
+            """
+            if self._finished:
+                raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+
+            if not isinstance(dataset, list):
+                dataset = [dataset]
+
+            dataset = [src if isinstance(src, DatasetReader) else rasterio.open(src) for src in dataset]
+
+            dst_crs = dataset[0].crs
+
+            vrt_list = [
+                WarpedVRT(
+                    src,
+                    crs=dst_crs,
+                    resampling=Resampling.bilinear,
+                )
+                for src in dataset
+            ]
+            _NODATA = np.finfo(np.float32).min
+
+            nodata_val = dataset[0].nodata
+            if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
+                nodata_val = _NODATA
+
+            mosaic, transform = merge(
+                vrt_list,
+                nodata=nodata_val,
+                dtype="float32" if np.isnan(nodata_val) else None,
+            )
+
+            out_meta = dataset[0].meta.copy()
+            out_meta.update({
+                "driver": "GTiff",
+                "height": mosaic.shape[1],
+                "width": mosaic.shape[2],
+                "transform": transform,
+                "crs": dst_crs,
+                "nodata": nodata_val,
+            })
+
+            memfile = MemoryFile()
+            src = memfile.open(**out_meta)
+
+            src.units = dataset[0].units
+            src.write(mosaic)
+
+            self._data_list.append((memfile, src))
+
+            return self
+
+        def cancel(self):
+            for (memfile, _) in self._data_list:
+                memfile.close()
+            self._finished = True
+
+        def finish(self):
+            if self._finished:
+                raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+
+            def _orderable_distance(lon1, lat1, lon2, lat2):
+                _nnon1 = np.deg2rad(lon1)
+                lat1 = np.deg2rad(lat1)
+                lon2 = np.deg2rad(lon2)
+                lat2 = np.deg2rad(lat2)
+
+                dlon = (lon2 - lon1 + np.pi)%(2*np.pi)
+                dlat = lat2 - lat1
+                return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
+
+            lons = np.concatenate((self._surface.face_lon, self._surface.node_lon))
+            lats = np.concatenate((self._surface.face_lat, self._surface.node_lat))
+
+            pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
+            for n, (_, src) in enumerate(self._data_list):
+                to_src = Transformer.from_crs(self._surface.crs, src.crs)
+                from_src = Transformer.from_crs(src.crs, self._surface.crs)
+
+                x_coords, y_coords = to_src.transform(lons, lats)
+                values = np.fromiter(
+                    (v[0] for v in src.sample(zip(x_coords, y_coords, strict=False))),
+                    dtype=np.float32,
+                    count=len(x_coords),
+                )
+                valid = np.isfinite(values) & (values != src.nodata)
+                x_pix, y_pix = from_src.transform(*src.xy(*src.index(x_coords[valid], y_coords[valid])))
+                pix_dist[n,valid] = _orderable_distance(lons, lats, x_pix, y_pix)
+
+            idx = np.argmin(pix_dist, axis=0)
+            elevation = np.zeros_like(idx, dtype=np.float32)
+
+            for n, (_, src) in enumerate(self._data_list):
+                to_src = Transformer.from_crs(self._surface.crs, src.crs)
+                mask = idx == n
+
+                x_coords, y_coords = to_src.transform(lons[mask], lats[mask])
+                elevation[mask] = np.fromiter(
+                    (v[0] for v in src.sample(zip(x_coords, y_coords, strict=False))),
+                    dtype=np.float32,
+                    count=len(x_coords),
+                )
+
+            self._surface.update_elevation(elevation)
+            self._data_list = []
+            self._finished = True
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if exc_type is None:
+                self.finish()
+            else:
+                self.cancel()
+
+        @property
+        def surface(self):
+            return self._surface
+
+        @property
+        def finished(self):
+            return self._finished
 
 
 class LocalSurface(CratermakerBase):
