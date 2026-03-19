@@ -430,14 +430,7 @@ class Counting(ComponentBase):
             craters = craters.values()
         for c in craters:
             d = c.as_dict(skip_complex_data=True)
-            if "location" in d:
-                lon, lat = d.pop("location")
-                d["longitude"] = lon
-                d["latitude"] = lat
-            if "measured_location" in d:
-                mlon, mlat = d.pop("measured_location")
-                d["measured_longitude"] = mlon
-                d["measured_latitude"] = mlat
+            d = _convert_tuple_vars(input_dict=d, inverse=False)
             d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
             d["id"].attrs["long_name"] = _TALLY_LONG_NAME
             new_data.append(d)
@@ -1219,14 +1212,7 @@ class Counting(ComponentBase):
             header_written = False
             for crater in crater_list:
                 crater_dict = crater.as_dict(skip_complex_data=True)
-
-                # Convert location fields from tuples into lon/lat
-                location = crater_dict.pop("location")
-                crater_dict["longitude"] = location[0]
-                crater_dict["latitude"] = location[1]
-                measured_location = crater_dict.pop("measured_location")
-                crater_dict["measured_longitude"] = measured_location[0]
-                crater_dict["measured_latitude"] = measured_location[1]
+                crater_dict = _convert_tuple_vars(input_dict=crater_dict, inverse=False)
 
                 # Check if the crater is circular, and if so convert semimajor/semiminor to diameter
                 if (
@@ -1282,50 +1268,25 @@ class Counting(ComponentBase):
         with input_file.open(mode="r", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                crater_data = {}
-                crater_data["location"] = [None, None]
-                crater_data["measured_location"] = [None, None]
-                if "production_diameter" in row or "production_number_low" in row or "production_number_high" in row:
-                    crater_data["production_diameter_number_range"] = [None, None, None]
-                if "production_time_low" in row or "production_time_high" in row:
-                    crater_data["production_time_range"] = [None, None]
-
+                crater_data = _convert_tuple_vars(input_dict=row, inverse=True)
                 for key, value in row.items():
                     if value == "" or value is None:
                         continue
                     if key in ["id"]:
                         crater_data[key] = int(value)
-                    elif key == "longitude":
-                        crater_data["location"][0] = float(value)
-                    elif key == "latitude":
-                        crater_data["location"][1] = float(value)
-                    elif key == "measured_longitude":
-                        crater_data["measured_location"][0] = float(value)
-                    elif key == "measured_latitude":
-                        crater_data["measured_location"][1] = float(value)
-                    elif key == "production_diameter":
-                        crater_data["production_diameter_number_range"][0] = float(value)
-                    elif key == "production_number_low":
-                        crater_data["production_diameter_number_range"][1] = float(value)
-                    elif key == "production_number_high":
-                        crater_data["production_diameter_number_range"][2] = float(value)
-                    elif key == "production_number":
-                        crater_data["production_diameter_number_range"][1:] = [float(value), float(value)]
-                    elif key == "production_time_low":
-                        crater_data["production_time_range"][0] = float(value)
-                    elif key == "production_time_high":
-                        crater_data["production_time_range"][1] = float(value)
-                    elif key == "production_time":
-                        crater_data["production_time_range"] = [float(value), float(value)]
+                    elif isinstance(value, tuple | list):
+                        vnew = []
+                        for v in value:
+                            if v is not None:
+                                vnew.append(float(v))
+                        if len(vnew) == len(value):
+                            crater_data[key] = vnew
+
                     else:
                         try:
                             crater_data[key] = float(value)
                         except ValueError:
                             crater_data[key] = value
-                if None in crater_data["location"]:
-                    crater_data.pop("location")
-                if None in crater_data["measured_location"]:
-                    crater_data.pop("measured_location")
                 crater = self.Crater.maker(**crater_data, morphology=self.morphology, check_redundant_inputs=False)
                 craters.append(crater)
 
@@ -1491,13 +1452,7 @@ class Counting(ComponentBase):
             crater_data = {k: v["data"] for k, v in crater_data.items()}
             if np.isnan(crater_data["semimajor_axis"]):
                 continue
-            if "longitude" in crater_data and "latitude" in crater_data:
-                crater_data["location"] = (crater_data.pop("longitude"), crater_data.pop("latitude"))
-            if "measured_longitude" in crater_data and "measured_latitude" in crater_data:
-                crater_data["measured_location"] = (
-                    crater_data.pop("measured_longitude"),
-                    crater_data.pop("measured_latitude"),
-                )
+            crater_data = _convert_tuple_vars(input_dict=crater_data, inverse=True)
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
@@ -1580,6 +1535,27 @@ class Counting(ComponentBase):
         for id, crater in self.observed.items():
             self.observed[id] = self.Crater.maker(crater=crater)
         return
+
+
+def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
+    tuple_map = {
+        "location": ["longitude", "latitude"],
+        "measured_location": ["measured_longitude", "measured_latitude"],
+        "production_time_range": ["production_time_low", "production_time_high"],
+        "production_diameter_number_range": ["production_diameter", "production_number_low", "production_number_high"],
+    }
+    for tup, varlist in tuple_map.items():
+        if inverse:
+            if any(var in varlist for var in input_dict):
+                input_dict[tup] = [None] * len(varlist)
+                for idx, var in enumerate(varlist):
+                    input_dict[tup][idx] = input_dict.pop(var, None)
+        else:
+            if tup in input_dict:
+                for idx, var in enumerate(varlist):
+                    input_dict[var] = input_dict[tup][idx]
+                _ = input_dict.pop(tup)
+    return input_dict
 
 
 def R_to_CSFD(
