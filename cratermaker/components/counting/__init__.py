@@ -1286,9 +1286,9 @@ class Counting(ComponentBase):
                 crater_data["location"] = [None, None]
                 crater_data["measured_location"] = [None, None]
                 if "production_diameter" in row or "production_number_low" in row or "production_number_high" in row:
-                    crater_data["diameter_number_range"] = [None, None, None]
+                    crater_data["production_diameter_number_range"] = [None, None, None]
                 if "production_time_low" in row or "production_time_high" in row:
-                    crater_data["time_range"] = [None, None]
+                    crater_data["production_time_range"] = [None, None]
 
                 for key, value in row.items():
                     if value == "" or value is None:
@@ -1304,19 +1304,19 @@ class Counting(ComponentBase):
                     elif key == "measured_latitude":
                         crater_data["measured_location"][1] = float(value)
                     elif key == "production_diameter":
-                        crater_data["diameter_number_range"][0] = float(value)
+                        crater_data["production_diameter_number_range"][0] = float(value)
                     elif key == "production_number_low":
-                        crater_data["diameter_number_range"][1] = float(value)
+                        crater_data["production_diameter_number_range"][1] = float(value)
                     elif key == "production_number_high":
-                        crater_data["diameter_number_range"][2] = float(value)
+                        crater_data["production_diameter_number_range"][2] = float(value)
                     elif key == "production_number":
-                        crater_data["diameter_number_range"][1:] = [float(value), float(value)]
+                        crater_data["production_diameter_number_range"][1:] = [float(value), float(value)]
                     elif key == "production_time_low":
-                        crater_data["time_range"][0] = float(value)
+                        crater_data["production_time_range"][0] = float(value)
                     elif key == "production_time_high":
-                        crater_data["time_range"][1] = float(value)
+                        crater_data["production_time_range"][1] = float(value)
                     elif key == "production_time":
-                        crater_data["time_range"] = [float(value), float(value)]
+                        crater_data["production_time_range"] = [float(value), float(value)]
                     else:
                         try:
                             crater_data[key] = float(value)

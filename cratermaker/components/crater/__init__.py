@@ -95,8 +95,8 @@ class CraterVariable:
         measured_rim_height: float | None = None,
         measured_floor_depth: float | None = None,
         degradation_state: float | None = None,
-        time_range: tuple[float, float] | None = None,
-        number_diameter_range: tuple[float, float, float] | None = None,
+        production_time_range: tuple[float, float] | None = None,
+        production_diameter_number_range: tuple[float, float, float] | None = None,
         **kwargs: Any,
     ):
         object.__setattr__(self, "_measured_semimajor_axis", None)
@@ -107,8 +107,8 @@ class CraterVariable:
         object.__setattr__(self, "_measured_rim_height", None)
         object.__setattr__(self, "_measured_floor_depth", None)
         object.__setattr__(self, "_degradation_state", None)
-        object.__setattr__(self, "_time_range", None)
-        object.__setattr__(self, "_number_diameter_range", None)
+        object.__setattr__(self, "_production_time_range", None)
+        object.__setattr__(self, "_production_diameter_number_range", None)
 
         if measured_diameter is not None:
             self.measured_diameter = measured_diameter
@@ -128,12 +128,10 @@ class CraterVariable:
             self.measured_floor_depth = measured_floor_depth
         if degradation_state is not None:
             self.degradation_state = degradation_state
-        if time_range is not None:
-            if number_diameter_range is not None:
-                raise ValueError("Cannot specify both time_range and number_diameter_range for a CraterVariable.")
-            self.time_range = time_range
-        if number_diameter_range is not None:
-            self.number_diameter_range = number_diameter_range
+        if production_time_range is not None:
+            self.production_time_range = production_time_range
+        if production_diameter_number_range is not None:
+            self.production_diameter_number_range = production_diameter_number_range
         return
 
     def __repr__(self):
@@ -147,8 +145,8 @@ class CraterVariable:
             f"measured_rim_height={self.measured_rim_height}, "
             f"measured_floor_depth={self.measured_floor_depth}, "
             f"degradation_state={self.degradation_state}),"
-            f"time_range={self.time_range},"
-            f"number_diameter_range={self.number_diameter_range}"
+            f"production_time_range={self.production_time_range},"
+            f"production_diameter_number_range={self.production_diameter_number_range}"
         )
 
     def as_dict(self):
@@ -170,10 +168,10 @@ class CraterVariable:
             else:
                 dict_repr["measured_semimajor_axis"] = self.measured_semimajor_axis
                 dict_repr["measured_semiminor_axis"] = self.measured_semiminor_axis
-        if self.time_range is not None:
-            dict_repr["time_range"] = self.time_range
-        if self.number_diameter_range is not None:
-            dict_repr["number_diameter_range"] = self.number_diameter_range
+        if self.production_time_range is not None:
+            dict_repr["production_time_range"] = self.production_time_range
+        if self.production_diameter_number_range is not None:
+            dict_repr["production_diameter_number_range"] = self.production_diameter_number_range
         return dict_repr
 
     @property
@@ -346,35 +344,39 @@ class CraterVariable:
         return
 
     @property
-    def time_range(self) -> float | None:
+    def production_time_range(self) -> float | None:
         """The range of ages of the crater in Myr before present, used by the quasi-monte carlo sampling method to emplace a user-defined crater within a time period."""
-        return self._time_range
+        return self._production_time_range
 
-    @time_range.setter
-    def time_range(self, value: tuple[float, float] | None):
+    @production_time_range.setter
+    def production_time_range(self, value: tuple[float, float] | None):
         if value is not None:
             if len(value) != 2:
-                raise ValueError("time_range must be a tuple of (time_min, time_max).")
+                raise ValueError("production_time_range must be a tuple of (time_min, time_max).")
+            if value[0] is None:
+                return
             if value[0] < value[1]:
-                self._time_range = float(value[0]), float(value[1])
+                self._production_time_range = float(value[0]), float(value[1])
             else:
-                self._time_range = float(value[1]), float(value[0])
+                self._production_time_range = float(value[1]), float(value[0])
         return
 
     @property
-    def number_diameter_range(self) -> tuple[float, float, float] | None:
+    def production_diameter_number_range(self) -> tuple[float, float, float] | None:
         """A triplet r of diameter and cumulative number values, in the form of a (D, N_min, N_max), used by the quasi-monte carlo sampling method to emplace a user-defined crater within a number-diameter range."""
-        return self._number_diameter_range
+        return self._production_diameter_number_range
 
-    @number_diameter_range.setter
-    def number_diameter_range(self, value: tuple[float, float, float] | None):
+    @production_diameter_number_range.setter
+    def production_diameter_number_range(self, value: tuple[float, float, float] | None):
         if value is not None:
             if len(value) != 3:
-                raise ValueError("number_diameter_range must be a triplet of floats in the form of (D, N_min, N_max).")
+                raise ValueError("production_diameter_number_range must be a triplet of floats in the form of (D, N_min, N_max).")
+            if value[0] is None:
+                return
             if value[1] < value[2]:
-                self._number_diameter_range = (float(value[0]), float(value[1]), float(value[2]))
+                self._production_diameter_number_range = (float(value[0]), float(value[1]), float(value[2]))
             else:
-                self._number_diameter_range = (float(value[0]), float(value[2]), float(value[1]))
+                self._production_diameter_number_range = (float(value[0]), float(value[2]), float(value[1]))
         return
 
 
