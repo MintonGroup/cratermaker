@@ -736,7 +736,7 @@ class Simulation(CratermakerBase):
                 craterlist.append(
                     self.Crater.maker(
                         location=location,
-                        age=time,
+                        time=time,
                         scaling=self.scaling,
                         **diam_arg,
                         **vars(self.common_args),
@@ -1090,7 +1090,7 @@ class Simulation(CratermakerBase):
             crater = Crater.maker(
                 diameter=crater_diameter,
                 angle=90.0,
-                projectile_velocity=self.scaling.projectile_mean_velocity * 10,
+                projectile_velocity=self.scaling.projectile.mean_velocity * 10,
                 scaling=self.scaling,
                 **vars(self.common_args),
             )
@@ -1120,7 +1120,7 @@ class Simulation(CratermakerBase):
             crater = Crater.maker(
                 diameter=crater_diameter,
                 angle=1.0,
-                projectile_velocity=self.scaling.projectile_mean_velocity / 10.0,
+                projectile_velocity=self.scaling.projectile.mean_velocity / 10.0,
                 scaling=self.scaling,
                 **vars(self.common_args),
             )
@@ -1350,7 +1350,7 @@ class Simulation(CratermakerBase):
         self._smallest_crater = Crater.maker(
             projectile_diameter=self._smallest_projectile,
             angle=90.0,
-            projectile_velocity=self.scaling.projectile_mean_velocity * 10,
+            projectile_velocity=self.scaling.projectile.mean_velocity * 10,
             scaling=self.scaling,
             **vars(self.common_args),
         ).diameter
@@ -1377,7 +1377,7 @@ class Simulation(CratermakerBase):
         self._largest_crater = Crater.maker(
             projectile_diameter=self._largest_projectile,
             angle=1.0,
-            projectile_velocity=self.scaling.projectile_mean_velocity / 10.0,
+            projectile_velocity=self.scaling.projectile.mean_velocity / 10.0,
             scaling=self.scaling,
             **vars(self.common_args),
         ).diameter
@@ -1525,7 +1525,7 @@ class Simulation(CratermakerBase):
         """
         if self._quasimc_craters is None and self._quasimc_file is not None:
             self._quasimc_craters = self.counting.from_file(self._quasimc_file)
-            self._sort_quasimc_craters()
+            self._process_quasimc_craters()
         return self._quasimc_craters
 
     @quasimc_craters.setter
@@ -1534,21 +1534,44 @@ class Simulation(CratermakerBase):
             raise TypeError("quasimc_craters must be a list of Crater objects")
         self._quasimc_craters = value
 
-    def _sort_quasimc_craters(self):
+    def _process_quasimc_craters(self, n_conversion_factor: float = 1e12):
         """
-        Sort the quasi-Monte Carlo craters by age in order of decreasing age (increasing time).
+        Sorts the quasi-Monte Carlo craters by age in order of decreasing age (increasing time) and computes production_time_range if missing, production_diameter_number_range if missing, and will drop craters that have neither.
+
+        Parameters
+        ----------
+        n_conversion_factor : float, optional
+            The conversion factor to convert the cumulative number density from the input quasi-mc file to the unit system used by the production function. The default is 1e12 which converts from N(D) values (number of craters per 1e6 km^2 to number of craters per m^2)
         """
         if self._quasimc_craters is not None:
             smallest_diameter = self.largest_crater
-            for crater in self._quasimc_craters:
+            drops = []
+            for idx, crater in enumerate(self._quasimc_craters):
                 if crater.diameter < smallest_diameter:
                     smallest_diameter = crater.diameter
-                if crater.production_diameter_number_range != [None, None, None]:
+                if crater.production_diameter_number_range is not None and crater.production_diameter_number_range != [
+                    None,
+                    None,
+                    None,
+                ]:
                     diameter, nlo, nhi = crater.production_diameter_number_range
-                    nlo /= self.surface.area
-                    nhi /= self.surface.area
-                    crater.production_time_range[0] = self.production.age_from_D_N(diameter=diameter, cumulative_number_densit=nlo)
-                    crater.production_time_range[1] = self.production.age_from_D_N(diameter=diameter, cumulative_number_densit=nhi)
+                    nlo /= n_conversion_factor
+                    nhi /= n_conversion_factor
+                    tlo = self.production.age_from_D_N(diameter=diameter, cumulative_number_density=nlo)
+                    thi = self.production.age_from_D_N(diameter=diameter, cumulative_number_density=nhi)
+                    crater.production_time_range = [tlo, thi]
+                elif crater.production_time_range is not None and crater.production_time_range != [None, None]:
+                    tlo, thi = crater.production_time_range
+                    diam_val = 1e3
+                    nlo = self.production.function(diam_val, time_start=tlo)
+                    nhi = self.production.function(diam_val, time_start=thi)
+                    crater.production_diameter_number_range = [diam_val, nlo, nhi]
+                else:
+                    drops.append(idx)
+            if len(drops) > 0:
+                self._quasimc_craters = [
+                    self._quasimc_craters[idx] for idx in range(len(self._quasimc_craters)) if idx not in drops
+                ]
             # By default, the largest Monte Carlo crater will be the smallest quasi-Monte Carlo crater
             self.largest_crater = smallest_diameter
         self._quasimc_craters.sort(key=lambda c: c.production_time_range[0], reverse=True)

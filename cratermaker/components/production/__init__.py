@@ -220,7 +220,7 @@ class Production(ComponentBase):
             time_subinterval = np.linspace(time_end, time_start, num=1000)
             N_vs_age = self.function(
                 diameter=diameters,
-                age=time_subinterval,
+                time_start=time_subinterval,
                 validate_inputs=validate_inputs,
                 **kwargs,
             )
@@ -610,7 +610,7 @@ class Production(ComponentBase):
         else:
             diameter_number_density = (
                 _REF_DIAM,
-                self.function(diameter=_REF_DIAM, age=time_start),
+                self.function(diameter=_REF_DIAM, time_start=time_start),
             )
             diameter_number = (
                 diameter_number_density[0],
