@@ -117,11 +117,12 @@ class BasicMoonCrater(MorphologyCrater):
             raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
 
         args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74
+        kwargs = {**args, **kwargs}
 
         return cls(
             crater=crater,
             morphology=morphology,
-            **args,
+            **kwargs,
         )
 
 
