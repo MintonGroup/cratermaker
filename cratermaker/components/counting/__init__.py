@@ -1269,7 +1269,7 @@ class Counting(ComponentBase):
             reader = csv.DictReader(csvfile)
             for row in reader:
                 crater_data = _convert_tuple_vars(input_dict=row, inverse=True)
-                for key, value in row.items():
+                for key, value in crater_data.items():
                     if value == "" or value is None:
                         continue
                     if key in ["id"]:
@@ -1544,8 +1544,16 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
         "production_time_range": ["production_time_low", "production_time_high"],
         "production_diameter_number_range": ["production_diameter", "production_number_low", "production_number_high"],
     }
+
     for tup, varlist in tuple_map.items():
         if inverse:
+            # convert aliases
+            if "production_time" in input_dict:
+                tval = input_dict.pop("production_time")
+                input_dict["production_time_range"] = [tval, tval]
+            if "production_diameter_number" in input_dict:
+                prod_diam, nval = input_dict.pop("production_diameter_number")
+                input_dict["production_diameter_number_range"] = [prod_diam, nval, nval]
             if any(var in varlist for var in input_dict):
                 input_dict[tup] = [None] * len(varlist)
                 for idx, var in enumerate(varlist):
