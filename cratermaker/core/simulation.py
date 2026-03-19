@@ -1564,5 +1564,5 @@ class Simulation(CratermakerBase):
         # By default, the largest Monte Carlo crater will be the smallest quasi-Monte Carlo crater
         if set_max_diameter:
             self.largest_crater = smallest_diameter
-        output_craters = output_craters.sort(key=lambda c: c.time, reverse=True)
+        output_craters.sort(key=lambda c: c.time, reverse=True)
         return output_craters
