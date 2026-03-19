@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import warnings
 from abc import abstractmethod
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -1898,10 +1899,17 @@ class Surface(ComponentBase):
         self._is_new = value
         return
 
-    def begin_composing_data(self) -> Surface.DataComposer:
+    def data_composer(self) -> DataComposer:
+        """
+        Creates a ``Surface.DataComposer`` tied to this ``Surface``.
+
+        Returns
+        -------
+        Surface.DataComposer
+        """
         return Surface.DataComposer(self)
 
-    class DataComposer:
+    class DataComposer(AbstractContextManager):
         def __init__(self, surface: Surface):
             """
             **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()``.
@@ -1933,7 +1941,10 @@ class Surface(ComponentBase):
             if not isinstance(dataset, list):
                 dataset = [dataset]
 
-            dataset = [src if isinstance(src, DatasetReader) else rasterio.open(src) for src in dataset]
+            for i, src in enumerate(dataset):
+                if not isinstance(src, DatasetReader):
+                    print(f"Opening {src}")
+                    dataset[i] = rasterio.open(src)
 
             dst_crs = dataset[0].crs
 
@@ -1950,6 +1961,9 @@ class Surface(ComponentBase):
             nodata_val = dataset[0].nodata
             if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
                 nodata_val = _NODATA
+
+            if len(vrt_list) > 1:
+                print(f"Merging {len(vrt_list)} datasets")
 
             mosaic, transform = merge(
                 vrt_list,
@@ -1995,6 +2009,8 @@ class Surface(ComponentBase):
                 dlon = (lon2 - lon1 + np.pi)%(2*np.pi)
                 dlat = lat2 - lat1
                 return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
+
+            print(f"Applying {len(self._data_list)} datasets to the mesh")
 
             lons = np.concatenate((self._surface.face_lon, self._surface.node_lon))
             lats = np.concatenate((self._surface.face_lat, self._surface.node_lat))
