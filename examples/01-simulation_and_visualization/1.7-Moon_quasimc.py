@@ -1,4 +1,4 @@
-""" "
+"""
 Run a simulation of the Moon with basins emplaced using QuasiMC mode
 ====================================================================
 
