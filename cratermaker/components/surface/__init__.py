@@ -1,5 +1,4 @@
 from __future__ import annotations
-from affine import Affine
 
 import hashlib
 import os
@@ -15,16 +14,18 @@ import numpy as np
 import rasterio
 import uxarray as uxr
 import xarray as xr
+from affine import Affine
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
-from rasterio import DatasetReader, MemoryFile
+from rasterio import DatasetReader, MemoryFile, windows
 from rasterio.enums import Resampling
 from rasterio.merge import merge
 from rasterio.transform import rowcol
 from rasterio.vrt import WarpedVRT
 from rasterio.windows import Window
 from scipy.optimize import OptimizeWarning
+from tqdm import tqdm
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
@@ -4447,115 +4448,42 @@ class DataComposer(AbstractContextManager):
         **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()`` or ``LocalSurface.data_composer()``.
         """
         self._localsurface = surface
-        self._data_list: list[tuple[MemoryFile, DatasetReader]] = []
+        self._data_list: list[DatasetReader] = []
         self._finished = False
 
-    def add_dataset(
+    def add_data(
             self,
-            dataset: DatasetReader | str | list[DatasetReader | str],
-            crs: CRS | None = None,
+            data: DatasetReader | str | list[DatasetReader | str],
     ):
         """
-        Adds a dataset to eventually be applied to the surface.
+        Adds data to eventually be applied to the surface.
 
-        The dataset isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+        The data isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
 
         Parameters
         ----------
-        crs : CRS | None
-            The coordinate reference system used to store the merged data. Defaults to a CRS centered on the local region if applicable, otherwise uses the CRS of the first dataset.
         dataset : DatasetReader | str | list[DatasetReader | str]
             A single dataset or a list of multiple datasets to be merged.
             Calls ``rasterio.open`` when necessary.
         """
         if self._finished:
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
-        if not isinstance(dataset, list):
-            dataset = [dataset]
 
-        for i, src in enumerate(dataset):
+        if not isinstance(data, list):
+            data = [data]
+
+        for i, src in enumerate(data):
             if not isinstance(src, DatasetReader):
-                print(f"Opening {src}")
-                dataset[i] = rasterio.open(src)
+                data[i] = rasterio.open(src)
 
-        vrt_list = None
-        if crs is None:
-            if self._localsurface.is_local:
-                crs = self._localsurface.crs
-
-                _EXPANSION_BUFFER = 1.05
-
-                half_box_size = np.sqrt(2.0) * self._localsurface.radius * _EXPANSION_BUFFER
-
-                target_res = min(s.res[0] for s in dataset)
-                dst_width = int(np.ceil(2 * half_box_size / target_res))
-                dst_height = dst_width
-                dst_transform = Affine(target_res, 0.0, -half_box_size, 0.0, -target_res, half_box_size)
-                vrt_list = [
-                    WarpedVRT(
-                        src,
-                        crs=crs,
-                        transform=dst_transform,
-                        width=dst_width,
-                        height=dst_height,
-                        resampling=Resampling.bilinear,
-                    )
-                    for src in dataset
-                ]
-            else:
-                crs = dataset[0].crs
-
-        if vrt_list is None:
-            vrt_list = [
-                WarpedVRT(
-                    src,
-                    crs=crs,
-                    resampling=Resampling.bilinear,
-                )
-                for src in dataset
-            ]
-
-        _NODATA = np.finfo(np.float32).min
-
-        nodata_val = dataset[0].nodata
-        if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
-            nodata_val = _NODATA
-
-        if len(vrt_list) > 1:
-            print(f"Merging {len(vrt_list)} datasets")
-        else:
-            print("    Reformatting")
-
-        mosaic, transform = merge(
-            vrt_list,
-            nodata=nodata_val,
-            dtype="float32" if np.isnan(nodata_val) else None,
-        )
-
-        out_meta = dataset[0].meta.copy()
-        out_meta.update({
-            "driver": "GTiff",
-            "height": mosaic.shape[1],
-            "width": mosaic.shape[2],
-            "transform": transform,
-            "crs": crs,
-            "nodata": nodata_val,
-        })
-
-        memfile = MemoryFile()
-        src = memfile.open(**out_meta)
-
-        src.units = dataset[0].units
-        src.write(mosaic)
-
-        self._data_list.append((memfile, src))
-
-        return self
+            self._data_list.append(data[i])
 
     def cancel(self):
-        for (memfile, _) in self._data_list:
-            memfile.close()
+        for dataset in self._data_list:
+            dataset.close()
+        self._data_list = []
         self._finished = True
+
 
     def finish(self):
         if self._finished:
@@ -4571,29 +4499,66 @@ class DataComposer(AbstractContextManager):
             dlat = lat2 - lat1
             return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
 
+        def _read(dataset: DatasetReader, window: Window | None = None) -> tuple[NDArray, Window]:
+            block_windows = []
+            for _, block in dataset.block_windows(1):
+                if window is None or windows.intersect(window, block):
+                    block_windows.append(block)
+
+            res_window: Window = windows.union(block_windows)
+
+            print(f"    Reading {dataset.name} ({res_window.width}x{res_window.height}px of {dataset.width}x{dataset.height}px)")
+
+            res = np.empty((res_window.height, res_window.width))
+
+            for block in tqdm(block_windows):
+                out = res[
+                    block.row_off-res_window.row_off : block.row_off-res_window.row_off+block.height,
+                    block.col_off-res_window.col_off : block.col_off-res_window.col_off+block.width
+                ]
+                dataset.read(1, window=block, out=out)
+
+            return res, res_window
+
         print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
 
         lons = np.concatenate((self._localsurface.face_lon, self._localsurface.node_lon))
         lats = np.concatenate((self._localsurface.face_lat, self._localsurface.node_lat))
 
-        print("    Finding pixel distances")
-        pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
-        for n, (_, src) in enumerate(self._data_list):
-            to_src = Transformer.from_crs(self._localsurface.surface.crs, src.crs)
-            from_src = Transformer.from_crs(src.crs, self._localsurface.surface.crs)
+        read_data: list[NDArray] = []
+        data_windows: list[Window] = []
 
-            x_coords, y_coords = to_src.transform(lons, lats)
+        pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
+        for n, dataset in enumerate(self._data_list):
+
+            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
+            from_data = Transformer.from_crs(dataset.crs, self._localsurface.surface.crs)
+
+            x_coords, y_coords = to_data.transform(lons, lats)
+
             mask1 = np.isfinite(x_coords) & np.isfinite(y_coords)
-            x_coords = x_coords[mask1]
-            y_coords = y_coords[mask1]
-            values = np.fromiter(
-                (v[0] for v in src.sample(zip(x_coords, y_coords, strict=True))),
-                dtype=np.float32,
-                count=len(x_coords),
-            )
-            mask2 = np.isfinite(values) & (values != src.nodata)
-            x_pix, y_pix = from_src.transform(*src.xy(*rowcol(src.transform, x_coords[mask2], y_coords[mask2])))
+            rows, cols = rowcol(dataset.transform, x_coords[mask1], y_coords[mask1])
+            mask2 = (cols >= 0) & (cols < dataset.width) & (rows >= 0) & (rows < dataset.height)
             mask1[mask1] = mask2
+            rows = rows[mask2]
+            cols = cols[mask2]
+
+            if self._localsurface.is_local:
+                cmin, rmin, cmax, rmax = np.min(cols), np.min(rows), np.max(cols), np.max(rows)
+                data, window = _read(dataset, window=Window(cmin, rmin, cmax - cmin + 1, rmax - rmin + 1))
+            else:
+                data, window = _read(dataset)
+
+            read_data.append(data)
+            data_windows.append(window)
+
+            values = data[rows - window.row_off, cols - window.col_off]
+
+            print("        Calculating pixel distances")
+
+            mask3 = np.isfinite(values) & (values != dataset.nodata)
+            mask1[mask1] = mask3
+            x_pix, y_pix = from_data.transform(*dataset.xy(rows[mask3], cols[mask3]))
             pix_dist[n,mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
 
         idx = np.argmin(pix_dist, axis=0)
@@ -4601,25 +4566,23 @@ class DataComposer(AbstractContextManager):
         elevation = np.zeros_like(idx, dtype=np.float32)
 
         print("    Setting elevation data")
-        for n, (_, src) in enumerate(self._data_list):
-            to_src = Transformer.from_crs(self._localsurface.surface.crs, src.crs)
+        for n, (dataset, data, window) in enumerate(zip(self._data_list, read_data, data_windows, strict=True)):
+            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
             mask = global_mask & (idx == n)
 
-            if "KILOMETER" in src.units:
+            if "KILOMETER" in dataset.units:
                 scale_factor = 1000.0
             else:
                 scale_factor = 1.0
 
-            x_coords, y_coords = to_src.transform(lons[mask], lats[mask])
-            elevation[mask] = np.fromiter(
-                (v[0] * scale_factor for v in src.sample(zip(x_coords, y_coords, strict=True))),
-                dtype=np.float32,
-                count=len(x_coords),
-            )
+            x_coords, y_coords = to_data.transform(lons[mask], lats[mask])
+            rows, cols = rowcol(dataset.transform, x_coords, y_coords)
+            elevation[mask] = data[rows - window.row_off, cols - window.col_off] * scale_factor
 
         self._localsurface.update_elevation(elevation)
         self._data_list = []
         self._finished = True
+        print("    Done")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.finished:
