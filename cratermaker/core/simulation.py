@@ -216,13 +216,12 @@ class Simulation(CratermakerBase):
             **counting_config,
         )
 
-        morphology_config = {**morphology_config, **kwargs}
+        morphology_config = {**morphology_config, **kwargs, "do_counting": do_counting}
         self.morphology = Morphology.maker(
             self.morphology,
             surface=self.surface,
             production=self.production,
             counting=self.counting,
-            do_counting=do_counting,
             **morphology_config,
         )
 
