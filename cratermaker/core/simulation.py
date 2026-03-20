@@ -169,8 +169,7 @@ class Simulation(CratermakerBase):
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
         projectile_config = unmatched.pop("projectile_config", {})
-        if do_counting:
-            counting_config = unmatched.pop("counting_config", {})
+        counting_config = unmatched.pop("counting_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
 
@@ -209,14 +208,13 @@ class Simulation(CratermakerBase):
         if self.surface.is_new is not None:
             self.is_new = self.surface.is_new
 
-        if do_counting:
-            counting_config = {**counting_config, **kwargs}
-            self.counting = Counting.maker(
-                self.counting,
-                surface=self.surface,
-                reset=self.is_new,
-                **counting_config,
-            )
+        counting_config = {**counting_config, **kwargs}
+        self.counting = Counting.maker(
+            self.counting,
+            surface=self.surface,
+            reset=self.is_new,
+            **counting_config,
+        )
 
         morphology_config = {**morphology_config, **kwargs}
         self.morphology = Morphology.maker(
@@ -224,6 +222,7 @@ class Simulation(CratermakerBase):
             surface=self.surface,
             production=self.production,
             counting=self.counting,
+            do_counting=do_counting,
             **morphology_config,
         )
 
