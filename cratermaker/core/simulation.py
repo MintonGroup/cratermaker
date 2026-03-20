@@ -111,6 +111,7 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_config_readonly", True)
         object.__setattr__(self, "_is_new", False)
         object.__setattr__(self, "_quasimc_file", None)
+        object.__setattr__(self, "_quasimc_craters", [])
 
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
 
@@ -248,6 +249,9 @@ class Simulation(CratermakerBase):
         if save_actions is None:
             self.save_actions = [{"plot": {"plot_style": "hillshade", "show": False, "save": True}}]
 
+        if self.quasimc_file is not None and self.quasimc_file.exists():
+            self._quasimc_craters = self._process_quasimc_craters(**kwargs)
+
         self.to_config()
 
         return
@@ -308,6 +312,7 @@ class Simulation(CratermakerBase):
         diameter_number: PairOfFloats | None = None,
         time_interval: FloatLike | None = None,
         ninterval: int | None = None,
+        do_quasimc: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -329,6 +334,8 @@ class Simulation(CratermakerBase):
             Interval in My for outputting intermediate results. If not provided, calculated as `age` / `ninterval` or (`time_start - time_end`) / `ninterval` if `ninterval` is provided, otherwise set to the total simulation duration (e.g. `ninterval=1`).
         ninterval : int, optional
             Number of intervals for outputting results. This has a special use case where one can specify age-based inputs but output are computed in equal cumulative number intervals and vice versa.
+        do_quasimc : bool, optional
+            If True and quasimc_file is set, process the file and include quasimc craters. Default will be True if quasimc_file is set, and False if not.
         **kwargs : Any
             |kwargs|
 
@@ -554,6 +561,9 @@ class Simulation(CratermakerBase):
         if self.is_new:
             self.save(**kwargs)
 
+        if do_quasimc is None or do_quasimc:
+            do_quasimc = len(self.quasimc_craters) > 0
+
         with tqdm(
             total=ninterval,
             initial=initial_interval,
@@ -572,7 +582,7 @@ class Simulation(CratermakerBase):
                     time_str = format_large_units(time, quantity="time")
                     elapsed_str = format_large_units(self.elapsed_time, quantity="time")
                     pbar.set_description(f"Current: {time_str} bp; Elapsed: {elapsed_str}")
-                    self.populate(time_start=time, time_end=current_time_end, **kwargs)
+                    self.populate(time_start=time, time_end=current_time_end, do_quasimc=do_quasimc, **kwargs)
                 else:
                     current_diameter_number = (
                         diameter_number[0],
@@ -583,7 +593,10 @@ class Simulation(CratermakerBase):
                         diameter_number[1] - (i + 1) * diameter_number_interval[1],
                     )
                     self.populate(
-                        diameter_number=current_diameter_number, diameter_number_end=current_diameter_number_end, **kwargs
+                        diameter_number=current_diameter_number,
+                        diameter_number_end=current_diameter_number_end,
+                        do_quasimc=do_quasimc,
+                        **kwargs,
                     )
                     current_diameter_number_density = (
                         current_diameter_number[0],
@@ -647,7 +660,7 @@ class Simulation(CratermakerBase):
         craters : list[Crater] or Crater, optional
             A list of Crater objects to include along with the randomly generated craters. The crater list must include either time or time_min, time_max values.
         do_quasimc : bool, optional
-            If True and quasimc_file is set, process the file and include quasimc craters. Default will be True if quasimc_file is set, and False if not.
+            If True and there are loaded quasimc craters. Default will be True if quasimc_craters exist, and False if not.
         """
         if not hasattr(self, "production"):
             raise RuntimeError("No production function defined for this simulation")
@@ -661,17 +674,7 @@ class Simulation(CratermakerBase):
             time_start = age
             del age
         if do_quasimc is None or do_quasimc:
-            do_quasimc = self.quasimc_file is not None and self.quasimc_file.exists()
-        if do_quasimc:
-            quasimc_craters = self._process_quasimc_craters(
-                time_start=time_start,
-                time_end=time_end,
-                diameter_number=diameter_number,
-                diameter_number_end=diameter_number_end,
-                **kwargs,
-            )
-        else:
-            quasimc_craters = []
+            do_quasimc = len(self.quasimc_craters) > 0
 
         from_projectile = self.production.generator_type == "projectile"
         diam_key = "projectile_diameter" if from_projectile else "diameter"
@@ -726,8 +729,19 @@ class Simulation(CratermakerBase):
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
 
-        if len(quasimc_craters) > 0 or len(impact_diameters) > 0:
-            craterlist = [] + quasimc_craters
+        if do_quasimc:
+            if time_start is None:
+                time_start = self.production.age_from_D_N(
+                    diameter=diameter_number[0], cumulative_number_density=diameter_number[1] / self.surface.area
+                )
+            if time_end is None:
+                time_end = self.production.age_from_D_N(
+                    diameter=diameter_number_end[0], cumulative_number_density=diameter_number_end[1] / self.surface.area
+                )
+            craterlist = [c for c in self.quasimc_craters if c.time <= time_start and c.time > time_end]
+        else:
+            craterlist = []
+        if len(craterlist) + len(impact_diameters) > 0:
             # Sort the times, diameters, and locations so that they are in order of decreasing age
             impact_diameters = np.asarray(impact_diameters)
             impact_times = np.asarray(impact_times)
@@ -1527,6 +1541,19 @@ class Simulation(CratermakerBase):
                 self._quasimc_file = value
                 return
 
+    @property
+    def quasimc_craters(self) -> list[Crater]:
+        """
+        The list of processed quasi-Monte Carlo craters.
+        """
+        return self._quasimc_craters
+
+    @quasimc_craters.setter
+    def quasimc_craters(self, value: list[Crater]):
+        if not isinstance(value, list) or not all(isinstance(c, self.Crater) for c in value):
+            raise TypeError("quasimc_craters must be a list of Crater objects")
+        self._quasimc_craters = value
+
     def _process_quasimc_craters(
         self,
         time_start: float | None = None,
@@ -1535,6 +1562,7 @@ class Simulation(CratermakerBase):
         diameter_number_end: PairOfFloats | None = None,
         n_conversion_factor: float = 1e12,
         set_max_diameter_from_quasimc: bool = True,
+        **kwargs: Any,
     ) -> list[Crater]:
         """
         Sorts the quasi-Monte Carlo craters by age in order of decreasing age (increasing time) and computes production_time_range if missing, production_diameter_number_range if missing, and will drop craters that have neither.
