@@ -8,7 +8,7 @@ import warnings
 from abc import abstractmethod
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import numpy as np
 import rasterio
@@ -20,13 +20,14 @@ from pyproj import CRS, Transformer
 from rasterio import DatasetReader, MemoryFile
 from rasterio.enums import Resampling
 from rasterio.merge import merge
+from rasterio.transform import rowcol
 from rasterio.vrt import WarpedVRT
+from rasterio.windows import Window
 from scipy.optimize import OptimizeWarning
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
 from cratermaker.bindings import surface_bindings
-
 from cratermaker.components.target import Target
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
@@ -1918,7 +1919,11 @@ class Surface(ComponentBase):
             self._data_list: list[tuple[MemoryFile, DatasetReader]] = []
             self._finished = False
 
-        def add_dataset(self, dataset: DatasetReader | str | list[DatasetReader | str]) -> Surface.DataComposer:
+        def add_dataset(
+                self,
+                dataset: DatasetReader | str | list[DatasetReader | str],
+                crs: CRS | None = None,
+        ):
             """
             Adds a dataset to eventually be applied to the surface.
 
@@ -1926,18 +1931,14 @@ class Surface(ComponentBase):
 
             Parameters
             ----------
+            crs : CRS | None
+                The coordinate reference system used to store the merged data. Defaults to the CRS of the first dataset.
             dataset : DatasetReader | str | list[DatasetReader | str]
-                A single dataset or a list of multiple datasets to be merged. Uses the crs of the first dataset.
+                A single dataset or a list of multiple datasets to be merged.
                 Calls ``rasterio.open`` when necessary.
-
-            Returns
-            -------
-            Surface.DataComposer
-                ``self``, to allow chaining.
             """
             if self._finished:
                 raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
-
             if not isinstance(dataset, list):
                 dataset = [dataset]
 
@@ -1946,12 +1947,13 @@ class Surface(ComponentBase):
                     print(f"Opening {src}")
                     dataset[i] = rasterio.open(src)
 
-            dst_crs = dataset[0].crs
+            if crs is None:
+                crs = dataset[0].crs
 
             vrt_list = [
                 WarpedVRT(
                     src,
-                    crs=dst_crs,
+                    crs=crs,
                     resampling=Resampling.bilinear,
                 )
                 for src in dataset
@@ -1963,7 +1965,9 @@ class Surface(ComponentBase):
                 nodata_val = _NODATA
 
             if len(vrt_list) > 1:
-                print(f"Merging {len(vrt_list)} datasets")
+                print(f"Merging {len(vrt_list)} dataset{'' if len(vrt_list) == 1 else 's'}")
+            else:
+                print("    Reformatting")
 
             mosaic, transform = merge(
                 vrt_list,
@@ -1977,7 +1981,7 @@ class Surface(ComponentBase):
                 "height": mosaic.shape[1],
                 "width": mosaic.shape[2],
                 "transform": transform,
-                "crs": dst_crs,
+                "crs": crs,
                 "nodata": nodata_val,
             })
 
@@ -2010,36 +2014,48 @@ class Surface(ComponentBase):
                 dlat = lat2 - lat1
                 return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
 
-            print(f"Applying {len(self._data_list)} datasets to the mesh")
+            print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
 
             lons = np.concatenate((self._surface.face_lon, self._surface.node_lon))
             lats = np.concatenate((self._surface.face_lat, self._surface.node_lat))
 
+            print("    Finding pixel distances")
             pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
             for n, (_, src) in enumerate(self._data_list):
                 to_src = Transformer.from_crs(self._surface.crs, src.crs)
                 from_src = Transformer.from_crs(src.crs, self._surface.crs)
 
                 x_coords, y_coords = to_src.transform(lons, lats)
+                mask1 = np.isfinite(x_coords) & np.isfinite(y_coords)
+                x_coords = x_coords[mask1]
+                y_coords = y_coords[mask1]
                 values = np.fromiter(
-                    (v[0] for v in src.sample(zip(x_coords, y_coords, strict=False))),
+                    (v[0] for v in src.sample(zip(x_coords, y_coords, strict=True))),
                     dtype=np.float32,
                     count=len(x_coords),
                 )
-                valid = np.isfinite(values) & (values != src.nodata)
-                x_pix, y_pix = from_src.transform(*src.xy(*src.index(x_coords[valid], y_coords[valid])))
-                pix_dist[n,valid] = _orderable_distance(lons, lats, x_pix, y_pix)
+                mask2 = np.isfinite(values) & (values != src.nodata)
+                x_pix, y_pix = from_src.transform(*src.xy(*rowcol(src.transform, x_coords[mask2], y_coords[mask2])))
+                mask1[mask1] = mask2
+                pix_dist[n,mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
 
             idx = np.argmin(pix_dist, axis=0)
+            global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
             elevation = np.zeros_like(idx, dtype=np.float32)
 
+            print("    Setting elevation data")
             for n, (_, src) in enumerate(self._data_list):
                 to_src = Transformer.from_crs(self._surface.crs, src.crs)
-                mask = idx == n
+                mask = global_mask & (idx == n)
+
+                if "KILOMETER" in src.units:
+                    scale_factor = 1000.0
+                else:
+                    scale_factor = 1.0
 
                 x_coords, y_coords = to_src.transform(lons[mask], lats[mask])
                 elevation[mask] = np.fromiter(
-                    (v[0] for v in src.sample(zip(x_coords, y_coords, strict=False))),
+                    (v[0] * scale_factor for v in src.sample(zip(x_coords, y_coords, strict=True))),
                     dtype=np.float32,
                     count=len(x_coords),
                 )
