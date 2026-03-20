@@ -287,12 +287,7 @@ class DataSurface(HiResLocalSurface):
             Requested resolution in degrees per pixel. The closest available resolution will be used.
 
         """
-        try:
-            import rasterio
-        except ImportError:
-            warn("rasterio is not installed. Cannot use this feature.", stacklevel=2)
-            return
-
+        import rasterio
         from affine import Affine
         from rasterio.io import MemoryFile
         from rasterio.merge import merge
@@ -309,7 +304,7 @@ class DataSurface(HiResLocalSurface):
         if pds_file_resolution < 256:
             return filelist  # These files cover the entire globe, no need to determine if boundaries are crossed
 
-        lon_min, lon_max, lat_min, lat_max = self._get_location_extents()
+        lon_min, lon_max, lat_min, lat_max = self.local.get_location_extents()
         combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
 
         for loc in combo:
@@ -394,8 +389,7 @@ class DataSurface(HiResLocalSurface):
         _EXPANSION_BUFFER = 1.05
         _NODATA = np.finfo(np.float32).min
         region_radius = self.local_radius
-        box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
-        half_box_size = box_size / 2
+        half_box_size = np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
         dst_crs = self.get_crs(
             radius=self.target.radius,
             name=self.target.name,

@@ -727,7 +727,7 @@ class HiResLocalSurface(Surface):
         )
 
     @property
-    def local(self):
+    def local(self) -> LocalSurface:
         """
         Returns the local view of the surface.
         """

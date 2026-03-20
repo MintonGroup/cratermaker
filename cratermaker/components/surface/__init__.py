@@ -1,4 +1,5 @@
 from __future__ import annotations
+from affine import Affine
 
 import hashlib
 import os
@@ -1902,183 +1903,13 @@ class Surface(ComponentBase):
 
     def data_composer(self) -> DataComposer:
         """
-        Creates a ``Surface.DataComposer`` tied to this ``Surface``.
+        Creates a ``DataComposer`` tied to this ``Surface``.
 
         Returns
         -------
-        Surface.DataComposer
+        DataComposer
         """
-        return Surface.DataComposer(self)
-
-    class DataComposer(AbstractContextManager):
-        def __init__(self, surface: Surface):
-            """
-            **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()``.
-            """
-            self._surface = surface
-            self._data_list: list[tuple[MemoryFile, DatasetReader]] = []
-            self._finished = False
-
-        def add_dataset(
-                self,
-                dataset: DatasetReader | str | list[DatasetReader | str],
-                crs: CRS | None = None,
-        ):
-            """
-            Adds a dataset to eventually be applied to the surface.
-
-            The dataset isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
-
-            Parameters
-            ----------
-            crs : CRS | None
-                The coordinate reference system used to store the merged data. Defaults to the CRS of the first dataset.
-            dataset : DatasetReader | str | list[DatasetReader | str]
-                A single dataset or a list of multiple datasets to be merged.
-                Calls ``rasterio.open`` when necessary.
-            """
-            if self._finished:
-                raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
-            if not isinstance(dataset, list):
-                dataset = [dataset]
-
-            for i, src in enumerate(dataset):
-                if not isinstance(src, DatasetReader):
-                    print(f"Opening {src}")
-                    dataset[i] = rasterio.open(src)
-
-            if crs is None:
-                crs = dataset[0].crs
-
-            vrt_list = [
-                WarpedVRT(
-                    src,
-                    crs=crs,
-                    resampling=Resampling.bilinear,
-                )
-                for src in dataset
-            ]
-            _NODATA = np.finfo(np.float32).min
-
-            nodata_val = dataset[0].nodata
-            if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
-                nodata_val = _NODATA
-
-            if len(vrt_list) > 1:
-                print(f"Merging {len(vrt_list)} dataset{'' if len(vrt_list) == 1 else 's'}")
-            else:
-                print("    Reformatting")
-
-            mosaic, transform = merge(
-                vrt_list,
-                nodata=nodata_val,
-                dtype="float32" if np.isnan(nodata_val) else None,
-            )
-
-            out_meta = dataset[0].meta.copy()
-            out_meta.update({
-                "driver": "GTiff",
-                "height": mosaic.shape[1],
-                "width": mosaic.shape[2],
-                "transform": transform,
-                "crs": crs,
-                "nodata": nodata_val,
-            })
-
-            memfile = MemoryFile()
-            src = memfile.open(**out_meta)
-
-            src.units = dataset[0].units
-            src.write(mosaic)
-
-            self._data_list.append((memfile, src))
-
-            return self
-
-        def cancel(self):
-            for (memfile, _) in self._data_list:
-                memfile.close()
-            self._finished = True
-
-        def finish(self):
-            if self._finished:
-                raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
-
-            def _orderable_distance(lon1, lat1, lon2, lat2):
-                _nnon1 = np.deg2rad(lon1)
-                lat1 = np.deg2rad(lat1)
-                lon2 = np.deg2rad(lon2)
-                lat2 = np.deg2rad(lat2)
-
-                dlon = (lon2 - lon1 + np.pi)%(2*np.pi)
-                dlat = lat2 - lat1
-                return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
-
-            print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
-
-            lons = np.concatenate((self._surface.face_lon, self._surface.node_lon))
-            lats = np.concatenate((self._surface.face_lat, self._surface.node_lat))
-
-            print("    Finding pixel distances")
-            pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
-            for n, (_, src) in enumerate(self._data_list):
-                to_src = Transformer.from_crs(self._surface.crs, src.crs)
-                from_src = Transformer.from_crs(src.crs, self._surface.crs)
-
-                x_coords, y_coords = to_src.transform(lons, lats)
-                mask1 = np.isfinite(x_coords) & np.isfinite(y_coords)
-                x_coords = x_coords[mask1]
-                y_coords = y_coords[mask1]
-                values = np.fromiter(
-                    (v[0] for v in src.sample(zip(x_coords, y_coords, strict=True))),
-                    dtype=np.float32,
-                    count=len(x_coords),
-                )
-                mask2 = np.isfinite(values) & (values != src.nodata)
-                x_pix, y_pix = from_src.transform(*src.xy(*rowcol(src.transform, x_coords[mask2], y_coords[mask2])))
-                mask1[mask1] = mask2
-                pix_dist[n,mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
-
-            idx = np.argmin(pix_dist, axis=0)
-            global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
-            elevation = np.zeros_like(idx, dtype=np.float32)
-
-            print("    Setting elevation data")
-            for n, (_, src) in enumerate(self._data_list):
-                to_src = Transformer.from_crs(self._surface.crs, src.crs)
-                mask = global_mask & (idx == n)
-
-                if "KILOMETER" in src.units:
-                    scale_factor = 1000.0
-                else:
-                    scale_factor = 1.0
-
-                x_coords, y_coords = to_src.transform(lons[mask], lats[mask])
-                elevation[mask] = np.fromiter(
-                    (v[0] * scale_factor for v in src.sample(zip(x_coords, y_coords, strict=True))),
-                    dtype=np.float32,
-                    count=len(x_coords),
-                )
-
-            self._surface.update_elevation(elevation)
-            self._data_list = []
-            self._finished = True
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            if self.finished:
-                return
-            if exc_type is None:
-                self.finish()
-            else:
-                self.cancel()
-
-        @property
-        def surface(self):
-            return self._surface
-
-        @property
-        def finished(self):
-            return self._finished
+        return self._full().data_composer()
 
 
 class LocalSurface(CratermakerBase):
@@ -4031,6 +3862,43 @@ class LocalSurface(CratermakerBase):
 
         return output_files
 
+    def get_location_extents(self) -> tuple[float, float, float, float]:
+        """
+        Computes the longitude and latitude extents of the local region.
+
+        Returns
+        -------
+        lon_min : float
+            Minimum longitude in degrees.
+        lon_max : float
+            Maximum longitude in degrees.
+        lat_min : float
+            Minimum latitude in degrees.
+        lat_max : float
+            Maximum latitude in degrees.
+
+        """
+        if self.is_global:
+            raise ValueError("Cannot get the location extents of a global region.")
+
+        R = self.target.radius
+        lon0, lat0 = self.location
+        alpha_deg = np.degrees(self.radius / R)
+
+        lat_min = max(-90.0, lat0 - alpha_deg)
+        lat_max = min(90.0, lat0 + alpha_deg)
+
+        # If we hit a pole, longitudes span everything
+        if abs(lat0) + alpha_deg >= 90.0:
+            lon_min, lon_max = -180.0, 180.0
+        else:
+            half_lon_span = alpha_deg / np.cos(np.radians(lat0))
+            half_lon_span = min(half_lon_span, 180.0)
+
+            lon_min = lon0 - half_lon_span
+            lon_max = lon0 + half_lon_span
+        return float(lon_min), float(lon_max), float(lat_min), float(lat_max)
+
     @property
     def surface(self) -> Surface:
         """The Surface object that contains the mesh data for the global surface."""
@@ -4561,6 +4429,213 @@ class LocalSurface(CratermakerBase):
     def is_global(self) -> bool:
         """Whether this surface is the full global surface."""
         return self.location is None
+
+    def data_composer(self) -> DataComposer:
+        """
+        Creates a ``DataComposer`` tied to this ``LocalSurface``.
+
+        Returns
+        -------
+        DataComposer
+        """
+        return DataComposer(self)
+
+
+class DataComposer(AbstractContextManager):
+    def __init__(self, surface: LocalSurface):
+        """
+        **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()`` or ``LocalSurface.data_composer()``.
+        """
+        self._localsurface = surface
+        self._data_list: list[tuple[MemoryFile, DatasetReader]] = []
+        self._finished = False
+
+    def add_dataset(
+            self,
+            dataset: DatasetReader | str | list[DatasetReader | str],
+            crs: CRS | None = None,
+    ):
+        """
+        Adds a dataset to eventually be applied to the surface.
+
+        The dataset isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+
+        Parameters
+        ----------
+        crs : CRS | None
+            The coordinate reference system used to store the merged data. Defaults to a CRS centered on the local region if applicable, otherwise uses the CRS of the first dataset.
+        dataset : DatasetReader | str | list[DatasetReader | str]
+            A single dataset or a list of multiple datasets to be merged.
+            Calls ``rasterio.open`` when necessary.
+        """
+        if self._finished:
+            raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+        if not isinstance(dataset, list):
+            dataset = [dataset]
+
+        for i, src in enumerate(dataset):
+            if not isinstance(src, DatasetReader):
+                print(f"Opening {src}")
+                dataset[i] = rasterio.open(src)
+
+        vrt_list = None
+        if crs is None:
+            if self._localsurface.is_local:
+                crs = self._localsurface.crs
+
+                _EXPANSION_BUFFER = 1.05
+
+                half_box_size = np.sqrt(2.0) * self._localsurface.radius * _EXPANSION_BUFFER
+
+                target_res = min(s.res[0] for s in dataset)
+                dst_width = int(np.ceil(2 * half_box_size / target_res))
+                dst_height = dst_width
+                dst_transform = Affine(target_res, 0.0, -half_box_size, 0.0, -target_res, half_box_size)
+                vrt_list = [
+                    WarpedVRT(
+                        src,
+                        crs=crs,
+                        transform=dst_transform,
+                        width=dst_width,
+                        height=dst_height,
+                        resampling=Resampling.bilinear,
+                    )
+                    for src in dataset
+                ]
+            else:
+                crs = dataset[0].crs
+
+        if vrt_list is None:
+            vrt_list = [
+                WarpedVRT(
+                    src,
+                    crs=crs,
+                    resampling=Resampling.bilinear,
+                )
+                for src in dataset
+            ]
+
+        _NODATA = np.finfo(np.float32).min
+
+        nodata_val = dataset[0].nodata
+        if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
+            nodata_val = _NODATA
+
+        if len(vrt_list) > 1:
+            print(f"Merging {len(vrt_list)} datasets")
+        else:
+            print("    Reformatting")
+
+        mosaic, transform = merge(
+            vrt_list,
+            nodata=nodata_val,
+            dtype="float32" if np.isnan(nodata_val) else None,
+        )
+
+        out_meta = dataset[0].meta.copy()
+        out_meta.update({
+            "driver": "GTiff",
+            "height": mosaic.shape[1],
+            "width": mosaic.shape[2],
+            "transform": transform,
+            "crs": crs,
+            "nodata": nodata_val,
+        })
+
+        memfile = MemoryFile()
+        src = memfile.open(**out_meta)
+
+        src.units = dataset[0].units
+        src.write(mosaic)
+
+        self._data_list.append((memfile, src))
+
+        return self
+
+    def cancel(self):
+        for (memfile, _) in self._data_list:
+            memfile.close()
+        self._finished = True
+
+    def finish(self):
+        if self._finished:
+            raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+
+        def _orderable_distance(lon1, lat1, lon2, lat2):
+            _nnon1 = np.deg2rad(lon1)
+            lat1 = np.deg2rad(lat1)
+            lon2 = np.deg2rad(lon2)
+            lat2 = np.deg2rad(lat2)
+
+            dlon = (lon2 - lon1 + np.pi)%(2*np.pi)
+            dlat = lat2 - lat1
+            return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
+
+        print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
+
+        lons = np.concatenate((self._localsurface.face_lon, self._localsurface.node_lon))
+        lats = np.concatenate((self._localsurface.face_lat, self._localsurface.node_lat))
+
+        print("    Finding pixel distances")
+        pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
+        for n, (_, src) in enumerate(self._data_list):
+            to_src = Transformer.from_crs(self._localsurface.surface.crs, src.crs)
+            from_src = Transformer.from_crs(src.crs, self._localsurface.surface.crs)
+
+            x_coords, y_coords = to_src.transform(lons, lats)
+            mask1 = np.isfinite(x_coords) & np.isfinite(y_coords)
+            x_coords = x_coords[mask1]
+            y_coords = y_coords[mask1]
+            values = np.fromiter(
+                (v[0] for v in src.sample(zip(x_coords, y_coords, strict=True))),
+                dtype=np.float32,
+                count=len(x_coords),
+            )
+            mask2 = np.isfinite(values) & (values != src.nodata)
+            x_pix, y_pix = from_src.transform(*src.xy(*rowcol(src.transform, x_coords[mask2], y_coords[mask2])))
+            mask1[mask1] = mask2
+            pix_dist[n,mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
+
+        idx = np.argmin(pix_dist, axis=0)
+        global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
+        elevation = np.zeros_like(idx, dtype=np.float32)
+
+        print("    Setting elevation data")
+        for n, (_, src) in enumerate(self._data_list):
+            to_src = Transformer.from_crs(self._localsurface.surface.crs, src.crs)
+            mask = global_mask & (idx == n)
+
+            if "KILOMETER" in src.units:
+                scale_factor = 1000.0
+            else:
+                scale_factor = 1.0
+
+            x_coords, y_coords = to_src.transform(lons[mask], lats[mask])
+            elevation[mask] = np.fromiter(
+                (v[0] * scale_factor for v in src.sample(zip(x_coords, y_coords, strict=True))),
+                dtype=np.float32,
+                count=len(x_coords),
+            )
+
+        self._localsurface.update_elevation(elevation)
+        self._data_list = []
+        self._finished = True
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.finished:
+            return
+        if exc_type is None:
+            self.finish()
+        else:
+            self.cancel()
+
+    @property
+    def surface(self):
+        return self._localsurface
+
+    @property
+    def finished(self):
+        return self._finished
 
 
 import_components(__name__, __path__)
