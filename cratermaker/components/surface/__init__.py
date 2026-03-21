@@ -1193,7 +1193,7 @@ class Surface(ComponentBase):
 
         return regrid
 
-    def _full(self):
+    def _full(self) -> LocalSurface:
         return LocalSurface(
             self, face_indices=slice(None), node_indices=slice(None), edge_indices=slice(None), **vars(self.common_args)
         )
@@ -1904,7 +1904,7 @@ class Surface(ComponentBase):
 
     def data_composer(self) -> DataComposer:
         """
-        Creates a ``DataComposer`` tied to this ``Surface``.
+        Creates a ``DataComposer`` tied to this ``Surface``. This should usually be called in a ``with`` statement.
 
         Returns
         -------
@@ -4433,7 +4433,7 @@ class LocalSurface(CratermakerBase):
 
     def data_composer(self) -> DataComposer:
         """
-        Creates a ``DataComposer`` tied to this ``LocalSurface``.
+        Creates a ``DataComposer`` tied to this ``LocalSurface``. This should usually be called in a ``with`` statement.
 
         Returns
         -------
@@ -4443,6 +4443,10 @@ class LocalSurface(CratermakerBase):
 
 
 class DataComposer(AbstractContextManager):
+    """
+    Created using ``Surface.data_composer`` or ``LocalSurface.data_composer``. Contains some static methods for loading LOLA data.
+    """
+
     def __init__(self, surface: LocalSurface):
         """
         **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()`` or ``LocalSurface.data_composer()``.
@@ -4479,6 +4483,9 @@ class DataComposer(AbstractContextManager):
             self._data_list.append(data[i])
 
     def cancel(self):
+        """
+        Cancels the execution and closes all open datasets.
+        """
         for dataset in self._data_list:
             dataset.close()
         self._data_list = []
@@ -4486,6 +4493,9 @@ class DataComposer(AbstractContextManager):
 
 
     def finish(self):
+        """
+        Apply all the datasets to the mesh and close them. This is implicitly called when exiting a with context.
+        """
         if self._finished:
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
 
@@ -4578,6 +4588,7 @@ class DataComposer(AbstractContextManager):
             x_coords, y_coords = to_data.transform(lons[mask], lats[mask])
             rows, cols = rowcol(dataset.transform, x_coords, y_coords)
             elevation[mask] = data[rows - window.row_off, cols - window.col_off] * scale_factor
+            dataset.close()
 
         self._localsurface.update_elevation(elevation)
         self._data_list = []
@@ -4593,7 +4604,7 @@ class DataComposer(AbstractContextManager):
             self.cancel()
 
     @staticmethod
-    def _get_lola_cylindrical_url_from_pds(pds_file_resolution: int, location: PairOfFloats, boundary_offset=(0, 0)) -> str:
+    def _get_lola_cylindrical_url_from_pds(pds_file_resolution: int, location: PairOfFloats, boundary_offset: tuple[int, int] = (0, 0)) -> str:
         """
         Retrieve the appropriate LOLA DEM file url for a given location and resolution from the PDS.
 
@@ -4603,12 +4614,12 @@ class DataComposer(AbstractContextManager):
             DEM resolution in meters per pixel.
         location : PairOfFloats,
             The longitude and latitude of the location in degrees.
-        boundary_offset : tuple of int, optional
+        boundary_offset : tuple[int, int], optional
             Offset to apply to tile index to access neighboring tiles. Default is (0, 0). This is used when the local region crosses one or more tile boundaries.
 
         Returns
         -------
-        url: str
+        url : str
             Link to the DEM file
 
         Notes
@@ -4700,7 +4711,7 @@ class DataComposer(AbstractContextManager):
         # First, retrive the file for the centerpoint:
         filelist = [DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, center)]
         if pds_file_resolution < 256:
-            return filelist  # These files cover the entire globe, no need to determine if boundaries are crossed
+            return filelist, pds_file_resolution  # These files cover the entire globe, no need to determine if boundaries are crossed
 
         combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
 
@@ -4762,15 +4773,15 @@ class DataComposer(AbstractContextManager):
         lon_range: PairOfFloats,
     ) -> tuple[list[str], int]:
         """
-        Determine the set of LOLA DEM files needed to cover the local region if none are provided by the user.
+        Determine the set of LOLA DEM files needed to cover the local region.
 
         Parameters
         ----------
         pix : FloatLike
             The approximate resolution in meters per pixel to use to select the DEM files.
-        lat_range : tuple of float, optional
+        lat_range : PairOfFloats, optional
             The (min_lat, max_lat) in degrees of the local region.
-        lon_range : tuple of float, optional
+        lon_range : PairOfFloats, optional
             The (min_lon, max_lon) in degrees of the local region.
         """
         target_pds_resolution = np.pi / 180.0 * 1737.53e3 / pix # The moon's radius
@@ -4781,15 +4792,19 @@ class DataComposer(AbstractContextManager):
         else:  # Use cylindrical for all other cases
             return DataComposer.get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution, lat_range=lat_range, lon_range=lon_range)
 
-    def populate_with_lola_data(self, pix: FloatLike):
+    def populate_with_lola_data(self, pix: FloatLike | None = None):
         """
-        Loads DEM files needed to populate the surface.
+        Loads the DEM files from LOLA needed to cover the surface.
 
         Parameters
         ----------
         pix : FloatLike
             The approximate resolution in meters per pixel to use to select the DEM files.
+            Defaults to the resolution of the surface used.
         """
+        if pix is None:
+            pix = self._localsurface.pix
+
         if self._localsurface.is_local:
             lon_min, lon_max, lat_min, lat_max = self._localsurface.get_location_extents()
             self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0])
@@ -4798,13 +4813,25 @@ class DataComposer(AbstractContextManager):
             self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(60, -60))[0])
             self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
 
-
     @property
-    def surface(self):
+    def localsurface(self) -> LocalSurface:
+        """
+        The ``LocalSurface`` used to create the ``DataComposer``.
+        """
         return self._localsurface
 
     @property
+    def surface(self) -> Surface:
+        """
+        The ``Surface`` used to create the ``DataComposer``.
+        """
+        return self._localsurface.surface
+
+    @property
     def finished(self):
+        """
+        Whether ``finish()`` or ``cancel()`` has been called or not.
+        """
         return self._finished
 
 
