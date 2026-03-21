@@ -4620,6 +4620,9 @@ class DataComposer(AbstractContextManager):
         self._finished = True
         print("    Done")
 
+    def __enter__(self) -> DataComposer:
+        return self
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.finished:
             return
