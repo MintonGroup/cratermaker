@@ -1277,16 +1277,20 @@ class Counting(ComponentBase):
                     elif isinstance(value, tuple | list):
                         vnew = []
                         for v in value:
-                            if v is not None:
-                                vnew.append(float(v))
+                            if v is None or v == "":
+                                continue
+                            vnew.append(float(v))
                         if len(vnew) == len(value):
                             crater_data[key] = vnew
+                        else:
+                            crater_data[key] = None
 
                     else:
                         try:
                             crater_data[key] = float(value)
                         except ValueError:
                             crater_data[key] = value
+                crater_data = {k: v for k, v in crater_data.items() if v is not None}
                 crater = self.Crater.maker(**crater_data, morphology=self.morphology, check_redundant_inputs=False)
                 craters.append(crater)
 
@@ -1544,20 +1548,29 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
         "production_time_range": ["production_time_low", "production_time_high"],
         "production_diameter_number_range": ["production_diameter", "production_number_low", "production_number_high"],
     }
+    input_dict = {k: v for k, v in input_dict.items() if v is not None and v != ""}
+
+    if inverse:
+        # convert aliases
+        if "production_time" in input_dict:
+            tval = input_dict.pop("production_time")
+            input_dict["production_time_range"] = [tval, tval]
+        if "production_diameter_number" in input_dict:
+            prod_diam, nval = input_dict.pop("production_diameter_number")
+            input_dict["production_diameter_number_range"] = [prod_diam, nval, nval]
+        if "production_diameter" in input_dict and "production_number" in input_dict:
+            prod_diam = input_dict.pop("production_diameter")
+            nval = input_dict.pop("production_number")
+            input_dict["production_diameter_number_range"] = [prod_diam, nval, nval]
 
     for tup, varlist in tuple_map.items():
         if inverse:
-            # convert aliases
-            if "production_time" in input_dict:
-                tval = input_dict.pop("production_time")
-                input_dict["production_time_range"] = [tval, tval]
-            if "production_diameter_number" in input_dict:
-                prod_diam, nval = input_dict.pop("production_diameter_number")
-                input_dict["production_diameter_number_range"] = [prod_diam, nval, nval]
             if any(var in varlist for var in input_dict):
-                input_dict[tup] = [None] * len(varlist)
+                if tup not in input_dict:
+                    input_dict[tup] = [None] * len(varlist)
                 for idx, var in enumerate(varlist):
-                    input_dict[tup][idx] = input_dict.pop(var, None)
+                    if var in input_dict and input_dict[var] is not None:
+                        input_dict[tup][idx] = input_dict.pop(var, None)
         else:
             if tup in input_dict:
                 for idx, var in enumerate(varlist):

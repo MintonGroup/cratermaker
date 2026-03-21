@@ -250,7 +250,7 @@ class Simulation(CratermakerBase):
             self.save_actions = [{"plot": {"plot_style": "hillshade", "show": False, "save": True}}]
 
         if self.quasimc_file is not None and self.quasimc_file.exists():
-            self._quasimc_craters = self._process_quasimc_craters(**kwargs)
+            self.read_quasimc_file(**kwargs)
 
         self.to_config()
 
@@ -1554,47 +1554,30 @@ class Simulation(CratermakerBase):
             raise TypeError("quasimc_craters must be a list of Crater objects")
         self._quasimc_craters = value
 
-    def _process_quasimc_craters(
+    def read_quasimc_file(
         self,
-        time_start: float | None = None,
-        time_end: float | None = None,
-        diameter_number: PairOfFloats | None = None,
-        diameter_number_end: PairOfFloats | None = None,
+        filename: Path | str | None = None,
         n_conversion_factor: float = 1e12,
         set_max_diameter_from_quasimc: bool = True,
         **kwargs: Any,
     ) -> list[Crater]:
         """
-        Sorts the quasi-Monte Carlo craters by age in order of decreasing age (increasing time) and computes production_time_range if missing, production_diameter_number_range if missing, and will drop craters that have neither.
+        Reads in the quasi-Monte Carlo crater from file, processes the ages and sorts the crater list by age in order of decreasing age (increasing time) and computes production_time_range if missing, production_diameter_number_range if missing, and will drop craters that have neither.
 
         Parameters
         ----------
-        time_start : FloatLike, optional
-            Specifies the starting time in My relative to the present for the quasi-Monte Carlo craters. If provided, only craters from the quasimc file younger than this time will be used.
-        time_end : FloatLike, optional
-            The ending time in My relative to the present for the quasi-Monte Carlo craters. If provided, only craters from the quasimc file older than this time will be used.
-        diameter_number : PairOfFloats, optional
-            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, this will be converted to time_start and used to limit craters from the quasimc file.
-        diameter_number_end : PairOfFloats, optional
-            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, this will be converted to time_end and used to limit craters from the quasimc file.
+        filename : Path | str | None, optional
+            The path to the quasi-Monte Carlo file. If not provided, the Simulation must have a quasimc_file attribute set. This function will replace the stored quasimc_file attribute.
         n_conversion_factor : float, optional
             The conversion factor to convert the cumulative number density from the input quasi-mc file to the unit system used by the production function. The default is 1e12 which converts from N(D) values (number of craters per 1e6 km^2 to number of craters per m^2)
         set_max_diameter_from_quasimc : bool, optional
             If True, the largest_crater attribute of the Simulation will be set to the smallest crater in the quasi-Monte Carlo file. Default is True.
         """
         smallest_diameter = self.largest_crater
-
-        if diameter_number is not None:
-            time_start = self.production.age_from_D_N(
-                diameter=diameter_number[0], cumulative_number_density=diameter_number[1] / self.surface.area
-            )
-        if diameter_number_end is not None:
-            time_end = self.production.age_from_D_N(
-                diameter=diameter_number_end[0], cumulative_number_density=diameter_number_end[1] / self.surface.area
-            )
-
-        input_craters = self.counting.from_file(self._quasimc_file)
-        output_craters = []
+        if filename is not None:
+            self._quasimc_file = filename
+        input_craters = self.counting.from_file(self.quasimc_file)
+        self._quasimc_craters = []
         for crater in input_craters:
             if crater.production_diameter_number_range is not None and crater.production_diameter_number_range != [
                 None,
@@ -1626,14 +1609,11 @@ class Simulation(CratermakerBase):
             if nval < 0.0:
                 nval = 0.0
             time = self.production.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval)
-            if time_start is not None and time > time_start:
-                continue
-            if time_end is not None and time < time_end:
-                continue
 
-            output_craters.append(self.Crater.maker(crater=crater, time=time))
+            self._quasimc_craters.append(self.Crater.maker(crater=crater, time=time))
         # By default, the largest Monte Carlo crater will be the smallest quasi-Monte Carlo crater
         if set_max_diameter_from_quasimc:
             self.largest_crater = smallest_diameter
-        output_craters.sort(key=lambda c: c.time, reverse=True)
-        return output_craters
+        self._quasimc_craters.sort(key=lambda c: c.time, reverse=True)
+
+        return self._quasimc_craters
