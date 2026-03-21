@@ -551,7 +551,7 @@ class DataSurface(HiResLocalSurface):
             if self._pix is None:
                 # Compute a reasonable default resolution that will contain approximately 1e6 faces based on the local radius
                 self._pix = np.sqrt(np.pi * self.local_radius**2 / _DEFAULT_N_FACES_LOCAL)
-            lon_min, lon_max, lat_min, lat_max = self.local.get_location_extents()
+            lon_min, lon_max, lat_min, lat_max = self.get_location_extents(self.local_location, self.local_radius)
             value, self._pix = DataComposer.get_lola_dem_file_list(pix=self._pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))
         elif isinstance(value, list):
             if not all(isinstance(f, (str, Path)) for f in value):

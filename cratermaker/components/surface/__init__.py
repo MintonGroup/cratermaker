@@ -1364,6 +1364,47 @@ class Surface(ComponentBase):
         self._pix_max = float(self._face_size.max().item())
         return
 
+    def get_location_extents(self, location: PairOfFloats, radius: FloatLike) -> tuple[float, float, float, float]:
+        """
+        Computes the longitude and latitude extents of a given region.
+
+        Parameters
+        ----------
+        location : PairOfFloats
+            The center of the region.
+        radius : FloatLike
+            The radius of the region.
+
+        Returns
+        -------
+        lon_min : float
+            Minimum longitude in degrees.
+        lon_max : float
+            Maximum longitude in degrees.
+        lat_min : float
+            Minimum latitude in degrees.
+        lat_max : float
+            Maximum latitude in degrees.
+
+        """
+        R = self.target.radius
+        lon0, lat0 = location
+        alpha_deg = np.degrees(radius / R)
+
+        lat_min = max(-90.0, lat0 - alpha_deg)
+        lat_max = min(90.0, lat0 + alpha_deg)
+
+        # If we hit a pole, longitudes span everything
+        if abs(lat0) + alpha_deg >= 90.0:
+            lon_min, lon_max = -180.0, 180.0
+        else:
+            half_lon_span = alpha_deg / np.cos(np.radians(lat0))
+            half_lon_span = min(half_lon_span, 180.0)
+
+            lon_min = lon0 - half_lon_span
+            lon_max = lon0 + half_lon_span
+        return float(lon_min), float(lon_max), float(lat_min), float(lat_max)
+
     @property
     def _hashvars(self):
         """
@@ -3882,23 +3923,7 @@ class LocalSurface(CratermakerBase):
         if self.is_global:
             raise ValueError("Cannot get the location extents of a global region.")
 
-        R = self.target.radius
-        lon0, lat0 = self.location
-        alpha_deg = np.degrees(self.radius / R)
-
-        lat_min = max(-90.0, lat0 - alpha_deg)
-        lat_max = min(90.0, lat0 + alpha_deg)
-
-        # If we hit a pole, longitudes span everything
-        if abs(lat0) + alpha_deg >= 90.0:
-            lon_min, lon_max = -180.0, 180.0
-        else:
-            half_lon_span = alpha_deg / np.cos(np.radians(lat0))
-            half_lon_span = min(half_lon_span, 180.0)
-
-            lon_min = lon0 - half_lon_span
-            lon_max = lon0 + half_lon_span
-        return float(lon_min), float(lon_max), float(lat_min), float(lat_max)
+        return self.surface.get_location_extents(self.location, self.radius)
 
     @property
     def surface(self) -> Surface:
