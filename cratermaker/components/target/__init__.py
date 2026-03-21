@@ -144,9 +144,8 @@ class Target(ComponentBase):
         if arg_check > 0:
             raise ValueError("Invalid Target")
 
-        if self._density is None:
-            if self.material in self._density_catalogue:
-                self._density = self._density_catalogue[self.material]
+        if self._density is None and self.material in self._density_catalogue:
+            self._density = self._density_catalogue[self.material]
 
     def __str__(self) -> str:
         diameter = format_large_units(self.diameter, quantity="length")
