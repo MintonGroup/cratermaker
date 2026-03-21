@@ -4795,8 +4795,8 @@ class DataComposer(AbstractContextManager):
             self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0])
         else:
             self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(-60, 60), lon_range=(-180, 180))[0])
-            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(59, -59))[0])
-            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-59, 59))[0])
+            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(60, -60))[0])
+            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
 
 
     @property
