@@ -335,8 +335,8 @@ class DataSurface(HiResLocalSurface):
 
         src_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/float_img/"
 
-        AVAILABLE_RESOLUTIONS = [3000, 1000, 400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
-        MIN_LAT = [50, 50, 45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
+        AVAILABLE_RESOLUTIONS = [400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
+        MIN_LAT = [45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
 
         if lat_range[0] > 0:
             pole = "n"
@@ -510,11 +510,11 @@ class DataSurface(HiResLocalSurface):
             mask = self._local_dem_data["mask"]
             longitudes = np.radians(self._local_dem_data["longitudes"][mask])
             latitudes = np.radians(self._local_dem_data["latitudes"][mask])
-            x = self.target.radius * np.cos(latitudes) * np.cos(longitudes)
-            y = self.target.radius * np.cos(latitudes) * np.sin(longitudes)
-            z = self.target.radius * np.sin(latitudes)
+            x = np.cos(latitudes) * np.cos(longitudes)
+            y = np.cos(latitudes) * np.sin(longitudes)
+            z = np.sin(latitudes)
 
-            points = np.column_stack([x, y, z]) / self.target.radius
+            points = np.column_stack([x, y, z])
 
             return points
 

@@ -360,6 +360,8 @@ class Surface(ComponentBase):
             units=units,
             isfacedata=isfacedata,
             overwrite=overwrite,
+            fill_value=fill_value,
+            dtype=dtype,
         )
 
     def update_elevation(
@@ -485,7 +487,7 @@ class Surface(ComponentBase):
         """
         return self._full().apply_noise(model=model, noise_width=noise_width, noise_height=noise_height, **kwargs)
 
-    def calculate_face_and_node_distances(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
+    def calculate_face_and_node_distances(self, location: tuple[float, float], validate: bool = True) -> tuple[NDArray, NDArray]:
         """
         Computes the distances from a given location to all faces and nodes.
 
@@ -493,6 +495,8 @@ class Surface(ComponentBase):
         ----------
         location : tuple[float, float]
             tuple containing the longitude and latitude of the location in degrees.
+        validate : bool, optional
+            If the location should be validated and normalized. Only use if the validation is causing a performance bottleneck.
 
         Returns
         -------
@@ -501,7 +505,7 @@ class Surface(ComponentBase):
         NDArray
             Array of distances for each node in meters.
         """
-        return self._full().calculate_face_and_node_distances(location)
+        return self._full().calculate_face_and_node_distances(location, validate=validate)
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
@@ -1179,14 +1183,11 @@ class Surface(ComponentBase):
 
         if regrid:
             print("Creating a new grid")
-            try:
-                self._generate_grid(**kwargs)
-            except Exception as e:
-                raise RuntimeError("Failed to create a new grid") from e
+            self._generate_grid(**kwargs)
 
         return regrid
 
-    def _full(self):
+    def _full(self) -> LocalSurface:
         return LocalSurface(
             self, face_indices=slice(None), node_indices=slice(None), edge_indices=slice(None), **vars(self.common_args)
         )
@@ -1332,7 +1333,7 @@ class Surface(ComponentBase):
         return
 
     @abstractmethod
-    def _generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray, NDArray, NDArray]: ...
+    def _generate_face_distribution(self, **kwargs: Any) -> NDArray: ...
 
     def _compute_face_size(self, uxgrid: UxDataset | None = None) -> None:
         """
@@ -2373,7 +2374,9 @@ class LocalSurface(CratermakerBase):
         return
 
     def calculate_face_and_node_distances(
-        self, location: tuple[float, float] | None = None
+        self,
+        location: tuple[float, float] | None = None,
+        validate: bool = True
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Computes the distances between nodes and faces and a given location.
@@ -2382,6 +2385,8 @@ class LocalSurface(CratermakerBase):
         ----------
         location : tuple[float, float], option
             tuple containing the longitude and latitude of the location in degrees. If None, the location of the view center is used if it is set.
+        validate : bool, optional
+            If the location should be validated and normalized. Only use if the validation is causing a performance bottleneck.
 
         Returns
         -------
@@ -2393,6 +2398,7 @@ class LocalSurface(CratermakerBase):
         if location is None:
             if self.is_local:
                 location = self.location
+                validate = False
             else:
                 raise ValueError("A value for location must be provided for global surfaces.")
 
@@ -2400,11 +2406,12 @@ class LocalSurface(CratermakerBase):
             location = location.item()
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
-        location = validate_and_normalize_location(location)
+        if validate:
+            location = validate_and_normalize_location(location)
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(locations=face_locations, reference_location=location), self.compute_distances(
-            locations=node_locations, reference_location=location
+        return self.compute_distances(locations=face_locations, reference_location=location, validate=False), self.compute_distances(
+            locations=node_locations, reference_location=location, validate=False
         )
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
@@ -3674,6 +3681,7 @@ class LocalSurface(CratermakerBase):
         self,
         locations: ArrayLike,
         reference_location: PairOfFloats | None = None,
+        validate: bool = True,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
@@ -3684,6 +3692,8 @@ class LocalSurface(CratermakerBase):
             Longitude and latitude of the second point or array of points in degrees.
         reference_location : PairOfFloats | None, optional
             Longitude and latitude of the first point in degrees. If None, then the center of the local region will be used. Default is None.
+        validate : bool, optional
+            If the locations should be validated and normalized. Only use if the validation is causing a performance bottleneck.
 
         Returns
         -------
@@ -3700,8 +3710,11 @@ class LocalSurface(CratermakerBase):
             else:
                 raise ValueError("reference_location must be provided for global surfaces")
 
-        locations = np.radians(validate_and_normalize_location(locations))
-        lon1, lat1 = np.radians(validate_and_normalize_location(reference_location))
+        if validate:
+            locations = validate_and_normalize_location(locations)
+            reference_location = validate_and_normalize_location(reference_location)
+        locations = np.radians(locations)
+        lon1, lat1 = np.radians(reference_location)
         if locations.ndim == 1 and locations.size == 2:
             locations = np.expand_dims(locations, axis=0)
 

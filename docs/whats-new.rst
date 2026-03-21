@@ -3,6 +3,12 @@
 What's New
 ==========
 
+.. _whats-new.2026.3.8-alpha:
+
+:release:`v2026.3.8-alpha`
+
+- Fixed bug that was causing incorrect polar data files from being requested from the PDS for DataSurface :pull:`112` `David Minton`_ `Leo Minton`_
+- Fixed bug that was causing `fill_value` and `dtype` arguments to be ignored in `add_data`. :pull:`114` `David Minton`_ `Leo Minton`_
 
 .. _whats-new.2026.3.7-alpha:
 
@@ -306,9 +312,11 @@ Contributors
 - `Jun Du`_
 - `Dennise Valadez`_
 - `Elizabeth Norman`_
+- `Leo Minton`_
 
 .. _David Minton: https://github.com/profminton
 .. _Austin Blevins: https://github.com/austinblevins
 .. _Jun Du: https://github.com/jundu-dr-crater
 .. _Dennise Valadez: https://github.com/dennvee
 .. _Elizabeth Norman: https://github.com/enorman98
+.. _Leo Minton: https://github.com/leo-minton
