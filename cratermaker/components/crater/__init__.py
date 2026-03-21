@@ -97,6 +97,7 @@ class CraterVariable:
         degradation_state: float | None = None,
         production_time_range: tuple[float, float] | None = None,
         production_diameter_number_range: tuple[float, float, float] | None = None,
+        name: str | None = None,
         **kwargs: Any,
     ):
         object.__setattr__(self, "_measured_semimajor_axis", None)
@@ -109,6 +110,7 @@ class CraterVariable:
         object.__setattr__(self, "_degradation_state", None)
         object.__setattr__(self, "_production_time_range", None)
         object.__setattr__(self, "_production_diameter_number_range", None)
+        object.__setattr__(self, "_name", None)
 
         if measured_diameter is not None:
             self.measured_diameter = measured_diameter
@@ -132,6 +134,8 @@ class CraterVariable:
             self.production_time_range = production_time_range
         if production_diameter_number_range is not None:
             self.production_diameter_number_range = production_diameter_number_range
+        if name is not None:
+            self.name = name
         return
 
     def __repr__(self):
@@ -144,9 +148,10 @@ class CraterVariable:
             f"measured_location={self.measured_location}, "
             f"measured_rim_height={self.measured_rim_height}, "
             f"measured_floor_depth={self.measured_floor_depth}, "
-            f"degradation_state={self.degradation_state}),"
+            f"degradation_state={self.degradation_state},"
             f"production_time_range={self.production_time_range},"
-            f"production_diameter_number_range={self.production_diameter_number_range}"
+            f"production_diameter_number_range={self.production_diameter_number_range}",
+            f"name={self.name})",
         )
 
     def as_dict(self):
@@ -172,7 +177,19 @@ class CraterVariable:
             dict_repr["production_time_range"] = self.production_time_range
         if self.production_diameter_number_range is not None:
             dict_repr["production_diameter_number_range"] = self.production_diameter_number_range
+        if self.name is not None:
+            dict_repr["name"] = self.name
         return dict_repr
+
+    @property
+    def name(self) -> str | None:
+        """Name of the crater"""
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if value is not None:
+            self._name = str(value)
 
     @property
     def measured_diameter(self) -> float | None:
@@ -533,7 +550,10 @@ class Crater:
         projectile_direction: float | None = None,
         projectile_location: PairOfFloats | None = None,
         location: PairOfFloats | None = None,
+        longitude: float | None = None,
+        latitude: float | None = None,
         time: float | None = None,
+        name: str | None = None,
         measured_semimajor_axis: float | None = None,
         measured_semiminor_axis: float | None = None,
         measured_orientation: float | None = None,
@@ -602,7 +622,11 @@ class Crater:
         projectile_location : pair of float, optional
             The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence
         location : pair of floats, optional
-            The (longitude, latitude) location of the crater.
+            The (longitude, latitude) location of the crater on the target surface in degrees.
+        longitude : float, optional
+            The longitude of the crater on the target surface in degrees. If used, you must also pass `latitude` and cannot pass `location`.
+        latitude : float, optional
+            The latitude of the crater on the target surface in degrees. If used, you must also pass `longitude` and cannot pass `location`.
         time : float, optional
             The time of the crater impact in Myr before present.
         measured_semimajor_axis : float, optional
@@ -698,6 +722,12 @@ class Crater:
                 raise ValueError("Only one of diameter or radius may be set.")
             else:
                 diameter = None  # Give priority to radius if both are set and we aren't checking for redundant inputs
+        if latitude is not None or longitude is not None:
+            if latitude is None or longitude is None:
+                raise ValueError("Both longitude and latitude must be passed or location must be passed.")
+            if check_redundant_inputs and (location is not None or projectile_location is not None):
+                raise ValueError("location cannot be used with longitude and latitude as separate arguments")
+            location = [longitude, latitude]
 
         if location is None:
             location = projectile_location
@@ -1046,6 +1076,7 @@ class Crater:
         args["measured_semiminor_axis"] = float(measured_semiminor_axis) if measured_semiminor_axis is not None else None
         args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
         args["id"] = _set_id(**args)
+        args["name"] = str(name) if name is not None else None
         return cls(**args, **kwargs)
 
     def to_geoseries(

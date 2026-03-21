@@ -38,46 +38,12 @@ Creating craters and populations of craters
 
 The :py:class:`~cratermaker.core.simulation.Simulation` class has set of core methods that can be used to generate craters, using the requested (or default) Production and Morphology components onto the requested Surface component. These are :py:meth:`~cratermaker.core.simulation.Simulation.emplace`, :py:meth:`~cratermaker.core.simulation.Simulation.populate`, and :py:meth:`~cratermaker.core.simulation.Simulation.run`. Each successive method makes use of the others (that is, :py:meth:`~cratermaker.core.simulation.Simulation.populate` calls :py:meth:`~cratermaker.core.simulation.Simulation.emplace` on the craters in generates, and :py:meth:`~cratermaker.core.simulation.Simulation.run` calls :py:meth:`~cratermaker.core.simulation.Simulation.populate` for each interval of time in the simulation). We will discuss each of these in turn:
 
-Emplace one or more specific craters
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The :py:meth:`~cratermaker.core.simulation.Simulation.emplace` is used to emplace one or more craters onto a surface. The arguments are either the parameters that you would pass to :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>` to generate a single crater, a single :py:class:`~cratermaker.components.crater.Crater` object, or a list of :py:class:`~cratermaker.components.crater.Crater` objects. So for instance, you can emplace a single 300 km crater onto a random location on a surface, you would do:
-
-.. code-block:: python
-
-    from cratermaker import Simulation
-
-    sim = Simulation()
-    sim.emplace(diameter=300e3)
-
-To place 3 craters onto the surface, you could do the following:
-
-.. code-block:: python
-
-    from cratermaker import Crater
-
-    craters = [Crater.maker(diameter=d) for d in [100e3, 200e3, 300e3]]
-    sim.emplace(craters)
-
-Emplace a population of craters drawn from a production function
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The next level of methods is :py:meth:`~cratermaker.core.simulation.Simulation.populate`, which is used to generate a population of craters drawn from whichever :ref:`Production <ug-production>` component module is loaded into the simulation. The arguments for this method are the same as those for :py:meth:`~cratermaker.components.production.Production.populate`, which can either be the time interval over which to draw from the production function, or a pair of diameter/number values that specify the position in the production function to draw from. For instance, to emplace a population of craters corresponding to the production function between 200 My to 100 My before present, you would do:
-
-.. code-block:: python
-
-    sim.populate(time_start=200, time_end=100)
-
-
-The :py:meth:`~cratermaker.core.simulation.Simulation.populate` method is really meant to be a helper method for the :py:meth:`~cratermaker.core.simulation.Simulation.run` method, which is used to run a full simulation over a specified time interval. For instance, the 
-The :py:meth:`~cratermaker.core.simulation.Simulation.populate` method does not track the time of emplacement or advance the time interval of the simulation.
-
 
 
 Running a Simulation
 --------------------
 
-Once a :py:class:`~cratermaker.core.simulation.Simulation` instance has been created, the simulation can be run using the :py:meth:`~cratermaker.core.simulation.Simulation.run` method. This method requires an ``age`` argument specifying the duration of the simulation in million years (My).  
+Once a :py:class:`~cratermaker.core.simulation.Simulation` instance has been created, the simulation can be run using the :py:meth:`~cratermaker.core.simulation.Simulation.run` method. This method requires a ``time_start`` (or, alternatively ``age``) argument specifying the starting time of the simulation in million years before present (My bp). By default, the ``time_end`` will be 0, which indicates that the simulation runs up until the present day. 
 
 The following example configures a simulation targeting the Moon and runs it for 4 Gy, then we plot the number of true emplaced (countable) craters as well as the number of observed craters that the crater counting algorithm has determined are observable. To speed up the example, we have reduced the resolution of the surface grid from the default value of 8 to 6 using the ``gridlevel`` argument.
 
@@ -152,6 +118,109 @@ In the example below, we will demonstrate how a simulation with equal number int
     print(f"Number of craters in sample 2: {len(diameters2)}")
 
 As can be seen, the toltal numbers of craters is somewhat different in each sample, but they are both within the expected variability of the Poisson distribution for a mean of 100 craters in the sample.
+
+
+Emplace one or more specific craters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The :py:meth:`~cratermaker.core.simulation.Simulation.emplace` is used to emplace one or more craters onto a surface. The arguments are either the parameters that you would pass to :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>` to generate a single crater, a single :py:class:`~cratermaker.components.crater.Crater` object, or a list of :py:class:`~cratermaker.components.crater.Crater` objects. So for instance, you can emplace a single 300 km crater onto a random location on a surface, you would do:
+
+.. code-block:: python
+
+    from cratermaker import Simulation
+
+    sim = Simulation()
+    sim.emplace(diameter=300e3)
+
+To place 3 craters onto the surface, you could do the following:
+
+.. code-block:: python
+
+    from cratermaker import Crater
+
+    craters = [Crater.maker(diameter=d) for d in [100e3, 200e3, 300e3]]
+    sim.emplace(craters)
+
+Emplace a population of craters drawn from a production function
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The next level of methods is :py:meth:`~cratermaker.core.simulation.Simulation.populate`, which is used to generate a population of craters drawn from whichever :ref:`Production <ug-production>` component module is loaded into the simulation. The arguments for this method are the same as those for :py:meth:`~cratermaker.components.production.Production.populate`, which can either be the time interval over which to draw from the production function, or a pair of diameter/number values that specify the position in the production function to draw from. For instance, to emplace a population of craters corresponding to the production function between 200 My to 100 My before present, you would do:
+
+.. code-block:: python
+
+    sim.populate(time_start=200, time_end=100)
+
+
+The :py:meth:`~cratermaker.core.simulation.Simulation.populate` method is really meant to be a helper method for the :py:meth:`~cratermaker.core.simulation.Simulation.run` method, which is used to run a full simulation over a specified time interval. For instance, the :py:meth:`~cratermaker.core.simulation.Simulation.populate` method does not track the time of emplacement or advance the time interval of the simulation.
+
+
+Quasi-Monte Carlo craters
+-------------------------
+
+For some applications, you may want to specify a predefined population of craters that should be emplaced at a certain time and location along with the random population of craters drawn from the production function. To accomplish this, you can initialize a :py:class:`~cratermaker.core.simulation.Simulation` object with an argument `quasimc_file`, which points to a CSV file containing the information needed to emplace the craters. When this argumented is passed, the :py:meth:`~cratermaker.core.simulation.Simulation.run` method will run in "Quasi-Monte Carlo mode". 
+
+Quasi-Monte Carlo mode is a powerful tool that is very flexible. Here we will demonstrate the different ways you can specify craters in the input file and how they affect the behavior of the simulation with a simple donstration using five lunar craters: South Pole-Aitken, Serenitatis, Nectaris, Imbrium, and Iridum. of large lunar basins. A version of this simulation type with 74 lunar basins is included in the :ref:`gal-simulation`.
+
+
+First, we we will create a CSV file called "biglunar.csv" and populate it with columns indicating which arguments should be passed to the :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>` function. At a minimum, this requires at least one argument specifying size, such as "diameter" or "projectile_diameter". Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical "location" tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this.
+
+Emplacing a crater at a specific time
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can indicate that you want a crater to form at a specific time, as defined by the chronology function of the Simulation's :py:class:`~cratermaker.components.production.Production` component. To do this, you would include the time in a column labeled "production_time".  Here we will define dates in My before present that each of our lunar craters will form within the Neukum chronology function used for default simulation type. 
+
+We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) of 3922 My, however the dates for the other craters are very poorly constrained. We will choose an age of 4310 My for South Pole-Aitken, as this very large basin is stratigraphically older than all other lunar craters, and this is the model age that gives us a similar crater population as the most heavily cratered lunar highlands in the Neukum chronology. Serenetitatis likely formed before Nectaris, which formed before Imbrium, so we pick ages for Serenitatis and Nectaris of 4220 and 4170 My, respectively. Iridum is a small 250 km subbasins that post-dates Imbrium, and so we give it an age of 3670 My. Our input file thus looks like the following:
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from pathlib import Path
+
+    with Path.open("quasimc_exact_time.csv", "w") as f:
+        f.write("Name,latitude,longitude,diameter,production_time\n")
+        f.write("South Pole-Aitken,-53,191,2400000,4310\n")
+        f.write("Serenitatis,25.4,18.8,923000,4220\n")
+        f.write("Nectaris,-15.6,35.1,885000,4170\n")
+        f.write("Imbrium,37,341.5,1321000,2222\n")
+        f.write("Iridum,44.8,328.4,252000,3670\n")
+
+.. ipython:: python
+    :okwarning:
+
+    from pathlib import Path
+
+    with Path.open("quasimc_exact_time.csv", "r") as f:
+        print(f.read())
+
+
+Now we can pass this file into a Simulation, with a reduced resolution to make the example run more quickly:
+
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Simulation
+    sim = Simulation(quasimc_file="quasimc_exactd_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
+    sim.run(age=4310)
+
+
+
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Simulation
+    sim = Simulation(target="Moon", gridlevel=6, rng_seed=7636830)
+    sim.run(age=4000)
+    print(f"Number of true emplaced craters: {sim.n_emplaced}")
+    print(f"Number of observed craters: {sim.n_observed}")
+
+                if not header_written:
+                    header = list(crater_dict.keys())
+                    writer.writerow(header)
+                    header_written = True
+                row = [crater_dict[key] for key in header]
+                writer.writerow(row)
+
 
 Save Actions
 ------------
