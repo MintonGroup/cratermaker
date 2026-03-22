@@ -200,7 +200,7 @@ Now we can pass this file into a Simulation, with a reduced resolution to make t
     :okwarning:
 
     from cratermaker import Simulation
-    sim = Simulation(quasimc_file="quasimc_exactd_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
+    sim = Simulation(quasimc_file="quasimc_exact_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
     sim.run(age=4310)
 
 
