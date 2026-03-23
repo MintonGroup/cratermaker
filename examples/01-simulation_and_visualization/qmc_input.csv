@@ -1,5 +1,5 @@
-Name,latitude,longitude,diameter,production_time,production_diameter,production_number_low,production_number_high,production_number,production_time_low,production_time_high
-South Pole-Aitken,-53,191,2400000,4310,20,,,995
+Name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev
+South Pole-Aitken,-53,191,2400000,4310
 Fecunditatis,-4.6,52,690000,4309,20,449,603
 Balmer-Kapteyn,-15.8,69.6,265000,4308,20,449,603
 Medii,0.8,0.5,326000,4307,20,449,603
@@ -10,7 +10,7 @@ Vaporum,14.2,3.1,410000,4304,20,449,603
 Fowler-Charlier,39.5,218,374000,4303,20,449,603
 Australe North,-35.5,96,880000,4302,20,449,603
 Mutus-Vlacq,-53.5,24,450000,4301,20,449,603
-Nubium,-21.3,343.4,690000,4300,20,449,603
+Nubium,-21.3,343.4,690000,,20,526,77
 Asperitatis,-7.7,26.8,730000,4295,20,165,603
 Birkhoff,58.9,213.4,334000,4290,20,165,281
 Ingenii,-32.8,163.8,342000,4280,20,145,251

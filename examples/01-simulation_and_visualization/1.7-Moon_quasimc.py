@@ -11,25 +11,25 @@ The emplacement time of a Quasi-Monte Carlo crater is determined by some combina
 production_D
     The `D` value (in km) used in the N(D) convention (e.g. 1 would be used to indicate N(1), 20 for N(20), etc.)
 
-production_N_low
+production_N_stdev
     The low end of a range of N(D) values, given in units of craters per 10⁶ km²
 
 production_N_high
     The high end of a range of N(D) values,  given in units of craters 1 million sq. km.
 
 production_N
-    Equivalent to setting the production_N_high and production_N_low to the same value.
+    Equivalent to setting the production_N_high and production_N_stdev to the same value.
 
-production_time_low
+production_time_stdev
     The low end of a range of time values (in My before present)
 
 production_time_high
     The high end of a range of time values (in My before present)
 
 production_time
-    Equivalent to setting production_time_low and production_time_high to be the same.
+    Equivalent to setting production_time_stdev and production_time_high to be the same.
 
-If both N(D) and time values are provided, the N(D) values take precedence, and if ranges are provided with singular values (etc. both production_time and production_time_low/high are included), the range values take precedence over the singular values. The included file `qmc_input.csv` contains inputs in all of the possible formats discussed above.
+If both N(D) and time values are provided, the N(D) values take precedence, and if ranges are provided with singular values (etc. both production_time and production_time_stdev/high are included), the range values take precedence over the singular values. The included file `qmc_input.csv` contains inputs in all of the possible formats discussed above.
 
 We will use the ``run`` method in a Cratermaker Simulation object for an age of 4.31 billion years using the default Neukum production function [#]_. The largest craters (aka basins) will not follow this production function, but instead will be emplaced according to the csv file. The age of South Pole Aitken basin is set to simulation start, and Imbrium is set to 3.9 billion years ago. The other basins can vary based on N(20) values measured in Orgel et al. (2018) [#]_. The 74 basins catalogued by Neumann et al. (2015) [#]_ are included in this file.
 

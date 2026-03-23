@@ -127,12 +127,12 @@ class MorphologyCrater(Crater):
 
     def __str__(self) -> str:
         output = super().__str__()
-        output += f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}\n"
-        output += f"\nLarge enough to be emplaced on the grid: {self.emplaceable}\n"
+        output += f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}"
+        output += f"\nLarge enough to be emplaced on the grid: {self.emplaceable}"
         if self.emplaceable:
-            output += f"Face index of crater center: {self.face_index}\n"
-            output += f"Crater region: {self.crater_region}\n"
-            output += f"Ejecta region: {self.ejecta_region}\n"
+            output += f"\nFace index of crater center: {self.face_index}"
+            output += f"\nCrater region: {self.crater_region}"
+            output += f"\nEjecta region: {self.ejecta_region}"
         return output
 
     @classmethod

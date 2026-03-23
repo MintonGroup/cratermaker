@@ -202,7 +202,7 @@ Serenetitatis likely formed before Nectaris, which formed before Crisium and Imb
         print(f.read())
 
 
-Now we can pass this file into a Simulation, with a reduced resolution to make the example run more quickly. We will also cut off the crater population below 100 km by setting the :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater` attribute, which will also speed up our simulation as the majority of craters will be small ones.
+Now we can pass this file into a Simulation, with a reduced resolution to make the example run more quickly. We will also cut off the crater population below 100 km by setting the :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater` attribute, which will also speed up our simulation as the majority of craters will be small ones. We also pass a value to the rng_seed argument of the Simulation constructor so that the random population of craters drawn from the production function is the same each time this example is run.
 
 .. code-block:: python
 
@@ -233,6 +233,12 @@ Now we can pass this file into a Simulation, with a reduced resolution to make t
     >>> plotter = sim.pyvista_plotter(variable_name="face_elevation") 
     >>> plotter.show()
 
+
+
+Emplacing a crater at a specific time range
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In some cases, we may be more confident that a crater forms within a specific time range. To do this, we can set the "production_time_stdev" and "production_time_high" columns in the input file, which will cause the Simulation to draw a random time for that crater in a normal distribution, where the mean is the midpoint between  
 
 
 .. .. ipython:: python

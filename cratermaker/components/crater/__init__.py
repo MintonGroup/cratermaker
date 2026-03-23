@@ -95,8 +95,8 @@ class CraterVariable:
         measured_rim_height: float | None = None,
         measured_floor_depth: float | None = None,
         degradation_state: float | None = None,
-        production_time_range: tuple[float, float] | None = None,
-        production_ND_range: tuple[float, float, float] | None = None,
+        production_time: tuple[float, float] | float | None = None,
+        production_ND: tuple[float, float, float] | tuple[float, float] | None = None,
         name: str | None = None,
         **kwargs: Any,
     ):
@@ -108,8 +108,8 @@ class CraterVariable:
         object.__setattr__(self, "_measured_rim_height", None)
         object.__setattr__(self, "_measured_floor_depth", None)
         object.__setattr__(self, "_degradation_state", None)
-        object.__setattr__(self, "_production_time_range", None)
-        object.__setattr__(self, "_production_ND_range", None)
+        object.__setattr__(self, "_production_time", None)
+        object.__setattr__(self, "_production_ND", None)
         object.__setattr__(self, "_name", None)
 
         if measured_diameter is not None:
@@ -130,10 +130,10 @@ class CraterVariable:
             self.measured_floor_depth = measured_floor_depth
         if degradation_state is not None:
             self.degradation_state = degradation_state
-        if production_time_range is not None:
-            self.production_time_range = production_time_range
-        if production_ND_range is not None:
-            self.production_ND_range = production_ND_range
+        if production_time is not None:
+            self.production_time = production_time
+        if production_ND is not None:
+            self.production_ND = production_ND
         if name is not None:
             self.name = name
         return
@@ -149,8 +149,8 @@ class CraterVariable:
             f"measured_rim_height={self.measured_rim_height}, "
             f"measured_floor_depth={self.measured_floor_depth}, "
             f"degradation_state={self.degradation_state},"
-            f"production_time_range={self.production_time_range},"
-            f"production_ND_range={self.production_ND_range}",
+            f"production_time={self.production_time},"
+            f"production_ND={self.production_ND}",
             f"name={self.name})",
         )
 
@@ -173,10 +173,10 @@ class CraterVariable:
             else:
                 dict_repr["measured_semimajor_axis"] = self.measured_semimajor_axis
                 dict_repr["measured_semiminor_axis"] = self.measured_semiminor_axis
-        if self.production_time_range is not None:
-            dict_repr["production_time_range"] = self.production_time_range
-        if self.production_ND_range is not None:
-            dict_repr["production_ND_range"] = self.production_ND_range
+        if self.production_time is not None:
+            dict_repr["production_time"] = self.production_time
+        if self.production_ND is not None:
+            dict_repr["production_ND"] = self.production_ND
         if self.name is not None:
             dict_repr["name"] = self.name
         return dict_repr
@@ -361,39 +361,38 @@ class CraterVariable:
         return
 
     @property
-    def production_time_range(self) -> float | None:
+    def production_time(self) -> float | None:
         """The range of ages of the crater in Myr before present, used by the quasi-monte carlo sampling method to emplace a user-defined crater within a time period."""
-        return self._production_time_range
+        return self._production_time
 
-    @production_time_range.setter
-    def production_time_range(self, value: tuple[float, float] | None):
+    @production_time.setter
+    def production_time(self, value: tuple[float, float] | float | None):
         if value is not None:
+            if isinstance(value, (int, float)):
+                value = (value, 0)
             if len(value) != 2:
-                raise ValueError("production_time_range must be a tuple of (time_min, time_max).")
+                raise ValueError("production_time must be a single float or a tuple of (time, time_stdev).")
             if value[0] is None:
                 return
-            if value[0] < value[1]:
-                self._production_time_range = float(value[0]), float(value[1])
-            else:
-                self._production_time_range = float(value[1]), float(value[0])
+            self._production_time = float(value[0]), float(value[1])
         return
 
     @property
-    def production_ND_range(self) -> tuple[float, float, float] | None:
-        """A triplet r of diameter and cumulative number values, in the form of a (D, N_min, N_max), used by the quasi-monte carlo sampling method to emplace a user-defined crater within a number-diameter range."""
-        return self._production_ND_range
+    def production_ND(self) -> tuple[float, float, float] | tuple[float, float] | None:
+        """A tuple of diameter and cumulative number values, in the form of a (D, N), or (D, N, N_stdev) used by the quasi-monte carlo sampling method to emplace a user-defined crater within a number-diameter range."""
+        return self._production_ND
 
-    @production_ND_range.setter
-    def production_ND_range(self, value: tuple[float, float, float] | None):
+    @production_ND.setter
+    def production_ND(self, value: tuple[float, float, float] | tuple[float, float] | None):
         if value is not None:
-            if len(value) != 3:
-                raise ValueError("production_ND_range must be a triplet of floats in the form of (D, N_min, N_max).")
+            if len(value) != 3 or len(value) != 2:
+                raise ValueError("production_ND must be a tuple of floats in the form of either (D, N) or (D, N, N_stdev).")
             if value[0] is None:
                 return
-            if value[1] < value[2]:
-                self._production_ND_range = (float(value[0]), float(value[1]), float(value[2]))
+            if len(value) == 2:
+                self._production_ND = (float(value[0]), float(value[1]), 0.0)
             else:
-                self._production_ND_range = (float(value[0]), float(value[2]), float(value[1]))
+                self._production_ND = (float(value[0]), float(value[1]), float(value[2]))
         return
 
 
@@ -479,6 +478,9 @@ class Crater:
         return sorted(base)
 
     def __str__(self):
+        name_text = f"\nID: {self.id}"
+        if self.name is not None and self.name != "":
+            name_text += f"\nName: {self.name}"
         if self.time is None:
             timetext = "Not set"
         else:
@@ -495,11 +497,14 @@ class Crater:
         if self.measured_orientation is not None and self.measured_orientation != self.orientation:
             size_text += f"\nMeasured orientation: {self.measured_orientation:.1f}°"
         if self.measured_location is not None and self.measured_location != self.location:
-            size_text += f"\nMeasured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
+            size_text += f"\nMeasured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)"
+        if self.production_time is not None:
+            timetext += f"\nProduction time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}"
+        if self.production_ND is not None:
+            timetext += f"\nProduction N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}"
 
         return (
-            f"ID: {self.id}\n"
-            f"{size_text}\n"
+            f"{name_text}\n"
             f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
             f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
             f"projectile_mass: {self.projectile_mass:.4e} kg\n"
@@ -509,7 +514,7 @@ class Crater:
             f"projectile_direction: {self.projectile_direction:.1f}°\n"
             f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
             f"morphology_type: {self.morphology_type}\n"
-            f"time: {timetext}"
+            f"time: {timetext}\n"
         )
 
     def _scrub_measured_input_size(self, **kwargs: Any):

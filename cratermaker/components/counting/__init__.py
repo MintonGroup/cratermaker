@@ -1550,23 +1550,21 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
     tuple_map = {
         "location": ["longitude", "latitude"],
         "measured_location": ["measured_longitude", "measured_latitude"],
-        "production_time_range": ["production_time_low", "production_time_high"],
-        "production_ND_range": ["production_D", "production_N_low", "production_N_high"],
+        "production_ND": ["production_D", "production_N", "production_N_stdev"],
+        "production_time": ["production_time", "production_time_stdev"],
     }
     input_dict = {k: v for k, v in input_dict.items() if v is not None and v != ""}
 
     if inverse:
-        # convert aliases
-        if "production_time" in input_dict:
-            tval = input_dict.pop("production_time")
-            input_dict["production_time_range"] = [tval, tval]
-        if "production_ND" in input_dict:
-            prod_diam, nval = input_dict.pop("production_ND")
-            input_dict["production_ND_range"] = [prod_diam, nval, nval]
         if "production_D" in input_dict and "production_N" in input_dict:
             prod_diam = input_dict.pop("production_D")
             nval = input_dict.pop("production_N")
-            input_dict["production_ND_range"] = [prod_diam, nval, nval]
+            nstdev = input_dict.pop("production_N_stdev", 0.0)
+            input_dict["production"] = [prod_diam, nval, nstdev]
+        if "production_time" in input_dict:
+            time_stdev = input_dict.pop("production_time_stdev", 0.0)
+            time_mean = input_dict.pop("production_time")
+            input_dict["production_time"] = [time_mean, time_stdev]
 
     for tup, varlist in tuple_map.items():
         if inverse:
@@ -1574,7 +1572,7 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
                 if tup not in input_dict:
                     input_dict[tup] = [None] * len(varlist)
                 for idx, var in enumerate(varlist):
-                    if var in input_dict and input_dict[var] is not None:
+                    if var != tup and var in input_dict and input_dict[var] is not None:
                         input_dict[tup][idx] = input_dict.pop(var, None)
         else:
             if tup in input_dict:

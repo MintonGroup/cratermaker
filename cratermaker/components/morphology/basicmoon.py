@@ -62,13 +62,13 @@ class BasicMoonCrater(MorphologyCrater):
     def __str__(self) -> str:
         base = super().__str__()
         return (
-            f"{base}\n"
-            f"Rim height: {format_large_units(self.rim_height, quantity='length')}\n"
-            f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
-            f"Floor depth: {format_large_units(self.floor_depth, quantity='length')}\n"
-            f"Floor diameter: {format_large_units(self.floor_diameter, quantity='length')}\n"
-            f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
-            f"Ejecta rim thickness: {format_large_units(self.ejrim, quantity='length')}\n"
+            f"{base}"
+            f"\nRim height: {format_large_units(self.rim_height, quantity='length')}"
+            f"\nRim width: {format_large_units(self.rim_width, quantity='length')}"
+            f"\nFloor depth: {format_large_units(self.floor_depth, quantity='length')}"
+            f"\nFloor diameter: {format_large_units(self.floor_diameter, quantity='length')}"
+            f"\nCentral peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}"
+            f"\nEjecta rim thickness: {format_large_units(self.ejrim, quantity='length')}"
         )
 
     @classmethod
