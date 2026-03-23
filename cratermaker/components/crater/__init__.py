@@ -97,6 +97,7 @@ class CraterVariable:
         degradation_state: float | None = None,
         production_time: tuple[float, float] | float | None = None,
         production_ND: tuple[float, float, float] | tuple[float, float] | None = None,
+        production_sequence: int | None = None,
         name: str | None = None,
         **kwargs: Any,
     ):
@@ -110,6 +111,7 @@ class CraterVariable:
         object.__setattr__(self, "_degradation_state", None)
         object.__setattr__(self, "_production_time", None)
         object.__setattr__(self, "_production_ND", None)
+        object.__setattr__(self, "_production_sequence", None)
         object.__setattr__(self, "_name", None)
 
         if measured_diameter is not None:
@@ -134,6 +136,8 @@ class CraterVariable:
             self.production_time = production_time
         if production_ND is not None:
             self.production_ND = production_ND
+        if production_sequence is not None:
+            self.production_sequence = production_sequence
         if name is not None:
             self.name = name
         return
@@ -151,7 +155,7 @@ class CraterVariable:
             f"degradation_state={self.degradation_state},"
             f"production_time={self.production_time},"
             f"production_ND={self.production_ND}",
-            f"name={self.name})",
+            f"production_sequence={self.production_sequence},name={self.name})",
         )
 
     def as_dict(self):
@@ -179,6 +183,8 @@ class CraterVariable:
             dict_repr["production_ND"] = self.production_ND
         if self.name is not None:
             dict_repr["name"] = self.name
+        if self.production_sequence is not None:
+            dict_repr["production_sequence"] = self.production_sequence
         return dict_repr
 
     @property
@@ -395,6 +401,17 @@ class CraterVariable:
                 self._production_ND = (float(value[0]), float(value[1]), float(value[2]))
         return
 
+    @property
+    def production_sequence(self) -> int | None:
+        """The production sequence number of the crater, used by the quasi-monte carlo sampling method to emplace a user-defined crater in a relative sequence order with other quasi-monte carlo sampled craters."""
+        return self._production_sequence
+
+    @production_sequence.setter
+    def production_sequence(self, value: int | None):
+        if value is not None:
+            self._production_sequence = int(value)
+        return
+
 
 class Crater:
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=CraterVariable, **kwargs):
@@ -502,7 +519,10 @@ class Crater:
             timetext += f"\nProduction time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}"
         if self.production_ND is not None:
             timetext += f"\nProduction N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}"
-
+        if self.production_sequence is not None:
+            timetext += f"\nProduction sequence: {self.production_sequence}"
+        if self.degradation_state is not None:
+            timetext += f"\nDegradation state: {format_large_units(self.degradation_state, quantity='area')}"
         return (
             f"{name_text}\n"
             f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
