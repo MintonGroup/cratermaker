@@ -23,37 +23,36 @@ The simulation will generate several files in a folder called ``surface``, inclu
 We can then open up the mesh in PyVista for visualization
 
 
+.. code-block:: python
+
+    import cratermaker as cm
+    sim = cm.Simulation(gridlevel=6)
+    sim.emplace(diameter=500e3, location=(45,60))
+    sim.show3d(variable_name="face_elevation")
+
+
 .. ipython:: python
     :okwarning:
     :suppress:
 
-    # Remove any existing output for a clean environment so we don't get prompted about overwriting files
-    from cratermaker import cleanup
+    # Generate the example data so that we can open it up with the PyVista plotter directly.
+    from cratermaker import cleanup, Simulation
+    import pyvista
     cleanup()
-
-
-.. pyvista-plot::
-   :caption: Using show3d to visualize the surface mesh.
-   :include-source: true
-
-    >>> import cratermaker as cm
-    >>> sim = cm.Simulation(gridlevel=6)
-    >>> sim.emplace(diameter=500e3, location=(45,60))
-    >>> sim.show3d()
+    sim = Simulation(gridlevel=6)
+    sim.emplace(diameter=500e3, location=(45,60))
+    sim.save()
 
 .. pyvista-plot::
    :caption: Using show3d to visualize the surface mesh.
    :include-source: False 
 
     >>> # The pyvista-plot tool apparently doesn't recognize the show3d method, so we will just show how to do this manually with pyvista.
-    >>> import pyvista as pv
     >>> import cratermaker as cm
+    >>> import pyvista as pv
     >>> sim = cm.Simulation(reset=False)
-    >>> sim.export(driver="vtk", ask_overwrite=False)
-    >>> mesh = pv.read(sim.export_dir / "surface000000.vtp")
-    >>> mesh.plot(cmap="cividis")
-        
-
+    >>> plotter = sim.pyvista_plotter(variable_name="face_elevation")
+    >>> plotter.show()
 
 
 Exporting data

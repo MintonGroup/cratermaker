@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pyvista
 import yaml
 from matplotlib.axes import Axes
 from numpy.random import Generator
@@ -956,7 +957,31 @@ class Simulation(CratermakerBase):
             ax = self.surface.plot(**plot_args)
         return ax
 
-    def show3d(self, engine: str = "pyvista", **kwargs: Any) -> Any:
+    def pyvista_plotter(self, interval: int | None = None, **kwargs: Any) -> pyvista.Plotter:
+        """
+        Create a PyVista plotter for the current state of the surface.
+
+        Parameters
+        ----------
+        interval : int, optional
+            The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        pyvista.Plotter
+            A PyVista Plotter object created by the surface pyvista_plotter method.
+        """
+        self.save(**kwargs, skip_actions=True)
+        if interval is None:
+            interval = self.interval
+        if self.do_counting:
+            return self.counting.pyvista_plotter(interval=interval, **kwargs)
+        else:
+            return self.surface.pyvista_plotter(interval=interval, **kwargs)
+
+    def show3d(self, engine: str = "pyvista", interval: int | None = None, **kwargs: Any) -> None:
         """
         Show the current state of the simulated surface.
 
@@ -964,20 +989,20 @@ class Simulation(CratermakerBase):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        interval : int, optional
+            The interval number to show. Default is None, which will show the most current interval saved in the simulation.
         **kwargs : Any
             |kwargs|
-
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         self.save(**kwargs, skip_actions=True)
-        if "interval" not in kwargs:
-            kwargs["interval"] = self.interval
+        if engine.lower() != "pyvista":
+            raise ValueError(f"Unsupported engine {engine}. Currently, only 'pyvista' is supported.")
+        if interval is None:
+            interval = self.interval
         if self.do_counting:
-            return self.counting.show3d(engine=engine, **kwargs)
+            return self.counting.show3d(engine=engine, interval=interval, **kwargs)
         else:
-            return self.surface.show3d(engine=engine, **kwargs)
+            return self.surface.show3d(engine=engine, interval=interval, **kwargs)
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """

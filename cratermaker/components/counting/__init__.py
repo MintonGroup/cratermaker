@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import pandas as pd
+import pyvista
 import xarray as xr
 from geopandas import GeoSeries
 from matplotlib.axes import Axes
@@ -780,7 +781,7 @@ class Counting(ComponentBase):
         emplaced_color: str = "red",
         interval: int | None = None,
         **kwargs: Any,
-    ):
+    ) -> pyvista.Plotter:
         """
         Passes through to the surface pyvista_plotter method and adds crater counts to it.
 
@@ -849,7 +850,7 @@ class Counting(ComponentBase):
         emplaced_color: str = "red",
         interval: int | None = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> None:
         """
         Passes through to the surface show method and adds crater counts to it.
 
@@ -864,9 +865,6 @@ class Counting(ComponentBase):
         **kwargs : Any
             |kwargs|
 
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         from cratermaker.constants import PYVISTA_SHOW_KWARGS
 
@@ -876,7 +874,7 @@ class Counting(ComponentBase):
             plotter.show(**plotter_kwargs)
         else:
             raise ValueError(f"Engine '{engine}' is not supported for crater counting visualization.")
-        return plotter
+        return
 
     def to_geoseries(
         self,

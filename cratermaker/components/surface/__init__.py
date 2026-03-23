@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
+import pyvista as pv
 import uxarray as uxr
 import xarray as xr
 from matplotlib.axes import Axes
@@ -875,7 +876,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def pyvista_plotter(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
+    def pyvista_plotter(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any) -> pv.Plotter:
         """
         Show the surface region using an interactive 3D plot with PyVista.
 
@@ -895,9 +896,7 @@ class Surface(ComponentBase):
         """
         return self._full().pyvista_plotter(variable_name=variable_name, variable=variable, **kwargs)
 
-    def show3d(
-        self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
-    ) -> Any:
+    def show3d(self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
         """
         Show the surface using an interactive 3D plot.
 
@@ -912,9 +911,6 @@ class Surface(ComponentBase):
         **kwargs : Any
             |kwargs|
 
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
 
@@ -3410,7 +3406,7 @@ class LocalSurface(CratermakerBase):
         theme: str | None = None,
         transparent_background: bool | None = None,
         **kwargs: Any,
-    ) -> None:
+    ) -> pv.Plotter:
         """
         Show the local surface region using an interactive 3D plot with PyVista.
 
@@ -3419,7 +3415,7 @@ class LocalSurface(CratermakerBase):
         variable_name : str | None, optional
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
         theme : str, optional
             The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
         transparent_background : bool, optional
@@ -3432,11 +3428,6 @@ class LocalSurface(CratermakerBase):
         pyvista.Plotter
             The PyVista Plotter object for further customization.
         """
-        try:
-            import pyvista as pv
-        except ImportError:
-            warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
-            return
         from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
@@ -3643,9 +3634,7 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def show3d(
-        self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
-    ) -> Any:
+    def show3d(self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
         """
         Show the local surface region using an interactive 3D plot.
 
@@ -3660,9 +3649,6 @@ class LocalSurface(CratermakerBase):
         **kwargs : Any
             |kwargs|
 
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
         """
         from cratermaker.constants import PYVISTA_SHOW_KWARGS
 
@@ -3673,7 +3659,7 @@ class LocalSurface(CratermakerBase):
         else:
             raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
 
-        return plotter
+        return
 
     def compute_distances(
         self,

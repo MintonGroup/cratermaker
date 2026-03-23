@@ -204,15 +204,34 @@ Serenetitatis likely formed before Nectaris, which formed before Crisium and Imb
 
 Now we can pass this file into a Simulation, with a reduced resolution to make the example run more quickly. We will also cut off the crater population below 100 km by setting the :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater` attribute, which will also speed up our simulation as the majority of craters will be small ones.
 
-.. pyvista-plot::
-   :caption: Quasi-Monte Carlo example with exact ages of lunar basins
-   :include-source: true
+.. code-block:: python
 
-    >>> from cratermaker import Simulation
-    >>> sim = Simulation(quasimc_file="basins_exact_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
-    >>> sim.smallest_crater = 100e3
-    >>> sim.run(age=4310)
-    >>> sim.show3d(variable_name="face_elevation", theme="dark")
+    from cratermaker import Simulation
+    sim = Simulation(quasimc_file="basins_exact_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
+    sim.smallest_crater = 100e3
+    sim.run(age=4310)
+    sim.show3d(variable_name="face_elevation")
+
+.. ipython:: python
+   :okwarning:
+   :suppress:
+
+    from cratermaker import Simulation
+    sim = Simulation(quasimc_file="basins_exact_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
+    sim.smallest_crater = 100e3
+    sim.run(age=4310)
+
+
+.. pyvista-plot::
+   :caption: Quasi-Monte Carlo simulation with craters emplaced at specific times.
+   :include-source: False 
+
+    >>> # The pyvista-plot tool apparently doesn't recognize the show3d method, so we will just show how to do this manually with pyvista.
+    >>> import pyvista as pv
+    >>> import cratermaker as cm
+    >>> sim = cm.Simulation(reset=False)
+    >>> plotter = sim.pyvista_plotter(variable_name="face_elevation") 
+    >>> plotter.show()
 
 
 
