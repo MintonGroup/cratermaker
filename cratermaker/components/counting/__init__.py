@@ -773,7 +773,7 @@ class Counting(ComponentBase):
             plt.close()
         return ax
 
-    def show_pyvista(
+    def pyvista_plotter(
         self,
         surface: Surface | LocalSurface | None = None,
         observed_color: str = "white",
@@ -782,7 +782,7 @@ class Counting(ComponentBase):
         **kwargs: Any,
     ):
         """
-        Passes through to the surface show_pyvista method and adds crater counts to it.
+        Passes through to the surface pyvista_plotter method and adds crater counts to it.
 
         Parameters
         ----------
@@ -807,7 +807,7 @@ class Counting(ComponentBase):
 
         if surface is None:
             surface = self.surface
-        plotter = surface.show_pyvista(**kwargs)
+        plotter = surface.pyvista_plotter(**kwargs)
 
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
@@ -842,7 +842,14 @@ class Counting(ComponentBase):
 
         return plotter
 
-    def show3d(self, engine: str = "pyvista", observed_color: str = "white", emplaced_color: str = "red", **kwargs: Any) -> Any:
+    def show3d(
+        self,
+        engine: str = "pyvista",
+        observed_color: str = "white",
+        emplaced_color: str = "red",
+        interval: int | None = None,
+        **kwargs: Any,
+    ) -> Any:
         """
         Passes through to the surface show method and adds crater counts to it.
 
@@ -864,7 +871,7 @@ class Counting(ComponentBase):
         from cratermaker.constants import PYVISTA_SHOW_KWARGS
 
         if engine.lower() == "pyvista":
-            plotter = self.show_pyvista(observed_color=observed_color, emplaced_color=emplaced_color, **kwargs)
+            plotter = self.pyvista_plotter(observed_color=observed_color, emplaced_color=emplaced_color, **kwargs)
             plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
             plotter.show(**plotter_kwargs)
         else:

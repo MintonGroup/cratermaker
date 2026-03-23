@@ -378,7 +378,7 @@ class HiResLocalSurface(Surface):
                 **kwargs,
             )
 
-    def show_pyvista(
+    def pyvista_plotter(
         self, variable_name: str | None = None, variable: ArrayLike | None = None, superdomain: bool = False, **kwargs
     ):
         """
@@ -403,9 +403,9 @@ class HiResLocalSurface(Surface):
             The PyVista Plotter object for further customization.
         """
         if superdomain:
-            return self._full().show_pyvista(variable=variable, variable_name=variable_name, **kwargs)
+            return self._full().pyvista_plotter(variable=variable, variable_name=variable_name, **kwargs)
         else:
-            return self.local.show_pyvista(variable=variable, variable_name=variable_name, **kwargs)
+            return self.local.pyvista_plotter(variable=variable, variable_name=variable_name, **kwargs)
 
     def show3d(
         self,

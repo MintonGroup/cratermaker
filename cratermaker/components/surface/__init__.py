@@ -875,7 +875,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
+    def pyvista_plotter(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
         """
         Show the surface region using an interactive 3D plot with PyVista.
 
@@ -893,7 +893,7 @@ class Surface(ComponentBase):
         pyvista.Plotter
             The PyVista Plotter object for further customization.
         """
-        return self._full().show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
+        return self._full().pyvista_plotter(variable_name=variable_name, variable=variable, **kwargs)
 
     def show3d(
         self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
@@ -2374,9 +2374,7 @@ class LocalSurface(CratermakerBase):
         return
 
     def calculate_face_and_node_distances(
-        self,
-        location: tuple[float, float] | None = None,
-        validate: bool = True
+        self, location: tuple[float, float] | None = None, validate: bool = True
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Computes the distances between nodes and faces and a given location.
@@ -2410,9 +2408,9 @@ class LocalSurface(CratermakerBase):
             location = validate_and_normalize_location(location)
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(locations=face_locations, reference_location=location, validate=False), self.compute_distances(
-            locations=node_locations, reference_location=location, validate=False
-        )
+        return self.compute_distances(
+            locations=face_locations, reference_location=location, validate=False
+        ), self.compute_distances(locations=node_locations, reference_location=location, validate=False)
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -3405,7 +3403,7 @@ class LocalSurface(CratermakerBase):
             plt.close()
         return ax
 
-    def show_pyvista(
+    def pyvista_plotter(
         self,
         variable_name: str | None = None,
         variable: ArrayLike | None = None,
@@ -3669,7 +3667,7 @@ class LocalSurface(CratermakerBase):
         from cratermaker.constants import PYVISTA_SHOW_KWARGS
 
         if engine == "pyvista":
-            plotter = self.show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
+            plotter = self.pyvista_plotter(variable_name=variable_name, variable=variable, **kwargs)
             plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
             plotter.show(**plotter_kwargs)
         else:

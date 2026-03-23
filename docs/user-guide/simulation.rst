@@ -64,6 +64,7 @@ The following example configures a simulation targeting the Moon and runs it for
     print(f"Number of observed craters: {sim.n_observed}")
 
 .. note::
+
     You may notice that the number of craters emplaced during the Simulation is much larger than the value of true emplaced craters given by ``sim.n_emplaced``. This is because the :ref:`Counting <ug-counting>` object only tracks craters that are potentially countable. Most of the craters that are emplaced during a simulation are too small to be reliably counted, so while they are still modify the surface, they are not tracked by the counting system.
 
 Multi-interval Simulations
@@ -159,67 +160,77 @@ Quasi-Monte Carlo craters
 
 For some applications, you may want to specify a predefined population of craters that should be emplaced at a certain time and location along with the random population of craters drawn from the production function. To accomplish this, you can initialize a :py:class:`~cratermaker.core.simulation.Simulation` object with an argument `quasimc_file`, which points to a CSV file containing the information needed to emplace the craters. When this argumented is passed, the :py:meth:`~cratermaker.core.simulation.Simulation.run` method will run in "Quasi-Monte Carlo mode". 
 
-Quasi-Monte Carlo mode is a powerful tool that is very flexible. Here we will demonstrate the different ways you can specify craters in the input file and how they affect the behavior of the simulation with a simple donstration using five lunar craters: South Pole-Aitken, Serenitatis, Nectaris, Imbrium, and Iridum. of large lunar basins. A version of this simulation type with 74 lunar basins is included in the :ref:`gal-simulation`.
+Quasi-Monte Carlo mode is a powerful tool that is very flexible. Here we will demonstrate the different ways you can specify craters in the input file and how they affect the behavior of the simulation with a simple donstration using several prominent lunar craters: South Pole-Aitken, Serenitatis, Nectaris, Crisium, Imbrium, Schrödinger, and Orientale. A version of this simulation type with 74 lunar basins is included in the :ref:`gal-simulation`.
 
 
-First, we we will create a CSV file called "biglunar.csv" and populate it with columns indicating which arguments should be passed to the :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>` function. At a minimum, this requires at least one argument specifying size, such as "diameter" or "projectile_diameter". Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical "location" tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this.
+First, we we will create a CSV file called "basins_exact_time.csv" and populate it with columns indicating which arguments should be passed to the :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>` function. At a minimum, this requires at least one argument specifying size, such as "diameter" or "projectile_diameter". Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical "location" tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this.
 
 Emplacing a crater at a specific time
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 You can indicate that you want a crater to form at a specific time, as defined by the chronology function of the Simulation's :py:class:`~cratermaker.components.production.Production` component. To do this, you would include the time in a column labeled "production_time".  Here we will define dates in My before present that each of our lunar craters will form within the Neukum chronology function used for default simulation type. 
 
-We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) of 3922 My, however the dates for the other craters are very poorly constrained. We will choose an age of 4310 My for South Pole-Aitken, as this very large basin is stratigraphically older than all other lunar craters, and this is the model age that gives us a similar crater population as the most heavily cratered lunar highlands in the Neukum chronology. Serenetitatis likely formed before Nectaris, which formed before Imbrium, so we pick ages for Serenitatis and Nectaris of 4220 and 4170 My, respectively. Iridum is a small 250 km subbasins that post-dates Imbrium, and so we give it an age of 3670 My. Our input file thus looks like the following:
+We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) of 3922 My, however the true ages for the other craters are very poorly constrained. However, because the chronology function in :py:class:`~cratermaker.components.production.neukum.NeukumProduction` translates model ages into crater number densities, we can pick dates that place our craters in their correct relative sequence within the bombardment history of the early Moon, even if their true age is unknown. We begin our cratering simulation at 4310 My before present, and give that age to the largest and stratigraphically oldest lunar crater, the massive 2400 km diameter South Pole-Aitken basin. 
+
+.. note::
+
+    Always remember that crater chronology model ages are **not** true ages, especially for the period of time prior to 3900 My bp. It's best to think of the model age as a way of expressing crater number density (not the other way around), and is subject to change as better calibration data is obtained. Thus a model age of 4310 My bp just means N(20)=1000 craters per million sq. km. in the Neukum production function, and will likely be updated if and when samples of the South Pole-Aitken melt sheet are returned and dated.
+
+Serenetitatis likely formed before Nectaris, which formed before Crisium and Imbrium, so we set ``production_time`` values for Serenitatis, Nectaris, and Crisium of 4220, 4170, and 4070 My, respectively. Both Schrödinger and Orientale post-date Imbrium, so we set their ``production_time`` values to 3860 and 3810 My, respectively. Therefore our 
 
 .. ipython:: python
     :okwarning:
     :suppress:
 
     from pathlib import Path
-
-    with Path.open("quasimc_exact_time.csv", "w") as f:
-        f.write("Name,latitude,longitude,diameter,production_time\n")
+    with Path.open("basins_exact_time.csv", "w") as f:
+        f.write("name,latitude,longitude,diameter,production_time\n")
         f.write("South Pole-Aitken,-53,191,2400000,4310\n")
         f.write("Serenitatis,25.4,18.8,923000,4220\n")
         f.write("Nectaris,-15.6,35.1,885000,4170\n")
-        f.write("Imbrium,37,341.5,1321000,2222\n")
-        f.write("Iridum,44.8,328.4,252000,3670\n")
+        f.write("Crisium,16.8,58.4,1076000,4070\n")
+        f.write("Imbrium,37,341.5,1321000,3922\n")
+        f.write("Schrödinger,-74.9,133.5,326000,3860\n")
+        f.write("Orientale,-20.1,265.2,937000,3810\n")
 
 .. ipython:: python
     :okwarning:
 
     from pathlib import Path
 
-    with Path.open("quasimc_exact_time.csv", "r") as f:
+    with Path.open("basins_exact_time.csv", "r") as f:
         print(f.read())
 
 
-Now we can pass this file into a Simulation, with a reduced resolution to make the example run more quickly:
+Now we can pass this file into a Simulation, with a reduced resolution to make the example run more quickly. We will also cut off the crater population below 100 km by setting the :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater` attribute, which will also speed up our simulation as the majority of craters will be small ones.
 
-.. ipython:: python
-    :okwarning:
+.. pyvista-plot::
+   :caption: Quasi-Monte Carlo example with exact ages of lunar basins
+   :include-source: true
 
-    from cratermaker import Simulation
-    sim = Simulation(quasimc_file="quasimc_exact_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
-    sim.run(age=4310)
+    >>> from cratermaker import Simulation
+    >>> sim = Simulation(quasimc_file="basins_exact_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
+    >>> sim.smallest_crater = 100e3
+    >>> sim.run(age=4310)
+    >>> sim.show3d(variable_name="face_elevation", theme="dark")
 
 
 
-.. ipython:: python
-    :okwarning:
+.. .. ipython:: python
+..     :okwarning:
 
-    from cratermaker import Simulation
-    sim = Simulation(target="Moon", gridlevel=6, rng_seed=7636830)
-    sim.run(age=4000)
-    print(f"Number of true emplaced craters: {sim.n_emplaced}")
-    print(f"Number of observed craters: {sim.n_observed}")
+..     from cratermaker import Simulation
+..     sim = Simulation(target="Moon", gridlevel=6, rng_seed=7636830)
+..     sim.run(age=4000)
+..     print(f"Number of true emplaced craters: {sim.n_emplaced}")
+..     print(f"Number of observed craters: {sim.n_observed}")
 
-                if not header_written:
-                    header = list(crater_dict.keys())
-                    writer.writerow(header)
-                    header_written = True
-                row = [crater_dict[key] for key in header]
-                writer.writerow(row)
+..                 if not header_written:
+..                     header = list(crater_dict.keys())
+..                     writer.writerow(header)
+..                     header_written = True
+..                 row = [crater_dict[key] for key in header]
+..                 writer.writerow(row)
 
 
 Save Actions

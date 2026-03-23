@@ -198,7 +198,7 @@ class TestSurface(unittest.TestCase):
 
     def test_get_node_distance(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, gridlevel=gridlevel, target=target, reset=True)
+            surface = Surface.maker(simdir=simdir, gridlevel=gridlevel, target=target, reset=True, ask_overwrite=False)
 
             location = get_random_location()[0]
             lon = location[0]
@@ -252,7 +252,7 @@ class TestSurface(unittest.TestCase):
         expected_bearing = 90.0
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, gridlevel=gridlevel, target=target, reset=True)
+            surface = Surface.maker(simdir=simdir, gridlevel=gridlevel, target=target, reset=True, ask_overwrite=False)
             calculated_bearing = surface.compute_bearings(locations=locations, reference_location=reference_location).item()
 
             # Compare the expected and calculated bearings
@@ -297,7 +297,7 @@ class TestSurface(unittest.TestCase):
     def test_get_random_on_face(self):
         # Tests that the random location is within the face we expect
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, gridlevel=gridlevel, target=target, reset=True)
+            surface = Surface.maker(simdir=simdir, gridlevel=gridlevel, target=target, reset=True, ask_overwrite=False)
             n_per_face = 10
             for original_face_index in range(surface.n_face):
                 for _ in range(n_per_face):
