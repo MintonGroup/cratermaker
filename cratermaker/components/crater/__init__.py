@@ -96,7 +96,7 @@ class CraterVariable:
         measured_floor_depth: float | None = None,
         degradation_state: float | None = None,
         production_time_range: tuple[float, float] | None = None,
-        production_diameter_number_range: tuple[float, float, float] | None = None,
+        production_ND_range: tuple[float, float, float] | None = None,
         name: str | None = None,
         **kwargs: Any,
     ):
@@ -109,7 +109,7 @@ class CraterVariable:
         object.__setattr__(self, "_measured_floor_depth", None)
         object.__setattr__(self, "_degradation_state", None)
         object.__setattr__(self, "_production_time_range", None)
-        object.__setattr__(self, "_production_diameter_number_range", None)
+        object.__setattr__(self, "_production_ND_range", None)
         object.__setattr__(self, "_name", None)
 
         if measured_diameter is not None:
@@ -132,8 +132,8 @@ class CraterVariable:
             self.degradation_state = degradation_state
         if production_time_range is not None:
             self.production_time_range = production_time_range
-        if production_diameter_number_range is not None:
-            self.production_diameter_number_range = production_diameter_number_range
+        if production_ND_range is not None:
+            self.production_ND_range = production_ND_range
         if name is not None:
             self.name = name
         return
@@ -150,7 +150,7 @@ class CraterVariable:
             f"measured_floor_depth={self.measured_floor_depth}, "
             f"degradation_state={self.degradation_state},"
             f"production_time_range={self.production_time_range},"
-            f"production_diameter_number_range={self.production_diameter_number_range}",
+            f"production_ND_range={self.production_ND_range}",
             f"name={self.name})",
         )
 
@@ -175,8 +175,8 @@ class CraterVariable:
                 dict_repr["measured_semiminor_axis"] = self.measured_semiminor_axis
         if self.production_time_range is not None:
             dict_repr["production_time_range"] = self.production_time_range
-        if self.production_diameter_number_range is not None:
-            dict_repr["production_diameter_number_range"] = self.production_diameter_number_range
+        if self.production_ND_range is not None:
+            dict_repr["production_ND_range"] = self.production_ND_range
         if self.name is not None:
             dict_repr["name"] = self.name
         return dict_repr
@@ -379,21 +379,21 @@ class CraterVariable:
         return
 
     @property
-    def production_diameter_number_range(self) -> tuple[float, float, float] | None:
+    def production_ND_range(self) -> tuple[float, float, float] | None:
         """A triplet r of diameter and cumulative number values, in the form of a (D, N_min, N_max), used by the quasi-monte carlo sampling method to emplace a user-defined crater within a number-diameter range."""
-        return self._production_diameter_number_range
+        return self._production_ND_range
 
-    @production_diameter_number_range.setter
-    def production_diameter_number_range(self, value: tuple[float, float, float] | None):
+    @production_ND_range.setter
+    def production_ND_range(self, value: tuple[float, float, float] | None):
         if value is not None:
             if len(value) != 3:
-                raise ValueError("production_diameter_number_range must be a triplet of floats in the form of (D, N_min, N_max).")
+                raise ValueError("production_ND_range must be a triplet of floats in the form of (D, N_min, N_max).")
             if value[0] is None:
                 return
             if value[1] < value[2]:
-                self._production_diameter_number_range = (float(value[0]), float(value[1]), float(value[2]))
+                self._production_ND_range = (float(value[0]), float(value[1]), float(value[2]))
             else:
-                self._production_diameter_number_range = (float(value[0]), float(value[2]), float(value[1]))
+                self._production_ND_range = (float(value[0]), float(value[2]), float(value[1]))
         return
 
 

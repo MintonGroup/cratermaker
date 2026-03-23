@@ -8,17 +8,17 @@ This example shows how to run a lunar simulation in 'Quasi-Monte Carlo' mode, wh
 
 The emplacement time of a Quasi-Monte Carlo crater is determined by some combination of the following columns.
 
-production_diameter
-    The `D` value (in meters) used in the N(D) convention (e.g. 1e3 would be used to indicate N(1), 20e3 for N(20), etc.)
+production_D
+    The `D` value (in km) used in the N(D) convention (e.g. 1 would be used to indicate N(1), 20 for N(20), etc.)
 
-production_number_low
-    The low end of a range of N(D) values, given in units of craters per 1 million sq. km.
+production_N_low
+    The low end of a range of N(D) values, given in units of craters per 10⁶ km²
 
-production_number_high
-    The high end of a range of N(2) values,  given in units of craters per 1 million sq. km.
+production_N_high
+    The high end of a range of N(D) values,  given in units of craters 1 million sq. km.
 
-production_number
-    Equivalent to setting the production_number_high and production_number_low to the same value.
+production_N
+    Equivalent to setting the production_N_high and production_N_low to the same value.
 
 production_time_low
     The low end of a range of time values (in My before present)

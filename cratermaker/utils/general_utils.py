@@ -431,6 +431,9 @@ def format_large_units(value: float, quantity) -> str:
     elif quantity == "pressure":
         units = ["Pa", "kPa", "MPa", "GPa"]
         threshold = 1.0e3
+    # elif quantity == "number density":
+    #     units = ["# per m²", "# per km²", "# per 10⁶ km²"]
+    #     threshold = 1.0e-6
 
     if value is None:
         return "N/A"

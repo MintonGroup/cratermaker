@@ -1551,7 +1551,7 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
         "location": ["longitude", "latitude"],
         "measured_location": ["measured_longitude", "measured_latitude"],
         "production_time_range": ["production_time_low", "production_time_high"],
-        "production_diameter_number_range": ["production_diameter", "production_number_low", "production_number_high"],
+        "production_ND_range": ["production_D", "production_N_low", "production_N_high"],
     }
     input_dict = {k: v for k, v in input_dict.items() if v is not None and v != ""}
 
@@ -1560,13 +1560,13 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
         if "production_time" in input_dict:
             tval = input_dict.pop("production_time")
             input_dict["production_time_range"] = [tval, tval]
-        if "production_diameter_number" in input_dict:
-            prod_diam, nval = input_dict.pop("production_diameter_number")
-            input_dict["production_diameter_number_range"] = [prod_diam, nval, nval]
-        if "production_diameter" in input_dict and "production_number" in input_dict:
-            prod_diam = input_dict.pop("production_diameter")
-            nval = input_dict.pop("production_number")
-            input_dict["production_diameter_number_range"] = [prod_diam, nval, nval]
+        if "production_ND" in input_dict:
+            prod_diam, nval = input_dict.pop("production_ND")
+            input_dict["production_ND_range"] = [prod_diam, nval, nval]
+        if "production_D" in input_dict and "production_N" in input_dict:
+            prod_diam = input_dict.pop("production_D")
+            nval = input_dict.pop("production_N")
+            input_dict["production_ND_range"] = [prod_diam, nval, nval]
 
     for tup, varlist in tuple_map.items():
         if inverse:
