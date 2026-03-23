@@ -1,5 +1,5 @@
-Name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev
-South Pole-Aitken,-53,191,2400000,4310
+Name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev,production_sequence
+South Pole-Aitken,-53,191,2400000,4310,,,,,0
 Fecunditatis,-4.6,52,690000,4309,20,449,603
 Balmer-Kapteyn,-15.8,69.6,265000,4308,20,449,603
 Medii,0.8,0.5,326000,4307,20,449,603
