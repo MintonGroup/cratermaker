@@ -886,7 +886,7 @@ class Production(ComponentBase):
                 t_lo = []
                 t_hi = []
                 for s, idxs in sequence_groups.items():
-                    if seq <= s:
+                    if seq < s:
                         t_lo += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
                     elif seq >= s:
                         t_hi += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
@@ -894,9 +894,14 @@ class Production(ComponentBase):
                 t_lo = max(t_lo, default=None)
                 t_hi = min(t_hi, default=None)
                 if t_lo is not None and t_hi is not None:
-                    return float(self.rng.uniform(low=t_hi, high=t_lo))
+                    if t_hi < t_lo:
+                        return float(self.rng.uniform(low=t_hi, high=t_lo))
+                    else:
+                        return float(self.rng.uniform(low=t_lo, high=t_hi))
                 elif t_lo is not None and t_hi is None:
                     return float(self.rng.uniform(low=t_lo, high=t_lo))
+                elif t_lo is None and t_hi is not None:
+                    return float(self.rng.uniform(low=t_hi, high=t_hi))
 
             return None
 
@@ -909,7 +914,7 @@ class Production(ComponentBase):
             """
             if any(t is None for t in times_by_idx.values()):
                 return False
-            ordered_sequence = sorted(sequence_groups.keys())
+            ordered_sequence = sorted(sequence_groups.keys())[:-1]
             for t_lo, t_hi in zip(ordered_sequence[:-1], ordered_sequence[1:], strict=True):
                 lo_min = min(
                     times_by_idx[i] for i in sequence_groups[t_lo]
