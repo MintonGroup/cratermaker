@@ -137,21 +137,19 @@ class Production(ComponentBase):
             production = production.lower()
             if production == "neukum":
                 set_version = True
-        elif isinstance(production, Production) and production.name.lower() == "neukum":
-            set_version = True
+            if set_version:
+                version = kwargs.pop("version", None)
+                target = Target.maker(target, **kwargs)
+                if target.name in ["Mercury", "Venus", "Earth", "Moon", "Mars"]:
+                    production = "neukum"
+                    if version is None or version != "projectile":
+                        if target.name in ["Moon", "Mars"]:
+                            version = target.name
+                        else:
+                            version = "projectile"
+                else:
+                    production = "powerlaw"
 
-        if set_version:
-            version = kwargs.pop("version", None)
-            target = Target.maker(target, **kwargs)
-            if target.name in ["Mercury", "Venus", "Earth", "Moon", "Mars"]:
-                production = "neukum"
-                if version is None or version != "projectile":
-                    if target.name in ["Moon", "Mars"]:
-                        version = target.name
-                    else:
-                        version = "projectile"
-            else:
-                production = "powerlaw"
         return super().maker(
             component=production,
             version=version,

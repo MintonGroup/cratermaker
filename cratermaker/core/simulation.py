@@ -232,6 +232,8 @@ class Simulation(CratermakerBase):
             self.is_new = self.surface.is_new
 
         self._max_crater_diameter_range = (min(self.surface.face_size), self.target.diameter)
+        self.smallest_crater = max(self.smallest_crater, self._max_crater_diameter_range[0])
+        self.largest_crater = min(self.largest_crater, self._max_crater_diameter_range[1])
 
         if self.is_new:
             object.__setattr__(self, "_config_readonly", False)
@@ -1118,7 +1120,6 @@ class Simulation(CratermakerBase):
                 getattr(self, component).reset()
         self.ask_overwrite = ask_overwrite_original
 
-        self.smallest_crater, self.largest_crater = self._max_crater_diameter_range
         self._interval = 0
         self._elapsed_time = None
         self._time = None
