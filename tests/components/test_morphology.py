@@ -71,9 +71,7 @@ class TestMorphology(unittest.TestCase):
                     )
 
     def test_crater_depth_surface(self):
-        from cratermaker.components.morphology.basicmoon import BasicMoonCrater
         # Tests that the surface elevations are expected
-
         diameter_list = [100e3, 200e3, 500e3, 1000e3]
         delta_vals = [0.4, 0.3, 0.3, 0.2]
 
@@ -120,7 +118,7 @@ class TestMorphology(unittest.TestCase):
                         msg=f"Failed for {name} with diameter {diameter}",
                     )
 
-                    crater = BasicMoonCrater.maker(diameter=diameter, location=(0, 0), morphology=sim.morphology)
+                    crater = sim.Crater.maker(diameter=diameter, location=(0, 0))
                     sim.emplace(crater)
 
                     # Verify that the crater depth and rim heights are close to the expected values

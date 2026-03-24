@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pyvista
@@ -102,12 +102,10 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_elapsed_time", None)
         object.__setattr__(self, "_time", None)
         object.__setattr__(self, "_elapsed_n1", None)
-        object.__setattr__(self, "_smallest_crater", None)
-        object.__setattr__(self, "_smallest_projectile", None)
-        object.__setattr__(self, "_largest_crater", None)
-        object.__setattr__(self, "_largest_projectile", None)
         object.__setattr__(self, "_config_readonly", True)
         object.__setattr__(self, "_is_new", False)
+        object.__setattr__(self, "_do_quasimc", None)
+        object.__setattr__(self, "_max_crater_diameter_range", None)
 
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
 
@@ -232,6 +230,8 @@ class Simulation(CratermakerBase):
             )
             # The surface should now hav its is_new attribute set and will be set to True if it had to be regridded
             self.is_new = self.surface.is_new
+
+        self._max_crater_diameter_range = (min(self.surface.face_size), self.target.diameter)
 
         if self.is_new:
             object.__setattr__(self, "_config_readonly", False)
@@ -397,10 +397,6 @@ class Simulation(CratermakerBase):
         is_time_interval = time_interval is not None
 
         # Validate arguments using the production function validator first, which will convert time-based values to diameter_number-based ones
-        kwargs["diameter_range"] = (
-            self.smallest_crater,
-            self.largest_crater,
-        )
         kwargs["area"] = self.surface.area
         kwargs["time_start"] = time_start
         kwargs["time_end"] = time_end
@@ -725,11 +721,14 @@ class Simulation(CratermakerBase):
         for i, face_indices in enumerate(self.surface.face_bin_indices):
             total_bin_area = self.surface.face_bin_area[i]
             area_ratio = total_bin_area / self.surface.area
+            smallest_crater = self.surface.face_bin_min_sizes[i]
 
-            diam_min = max(
-                self._get_smallest_diameter(crater_diameter=self.surface.face_bin_min_sizes[i], from_projectile=from_projectile),
-                diam_min,
-            )
+            if from_projectile:
+                smallest_projectile = self._get_diameter_limit("smallest", crater_diameter=smallest_crater)
+                diam_min = max(smallest_projectile, diam_min)
+            else:
+                diam_min = max(smallest_crater, diam_min)
+
             diameter_number_local = (diameter_number[0], diameter_number[1] * area_ratio) if diameter_number is not None else None
 
             if diameter_number_end is not None:
@@ -757,18 +756,18 @@ class Simulation(CratermakerBase):
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
 
-        # if do_quasimc:
-        #     if time_start is None:
-        #         time_start = self.production.age_from_D_N(
-        #             diameter=diameter_number[0], cumulative_number_density=diameter_number[1] / self.surface.area
-        #         )
-        #     if time_end is None:
-        #         time_end = self.production.age_from_D_N(
-        #             diameter=diameter_number_end[0], cumulative_number_density=diameter_number_end[1] / self.surface.area
-        #         )
-        #     craterlist = [c for c in self.quasimc_craters if c.time <= time_start and c.time > time_end]
-        # else:
-        craterlist = []
+        if self.do_quasimc:
+            if time_start is None:
+                time_start = self.production.age_from_D_N(
+                    diameter=diameter_number[0], cumulative_number_density=diameter_number[1] / self.surface.area
+                )
+            if time_end is None:
+                time_end = self.production.age_from_D_N(
+                    diameter=diameter_number_end[0], cumulative_number_density=diameter_number_end[1] / self.surface.area
+                )
+            craterlist = [c for c in self.production.quasimc_craters if c.time <= time_start and c.time > time_end]
+        else:
+            craterlist = []
         if len(craterlist) + len(impact_diameters) > 0:
             # Sort the times, diameters, and locations so that they are in order of decreasing age
             impact_diameters = np.asarray(impact_diameters)
@@ -1119,12 +1118,11 @@ class Simulation(CratermakerBase):
                 getattr(self, component).reset()
         self.ask_overwrite = ask_overwrite_original
 
+        self.smallest_crater, self.largest_crater = self._max_crater_diameter_range
         self._interval = 0
         self._elapsed_time = None
         self._time = None
         self._elapsed_n1 = None
-        self.smallest_crater = None
-        self.largest_crater = None
         self.save(skip_actions=True)
         self.is_new = True
 
@@ -1141,67 +1139,77 @@ class Simulation(CratermakerBase):
         """
         return self.surface.update_elevation(*args, **kwargs)
 
-    def _get_smallest_diameter(self, crater_diameter: ArrayLike | None = None, from_projectile: bool = False) -> float:
+    @property
+    def max_crater_diameter_range(self) -> tuple[float, float]:
+        if self._max_crater_diameter_range is None:
+            return (0.0, np.inf)  # Temporarily set until after the Surface is finished initializing
+        else:
+            return self._max_crater_diameter_range
+
+    def _get_diameter_limit(
+        self,
+        limit: Literal["smallest", "largest"],
+        crater_diameter: FloatLike | None = None,
+        projectile_diameter: FloatLike | None = None,
+    ) -> float:
         """
-        Get the smallest possible crater or projectile be formed on a face.
+        Return an estimated smallest or largest crater given a projectile or projectile given a crater.
 
         Parameters
         ----------
+        limit : Literal["smallest", "largest"]
+            A string indicating whether the scaling should be done to calculate the largest crater (vertical impact at 10x the mean velocity of the Projectile component) or the smallest crater (1 degree impact at 0.1x the mean velocity of the Projectile component).
         crater_diameter : FloatLike, optional
-            The smallest crater size, which is used when computing the the projectile size when from_projectile is True. If None, the size of the smallest face on the surface will be used.
-        from_projectile : bool, optional
-            If True, the smallest projectile diameter will be returned instead of the smallest crater diameter. Default is False.
+            If passed, this will be used as the crater diameter and the projectile diameter will be computed from it. If None, then the crater will be scaled from the projectile_diameter.
+        projectile_diameter : FloatLike, optional
+            If passed, this will be used as the projectile diameter and the crater diameter will be computed from it. If None, then the projectile will be scaled from the crater_diameter.
 
         Returns
         -------
         float
-            The smallest possible crater or projectile diameter that can be formed on the surface.
+            The smallest crater diameter given a projectile diameter or the smallest projectile diameter given a crater diameter
         """
+        scaling = Scaling.maker(self.scaling)
+        if limit == "smallest":
+            angle = 1.0
+            projectile_velocity = scaling.projectile.mean_velocity * 0.1
+        elif limit == "largest":
+            angle = 90.0
+            projectile_velocity = scaling.projectile.mean_velocity * 10.0
+        else:
+            raise ValueError("limit must either be 'smallest' or 'largest'")
+
+        if (crater_diameter is None and projectile_diameter is None) or (
+            crater_diameter is not None and projectile_diameter is not None
+        ):
+            raise ValueError("Must provide exactly one of either crater_diameter or projectile_diameter")
+
         if crater_diameter is None:
-            crater_diameter = np.min(self.surface.face_size)
-        if from_projectile:
-            scaling = Scaling.maker(self.scaling)
-            crater = Crater.maker(
-                diameter=crater_diameter,
-                angle=90.0,
-                projectile_velocity=scaling.projectile.mean_velocity * 10,
+            crater_diameter = self.Crater.maker(
+                projectile_diameter=projectile_diameter,
+                angle=angle,
+                projectile_velocity=projectile_velocity,
                 scaling=scaling,
                 **vars(self.common_args),
-            )
-            return crater.projectile_diameter
-        else:
-            return float(crater_diameter)
+            ).diameter
+            if limit == "smallest":
+                return float(max(crater_diameter, self.max_crater_diameter_range[0]))
+            elif limit == "largest":
+                return float(min(crater_diameter, self.max_crater_diameter_range[1]))
 
-    def _get_largest_diameter(self, crater_diameter: None = None, from_projectile: bool = False) -> float:
-        """
-        Get the largest possible crater or projectile that can be formed on the surface.
-
-        Parameters
-        ----------
-        crater_diameter : FloatLike, optional
-            The largest crater size, which is used when computing the the projectile size when from_projectile is True. If None, the diameter of the target body is used.
-        from_projectile : bool, optional
-            If True, the smallest projectile diameter will be returned instead of the smallest crater diameter. Default is False.
-
-        Returns
-        -------
-        float
-            The largest possible crater or projectile diameter that can be formed on the surface.
-        """
-        if crater_diameter is None:
-            crater_diameter = self.target.diameter
-        if from_projectile and self.scaling is not None:
-            scaling = Scaling.maker(self.scaling)
-            crater = Crater.maker(
+        if projectile_diameter is None:
+            if limit == "smallest":
+                crater_diameter = max(crater_diameter, self.max_crater_diameter_range[0])
+            elif limit == "largest":
+                crater_diameter = min(crater_diameter, self.max_crater_diameter_range[1])
+            projectile_diameter = self.Crater.maker(
                 diameter=crater_diameter,
-                angle=1.0,
-                projectile_velocity=scaling.projectile.mean_velocity / 10.0,
+                angle=angle,
+                projectile_velocity=projectile_velocity,
                 scaling=scaling,
                 **vars(self.common_args),
-            )
-            return crater.projectile_diameter
-        else:
-            return crater_diameter
+            ).projectile_diameter
+            return float(projectile_diameter)
 
     @property
     def target(self):
@@ -1368,94 +1376,121 @@ class Simulation(CratermakerBase):
         """
         The smallest crater diameter in meters. Set during initialization.
         """
-        return self._smallest_crater
+        if not isinstance(self.production, Production):
+            return self.max_crater_diameter_range[0]
+        if self.production.generator_type == "crater":
+            return self.production.diameter_range[0]
+        elif self.production.generator_type == "projectile":
+            projectile_diameter = self.production.diameter_range[0]
+            return self._get_diameter_limit("smallest", projectile_diameter=projectile_diameter)
 
     @smallest_crater.setter
     def smallest_crater(self, value):
-        if value is None:
-            value = self._get_smallest_diameter()
-        elif not isinstance(value, FloatLike):
-            raise TypeError("smallest_crater must be a scalar value")
-        elif value < 0:
-            raise ValueError("smallest_crater must be greater than or equal to zero")
-        elif self._largest_crater is not None and value > self._largest_crater:
-            self._smallest_crater = self._largest_crater
-        self._smallest_crater = float(value)
-        self._smallest_projectile = self._get_smallest_diameter(from_projectile=True, crater_diameter=self._smallest_crater)
+        if not isinstance(self.production, Production):
+            return
+        if self.production.generator_type == "crater":
+            minval = max(value, self.max_crater_diameter_range[0])
+            maxval = min(self.production.diameter_range[1], self.max_crater_diameter_range[1])
+        elif self.production.generator_type == "projectile":
+            minval = self._get_diameter_limit("smallest", crater_diameter=value)
+            maxval = min(
+                self.production.diameter_range[1],
+                self._get_diameter_limit("smallest", crater_diameter=self.max_crater_diameter_range[1]),
+            )
+        else:
+            raise ValueError("Unknown Production generator_type. Expecting either 'crater' or 'projectile'")
+
+        self.production.diameter_range = (minval, maxval)
 
     @parameter
     def largest_crater(self):
         """
         The largest crater diameter in meters. Set during initialization.
         """
-        return self._largest_crater
+        if not isinstance(self.production, Production):
+            return self.max_crater_diameter_range[1]
+        if self.production.generator_type == "crater":
+            return self.production.diameter_range[1]
+        elif self.production.generator_type == "projectile":
+            projectile_diameter = self.production.diameter_range[1]
+            return self._get_diameter_limit("largest", projectile_diameter=projectile_diameter)
 
     @largest_crater.setter
     def largest_crater(self, value):
-        if value is None or np.isinf(value):
-            self._largest_crater = self._get_largest_diameter()
+        if not isinstance(self.production, Production):
             return
-        elif not isinstance(value, FloatLike):
-            raise TypeError("largest_crater must be a scalar value")
-        elif value <= 0:
-            raise ValueError("largest_crater must be greater than zero")
-        elif self._smallest_crater is not None and value < self._smallest_crater:
-            self._largest_crater = self._smallest_crater
-        self._largest_crater = float(value)
-        self._largest_projectile = self._get_largest_diameter(from_projectile=True, crater_diameter=self._largest_crater)
+        if self.production.generator_type == "crater":
+            minval = max(self.production.diameter_range[0], self.max_crater_diameter_range[0])
+            maxval = min(value, self.max_crater_diameter_range[1])
+        elif self.production.generator_type == "projectile":
+            minval = max(
+                self.production.diameter_range[0],
+                self._get_diameter_limit("largest", crater_diameter=self.max_crater_diameter_range[0]),
+            )
+            maxval = self._get_diameter_limit("largest", crater_diameter=value)
+        else:
+            raise ValueError("Unknown Production generator_type. Expecting either 'crater' or 'projectile'")
+
+        self.production.diameter_range = (minval, maxval)
 
     @parameter
     def smallest_projectile(self):
         """
         The smallest projectile diameter in meters. Set during initialization.
         """
-        return self._smallest_projectile
+        if not isinstance(self.production, Production):
+            return self._get_diameter_limit("smallest", crater_diameter=self.max_crater_diameter_range[0])
+        if self.production.generator_type == "projectile":
+            return self.production.diameter_range[0]
+        elif self.production.generator_type == "crater":
+            crater_diameter = self.production.diameter_range[0]
+            return self._get_diameter_limit("smallest", crater_diameter=crater_diameter)
 
     @smallest_projectile.setter
     def smallest_projectile(self, value):
-        if value is None:
-            value = self._get_smallest_diameter(from_projectile=True)
-        elif not isinstance(value, FloatLike):
-            raise TypeError("smallest_projectile must be a scalar value")
-        elif value < 0:
-            raise ValueError("smallest_projectile must be greater or equal to zero")
-        elif self._largest_projectile is not None and value > self._largest_projectile:
-            raise ValueError("smallest_projectile must be less than or equal to largest_projectile")
-        self._smallest_projectile = float(value)
-        self._smallest_crater = Crater.maker(
-            projectile_diameter=self._smallest_projectile,
-            angle=90.0,
-            projectile_velocity=self.scaling.projectile.mean_velocity * 10,
-            scaling=self.scaling,
-            **vars(self.common_args),
-        ).diameter
+        if not isinstance(self.production, Production):
+            return
+        if self.production.generator_type == "projectile":
+            minval = max(value, self._get_diameter_limit("smallest", crater_diameter=self.max_crater_diameter_range[0]))
+            maxval = min(self.production.diameter_range[1], self._get_diameter_limit("largest", self.max_crater_diameter_range[1]))
+        elif self.production.generator_type == "crater":
+            minval = max(value, self.production.diameter_range[0])
+            maxval = min(self.production.diameter_range[1], self.max_crater_diameter_range[1])
+        else:
+            raise ValueError("Unknown Production generator_type. Expecting either 'crater' or 'projectile'")
+
+        self.production.diameter_range = (minval, maxval)
 
     @parameter
     def largest_projectile(self):
         """
         The largest projectile diameter in meters. Set during initialization.
         """
-        return self._largest_projectile
+        if not isinstance(self.production, Production):
+            return self._get_diameter_limit("largest", crater_diameter=self.max_crater_diameter_range[1])
+        if self.production.generator_type == "projectile":
+            return self.production.diameter_range[1]
+        elif self.production.generator_type == "crater":
+            crater_diameter = self.production.diameter_range[1]
+            return self._get_diameter_limit("largest", crater_diameter=crater_diameter)
 
     @largest_projectile.setter
     def largest_projectile(self, value):
-        if value is None or np.isinf(value):
-            self._largest_projectile = self._get_largest_diameter(from_projectile=True)
+        if not isinstance(self.production, Production):
             return
-        elif not isinstance(value, FloatLike):
-            raise TypeError("largest_projectile must be a scalar value")
-        elif value <= 0:
-            raise ValueError("largest_projectile must be greater than zero")
-        elif self._smallest_projectile is not None and value < self._smallest_projectile:
-            raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
-        self._largest_projectile = float(value)
-        self._largest_crater = Crater.maker(
-            projectile_diameter=self._largest_projectile,
-            angle=1.0,
-            projectile_velocity=self.scaling.projectile.mean_velocity / 10.0,
-            scaling=self.scaling,
-            **vars(self.common_args),
-        ).diameter
+        if self.production.generator_type == "projectile":
+            minval = max(
+                self.production.diameter_range[0],
+                self._get_diameter_limit("smallest", crater_diameter=self.max_crater_diameter_range[0]),
+            )
+            maxval = min(value, self._get_diameter_limit("largest", crater_diameter=self.max_crater_diameter_range[1]))
+        elif self.production.generator_type == "crater":
+            minval = max(self.production.diameter_range[0], self.max_crater_diameter_range[1])
+            maxval = self._get_diameter_limit("largest", crater_diameter=value)
+        else:
+            raise ValueError("Unknown Production generator_type. Expecting either 'crater' or 'projectile'")
+
+        self.production.diameter_range = (minval, maxval)
 
     @property
     def name(self):
@@ -1573,4 +1608,28 @@ class Simulation(CratermakerBase):
         """
         The Crater class used for crater generation in the simulation. Set during initialization.
         """
-        return self.morphology.Crater if self.morphology is not None else None
+        return self.morphology.Crater if self.morphology is not None else Crater
+
+    @property
+    def do_quasimc(self) -> bool:
+        """
+        A boolean flag indicating whether or not quasi-Monte Carlo sampling is being used for crater generation in the simulation. This is determined by whether or not the production function is using quasi-Monte Carlo sampling.
+
+        Returns
+        -------
+        bool
+            True if quasi-Monte Carlo sampling is being used, False otherwise.
+        """
+        if self._do_quasimc is None:
+            self._do_quasimc = (
+                len(self.production.quasimc_craters) > 0
+                if self.production is not None and self.production.quasimc_craters is not None
+                else False
+            )
+        return self._do_quasimc
+
+    @do_quasimc.setter
+    def do_quasimc(self, value: bool | None):
+        if not isinstance(value, (bool, None)):
+            raise TypeError("do_quasimc must be a boolean value or None")
+        self._do_quasimc = value
