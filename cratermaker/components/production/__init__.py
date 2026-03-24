@@ -872,6 +872,7 @@ class Production(ComponentBase):
                 prod_diam, nmean, nstdev = crater.production_ND
                 nmean /= self.ND_conversion_factor
                 nstdev /= self.ND_conversion_factor
+                prod_diam *= 1e3
                 nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
                 nval = max(0.0, nval)
                 return float(self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval))
@@ -880,18 +881,22 @@ class Production(ComponentBase):
                 tmean, tstdev = crater.production_time
                 return float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
 
-            # elif crater.production_sequence is not None and times_by_idx is not None and sequence_groups is not None:
-            #     seq = valid_craters[i].production_sequence
-            #     t_lo = max(
-            #         (times_by_idx[j] if
-            #     )
-            #     t_hi = min(
-            #         (times_by_idx[j] for j in sequence_groups.get(next_seq, []) if times_by_idx[j] is not None), default=None
-            #     )
-            #     if t_lo is not None and t_hi is not None and t_lo > t_hi:
-            #         return float(self.rng.uniform(low=t_hi, high=t_lo))
-            #     elif t_lo is not None and t_hi is None:
-            #         return float(self.rng.uniform(low=0.0, high=t_lo))
+            elif crater.production_sequence is not None and times_by_idx is not None and sequence_groups is not None:
+                seq = crater.production_sequence
+                t_lo = []
+                t_hi = []
+                for s, idxs in sequence_groups.items():
+                    if seq <= s:
+                        t_lo += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
+                    elif seq >= s:
+                        t_hi += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
+
+                t_lo = max(t_lo, default=None)
+                t_hi = min(t_hi, default=None)
+                if t_lo is not None and t_hi is not None:
+                    return float(self.rng.uniform(low=t_hi, high=t_lo))
+                elif t_lo is not None and t_hi is None:
+                    return float(self.rng.uniform(low=t_lo, high=t_lo))
 
             return None
 
@@ -910,7 +915,7 @@ class Production(ComponentBase):
                     times_by_idx[i] for i in sequence_groups[t_lo]
                 )  # all lower-sequence times must exceed higher-sequence times
                 hi_max = max(times_by_idx[i] for i in sequence_groups[t_hi])
-                if not (lo_min > hi_max):
+                if not (lo_min >= hi_max):
                     return False
             return True
 
@@ -937,6 +942,7 @@ class Production(ComponentBase):
             sequence = c.production_sequence
             if sequence is None:
                 untagged_idx.append(i)
+                sequence_groups.setdefault(np.iinfo(np.int64).max, []).append(i)
             else:
                 sequence = int(sequence)
                 tagged_idx.append(i)
