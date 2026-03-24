@@ -899,7 +899,7 @@ class Crater:
 
             # Now set the local arguments to be what's left from the old_parameters
             for field in old_parameters:
-                if field in args and args[field] is None:
+                if field in args and args[field] is None or field not in args:
                     args[field] = old_parameters[field]
 
         if n_size_inputs != 1:
@@ -938,7 +938,7 @@ class Crater:
 
             measured_orientation = args.pop("measured_orientation", None)
             measured_location = args.pop("measured_location", None)
-
+            name = args.pop("name", None)
             if crater is not None:
                 mt = crater.morphology_type
             else:
