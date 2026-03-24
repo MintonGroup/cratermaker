@@ -68,7 +68,7 @@ class Production(ComponentBase):
             raise ValueError("Cannot provide both quasimc_file and quasimc_craters")
 
         if quasimc_file is not None and Path(quasimc_file).exists():
-            self.read_quasimc_file(quasimc_file=quasimc_file, **kwargs)
+            self.read_quasimc_file(filename=quasimc_file, **kwargs)
         elif quasimc_craters is not None:
             self.process_quasimc_craters(craters=quasimc_craters, **kwargs)
 
@@ -867,6 +867,7 @@ class Production(ComponentBase):
         """
         # Start with the upper bound of the diameter range as the smallest diameter when determining the smallest crater in the quasi-Monte Carlo list
         smallest_diameter = self.diameter_range[1]
+        self._quasimc_craters = []
         for crater in craters:
             if crater.production_ND is not None and crater.production_ND != [
                 None,
@@ -924,7 +925,7 @@ class Production(ComponentBase):
         """
         if filename is not None:
             self._quasimc_file = filename
-        input_craters = self.counting.from_file(self.quasimc_file)
+        input_craters = Crater.from_file(self.quasimc_file)
         return self.process_quasimc_craters(input_craters, **kwargs)
 
     @property

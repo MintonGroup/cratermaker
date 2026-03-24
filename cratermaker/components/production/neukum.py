@@ -63,12 +63,12 @@ class NeukumProduction(Production):
         **kwargs : Any
             |kwargs|
         """
-        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_Cexp", None)
         object.__setattr__(self, "_Clin", None)
         object.__setattr__(self, "_tau", None)
 
         self.version = version or "Moon"
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def __str__(self) -> str:
         base = super().__str__()
