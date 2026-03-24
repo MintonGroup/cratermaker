@@ -863,47 +863,127 @@ class Production(ComponentBase):
         list[Crater]
             The list of processed Crater objects with production_time and production_ND computed as needed, and any craters that have neither dropped.
         """
-        # Start with the upper bound of the diameter range as the smallest diameter when determining the smallest crater in the quasi-Monte Carlo list
-        smallest_diameter = self.diameter_range[1]
-        self._quasimc_craters = []
-        for crater in craters:
-            if crater.production_ND is not None and crater.production_ND != [
-                None,
-                None,
-                None,
-            ]:
-                prod_diam, nmean, nstdev = crater.production_ND_range
+
+        def _draw_quasimc_time(
+            crater: Crater, times_by_idx: dict[int, float] | None = None, sequence_groups: dict[int, list[int]] | None = None
+        ) -> float | None:
+            """Draw one time sample for a crater, or None if no production metadata."""
+            if crater.production_ND is not None and crater.production_ND != [None, None, None]:
+                prod_diam, nmean, nstdev = crater.production_ND
                 nmean /= self.ND_conversion_factor
                 nstdev /= self.ND_conversion_factor
-
-                if nstdev > 0:
-                    nval = self.rng.normal(loc=nmean, scale=nstdev)
-                else:
-                    nval = nmean
-                if nval < 0.0:
-                    nval = 0.0
-
-                time = self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval)
+                nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
+                nval = max(0.0, nval)
+                return float(self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval))
 
             elif crater.production_time is not None and crater.production_time != [None, None]:
                 tmean, tstdev = crater.production_time
-                if tstdev > 0:
-                    time = self.rng.normal(loc=tmean, scale=tstdev)
-                else:
-                    time = tmean
-            else:
-                continue
-            if crater.diameter < smallest_diameter:
-                if self.generator_type == "crater":
-                    smallest_diameter = crater.diameter
-                elif self.generator_type == "projectile":
-                    smallest_diameter = crater.projectile_diameter
+                return float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
 
-            self._quasimc_craters.append(Crater.maker(crater=crater, time=time))
-        # By default, the largest Monte Carlo crater will be the smallest quasi-Monte Carlo crater
-        if set_max_diameter_from_quasimc:
+            # elif crater.production_sequence is not None and times_by_idx is not None and sequence_groups is not None:
+            #     seq = valid_craters[i].production_sequence
+            #     t_lo = max(
+            #         (times_by_idx[j] if
+            #     )
+            #     t_hi = min(
+            #         (times_by_idx[j] for j in sequence_groups.get(next_seq, []) if times_by_idx[j] is not None), default=None
+            #     )
+            #     if t_lo is not None and t_hi is not None and t_lo > t_hi:
+            #         return float(self.rng.uniform(low=t_hi, high=t_lo))
+            #     elif t_lo is not None and t_hi is None:
+            #         return float(self.rng.uniform(low=0.0, high=t_lo))
+
+            return None
+
+        def _sequence_is_consistent(
+            times_by_idx: dict[int, float],
+            sequence_groups: dict[int, list[int]],
+        ) -> bool:
+            """
+            For increasing tag value, times must strictly decrease: sequence a < sequence b  ==>  time(a) > time(b).
+            """
+            if any(t is None for t in times_by_idx.values()):
+                return False
+            ordered_sequence = sorted(sequence_groups.keys())
+            for t_lo, t_hi in zip(ordered_sequence[:-1], ordered_sequence[1:], strict=True):
+                lo_min = min(
+                    times_by_idx[i] for i in sequence_groups[t_lo]
+                )  # all lower-sequence times must exceed higher-sequence times
+                hi_max = max(times_by_idx[i] for i in sequence_groups[t_hi])
+                if not (lo_min > hi_max):
+                    return False
+            return True
+
+        max_attempts = int(kwargs.pop("sequence_max_attempts", 10000))
+
+        # Keep only craters that can produce a time
+        valid_craters: list[Crater] = []
+        for c in craters:
+            if (
+                (c.production_ND is not None and c.production_ND != [None, None, None])
+                or (c.production_time is not None and c.production_time != [None, None])
+                or (c.production_sequence is not None)
+            ):
+                valid_craters.append(c)
+            else:
+                print(f"Skipping crater {c.name if c.name is not None else c.id} because it has no production metadata")
+
+        # Partition tagged vs untagged
+        tagged_idx: list[int] = []
+        untagged_idx: list[int] = []
+        sequence_groups: dict[int, list[int]] = {}
+
+        for i, c in enumerate(valid_craters):
+            sequence = c.production_sequence
+            if sequence is None:
+                untagged_idx.append(i)
+            else:
+                sequence = int(sequence)
+                tagged_idx.append(i)
+                sequence_groups.setdefault(sequence, []).append(i)
+
+        # Draw untagged once (unconstrained)
+        times_by_idx: dict[int, float] = {}
+        for i in untagged_idx:
+            t = _draw_quasimc_time(valid_craters[i])
+            times_by_idx[i] = t
+        for i in tagged_idx:
+            times_by_idx[i] = None
+
+        # Draw tagged iteratively until constraints are satisfied
+        if tagged_idx:
+            for _ in range(max_attempts):
+                for i in tagged_idx:
+                    t = _draw_quasimc_time(valid_craters[i], times_by_idx, sequence_groups)
+                    times_by_idx[i] = t
+
+                if _sequence_is_consistent(times_by_idx, sequence_groups):
+                    break
+            else:
+                raise RuntimeError(
+                    "Could not satisfy production_sequence ordering constraints "
+                    f"after {max_attempts} attempts. Consider relaxing uncertainties "
+                    "or using sequence_epsilon."
+                )
+
+        # Build output crater list
+        processed: list[Crater] = []
+        smallest_diameter = self.diameter_range[1]
+        for i, c in enumerate(valid_craters):
+            t = times_by_idx.get(i)
+            if t is None:
+                continue
+            processed.append(Crater.maker(crater=c, time=t))
+            if self.generator_type == "crater":
+                smallest_diameter = min(smallest_diameter, c.diameter)
+            else:
+                smallest_diameter = min(smallest_diameter, c.projectile_diameter)
+
+        if set_max_diameter_from_quasimc and processed:
             self.diameter_range = (self.diameter_range[0], smallest_diameter)
-        self._quasimc_craters.sort(key=lambda c: c.time, reverse=True)
+
+        processed.sort(key=lambda c: c.time, reverse=True)
+        self._quasimc_craters = processed
         return self._quasimc_craters
 
     def read_quasimc_file(

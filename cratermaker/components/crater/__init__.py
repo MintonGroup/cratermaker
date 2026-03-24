@@ -398,7 +398,7 @@ class CraterVariable:
     @production_ND.setter
     def production_ND(self, value: tuple[float, float, float] | tuple[float, float] | None):
         if value is not None:
-            if len(value) != 3 or len(value) != 2:
+            if len(value) != 3 and len(value) != 2:
                 raise ValueError("production_ND must be a tuple of floats in the form of either (D, N) or (D, N, N_stdev).")
             if value[0] is None:
                 return
@@ -1392,7 +1392,7 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
             prod_diam = input_dict.pop("production_D")
             nval = input_dict.pop("production_N")
             nstdev = input_dict.pop("production_N_stdev", 0.0)
-            input_dict["production"] = [prod_diam, nval, nstdev]
+            input_dict["production_ND"] = [prod_diam, nval, nstdev]
         if "production_time" in input_dict:
             time_stdev = input_dict.pop("production_time_stdev", 0.0)
             time_mean = input_dict.pop("production_time")
