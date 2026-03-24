@@ -18,7 +18,7 @@ from vtk import vtkPolyData
 
 from cratermaker import __version__ as cratermaker_version
 from cratermaker.bindings import counting_bindings
-from cratermaker.components.crater import Crater
+from cratermaker.components.crater import _TALLY_LONG_NAME, Crater
 from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
@@ -29,7 +29,6 @@ DRIVER_TO_EXTENSION_MAP = {"NETCDF": "nc", "SCC": "scc", "VTK": "vtp", "VTP": "v
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface, Surface
 
-_TALLY_LONG_NAME = "Unique crater identification number"
 
 # The number of layers used for tagging faces with crater ids. This allows a single face to contain multiple crater ids
 _N_LAYER = 8
@@ -58,8 +57,6 @@ class Counting(ComponentBase):
         ----------
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
-        Crater : type[Crater], optional
-            The Crater class associated with this counting model. This is used to ensure that the correct variable properties for from a specialized Crater class are available (such as one associated with a Morphology class) when importing craters from file. If not supplied, then the base Crater class is used.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True.
         **kwargs : Any
@@ -91,11 +88,11 @@ class Counting(ComponentBase):
             observed, emplaced = self.read_saved_output(interval=-1)
             if observed:
                 interval = observed.interval.values[-1]
-                observed = self.from_xarray(observed, interval=interval)
+                observed = self.Crater.from_xarray(observed, interval=interval)
                 for crater in observed:
                     self._observed[crater.id] = crater
                 if emplaced:
-                    self._emplaced = self.from_xarray(emplaced, interval=interval)
+                    self._emplaced = self.Crater.from_xarray(emplaced, interval=interval)
         return
 
     @classmethod
@@ -103,7 +100,6 @@ class Counting(ComponentBase):
         cls,
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
-        Crater: type[Crater] | None = None,
         reset: bool = True,
         **kwargs: Any,
     ) -> Counting:
@@ -116,8 +112,6 @@ class Counting(ComponentBase):
             The name of the counting model to initialize. If None, the default model is used.
         surface : Surface | LocalSurface
             The surface or local surface view to be counted.
-        Crater : type[Crater], optional
-            The Crater class associated with this counting model. This is used to ensure that the correct variable properties for from a specialized Crater class are available (such as one associated with a Morphology class) when importing craters from file. If not supplied, then the base Crater class is used.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True
         **kwargs : Any
@@ -142,7 +136,6 @@ class Counting(ComponentBase):
             component=counting,
             surface=surface,
             reset=reset,
-            Crater=Crater,
             **kwargs,
         )
 
@@ -424,6 +417,8 @@ class Counting(ComponentBase):
         xr.Dataset
             An xarray Dataset containing the crater data.
         """
+        from cratermaker.components.crater import _convert_tuple_vars
+
         if len(craters) == 0:
             return xr.Dataset()
         new_data = []
@@ -527,35 +522,6 @@ class Counting(ComponentBase):
         super().save(**save_args)
         return
 
-    def from_file(self, filename: str | Path, **kwargs: Any) -> list[Crater] | None:
-        """
-        Load a list of craters from a file.
-
-        Parameters
-        ----------
-        filename : str | Path
-            The path to the file to load from.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        list[Crater] | None
-            A list of Crater objects loaded from the file, or None if no data.
-        """
-        filename = Path(filename)
-        if not filename.exists():
-            raise FileNotFoundError(f"File {filename} does not exist.")
-        extension = filename.suffix.lower().lstrip(".")
-        if extension == "nc":
-            ds = xr.open_dataset(filename)
-            craters = self.from_xarray(ds, **kwargs)
-        elif extension == "csv":
-            craters = self.from_csv_file(filename, **kwargs)
-        elif extension == "scc":
-            craters = self.from_scc_file(filename, **kwargs)
-        return craters
-
     def export(
         self,
         crater_type: Literal["observed", "emplaced", "both"] = "observed",
@@ -608,7 +574,9 @@ class Counting(ComponentBase):
                 interval_numbers = crater_ds.interval.values
             for interval in interval_numbers:
                 if driver.upper() == "NETCDF" and crater_ds is not None:
-                    self.save(crater_type=name, interval=interval, craters=self.from_xarray(crater_ds, interval=interval), **kwargs)
+                    self.save(
+                        crater_type=name, interval=interval, craters=self.Crater.from_xarray(crater_ds, interval=interval), **kwargs
+                    )
                 elif driver.upper() in ["VTK", "VTP"] and crater_ds is not None:
                     self.to_vtk_file(
                         crater_ds=crater_ds,
@@ -711,11 +679,11 @@ class Counting(ComponentBase):
             observed, emplaced = self.read_saved_output(interval=interval)
             if observed:
                 interval = observed.interval.values[-1]
-                observed = self.from_xarray(observed, interval=interval)
+                observed = self.Crater.from_xarray(observed, interval=interval)
             if emplaced:
                 emplaced_interval = emplaced.interval.values[-1]
                 if emplaced_interval == interval:
-                    emplaced = self.from_xarray(emplaced, interval=interval)
+                    emplaced = self.Crater.from_xarray(emplaced, interval=interval)
             filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
         else:
             observed = [c for _, c in self.observed.items()]
@@ -821,7 +789,7 @@ class Counting(ComponentBase):
         add_mesh_kwargs = {"line_width": 2, **add_mesh_kwargs}
         if observed:
             interval = observed.interval.values[-1]
-            observed = self.from_xarray(observed, interval=interval)
+            observed = self.Crater.from_xarray(observed, interval=interval)
             observed_kwargs = {"color": observed_color, **add_mesh_kwargs}
             observed_count_actor = plotter.add_mesh(
                 self.to_vtk_mesh(observed, use_measured_properties=True), name="observed", **observed_kwargs
@@ -832,7 +800,7 @@ class Counting(ComponentBase):
         if emplaced:
             emplaced_interval = emplaced.interval.values[-1]
             if emplaced_interval == interval:
-                emplaced = self.from_xarray(emplaced, interval=interval)
+                emplaced = self.Crater.from_xarray(emplaced, interval=interval)
                 emplaced_kwargs = {"color": emplaced_color, **add_mesh_kwargs}
                 emplaced_count_actor = plotter.add_mesh(
                     self.to_vtk_mesh(emplaced, use_measured_properties=False), name="emplaced", **emplaced_kwargs
@@ -921,7 +889,7 @@ class Counting(ComponentBase):
         elif type(crater_ds) is dict:
             crater_list = list(crater_ds.values())
         elif type(crater_ds) is xr.Dataset:
-            crater_list = self.from_xarray(crater_ds, interval=interval)
+            crater_list = self.Crater.from_xarray(crater_ds, interval=interval)
         else:
             raise ValueError(f"Unrecognized type for crater_ds: {type(crater_ds)}")
 
@@ -1205,6 +1173,8 @@ class Counting(ComponentBase):
         """
         import csv
 
+        from cratermaker.components.crater import _convert_tuple_vars
+
         crater_list = self._validate_export_args(name=name, interval=interval, crater_ds=crater_ds)
 
         filename_base = self.output_filename(interval).replace(self.output_file_extension, "csv")
@@ -1249,57 +1219,6 @@ class Counting(ComponentBase):
                 writer.writerow(row)
 
         return
-
-    def from_csv_file(self, input_file: Path | str) -> list[Crater]:
-        """
-        Import crater data from a CSV file.
-
-        Parameters
-        ----------
-        input_file : Path | str
-            The path to the CSV file containing crater data.
-
-        Returns
-        -------
-        list[Crater]
-            A list of Crater objects imported from the CSV file.
-        """
-        import csv
-
-        craters = []
-        input_file = Path(input_file)
-        if not input_file.exists():
-            raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
-        with input_file.open(mode="r", newline="") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                crater_data = _convert_tuple_vars(input_dict=row, inverse=True)
-                for key, value in crater_data.items():
-                    if value == "" or value is None:
-                        continue
-                    if key in ["id"]:
-                        crater_data[key] = int(value)
-                    elif isinstance(value, tuple | list):
-                        vnew = []
-                        for v in value:
-                            if v is None or v == "":
-                                continue
-                            vnew.append(float(v))
-                        if len(vnew) == len(value):
-                            crater_data[key] = vnew
-                        else:
-                            crater_data[key] = None
-
-                    else:
-                        try:
-                            crater_data[key] = float(value)
-                        except ValueError:
-                            crater_data[key] = value
-                crater_data = {k: v for k, v in crater_data.items() if v is not None}
-                crater = self.Crater.maker(**crater_data, morphology=self.morphology, check_redundant_inputs=False)
-                craters.append(crater)
-
-        return craters
 
     def to_scc_file(
         self,
@@ -1395,81 +1314,6 @@ class Counting(ComponentBase):
 
         return
 
-    def from_scc_file(self, input_file: Path | str) -> list[Crater]:
-        """
-        Import crater data from a Spatial Crater Count file.
-
-        Parameters
-        ----------
-        input_file : Path | str
-            The path to the SCC file containing crater data.
-
-        Returns
-        -------
-        list[Crater]
-            A list of Crater objects imported from the SCC file.
-        """
-        from craterstats import Spatialcount
-
-        craters = []
-        input_file = Path(input_file)
-        if not input_file.exists():
-            raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
-        if input_file.suffix != ".scc":
-            raise ValueError(f"Input file '{input_file}' is not a .scc file.")
-        scc = Spatialcount(filename=str(input_file))
-        for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
-            crater = self.Crater.maker(diameter=diam * 1e3, location=(lon, lat), morphology=self.morphology)
-            craters.append(crater)
-
-        return craters
-
-    def from_xarray(self, dataset: xr.Dataset | dict, interval: int | None = None) -> list[Crater]:
-        """
-        Import crater data from an xarray Dataset.
-
-        Parameters
-        ----------
-        dataset : xr.Dataset | dict
-            The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
-
-        Returns
-        -------
-        list[Crater]
-            A list of Crater objects imported from the xarray Dataset.
-        """
-        craters = []
-        if type(dataset) is dict:
-            if interval is None:
-                dataset = dataset[-1]
-            elif interval in dataset:
-                dataset = dataset[interval]
-            else:
-                return craters
-        if "interval" in dataset.coords:
-            if interval is None:
-                dataset = dataset.isel(interval=-1)
-            elif interval in dataset.interval:
-                dataset = dataset.sel(interval=interval)
-            else:
-                return craters
-        dataset.load()
-        if len(dataset) == 0:
-            return craters
-        for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
-            crater_data = dataset.sel(id=id).to_dict()["data_vars"]
-            crater_data = {k: v["data"] for k, v in crater_data.items()}
-            if np.isnan(crater_data["semimajor_axis"]):
-                continue
-            crater_data = _convert_tuple_vars(input_dict=crater_data, inverse=True)
-            for k, v in crater_data.items():
-                if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
-                    crater_data[k] = None
-            crater = self.Crater.maker(**crater_data, morphology=self.morphology, check_redundant_inputs=False)
-            craters.append(crater)
-
-        return craters
-
     def remove_complex_data(self):
         """
         Remove complex data from all observed and emplaced craters to free up memory. This is typically called after the tally step to clear out things like the affect node and face index sets.
@@ -1528,7 +1372,13 @@ class Counting(ComponentBase):
 
     @property
     def morphology(self) -> Morphology:
-        """The morphology component associated with this counting component, which determines the Crater class and the crater properties that are tracked in the simulation."""
+        """
+        The morphology component associated with this counting component, which determines the Crater class and the crater properties that are tracked in the simulation.
+
+        Note
+        ----
+        The Morphology component requires a Countinng component, so this property is set by the Morphology component on initialization, rather than by the Counting component itself.
+        """
         return self._morphology
 
     @morphology.setter
@@ -1544,42 +1394,6 @@ class Counting(ComponentBase):
         for id, crater in self.observed.items():
             self.observed[id] = self.Crater.maker(crater=crater)
         return
-
-
-def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
-    tuple_map = {
-        "location": ["longitude", "latitude"],
-        "measured_location": ["measured_longitude", "measured_latitude"],
-        "production_ND": ["production_D", "production_N", "production_N_stdev"],
-        "production_time": ["production_time", "production_time_stdev"],
-    }
-    input_dict = {k: v for k, v in input_dict.items() if v is not None and v != ""}
-
-    if inverse:
-        if "production_D" in input_dict and "production_N" in input_dict:
-            prod_diam = input_dict.pop("production_D")
-            nval = input_dict.pop("production_N")
-            nstdev = input_dict.pop("production_N_stdev", 0.0)
-            input_dict["production"] = [prod_diam, nval, nstdev]
-        if "production_time" in input_dict:
-            time_stdev = input_dict.pop("production_time_stdev", 0.0)
-            time_mean = input_dict.pop("production_time")
-            input_dict["production_time"] = [time_mean, time_stdev]
-
-    for tup, varlist in tuple_map.items():
-        if inverse:
-            if any(var in varlist for var in input_dict):
-                if tup not in input_dict:
-                    input_dict[tup] = [None] * len(varlist)
-                for idx, var in enumerate(varlist):
-                    if var != tup and var in input_dict and input_dict[var] is not None:
-                        input_dict[tup][idx] = input_dict.pop(var, None)
-        else:
-            if tup in input_dict:
-                for idx, var in enumerate(varlist):
-                    input_dict[var] = input_dict[tup][idx]
-                _ = input_dict.pop(tup)
-    return input_dict
 
 
 def R_to_CSFD(

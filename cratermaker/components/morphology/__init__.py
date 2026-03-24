@@ -397,8 +397,7 @@ class Morphology(ComponentBase):
         else:
             self.surface = Surface.maker(surface, **kwargs)
             if counting is not None:
-                crater_cls = kwargs.pop("Crater", self.Crater)
-                self.counting = Counting.maker(counting, surface=self.surface, Crater=crater_cls, **kwargs)
+                self.counting = Counting.maker(counting, surface=self.surface, **kwargs)
 
         if self.counting is not None and self.counting.morphology is not self:
             self.counting.morphology = self  # Associated counting and morphology with each other

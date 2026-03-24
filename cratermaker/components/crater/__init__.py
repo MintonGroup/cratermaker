@@ -7,8 +7,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import xarray as xr
 from geopandas import GeoSeries
 from numpy.random import Generator
+from shapely.ops import transform
+from tqdm import tqdm
+from vtk import vtkPolyData
 
 from cratermaker.constants import PairOfFloats
 from cratermaker.core.base import CratermakerBase
@@ -19,6 +23,9 @@ if TYPE_CHECKING:
     from cratermaker.components.scaling import Scaling
     from cratermaker.components.surface import Surface
     from cratermaker.components.target import Target
+
+
+_TALLY_LONG_NAME = "Unique crater identification number"
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,7 +196,7 @@ class CraterVariable:
 
     @property
     def name(self) -> str | None:
-        """Name of the crater"""
+        """Optional name of the crater, which does not need to be unique."""
         return self._name
 
     @name.setter
@@ -1134,7 +1141,7 @@ class Crater:
         """
         from pyproj import Geod
         from shapely.geometry import GeometryCollection, LineString, Polygon
-        from shapely.ops import split, transform
+        from shapely.ops import split
 
         from cratermaker.components.surface import Surface
 
@@ -1193,6 +1200,165 @@ class Crater:
 
         return GeoSeries([poly], crs=surface.crs)
 
+    @classmethod
+    def from_file(cls, filename: str | Path, **kwargs: Any) -> list[Crater] | None:
+        """
+        Load a list of craters from a file.
+
+        Parameters
+        ----------
+        filename : str | Path
+            The path to the file to load from.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        list[Crater] | None
+            A list of Crater objects loaded from the file, or None if no data.
+        """
+        filename = Path(filename)
+        if not filename.exists():
+            raise FileNotFoundError(f"File {filename} does not exist.")
+        extension = filename.suffix.lower().lstrip(".")
+        if extension == "nc":
+            ds = xr.open_dataset(filename)
+            craters = cls.from_xarray(ds, **kwargs)
+        elif extension == "csv":
+            craters = cls.from_csv_file(filename, **kwargs)
+        elif extension == "scc":
+            craters = cls.from_scc_file(filename, **kwargs)
+        return craters
+
+    @classmethod
+    def from_csv_file(cls, input_file: Path | str) -> list[Crater]:
+        """
+        Import crater data from a CSV file.
+
+        Parameters
+        ----------
+        input_file : Path | str
+            The path to the CSV file containing crater data.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the CSV file.
+        """
+        import csv
+
+        craters = []
+        input_file = Path(input_file)
+        if not input_file.exists():
+            raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
+        with input_file.open(mode="r", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                crater_data = _convert_tuple_vars(input_dict=row, inverse=True)
+                for key, value in crater_data.items():
+                    if value == "" or value is None:
+                        continue
+                    if key in ["id"]:
+                        crater_data[key] = int(value)
+                    elif isinstance(value, tuple | list):
+                        vnew = []
+                        for v in value:
+                            if v is None or v == "":
+                                continue
+                            vnew.append(float(v))
+                        if len(vnew) == len(value):
+                            crater_data[key] = vnew
+                        else:
+                            crater_data[key] = None
+
+                    else:
+                        try:
+                            crater_data[key] = float(value)
+                        except ValueError:
+                            crater_data[key] = value
+                crater_data = {k: v for k, v in crater_data.items() if v is not None}
+                crater = cls.maker(**crater_data, check_redundant_inputs=False)
+                craters.append(crater)
+
+        return craters
+
+    @classmethod
+    def from_scc_file(cls, input_file: Path | str) -> list[Crater]:
+        """
+        Import crater data from a Spatial Crater Count file.
+
+        Parameters
+        ----------
+        input_file : Path | str
+            The path to the SCC file containing crater data.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the SCC file.
+        """
+        from craterstats import Spatialcount
+
+        craters = []
+        input_file = Path(input_file)
+        if not input_file.exists():
+            raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
+        if input_file.suffix != ".scc":
+            raise ValueError(f"Input file '{input_file}' is not a .scc file.")
+        scc = Spatialcount(filename=str(input_file))
+        for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
+            crater = cls.maker(diameter=diam * 1e3, location=(lon, lat))
+            craters.append(crater)
+
+        return craters
+
+    @classmethod
+    def from_xarray(cls, dataset: xr.Dataset | dict, interval: int | None = None) -> list[Crater]:
+        """
+        Import crater data from an xarray Dataset.
+
+        Parameters
+        ----------
+        dataset : xr.Dataset | dict
+            The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the xarray Dataset.
+        """
+        craters = []
+        if type(dataset) is dict:
+            if interval is None:
+                dataset = dataset[-1]
+            elif interval in dataset:
+                dataset = dataset[interval]
+            else:
+                return craters
+        if "interval" in dataset.coords:
+            if interval is None:
+                dataset = dataset.isel(interval=-1)
+            elif interval in dataset.interval:
+                dataset = dataset.sel(interval=interval)
+            else:
+                return craters
+        dataset.load()
+        if len(dataset) == 0:
+            return craters
+        for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
+            crater_data = dataset.sel(id=id).to_dict()["data_vars"]
+            crater_data = {k: v["data"] for k, v in crater_data.items()}
+            if np.isnan(crater_data["semimajor_axis"]):
+                continue
+            crater_data = _convert_tuple_vars(input_dict=crater_data, inverse=True)
+            for k, v in crater_data.items():
+                if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
+                    crater_data[k] = None
+            crater = cls.maker(**crater_data, check_redundant_inputs=False)
+            craters.append(crater)
+
+        return craters
+
     @property
     def final_diameter(self) -> float | None:
         """Final diameter of the crater in meters."""
@@ -1210,3 +1376,39 @@ class Crater:
         This is useful for storing a lightweight representation, as it removes complex data types that can be recomputed from the fixed properties and the morphology model when needed. The base  Crater type does not have any complex data types, but is used by derived types that do, so this method is included here for consistency and to allow for future expansion of the base Crater type without breaking the API.
         """
         pass
+
+
+def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
+    tuple_map = {
+        "location": ["longitude", "latitude"],
+        "measured_location": ["measured_longitude", "measured_latitude"],
+        "production_ND": ["production_D", "production_N", "production_N_stdev"],
+        "production_time": ["production_time", "production_time_stdev"],
+    }
+    input_dict = {k: v for k, v in input_dict.items() if v is not None and v != ""}
+
+    if inverse:
+        if "production_D" in input_dict and "production_N" in input_dict:
+            prod_diam = input_dict.pop("production_D")
+            nval = input_dict.pop("production_N")
+            nstdev = input_dict.pop("production_N_stdev", 0.0)
+            input_dict["production"] = [prod_diam, nval, nstdev]
+        if "production_time" in input_dict:
+            time_stdev = input_dict.pop("production_time_stdev", 0.0)
+            time_mean = input_dict.pop("production_time")
+            input_dict["production_time"] = [time_mean, time_stdev]
+
+    for tup, varlist in tuple_map.items():
+        if inverse:
+            if any(var in varlist for var in input_dict):
+                if tup not in input_dict:
+                    input_dict[tup] = [None] * len(varlist)
+                for idx, var in enumerate(varlist):
+                    if var != tup and var in input_dict and input_dict[var] is not None:
+                        input_dict[tup][idx] = input_dict.pop(var, None)
+        else:
+            if tup in input_dict:
+                for idx, var in enumerate(varlist):
+                    input_dict[var] = input_dict[tup][idx]
+                _ = input_dict.pop(tup)
+    return input_dict

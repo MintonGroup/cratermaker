@@ -6,7 +6,7 @@ from warnings import warn
 
 import numpy as np
 import xarray as xr
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.scaling import Scaling
@@ -157,7 +157,7 @@ class GlobalDataSurface(Surface):
             self._pix = dataset.res[0]
             # Determine unit scaling
             units = getattr(dataset, "units", "") or ""
-            if isinstance(units, (list, tuple)):
+            if isinstance(units, (list, tuple, ArrayLike)):
                 units = units[0] if len(units) else ""
             scale_factor = 1000.0 if "KILOMETER" in str(units).upper() else 1.0
 

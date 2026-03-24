@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -9,6 +10,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import root_scalar
 
+from cratermaker.components.crater import Crater
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, import_components
@@ -25,6 +27,9 @@ class Production(ComponentBase):
 
     def __init__(
         self,
+        quasimc_file: str | Path | None = None,
+        quasimc_craters: list[Crater] | None = None,
+        diameter_range: PairOfFloats | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -35,6 +40,12 @@ class Production(ComponentBase):
 
         Parameters
         ----------
+        quasimc_file : str | Path, optional
+            Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the ND_conversion_factor attribute).
+        quasimc_craters : list[Crater], optional
+            A list of Crater objects that are emplaced using the quasi-Monte Carlo method. This is an alternative to providing a quasimc_file. Only one of either quasimc_file or quasimc_craters should be provided.
+        diameter_range : PairOfFloats, optional
+            The minimum and maximum crater diameter to sample from in meters. If not provided, the default is (0, inf), unless quasimc_file or quasimc_craters is provided, in which case the upper range will be set based on the smallest diameter in the quasi-Monte Carlo data.
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -46,6 +57,20 @@ class Production(ComponentBase):
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types", ["crater", "projectile"])
+        object.__setattr__(self, "_quasimc_file", None)
+        object.__setattr__(self, "_quasimc_craters", None)
+        object.__setattr__(self, "_ND_conversion_factor", None)
+        object.__setattr__(self, "_ND_unit", None)
+        object.__setattr__(self, "_diameter_range", None)
+        self.diameter_range = diameter_range
+
+        if quasimc_file is not None and quasimc_craters is not None:
+            raise ValueError("Cannot provide both quasimc_file and quasimc_craters")
+
+        if quasimc_file is not None and Path(quasimc_file).exists():
+            self.read_quasimc_file(quasimc_file=quasimc_file, **kwargs)
+        elif quasimc_craters is not None:
+            self.process_quasimc_craters(craters=quasimc_craters, **kwargs)
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -56,6 +81,9 @@ class Production(ComponentBase):
         cls,
         production: str | Production | None = None,
         target: Target | str | None = None,
+        quasimc_file: str | Path | None = None,
+        quasimc_craters: list[Crater] | None = None,
+        diameter_range: PairOfFloats | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -71,6 +99,12 @@ class Production(ComponentBase):
             If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
         target : Target | str | None, optional
             The target body for the impact. Can be a Target object or a string representing the target name.
+        quasimc_file : str | Path, optional
+            Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the ND_conversion_factor attribute).
+        quasimc_craters : list[Crater], optional
+            A list of Crater objects that are emplaced using the quasi-Monte Carlo method. This is an alternative to providing a quasimc_file. Only one of either quasimc_file or quasimc_craters should be provided.
+        diameter_range : PairOfFloats, optional
+            The minimum and maximum crater diameter to sample from in meters. If not provided, the default is (0, inf), unless quasimc_file or quasimc_craters is provided, in which case the upper range will be set based on the smallest diameter in the quasi-Monte Carlo data.
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -122,6 +156,9 @@ class Production(ComponentBase):
             component=production,
             version=version,
             target=target,
+            quasimc_file=quasimc_file,
+            quasimc_craters=quasimc_craters,
+            diameter_range=diameter_range,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
@@ -157,8 +194,8 @@ class Production(ComponentBase):
         diameter_number_end : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this
             value to a corresponding reference age and use the production function for a given age.
-        diameter_range : PairOfFloats
-            The minimum and maximum crater diameter to sample from in meters.
+        diameter_range : PairOfFloats, optional
+            The minimum and maximum crater diameter to sample from in meters. If not provided, the :py:attr:`~cratermaker.components.production.Production.diameter_range` value will be used.
         area : FloatLike, optional
             The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
@@ -314,9 +351,9 @@ class Production(ComponentBase):
                 diameter=diameter, cumulative_number_density=cumulative_number_density
             )
 
-        def _root_func(t, D, N):
+        def _root_func(t, d, n):
             kwargs.pop("validate_inputs", None)
-            retval = self.function(diameter=D, time_start=t, validate_inputs=False, **kwargs) - N
+            retval = self.function(diameter=d, time_start=t, validate_inputs=False, **kwargs) - n
             return retval
 
         xtol = 1e-8
@@ -336,7 +373,7 @@ class Production(ComponentBase):
         flag = []
         for i, d in np.ndenumerate(darr):
             sol = root_scalar(
-                lambda x: _root_func(x, d, narr[i]),
+                lambda t, d=d, n_i=narr[i]: _root_func(t, d, n_i),
                 x0=x0,
                 xtol=xtol,
                 method="brentq",
@@ -389,17 +426,17 @@ class Production(ComponentBase):
         if validate_inputs:
             time_start, time_end = self._validate_age(time_start, time_end)
 
-        def _root_func(D, N, time_start, time_end):
+        def _root_func(d, n, time_start, time_end):
             kwargs.pop("validate_inputs", None)
             retval = (
                 self.function(
-                    diameter=D,
+                    diameter=d,
                     time_start=time_start,
                     time_end=time_end,
                     validate_inputs=False,
                     **kwargs,
                 )
-                - N
+                - n
             )
             return retval
 
@@ -413,7 +450,7 @@ class Production(ComponentBase):
         flag = []
         for _, n in np.ndenumerate(narr):
             sol = root_scalar(
-                lambda x: _root_func(x, n, time_start, time_end),
+                lambda d, n=n: _root_func(d, n, time_start, time_end),
                 x0=x0,
                 xtol=xtol,
                 method="brentq",
@@ -519,7 +556,7 @@ class Production(ComponentBase):
             projectiles, N, larger than diameter, D.. If provided, the function will convert this value to a corresponding time_end
             and use the production function for a given age. The default is (1000.0, 0) (present day).
         diameter_range : PairOfFloats
-            The minimum and maximum crater diameter to sample from in meters.
+            The minimum and maximum crater diameter to sample from in meters. If not provided, the :py:attr:`~cratermaker.components.production.Production.diameter_range`
         area : FloatLike, optional
             The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
@@ -553,7 +590,6 @@ class Production(ComponentBase):
             - The time_end argument is provided but is not a scalar.
             - The diameter_number argument is not a pair of values, or any of them are less than 0
             - The diameter_number_end argument is not a pair of values, or any of them are less than 0
-            - The diameter_range is not provided.
             - The diameter_range is not a pair of values.
             - The minimum diameter is less than or equal to 0.
             - The maximum diameter is less than or equal the minimum.
@@ -567,7 +603,7 @@ class Production(ComponentBase):
         time_end = kwargs.get("time_end")
         diameter_number = kwargs.get("diameter_number")
         diameter_number_end = kwargs.get("diameter_number_end")
-        diameter_range = kwargs.get("diameter_range")
+        diameter_range = kwargs.pop("diameter_range", self.diameter_range)
         area = kwargs.get("area")
         return_age = kwargs.get("return_age", True)
 
@@ -582,8 +618,6 @@ class Production(ComponentBase):
         if time_end is not None and not np.isscalar(time_end):
             raise ValueError("The 'time_end' must be a scalar")
 
-        if diameter_range is None:
-            raise ValueError("The 'diameter_range' must be provided")
         if len(diameter_range) != 2:
             raise ValueError("The 'diameter_range' must be a pair of values")
         if diameter_range[0] <= 0:
@@ -660,7 +694,7 @@ class Production(ComponentBase):
             )
 
         if not isinstance(return_age, bool):
-            raise ValueError("The 'return_age' argument must be a boolean")
+            raise TypeError("The 'return_age' argument must be a boolean")
 
         kwargs["time_start"] = time_start
         kwargs["time_end"] = time_end
@@ -716,7 +750,7 @@ class Production(ComponentBase):
                     f"time_start must be less than the maximum valid time {self.valid_time[1]} (it is in units of My before present)"
                 )
         else:
-            if isinstance(time_start, (list, tuple)):
+            if isinstance(time_start, (list, tuple, ArrayLike)):
                 time_start = np.array(time_start, dtype=np.float64)
             elif not isinstance(time_start, np.ndarray):
                 raise TypeError("time_start must be a numeric value (float or int) or an array")
@@ -725,7 +759,7 @@ class Production(ComponentBase):
                 time_end = np.zeros_like(time_start, dtype=np.float64)
             elif np.isscalar(time_end):
                 time_end = np.full_like(time_start, time_end, dtype=np.float64)
-            elif isinstance(time_end, (list, tuple)):
+            elif isinstance(time_end, (list, tuple, ArrayLike)):
                 time_end = np.array(time_end, dtype=np.float64)
             elif not isinstance(time_end, np.ndarray):
                 raise TypeError("time_end must be a numeric value (float or int) or an array")
@@ -781,6 +815,166 @@ class Production(ComponentBase):
             The lower and upper bounds of the valid time range in My, or None if not applicable.
         """
         return (None, None)
+
+    @parameter
+    def quasimc_file(self) -> Path:
+        """
+        File containing the quasi-Monte Carlo craters.
+        """
+        return self._quasimc_file
+
+    @quasimc_file.setter
+    def quasimc_file(self, value) -> None:
+        if value is not None:
+            if isinstance(value, str):
+                value = Path(value)
+            if isinstance(value, Path):
+                if not value.exists():
+                    raise FileNotFoundError(f"quasimc_file {str(value)} not found")
+                self._quasimc_file = value
+                return
+
+    @property
+    def quasimc_craters(self) -> list[Crater]:
+        """
+        The list of processed quasi-Monte Carlo craters.
+        """
+        return self._quasimc_craters
+
+    @quasimc_craters.setter
+    def quasimc_craters(self, value: list[Crater]):
+        if not isinstance(value, list) or not all(isinstance(c, Crater) for c in value):
+            raise TypeError("quasimc_craters must be a list of Crater objects")
+        self._quasimc_craters = value
+
+    def process_quasimc_craters(
+        self, craters: list[Crater], set_max_diameter_from_quasimc: bool = True, **kwargs: Any
+    ) -> list[Crater]:
+        """
+        Process the quasi-Monte Carlo craters by computing production_time if present, production_ND if present, and will drop craters that have neither.
+
+        Parameters
+        ----------
+        craters : list[Crater]
+            The list of Crater objects to process.
+        set_max_diameter_from_quasimc : bool, optional
+            If True, the largest_crater attribute of the Simulation will be set to the smallest crater in the quasi-Monte Carlo file. Default is True.
+
+        Returns
+        -------
+        list[Crater]
+            The list of processed Crater objects with production_time and production_ND computed as needed, and any craters that have neither dropped.
+        """
+        # Start with the upper bound of the diameter range as the smallest diameter when determining the smallest crater in the quasi-Monte Carlo list
+        smallest_diameter = self.diameter_range[1]
+        for crater in craters:
+            if crater.production_ND is not None and crater.production_ND != [
+                None,
+                None,
+                None,
+            ]:
+                prod_diam, nmean, nstdev = crater.production_ND_range
+                nmean /= self.ND_conversion_factor
+                nstdev /= self.ND_conversion_factor
+
+                if nstdev > 0:
+                    nval = self.rng.normal(loc=nmean, scale=nstdev)
+                else:
+                    nval = nmean
+                if nval < 0.0:
+                    nval = 0.0
+
+                time = self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval)
+
+            elif crater.production_time is not None and crater.production_time != [None, None]:
+                tmean, tstdev = crater.production_time
+                if tstdev > 0:
+                    time = self.rng.normal(loc=tmean, scale=tstdev)
+                else:
+                    time = tmean
+            else:
+                continue
+            if crater.diameter < smallest_diameter:
+                if self.generator_type == "crater":
+                    smallest_diameter = crater.diameter
+                elif self.generator_type == "projectile":
+                    smallest_diameter = crater.projectile_diameter
+
+            self._quasimc_craters.append(Crater.maker(crater=crater, time=time))
+        # By default, the largest Monte Carlo crater will be the smallest quasi-Monte Carlo crater
+        if set_max_diameter_from_quasimc:
+            self.diameter_range = (self.diameter_range[0], smallest_diameter)
+        self._quasimc_craters.sort(key=lambda c: c.time, reverse=True)
+        return self._quasimc_craters
+
+    def read_quasimc_file(
+        self,
+        filename: Path | str | None = None,
+        **kwargs: Any,
+    ) -> list[Crater]:
+        """
+        Reads in the quasi-Monte Carlo crater from file, processes the ages and sorts the crater list by age in order of decreasing age (increasing time) and computes production_time if present, production_ND if present, and will drop craters that have neither.
+
+        Parameters
+        ----------
+        filename : Path | str | None, optional
+            The path to the quasi-Monte Carlo file. If not provided, the Simulation must have a quasimc_file attribute set. This function will replace the stored quasimc_file attribute.
+        set_max_diameter_from_quasimc : bool, optional
+            If True, the largest_crater attribute of the Simulation will be set to the smallest crater in the quasi-Monte Carlo file. Default is True.
+        """
+        if filename is not None:
+            self._quasimc_file = filename
+        input_craters = self.counting.from_file(self.quasimc_file)
+        return self.process_quasimc_craters(input_craters, **kwargs)
+
+    @property
+    def diameter_range(self) -> tuple[float, float]:
+        """
+        The lower and upper range of diameters that will be returned from :py:meth:`~cratermaker.components.production.Production.sample`.
+        """
+        return self._diameter_range
+
+    @diameter_range.setter
+    def diameter_range(self, value: PairOfFloats | None):
+        # Reset to default
+        if value is None:
+            self._diameter_range = (0, np.inf)
+        elif not isinstance(value, (list, tuple, ArrayLike)) or len(value) != 2:
+            raise TypeError("diameter_range must be a list, tuple, or array of length 2")
+        else:
+            self._diameter_range = (float(value[0]), float(value[1]))
+        return
+
+    @parameter
+    def ND_conversion_factor(self) -> float:
+        """
+        The conversion factor used to convert N(D) format into number of craters per m².
+
+        Only three options are allowed, 1.0 for units of '# per m²', 1e6 for units of '# per km²', or 1e12 for units of per 10⁶ km². The default value is 1e12."
+        """
+        if self._ND_conversion_factor is None:
+            return 1e12
+
+    @ND_conversion_factor.setter
+    def ND_conversion_factor(self, value: float | None):
+        if value is None or value == 1e12:
+            self._ND_conversion_factor = None
+            self._ND_unit = None
+        elif value == 1e6:
+            self._ND_conversion_factor = value
+            self._ND_unit = "# per km²"
+        elif value == 1.0:
+            self._ND_conversion_factor = value
+            self._ND_unit = "# per m²"
+        else:
+            raise ValueError("ND_conversion factor can only be 1.0, 1e6, or 1e12")
+
+    @property
+    def ND_unit(self) -> float:
+        if self._ND_unit is None:
+            return "# per 10⁶ km²"
+        else:
+            return self._ND_unit
 
 
 import_components(__name__, __path__)
