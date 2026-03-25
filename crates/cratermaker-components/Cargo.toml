@@ -24,11 +24,6 @@ ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
 native-tls = "=0.2.15"
 openssl-sys = "=0.9.111"
 
-[profile.release]
-codegen-units = 1
-lto = "fat"
-opt-level = 3
-
 [target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"
 features = ["disable_initial_exec_tls"]

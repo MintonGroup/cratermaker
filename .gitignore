@@ -26,7 +26,7 @@
 cratermaker/_version.py
 !crates/
 !crates/**/*.rs
-!crates/**/Cargo.toml 
+!crates/**/Cargo.toml
 !crates/cratermaker-components/
 !crates/cratermaker-components/src/
 !crates/cratermaker-components/src/crater/
@@ -40,6 +40,10 @@ cratermaker/_version.py
 
 !crates/cratermaker-py/
 !crates/cratermaker-py/src/
+
+!crates/cratermaker-gui/
+!crates/cratermaker-gui/src/
+
 !pytest.ini
 !tests/
 !tests/core/
@@ -80,7 +84,7 @@ docs/sg_execution_times.rst
 !examples/05-counting/
 !examples/05-counting/5.1-fit_rim.png
 !examples/05-counting/5.1-fit_rim_score.png
-!examples/**/*.rst 
+!examples/**/*.rst
 !examples/**/*.py
 !examples/**/*.txt
 !.gitattributes

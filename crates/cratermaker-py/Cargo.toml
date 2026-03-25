@@ -12,11 +12,6 @@ pyo3 = { version = "0.27", features = ["extension-module"] }
 numpy = "0.27.1"
 cratermaker-components = { path = "../cratermaker-components" }
 
-[profile.release]
-codegen-units = 1
-lto = "fat"
-opt-level = 3
-
 [target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"
 features = ["disable_initial_exec_tls"]

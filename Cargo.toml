@@ -1,3 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["crates/cratermaker-components", "crates/cratermaker-py"]
+members = ["crates/cratermaker-components", "crates/cratermaker-gui", "crates/cratermaker-py"]
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
