@@ -923,38 +923,35 @@ class Production(ComponentBase):
                     prod_diam *= 1e3
                     nmean /= self.ND_conversion_factor
                     nstdev /= self.ND_conversion_factor
+                    if nstdev > 0:
+                        if t_lo is not None:
+                            n_lo *= self.csfd(prod_diam) / self.csfd(D1)
+                        else:
+                            n_lo = None
 
-                    if t_lo is not None:
-                        n_lo *= self.csfd(prod_diam) / self.csfd(D1)
-                    else:
-                        n_lo = None
+                        if t_hi is not None:
+                            n_hi *= self.csfd(prod_diam) / self.csfd(D1)
+                        else:
+                            n_hi = None
 
-                    if t_hi is not None:
-                        n_hi *= self.csfd(prod_diam) / self.csfd(D1)
+                        if n_lo is not None and n_hi is not None and n_lo < n_hi:
+                            nval = bounded_norm(loc=nmean, scale=nstdev, lower_bound=n_lo, upper_bound=n_hi)
+                        else:
+                            nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
                     else:
-                        n_hi = None
-
-                    if n_lo is not None or n_hi is not None:
-                        # Adjust missing bounds to ensure that we always have n_lo < n_hi
-                        if n_lo is None:
-                            n_lo = max(min(n_hi / 2, nmean - 3 * nstdev), 0.0)
-                        if n_hi is None:
-                            n_hi = max(n_lo * 2, nmean + 3 * nstdev)
-                        nval = bounded_norm(loc=nmean, scale=nstdev, lower_bound=n_lo, upper_bound=n_hi)
-                    else:
-                        nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
+                        nval = nmean
                     nval = max(0.0, nval)
                     t = float(self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval))
                 elif crater.production_time is not None and crater.production_time != [None, None]:
                     tmean, tstdev = crater.production_time
-                    if t_lo is not None or t_hi is not None:
-                        if t_lo is None:
-                            t_lo = max(min(t_hi / 2, tmean - 3 * tstdev), 0.0)
-                        if t_hi is None:
-                            t_hi = max(t_lo * 1.1, tmean + 3 * tstdev)
-                        t = float(bounded_norm(loc=tmean, scale=tstdev, lower_bound=t_lo, upper_bound=t_hi))
+                    if tstdev > 0:
+                        if t_lo is not None and t_hi is not None and t_lo < t_hi:
+                            t = float(bounded_norm(loc=tmean, scale=tstdev, lower_bound=t_lo, upper_bound=t_hi))
+                        else:
+                            t = float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
                     else:
-                        t = float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
+                        t = tmean
+                    t = max(0.0, t)
                 else:
                     t = None
 
