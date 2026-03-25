@@ -16,6 +16,7 @@ from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils import montecarlo_utils as mc
 from cratermaker.utils.general_utils import format_large_units, parameter
+from cratermaker.utils.montecarlo_utils import bounded_norm
 
 
 class Production(ComponentBase):
@@ -868,10 +869,10 @@ class Production(ComponentBase):
             crater: Crater,
             times_by_idx: dict[int, float] | None = None,
             sequence_groups: dict[int, list[int]] | None = None,
-            max_trials: int = 10,
             sequence_only: bool = False,
         ) -> float | None:
             """Draw one time sample for a crater, or None if no production metadata."""
+            D1 = 1e3  # Standard diameter to use for conversion between time and N(D) values when not provided
             this_sequence = crater.production_sequence
             if this_sequence is not None and times_by_idx is not None and sequence_groups is not None:
                 t_lo = []
@@ -890,11 +891,11 @@ class Production(ComponentBase):
 
             # Convert t_lo/hi into n_lo/hi
             if t_lo is not None:
-                n_lo = self.function(diameter=1e3, time_start=t_lo)
+                n_lo = self.function(diameter=D1, time_start=t_lo)
             else:
                 n_lo = None
             if t_hi is not None:
-                n_hi = self.function(diameter=1e3, time_start=t_hi)
+                n_hi = self.function(diameter=D1, time_start=t_hi)
             else:
                 n_hi = None
 
@@ -914,36 +915,50 @@ class Production(ComponentBase):
                         nval = n_hi
 
                     return float(self.age_from_D_N(diameter=1e3, cumulative_number_density=nval))
-
-            # Keep trying until we get a consistent solution to the current constraints
-            for _ in range(max_trials):
+                return None
+            else:
                 # N(D) values take precedence over time values
                 if crater.production_ND is not None and crater.production_ND != [None, None, None]:
                     prod_diam, nmean, nstdev = crater.production_ND
+                    prod_diam *= 1e3
                     nmean /= self.ND_conversion_factor
                     nstdev /= self.ND_conversion_factor
-                    prod_diam *= 1e3
-                    nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
+
+                    if t_lo is not None:
+                        n_lo *= self.csfd(prod_diam) / self.csfd(D1)
+                    else:
+                        n_lo = None
+
+                    if t_hi is not None:
+                        n_hi *= self.csfd(prod_diam) / self.csfd(D1)
+                    else:
+                        n_hi = None
+
+                    if n_lo is not None or n_hi is not None:
+                        # Adjust missing bounds to ensure that we always have n_lo < n_hi
+                        if n_lo is None:
+                            n_lo = max(min(n_hi / 2, nmean - 3 * nstdev), 0.0)
+                        if n_hi is None:
+                            n_hi = max(n_lo * 2, nmean + 3 * nstdev)
+                        nval = bounded_norm(loc=nmean, scale=nstdev, lower_bound=n_lo, upper_bound=n_hi)
+                    else:
+                        nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
                     nval = max(0.0, nval)
                     t = float(self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval))
                 elif crater.production_time is not None and crater.production_time != [None, None]:
                     tmean, tstdev = crater.production_time
-                    t = float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
+                    if t_lo is not None or t_hi is not None:
+                        if t_lo is None:
+                            t_lo = max(min(t_hi / 2, tmean - 3 * tstdev), 0.0)
+                        if t_hi is None:
+                            t_hi = max(t_lo * 1.1, tmean + 3 * tstdev)
+                        t = float(bounded_norm(loc=tmean, scale=tstdev, lower_bound=t_lo, upper_bound=t_hi))
+                    else:
+                        t = float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
                 else:
                     t = None
 
-                if t is None:
-                    break
-                if t_hi is not None and t > t_hi:
-                    continue
-                if t_lo is not None and t < t_lo:
-                    continue
-
-                break  # All current constraints satisfied for this crater.
-
-            return t
-
-            return None
+                return t
 
         def _sequence_is_consistent(
             times_by_idx: dict[int, float],
@@ -1017,6 +1032,7 @@ class Production(ComponentBase):
                     if t is not None:
                         times_by_idx[i] = t
 
+                # Check for consistency, then repeat if necessary
                 if _sequence_is_consistent(times_by_idx, sequence_groups):
                     break
             else:
