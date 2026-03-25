@@ -15,7 +15,7 @@ from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils import montecarlo_utils as mc
-from cratermaker.utils.general_utils import parameter
+from cratermaker.utils.general_utils import format_large_units, parameter
 
 
 class Production(ComponentBase):
@@ -865,43 +865,83 @@ class Production(ComponentBase):
         """
 
         def _draw_quasimc_time(
-            crater: Crater, times_by_idx: dict[int, float] | None = None, sequence_groups: dict[int, list[int]] | None = None
+            crater: Crater,
+            times_by_idx: dict[int, float] | None = None,
+            sequence_groups: dict[int, list[int]] | None = None,
+            max_trials: int = 10,
+            sequence_only: bool = False,
         ) -> float | None:
             """Draw one time sample for a crater, or None if no production metadata."""
-            if crater.production_ND is not None and crater.production_ND != [None, None, None]:
-                prod_diam, nmean, nstdev = crater.production_ND
-                nmean /= self.ND_conversion_factor
-                nstdev /= self.ND_conversion_factor
-                prod_diam *= 1e3
-                nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
-                nval = max(0.0, nval)
-                return float(self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval))
-
-            elif crater.production_time is not None and crater.production_time != [None, None]:
-                tmean, tstdev = crater.production_time
-                return float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
-
-            elif crater.production_sequence is not None and times_by_idx is not None and sequence_groups is not None:
-                seq = crater.production_sequence
+            this_sequence = crater.production_sequence
+            if this_sequence is not None and times_by_idx is not None and sequence_groups is not None:
                 t_lo = []
                 t_hi = []
-                for s, idxs in sequence_groups.items():
-                    if seq < s:
-                        t_lo += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
-                    elif seq >= s:
+                for other_sequence, idxs in sequence_groups.items():
+                    if other_sequence <= this_sequence:
                         t_hi += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
+                    else:
+                        t_lo += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
 
                 t_lo = max(t_lo, default=None)
                 t_hi = min(t_hi, default=None)
-                if t_lo is not None and t_hi is not None:
-                    if t_hi < t_lo:
-                        return float(self.rng.uniform(low=t_hi, high=t_lo))
-                    else:
-                        return float(self.rng.uniform(low=t_lo, high=t_hi))
-                elif t_lo is not None and t_hi is None:
-                    return float(self.rng.uniform(low=t_lo, high=t_lo))
-                elif t_lo is None and t_hi is not None:
-                    return float(self.rng.uniform(low=t_hi, high=t_hi))
+            else:
+                t_lo = None
+                t_hi = None
+
+            # Convert t_lo/hi into n_lo/hi
+            if t_lo is not None:
+                n_lo = self.function(diameter=1e3, time_start=t_lo)
+            else:
+                n_lo = None
+            if t_hi is not None:
+                n_hi = self.function(diameter=1e3, time_start=t_hi)
+            else:
+                n_hi = None
+
+            if sequence_only:
+                if crater.production_ND is None and crater.production_time is None:
+                    # Check first to see if constraints can even be satisfied yet
+                    if n_lo is None and n_hi is None:
+                        return None
+                    if n_lo > n_hi:
+                        return None
+
+                    if n_lo is not None and n_hi is not None:
+                        nval = float(self.rng.uniform(low=n_lo, high=n_hi))
+                    elif n_lo is not None and n_hi is None:
+                        nval = n_lo
+                    elif n_lo is None and n_hi is not None:
+                        nval = n_hi
+
+                    return float(self.age_from_D_N(diameter=1e3, cumulative_number_density=nval))
+
+            # Keep trying until we get a consistent solution to the current constraints
+            for _ in range(max_trials):
+                # N(D) values take precedence over time values
+                if crater.production_ND is not None and crater.production_ND != [None, None, None]:
+                    prod_diam, nmean, nstdev = crater.production_ND
+                    nmean /= self.ND_conversion_factor
+                    nstdev /= self.ND_conversion_factor
+                    prod_diam *= 1e3
+                    nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
+                    nval = max(0.0, nval)
+                    t = float(self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval))
+                elif crater.production_time is not None and crater.production_time != [None, None]:
+                    tmean, tstdev = crater.production_time
+                    t = float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
+                else:
+                    t = None
+
+                if t is None:
+                    break
+                if t_hi is not None and t > t_hi:
+                    continue
+                if t_lo is not None and t < t_lo:
+                    continue
+
+                break  # All current constraints satisfied for this crater.
+
+            return t
 
             return None
 
@@ -910,7 +950,7 @@ class Production(ComponentBase):
             sequence_groups: dict[int, list[int]],
         ) -> bool:
             """
-            For increasing tag value, times must strictly decrease: sequence a < sequence b  ==>  time(a) > time(b).
+            For increasing tag value, times must strictly decrease: sequence(a) < sequence(b)  ==>  time(a) > time(b).
             """
             if any(t is None for t in times_by_idx.values()):
                 return False
@@ -936,7 +976,9 @@ class Production(ComponentBase):
             ):
                 valid_craters.append(c)
             else:
-                print(f"Skipping crater {c.name if c.name is not None else c.id} because it has no production metadata")
+                print(
+                    f"Skipping crater {c.name if c.name is not None else format_large_units(c.diameter, quantity='length')} because it has no production metadata"
+                )
 
         # Partition tagged vs untagged
         tagged_idx: list[int] = []
@@ -947,7 +989,6 @@ class Production(ComponentBase):
             sequence = c.production_sequence
             if sequence is None:
                 untagged_idx.append(i)
-                sequence_groups.setdefault(np.iinfo(np.int64).max, []).append(i)
             else:
                 sequence = int(sequence)
                 tagged_idx.append(i)
@@ -964,9 +1005,17 @@ class Production(ComponentBase):
         # Draw tagged iteratively until constraints are satisfied
         if tagged_idx:
             for _ in range(max_attempts):
+                # Start with craters that have both a sequence tag as well as either a time or N(D)
                 for i in tagged_idx:
                     t = _draw_quasimc_time(valid_craters[i], times_by_idx, sequence_groups)
-                    times_by_idx[i] = t
+                    if t is not None:
+                        times_by_idx[i] = t
+
+                # Now do the craters that only have a sequence tag
+                for i in tagged_idx:
+                    t = _draw_quasimc_time(valid_craters[i], times_by_idx, sequence_groups, sequence_only=True)
+                    if t is not None:
+                        times_by_idx[i] = t
 
                 if _sequence_is_consistent(times_by_idx, sequence_groups):
                     break
