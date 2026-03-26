@@ -871,94 +871,72 @@ class Production(ComponentBase):
 
         def _draw_quasimc_time(
             crater: Crater,
-            times_by_idx: dict[int, float] | None = None,
-            sequence_groups: dict[int, list[int]] | None = None,
-            sequence_only: bool = False,
+            sequence_extents: dict[int, float] | None = None,
         ) -> float | None:
             """Draw one time sample for a crater, or None if no production metadata."""
-            this_sequence = crater.production_sequence
-            if this_sequence is not None and times_by_idx is not None and sequence_groups is not None:
-                t_lo = []
-                t_hi = []
-                for other_sequence, idxs in sequence_groups.items():
-                    if other_sequence <= this_sequence:
-                        t_hi += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
-                    else:
-                        t_lo += [times_by_idx[i] for i in idxs if times_by_idx[i] is not None]
-
-                t_lo = max(t_lo, default=None)
-                t_hi = min(t_hi, default=None)
+            if sequence_extents is not None:
+                s = crater.production_sequence
+                seq_nlo, seq_nhi = sequence_extents[s]
+                seq_nlo = max(seq_nlo, 0.0)
+                seq_nmean = (seq_nlo + seq_nhi) / 2
+                seq_nsig = (seq_nhi - seq_nlo) / 2
+                if seq_nsig / seq_nmean < 1e-12:
+                    seq_nsig = 0.0
+                seq_tlo = self.age_from_D_N(diameter=_DSTD, cumulative_number_density=seq_nlo)
+                seq_thi = self.age_from_D_N(diameter=_DSTD, cumulative_number_density=seq_nhi)
+                seq_tmean = (seq_tlo + seq_thi) / 2
             else:
-                t_lo = None
-                t_hi = None
+                s = None
 
-            # Convert t_lo/hi into n_lo/hi
-            if t_lo is not None:
-                n_lo = self.function(diameter=_DSTD, time_start=t_lo)
-            else:
-                n_lo = None
-            if t_hi is not None:
-                n_hi = self.function(diameter=_DSTD, time_start=t_hi)
-            else:
-                n_hi = None
+            has_sequence = s is not None and sequence_extents is not None
 
-            if sequence_only:
-                if crater.production_ND is None and crater.production_time is None:
-                    # Check first to see if constraints can even be satisfied yet
-                    if n_lo is None and n_hi is None:
-                        return None
-                    if n_lo > n_hi:
-                        return None
+            if crater.production_ND is None and crater.production_time is None:
+                if not has_sequence:
+                    raise ValueError(
+                        "Craters without production_time or production_ND need a production_sequence and sequence_extents"
+                    )
 
-                    if n_lo is not None and n_hi is not None:
-                        nval = float(self.rng.uniform(low=n_lo, high=n_hi))
-                    elif n_lo is not None and n_hi is None:
-                        nval = n_lo
-                    elif n_lo is None and n_hi is not None:
-                        nval = n_hi
-
-                    return float(self.age_from_D_N(diameter=1e3, cumulative_number_density=nval))
-                return None
-            else:
-                # N(D) values take precedence over time values
-                if crater.production_ND is not None and crater.production_ND != [None, None, None]:
-                    prod_diam, nmean, nstdev = crater.production_ND
-                    prod_diam *= 1e3
-                    nmean /= self.ND_conversion_factor
-                    nstdev /= self.ND_conversion_factor
-                    if nstdev > 0:
-                        if t_lo is not None:
-                            n_lo *= self.csfd(prod_diam) / self.csfd(_DSTD)
-                        else:
-                            n_lo = None
-
-                        if t_hi is not None:
-                            n_hi *= self.csfd(prod_diam) / self.csfd(_DSTD)
-                        else:
-                            n_hi = None
-
-                        if n_lo is not None and n_hi is not None and n_lo < n_hi:
-                            nval = bounded_norm(loc=nmean, scale=nstdev, lower_bound=n_lo, upper_bound=n_hi)
-                        else:
-                            nval = self.rng.normal(loc=nmean, scale=nstdev) if nstdev > 0 else nmean
-                    else:
-                        nval = nmean
-                    nval = max(0.0, nval)
-                    t = float(self.age_from_D_N(diameter=prod_diam, cumulative_number_density=nval))
-                elif crater.production_time is not None and crater.production_time != [None, None]:
-                    tmean, tstdev = crater.production_time
-                    if tstdev > 0:
-                        if t_lo is not None and t_hi is not None and t_lo < t_hi:
-                            t = float(bounded_norm(loc=tmean, scale=tstdev, lower_bound=t_lo, upper_bound=t_hi))
-                        else:
-                            t = float(self.rng.normal(loc=tmean, scale=tstdev) if tstdev > 0 else tmean)
-                    else:
-                        t = tmean
-                    t = max(0.0, t)
+                if seq_nsig > 0.0:
+                    nval = bounded_norm(loc=seq_nmean, scale=seq_nsig, lower_bound=seq_nlo, upper_bound=seq_nhi, rng=self.rng)
                 else:
-                    t = None
-
-                return t
+                    nval = seq_nmean
+                nval = max(nval, 0.0)
+                return float(self.age_from_D_N(diameter=_DSTD, cumulative_number_density=nval))
+            elif crater.production_ND is not None and crater.production_ND != [None, None, None]:
+                # N(D) values take precedence over time values
+                prod_diam, nmean, nsig = crater.production_ND
+                prod_diam *= 1e3
+                nmean /= self.ND_conversion_factor
+                nsig /= self.ND_conversion_factor
+                # Convert from N(prod_diam) to N(1) for alignment
+                fac = self.csfd(_DSTD) / self.csfd(prod_diam)
+                nmean *= fac
+                nsig *= fac
+                if has_sequence:
+                    if seq_nsig > 0.0:
+                        nval = bounded_norm(loc=nmean, scale=nsig, lower_bound=seq_nlo, upper_bound=seq_nhi, rng=self.rng)
+                    else:
+                        nval = seq_nmean
+                else:
+                    nval = self.rng.normal(loc=nmean, scale=nsig) if nsig > 0 else nmean
+                nval = max(0.0, nval)
+                return float(self.age_from_D_N(diameter=_DSTD, cumulative_number_density=nval))
+            elif crater.production_time is not None and crater.production_time != [None, None]:
+                tmean, tsig = crater.production_time
+                if has_sequence:
+                    if seq_nsig > 0.0:
+                        if tsig > 0.0:
+                            t = bounded_norm(loc=tmean, scale=tsig, lower_bound=seq_tlo, upper_bound=seq_thi, rng=self.rng)
+                        else:
+                            t = tmean
+                    else:
+                        t = seq_tmean
+                else:
+                    t = self.rng.normal(loc=tmean, scale=tsig) if tsig > 0 else tmean
+                max(t, 0.0)
+                return float(t)
+            else:
+                return None
 
         def _sequence_is_consistent(
             times_by_idx: dict[int, float],
@@ -1078,6 +1056,7 @@ class Production(ComponentBase):
                         nlo = nhi
                         nhi = tmp
                     sequence_extents[s] = (float(nlo), float(nhi))
+
                 nvals = {k: (nlo + nhi) / 2 for k, (nlo, nhi) in sequence_extents.items()}
                 nsigvals = {k: (nhi - nlo) / 2 for k, (nlo, nhi) in sequence_extents.items()}
 
@@ -1089,9 +1068,22 @@ class Production(ComponentBase):
                 ):
                     break
 
-            return sequence_extents
+            # Ensure that all boundaries are consistent such that nlo of one sequences is the same value as nhi of the next
+            for i, s in enumerate(sequence_numbers):
+                nlo, nhi = sequence_extents[s]
+                if s != lowest_sequence_number:
+                    sprev = sequence_numbers[i - 1]
+                    nlo_prev, nhi_prev = sequence_extents[sprev]
+                    if nhi != nlo_prev:
+                        nhi = nlo_prev
+                if s != highest_sequence_number:
+                    snext = sequence_numbers[i + 1]
+                    nlo_next, nhi_next = sequence_extents[snext]
+                    if nlo != nhi_next:
+                        nlo = nhi_next
+                sequence_extents[s] = (nlo, nhi)
 
-        max_attempts = int(kwargs.pop("sequence_max_attempts", 10000))
+            return sequence_extents
 
         # Keep only craters that can produce a time
         valid_craters: list[Crater] = []
@@ -1128,35 +1120,18 @@ class Production(ComponentBase):
         # Draw untagged once (unconstrained)
         times_by_idx: dict[int, float] = {}
         for i in untagged_idx:
-            t = _draw_quasimc_time(valid_craters[i])
-            times_by_idx[i] = t
+            times_by_idx[i] = _draw_quasimc_time(valid_craters[i])
         for i in tagged_idx:
             times_by_idx[i] = None
 
         # Draw tagged iteratively until constraints are satisfied
         if tagged_idx:
-            for _ in range(max_attempts):
-                # Start with craters that have both a sequence tag as well as either a time or N(D)
-                for i in tagged_idx:
-                    t = _draw_quasimc_time(valid_craters[i], times_by_idx, sequence_groups)
-                    if t is not None:
-                        times_by_idx[i] = t
+            for i in tagged_idx:
+                times_by_idx[i] = _draw_quasimc_time(valid_craters[i], sequence_extents)
 
-                # Now do the craters that only have a sequence tag
-                for i in tagged_idx:
-                    t = _draw_quasimc_time(valid_craters[i], times_by_idx, sequence_groups, sequence_only=True)
-                    if t is not None:
-                        times_by_idx[i] = t
-
-                # Check for consistency, then repeat if necessary
-                if _sequence_is_consistent(times_by_idx, sequence_groups):
-                    break
-            else:
-                raise RuntimeError(
-                    "Could not satisfy production_sequence ordering constraints "
-                    f"after {max_attempts} attempts. Consider relaxing uncertainties "
-                    "or using sequence_epsilon."
-                )
+            # Check for consistency, then repeat if necessary
+            if not _sequence_is_consistent(times_by_idx, sequence_groups):
+                raise RuntimeError("Could not satisfy production_sequence ordering constraints ")
 
         # Build output crater list
         processed: list[Crater] = []
