@@ -595,6 +595,9 @@ class Crater:
         measured_rim_height: float | None = None,
         measured_floor_depth: float | None = None,
         degradation_state: float | None = None,
+        production_time: tuple[float, float] | float | None = None,
+        production_ND: tuple[float, float, float] | tuple[float, float] | None = None,
+        production_sequence: int | None = None,
         simdir: str | Path | None = None,
         rng: Generator = None,
         rng_seed: str | int | None = None,
@@ -679,6 +682,12 @@ class Crater:
             The measured floor depth of the crater in meters.
         degradation_state : float, optional
             The current degradation state of the crater in meters squared.
+        production_ND: tuple[float, float, float] | tuple[float, float], optional
+            The production N(D) value for quasi-Monte Carlo emplacement. Can either be the form of a tuple, of [D, N, Nsigma] or [D, N], where D is the reference diameter in km and N is number of craters per 1 million sq. km, with an optional 1 sigma undertainty Nsigma
+        production_time: tuple[float, float] | float, optional
+            The production time for quasi-Monte Carlo emplacement. Can either be in the form of a tuple of [t,tsigma] or a float of t, where t is the emplacement time in My with an optional 1 sigma uncertainty tsigma.
+        production_sequence: int | None = None,
+            A positive integer value used to constrain the sequence of quasi-Monte Carlo craters. Craters with a sequence number can only form after craters with a lower sequence number.
         simdir : str | Path
             |simdir|
         rng : numpy.random.Generator | None
@@ -859,6 +868,12 @@ class Crater:
             args["measured_floor_depth"] = measured_floor_depth
         if degradation_state is not None:
             args["degradation_state"] = degradation_state
+        if production_time is not None:
+            args["production_time"] = production_time
+        if production_ND is not None:
+            args["production_ND"] = production_ND
+        if production_sequence is not None:
+            args["production_sequence"] = production_sequence
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
