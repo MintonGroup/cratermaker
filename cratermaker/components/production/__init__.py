@@ -68,8 +68,11 @@ class Production(ComponentBase):
         if quasimc_file is not None and quasimc_craters is not None:
             raise ValueError("Cannot provide both quasimc_file and quasimc_craters")
 
-        if quasimc_file is not None and Path(quasimc_file).exists():
-            self.read_quasimc_file(filename=quasimc_file, **kwargs)
+        if quasimc_file is not None:
+            if Path(quasimc_file).exists():
+                self.read_quasimc_file(filename=quasimc_file, **kwargs)
+            else:
+                raise FileNotFoundError(f"quasimc_file {quasimc_file} not found")
         elif quasimc_craters is not None:
             self.process_quasimc_craters(craters=quasimc_craters, **kwargs)
 
@@ -864,6 +867,7 @@ class Production(ComponentBase):
         list[Crater]
             The list of processed Crater objects with production_time and production_ND computed as needed, and any craters that have neither dropped.
         """
+        _D1 = 1e3  # Standard diameter to use for conversion between time and N(D) values when not provided
 
         def _draw_quasimc_time(
             crater: Crater,
@@ -872,7 +876,6 @@ class Production(ComponentBase):
             sequence_only: bool = False,
         ) -> float | None:
             """Draw one time sample for a crater, or None if no production metadata."""
-            D1 = 1e3  # Standard diameter to use for conversion between time and N(D) values when not provided
             this_sequence = crater.production_sequence
             if this_sequence is not None and times_by_idx is not None and sequence_groups is not None:
                 t_lo = []
@@ -891,11 +894,11 @@ class Production(ComponentBase):
 
             # Convert t_lo/hi into n_lo/hi
             if t_lo is not None:
-                n_lo = self.function(diameter=D1, time_start=t_lo)
+                n_lo = self.function(diameter=_D1, time_start=t_lo)
             else:
                 n_lo = None
             if t_hi is not None:
-                n_hi = self.function(diameter=D1, time_start=t_hi)
+                n_hi = self.function(diameter=_D1, time_start=t_hi)
             else:
                 n_hi = None
 
@@ -925,12 +928,12 @@ class Production(ComponentBase):
                     nstdev /= self.ND_conversion_factor
                     if nstdev > 0:
                         if t_lo is not None:
-                            n_lo *= self.csfd(prod_diam) / self.csfd(D1)
+                            n_lo *= self.csfd(prod_diam) / self.csfd(_D1)
                         else:
                             n_lo = None
 
                         if t_hi is not None:
-                            n_hi *= self.csfd(prod_diam) / self.csfd(D1)
+                            n_hi *= self.csfd(prod_diam) / self.csfd(_D1)
                         else:
                             n_hi = None
 
@@ -976,6 +979,13 @@ class Production(ComponentBase):
                     return False
             return True
 
+        def _get_sequence_extents(sequence_groups: dict[int, list[int]], valid_craters: list[Crater]) -> dict[int, float]:
+            """
+            Determine the N(1) extents of each sequence number from the provided production metadata.
+            """
+            # First go through the sequence groups and get their production time/N(D) metadata, converting time values to N(1) values
+            pass
+
         max_attempts = int(kwargs.pop("sequence_max_attempts", 10000))
 
         # Keep only craters that can produce a time
@@ -992,11 +1002,12 @@ class Production(ComponentBase):
                     f"Skipping crater {c.name if c.name is not None else format_large_units(c.diameter, quantity='length')} because it has no production metadata"
                 )
 
-        # Partition tagged vs untagged
+        # Partition craters between those tagged with a sequence number vs untagged
         tagged_idx: list[int] = []
         untagged_idx: list[int] = []
         sequence_groups: dict[int, list[int]] = {}
 
+        # Group tagged craters
         for i, c in enumerate(valid_craters):
             sequence = c.production_sequence
             if sequence is None:
@@ -1005,6 +1016,9 @@ class Production(ComponentBase):
                 sequence = int(sequence)
                 tagged_idx.append(i)
                 sequence_groups.setdefault(sequence, []).append(i)
+
+        sequence_groups = dict(sorted(sequence_groups.items()))
+        sequence_extents = _get_sequence_extents(sequence_groups, valid_craters)
 
         # Draw untagged once (unconstrained)
         times_by_idx: dict[int, float] = {}
