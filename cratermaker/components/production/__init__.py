@@ -867,7 +867,7 @@ class Production(ComponentBase):
         list[Crater]
             The list of processed Crater objects with production_time and production_ND computed as needed, and any craters that have neither dropped.
         """
-        _D1 = 1e3  # Standard diameter to use for conversion between time and N(D) values when not provided
+        _DSTD = 1e3  # Standard diameter to use for conversion between time and N(D) values when not provided
 
         def _draw_quasimc_time(
             crater: Crater,
@@ -894,11 +894,11 @@ class Production(ComponentBase):
 
             # Convert t_lo/hi into n_lo/hi
             if t_lo is not None:
-                n_lo = self.function(diameter=_D1, time_start=t_lo)
+                n_lo = self.function(diameter=_DSTD, time_start=t_lo)
             else:
                 n_lo = None
             if t_hi is not None:
-                n_hi = self.function(diameter=_D1, time_start=t_hi)
+                n_hi = self.function(diameter=_DSTD, time_start=t_hi)
             else:
                 n_hi = None
 
@@ -928,12 +928,12 @@ class Production(ComponentBase):
                     nstdev /= self.ND_conversion_factor
                     if nstdev > 0:
                         if t_lo is not None:
-                            n_lo *= self.csfd(prod_diam) / self.csfd(_D1)
+                            n_lo *= self.csfd(prod_diam) / self.csfd(_DSTD)
                         else:
                             n_lo = None
 
                         if t_hi is not None:
-                            n_hi *= self.csfd(prod_diam) / self.csfd(_D1)
+                            n_hi *= self.csfd(prod_diam) / self.csfd(_DSTD)
                         else:
                             n_hi = None
 
@@ -979,12 +979,117 @@ class Production(ComponentBase):
                     return False
             return True
 
-        def _get_sequence_extents(sequence_groups: dict[int, list[int]], valid_craters: list[Crater]) -> dict[int, float]:
+        def _get_sequence_extents(valid_craters: list[Crater], sequence_groups: dict[int, list[int]]) -> dict[int, float]:
             """
             Determine the N(1) extents of each sequence number from the provided production metadata.
+
+            Parameters
+            ----------
+            valid_craters : list[Crater]
+                The list of Crater objects to process
+            sequence_groups : dict[int, list[int]]
+                A dictionary with each key being a sequence number and the values are lists of indices to the entries in the valid_craters list. It is assumed that the sequence_groups are ordered by key so that the first entry is the lowest sequence number
+
+            Returns
+            -------
+            sequence_extents : dict[int, float]
+                A dictionary with each key being a sequence number and values are tuples with the upper and lower N(1) extent of the associated sequence
             """
+            if len(sequence_groups) == 0:
+                return {}
             # First go through the sequence groups and get their production time/N(D) metadata, converting time values to N(1) values
-            pass
+            sequence_extents: dict[int, float] = {}
+            nvals = {}
+            nsigvals = {}
+            sequence_numbers = list(sequence_groups.keys())
+            lowest_sequence_number = sequence_numbers[0]
+            highest_sequence_number = sequence_numbers[-1]
+
+            for s, idxs in sequence_groups.items():
+                n = []
+                sig = []
+                for i in idxs:
+                    crater = valid_craters[i]
+                    if crater.production_ND is not None and crater.production_ND != [None, None, None]:
+                        prod_diam, nmean, nstdev = crater.production_ND
+                        prod_diam *= 1e3
+                        nmean /= self.ND_conversion_factor
+                        nstdev /= self.ND_conversion_factor
+                        # Convert from N(prod_diam) to N(1) for alignment
+                        fac = self.csfd(_DSTD) / self.csfd(prod_diam)
+                        nmean *= fac
+                        nstdev *= fac
+                        n.append(nmean)
+                        sig.append(nstdev)
+                    elif crater.production_time is not None and crater.production_time != [None, None]:
+                        # Time doesn't map linearly with N(1), but to keep things consistent here for computing sequence boundaries we will convert the upper/lower 1 sigma bounds of production_time into upper/lower 1 sigma bounds on N(1). Later, craters with production_time+/-production_time_stdev values will be drawn using time-based values
+                        tmean, tstdev = crater.production_time
+                        tlo = max(tmean - tstdev, 0.0)
+                        thi = tmean + tstdev
+                        nlo = self.function(diameter=_DSTD, time_start=tlo)
+                        nhi = self.function(diameter=_DSTD, time_start=thi)
+                        nmean = (nhi + nlo) / 2
+                        nstdev = (nhi - nlo) / 2
+                        n.append(nmean)
+                        sig.append(nstdev)
+                if len(n) > 0:
+                    sig = np.sqrt(np.sum([u**2 for u in sig])) / len(n)
+                    n = np.mean(n)
+                    nvals[s] = n
+                    nsigvals[s] = sig
+                else:
+                    # Verify that the first entry has valid production metadata, otherwise we have no way to anchor the sequences to values of N(1)
+                    if s == lowest_sequence_number:
+                        raise ValueError(
+                            "At least one crater with the lowest production_sequence number must have either a production_time or production_ND value"
+                        )
+                    elif s == highest_sequence_number:
+                        nvals[s] = 0.0
+                        nsigvals[s] = 0.0
+                    else:
+                        # Hold off on calculating the empty slots until all of the sequence numbers with production metadata have been computed
+                        nvals[s] = None
+                        nsigvals[s] = 0.0
+
+            # Linearlly interpolate using the N(1) vs sequence_number value to compute the mean N(1) value for any that doen't have one
+            empties = [s for s in sequence_numbers if nvals[s] is None]
+            filled = [s for s in sequence_numbers if nvals[s] is not None]
+            for s in empties:
+                nvals[s] = np.interp(s, xp=filled, fp=[nvals[s] for s in filled])
+
+            # Iteratively compute upper and lower extents until there is no overlap between any sequences
+            for _ in range(10):
+                for i, s in enumerate(sequence_numbers):
+                    n = nvals[s]
+                    sig = nsigvals[s]
+                    nlo = max(n - sig, 0.0)
+                    nhi = n + sig
+                    if s != lowest_sequence_number:
+                        sprev = sequence_numbers[i - 1]
+                        nloprev = max(nvals[sprev] - nsigvals[sprev], 0.0)
+                        nhi += (nloprev - nhi) / 2
+                    if s != highest_sequence_number:
+                        snext = sequence_numbers[i + 1]
+                        nhinext = nvals[snext] + nsigvals[snext]
+                        nlo += (nhinext - nlo) / 2
+                        nlo = max(nlo, 0.0)
+                    if nlo > nhi:
+                        tmp = nlo
+                        nlo = nhi
+                        nhi = tmp
+                    sequence_extents[s] = (float(nlo), float(nhi))
+                nvals = {k: (nlo + nhi) / 2 for k, (nlo, nhi) in sequence_extents.items()}
+                nsigvals = {k: (nhi - nlo) / 2 for k, (nlo, nhi) in sequence_extents.items()}
+
+                # Check that both nlo and nhi are monotonically decreasing with increasing sequence number and break out if they are
+                nlo_values = [v[0] for v in sequence_extents.values()]
+                nhi_values = [v[1] for v in sequence_extents.values()]
+                if all(x >= y for x, y in zip(nlo_values[:-1], nlo_values[1:], strict=True)) and all(
+                    x >= y for x, y in zip(nhi_values[:-1], nhi_values[1:], strict=True)
+                ):
+                    break
+
+            return sequence_extents
 
         max_attempts = int(kwargs.pop("sequence_max_attempts", 10000))
 
@@ -1018,7 +1123,7 @@ class Production(ComponentBase):
                 sequence_groups.setdefault(sequence, []).append(i)
 
         sequence_groups = dict(sorted(sequence_groups.items()))
-        sequence_extents = _get_sequence_extents(sequence_groups, valid_craters)
+        sequence_extents = _get_sequence_extents(valid_craters, sequence_groups)
 
         # Draw untagged once (unconstrained)
         times_by_idx: dict[int, float] = {}
