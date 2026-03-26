@@ -1057,6 +1057,25 @@ class Production(ComponentBase):
                         nhi = tmp
                     sequence_extents[s] = (float(nlo), float(nhi))
 
+                # Ensure that all boundaries are consistent such that nlo of one sequences is the same value as nhi of the next
+                for i, s in enumerate(sequence_numbers):
+                    nlo, nhi = sequence_extents[s]
+                    if s != lowest_sequence_number:
+                        sprev = sequence_numbers[i - 1]
+                        nlo_prev, nhi_prev = sequence_extents[sprev]
+                        if nhi != nlo_prev:
+                            nhi = (nlo_prev + nhi) / 2
+                            sequence_extents[sprev] = (nhi, nhi_prev)
+                            sequence_extents[s] = (nlo, nhi)
+
+                    if s != highest_sequence_number:
+                        snext = sequence_numbers[i + 1]
+                        nlo_next, nhi_next = sequence_extents[snext]
+                        if nlo != nhi_next:
+                            nlo = (nlo + nhi_next) / 2
+                            sequence_extents[snext] = (nlo_next, nlo)
+                            sequence_extents[s] = (nlo, nhi)
+
                 nvals = {k: (nlo + nhi) / 2 for k, (nlo, nhi) in sequence_extents.items()}
                 nsigvals = {k: (nhi - nlo) / 2 for k, (nlo, nhi) in sequence_extents.items()}
 
@@ -1067,21 +1086,6 @@ class Production(ComponentBase):
                     x >= y for x, y in zip(nhi_values[:-1], nhi_values[1:], strict=True)
                 ):
                     break
-
-            # Ensure that all boundaries are consistent such that nlo of one sequences is the same value as nhi of the next
-            for i, s in enumerate(sequence_numbers):
-                nlo, nhi = sequence_extents[s]
-                if s != lowest_sequence_number:
-                    sprev = sequence_numbers[i - 1]
-                    nlo_prev, nhi_prev = sequence_extents[sprev]
-                    if nhi != nlo_prev:
-                        nhi = nlo_prev
-                if s != highest_sequence_number:
-                    snext = sequence_numbers[i + 1]
-                    nlo_next, nhi_next = sequence_extents[snext]
-                    if nlo != nhi_next:
-                        nlo = nhi_next
-                sequence_extents[s] = (nlo, nhi)
 
             return sequence_extents
 
