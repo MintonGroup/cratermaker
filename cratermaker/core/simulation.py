@@ -254,26 +254,27 @@ class Simulation(CratermakerBase):
         """
         Returns a string representation of the Simulation object.
         """
-        output = (
-            f"<Simulation>\n\n"
-            f"simdir      : {str(self.simdir)}\n"
-            f"{self.counting}\n\n"
-            f"{self.morphology}\n\n"
-            f"{self.production}\n\n"
-            f"{self.projectile}\n\n"
-            f"{self.scaling}\n\n"
-            f"{self.surface}\n\n"
-            f"{self.target}\n\n"
-            f"<Current state>\n"
-            f"Interval    : {self.interval}\n"
-        )
+        str_repr = "\n<Simulation>\n"
+        str_repr += f"simdir      : {str(self.simdir)}\n\n"
+        str_repr += "<Current state>\n"
+        str_repr += f"Interval : {self.interval}\n"
         if self.time is not None:
-            output += (
+            str_repr += (
                 f"Current time : {format_large_units(self.time, quantity='time')} before present\n"
                 f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
                 f"Elapsed N(1) : {self.elapsed_n1} # per 10⁶ km²\n"
             )
-        return output
+        str_repr += "\n<Components>\n"
+        str_repr += (
+            f"Target: {self.target}\n"
+            f"Surface: {self.surface}\n"
+            f"Morphology: {self.morphology}\n"
+            f"Production: {self.production}\n"
+            f"Projectile: {self.projectile}\n"
+            f"Scaling: {self.scaling}\n"
+            f"Counting: {self.counting}\n"
+        )
+        return str_repr
 
     def __repr__(self) -> str:
         config = self.to_config(save_to_file=False)
@@ -379,8 +380,14 @@ class Simulation(CratermakerBase):
             elif not isinstance(N_D_end, (list, tuple, ArrayLike)) or len(N_D_end) != 2:
                 raise ValueError("N_D_end must be a pair of values (diameter, number)")
 
-            diameter_number = (N_D[0] * 1e3, self.surface.area * N_D[1] / self.production.ND_conversion_factor)
-            diameter_number_end = (N_D_end[0] * 1e3, self.surface.area * N_D_end[1] / self.production.ND_conversion_factor)
+            diameter_number = (
+                N_D[0] * self.production.D_conversion_factor,
+                self.surface.area * N_D[1] / self.production.N_conversion_factor,
+            )
+            diameter_number_end = (
+                N_D_end[0] * self.production.D_conversion_factor,
+                self.surface.area * N_D_end[1] / self.production.N_conversion_factor,
+            )
         elif N_D_end is not None:
             raise ValueError("N_D_end cannot be used without N_D")
         elif diameter_number is None:
@@ -472,9 +479,9 @@ class Simulation(CratermakerBase):
             Ending time in My relative to the present for the simulation, used to compute the ending point of the production function.
             Default is 0 (present day) if not provided but `time_start` is provided.
         N_D : PairOfFloats, optional
-            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.ND_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which requires `age` or `time_start` to be set.
+            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which requires `age` or `time_start` to be set.
         N_D_end : PairOfFloats, optional
-            A pair of numbers, (D, N) representing the ending  cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.ND_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which will set the ending time to 0 (present day) if N_D is provided.
+            A pair of numbers, (D, N) representing the ending  cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which will set the ending time to 0 (present day) if N_D is provided.
         time_interval : FloatLike, optional
             Interval in My for outputting intermediate results. If not provided, calculated as `age` / `ninterval` or (`time_start - time_end`) / `ninterval` if `ninterval` is provided, otherwise set to the total simulation duration (e.g. `ninterval=1`).
         ninterval : int, optional
@@ -635,7 +642,7 @@ class Simulation(CratermakerBase):
                         time_end=current_time_end,
                         validate_inputs=validate_inputs,
                     ).item()
-                    * self.production.ND_conversion_factor
+                    * self.production.N_conversion_factor
                 )
                 self.time = current_time_end
                 self.interval += 1
@@ -667,9 +674,9 @@ class Simulation(CratermakerBase):
         time_end : FloatLike, optional
             The ending time in My relative to the present for the simulation, used to compute the ending point of the production function. Default is 0 (present day).
         N_D : PairOfFloats, optional
-            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.ND_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
+            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         N_D_end : PairOfFloats, optional
-            A pair of numbers, (D, N), representing the ending  cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.ND_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
+            A pair of numbers, (D, N), representing the ending  cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         diameter_number : PairOfFloats, optional
             A pair of numbers, (diameter, number), representing the diameter and total number of craters larger than that diameter, where diameter is in units of m and n is in number of craters. If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         diameter_number_end : PairOfFloats, optional
@@ -758,6 +765,7 @@ class Simulation(CratermakerBase):
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
 
+        # If quasi-Monte Carlo is enabled, we need to extract the quasimc craters that
         if self.do_quasimc:
             if time_start is None:
                 time_start = self.production.age_from_D_N(
@@ -1061,7 +1069,7 @@ class Simulation(CratermakerBase):
             component_config = component_name + "_config"
             component = getattr(self, component_name, None)
             if component is not None:
-                sim_config[component_name] = component.name if hasattr(component, "name") else component
+                sim_config[component_name] = component.component_name if hasattr(component, "component_name") else component
                 if hasattr(component, "to_config") and callable(getattr(component, "to_config", None)):
                     sim_config[component_config] = component.to_config(remove_common_args=True)
 

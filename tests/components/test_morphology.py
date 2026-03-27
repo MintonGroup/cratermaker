@@ -33,7 +33,7 @@ class TestMorphology(unittest.TestCase):
             for model_name in morphology_models:
                 morphology = Morphology.maker(model_name, surface=surface)
                 self.assertIsInstance(morphology, object)
-                self.assertEqual(morphology.name, model_name)
+                self.assertEqual(morphology.component_name, model_name)
 
     def test_form_crater_executes(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:

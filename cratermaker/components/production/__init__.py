@@ -77,8 +77,13 @@ class Production(ComponentBase):
             self.quasimc_craters = quasimc_craters
 
     def __str__(self) -> str:
-        base = super().__str__()
-        return f"{base}\nGenerator type: {self.generator_type}"
+        str_repr = super().__str__()
+        str_repr += f"Generator type {self.generator_type}\n"
+        if self.quasimc_file is not None:
+            str_repr += "Quasi-Monte Carlo file: {self.quasimc_file}\n"
+        if self.quasimc_craters is not None:
+            str_repr += f"Number of quasi-Monte Carlo craters: {len(self.quasimc_craters)}\n"
+        return str_repr
 
     @classmethod
     def maker(
@@ -785,6 +790,9 @@ class Production(ComponentBase):
 
         return time_start, time_end
 
+    def quasimc_merge(self, **kwargs):
+        pass
+
     @parameter
     def generator_type(self):
         """
@@ -839,7 +847,7 @@ class Production(ComponentBase):
     @property
     def quasimc_craters(self) -> list[Crater]:
         """
-        The list of processed quasi-Monte Carlo craters.
+        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their :py:attr:`time` values.
         """
         return self._quasimc_craters
 
@@ -847,9 +855,9 @@ class Production(ComponentBase):
     def quasimc_craters(self, value: list[Crater]):
         if not isinstance(value, list) or not all(isinstance(c, Crater) for c in value):
             raise TypeError("quasimc_craters must be a list of Crater objects")
-        self._quasimc_craters = self.process_quasimc_craters(value)
+        self._quasimc_craters = self._process_quasimc_craters(value)
 
-    def process_quasimc_craters(self, craters: list[Crater], **kwargs: Any) -> list[Crater]:
+    def _process_quasimc_craters(self, craters: list[Crater], **kwargs: Any) -> list[Crater]:
         """
         Process a list of quasi-Monte Carlo craters to set their emplacement time using computing production_ND, production_time, and/or production_sequence if present, and will drop craters that have no production metadata.
 

@@ -688,8 +688,8 @@ class ComponentBase(CratermakerBase, ABC):
 
     def __str__(self) -> str:
         # Return just the name of the class
-        base_class = type(self).__mro__[1].__name__
-        return f"<{base_class}: {self._component_name}>"
+        base_class = type(self).__mro__[0].__name__
+        return f"<{base_class}>\n"
 
     @classmethod
     def maker(
@@ -732,10 +732,10 @@ class ComponentBase(CratermakerBase, ABC):
         else:
             raise TypeError(f"component must be a string or a subclass of component, not {type(component)}")
 
-    @parameter
-    def name(self):
+    @property
+    def component_name(self):
         """
-        The registered name of this scaling model set by the @ComponentBase.register decorator.
+        The registered name of this component set by the @ComponentBase.register decorator.
         """
         return self._component_name
 

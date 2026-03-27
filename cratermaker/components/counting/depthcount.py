@@ -21,7 +21,6 @@ class DepthCount(Counting):
 
     def __init__(self, surface, **kwargs: Any):
         super().__init__(surface=surface, **kwargs)
-        self._component_name = "depthcount"
 
     def measure_degradation_state(self, crater: Crater, **kwargs: Any) -> float:
         """

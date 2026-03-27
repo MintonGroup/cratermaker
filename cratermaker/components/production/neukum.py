@@ -71,12 +71,15 @@ class NeukumProduction(Production):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def __str__(self) -> str:
-        base = super().__str__()
+        str_repr = super().__str__()
         timelo = format_large_units(self.valid_time[0], quantity="time")
         timehi = format_large_units(self.valid_time[1], quantity="time")
         dlo = format_large_units(self.sfd_range[0], quantity="length")
         dhi = format_large_units(self.sfd_range[1], quantity="length")
-        return f"{base}\nVersion: {self.version}\nValid Time Range: {timelo} - {timehi}\nValid Diameter Range: {dlo} - {dhi}"
+        str_repr += f"Version: {self.version}\n"
+        str_repr += f"Valid Time Range: {timelo} - {timehi}\n"
+        str_repr += f"Valid Diameter Range: {dlo} - {dhi}"
+        return str_repr
 
     def function(
         self,

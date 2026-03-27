@@ -52,6 +52,7 @@ class BasicMoonCraterFixed(CraterFixed):
             return None
 
 
+@Crater.register("basicmooncrater")
 class BasicMoonCrater(MorphologyCrater):
     def __init__(
         self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
@@ -60,16 +61,15 @@ class BasicMoonCrater(MorphologyCrater):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
-        return (
-            f"{base}"
-            f"\nRim height: {format_large_units(self.rim_height, quantity='length')}"
-            f"\nRim width: {format_large_units(self.rim_width, quantity='length')}"
-            f"\nFloor depth: {format_large_units(self.floor_depth, quantity='length')}"
-            f"\nFloor diameter: {format_large_units(self.floor_diameter, quantity='length')}"
-            f"\nCentral peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}"
-            f"\nEjecta rim thickness: {format_large_units(self.ejrim, quantity='length')}"
+        str_repr = super().__str__()
+        str_repr += (
+            f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
+            f"Floor depth: {format_large_units(self.floor_depth, quantity='length')}\n"
+            f"Floor diameter: {format_large_units(self.floor_diameter, quantity='length')}\n"
+            f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
+            f"Ejecta rim thickness: {format_large_units(self.ejrim, quantity='length')}\n"
         )
+        return str_repr
 
     @classmethod
     def maker(
@@ -171,12 +171,13 @@ class BasicMoonMorphology(Morphology):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
+        str_repr = super().__str__()
         if self.ejecta_truncation is not None:
-            base += f"\nEjecta Trunction: {self.ejecta_truncation:.2f} * crater.radius"
+            str_repr += f"Ejecta Trunction: {self.ejecta_truncation:.2f} * crater.radius\n"
         else:
-            base += "\nEjecta Truncation: Off"
-        return f"{base}\nEjecta Rays: {self.dorays}"
+            str_repr += "Ejecta Truncation: Off\n"
+        str_repr += f"Ejecta Rays: {self.dorays}\n"
+        return str_repr
 
     def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> list[BasicMoonCrater]:
         """

@@ -15,7 +15,7 @@ from tqdm import tqdm
 from vtk import vtkPolyData
 
 from cratermaker.constants import PairOfFloats
-from cratermaker.core.base import CratermakerBase
+from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
 
 if TYPE_CHECKING:
@@ -159,10 +159,11 @@ class CraterVariable:
             f"measured_location={self.measured_location}, "
             f"measured_rim_height={self.measured_rim_height}, "
             f"measured_floor_depth={self.measured_floor_depth}, "
-            f"degradation_state={self.degradation_state},"
-            f"production_time={self.production_time},"
-            f"production_ND={self.production_ND}",
-            f"production_sequence={self.production_sequence},name={self.name})",
+            f"degradation_state={self.degradation_state}, "
+            f"production_time={self.production_time}, "
+            f"production_ND={self.production_ND}, "
+            f"production_sequence={self.production_sequence}, "
+            f"name={self.name} "
         )
 
     def as_dict(self):
@@ -420,7 +421,9 @@ class CraterVariable:
         return
 
 
-class Crater:
+class Crater(ComponentBase):
+    _registry: dict[str, Crater] = {}
+
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=CraterVariable, **kwargs):
         if crater is not None:
             if not isinstance(crater, Crater):
@@ -502,47 +505,43 @@ class Crater:
         return sorted(base)
 
     def __str__(self):
-        name_text = f"\nID: {self.id}"
+        str_repr = super().__str__()
+        str_repr += f"ID: {self.id}\n"
         if self.name is not None and self.name != "":
-            name_text += f"\nName: {self.name}"
-        if self.time is None:
-            timetext = "Not set"
-        else:
-            timetext = f"{format_large_units(self.time, quantity='time')}"
+            str_repr += f"Name: {self.name}\n"
         if self.semimajor_axis != self.semiminor_axis:
-            size_text = f"Elliptical size {format_large_units(self.semimajor_axis, quantity='length')} x {format_large_units(self.semiminor_axis, quantity='length')}\nMean Diameter: {format_large_units(self.diameter, quantity='length')}"
+            str_repr += f"Elliptical size {format_large_units(self.semimajor_axis, quantity='length')} x {format_large_units(self.semiminor_axis, quantity='length')}\nMean Diameter: {format_large_units(self.diameter, quantity='length')}\n"
         else:
-            size_text = f"Diameter: {format_large_units(self.diameter, quantity='length')}"
+            str_repr += f"Diameter: {format_large_units(self.diameter, quantity='length')}\n"
         if self.measured_semimajor_axis is not None and self.measured_semimajor_axis != self.semimajor_axis:
             if self.measured_semimajor_axis != self.measured_semiminor_axis:
-                size_text += f"\nMeasured elliptical size {format_large_units(self.measured_semimajor_axis, quantity='length')} x {format_large_units(self.measured_semiminor_axis, quantity='length')}\nMeasured Mean Diameter: {format_large_units(self.measured_diameter, quantity='length')}"
+                str_repr += f"Measured elliptical size {format_large_units(self.measured_semimajor_axis, quantity='length')} x {format_large_units(self.measured_semiminor_axis, quantity='length')}\nMeasured Mean Diameter: {format_large_units(self.measured_diameter, quantity='length')}\n"
             else:
-                size_text += f"\nMeasured diameter: {format_large_units(self.measured_diameter, quantity='length')}"
+                str_repr += f"Measured diameter: {format_large_units(self.measured_diameter, quantity='length')}\n"
+        str_repr += f"morphology_type: {self.morphology_type}\n"
+        str_repr += f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
+        str_repr += f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
+        str_repr += f"projectile_mass: {self.projectile_mass:.4e} kg\n"
+        str_repr += f"projectile_density: {self.projectile_density:.0f} kg/m³\n"
+        str_repr += f"projectile_velocity: {format_large_units(self.projectile_velocity, quantity='velocity')}\n"
+        str_repr += f"projectile_angle: {self.projectile_angle:.1f}°\n"
+        str_repr += f"projectile_direction: {self.projectile_direction:.1f}°\n"
         if self.measured_orientation is not None and self.measured_orientation != self.orientation:
-            size_text += f"\nMeasured orientation: {self.measured_orientation:.1f}°"
+            str_repr += f"Measured orientation: {self.measured_orientation:.1f}°\n"
+        str_repr += f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
         if self.measured_location is not None and self.measured_location != self.location:
-            size_text += f"\nMeasured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)"
-        if self.production_time is not None:
-            timetext += f"\nProduction time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}"
-        if self.production_ND is not None:
-            timetext += f"\nProduction N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}"
-        if self.production_sequence is not None:
-            timetext += f"\nProduction sequence: {self.production_sequence}"
+            str_repr += f"Measured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
+        if self.time is not None:
+            str_repr = f"{format_large_units(self.time, quantity='time')}\n"
         if self.degradation_state is not None:
-            timetext += f"\nDegradation state: {format_large_units(self.degradation_state, quantity='area')}"
-        return (
-            f"{name_text}\n"
-            f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
-            f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
-            f"projectile_mass: {self.projectile_mass:.4e} kg\n"
-            f"projectile_density: {self.projectile_density:.0f} kg/m³\n"
-            f"projectile_velocity: {format_large_units(self.projectile_velocity, quantity='velocity')}\n"
-            f"projectile_angle: {self.projectile_angle:.1f}°\n"
-            f"projectile_direction: {self.projectile_direction:.1f}°\n"
-            f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
-            f"morphology_type: {self.morphology_type}\n"
-            f"time: {timetext}\n"
-        )
+            str_repr += f"Degradation state: {format_large_units(self.degradation_state, quantity='area')}\n"
+        if self.production_time is not None:
+            str_repr += f"Production time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}\n"
+        if self.production_ND is not None:
+            str_repr += f"Production N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}\n"
+        if self.production_sequence is not None:
+            str_repr += f"Production sequence: {self.production_sequence}\n"
+        return str_repr
 
     def _scrub_measured_input_size(self, **kwargs: Any):
         if "measured_diameter" in kwargs:
@@ -1270,10 +1269,9 @@ class Crater:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 crater_data = _convert_tuple_vars(input_dict=row, inverse=True)
+                crater_data = {k: v for k, v in crater_data.items() if v is not None and v != ""}
                 for key, value in crater_data.items():
-                    if value == "" or value is None:
-                        continue
-                    if key in ["id"]:
+                    if key in ["id", "production_sequence"]:
                         crater_data[key] = int(value)
                     elif isinstance(value, tuple | list):
                         vnew = []
@@ -1400,30 +1398,38 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
         "production_ND": ["production_D", "production_N", "production_N_stdev"],
         "production_time": ["production_time", "production_time_stdev"],
     }
-    input_dict = {k: v for k, v in input_dict.items() if v is not None and v != ""}
+    new_dict = {k: v for k, v in input_dict.items() if v is not None and v != ""}
 
     if inverse:
+        # Process aliases
         if "production_D" in input_dict and "production_N" in input_dict:
             prod_diam = input_dict.pop("production_D")
             nval = input_dict.pop("production_N")
             nstdev = input_dict.pop("production_N_stdev", 0.0)
-            input_dict["production_ND"] = [prod_diam, nval, nstdev]
+            if nstdev == "":
+                nstdev = 0.0
+            new_dict["production_ND"] = [prod_diam, nval, nstdev]
         if "production_time" in input_dict:
-            time_stdev = input_dict.pop("production_time_stdev", 0.0)
             time_mean = input_dict.pop("production_time")
-            input_dict["production_time"] = [time_mean, time_stdev]
+            time_stdev = input_dict.pop("production_time_stdev", 0.0)
+            if time_stdev == "":
+                time_stdev = 0.0
+            new_dict["production_time"] = [time_mean, time_stdev]
 
     for tup, varlist in tuple_map.items():
         if inverse:
             if any(var in varlist for var in input_dict):
                 if tup not in input_dict:
-                    input_dict[tup] = [None] * len(varlist)
+                    new_dict[tup] = [None] * len(varlist)
                 for idx, var in enumerate(varlist):
                     if var != tup and var in input_dict and input_dict[var] is not None:
-                        input_dict[tup][idx] = input_dict.pop(var, None)
+                        new_dict[tup][idx] = input_dict.get(var)
         else:
             if tup in input_dict:
+                _ = new_dict.pop(tup, None)
                 for idx, var in enumerate(varlist):
-                    input_dict[var] = input_dict[tup][idx]
-                _ = input_dict.pop(tup)
-    return input_dict
+                    new_dict[var] = input_dict[tup][idx]
+    return new_dict
+
+
+import_components(__name__, __path__)

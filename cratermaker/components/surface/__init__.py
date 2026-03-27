@@ -129,13 +129,12 @@ class Surface(ComponentBase):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
-
-        return (
-            f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}\n"
-            f"Number of faces: {self.n_face}\n"
-            f"Number of nodes: {self.n_node}\n"
-        )
+        str_repr = super().__str__()
+        str_repr += f"Target: {self.target.name}\n"
+        str_repr += f"Grid File: {self.grid_file}\n"
+        str_repr += f"Number of faces: {self.n_face}\n"
+        str_repr += f"Number of nodes: {self.n_node}\n"
+        return str_repr
 
     @classmethod
     def maker(
@@ -1359,7 +1358,7 @@ class Surface(ComponentBase):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self.target.name, self.radius]
+        return [self.component_name, self.target.name, self.radius]
 
     @property
     def _id(self):
@@ -1984,14 +1983,16 @@ class LocalSurface(CratermakerBase):
         """
         String representation of the LocalSurface object.
         """
-        base = "<LocalSurface>"
+        str_repr = "<LocalSurface>\n"
         if self.is_local:
-            base += f"\nLocation: {self.location[0]:.2f}°, {self.location[1]:.2f}°"
+            str_repr += f"Location: {self.location[0]:.2f}°, {self.location[1]:.2f}°\n"
 
         if self.region_radius:
-            base += f"\nRegion Radius: {format_large_units(self.region_radius, quantity='length')}"
+            str_repr += f"Region Radius: {format_large_units(self.region_radius, quantity='length')}\n"
 
-        return f"{base}\nNumber of faces: {self.n_face}\nNumber of nodes: {self.n_node}"
+        str_repr += f"Number of faces: {self.n_face}\n"
+        str_repr += f"Number of nodes: {self.n_node}\n"
+        return str_repr
 
     def __getattr__(self, name: str):
         """

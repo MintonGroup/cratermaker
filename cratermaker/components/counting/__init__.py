@@ -142,11 +142,10 @@ class Counting(ComponentBase):
         return counting
 
     def __str__(self) -> str:
-        base = super().__str__()
-        str_repr = f"{base}\n"
+        str_repr = super().__str__()
         str_repr += f"Number of observed craters: {self.n_observed}\n"
         str_repr += f"Number of emplaced craters: {self.n_emplaced}\n"
-        str_repr += f"\n{self.surface}\n"
+        str_repr += f"Surface: <{self.surface.component_name}>\n"
         return str_repr
 
     def reset(self, **kwargs: Any) -> None:

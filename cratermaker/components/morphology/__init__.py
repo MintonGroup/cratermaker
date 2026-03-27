@@ -120,20 +120,25 @@ class MorphologyCraterVariable(CraterVariable):
         return self._crater_region
 
 
+@Crater.register("morphologycrater")
 class MorphologyCrater(Crater):
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
     def __str__(self) -> str:
-        output = super().__str__()
-        output += f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}"
-        output += f"\nLarge enough to be emplaced on the grid: {self.emplaceable}"
+        horiz_line = "-" * 40 + "\n"
+        str_repr = super().__str__()
+        str_repr += f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}\n"
+        str_repr += f"Large enough to be emplaced on the grid: {self.emplaceable}\n"
         if self.emplaceable:
-            output += f"\nFace index of crater center: {self.face_index}"
-            output += f"\nCrater region: {self.crater_region}"
-            output += f"\nEjecta region: {self.ejecta_region}"
-        return output
+            str_repr += f"Face index of crater center: {self.face_index}\n"
+            str_repr += horiz_line
+            str_repr += f"Crater region: {self.crater_region}"
+            str_repr += horiz_line
+            str_repr += f"Ejecta region: {self.ejecta_region}"
+            str_repr += horiz_line
+        return str_repr
 
     @classmethod
     def maker(
@@ -418,13 +423,12 @@ class Morphology(ComponentBase):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
-        str_repr = f"{base}\n"
-        str_repr += f"\n{self.counting}\n"
+        str_repr = super().__str__()
+        str_repr += f"Counting : <{self.counting.component_name}>\n"
         str_repr += f"Do slope collapse: {self.do_slope_collapse}\n"
         str_repr += f"Do subpixel degradation: {self.do_subpixel_degradation}\n"
         if self.do_subpixel_degradation:
-            str_repr += f"\n{self.production}\n"
+            str_repr += f"Production: <{self.production.component_name}>\n"
         return str_repr
 
     @classmethod

@@ -87,13 +87,12 @@ class HiResLocalSurface(Surface):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
+        str_repr = super().__str__()
         pix = format_large_units(self.pix, quantity="length")
         pix_min = format_large_units(self.pix_min, quantity="length")
         pix_max = format_large_units(self.pix_max, quantity="length")
         local_radius = format_large_units(self.local_radius, quantity="length")
-        return (
-            f"{base}\n"
+        str_repr += (
             f"Local pixel size: {pix}"
             f"Local Radius: {local_radius}\n"
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
@@ -104,6 +103,7 @@ class HiResLocalSurface(Surface):
             f"Number of superdomain faces: {self.n_face - self.local.n_face}\n"
             f"Number of superdomain nodes: {self.n_node - self.local.n_node}\n"
         )
+        return str_repr
 
     def reset(
         self,
