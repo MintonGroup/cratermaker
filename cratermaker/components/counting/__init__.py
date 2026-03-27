@@ -791,7 +791,7 @@ class Counting(ComponentBase):
             observed = self.Crater.from_xarray(observed, interval=interval)
             observed_kwargs = {"color": observed_color, **add_mesh_kwargs}
             observed_count_actor = plotter.add_mesh(
-                self.to_vtk_mesh(observed, use_measured_properties=True), name="observed", **observed_kwargs
+                self.to_vtk_mesh(craters=observed, use_measured_properties=True), name="observed", **observed_kwargs
             )
             observed_count_actor.SetVisibility(False)
             plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
@@ -802,7 +802,7 @@ class Counting(ComponentBase):
                 emplaced = self.Crater.from_xarray(emplaced, interval=interval)
                 emplaced_kwargs = {"color": emplaced_color, **add_mesh_kwargs}
                 emplaced_count_actor = plotter.add_mesh(
-                    self.to_vtk_mesh(emplaced, use_measured_properties=False), name="emplaced", **emplaced_kwargs
+                    self.to_vtk_mesh(craters=emplaced, use_measured_properties=False), name="emplaced", **emplaced_kwargs
                 )
                 emplaced_count_actor.SetVisibility(False)
                 plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))

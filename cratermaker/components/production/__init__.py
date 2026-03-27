@@ -237,8 +237,6 @@ class Production(ComponentBase):
             The sampled age values if return_age is True, otherwise None.
 
         """
-        if "age" in kwargs:
-            time_start = kwargs.pop("age")
         arguments = {
             "time_start": time_start,
             "time_end": time_end,
@@ -568,7 +566,9 @@ class Production(ComponentBase):
         Parameters
         ----------
         time_start : FloatLike, optional
-            The starting time in units of My relative to the present, which is used to compute the
+            The starting time in units of My relative to the present, which is used to compute the cumulative SFD.
+        age : FloatLike, optional
+            The starting time in units of My relative to the present, which is used to compute the cumulative SFD (a substitute for time_start).
         time_end, FloatLike, optional
             The ending time in units of My relative to the present, which is used to compute the cumulative SFD.
             The default is 0 (present day).
@@ -582,6 +582,10 @@ class Production(ComponentBase):
             and use the production function for a given age. The default is (1000.0, 0) (present day).
         diameter_range : PairOfFloats
             The minimum and maximum crater diameter to sample from in meters. If not provided, the :py:attr:`~cratermaker.components.production.Production.diameter_range`
+        N_D : PairOfFloats
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the start of the sample
+        N_D_end : PairOfFloats
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the end of the sample.
         area : FloatLike, optional
             The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
@@ -626,6 +630,21 @@ class Production(ComponentBase):
             kwargs["time_start"] = age
         time_start = kwargs.get("time_start")
         time_end = kwargs.get("time_end")
+        N_D = kwargs.pop("N_D", None)
+        N_D_end = kwargs.pop("N_D_end", None)
+        if N_D is not None:
+            if time_start is not None:
+                raise ValueError("Cannot provide both N_D and time_start")
+            time_start = self.age_from_D_N(
+                diameter=N_D[0] * self.D_conversion_factor, cumulative_number_density=N_D[1] * self.N_conversion_factor
+            )
+
+        if N_D_end is not None:
+            if time_end is not None:
+                raise ValueError("Cannot provide both N_D_end and time_end")
+            time_end = self.age_from_D_N(
+                diameter=N_D_end[0] * self.D_conversion_factor, cumulative_number_density=N_D_end[1] * self.N_conversion_factor
+            )
         diameter_number = kwargs.get("diameter_number")
         diameter_number_end = kwargs.get("diameter_number_end")
         diameter_range = kwargs.pop("diameter_range", self.diameter_range)
@@ -653,7 +672,7 @@ class Production(ComponentBase):
             )
 
         if area is None:
-            raise ValueError("The 'area' must be provided")
+            area = 1.0
         else:
             if not np.isscalar(area):
                 raise ValueError("The 'area' must be a scalar")
@@ -808,8 +827,52 @@ class Production(ComponentBase):
 
         return time_start, time_end
 
-    def quasimc_merge(self, **kwargs):
-        pass
+    def quasimc_merge(
+        self,
+        craters: list[Crater],
+        time_start: float | None = None,
+        time_end: float | None = None,
+        N_D: PairOfFloats | None = None,
+        N_D_end: PairOfFloats | None = None,
+        **kwargs,
+    ):
+        """
+        Merge a randomly-generated list of craters with the quasi-Monte Carlo craters over a given time interval.
+
+        """
+        arguments = {
+            "time_start": time_start,
+            "time_end": time_end,
+            "N_D": N_D,
+            "N_D_end": N_D_end,
+            **kwargs,
+        }
+        arguments = self._validate_sample_args(**arguments)
+        time_start = arguments["time_start"]
+        time_end = arguments["time_end"]
+
+        if self.quasimc_craters is not None:
+            qmclist = [c for c in self.quasimc_craters if c.time <= time_start and c.time > time_end]
+            # First we'll compare the two lists of craters against their diameters from smallest to largest. For each random crater that is larger than the smallest remaining qmc crater, put the qmc crater in its place in the final list, and continue until all qmc craters are in the merge list.
+            qmclist.sort(key=lambda c: c.diameter, reverse=True)
+            craters.sort(key=lambda c: c.diameter, reverse=False)
+            merged = []
+            qidx = len(qmclist) - 1
+            for c in craters:
+                if qidx >= 0:
+                    qmc = qmclist[qidx]
+                    if c.diameter < qmc.diameter:
+                        merged.append(c)
+                    else:
+                        merged.append(qmc)
+                        qidx -= 1
+                else:
+                    merged.append(c)
+            if qidx >= 0:
+                merged += qmclist[:qidx]
+            craters = merged
+        craters.sort(key=lambda c: c.time, reverse=True)
+        return craters
 
     def _process_quasimc_craters(self, craters: list[Crater], **kwargs: Any) -> list[Crater]:
         """

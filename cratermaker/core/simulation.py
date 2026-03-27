@@ -766,19 +766,8 @@ class Simulation(CratermakerBase):
                 impact_locations.extend(np.array(locations).T.tolist())
 
         # If quasi-Monte Carlo is enabled, we need to extract the quasimc craters that
-        if self.do_quasimc:
-            if time_start is None:
-                time_start = self.production.age_from_D_N(
-                    diameter=diameter_number[0], cumulative_number_density=diameter_number[1] / self.surface.area
-                )
-            if time_end is None:
-                time_end = self.production.age_from_D_N(
-                    diameter=diameter_number_end[0], cumulative_number_density=diameter_number_end[1] / self.surface.area
-                )
-            craterlist = [c for c in self.production.quasimc_craters if c.time <= time_start and c.time > time_end]
-        else:
-            craterlist = []
-        if len(craterlist) + len(impact_diameters) > 0:
+        craterlist = []
+        if len(impact_diameters) > 0:
             # Sort the times, diameters, and locations so that they are in order of decreasing age
             impact_diameters = np.asarray(impact_diameters)
             impact_times = np.asarray(impact_times)
@@ -802,7 +791,26 @@ class Simulation(CratermakerBase):
                         **kwargs,
                     )
                 )
-            craterlist.sort(key=lambda c: c.time, reverse=True)
+        craterlist.sort(key=lambda c: c.time, reverse=True)
+        if self.do_quasimc:
+            if time_start is None:
+                N_D = (
+                    diameter_number[0] / self.production.D_conversion_factor,
+                    diameter_number[1] * self.production.N_conversion_factor / self.surface.area,
+                )
+            else:
+                N_D = None
+            if time_end is None:
+                N_D_end = (
+                    diameter_number_end[0] / self.production.D_conversion_factor,
+                    diameter_number_end[1] * self.production.N_conversion_factor / self.surface.area,
+                )
+            else:
+                N_D_end = None
+            craterlist = self.production.quasimc_merge(
+                craterlist, time_start=time_start, time_end=time_end, N_D=N_D, N_D_end=N_D_end, **kwargs
+            )
+        if len(craterlist) > 0:
             self.emplace(craterlist, **kwargs)
 
         return
