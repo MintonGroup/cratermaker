@@ -847,25 +847,21 @@ class Production(ComponentBase):
     def quasimc_craters(self, value: list[Crater]):
         if not isinstance(value, list) or not all(isinstance(c, Crater) for c in value):
             raise TypeError("quasimc_craters must be a list of Crater objects")
-        self._quasimc_craters = value
+        self._quasimc_craters = self.process_quasimc_craters(value)
 
-    def process_quasimc_craters(
-        self, craters: list[Crater], set_max_diameter_from_quasimc: bool = True, **kwargs: Any
-    ) -> list[Crater]:
+    def process_quasimc_craters(self, craters: list[Crater], **kwargs: Any) -> list[Crater]:
         """
-        Process the quasi-Monte Carlo craters by computing production_time if present, production_ND if present, and will drop craters that have neither.
+        Process a list of quasi-Monte Carlo craters to set their emplacement time using computing production_ND, production_time, and/or production_sequence if present, and will drop craters that have no production metadata.
 
         Parameters
         ----------
         craters : list[Crater]
             The list of Crater objects to process.
-        set_max_diameter_from_quasimc : bool, optional
-            If True, the largest_crater attribute of the Simulation will be set to the smallest crater in the quasi-Monte Carlo file. Default is True.
 
         Returns
         -------
         list[Crater]
-            The list of processed Crater objects with production_time and production_ND computed as needed, and any craters that have neither dropped.
+            The list of processed Crater objects with their emplacement time set, and any craters without production metadata dropped.
         """
         _DSTD = 1e3  # Standard diameter to use for conversion between time and N(D) values when not provided
 
@@ -880,7 +876,7 @@ class Production(ComponentBase):
                 seq_nlo = max(seq_nlo, 0.0)
                 seq_nmean = (seq_nlo + seq_nhi) / 2
                 seq_nsig = (seq_nhi - seq_nlo) / 2
-                if seq_nsig / seq_nmean < 1e-12:
+                if seq_nsig / seq_nmean < 1e-12:  # Prevents an error when the bounds are too tight
                     seq_nsig = 0.0
                 seq_tlo = self.age_from_D_N(diameter=_DSTD, cumulative_number_density=seq_nlo)
                 seq_thi = self.age_from_D_N(diameter=_DSTD, cumulative_number_density=seq_nhi)
@@ -1150,12 +1146,10 @@ class Production(ComponentBase):
             else:
                 smallest_diameter = min(smallest_diameter, c.projectile_diameter)
 
-        if set_max_diameter_from_quasimc and processed:
-            self.diameter_range = (self.diameter_range[0], smallest_diameter)
+        self.diameter_range = (self.diameter_range[0], smallest_diameter)
 
         processed.sort(key=lambda c: c.time, reverse=True)
-        self._quasimc_craters = processed
-        return self._quasimc_craters
+        return processed
 
     def read_quasimc_file(
         self,
@@ -1169,13 +1163,12 @@ class Production(ComponentBase):
         ----------
         filename : Path | str | None, optional
             The path to the quasi-Monte Carlo file. If not provided, the Simulation must have a quasimc_file attribute set. This function will replace the stored quasimc_file attribute.
-        set_max_diameter_from_quasimc : bool, optional
-            If True, the largest_crater attribute of the Simulation will be set to the smallest crater in the quasi-Monte Carlo file. Default is True.
         """
         if filename is not None:
             self._quasimc_file = filename
         input_craters = Crater.from_file(self.quasimc_file)
-        return self.process_quasimc_craters(input_craters, **kwargs)
+        self.quasimc_craters = input_craters
+        return
 
     @property
     def diameter_range(self) -> tuple[float, float]:
