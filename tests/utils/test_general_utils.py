@@ -12,18 +12,18 @@ mock_values = [
 
 class Dummy:
     def __init__(self):
-        self._component_name = None
+        self._name = None
         self._prop = None
         self._param = None
         self._user_defined = set()
 
     @property
-    def component_name(self):
-        return self._component_name
+    def name(self):
+        return self._name
 
-    @component_name.setter
-    def component_name(self, value):
-        self._component_name = value
+    @name.setter
+    def name(self, value):
+        self._name = value
 
     @property
     def prop(self):
@@ -53,8 +53,8 @@ class TestGeneralUtils(unittest.TestCase):
         return
 
     def test_kwargs(self):
-        _set_properties(self.dummy, component_name="baz", prop=5.0, param=6.0)
-        self.assertEqual(self.dummy.component_name, "baz")
+        _set_properties(self.dummy, name="baz", prop=5.0, param=6.0)
+        self.assertEqual(self.dummy.name, "baz")
         self.assertEqual(self.dummy.prop, 5.0)
         self.assertEqual(self.dummy.param, 6.0)
 
@@ -65,7 +65,7 @@ class TestGeneralUtils(unittest.TestCase):
         catalogue = _create_catalogue(mock_properties, mock_values)
         for k, v in catalogue.items():
             _set_properties(self.dummy, catalogue=catalogue, name=k)
-            self.assertEqual(self.dummy.component_name, k)
+            self.assertEqual(self.dummy.name, k)
             self.assertEqual(self.dummy.prop, v["prop"])
             self.assertEqual(self.dummy.param, v["param"])
 
@@ -89,7 +89,7 @@ class TestGeneralUtils(unittest.TestCase):
         catalogue = _create_catalogue(mock_properties, mock_values)
         name = next(iter(catalogue))
         _set_properties(self.dummy, catalogue=catalogue, key=name, param=param_new)
-        self.assertEqual(self.dummy.component_name, name)
+        self.assertEqual(self.dummy.name, name)
         self.assertEqual(self.dummy.prop, catalogue[name]["prop"])
         self.assertEqual(self.dummy.param, param_new)
 
