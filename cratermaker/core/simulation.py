@@ -589,8 +589,7 @@ class Simulation(CratermakerBase):
             leave=True,
         ) as pbar:
             for i in range(initial_interval, ninterval):
-                if self.do_counting:
-                    self.counting._emplaced = []
+                self.counting._emplaced = []
                 if is_time_interval:
                     time = time_start - i * time_interval
                     current_time_end = time_start - (i + 1) * time_interval
@@ -878,8 +877,7 @@ class Simulation(CratermakerBase):
         save_args = {"interval": self.interval, "time_variables": self.time_variables, **kwargs}
         self.surface.save(**save_args)
 
-        if self.do_counting:
-            self.counting.save(**save_args)
+        self.counting.save(**save_args)
 
         self.to_config(**kwargs)
         super().save(**save_args)
@@ -940,7 +938,14 @@ class Simulation(CratermakerBase):
                 ask_overwrite=ask_overwrite,
                 **kwargs,
             )
-
+        else:
+            self.counting.export(
+                craters=self.counting.emplaced,
+                interval=interval,
+                driver=counting_driver,
+                ask_overwrite=ask_overwrite,
+                **kwargs,
+            )
         self.ask_overwrite = ask_overwrite_orig
 
         return

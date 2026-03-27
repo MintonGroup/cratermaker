@@ -196,7 +196,6 @@ class Counting(ComponentBase):
 
             # Check to make sure the crater was recorded to the surface. HiResLocal surfaces may not record craters in the superdomain
             if crater.id in self.surface.uxds.crater_id:
-                self.emplaced.append(crater)
                 self.observed[crater.id] = crater
             else:
                 return
