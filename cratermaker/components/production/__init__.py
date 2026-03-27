@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numpy.random import Generator
@@ -42,7 +42,7 @@ class Production(ComponentBase):
         Parameters
         ----------
         quasimc_file : str | Path, optional
-            Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the ND_conversion_factor attribute).
+            Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the N_conversion_factor attribute).
         quasimc_craters : list[Crater], optional
             A list of Crater objects that are emplaced using the quasi-Monte Carlo method. This is an alternative to providing a quasimc_file. Only one of either quasimc_file or quasimc_craters should be provided.
         diameter_range : PairOfFloats, optional
@@ -60,8 +60,8 @@ class Production(ComponentBase):
         object.__setattr__(self, "_valid_generator_types", ["crater", "projectile"])
         object.__setattr__(self, "_quasimc_file", None)
         object.__setattr__(self, "_quasimc_craters", None)
-        object.__setattr__(self, "_ND_conversion_factor", None)
-        object.__setattr__(self, "_ND_unit", None)
+        object.__setattr__(self, "_N_conversion_factor", None)
+        object.__setattr__(self, "_D_conversion_factor", None)
         object.__setattr__(self, "_diameter_range", None)
         self.diameter_range = diameter_range
 
@@ -74,7 +74,7 @@ class Production(ComponentBase):
             else:
                 raise FileNotFoundError(f"quasimc_file {quasimc_file} not found")
         elif quasimc_craters is not None:
-            self.process_quasimc_craters(craters=quasimc_craters, **kwargs)
+            self.quasimc_craters = quasimc_craters
 
     def __str__(self) -> str:
         base = super().__str__()
@@ -104,7 +104,7 @@ class Production(ComponentBase):
         target : Target | str | None, optional
             The target body for the impact. Can be a Target object or a string representing the target name.
         quasimc_file : str | Path, optional
-            Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the ND_conversion_factor attribute).
+            Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the N_conversion_factor attribute).
         quasimc_craters : list[Crater], optional
             A list of Crater objects that are emplaced using the quasi-Monte Carlo method. This is an alternative to providing a quasimc_file. Only one of either quasimc_file or quasimc_craters should be provided.
         diameter_range : PairOfFloats, optional
@@ -902,8 +902,8 @@ class Production(ComponentBase):
                 # N(D) values take precedence over time values
                 prod_diam, nmean, nsig = crater.production_ND
                 prod_diam *= 1e3
-                nmean /= self.ND_conversion_factor
-                nsig /= self.ND_conversion_factor
+                nmean /= self.N_conversion_factor
+                nsig /= self.N_conversion_factor
                 # Convert from N(prod_diam) to N(1) for alignment
                 fac = self.csfd(_DSTD) / self.csfd(prod_diam)
                 nmean *= fac
@@ -987,8 +987,8 @@ class Production(ComponentBase):
                     if crater.production_ND is not None and crater.production_ND != [None, None, None]:
                         prod_diam, nmean, nstdev = crater.production_ND
                         prod_diam *= 1e3
-                        nmean /= self.ND_conversion_factor
-                        nstdev /= self.ND_conversion_factor
+                        nmean /= self.N_conversion_factor
+                        nstdev /= self.N_conversion_factor
                         # Convert from N(prod_diam) to N(1) for alignment
                         fac = self.csfd(_DSTD) / self.csfd(prod_diam)
                         nmean *= fac
@@ -1189,35 +1189,64 @@ class Production(ComponentBase):
         return
 
     @parameter
-    def ND_conversion_factor(self) -> float:
+    def D_conversion_factor(self) -> float:
         """
-        The conversion factor used to convert N(D) format into number of craters per m².
+        The conversion factor used to convert D in N(D) format into crater diameter in meters. The default value is 1e3, which corresponds to input diameter values in kilometers.
+
+        Only two options are allowed, 1 for units of m or 1000 for units of m. If None is provided, it will default to 1000 (km).
+        """
+        if self._D_conversion_factor is None:
+            self._D_conversion_factor = 1000.0
+        return self._D_conversion_factor
+
+    @D_conversion_factor.setter
+    def D_conversion_factor(self, value: Literal[1.0, 1000.0] | None):
+        if value is None:
+            value = 1000.0
+        if value in [1.0, 1000.0]:
+            self._D_conversion_factor = value
+        else:
+            raise ValueError("D_conversion factor can only be 1 or 1000 (m or km)")
+
+    @property
+    def D_unit(self) -> str:
+        if self.D_conversion == 1.0:
+            return "m"
+        elif self.D_conversion_factor == 1000.0:
+            return "km"
+        else:
+            return "UNKNOWN UNITS"
+
+    @parameter
+    def N_conversion_factor(self) -> float:
+        """
+        The conversion factor used to convert N in N(D) format into number of craters per m².
 
         Only three options are allowed, 1.0 for units of '# per m²', 1e6 for units of '# per km²', or 1e12 for units of per 10⁶ km². The default value is 1e12."
         """
-        if self._ND_conversion_factor is None:
-            return 1e12
+        if self._N_conversion_factor is None:
+            self._N_conversion_factor = 1.0e12
+        return self._N_conversion_factor
 
-    @ND_conversion_factor.setter
-    def ND_conversion_factor(self, value: float | None):
-        if value is None or value == 1e12:
-            self._ND_conversion_factor = None
-            self._ND_unit = None
-        elif value == 1e6:
-            self._ND_conversion_factor = value
-            self._ND_unit = "# per km²"
-        elif value == 1.0:
-            self._ND_conversion_factor = value
-            self._ND_unit = "# per m²"
+    @N_conversion_factor.setter
+    def N_conversion_factor(self, value: Literal[1.0, 1e6, 1e12] | None):
+        if value is None:
+            value = 1e12
+        if value in [1.0, 1.0e6, 1.0e12]:
+            self._N_conversion_factor = value
         else:
-            raise ValueError("ND_conversion factor can only be 1.0, 1e6, or 1e12")
+            raise ValueError("N_conversion factor can only be 1.0, 1e6, or 1e12")
 
     @property
-    def ND_unit(self) -> float:
-        if self._ND_unit is None:
+    def N_unit(self) -> float:
+        if self._N_conversion_factor == 1.0:
+            return "# per m²"
+        elif self._N_conversion_factor == 1.0e6:
+            return "# per km²"
+        elif self._N_conversion_factor == 1.0e12:
             return "# per 10⁶ km²"
         else:
-            return self._ND_unit
+            return "UNKNOWN UNIT"
 
 
 import_components(__name__, __path__)
