@@ -58,5 +58,7 @@ sim = cm.Simulation(
     target="Moon", gridlevel=6, do_counting=False, simdir=simdir, ask_overwrite=False, reset=True, quasimc_file="qmc_input.csv"
 )
 
+# When assigning quasimc craters, the size of the smallest Quasi-Monte Carlo crater will be used to set the largest Monte Carlo-generated crater. In our example test case, we have two small young craters (Tycho and Copernicus), so we need to ensure we don't artificially cut off our production population at the size of Tycho.
+sim.largest_crater = 200e3
 sim.run(age=4310)
 sim.show3d(variable_name="face_elevation", cmap="Greys_r")
