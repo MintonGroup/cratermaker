@@ -869,7 +869,7 @@ class Production(ComponentBase):
                 else:
                     merged.append(c)
             if qidx >= 0:
-                merged += qmclist[:qidx]
+                merged += qmclist[0 : qidx + 1]
             craters = merged
         craters.sort(key=lambda c: c.time, reverse=True)
         return craters
