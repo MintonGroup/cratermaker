@@ -780,7 +780,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, interval: int | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
         Exports the surface to a VTK PolyData object.
 
@@ -788,6 +788,8 @@ class Surface(ComponentBase):
         ----------
         uxds : UxDataset, optional
             The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        interval : int, optional
+            The interval number to export. If provided, the method will either extract the interval number from uxds (if it has intervals saved), or, if no uxds is passed, load a saved interval from file.
         **kwargs : Any
             |kwargs|
 
@@ -796,7 +798,7 @@ class Surface(ComponentBase):
         vtkUnstructuredGrid
             The VTK PolyData object representing the regional mesh.
         """
-        return self._full().to_vtk_mesh(uxds=uxds, **kwargs)
+        return self._full().to_vtk_mesh(uxds=uxds, interval=interval, **kwargs)
 
     def to_vtk_file(
         self,
@@ -2824,7 +2826,7 @@ class LocalSurface(CratermakerBase):
             )
         return
 
-    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, interval: int | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
         Exports the regional mesh to a VTK PolyData object.
 
@@ -2832,6 +2834,8 @@ class LocalSurface(CratermakerBase):
         ----------
         uxds : UxDataset, optional
             The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        interval : int, optional
+            The interval number to export. If provided, the method will either extract the interval number from uxds (if it has intervals saved), or, if no uxds is passed, load a saved interval from file.
         **kwargs : Any
             |kwargs|
 
@@ -2849,7 +2853,16 @@ class LocalSurface(CratermakerBase):
         from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
         if uxds is None:
-            uxds = self.uxds
+            if interval is None:
+                uxds = self.uxds
+            else:
+                uxds = self.read_saved_output(interval=interval, reset=False).isel(interval=0)
+                interval = None
+
+        if interval is not None:
+            if "interval" not in uxds:
+                raise ValueError("uxds does not have an 'interval' variable")
+            uxds = uxds.isel(interval=interval)
 
         node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
         node_normals = node_xyz / self.surface.radius
