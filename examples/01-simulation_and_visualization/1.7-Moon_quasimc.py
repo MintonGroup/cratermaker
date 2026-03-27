@@ -11,25 +11,22 @@ The emplacement time of a Quasi-Monte Carlo crater is determined by some combina
 production_D
     The `D` value (in km) used in the N(D) convention (e.g. 1 would be used to indicate N(1), 20 for N(20), etc.)
 
-production_N_stdev
-    The low end of a range of N(D) values, given in units of craters per 10⁶ km²
-
-production_N_high
-    The high end of a range of N(D) values,  given in units of craters 1 million sq. km.
-
 production_N
-    Equivalent to setting the production_N_high and production_N_stdev to the same value.
+    The N(D) value in units of craters per 10⁶ km².
 
-production_time_stdev
-    The low end of a range of time values (in My before present)
-
-production_time_high
-    The high end of a range of time values (in My before present)
+production_N_stdev
+    The 1-sigma standard deviation of a range of N(D) values, given in units of craters per 10⁶ km²
 
 production_time
-    Equivalent to setting production_time_stdev and production_time_high to be the same.
+    The mean emplacement time (in My before present)
 
-If both N(D) and time values are provided, the N(D) values take precedence, and if ranges are provided with singular values (etc. both production_time and production_time_stdev/high are included), the range values take precedence over the singular values. The included file `qmc_input.csv` contains inputs in all of the possible formats discussed above.
+production_time_stdev
+    The 1-sigma standard deviation of possible time values (in My before present)
+
+production_sequence
+    An integer value that indicates the emplacement sequence relative to other craters with a production_sequence value. For example, a crater with production_sequence=5 would be emplaced after a crater with production_sequence=4, but before a crater with production_sequence=6. Craters can have a production_sequence value even if they don't have a production_time or production_N value, as long as at least 1 crater with the lowest production_sequence value has either a production_time or production_N value. Otherwise, the production_N is interpolated based on the production_N/_time values of the neighboring sequences.
+
+If both N(D) and time values are provided, the N(D) values take precedence, and if stdev values are ommitted, this is interpreted as 0 .
 
 We will use the ``run`` method in a Cratermaker Simulation object for an age of 4.31 billion years using the default Neukum production function [#]_. The largest craters (aka basins) will not follow this production function, but instead will be emplaced according to the csv file. The age of South Pole Aitken basin is set to simulation start, and Imbrium is set to 3.9 billion years ago. The other basins can vary based on N(20) values measured in Orgel et al. (2018) [#]_. The 74 basins catalogued by Neumann et al. (2015) [#]_ are included in this file.
 
