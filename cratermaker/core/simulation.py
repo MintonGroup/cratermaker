@@ -1642,3 +1642,18 @@ class Simulation(CratermakerBase):
         if not isinstance(value, (bool, None)):
             raise TypeError("do_quasimc must be a boolean value or None")
         self._do_quasimc = value
+
+    @property
+    def quasimc_craters(self) -> list[Crater]:
+        """
+        List of craters to be emplaced using quasi-Monte Carlo (pass-through to production.quasimc_craters).
+
+        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their :py:attr:`~cratermaker.components.production.Production.time` values.
+        """
+        if self.production is not None:
+            return self.production.quasimc_craters
+
+    @quasimc_craters.setter
+    def quasimc_craters(self, value: list[Crater] | None):
+        if self.production is not None:
+            self.production.quasimc_craters = value

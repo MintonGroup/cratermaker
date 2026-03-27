@@ -31,6 +31,8 @@ class Production(ComponentBase):
         quasimc_file: str | Path | None = None,
         quasimc_craters: list[Crater] | None = None,
         diameter_range: PairOfFloats | None = None,
+        N_conversion_factor: float | None = None,
+        D_conversion_factor: float | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -47,6 +49,10 @@ class Production(ComponentBase):
             A list of Crater objects that are emplaced using the quasi-Monte Carlo method. This is an alternative to providing a quasimc_file. Only one of either quasimc_file or quasimc_craters should be provided.
         diameter_range : PairOfFloats, optional
             The minimum and maximum crater diameter to sample from in meters. If not provided, the default is (0, inf), unless quasimc_file or quasimc_craters is provided, in which case the upper range will be set based on the smallest diameter in the quasi-Monte Carlo data.
+        N_conversion_factor : float, optional
+            The conversion factor to apply to the N values in the quasi-Monte Carlo data to convert them to units of number per m².  The default is 1e12, which represents number of craters per 10⁶ km²
+        D_conversion_factor : float, optional
+            The conversion factor to apply to the D values in the quasi-Monte Carlo data to convert them to units of meters. The default is 1e3, which represents diameters in km.
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -75,10 +81,14 @@ class Production(ComponentBase):
                 raise FileNotFoundError(f"quasimc_file {quasimc_file} not found")
         elif quasimc_craters is not None:
             self.quasimc_craters = quasimc_craters
+        self.N_conversion_factor = N_conversion_factor
+        self.D_conversion_factor = D_conversion_factor
 
     def __str__(self) -> str:
         str_repr = super().__str__()
         str_repr += f"Generator type {self.generator_type}\n"
+        str_repr += f"Diameter range: {format_large_units(self.diameter_range[0], quantity='length')} to {format_large_units(self.diameter_range[1], quantity='length')}\n"
+        str_repr += f"N(D) units: {self.N_D_units}\n"
         if self.quasimc_file is not None:
             str_repr += "Quasi-Monte Carlo file: {self.quasimc_file}\n"
         if self.quasimc_craters is not None:
@@ -93,6 +103,8 @@ class Production(ComponentBase):
         quasimc_file: str | Path | None = None,
         quasimc_craters: list[Crater] | None = None,
         diameter_range: PairOfFloats | None = None,
+        N_conversion_factor: float | None = None,
+        D_conversion_factor: float | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -114,6 +126,10 @@ class Production(ComponentBase):
             A list of Crater objects that are emplaced using the quasi-Monte Carlo method. This is an alternative to providing a quasimc_file. Only one of either quasimc_file or quasimc_craters should be provided.
         diameter_range : PairOfFloats, optional
             The minimum and maximum crater diameter to sample from in meters. If not provided, the default is (0, inf), unless quasimc_file or quasimc_craters is provided, in which case the upper range will be set based on the smallest diameter in the quasi-Monte Carlo data.
+        N_conversion_factor : float, optional
+            The conversion factor to apply to the N values in the quasi-Monte Carlo data to convert them to units of number per m².  The default is 1e12, which represents number of craters per 10⁶ km²
+        D_conversion_factor : float, optional
+            The conversion factor to apply to the D values in the quasi-Monte Carlo data to convert them to units of meters. The default is 1e3, which represents diameters in km.
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -166,6 +182,8 @@ class Production(ComponentBase):
             quasimc_file=quasimc_file,
             quasimc_craters=quasimc_craters,
             diameter_range=diameter_range,
+            N_conversion_factor=N_conversion_factor,
+            D_conversion_factor=D_conversion_factor,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
@@ -793,70 +811,6 @@ class Production(ComponentBase):
     def quasimc_merge(self, **kwargs):
         pass
 
-    @parameter
-    def generator_type(self):
-        """
-        The type of generator to use.
-
-        This can be either "crater" or "projectile".  This determines the nature of the production function, differentiating between 'crater' and 'projectile' types, which affect the calculations and interpretations of the production function.
-        """
-        return self._generator_type
-
-    @generator_type.setter
-    def generator_type(self, value):
-        if not value:
-            self._generator_type = self._valid_generator_types[0]
-            return
-        if not isinstance(value, str):
-            raise TypeError("generator_type must be a string")
-        if value.lower() not in self._valid_generator_types:
-            raise ValueError(f"Invalid generator_type {value}. Must be one of {self._valid_generator_types}")
-        self._generator_type = value.lower()
-        return
-
-    @property
-    def valid_time(self) -> tuple[float, float]:
-        """
-        The range of ages over which the production function is valid. The range is given in My.
-
-        Returns
-        -------
-        tuple
-            The lower and upper bounds of the valid time range in My, or None if not applicable.
-        """
-        return (None, None)
-
-    @parameter
-    def quasimc_file(self) -> Path:
-        """
-        File containing the quasi-Monte Carlo craters.
-        """
-        return self._quasimc_file
-
-    @quasimc_file.setter
-    def quasimc_file(self, value) -> None:
-        if value is not None:
-            if isinstance(value, str):
-                value = Path(value)
-            if isinstance(value, Path):
-                if not value.exists():
-                    raise FileNotFoundError(f"quasimc_file {str(value)} not found")
-                self._quasimc_file = value
-                return
-
-    @property
-    def quasimc_craters(self) -> list[Crater]:
-        """
-        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their :py:attr:`time` values.
-        """
-        return self._quasimc_craters
-
-    @quasimc_craters.setter
-    def quasimc_craters(self, value: list[Crater]):
-        if not isinstance(value, list) or not all(isinstance(c, Crater) for c in value):
-            raise TypeError("quasimc_craters must be a list of Crater objects")
-        self._quasimc_craters = self._process_quasimc_craters(value)
-
     def _process_quasimc_craters(self, craters: list[Crater], **kwargs: Any) -> list[Crater]:
         """
         Process a list of quasi-Monte Carlo craters to set their emplacement time using computing production_ND, production_time, and/or production_sequence if present, and will drop craters that have no production metadata.
@@ -1178,6 +1132,75 @@ class Production(ComponentBase):
         self.quasimc_craters = input_craters
         return
 
+    @parameter
+    def generator_type(self):
+        """
+        The type of generator to use.
+
+        This can be either "crater" or "projectile".  This determines the nature of the production function, differentiating between 'crater' and 'projectile' types, which affect the calculations and interpretations of the production function.
+        """
+        return self._generator_type
+
+    @generator_type.setter
+    def generator_type(self, value):
+        if not value:
+            self._generator_type = self._valid_generator_types[0]
+            return
+        if not isinstance(value, str):
+            raise TypeError("generator_type must be a string")
+        if value.lower() not in self._valid_generator_types:
+            raise ValueError(f"Invalid generator_type {value}. Must be one of {self._valid_generator_types}")
+        self._generator_type = value.lower()
+        return
+
+    @property
+    def valid_time(self) -> tuple[float, float]:
+        """
+        The range of ages over which the production function is valid. The range is given in My.
+
+        Returns
+        -------
+        tuple
+            The lower and upper bounds of the valid time range in My, or None if not applicable.
+        """
+        return (None, None)
+
+    @parameter
+    def quasimc_file(self) -> Path:
+        """
+        File containing the quasi-Monte Carlo craters.
+        """
+        return self._quasimc_file
+
+    @quasimc_file.setter
+    def quasimc_file(self, value) -> None:
+        if value is not None:
+            if isinstance(value, str):
+                value = Path(value)
+            if isinstance(value, Path):
+                if not value.exists():
+                    raise FileNotFoundError(f"quasimc_file {str(value)} not found")
+                self._quasimc_file = value
+                return
+
+    @property
+    def quasimc_craters(self) -> list[Crater]:
+        """
+        List of craters to be emplaced using quasi-Monte Carlo.
+
+        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their :py:attr:`~cratermaker.components.crater.CraterFixed.time` values.
+        """
+        return self._quasimc_craters
+
+    @quasimc_craters.setter
+    def quasimc_craters(self, value: list[Crater] | None):
+        if value is None:
+            self._quasimc_craters = None
+        elif not isinstance(value, list) or not all(isinstance(c, Crater) for c in value):
+            raise TypeError("quasimc_craters must be a list of Crater objects")
+        else:
+            self._quasimc_craters = self._process_quasimc_craters(value)
+
     @property
     def diameter_range(self) -> tuple[float, float]:
         """
@@ -1218,7 +1241,7 @@ class Production(ComponentBase):
 
     @property
     def D_unit(self) -> str:
-        if self.D_conversion == 1.0:
+        if self.D_conversion_factor == 1.0:
             return "m"
         elif self.D_conversion_factor == 1000.0:
             return "km"
@@ -1248,13 +1271,17 @@ class Production(ComponentBase):
     @property
     def N_unit(self) -> float:
         if self._N_conversion_factor == 1.0:
-            return "# per m²"
+            return "per m²"
         elif self._N_conversion_factor == 1.0e6:
-            return "# per km²"
+            return "per km²"
         elif self._N_conversion_factor == 1.0e12:
-            return "# per 10⁶ km²"
+            return "per 10⁶ km²"
         else:
             return "UNKNOWN UNIT"
+
+    @property
+    def N_D_units(self) -> float:
+        return f"N>D({self.D_unit}) {self.N_unit}"
 
 
 import_components(__name__, __path__)

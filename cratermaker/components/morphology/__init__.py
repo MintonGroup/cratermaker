@@ -424,7 +424,8 @@ class Morphology(ComponentBase):
 
     def __str__(self) -> str:
         str_repr = super().__str__()
-        str_repr += f"Counting : <{self.counting.component_name}>\n"
+        if self.do_counting:
+            str_repr += f"Counting : <{self.counting.component_name}>\n"
         str_repr += f"Do slope collapse: {self.do_slope_collapse}\n"
         str_repr += f"Do subpixel degradation: {self.do_subpixel_degradation}\n"
         if self.do_subpixel_degradation:
