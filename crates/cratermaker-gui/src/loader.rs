@@ -18,13 +18,6 @@ impl<'py> Inspect<'py> {
         }
     }
 
-    pub fn getmodule(&self, obj: &Bound<'py, PyAny>) -> Bound<'py, PyModule> {
-        self.inspect
-            .call_method1(intern!(obj.py(), "getmodule"), (obj,))
-            .unwrap()
-            .cast_into()
-            .unwrap()
-    }
     pub fn getdoc(&self, obj: &Bound<'py, PyAny>) -> Option<String> {
         self.inspect
             .call_method1(intern!(obj.py(), "getdoc"), (obj,))
@@ -63,6 +56,13 @@ impl Cratermaker {
         Ok(Cratermaker {
             module: Module::load(&Inspect::load(py), cratermaker),
         })
+    }
+    pub fn get_module(&self, path: &[&str]) -> Option<&Module> {
+        self.module.get_submodule_tree(path)
+    }
+    pub fn get_class(&self, module_path: &[&str], name: &str) -> Option<Arc<Class>> {
+        self.get_module(module_path)
+            .and_then(|module| module.get_class(name))
     }
 }
 
@@ -118,6 +118,17 @@ impl Module {
             name,
             classes,
         }
+    }
+    pub fn get_submodule(&self, name: &str) -> Option<&Module> {
+        self.submodules.get(name)
+    }
+    pub fn get_submodule_tree(&self, path: &[&str]) -> Option<&Module> {
+        path.iter().fold(Some(self), |current, &name| {
+            current.and_then(|current| current.get_submodule(name))
+        })
+    }
+    pub fn get_class(&self, name: &str) -> Option<Arc<Class>> {
+        self.classes.get(name).cloned()
     }
 }
 
