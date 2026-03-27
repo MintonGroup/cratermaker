@@ -1021,14 +1021,25 @@ class Counting(ComponentBase):
 
         # return
 
-    def to_vtk_mesh(self, craters: list[Crater], use_measured_properties: bool = True, **kwargs: Any) -> vtkPolyData:
+    def to_vtk_mesh(
+        self,
+        name: Literal["observed", "emplaced"] | None = None,
+        interval: int | None = None,
+        craters: list[Crater] | None = None,
+        use_measured_properties: bool = True,
+        **kwargs: Any,
+    ) -> vtkPolyData:
         """
         Convert the crater data to a VTK PolyData mesh.
 
         Parameters
         ----------
-        craters : list[Crater]
-            A list of Crater objects to convert.
+        name : Literal["observed", "emplaced"], optional
+            The name of the crater dataset to convert, either "observed" or "emplaced. If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
+        interval : int | None, optional
+            The interval number to load if craters is not provided directly. If None, then the most recent interval will be used. Default is None.
+        craters : list[Crater], optional
+            A list of Crater objects to convert. If None is provided, then the crater dataset will be determined by the `name` parameter. Default is None.
         use_measured_properties : bool, optional
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
         **kwargs : Any
@@ -1043,7 +1054,6 @@ class Counting(ComponentBase):
             vtkCellArray,
             vtkPoints,
             vtkPolyLine,
-            vtkXMLPolyDataWriter,
         )
 
         def lonlat_to_xyz(R):
@@ -1075,6 +1085,33 @@ class Counting(ComponentBase):
             yield from _rings(g3d)
 
         surface = self.surface
+
+        if craters is None:
+            if name is None:
+                raise ValueError(
+                    "If craters is not provided directly, then name must be provided to determine which crater dataset to use."
+                )
+            elif name not in ["observed", "emplaced"]:
+                raise ValueError("name must be either 'observed' or 'emplaced'")
+            if interval is None:
+                if name == "observed":
+                    craters = list(self.observed.values())
+                else:
+                    craters = self.emplaced
+            else:
+                observed, emplaced = self.read_saved_output(interval=interval)
+                if name == "observed":
+                    if observed is None:
+                        return None
+                    interval = observed.interval.values[-1]
+                    craters = self.Crater.from_xarray(observed, interval=interval)
+                else:
+                    if emplaced is None:
+                        return None
+                    interval = emplaced.interval.values[-1]
+                    craters = self.Crater.from_xarray(emplaced, interval=interval)
+            if craters is None:
+                return None
 
         geoms = []
         for crater in craters:

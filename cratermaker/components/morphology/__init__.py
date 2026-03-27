@@ -543,7 +543,14 @@ class Morphology(ComponentBase):
             craters = [MorphologyCrater.maker(crater=craters, morphology=self)]
 
         if isinstance(craters, list) and len(craters) > 0:
-            for c in craters:
+            for c in tqdm(
+                craters,
+                total=len(craters),
+                desc="Queueing craters for emplacement",
+                unit="crater",
+                position=0,
+                leave=False,
+            ):
                 self._enqueue_crater(c)
 
         self._process_queue(**kwargs)

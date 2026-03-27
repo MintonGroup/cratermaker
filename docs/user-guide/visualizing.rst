@@ -95,7 +95,6 @@ By default, :py:meth:`Simulation.export() <cratermaker.core.simulation.Simulatio
         gridlevel=9,
         ask_overwrite=False,
         reset=True,
-        do_counting=False,
         save_actions=[],
         rng_seed=252346663,
     )
