@@ -743,8 +743,9 @@ class Counting(ComponentBase):
     def pyvista_plotter(
         self,
         surface: Surface | LocalSurface | None = None,
-        observed_color: str = "white",
-        emplaced_color: str = "red",
+        observed_color: str | None = "white",
+        emplaced_color: str | None = "red",
+        crater_style: Literal["rings", "points"] = "rings",
         interval: int | None = None,
         **kwargs: Any,
     ) -> pyvista.Plotter:
@@ -761,6 +762,8 @@ class Counting(ComponentBase):
             The color to use for emplaced craters. Default is "red".
         interval : int, optional
             The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
+        crater_style : Literal["rings", "points"] = "rings",
+            Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center of each crater. Default is "rings".
         **kwargs : Any
             |kwargs|
 
@@ -782,27 +785,52 @@ class Counting(ComponentBase):
             interval = -1
 
         observed, emplaced = self.read_saved_output(interval=interval)
+        has_observed = observed is not None and len(observed) > 0
+        has_emplaced = emplaced is not None and len(emplaced) > 0
+
+        if has_observed:
+            interval = observed.interval.values[-1]
+        elif has_emplaced:
+            interval = emplaced.interval.values[-1]
+        else:
+            return plotter
 
         add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}
         add_mesh_kwargs = {"line_width": 2, **add_mesh_kwargs}
-        if observed:
-            interval = observed.interval.values[-1]
+        if crater_style == "points":
+            add_mesh_kwargs["render_points_as_spheres"] = False
+            add_mesh_kwargs["style"] = "points_gaussian"
+            add_mesh_kwargs["emissive"] = True
+
+        if has_observed and observed_color is not None:
             observed = self.Crater.from_xarray(observed, interval=interval)
             observed_kwargs = {"color": observed_color, **add_mesh_kwargs}
+            mesh = self.to_vtk_mesh(craters=observed, use_measured_properties=True, crater_style=crater_style, **kwargs)
+            pdata = pyvista.PolyData(mesh)
+            pdata["radius"] = np.array([c.measured_radius for c in observed])
             observed_count_actor = plotter.add_mesh(
-                self.to_vtk_mesh(craters=observed, use_measured_properties=True), name="observed", **observed_kwargs
+                pdata,
+                name="observed",
+                **observed_kwargs,
             )
+            observed_count_actor.mapper.scale_array = "radius"
             observed_count_actor.SetVisibility(False)
             plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
             plotter = update_pyvista_help_message(plotter, new_message="c: Toggle counted craters")
-        if emplaced:
+        if has_emplaced and emplaced_color is not None:
             emplaced_interval = emplaced.interval.values[-1]
             if emplaced_interval == interval:
                 emplaced = self.Crater.from_xarray(emplaced, interval=interval)
                 emplaced_kwargs = {"color": emplaced_color, **add_mesh_kwargs}
+                mesh = self.to_vtk_mesh(craters=emplaced, use_measured_properties=False, crater_style=crater_style, **kwargs)
+                pdata = pyvista.PolyData(mesh)
+                pdata["radius"] = np.array([c.radius for c in emplaced])
                 emplaced_count_actor = plotter.add_mesh(
-                    self.to_vtk_mesh(craters=emplaced, use_measured_properties=False), name="emplaced", **emplaced_kwargs
+                    pdata,
+                    name="emplaced",
+                    **emplaced_kwargs,
                 )
+                emplaced_count_actor.mapper.scale_array = "radius"
                 emplaced_count_actor.SetVisibility(False)
                 plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
                 plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
@@ -815,6 +843,7 @@ class Counting(ComponentBase):
         observed_color: str = "white",
         emplaced_color: str = "red",
         interval: int | None = None,
+        crater_style: Literal["rings", "points"] = "rings",
         **kwargs: Any,
     ) -> None:
         """
@@ -828,6 +857,8 @@ class Counting(ComponentBase):
             The color to use for observed craters. Default is "white".
         emplaced_color : str, optional
             The color to use for emplaced craters. Default is "red".
+        crater_style : Literal["rings", "points"], optional
+            Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center of the crater. Default is "rings".
         **kwargs : Any
             |kwargs|
 
@@ -835,7 +866,9 @@ class Counting(ComponentBase):
         from cratermaker.constants import PYVISTA_SHOW_KWARGS
 
         if engine.lower() == "pyvista":
-            plotter = self.pyvista_plotter(observed_color=observed_color, emplaced_color=emplaced_color, **kwargs)
+            plotter = self.pyvista_plotter(
+                observed_color=observed_color, emplaced_color=emplaced_color, crater_style=crater_style, **kwargs
+            )
             plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
             plotter.show(**plotter_kwargs)
         else:
@@ -1026,7 +1059,7 @@ class Counting(ComponentBase):
         interval: int | None = None,
         craters: list[Crater] | None = None,
         use_measured_properties: bool = True,
-        mesh_style: Literal["ring", "sphere"] = "ring",
+        crater_style: Literal["rings", "points"] = "rings",
         **kwargs: Any,
     ) -> vtkPolyData:
         """
@@ -1042,8 +1075,8 @@ class Counting(ComponentBase):
             A list of Crater objects to convert. If None is provided, then the crater dataset will be determined by the `name` parameter. Default is None.
         use_measured_properties : bool, optional
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
-        mesh_style : Literal["ring", "sphere"], optional
-            Sets the style of the mesh. Options are "ring", which creates polyline circles over the rim of each crater or "sphere" which creates a sphere at the center of the rim with the crater's radius.
+        crater_style : Literal["rings", "points"], optional
+            Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center of each crater.
         **kwargs : Any
             |kwargs|
 
@@ -1070,14 +1103,14 @@ class Counting(ComponentBase):
             return _f
 
         def polygon_xyz_coords(geom, R):
-            """Yield Nx3 arrays for each exterior ring (drop closing vertex)."""
+            """Yield Nx3 arrays for each exterior ring (keep closing vertex)."""
             g3d = transform(lonlat_to_xyz(R), geom)
 
             def _rings(g):
                 if g.geom_type == "Polygon":
-                    yield np.asarray(g.exterior.coords)  # [:-1]  # (N, 3)
+                    yield np.asarray(g.exterior.coords)
                     for i in g.interiors:
-                        yield np.asarray(i.coords)  # [:-1]
+                        yield np.asarray(i.coords)
                 elif g.geom_type in ("MultiPolygon", "GeometryCollection"):
                     for sub in g.geoms:
                         yield from _rings(sub)
@@ -1086,7 +1119,8 @@ class Counting(ComponentBase):
 
             yield from _rings(g3d)
 
-        def draw_ring(craters, R):
+        def draw_rings(craters, surface):
+            R = surface.radius
             geoms = []
             for crater in craters:
                 geoms.append(
@@ -1117,11 +1151,33 @@ class Counting(ComponentBase):
 
             return poly_data
 
-        valid_mesh_styles = ["ring", "sphere"]
-        mesh_style = mesh_style.lower()
-        if mesh_style not in valid_mesh_styles:
-            vtxt = ", ".join(f'"{s}"' for s in valid_mesh_styles)
-            raise ValueError(f"{mesh_style} is not a recognized mesh_style. Valid options are {vtxt}.")
+        def draw_points(craters, surface):
+            from shapely.geometry import Point
+            from vtk import VTK_FLOAT
+            from vtkmodules.util.numpy_support import numpy_to_vtk
+
+            geoms = []
+            for crater in craters:
+                z = surface.face_elevation[crater.face_index] + crater.rim_height - crater.floor_depth
+                geoms.append(Point(crater.location[0], crater.location[1], z))
+            gs = GeoSeries(geoms, crs=surface.crs)
+
+            # Convert to Cartesian coordinates using transform
+            R = surface.radius
+            points = vtkPoints()
+            for geom in gs:
+                x, y, z = lonlat_to_xyz(R)(geom.x, geom.y, geom.z)
+                points.InsertNextPoint(float(x), float(y), float(z))
+            poly_data = vtkPolyData()
+            poly_data.SetPoints(points)
+            return poly_data
+
+        valid_crater_styles = ["rings", "points"]
+        crater_style = crater_style.lower()
+        if crater_style not in valid_crater_styles:
+            vtxt = ", ".join(f'"{s}"' for s in valid_crater_styles)
+            raise ValueError(f"{crater_style} is not a recognized crater_style. Valid options are {vtxt}.")
+
         surface = self.surface
 
         if craters is None:
@@ -1151,10 +1207,10 @@ class Counting(ComponentBase):
             if craters is None:
                 return None
 
-        if mesh_style == "ring":
-            poly_data = draw_ring(craters, surface.radius)
-
-        return poly_data
+        if crater_style == "rings":
+            return draw_rings(craters, surface)
+        elif crater_style == "points":
+            return draw_points(craters, surface)
 
     def to_vtk_file(
         self,
