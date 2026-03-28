@@ -1026,6 +1026,7 @@ class Counting(ComponentBase):
         interval: int | None = None,
         craters: list[Crater] | None = None,
         use_measured_properties: bool = True,
+        mesh_style: Literal["ring", "sphere"] = "ring",
         **kwargs: Any,
     ) -> vtkPolyData:
         """
@@ -1041,6 +1042,8 @@ class Counting(ComponentBase):
             A list of Crater objects to convert. If None is provided, then the crater dataset will be determined by the `name` parameter. Default is None.
         use_measured_properties : bool, optional
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
+        mesh_style : Literal["ring", "sphere"], optional
+            Sets the style of the mesh. Options are "ring", which creates polyline circles over the rim of each crater or "sphere" which creates a sphere at the center of the rim with the crater's radius.
         **kwargs : Any
             |kwargs|
 
@@ -1072,9 +1075,9 @@ class Counting(ComponentBase):
 
             def _rings(g):
                 if g.geom_type == "Polygon":
-                    yield np.asarray(g.exterior.coords)[:-1]  # (N, 3)
+                    yield np.asarray(g.exterior.coords)  # [:-1]  # (N, 3)
                     for i in g.interiors:
-                        yield np.asarray(i.coords)[:-1]
+                        yield np.asarray(i.coords)  # [:-1]
                 elif g.geom_type in ("MultiPolygon", "GeometryCollection"):
                     for sub in g.geoms:
                         yield from _rings(sub)
@@ -1083,6 +1086,42 @@ class Counting(ComponentBase):
 
             yield from _rings(g3d)
 
+        def draw_ring(craters, R):
+            geoms = []
+            for crater in craters:
+                geoms.append(
+                    crater.to_geoseries(
+                        surface=surface, split_antimeridian=False, use_measured_properties=use_measured_properties, **kwargs
+                    )
+                )
+
+            points = vtkPoints()
+            lines = vtkCellArray()
+            point_id = 0  # Keep track of the point ID across all circles
+            for g in geoms:
+                for ring_xyz in polygon_xyz_coords(g.item(), R):
+                    x, y, z = ring_xyz.T  # each is (N,)
+                    for i in range(len(x)):
+                        points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))
+                    polyline = vtkPolyLine()
+                    polyline.GetPointIds().SetNumberOfIds(len(x))
+                    for i in range(len(x)):
+                        polyline.GetPointIds().SetId(i, point_id + i)
+                    point_id += len(x)
+                    lines.InsertNextCell(polyline)
+
+            # Create a poly_data object and add points and lines to it
+            poly_data = vtkPolyData()
+            poly_data.SetPoints(points)
+            poly_data.SetLines(lines)
+
+            return poly_data
+
+        valid_mesh_styles = ["ring", "sphere"]
+        mesh_style = mesh_style.lower()
+        if mesh_style not in valid_mesh_styles:
+            vtxt = ", ".join(f'"{s}"' for s in valid_mesh_styles)
+            raise ValueError(f"{mesh_style} is not a recognized mesh_style. Valid options are {vtxt}.")
         surface = self.surface
 
         if craters is None:
@@ -1112,33 +1151,9 @@ class Counting(ComponentBase):
             if craters is None:
                 return None
 
-        geoms = []
-        for crater in craters:
-            geoms.append(
-                crater.to_geoseries(
-                    surface=surface, split_antimeridian=False, use_measured_properties=use_measured_properties, **kwargs
-                )
-            )
+        if mesh_style == "ring":
+            poly_data = draw_ring(craters, surface.radius)
 
-        points = vtkPoints()
-        lines = vtkCellArray()
-        point_id = 0  # Keep track of the point ID across all circles
-        for g in geoms:
-            for ring_xyz in polygon_xyz_coords(g.item(), surface.radius):
-                x, y, z = ring_xyz.T  # each is (N,)
-                for i in range(len(x)):
-                    points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))
-                polyline = vtkPolyLine()
-                polyline.GetPointIds().SetNumberOfIds(len(x))
-                for i in range(len(x)):
-                    polyline.GetPointIds().SetId(i, point_id + i)
-                point_id += len(x)
-                lines.InsertNextCell(polyline)
-
-        # Create a poly_data object and add points and lines to it
-        poly_data = vtkPolyData()
-        poly_data.SetPoints(points)
-        poly_data.SetLines(lines)
         return poly_data
 
     def to_vtk_file(

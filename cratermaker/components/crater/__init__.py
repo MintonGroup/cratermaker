@@ -1127,7 +1127,7 @@ class Crater(ComponentBase):
 
     def to_geoseries(
         self,
-        n: int = 150,
+        n: int = 121,
         surface: Surface | None = None,
         split_antimeridian: bool = True,
         use_measured_properties: bool = True,
@@ -1139,7 +1139,7 @@ class Crater(ComponentBase):
         Parameters
         ----------
         n : int, optional
-            Number of points to use for the polygon, by default 150.
+            Number of points to use for the polygon, by default 121 (every 3 degrees plus the end point).
         surface : Surface | None, optional
             Surface object providing planetary radius and CRS.
         split_antimeridian : bool, optional
@@ -1161,7 +1161,7 @@ class Crater(ComponentBase):
 
         surface = Surface.maker(surface)
         geod = Geod(a=surface.target.radius, b=surface.target.radius)
-        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+        theta = np.linspace(0.0, 360.0, num=n, endpoint=True)
         if use_measured_properties:
             a = self.measured_semimajor_axis
             b = self.measured_semiminor_axis
