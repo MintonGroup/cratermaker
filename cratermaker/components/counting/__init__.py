@@ -1100,12 +1100,12 @@ class Counting(ComponentBase):
             else:
                 observed, emplaced = self.read_saved_output(interval=interval)
                 if name == "observed":
-                    if observed is None:
+                    if observed is None or len(observed) == 0:
                         return None
                     interval = observed.interval.values[-1]
                     craters = self.Crater.from_xarray(observed, interval=interval)
                 else:
-                    if emplaced is None:
+                    if emplaced is None or len(emplaced) == 0:
                         return None
                     interval = emplaced.interval.values[-1]
                     craters = self.Crater.from_xarray(emplaced, interval=interval)
