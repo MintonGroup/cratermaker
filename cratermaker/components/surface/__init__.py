@@ -3539,6 +3539,7 @@ class LocalSurface(CratermakerBase):
             pv.set_plot_theme(theme)
         if transparent_background is not None:
             pv.global_theme.transparent_background = transparent_background
+
         plotter = pv.Plotter()
         plotter.enable_hidden_line_removal()
 
