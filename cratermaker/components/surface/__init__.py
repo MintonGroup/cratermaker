@@ -3541,7 +3541,7 @@ class LocalSurface(CratermakerBase):
             pv.global_theme.transparent_background = transparent_background
 
         plotter = pv.Plotter()
-        plotter.enable_hidden_line_removal()
+        # plotter.enable_hidden_line_removal()
 
         mesh = self.to_vtk_mesh(self.uxds)
 

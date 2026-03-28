@@ -1185,7 +1185,7 @@ class Counting(ComponentBase):
             for crater in craters:
                 z = surface.face_elevation[crater.face_index]
                 if crater_style == "impacts":
-                    z -= crater.floor_depth
+                    z += crater.projectile_radius - crater.floor_depth + crater.rim_height
                 elif crater_style == "points":
                     z += surface.face_size[crater.face_index]
                 geoms.append(Point(crater.location[0], crater.location[1], z))
