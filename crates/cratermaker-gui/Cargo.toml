@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = "0.14.0"
+iced = { version = "0.14.0", features = ["advanced"] }
 pyo3 = {version="0.27", features=["auto-initialize"]}
 tokio = { version = "1.50.0", features = ["full"] }
 tokio-stream = "0.1.18"

@@ -1,15 +1,17 @@
+mod context_menu;
 mod loader;
 mod pythonio;
 
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use iced::{
-    Element, Length, Task,
-    widget::{button, column, container, row, text},
+    Element, Length, Point, Task,
+    widget::{button, column, container, mouse_area, row, text},
 };
 use pyo3::prelude::*;
 
 use crate::{
+    context_menu::{context_area, context_menu},
     loader::{Class, Cratermaker},
     pythonio::PythonIO,
 };
@@ -21,15 +23,16 @@ struct Variable {
     value: Py<PyAny>,
 }
 
-impl Variable {
-    fn view(&self) -> Element<'_, Message> {
+fn view_variable(var: &Arc<Variable>) -> Element<'_, Message> {
+    context_area(
         container(row![
-            container(text(&self.name)).align_left(Length::Fill),
-            container(text(&self.class.name).style(text::secondary)).align_right(Length::Fill)
+            container(text(&var.name)).align_left(Length::Fill),
+            container(text(&var.class.name).style(text::secondary)).align_right(Length::Fill)
         ])
-        .style(container::rounded_box)
-        .into()
-    }
+        .style(container::rounded_box),
+    )
+    .on_open(|point| Message::OpenContextMenu(point, ContextMenuTarget::Variable(var.clone())))
+    .into()
 }
 
 #[derive(Default)]
@@ -41,7 +44,12 @@ impl VariablePane {
     fn view(&self) -> Element<'_, Message> {
         column![
             "Variables",
-            column(self.variables.iter().map(|variable| variable.view())).spacing(6)
+            column(
+                self.variables
+                    .iter()
+                    .map(|variable| view_variable(variable))
+            )
+            .spacing(6)
         ]
         .into()
     }
@@ -55,12 +63,35 @@ impl Toolbar {
     }
 }
 
+#[derive(Debug, Clone)]
+enum ContextMenuTarget {
+    Variable(Arc<Variable>),
+}
+
+impl ContextMenuTarget {
+    fn view(&self) -> Element<'_, Message> {
+        match self {
+            ContextMenuTarget::Variable(variable) => container(column(
+                variable
+                    .class
+                    .methods
+                    .values()
+                    .map(|method| button(&method.name as &str).into()),
+            ))
+            .style(container::bordered_box)
+            .into(),
+        }
+    }
+}
+
 struct App {
     cratermaker: Cratermaker,
     simulation_class: Arc<Class>,
     variable_pane: VariablePane,
     pythonio_pane: PythonIO,
     toolbar: Toolbar,
+    context_menu_pos: Option<Point>,
+    context_menu_target: Option<ContextMenuTarget>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +99,8 @@ enum Message {
     CreateSimulation,
     AddVariable(Arc<Variable>),
     PythonIO(pythonio::Message),
+    OpenContextMenu(Point, ContextMenuTarget),
+    CloseContextMenu,
 }
 
 impl App {
@@ -84,6 +117,8 @@ impl App {
                     variable_pane: Default::default(),
                     toolbar: Toolbar,
                     pythonio_pane,
+                    context_menu_pos: None,
+                    context_menu_target: None,
                 },
                 task.map(Message::PythonIO),
             )
@@ -120,10 +155,22 @@ impl App {
                 self.pythonio_pane.update(message);
                 Task::none()
             }
+            Message::OpenContextMenu(point, target) => {
+                println!("opened at {:?}", point);
+                self.context_menu_pos = Some(point);
+                self.context_menu_target = Some(target);
+                Task::none()
+            }
+            Message::CloseContextMenu => {
+                println!("closed");
+                self.context_menu_pos = None;
+                self.context_menu_target = None;
+                Task::none()
+            }
         }
     }
     fn view(&self) -> Element<'_, Message> {
-        column![
+        let main = column![
             container(self.toolbar.view())
                 .style(container::bordered_box)
                 .width(Length::Fill)
@@ -135,7 +182,15 @@ impl App {
             container(self.pythonio_pane.view().map(Message::PythonIO))
                 .width(Length::Fill)
                 .height(Length::FillPortion(1)),
-        ]
+        ];
+        context_menu(
+            main,
+            self.context_menu_pos,
+            self.context_menu_target
+                .as_ref()
+                .map(ContextMenuTarget::view),
+            Message::CloseContextMenu,
+        )
         .into()
     }
 }
