@@ -747,6 +747,8 @@ class Counting(ComponentBase):
         emplaced_color: str | None = "yellow",
         crater_style: Literal["rings", "spheres", "points", "impacts"] = "rings",
         interval: int | None = None,
+        enable_key_events: bool = True,
+        plotter: pyvista.Plotter | None = None,
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -764,6 +766,10 @@ class Counting(ComponentBase):
             The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
         crater_style : Literal["rings", "points"], optional
             Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center
+        enable_key_events : bool, optional
+            If True, enables key events to toggle the visibility of crater counts. If False, the crater counts will be visible. Default is True.
+        plotter : pyvista.Plotter, optional
+            An existing pyvista Plotter to add the crater counts to. If None, a new Plotter will be created by the surface pyvista_plotter method. Default is None.
         **kwargs : Any
             |kwargs|
 
@@ -777,7 +783,8 @@ class Counting(ComponentBase):
 
         if surface is None:
             surface = self.surface
-        plotter = surface.pyvista_plotter(**kwargs)
+
+        plotter = surface.pyvista_plotter(enable_key_events=enable_key_events, plotter=plotter, interval=interval, **kwargs)
 
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
@@ -785,8 +792,8 @@ class Counting(ComponentBase):
             interval = -1
 
         observed, emplaced = self.read_saved_output(interval=interval)
-        has_observed = observed is not None and len(observed) > 0
-        has_emplaced = emplaced is not None and len(emplaced) > 0
+        has_observed = observed is not None and len(observed) > 0 and observed_color is not None
+        has_emplaced = emplaced is not None and len(emplaced) > 0 and emplaced_color is not None
 
         if has_observed:
             interval = observed.interval.values[-1]
@@ -813,7 +820,7 @@ class Counting(ComponentBase):
             add_mesh_kwargs["style"] = "points_gaussian"
             add_mesh_kwargs["emissive"] = True
 
-        if has_observed and observed_color is not None:
+        if has_observed:
             observed = self.Crater.from_xarray(observed, interval=interval)
             observed_kwargs = {"color": observed_color, **add_mesh_kwargs}
             mesh = self.to_vtk_mesh(craters=observed, use_measured_properties=True, crater_style=crater_style, **kwargs)
@@ -827,16 +834,18 @@ class Counting(ComponentBase):
 
             observed_count_actor = plotter.add_mesh(
                 pdata,
-                name="observed",
+                name="observed_craters",
                 **observed_kwargs,
             )
             if crater_style != "rings":
                 observed_count_actor.mapper.scale_array = "radius"
 
-            observed_count_actor.SetVisibility(False)
-            plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
-            plotter = update_pyvista_help_message(plotter, new_message="c: Toggle counted craters")
-        if has_emplaced and emplaced_color is not None:
+            if enable_key_events:
+                observed_count_actor.SetVisibility(False)
+                plotter.add_key_event("c", lambda: toggle_pyvista_actor(plotter, observed_count_actor))
+                plotter = update_pyvista_help_message(plotter, new_message="c: Toggle counted craters")
+
+        if has_emplaced:
             emplaced_interval = emplaced.interval.values[-1]
             if emplaced_interval == interval:
                 emplaced = self.Crater.from_xarray(emplaced, interval=interval)
@@ -851,14 +860,16 @@ class Counting(ComponentBase):
                     pdata["radius"] = np.array([surface.face_size[c.face_index] for c in emplaced])
                 emplaced_count_actor = plotter.add_mesh(
                     pdata,
-                    name="emplaced",
+                    name="emplaced_craters",
                     **emplaced_kwargs,
                 )
                 if crater_style != "rings":
                     emplaced_count_actor.mapper.scale_array = "radius"
-                emplaced_count_actor.SetVisibility(False)
-                plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
-                plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
+
+                if enable_key_events:
+                    emplaced_count_actor.SetVisibility(False)
+                    plotter.add_key_event("t", lambda: toggle_pyvista_actor(plotter, emplaced_count_actor))
+                    plotter = update_pyvista_help_message(plotter, new_message="t: Toggle emplaced craters")
 
         return plotter
 

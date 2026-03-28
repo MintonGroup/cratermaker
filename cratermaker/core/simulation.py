@@ -1022,8 +1022,8 @@ class Simulation(CratermakerBase):
         pyvista.Plotter
             A PyVista Plotter object created by the surface pyvista_plotter method.
         """
-        self.save(**kwargs, skip_actions=True)
         if interval is None:
+            self.save(**kwargs, skip_actions=True)
             interval = self.interval
         if self.do_counting:
             return self.counting.pyvista_plotter(interval=interval, **kwargs)
@@ -1043,10 +1043,10 @@ class Simulation(CratermakerBase):
         **kwargs : Any
             |kwargs|
         """
-        self.save(**kwargs, skip_actions=True)
         if engine.lower() != "pyvista":
             raise ValueError(f"Unsupported engine {engine}. Currently, only 'pyvista' is supported.")
         if interval is None:
+            self.save(**kwargs, skip_actions=True)
             interval = self.interval
         if self.do_counting:
             return self.counting.show3d(engine=engine, interval=interval, **kwargs)

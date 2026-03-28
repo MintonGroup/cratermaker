@@ -877,7 +877,17 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def pyvista_plotter(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any) -> pv.Plotter:
+    def pyvista_plotter(
+        self,
+        variable_name: str | None = None,
+        variable: ArrayLike | None = None,
+        interval: int | None = None,
+        theme: str | None = None,
+        transparent_background: bool | None = None,
+        plotter: pv.Plotter | None = None,
+        enable_key_events: bool = True,
+        **kwargs: Any,
+    ) -> pv.Plotter:
         """
         Show the surface region using an interactive 3D plot with PyVista.
 
@@ -887,6 +897,16 @@ class Surface(ComponentBase):
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        interval : int | None, optional
+            The interval number of the surface to show. If None, the currently loaded surface data will be displayed. Default is None.
+        theme : str, optional
+            The PyVista theme to use for the plot. If None, the default PyVista theme will be used.
+        transparent_background : bool, optional
+            If True, the background of the plot will be transparent. Default is False.
+        plotter : pv.Plotter, optional
+            An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
+        enable_key_events : bool, optional
+            If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -895,9 +915,25 @@ class Surface(ComponentBase):
         pyvista.Plotter
             The PyVista Plotter object for further customization.
         """
-        return self._full().pyvista_plotter(variable_name=variable_name, variable=variable, **kwargs)
+        return self._full().pyvista_plotter(
+            variable_name=variable_name,
+            variable=variable,
+            interval=interval,
+            theme=theme,
+            transparent_background=transparent_background,
+            plotter=plotter,
+            enable_key_events=enable_key_events,
+            **kwargs,
+        )
 
-    def show3d(self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
+    def show3d(
+        self,
+        engine: str = "pyvista",
+        variable_name: str | None = None,
+        variable: ArrayLike | None = None,
+        interval: int | None = None,
+        **kwargs: Any,
+    ):
         """
         Show the surface using an interactive 3D plot.
 
@@ -909,11 +945,13 @@ class Surface(ComponentBase):
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        interval : int | None, optional
+            The interval number of the surface to show. If None, the currently loaded surface data will be displayed. Default is None.
         **kwargs : Any
             |kwargs|
 
         """
-        return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
+        return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, interval=interval, **kwargs)
 
     def compute_distances(
         self,
@@ -3417,8 +3455,11 @@ class LocalSurface(CratermakerBase):
         self,
         variable_name: str | None = None,
         variable: ArrayLike | None = None,
+        interval: int | None = None,
         theme: str | None = None,
         transparent_background: bool | None = None,
+        plotter: pv.Plotter | None = None,
+        enable_key_events: bool = True,
         **kwargs: Any,
     ) -> pv.Plotter:
         """
@@ -3430,10 +3471,16 @@ class LocalSurface(CratermakerBase):
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
+        interval : int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
         theme : str, optional
             The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
         transparent_background : bool, optional
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
+        plotter : pyvista.Plotter, optional
+            A pre-existing Plotter object to use. If None, then a new one will be created and returned. Default is None.
+        enable_key_events : bool, optional
+            If True, the default PyVista key events will be updated to include custom events for toggling scalar visibility, changing the camera view, and showing a help message. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -3445,12 +3492,12 @@ class LocalSurface(CratermakerBase):
         from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
-        def _set_title(variable_name):
-            if variable_name in self.uxds and "long_name" in self.uxds[variable_name].attrs:
-                if "units" in self.uxds[variable_name].attrs:
-                    title = f"{self.uxds[variable_name].attrs['long_name']} ({self.uxds[variable_name].attrs['units']})"
+        def _set_title(uxds, variable_name):
+            if variable_name in uxds and "long_name" in uxds[variable_name].attrs:
+                if "units" in uxds[variable_name].attrs:
+                    title = f"{uxds[variable_name].attrs['long_name']} ({uxds[variable_name].attrs['units']})"
                 else:
-                    title = self.uxds[variable_name].attrs["long_name"]
+                    title = uxds[variable_name].attrs["long_name"]
             else:
                 title = variable_name
             return title
@@ -3540,25 +3587,33 @@ class LocalSurface(CratermakerBase):
         if transparent_background is not None:
             pv.global_theme.transparent_background = transparent_background
 
-        plotter = pv.Plotter()
-        # plotter.enable_hidden_line_removal()
+        new_plotter = plotter is None
+        if new_plotter:
+            plotter = pv.Plotter()
+            plotter.enable_hidden_line_removal()
 
-        mesh = self.to_vtk_mesh(self.uxds)
+        if interval is None:
+            uxds = self.uxds
+        else:
+            uxds = self.read_saved_output(interval=interval).isel(interval=0)
+            interval = None
+        mesh = self.to_vtk_mesh(uxds)
 
-        reset_view(plotter)
+        if new_plotter:
+            reset_view(plotter)
 
         face_variables = []
         component_variables = []
-        for v in self.uxds.data_vars:
-            if self.uxds[v].ndim > 0 and self.uxds[v].shape[0] == self.n_face:
-                mesh.cell_data[v] = self.uxds[v].data
+        for v in uxds.data_vars:
+            if uxds[v].ndim > 0 and uxds[v].shape[0] == self.n_face:
+                mesh.cell_data[v] = uxds[v].data
                 face_variables.append(v)
-                if self.uxds[v].ndim == 2:
+                if uxds[v].ndim == 2:
                     component_variables.append(v)
 
         component = kwargs.pop("component", None)
         if variable_name is not None and variable_name in face_variables:
-            title = _set_title(variable_name)
+            title = _set_title(uxds, variable_name)
             if variable_name in component_variables:
                 component = 0 if component is None else component
                 title += f" (layer {component})"
@@ -3585,7 +3640,7 @@ class LocalSurface(CratermakerBase):
         cmap = kwargs.pop("cmap", "cividis")
         add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}
         add_mesh_kwargs = {
-            "name": "surface_mesh",
+            "name": self.target.name,
             "show_edges": False,
             "show_scalar_bar": False,
             "color": "grey",
@@ -3599,10 +3654,10 @@ class LocalSurface(CratermakerBase):
             mesh_actor.mapper.SetScalarVisibility(False)
         else:
             plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
-
-        plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
-        plotter.add_key_event("j", lambda: update_scalars(plotter, cmap=cmap))
-        plotter.add_key_event("r", lambda: reset_view(plotter))
+        if enable_key_events:
+            plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
+            plotter.add_key_event("j", lambda: update_scalars(plotter, cmap=cmap))
+            plotter.add_key_event("r", lambda: reset_view(plotter))
         return plotter
 
     def export_region_polygon(self, driver: str = "GPKG", **kwargs: Any) -> None:
@@ -3649,7 +3704,14 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def show3d(self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
+    def show3d(
+        self,
+        engine: str = "pyvista",
+        variable_name: str | None = None,
+        variable: ArrayLike | None = None,
+        interval: int | None = None,
+        **kwargs: Any,
+    ):
         """
         Show the local surface region using an interactive 3D plot.
 
@@ -3661,6 +3723,8 @@ class LocalSurface(CratermakerBase):
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        interval : int | None, optional
+            The interval of the saved output to display. If None, the latest saved output will be displayed. Default is None.
         **kwargs : Any
             |kwargs|
 
@@ -3668,7 +3732,7 @@ class LocalSurface(CratermakerBase):
         from cratermaker.constants import PYVISTA_SHOW_KWARGS
 
         if engine == "pyvista":
-            plotter = self.pyvista_plotter(variable_name=variable_name, variable=variable, **kwargs)
+            plotter = self.pyvista_plotter(variable_name=variable_name, variable=variable, interval=interval, **kwargs)
             plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
             plotter.show(**plotter_kwargs)
         else:
