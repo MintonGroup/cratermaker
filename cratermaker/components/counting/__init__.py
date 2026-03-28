@@ -828,7 +828,7 @@ class Counting(ComponentBase):
             if crater_style == "spheres":
                 pdata["radius"] = np.array([c.measured_radius for c in observed])
             elif crater_style == "impacts":
-                pdata["radius"] = np.array([c.projectile_radius**2 for c in observed])
+                pdata["radius"] = np.array([c.projectile_diameter for c in observed])
             elif crater_style == "points":
                 pdata["radius"] = np.array([surface.face_size[c.face_index] for c in observed])
 
@@ -855,7 +855,7 @@ class Counting(ComponentBase):
                 if crater_style == "spheres":
                     pdata["radius"] = np.array([c.measured_radius for c in emplaced])
                 elif crater_style == "impacts":
-                    pdata["radius"] = np.array([c.projectile_radius for c in emplaced])
+                    pdata["radius"] = np.array([c.projectile_diameter for c in emplaced])
                 elif crater_style == "points":
                     pdata["radius"] = np.array([surface.face_size[c.face_index] for c in emplaced])
                 emplaced_count_actor = plotter.add_mesh(
@@ -1196,7 +1196,7 @@ class Counting(ComponentBase):
             for crater in craters:
                 z = surface.face_elevation[crater.face_index]
                 if crater_style == "impacts":
-                    z += crater.projectile_radius - crater.floor_depth + crater.rim_height
+                    z += crater.projectile_diameter - crater.floor_depth + crater.rim_height
                 elif crater_style == "points":
                     z += surface.face_size[crater.face_index]
                 geoms.append(Point(crater.location[0], crater.location[1], z))
