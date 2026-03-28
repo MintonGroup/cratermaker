@@ -531,6 +531,10 @@ class Crater(ComponentBase):
         str_repr += f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
         if self.measured_location is not None and self.measured_location != self.location:
             str_repr += f"Measured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
+        if self.measured_rim_height is not None:
+            str_repr += f"Measured rim height: {format_large_units(self.measured_rim_height, quantity='length')}\n"
+        if self.measured_floor_depth is not None:
+            str_repr += f"Measured floor depth: {format_large_units(self.measured_floor_depth, quantity='length')}\n"
         if self.time is not None:
             str_repr = f"{format_large_units(self.time, quantity='time')}\n"
         if self.degradation_state is not None:

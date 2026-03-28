@@ -63,6 +63,7 @@ class BasicMoonCrater(MorphologyCrater):
     def __str__(self) -> str:
         str_repr = super().__str__()
         str_repr += (
+            f"Rim height: {format_large_units(self.rim_height, quantity='length')}\n"
             f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
             f"Floor depth: {format_large_units(self.floor_depth, quantity='length')}\n"
             f"Floor diameter: {format_large_units(self.floor_diameter, quantity='length')}\n"
