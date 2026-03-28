@@ -3599,8 +3599,7 @@ class LocalSurface(CratermakerBase):
             interval = None
         mesh = self.to_vtk_mesh(uxds)
 
-        if new_plotter:
-            reset_view(plotter)
+        reset_view(plotter)
 
         face_variables = []
         component_variables = []

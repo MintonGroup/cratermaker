@@ -828,7 +828,7 @@ class Counting(ComponentBase):
             if crater_style == "spheres":
                 pdata["radius"] = np.array([c.measured_radius for c in observed])
             elif crater_style == "impacts":
-                pdata["radius"] = np.array([c.projectile_radius for c in observed])
+                pdata["radius"] = np.array([c.projectile_radius**2 for c in observed])
             elif crater_style == "points":
                 pdata["radius"] = np.array([surface.face_size[c.face_index] for c in observed])
 
