@@ -6,7 +6,7 @@ use std::sync::{Arc, Weak};
 
 use iced::{
     Element, Length, Point, Task,
-    widget::{button, column, container, mouse_area, row, text},
+    widget::{button, column, container, mouse_area, opaque, row, text},
 };
 use pyo3::prelude::*;
 
@@ -69,18 +69,20 @@ enum ContextMenuTarget {
 }
 
 impl ContextMenuTarget {
-    fn view(&self) -> Element<'_, Message> {
+    fn contents(&self) -> Element<'_, Message> {
         match self {
-            ContextMenuTarget::Variable(variable) => container(column(
+            ContextMenuTarget::Variable(variable) => column(
                 variable
                     .class
                     .methods
                     .values()
                     .map(|method| button(&method.name as &str).into()),
-            ))
-            .style(container::bordered_box)
-            .into(),
+            ),
         }
+        .into()
+    }
+    fn view(&self) -> Element<'_, Message> {
+        opaque(container(self.contents()).style(container::bordered_box)).into()
     }
 }
 

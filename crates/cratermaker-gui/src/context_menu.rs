@@ -203,23 +203,21 @@ where
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(None, layout.bounds());
-        operation.traverse(&mut |operation| {
+        if self.position.is_some() {
+            self.overlay.as_widget_mut().operate(
+                &mut tree.children[1],
+                layout,
+                renderer,
+                operation,
+            );
+        } else {
             self.content.as_widget_mut().operate(
                 &mut tree.children[0],
                 layout,
                 renderer,
                 operation,
             );
-            if self.position.is_some() {
-                self.overlay.as_widget_mut().operate(
-                    &mut tree.children[1],
-                    layout,
-                    renderer,
-                    operation,
-                );
-            }
-        });
+        }
     }
 
     fn update(
@@ -233,36 +231,15 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        if !cursor.is_over(layout.bounds()) {
-            return;
-        }
-
-        let prev_capture = shell.is_event_captured();
-
-        self.overlay.as_widget_mut().update(
-            &mut tree.children[1],
-            event,
-            layout,
-            cursor,
-            renderer,
-            clipboard,
-            shell,
-            viewport,
-        );
-
         match *event {
             Event::Mouse(mouse::Event::ButtonPressed(_)) => {
-                if prev_capture == shell.is_event_captured() && self.position.is_some() {
+                if cursor.is_over(layout.bounds()) && self.position.is_some() {
                     shell.publish(self.on_close.clone());
+                    shell.capture_event();
                 }
             }
             _ => {}
         }
-
-        if shell.is_event_captured() {
-            return;
-        }
-
         self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
@@ -283,24 +260,13 @@ where
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
-        let interaction = self.overlay.as_widget().mouse_interaction(
-            &tree.children[1],
+        self.content.as_widget().mouse_interaction(
+            &tree.children[0],
             layout,
             cursor,
             viewport,
             renderer,
-        );
-        if interaction == mouse::Interaction::None {
-            self.content.as_widget().mouse_interaction(
-                &tree.children[0],
-                layout,
-                cursor,
-                viewport,
-                renderer,
-            )
-        } else {
-            interaction
-        }
+        )
     }
 
     fn draw(
@@ -334,7 +300,6 @@ where
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         if self.position.is_some() {
             let position = self.position.unwrap();
-            tree.children[1].diff(&self.overlay);
             Some(overlay::Element::new(Box::new(ContextMenuOverlay {
                 position: position + translation,
                 tree: &mut tree.children[1],
