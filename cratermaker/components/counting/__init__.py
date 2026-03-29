@@ -749,6 +749,7 @@ class Counting(ComponentBase):
         crater_style: Literal["rings", "points", "impacts"] = "rings",
         surface: Surface | LocalSurface | None = None,
         plotter: pyvista.Plotter | None = None,
+        size_scale_factor: FloatLike = 1.0,
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -772,6 +773,8 @@ class Counting(ComponentBase):
             The surface or local surface view to be displayed. If None, uses the associated surface property
         plotter : pyvista.Plotter, optional
             An existing pyvista Plotter to add the crater counts to. If None, a new Plotter will be created by the surface pyvista_plotter method. Default is None.
+        size_scale_factor : FloatLike, optional
+            A factor to scale the size of the craters in "point" or "impacts" styles. Default is 1.0.
         **kwargs : Any
             |kwargs|
 
@@ -795,18 +798,19 @@ class Counting(ComponentBase):
                 add_mesh_kwargs["style"] = "points_gaussian"
                 add_mesh_kwargs["emissive"] = True
                 point_size = 1
-                size_scale = np.array([surface.face_size[c.face_index] for c in craters])
+                size_scale = np.array([size_scale_factor * surface.face_size[c.face_index] for c in craters])
             elif crater_style == "impacts":
                 add_mesh_kwargs["render_points_as_spheres"] = False
                 add_mesh_kwargs["style"] = "points_gaussian"
                 add_mesh_kwargs["emissive"] = True
                 add_mesh_kwargs["pbr"] = True
                 point_size = 1
-                size_scale = np.array([c.projectile_radius for c in craters])
+                size_scale = np.array([size_scale_factor * c.projectile_radius for c in craters])
             mesh = self.to_vtk_mesh(
                 craters=craters,
                 use_measured_properties=use_measured_properties,
                 crater_style=crater_style,
+                size_scale_factor=size_scale_factor,
                 **kwargs,
             )
             pdata = pyvista.PolyData(mesh)
@@ -1145,6 +1149,7 @@ class Counting(ComponentBase):
         craters: list[Crater] | None = None,
         use_measured_properties: bool = True,
         crater_style: Literal["rings", "points", "impacts"] = "rings",
+        size_scale_factor: FloatLike = 1.0,
         **kwargs: Any,
     ) -> vtkPolyData:
         """
@@ -1162,6 +1167,8 @@ class Counting(ComponentBase):
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
         crater_style : Literal["rings", "points", "impacts"], optional
             Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater, "points" which creates a small sphere at the center of each crater, and "impacts" which places a point above the floor of the center of the crater at approximately the level of the original surface.
+        size_scale_factor : FloatLike, optional
+            A factor to scale the size of the craters in "point" or "impacts" styles. Default is 1.0.
         **kwargs : Any
             |kwargs|
 
@@ -1245,7 +1252,9 @@ class Counting(ComponentBase):
             for crater in craters:
                 z = surface.face_elevation[crater.face_index]
                 if crater_style == "points":
-                    z += surface.face_size[crater.face_index]
+                    z += size_scale_factor * surface.face_size[crater.face_index]
+                elif crater_style == "impacts":
+                    z += 1.1 * crater.projectile_radius * size_scale_factor
                 geoms.append(Point(crater.location[0], crater.location[1], z))
             gs = GeoSeries(geoms, crs=surface.crs)
 
