@@ -742,10 +742,10 @@ class Counting(ComponentBase):
 
     def pyvista_plotter(
         self,
-        craters: Literal["observed", "emplaced", "both"] | list[Crater] = "both",
+        crater_type: Literal["observed", "emplaced", "both"] = "both",
         interval: int | None = None,
         enable_key_events: bool = True,
-        colors: str | tuple[str] = ("white", "red"),
+        color: str | tuple[str] = ("white", "red"),
         crater_style: Literal["rings", "points", "impacts"] = "rings",
         surface: Surface | LocalSurface | None = None,
         plotter: pyvista.Plotter | None = None,
@@ -758,13 +758,13 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
-        craters: Literal["observed","emplaced","both"] | list[Crater].
+        crater_type: Literal["observed","emplaced","both"] | list[Crater].
             This is only used if enable_key_events is False, in which case it controls which crater data will be plotted. Default is "both".
         interval : int, optional
             The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
         enable_key_events : bool, optional
             If True, enables key events to toggle the visibility of all saved crater count types (observed and emplaced) with all styles (rings, points, and impacts), which are activated by keypresses ("c" for observed craters, and "t" for emplaced craters), and all are not visible on initialization. If False, only one set of data is plotted, and is visible on initialization.
-        colors: str | tuple[str] = ("white", "yellow")
+        color: str | tuple[str] = ("white", "yellow")
             The color to use for the plots. When used with enable_key_events or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
         crater_style : Literal["rings", "points"], optional
             Only used when enable_key_events is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
@@ -841,23 +841,16 @@ class Counting(ComponentBase):
         if interval is None:
             interval = -1
 
-        if isinstance(colors, str):
-            colors = [colors]
-        elif not isinstance(colors, (tuple, list)) or (craters == "both" and len(colors) != 2):
+        if isinstance(color, str):
+            color = [color]
+        elif not isinstance(color, (tuple, list)) or (crater_type == "both" and len(color) != 2):
             raise ValueError(
-                "colors must be a tuple with the first element the color of observed craters and the second the color of emplaced craters."
+                "color must be a tuple with the first element the color of observed craters and the second the color of emplaced craters."
             )
 
-        if isinstance(craters, list):
-            if not all(isinstance(c, Crater) for c in craters):
-                raise ValueError("All elements of craters must be of type Crater")
-            craterlistlist = [craters]
-            namelist = ["craters"]
-            measured = [True]
-            toggle = ["c"]
-        elif isinstance(craters, str):
-            if craters not in ["observed", "emplaced", "both"]:
-                raise ValueError("craters must be 'observed', 'emplaced', 'both', or a list of Crater objects")
+        if isinstance(crater_type, str):
+            if crater_type not in ["observed", "emplaced", "both"]:
+                raise ValueError("crater_type must be 'observed', 'emplaced', 'both', or a list of Crater objects")
             if interval == -1:
                 observed = list(self.observed.values())
                 emplaced = self.emplaced
@@ -871,44 +864,41 @@ class Counting(ComponentBase):
                     emplaced = self.Crater.from_xarray(emplaced)
                 else:
                     emplaced = None
-            if craters == "both":
+            if crater_type == "both":
                 craterlistlist = [observed, emplaced]
                 namelist = ["observed", "emplaced"]
                 measured = [True, False]
                 toggle = ["c", "t"]
-            elif craters == "observed":
+            elif crater_type == "observed":
                 craterlistlist = [observed]
                 namelist = ["observed"]
                 measured = [True]
                 toggle = ["c"]
-            elif craters == "emplaced":
+                color = [color[0]]
+            elif crater_type == "emplaced":
                 craterlistlist = [emplaced]
                 namelist = ["emplaced"]
                 measured = [False]
                 toggle = ["t"]
+                color = [color[-1]]
 
         if enable_key_events:
             styles = valid_crater_styles
         else:
             styles = [crater_style]
 
-        for name, craters, use_measured_properties, color, key in zip(
-            namelist, craterlistlist, measured, colors, toggle, strict=True
-        ):
+        for name, craters, use_measured_properties, col, key in zip(namelist, craterlistlist, measured, color, toggle, strict=True):
             if craters is None:
                 continue
             actor_list = []
             for crater_style in styles:
-                actor = _draw_craters(craters, color, name, crater_style, use_measured_properties, **kwargs)
+                actor = _draw_craters(craters, col, name, crater_style, use_measured_properties, **kwargs)
 
                 if enable_key_events:
                     actor.SetVisibility(False)
                     actor_list.append(actor)
             if enable_key_events:
-                if name != "craters":
-                    new_message = f"{key} Toggle {name} craters"
-                else:
-                    new_message = f"{key} Toggle craters"
+                new_message = f"{key} Toggle {name} craters"
                 plotter = update_pyvista_help_message(plotter, new_message=new_message)
                 plotter.add_key_event(key, lambda plotter=plotter, actor_list=actor_list: _update_crater_style(plotter, actor_list))
 
@@ -917,10 +907,10 @@ class Counting(ComponentBase):
     def show3d(
         self,
         engine: str = "pyvista",
-        craters: Literal["observed", "emplaced", "both"] | list[Crater] = "both",
+        crater_type: Literal["observed", "emplaced", "both"] = "both",
         interval: int | None = None,
         enable_key_events: bool = True,
-        colors: str | tuple[str] = ("white", "red"),
+        color: str | tuple[str] = ("white", "red"),
         crater_style: Literal["rings", "points", "impacts"] = "rings",
         surface: Surface | LocalSurface | None = None,
         plotter: pyvista.Plotter | None = None,
@@ -933,13 +923,13 @@ class Counting(ComponentBase):
         ----------
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        craters: Literal["observed","emplaced","both"] | list[Crater].
+        crater_type: Literal["observed","emplaced","both"]
             This is only used if enable_key_events is False, in which case it controls which crater data will be plotted. Default is "both".
         interval : int, optional
             The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
         enable_key_events : bool, optional
             If True, enables key events to toggle the visibility of all saved crater count types (observed and emplaced) with all styles (rings, points, and impacts), which are activated by keypresses ("c" for observed craters, and "t" for emplaced craters), and all are not visible on initialization. If False, only one set of data is plotted, and is visible on initialization.
-        colors: str | tuple[str] = ("white", "yellow")
+        color: str | tuple[str] = ("white", "yellow")
             The color to use for the plots. When used with enable_key_events or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
         crater_style : Literal["rings", "points"], optional
             Only used when enable_key_events is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
@@ -955,10 +945,10 @@ class Counting(ComponentBase):
 
         if engine.lower() == "pyvista":
             plotter = self.pyvista_plotter(
-                craters=craters,
+                crater_type=crater_type,
                 interval=interval,
                 enable_key_events=enable_key_events,
-                colors=colors,
+                color=color,
                 crater_style=crater_style,
                 surface=surface,
                 plotter=plotter,
@@ -1254,9 +1244,7 @@ class Counting(ComponentBase):
             geoms = []
             for crater in craters:
                 z = surface.face_elevation[crater.face_index]
-                if crater_style == "impacts":
-                    z += 0.0  # crater.projectile_radius
-                elif crater_style == "points":
+                if crater_style == "points":
                     z += surface.face_size[crater.face_index]
                 geoms.append(Point(crater.location[0], crater.location[1], z))
             gs = GeoSeries(geoms, crs=surface.crs)
