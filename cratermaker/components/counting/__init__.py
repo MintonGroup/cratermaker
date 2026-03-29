@@ -800,6 +800,7 @@ class Counting(ComponentBase):
                 add_mesh_kwargs["render_points_as_spheres"] = False
                 add_mesh_kwargs["style"] = "points_gaussian"
                 add_mesh_kwargs["emissive"] = True
+                add_mesh_kwargs["pbr"] = True
                 point_size = 1
                 size_scale = np.array([c.projectile_radius for c in craters])
             mesh = self.to_vtk_mesh(
@@ -817,7 +818,7 @@ class Counting(ComponentBase):
                 actor.mapper.scale_array = "size_scale"
             return actor
 
-        def _update_crater_style(actor_list):
+        def _update_crater_style(plotter, actor_list):
             inext = 0
             for i, actor in enumerate(actor_list):
                 if actor.GetVisibility():
@@ -826,6 +827,7 @@ class Counting(ComponentBase):
                     break
             if inext < len(actor_list):
                 actor_list[inext].SetVisibility(True)
+            plotter.update()
             return
 
         surface = self.surface
@@ -908,7 +910,7 @@ class Counting(ComponentBase):
                 else:
                     new_message = f"{key} Toggle craters"
                 plotter = update_pyvista_help_message(plotter, new_message=new_message)
-                plotter.add_key_event(key, lambda actor_list=actor_list: _update_crater_style(actor_list))
+                plotter.add_key_event(key, lambda plotter=plotter, actor_list=actor_list: _update_crater_style(plotter, actor_list))
 
         return plotter
 
@@ -1253,7 +1255,7 @@ class Counting(ComponentBase):
             for crater in craters:
                 z = surface.face_elevation[crater.face_index]
                 if crater_style == "impacts":
-                    z += crater.projectile_radius
+                    z += 0.0  # crater.projectile_radius
                 elif crater_style == "points":
                     z += surface.face_size[crater.face_index]
                 geoms.append(Point(crater.location[0], crater.location[1], z))

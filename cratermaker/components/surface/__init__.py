@@ -3504,7 +3504,7 @@ class LocalSurface(CratermakerBase):
 
         def update_scalars(plotter, cmap):
             camera_orig = plotter.camera
-            mesh_actor = plotter.actors["surface_mesh"]
+            mesh_actor = plotter.actors[self.target.name]
             if not plotter.scalar_bars:
                 scalar_bar_actor = None
             else:
@@ -3537,7 +3537,7 @@ class LocalSurface(CratermakerBase):
                 mesh_actor.mapper.SetColorModeToMapScalars()
                 mesh_actor.mapper.lookup_table.cmap = cmap
                 mesh_actor.mapper.SetScalarVisibility(True)
-                title = _set_title(next_scalar_name)
+                title = _set_title(self.uxds, next_scalar_name)
                 if scalar_bar_actor is None:
                     scalar_bar_actor = plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
                 else:
