@@ -137,8 +137,8 @@ pub struct Class {
     pub name: String,
     pub docstring: Option<String>,
     pub inner: Py<PyType>,
-    pub methods: HashMap<String, Method>,
-    pub create_method: Method,
+    pub methods: HashMap<String, Arc<Method>>,
+    pub create_method: Arc<Method>,
 }
 
 impl Class {
@@ -146,13 +146,13 @@ impl Class {
         let name = class.name().unwrap().extract::<String>().unwrap();
         let docstring = inspect.getdoc(class.as_any());
         let members = get_indexable_members(inspect, class.as_any());
-        let mut methods: HashMap<String, Method> = members
+        let mut methods: HashMap<String, Arc<Method>> = members
             .iter()
             .filter_map(|(name, item)| item.cast::<PyFunction>().ok().map(|item| (name, item)))
             .map(|(name, method)| {
                 (
                     name.clone(),
-                    Method::load(inspect, method.as_any().clone(), name.clone()),
+                    Arc::new(Method::load(inspect, method.as_any().clone(), name.clone())),
                 )
             })
             .collect();
@@ -167,7 +167,7 @@ impl Class {
                 "__init__".to_string(),
             );
             method.inner = class.clone().unbind().into_any();
-            method
+            Arc::new(method)
         });
 
         Self {

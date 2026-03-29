@@ -304,6 +304,7 @@ where
                 position: position + translation,
                 tree: &mut tree.children[1],
                 content: &mut self.overlay,
+                on_close: self.on_close.clone(),
             })))
         } else {
             self.content.as_widget_mut().overlay(
@@ -325,6 +326,7 @@ where
     position: Point,
     tree: &'b mut Tree,
     content: &'b mut Element<'a, Message, Theme, Renderer>,
+    on_close: Message,
 }
 
 impl<'a, 'b, Message, Theme, Renderer> overlay::Overlay<Message, Theme, Renderer>
@@ -397,6 +399,11 @@ where
             shell,
             &bounds,
         );
+        if shell.is_event_captured()
+            && let Event::Mouse(mouse::Event::ButtonReleased(_)) = event
+        {
+            shell.publish(self.on_close.clone());
+        }
     }
 
     fn operate(&mut self, layout: Layout<'_>, renderer: &Renderer, operation: &mut dyn Operation) {
