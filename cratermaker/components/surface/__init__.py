@@ -3599,7 +3599,8 @@ class LocalSurface(CratermakerBase):
             interval = None
         mesh = self.to_vtk_mesh(uxds)
 
-        reset_view(plotter)
+        if new_plotter:
+            reset_view(plotter)
 
         face_variables = []
         component_variables = []
@@ -3646,7 +3647,7 @@ class LocalSurface(CratermakerBase):
             **add_mesh_kwargs,
         }
         mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)
-        if self.is_global:
+        if new_plotter and self.is_global:
             plotter.view_yz()
 
         if variable_name is None:
@@ -3655,8 +3656,8 @@ class LocalSurface(CratermakerBase):
             plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
         if enable_key_events:
             plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
-            plotter.add_key_event("j", lambda: update_scalars(plotter, cmap=cmap))
-            plotter.add_key_event("r", lambda: reset_view(plotter))
+            plotter.add_key_event("j", lambda plotter=plotter, cmap=cmap: update_scalars(plotter, cmap=cmap))
+            plotter.add_key_event("r", lambda plotter=plotter: reset_view(plotter))
         return plotter
 
     def export_region_polygon(self, driver: str = "GPKG", **kwargs: Any) -> None:
