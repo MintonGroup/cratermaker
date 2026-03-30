@@ -535,16 +535,16 @@ class Crater(ComponentBase):
             str_repr += f"Measured rim height: {format_large_units(self.measured_rim_height, quantity='length')}\n"
         if self.measured_floor_depth is not None and np.abs(self.measured_floor_depth) < _VBIG:
             str_repr += f"Measured floor depth: {format_large_units(self.measured_floor_depth, quantity='length')}\n"
+        if self.production_sequence is not None:
+            str_repr += f"Production sequence: {self.production_sequence}\n"
+        if self.production_ND is not None:
+            str_repr += f"Production N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}\n"
+        if self.production_time is not None:
+            str_repr += f"Production time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}\n"
         if self.time is not None:
             str_repr += f"Emplacement time: {format_large_units(self.time, quantity='time')}\n"
         if self.degradation_state is not None:
             str_repr += f"Degradation state: {format_large_units(self.degradation_state, quantity='area')}\n"
-        if self.production_time is not None:
-            str_repr += f"Production time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}\n"
-        if self.production_ND is not None:
-            str_repr += f"Production N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}\n"
-        if self.production_sequence is not None:
-            str_repr += f"Production sequence: {self.production_sequence}\n"
         return str_repr
 
     def _scrub_measured_input_size(self, **kwargs: Any):

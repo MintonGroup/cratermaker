@@ -155,7 +155,10 @@ Quasi-Monte Carlo mode is a powerful tool that is very flexible. Here we will de
 First, we we will create a CSV file called "qmc_inputs.csv" and populate it with columns indicating which arguments should be passed to the |Crater.maker| function. At a minimum, this requires at least one argument specifying size, such as :py:attr:`~cratermaker.components.crater.CraterFixed.diameter` or :py:attr:`~cratermaker.components.crater.CraterFixed.projectile_diameter` Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical :py:attr:`~cratermaker.components.crater.CraterFixed.location` tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this.
 
 
-- |Crater.production_time|: This specifies the time when the crater should form along with an optional 1-σ standard deviation value. When passing this to |Crater.maker| this can be specified as either a single value or a pair of values, where the first value represents the time and the second the standard deviation, both in units of My. The actual time value will be drawn from a normal distribution. 
+Specifying an emplacement time
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Setting |Crater.production_time| specifies the time when the crater should form along with an optional 1σ standard deviation value. When passing this to |Crater.maker| this can be specified as either a single value or a pair of values, where the first value represents the time and the second the standard deviation, both in units of My. The actual time value will be drawn from a normal distribution, unless you only pass a single value to |Crater.production_time|.  We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) of 3922 My.
 
 .. ipython:: python
     :okwarning:
@@ -177,13 +180,22 @@ First, we we will create a CSV file called "qmc_inputs.csv" and populate it with
    print(sim.quasimc_craters[0])
 
 
-You can indicate that you want a crater to form at a specific time, as defined by the chronology function of the Simulation's |Production| component. To do this, you would include the time in a column labeled "production_time". You may also indicate that you want to draw the crater's time from a distribution by supplying an aditional column labeled "production_time_stdev".  Here we will define dates in My before present that each of our lunar craters will form within the Neukum chronology function used for default simulation type. 
+The equivalent in a CSV file would be:
 
-We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) of 3922 My, however the true ages for the other craters are very poorly constrained. However, because the chronology function in |NPF| translates model ages into crater number densities, we can pick dates that place our craters in their correct relative sequence within the bombardment history of the early Moon, even if their true age is unknown. We begin our cratering simulation at 4310 My before present, and give that age to the largest and stratigraphically oldest lunar crater, the massive 2400 km diameter South Pole-Aitken basin. 
+.. csv-table:: qmc_imbrium
+   :header: "name","latitude","longitude","diameter","production_time","production_time_stdev"
+
+   Imbrium,37,341.5,1321000,3922,12
+
 
 .. note::
 
-    Always remember that crater chronology model ages are **not** true ages, especially for the period of time prior to 3900 My bp. It's best to think of the model age as a way of expressing crater number density (not the other way around), and is subject to change as better calibration data is obtained. Thus a model age of 4310 My bp just means N(20)=1000 craters per million sq. km. in the Neukum production function, and will likely be updated if and when samples of the South Pole-Aitken melt sheet are returned and dated.
+    Always remember that crater chronology model ages are **not** true ages, especially for the period of time prior to 3900 My bp. It's best to think of the model age as a way of expressing crater number density (not the other way around), and is subject to change as better calibration data is obtained. Thus a model age of 4310 My bp just means N(20)=999 craters per million sq. km. in the Neukum production function, and will likely be updated if and when samples of the South Pole-Aitken melt sheet are returned and dated.
+
+Specifying a production crater number density
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Rather than a specific time, you can specify a crater's "age" by its position on the production function using N(D) convention. This is done by setting the |Crater.production_ND| attribute, which is a tuple of (D, N, N_stdev), where D is the reference diameter in km, N is the cumulative number density of craters per 10⁶ km² greater than D, and N_stdev is the 1σ standard deviation of that number density. The actual age of the crater will be drawn from a normal distribution based on the age corresponding to that point on the production function and the standard deviation of that age.
 
 Serenetitatis likely formed before Nectaris, which formed before Crisium and Imbrium, so we set ``production_time`` values for Serenitatis, Nectaris, and Crisium of 4220, 4170, and 4070 My, respectively. Both Schrödinger and Orientale post-date Imbrium, so we set their ``production_time`` values to 3860 and 3810 My, respectively. Therefore our 
 
