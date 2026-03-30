@@ -918,7 +918,7 @@ class Counting(ComponentBase):
                     actor.SetVisibility(False)
                     actor_list.append(actor)
             if enable_key_events:
-                new_message = f"{key} Toggle {crater_type} craters"
+                new_message = f"{key} Toggle {name} craters"
                 plotter = update_pyvista_help_message(plotter, new_message=new_message)
                 plotter.add_key_event(key, lambda plotter=plotter, actor_list=actor_list: update_crater_style(plotter, actor_list))
 
