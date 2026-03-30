@@ -152,11 +152,30 @@ For some applications, you may want to specify a predefined population of crater
 
 Quasi-Monte Carlo mode is a powerful tool that is very flexible. Here we will demonstrate the different ways you can specify craters in the input file and how they affect the behavior of the simulation with a simple donstration using several prominent lunar craters: South Pole-Aitken, Serenitatis, Nectaris, Crisium, Imbrium, Schrödinger, and Orientale. A version of this simulation type with 76 lunar basins and craters is included in the :ref:`gal-simulation`.
 
+First, we we will create a CSV file called "qmc_inputs.csv" and populate it with columns indicating which arguments should be passed to the |Crater.maker| function. At a minimum, this requires at least one argument specifying size, such as :py:attr:`~cratermaker.components.crater.CraterFixed.diameter` or :py:attr:`~cratermaker.components.crater.CraterFixed.projectile_diameter` Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical :py:attr:`~cratermaker.components.crater.CraterFixed.location` tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this.
 
-First, we we will create a CSV file called "basins_exact_time.csv" and populate it with columns indicating which arguments should be passed to the |Crater.maker| function. At a minimum, this requires at least one argument specifying size, such as "diameter" or "projectile_diameter". Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical "location" tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this.
 
-Emplacing a crater at a specific time or time range
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+- |Crater.production_time|: This specifies the time when the crater should form along with an optional 1-σ standard deviation value. When passing this to |Crater.maker| this can be specified as either a single value or a pair of values, where the first value represents the time and the second the standard deviation, both in units of My. The actual time value will be drawn from a normal distribution. 
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
+
+.. ipython:: python
+   :okwarning:
+
+   from cratermaker import Simulation
+
+   sim = Simulation(gridlevel=5)
+   qmc_list = []
+   qmc_list.append(sim.Crater.maker(name="Imbrium", diameter=1321e3, location=(341.5, 37), production_time=(3922, 12)))
+   sim.quasimc_craters = qmc_list # This will process the craters and give it a time values bsed on their production metadata
+   print(sim.quasimc_craters[0])
+
 
 You can indicate that you want a crater to form at a specific time, as defined by the chronology function of the Simulation's |Production| component. To do this, you would include the time in a column labeled "production_time". You may also indicate that you want to draw the crater's time from a distribution by supplying an aditional column labeled "production_time_stdev".  Here we will define dates in My before present that each of our lunar craters will form within the Neukum chronology function used for default simulation type. 
 

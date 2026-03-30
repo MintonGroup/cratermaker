@@ -171,6 +171,11 @@ rst_prolog = """
 .. |Target| replace:: :py:class:`~cratermaker.components.target.Target`
 .. |Crater| replace:: :py:class:`~cratermaker.components.crater.Crater`
 .. |Crater.maker| replace:: :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>`
+.. |Crater.diameter| replace:: :py:attr:`~cratermaker.components.crater.CraterFixed.diameter`
+.. |Crater.projectile_diameter| replace:: :py:attr:`~cratermaker.components.crater.CraterFixed.projectile_diameter`
+.. |Crater.production_time| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_time`
+.. |Crater.production_ND| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_ND`
+.. |Crater.production_sequence| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_sequence`
 .. |Morphology| replace:: :py:class:`~cratermaker.components.morphology.Morphology`
 .. |BasicMoon| replace:: :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoonMorphology`
 .. |Counting| replace:: :py:class:`~cratermaker.components.counting.Counting`

@@ -14,7 +14,7 @@ from shapely.ops import transform
 from tqdm import tqdm
 from vtk import vtkPolyData
 
-from cratermaker.constants import PairOfFloats
+from cratermaker.constants import _VBIG, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
 
@@ -531,12 +531,12 @@ class Crater(ComponentBase):
         str_repr += f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
         if self.measured_location is not None and self.measured_location != self.location:
             str_repr += f"Measured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
-        if self.measured_rim_height is not None:
+        if self.measured_rim_height is not None and np.abs(self.measured_rim_height) < _VBIG:
             str_repr += f"Measured rim height: {format_large_units(self.measured_rim_height, quantity='length')}\n"
-        if self.measured_floor_depth is not None:
+        if self.measured_floor_depth is not None and np.abs(self.measured_floor_depth) < _VBIG:
             str_repr += f"Measured floor depth: {format_large_units(self.measured_floor_depth, quantity='length')}\n"
         if self.time is not None:
-            str_repr = f"{format_large_units(self.time, quantity='time')}\n"
+            str_repr += f"Emplacement time: {format_large_units(self.time, quantity='time')}\n"
         if self.degradation_state is not None:
             str_repr += f"Degradation state: {format_large_units(self.degradation_state, quantity='area')}\n"
         if self.production_time is not None:
