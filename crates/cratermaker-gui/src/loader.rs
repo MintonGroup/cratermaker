@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use pyo3::{
+    ffi::PyProperty_Type,
     intern,
     prelude::*,
     types::{PyFunction, PyType},
@@ -138,6 +139,7 @@ pub struct Class {
     pub docstring: Option<String>,
     pub inner: Py<PyType>,
     pub methods: HashMap<String, Arc<Method>>,
+    pub properties: HashMap<String, Arc<Property>>,
     pub create_method: Arc<Method>,
 }
 
@@ -153,6 +155,24 @@ impl Class {
                 (
                     name.clone(),
                     Arc::new(Method::load(inspect, method.as_any().clone(), name.clone())),
+                )
+            })
+            .collect();
+        let property = PyModule::import(class.py(), "builtins")
+            .unwrap()
+            .getattr("property")
+            .unwrap();
+        let properties = members
+            .iter()
+            .filter(|(_, item)| item.is_instance(&property).unwrap())
+            .map(|(name, property)| {
+                (
+                    name.clone(),
+                    Arc::new(Property::load(
+                        inspect,
+                        property.as_any().clone(),
+                        name.clone(),
+                    )),
                 )
             })
             .collect();
@@ -176,6 +196,7 @@ impl Class {
             inner: class.unbind(),
             methods,
             create_method,
+            properties,
         }
     }
 }
@@ -195,5 +216,26 @@ impl Method {
             docstring,
             inner: method.unbind(),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct Property {
+    pub name: String,
+    pub docstring: Option<String>,
+    pub inner: Py<PyAny>,
+}
+
+impl Property {
+    pub fn load<'py>(inspect: &Inspect<'py>, property: Bound<'py, PyAny>, name: String) -> Self {
+        let docstring = inspect.getdoc(&property);
+        Self {
+            name,
+            docstring,
+            inner: property.unbind(),
+        }
+    }
+    pub fn get<'py>(&self, obj: &Bound<'py, PyAny>) -> Bound<'py, PyAny> {
+        obj.getattr(&self.name).unwrap()
     }
 }

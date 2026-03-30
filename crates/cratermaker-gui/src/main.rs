@@ -79,7 +79,16 @@ impl VariableInfoPane {
     fn view(&self) -> Element<'_, Message> {
         let col = column!["Variable Info",].spacing(6).padding(2);
         if let Some(variable) = &self.variable {
-            col.push("todo")
+            let lock = variable.read().unwrap();
+            if let Some(class) = &lock.class {
+                Python::attach(|py| {
+                    col.extend(class.properties.iter().map(|(name, value)| {
+                        text(format!("{}: {}", name, value.get(&lock.value.bind(py)))).into()
+                    }))
+                })
+            } else {
+                col.push(text(lock.value.to_string()))
+            }
         } else {
             col.push(text("No variable selected.").style(text::secondary))
         }
@@ -217,13 +226,11 @@ impl App {
                 Task::none()
             }
             Message::OpenContextMenu(point, target) => {
-                println!("opened at {:?}", point);
                 self.context_menu_pos = Some(point);
                 self.context_menu_target = Some(target);
                 Task::none()
             }
             Message::CloseContextMenu => {
-                println!("closed");
                 self.context_menu_pos = None;
                 self.context_menu_target = None;
                 Task::none()
@@ -255,6 +262,7 @@ impl App {
                     }
                 }
                 variable.write().unwrap().focused = true;
+                self.variable_info_pane.variable = Some(variable);
                 Task::none()
             }
         }
