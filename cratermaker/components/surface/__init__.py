@@ -926,33 +926,6 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def show3d(
-        self,
-        engine: str = "pyvista",
-        variable_name: str | None = None,
-        variable: ArrayLike | None = None,
-        interval: int | None = None,
-        **kwargs: Any,
-    ):
-        """
-        Show the surface using an interactive 3D plot.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
-        variable: (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
-        interval : int | None, optional
-            The interval number of the surface to show. If None, the currently loaded surface data will be displayed. Default is None.
-        **kwargs : Any
-            |kwargs|
-
-        """
-        return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, interval=interval, **kwargs)
-
     def compute_distances(
         self,
         locations: ArrayLike,
@@ -3702,42 +3675,6 @@ class LocalSurface(CratermakerBase):
                 gdf.to_file(filename, driver=driver, **kwargs)
             else:
                 gdf.to_file(filename, layer="local_surface_AREA", driver=driver, **kwargs)
-
-        return
-
-    def show3d(
-        self,
-        engine: str = "pyvista",
-        variable_name: str | None = None,
-        variable: ArrayLike | None = None,
-        interval: int | None = None,
-        **kwargs: Any,
-    ):
-        """
-        Show the local surface region using an interactive 3D plot.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
-        variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
-        interval : int | None, optional
-            The interval of the saved output to display. If None, the latest saved output will be displayed. Default is None.
-        **kwargs : Any
-            |kwargs|
-
-        """
-        from cratermaker.constants import PYVISTA_SHOW_KWARGS
-
-        if engine == "pyvista":
-            plotter = self.pyvista_plotter(variable_name=variable_name, variable=variable, interval=interval, **kwargs)
-            plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
-            plotter.show(**plotter_kwargs)
-        else:
-            raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
 
         return
 

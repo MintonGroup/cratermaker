@@ -407,39 +407,6 @@ class HiResLocalSurface(Surface):
         else:
             return self.local.pyvista_plotter(variable=variable, variable_name=variable_name, **kwargs)
 
-    def show3d(
-        self,
-        engine: str = "pyvista",
-        variable_name: str | None = None,
-        variable: ArrayLike | None = None,
-        superdomain: bool = False,
-        **kwargs,
-    ) -> None:
-        """
-        Show the surface using an interactive 3D plot.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
-        variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
-        superdomain : bool, optional
-            If True, show the full surface including the superdomain. If False, show only the local region. Default is False.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
-        """
-        if superdomain:
-            return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
-        else:
-            return self.local.show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
-
     def set_superdomain(
         self,
         scaling: Scaling | str | None = None,

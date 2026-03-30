@@ -118,6 +118,14 @@ For this example, we are going to use :py:meth:`~cratermaker.components.producti
    @savefig inverse.png width=4in
    plt.show()
 
+
+Using the Production function in a Simulation
+---------------------------------------------
+
+Int he above guides we have shown how to use the :py:class:`~cratermaker.components.production.Production` as a standalone object. However, the preferred way of initializing and using this object is as part of a :py:class:`~cratermaker.core.simulation.Simulation` object, where it is initialized in tandem with all other components in the Cratermaker project. This allows the components to be checked for self-consistency, and streamlines some of the initialization issues.  Here we will demonstrate some typical use-cases for :py:class:`~cratermaker.components.production.Production`, including how the valid ranges are dynamically adjusted for the particular  :py:class:`~cratermaker.components.surface.Surface` and how the Quasi-Monte Carlo functionality allows the user to mix real craters with known properties with randomly-generated craters into a simulation.
+
+
+
 More Production examples
 ------------------------
 

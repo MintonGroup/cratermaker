@@ -1013,33 +1013,11 @@ class Simulation(CratermakerBase):
         if interval is None:
             self.save(**kwargs, skip_actions=True)
             interval = self.interval
+        label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My\nInterval: {interval}"
         if self.counting is not None:
             return self.counting.pyvista_plotter(interval=interval, **kwargs)
         else:
             return self.surface.pyvista_plotter(interval=interval, **kwargs)
-
-    def show3d(self, engine: str = "pyvista", interval: int | None = None, **kwargs: Any) -> None:
-        """
-        Show the current state of the simulated surface.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        interval : int, optional
-            The interval number to show. Default is None, which will show the most current interval saved in the simulation.
-        **kwargs : Any
-            |kwargs|
-        """
-        if engine.lower() != "pyvista":
-            raise ValueError(f"Unsupported engine {engine}. Currently, only 'pyvista' is supported.")
-        if interval is None:
-            self.save(**kwargs, skip_actions=True)
-            interval = self.interval
-        if self.counting is not None:
-            return self.counting.show3d(engine=engine, interval=interval, **kwargs)
-        else:
-            return self.surface.show3d(engine=engine, interval=interval, **kwargs)
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """

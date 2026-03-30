@@ -838,7 +838,7 @@ class Counting(ComponentBase):
                 actor.mapper.scale_array = "size_scale"
             return actor
 
-        def _update_crater_style(plotter, actor_list):
+        def update_crater_style(plotter, actor_list):
             inext = 0
             for i, actor in enumerate(actor_list):
                 if actor.GetVisibility():
@@ -920,65 +920,10 @@ class Counting(ComponentBase):
             if enable_key_events:
                 new_message = f"{key} Toggle {crater_type} craters"
                 plotter = update_pyvista_help_message(plotter, new_message=new_message)
-                plotter.add_key_event(key, lambda plotter=plotter, actor_list=actor_list: _update_crater_style(plotter, actor_list))
+                plotter.add_key_event(key, lambda plotter=plotter, actor_list=actor_list: update_crater_style(plotter, actor_list))
 
+        # if enable_key_events:
         return plotter
-
-    def show3d(
-        self,
-        engine: str = "pyvista",
-        crater_type: Literal["observed", "emplaced", "both"] = "both",
-        interval: int | None = None,
-        enable_key_events: bool = True,
-        color: str | tuple[str] = ("white", "red"),
-        crater_style: Literal["rings", "points", "impacts", "spheres"] = "rings",
-        surface: Surface | LocalSurface | None = None,
-        plotter: pyvista.Plotter | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Passes through to the surface show method and adds crater counts to it.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        crater_type: Literal["observed","emplaced","both"]
-            This is only used if enable_key_events is False, in which case it controls which crater data will be plotted. Default is "both".
-        interval : int, optional
-            The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
-        enable_key_events : bool, optional
-            If True, enables key events to toggle the visibility of all saved crater count types (observed and emplaced) with all styles (rings, points, and impacts), which are activated by keypresses ("c" for observed craters, and "t" for emplaced craters), and all are not visible on initialization. If False, only one set of data is plotted, and is visible on initialization.
-        color: str | tuple[str] = ("white", "yellow")
-            The color to use for the plots. When used with enable_key_events or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
-        crater_style : Literal["rings", "points"], optional
-            Only used when enable_key_events is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
-        surface : Surface | LocalSurface, optional
-            The surface or local surface view to be displayed. If None, uses the associated surface property
-        plotter : pyvista.Plotter, optional
-            An existing pyvista Plotter to add the crater counts to. If None, a new Plotter will be created by the surface pyvista_plotter method. Default is None.
-        **kwargs : Any
-            |kwargs|
-
-        """
-        from cratermaker.constants import PYVISTA_SHOW_KWARGS
-
-        if engine.lower() == "pyvista":
-            plotter = self.pyvista_plotter(
-                crater_type=crater_type,
-                interval=interval,
-                enable_key_events=enable_key_events,
-                color=color,
-                crater_style=crater_style,
-                surface=surface,
-                plotter=plotter,
-                **kwargs,
-            )
-            plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
-            plotter.show(**plotter_kwargs)
-        else:
-            raise ValueError(f"Engine '{engine}' is not supported for crater counting visualization.")
-        return
 
     def to_geoseries(
         self,

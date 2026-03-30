@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import re
 import shutil
 from abc import ABC
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ import numpy as np
 import xarray as xr
 from numpy.random import BitGenerator, Generator, RandomState, SeedSequence
 from numpy.typing import ArrayLike
+from pyvista import Plotter
 from tqdm import tqdm
 
 from cratermaker.utils.general_utils import parameter
@@ -328,6 +330,43 @@ class CratermakerBase:
                 return False
         return True
 
+    def pyvista_plotter(self, **kwargs) -> Plotter:
+        """
+        A placeholder function that is overridden by components with a PyVista plotting method.
+        """
+        return None
+
+    def show3d(
+        self,
+        engine: str = "pyvista",
+        **kwargs: Any,
+    ):
+        """
+        Show the component using an interactive 3D plot.
+
+        Valid arguments are those that are passed the engine functions (e.g. arguments to pyvista_plotter(), and plotter.show())
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        **kwargs : Any
+            |kwargs|
+
+        """
+        from cratermaker.constants import PYVISTA_SHOW_KWARGS
+
+        if engine == "pyvista":
+            plotter = self.pyvista_plotter(**kwargs)
+            if plotter is None:
+                return
+            plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
+            plotter.show(**plotter_kwargs)
+        else:
+            raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
+
+        return
+
     def add_save_action(self, action: dict[str, dict]) -> None:
         """
         Add an action to the save_actions property of this component.
@@ -401,6 +440,42 @@ class CratermakerBase:
             raise TypeError("ask_overwrite must be a bool")
         self._ask_overwrite = value
 
+    def get_saved_interval_numbers(self) -> tuple(list[int], ...) | None:
+        """
+        Retrieved one or more lists of saved interval numbers that match the output file pattern(s).
+
+        Returns
+        -------
+        tuple[list[int], ...] or None
+            A tuple of integer lists containing the interval numbers of saved output files. The order of the lists in the tuple corresponds to the order of the file patterns returned by the output_file_pattern property. If no output files are found, returns (None, ...).
+        """
+        if len(self.output_file_pattern) == 0 or self.output_dir is None:
+            return None
+        output_lists = []
+        for pattern in self._output_file_pattern:
+            data_file_list = list(Path(self.output_dir).glob(pattern))
+            if len(data_file_list) == 0:
+                output_lists.append(None)
+                continue
+            interval_numbers = []
+            if len(data_file_list) > 1:
+                for data_file in data_file_list:
+                    n = data_file.name.split(self.output_file_prefix)[-1].split(f".{self.output_file_extension}")[0]
+                    interval_numbers.append(int(n))
+            else:  # handle the special case where the output file pattern does not include an interval number (e.g. "grid.nc")
+                n = re.findall(r"\d+", data_file_list[0].name)
+                if n:
+                    interval_numbers.append(int(n[-1]))
+            if len(interval_numbers) > 1:
+                output_lists.append(sorted(interval_numbers))
+            else:
+                output_lists.append(interval_numbers)
+
+        if len(self.output_file_pattern) == 1:
+            return (output_lists[0],)
+        else:
+            return tuple(output_lists)
+
     def read_saved_output(self, interval: int | None = None, **kwargs) -> tuple[xr.Dataset, ...] | None:
         """
         Read the saved output files for this component and return them as xarray Datasets.
@@ -414,34 +489,21 @@ class CratermakerBase:
 
         Returns
         -------
-            tuple[xr.Dataset, ...] or None
-                A tuple of xarray Datasets containing the data from the saved output files. The order of the Datasets in the tuple corresponds to the order of the file patterns returned by the output_file_pattern property. If no output files are found, returns None.
+        tuple[xr.Dataset, ...] or None
+            A tuple of xarray Datasets containing the data from the saved output files. The order of the Datasets in the tuple corresponds to the order of the file patterns returned by the output_file_pattern property. If no output files are found, returns (None, ...).
         """
-        import re
-
         if len(self.output_file_pattern) == 0 or self.output_dir is None:
             return None
         output_ds = []
+        all_interval_numbers = self.get_saved_interval_numbers()
 
-        for pattern in self._output_file_pattern:
+        for pattern, interval_numbers in zip(self._output_file_pattern, all_interval_numbers, strict=True):
             data_file_list = list(Path(self.output_dir).glob(pattern))
+
             if len(data_file_list) == 0:
                 output_ds.append(None)
                 continue
-            interval_numbers = []
-            if len(data_file_list) > 1:
-                for data_file in data_file_list:
-                    n = data_file.name.split(self.output_file_prefix)[-1].split(f".{self.output_file_extension}")[0]
-                    interval_numbers.append(int(n))
-            else:  # handle the special case where the output file pattern does not include an interval number (e.g. "grid.nc")
-                n = re.findall(r"\d+", data_file_list[0].name)
-                if n:
-                    interval_numbers.append(int(n[-1]))
-
-            if len(interval_numbers) > 1:
-                tup = sorted(zip(data_file_list, interval_numbers, strict=True))
-                data_file_list, interval_numbers = zip(*tup, strict=True)
-            data_file_list = list(data_file_list)
+            data_file_list = sorted(data_file_list)
 
             # map the requested interval to the index of interval_numbers
             if interval is not None and len(interval_numbers) > 0:
