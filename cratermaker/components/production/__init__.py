@@ -934,7 +934,7 @@ class Production(ComponentBase):
                 nmean *= fac
                 nsig *= fac
                 if has_sequence:
-                    if seq_nsig > 0.0:
+                    if nsig > 0 and seq_nsig > 0.0:
                         nval = bounded_norm(loc=nmean, scale=nsig, lower_bound=seq_nlo, upper_bound=seq_nhi, rng=self.rng)
                     else:
                         nval = seq_nmean
