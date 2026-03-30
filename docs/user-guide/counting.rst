@@ -38,7 +38,7 @@ The criteria for whether a crater is observable or not depends on the specific v
 Refining a crater's size and location with fit_rim
 --------------------------------------------------
 
-:py:meth:`~cratermaker.components.counting.Counting.fit_rim` refines the *measured* rim geometry of a :py:class:`~cratermaker.components.crater.Crater` by searching for a high-scoring set of rim points on the current surface and fitting either a circle or an ellipse to those points. It returns a **new** :py:class:`~cratermaker.components.crater.Crater` with updated :py:attr:`~cratermaker.components.crater.CraterVariable.measured_location`, :py:attr:`~cratermaker.components.crater.CraterVariable.measured_semimajor_axis`, :py:attr:`~cratermaker.components.crater.CraterVariable.measured_semiminor_axis`, and :py:attr:`~cratermaker.components.crater.CraterVariable.measured_orientation`.
+:py:meth:`~cratermaker.components.counting.Counting.fit_rim` refines the *measured* rim geometry of a |Crater| by searching for a high-scoring set of rim points on the current surface and fitting either a circle or an ellipse to those points. It returns a **new** |Crater| with updated :py:attr:`~cratermaker.components.crater.CraterVariable.measured_location`, :py:attr:`~cratermaker.components.crater.CraterVariable.measured_semimajor_axis`, :py:attr:`~cratermaker.components.crater.CraterVariable.measured_semiminor_axis`, and :py:attr:`~cratermaker.components.crater.CraterVariable.measured_orientation`.
 
 Basic usage
 ^^^^^^^^^^^

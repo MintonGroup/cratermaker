@@ -25,7 +25,7 @@
 Scaling
 =======
 
-Cratermaker's :py:class:`~cratermaker.components.scaling.Scaling` component provides tools to convert :py:class:`~cratermaker.components.projectile.Projectile` parameters (e.g., projectile diameter, velocity, angle, density), and :py:class:`~cratermaker.components.target.Target` properties (material type, surface gravity, density) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**. There are two scaling models available: "montecarlo" and "ctem". The "ctem" model closely resembles the model used in the CTEM code, a Fortran-based ancestor of CTEM. The "montecarlo" model is a newer non-deterministic model that includes the intrinsic variability in projectile to crater size scaling relationships. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021) that incorporate data from Vesta and Ceres from the Dawn mission.   
+Cratermaker's :py:class:`~cratermaker.components.scaling.Scaling` component provides tools to convert :py:class:`~cratermaker.components.projectile.Projectile` parameters (e.g., projectile diameter, velocity, angle, density), and |Target| properties (material type, surface gravity, density) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**. There are two scaling models available: "montecarlo" and "ctem". The "ctem" model closely resembles the model used in the CTEM code, a Fortran-based ancestor of CTEM. The "montecarlo" model is a newer non-deterministic model that includes the intrinsic variability in projectile to crater size scaling relationships. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021) that incorporate data from Vesta and Ceres from the Dawn mission.   
 
 Setting up a Scaling object
 ---------------------------
@@ -49,7 +49,7 @@ We can see that default scaling model is "montecarlo" and that the Scaling objec
    print(scaling)
 
 
-Typically a scaling object would not be used on its own, but instead as an object that gets passed to :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>`. However, we can still use it on its own and see how it is constructed and used.
+Typically a scaling object would not be used on its own, but instead as an object that gets passed to |Crater.maker|. However, we can still use it on its own and see how it is constructed and used.
 
 You can also override the default materials that are associated with target bodies. For instance the default material for Mars is "Soft Rock", but we could override this with something else, like "sand" or "ice":
 

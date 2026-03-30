@@ -155,4 +155,25 @@ rst_prolog = """
 .. |kwargs| replace:: Additional keyword arguments that are either ignored or passed to internal functions as needed.
 .. |interval_export| replace:: The interval number to export. If None, all intervals currently saved will be exported. Default is None.
 .. |ask_overwrite_methods| replace:: If True, the user will be prompted to confirm before overwriting any existing files. If False, existing files will be overwritten without confirmation. If None, the default behavior of the class will be used. This will only persist for the duration of the export, and will be reset to its original value afterwards.
+.. |Simulation| replace:: :py:class:`~cratermaker.core.simulation.Simulation`
+.. |sim.run| replace:: :py:class:`Simulation.run() `cratermaker.core.simulation.Simulation.run`
+.. |sim.populate| replace:: :py:class:`Simulation.populate() `cratermaker.core.simulation.Simulation.populate`
+.. |sim.emplace| replace:: :py:class:`Simulation.emplace() `cratermaker.core.simulation.Simulation.emplace`
+.. |sim.smallest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater`
+.. |Production| replace:: :py:class:`~cratermaker.components.production.Production`
+.. |NPF| replace:: :py:class:`~cratermaker.components.production.neukum.NeukumProduction`
+.. |PowerLawProduction| replace:: :py:class:`~cratermaker.components.production.powerlaw.PowerLawProduction`
+.. |production.function| replace:: :py:meth:`Production.function() <cratermaker.components.production.Production.function>`
+.. |production.sample| replace:: :py:meth:`Production.sample() <cratermaker.components.production.Production.sample>`
+.. |production.age_from_D_N| replace:: :py:meth:`Production.age_from_D_N() <cratermaker.components.production.Production.age_from_D_N>`
+.. |Surface| replace:: :py:class:`~cratermaker.components.surface.Surface`
+.. |LocalSurface| replace:: :py:class:`~cratermaker.components.surface.LocalSurface`
+.. |Target| replace:: :py:class:`~cratermaker.components.target.Target`
+.. |Crater| replace:: :py:class:`~cratermaker.components.crater.Crater`
+.. |Crater.maker| replace:: :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>`
+.. |Morphology| replace:: :py:class:`~cratermaker.components.morphology.Morphology`
+.. |BasicMoon| replace:: :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoonMorphology`
+.. |Counting| replace:: :py:class:`~cratermaker.components.counting.Counting`
+.. |Projectile| replace:: :py:class:`~cratermaker.components.projectile.Projectile`
+.. |Scaling| replace:: :py:class:`~cratermaker.components.scaling.Scaling`
 """

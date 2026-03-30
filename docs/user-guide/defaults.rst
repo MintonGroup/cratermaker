@@ -23,7 +23,7 @@ As Cratermaker is designed to be easy to use, all of its component classes are b
 - :ref:`Counting <ug-counting>`: Currently one counting model available: :py:class:`"depthcount" <cratermaker.components.counting.depthcount.DepthCount>`. This is a model that is similar to that used by CTEM, but with some modifications. It is based on a depth-to-diameter cutoff method used in Minton et al. (2019) [#]_ with corrections for complex craters given by Riedel et al. (2020) [#]_
 
 
-Because the :py:class:`~cratermaker.core.simulation.Simulation` class contains all other components, the defaults for all of the components can be viewed from printing a simulation object to the console, or by inspecting the ``cratermaker.yaml`` configuration file of a simulation with no arguments passed to it.
+Because the |Simulation| class contains all other components, the defaults for all of the components can be viewed from printing a simulation object to the console, or by inspecting the ``cratermaker.yaml`` configuration file of a simulation with no arguments passed to it.
 
 
 
