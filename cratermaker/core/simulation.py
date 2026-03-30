@@ -930,22 +930,12 @@ class Simulation(CratermakerBase):
             **kwargs,
         )
 
-        if self.do_counting:
-            self.counting.export(
-                craters=self.counting.observed,
-                interval=interval,
-                driver=counting_driver,
-                ask_overwrite=ask_overwrite,
-                **kwargs,
-            )
-        else:
-            self.counting.export(
-                craters=self.counting.emplaced,
-                interval=interval,
-                driver=counting_driver,
-                ask_overwrite=ask_overwrite,
-                **kwargs,
-            )
+        self.counting.export(
+            driver=counting_driver,
+            interval=interval,
+            ask_overwrite=ask_overwrite,
+            **kwargs,
+        )
         self.ask_overwrite = ask_overwrite_orig
 
         return

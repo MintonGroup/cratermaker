@@ -556,14 +556,17 @@ class Counting(ComponentBase):
             raise ValueError("crater_type must be 'observed', 'emplaced', or 'both")
 
         observed, emplaced = self.read_saved_output(interval=interval)
-        if crater_type == "observed":
-            emplaced = None
-        elif crater_type == "emplaced":
-            observed = None
+        if crater_type == "both":
+            crater_types = ["observed", "emplaced"]
+            crater_ds_list = [observed, emplaced]
+        else:
+            crater_types = [crater_type]
+            if crater_type == "observed":
+                crater_ds_list = [observed]
+            elif crater_type == "emplaced":
+                crater_ds_list = [emplaced]
 
-        for crater_type, crater_ds in zip(["observed", "emplaced"], [observed, emplaced], strict=True):
-            if crater_ds is None:
-                continue
+        for crater_type, crater_ds in zip(crater_types, crater_ds_list, strict=True):
             if isinstance(crater_ds, dict):
                 interval_numbers = list(crater_ds.keys())
             elif isinstance(crater_ds, xr.Dataset) and "interval" in crater_ds.coords:
@@ -574,7 +577,7 @@ class Counting(ComponentBase):
                 else:
                     interval_numbers = [interval]
             for interval in interval_numbers:
-                craters = self.Crater.from_xarray(crater_ds, interval=interval)
+                craters = self.Crater.from_xarray(crater_ds, interval=interval) if crater_ds is not None else []
                 if driver.upper() == "NETCDF" and crater_ds is not None:
                     self.save(
                         crater_type=crater_type,
