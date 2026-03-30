@@ -64,7 +64,7 @@ class Simulation(CratermakerBase):
     reset : bool, optional
         Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is False if `ask_overwrite=False` and a config file is detected, otherwise default is True.
     do_counting : bool, optional
-        If True, the counting component will keep track of emplaced craters during the simulation. Default is True.
+        If True, the counting component will keep track of observable craters during the simulation. If False, emplaced craters that are large enoug to be observable are saved, but the observability of craters on the surface is not evaluated and observed craters are not tracked. Default is True.
     save_actions: list[dict[str, dict]], optional
         A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved.
     **kwargs : Any
@@ -239,8 +239,6 @@ class Simulation(CratermakerBase):
             object.__setattr__(self, "_config_readonly", False)
             # The Surface has already had its reset method called.
             skip_components = ["surface"]
-            if not do_counting:
-                skip_components.append("counting")
             self.reset(skip_component=skip_components)
 
         if save_actions is None:
@@ -990,7 +988,7 @@ class Simulation(CratermakerBase):
                     label = f"Time: {self.time:.0f} My bp    Age : {self.elapsed_time:.0f} My"  # Prevent the label from overprinting the surface image for this style of plot.
 
         plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
-        if include_counting and self.do_counting:
+        if include_counting:
             ax = self.counting.plot(**plot_args)
         else:
             ax = self.surface.plot(**plot_args)
@@ -1015,7 +1013,7 @@ class Simulation(CratermakerBase):
         if interval is None:
             self.save(**kwargs, skip_actions=True)
             interval = self.interval
-        if self.do_counting:
+        if self.counting is not None:
             return self.counting.pyvista_plotter(interval=interval, **kwargs)
         else:
             return self.surface.pyvista_plotter(interval=interval, **kwargs)
@@ -1038,7 +1036,7 @@ class Simulation(CratermakerBase):
         if interval is None:
             self.save(**kwargs, skip_actions=True)
             interval = self.interval
-        if self.do_counting:
+        if self.counting is not None:
             return self.counting.show3d(engine=engine, interval=interval, **kwargs)
         else:
             return self.surface.show3d(engine=engine, interval=interval, **kwargs)
@@ -1572,12 +1570,9 @@ class Simulation(CratermakerBase):
     @property
     def emplaced(self) -> list[Crater] | None:
         """
-        Pass-through to retrieve the current emplaced craters from the morphology model, if it is enabled.
+        Pass-through to retrieve the current emplaced craters from the morphology model.
         """
-        if self.morphology is not None:
-            return self.counting.emplaced
-        else:
-            return None
+        return self.counting.emplaced
 
     @property
     def n_observed(self) -> int | None:
@@ -1592,12 +1587,9 @@ class Simulation(CratermakerBase):
     @property
     def n_emplaced(self) -> int | None:
         """
-        Pass-through to retrieve the current number of emplaced craters from the counting model, if it is enabled.
+        Pass-through to retrieve the current number of emplaced craters from the counting model.
         """
-        if self.do_counting:
-            return self.counting.n_emplaced
-        else:
-            return None
+        return self.counting.n_emplaced
 
     def output_filename(self, interval=None, **kwargs):
         return None
