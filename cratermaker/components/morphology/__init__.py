@@ -709,7 +709,10 @@ class Morphology(ComponentBase):
                     # If the craters have time values attached to them, we can perform subpixel degradation between time values
                     timevals = [crater.time for crater in batch if crater.time is not None]
                     if len(timevals) > 1:
-                        self.compute_subpixel_degradation(time_start=max(timevals), time_end=min(timevals), **kwargs)
+                        maxtime = max(timevals)
+                        mintime = min(timevals)
+                        if maxtime > mintime:
+                            self.compute_subpixel_degradation(time_start=max(timevals), time_end=min(timevals), **kwargs)
 
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)
