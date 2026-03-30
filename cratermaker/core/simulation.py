@@ -961,7 +961,7 @@ class Simulation(CratermakerBase):
         plot_style : str, optional
             The style to use for surface plots. See :py:meth:`Surface.plot` for more details. Default is 'hillshade'.
         label : str, optional
-            The label to use for the plot. Default is None, which will use a label based on the current time and elapsed time of the simulation.
+            The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation.
         show : bool, optional
             If True, the plot will be displayed. Default is False.
         save : bool, optional
@@ -994,7 +994,14 @@ class Simulation(CratermakerBase):
             ax = self.surface.plot(**plot_args)
         return ax
 
-    def pyvista_plotter(self, interval: int | None = None, **kwargs: Any) -> pyvista.Plotter:
+    def pyvista_plotter(
+        self,
+        interval: int | None = None,
+        label: str = "default",
+        plotter: pyvista.Plotter | None = None,
+        enable_key_events: bool = True,
+        **kwargs: Any,
+    ) -> pyvista.Plotter:
         """
         Create a PyVista plotter for the current state of the surface.
 
@@ -1002,6 +1009,12 @@ class Simulation(CratermakerBase):
         ----------
         interval : int, optional
             The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
+        label : str, optional
+            The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation.
+        plotter : pv.Plotter, optional
+            An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
+        enable_key_events : bool, optional
+            If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -1010,14 +1023,40 @@ class Simulation(CratermakerBase):
         pyvista.Plotter
             A PyVista Plotter object created by the surface pyvista_plotter method.
         """
+        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+
+        cornerannotation_arg_keys = ["prop", "linear_font_scale_factor"]
+
         if interval is None:
             self.save(**kwargs, skip_actions=True)
             interval = self.interval
-        label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My\nInterval: {interval}"
+
         if self.counting is not None:
-            return self.counting.pyvista_plotter(interval=interval, **kwargs)
+            plotter = self.counting.pyvista_plotter(
+                interval=interval, plotter=plotter, enable_key_events=enable_key_events, **kwargs
+            )
         else:
-            return self.surface.pyvista_plotter(interval=interval, **kwargs)
+            plotter = self.surface.pyvista_plotter(
+                interval=interval, plotter=plotter, enable_key_events=enable_key_events, **kwargs
+            )
+
+        if label is not None:
+            if label == "default":
+                label = f"Interval: {interval}"
+                if self.time is not None:
+                    label += f"\nTime: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
+            cornerannotation_args = {k: kwargs[k] for k in cornerannotation_arg_keys if k in kwargs}
+            label_actor = pyvista.CornerAnnotation(
+                position="upper_left", text=label, name="simulation-label", **cornerannotation_args
+            )
+            plotter.add_actor(label_actor)
+            if enable_key_events:
+                plotter = update_pyvista_help_message(plotter, new_message="l: Show/hide label")
+                plotter.add_key_event(
+                    "l", lambda plotter=plotter, label_actor=label_actor: toggle_pyvista_actor(plotter, label_actor)
+                )
+
+        return plotter
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """

@@ -504,7 +504,7 @@ def update_pyvista_help_message(plotter, new_message: str | None = None) -> pyvi
     help_actor = pyvista.CornerAnnotation(0, help_message, name="help")
     help_actor.SetVisibility(False)
     plotter.add_actor(help_actor)
-    plotter.add_key_event("h", lambda: toggle_pyvista_actor(plotter, help_actor))
+    plotter.add_key_event("h", lambda plotter=plotter, help_actor=help_actor: toggle_pyvista_actor(plotter, help_actor))
 
     return plotter
 
