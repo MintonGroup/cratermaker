@@ -1410,13 +1410,13 @@ def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
             prod_diam = input_dict.pop("production_D")
             nval = input_dict.pop("production_N")
             nstdev = input_dict.pop("production_N_stdev", 0.0)
-            if nstdev == "":
+            if nstdev is None or nstdev == "":
                 nstdev = 0.0
             new_dict["production_ND"] = [prod_diam, nval, nstdev]
         if "production_time" in input_dict:
             time_mean = input_dict.pop("production_time")
             time_stdev = input_dict.pop("production_time_stdev", 0.0)
-            if time_stdev == "":
+            if time_stdev is None or time_stdev == "":
                 time_stdev = 0.0
             new_dict["production_time"] = [time_mean, time_stdev]
 
