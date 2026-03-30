@@ -156,9 +156,9 @@ rst_prolog = """
 .. |interval_export| replace:: The interval number to export. If None, all intervals currently saved will be exported. Default is None.
 .. |ask_overwrite_methods| replace:: If True, the user will be prompted to confirm before overwriting any existing files. If False, existing files will be overwritten without confirmation. If None, the default behavior of the class will be used. This will only persist for the duration of the export, and will be reset to its original value afterwards.
 .. |Simulation| replace:: :py:class:`~cratermaker.core.simulation.Simulation`
-.. |sim.run| replace:: :py:class:`Simulation.run() `cratermaker.core.simulation.Simulation.run`
-.. |sim.populate| replace:: :py:class:`Simulation.populate() `cratermaker.core.simulation.Simulation.populate`
-.. |sim.emplace| replace:: :py:class:`Simulation.emplace() `cratermaker.core.simulation.Simulation.emplace`
+.. |sim.run| replace:: :py:class:`Simulation.run() <cratermaker.core.simulation.Simulation.run>`
+.. |sim.populate| replace:: :py:class:`Simulation.populate() <cratermaker.core.simulation.Simulation.populate>`
+.. |sim.emplace| replace:: :py:class:`Simulation.emplace() <cratermaker.core.simulation.Simulation.emplace>`
 .. |sim.smallest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater`
 .. |Production| replace:: :py:class:`~cratermaker.components.production.Production`
 .. |NPF| replace:: :py:class:`~cratermaker.components.production.neukum.NeukumProduction`
