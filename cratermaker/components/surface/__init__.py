@@ -3628,7 +3628,7 @@ class LocalSurface(CratermakerBase):
             mesh_actor.mapper.SetScalarVisibility(False)
         else:
             plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
-        if enable_key_events:
+        if enable_key_events and new_plotter:
             plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
             plotter.add_key_event("j", lambda plotter=plotter, cmap=cmap: update_scalars(plotter, cmap=cmap))
             plotter.add_key_event("r", lambda plotter=plotter: reset_view(plotter))

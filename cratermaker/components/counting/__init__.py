@@ -850,6 +850,7 @@ class Counting(ComponentBase):
             plotter.update()
             return
 
+        new_plotter = plotter is None
         surface = self.surface
         plotter = surface.pyvista_plotter(enable_key_events=enable_key_events, plotter=plotter, interval=interval, **kwargs)
         valid_crater_styles = ["rings", "points", "impacts", "spheres"]
@@ -917,12 +918,11 @@ class Counting(ComponentBase):
                 if enable_key_events:
                     actor.SetVisibility(False)
                     actor_list.append(actor)
-            if enable_key_events:
+            if enable_key_events and new_plotter:
                 new_message = f"{key} Toggle {name} craters"
                 plotter = update_pyvista_help_message(plotter, new_message=new_message)
                 plotter.add_key_event(key, lambda plotter=plotter, actor_list=actor_list: update_crater_style(plotter, actor_list))
 
-        # if enable_key_events:
         return plotter
 
     def to_geoseries(

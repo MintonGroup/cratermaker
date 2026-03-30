@@ -1025,8 +1025,32 @@ class Simulation(CratermakerBase):
         """
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
-        cornerannotation_arg_keys = ["prop", "linear_font_scale_factor"]
+        class IntervalState:
+            def __init__(self, interval, max_interval):
+                self.interval = interval
+                self.max_interval = max_interval
 
+            def update(self, forward):
+                if forward:
+                    new_interval = self.interval + 1
+                    if new_interval > self.max_interval:
+                        return
+                else:
+                    new_interval = self.interval - 1
+                    if new_interval < 0:
+                        return
+                self.interval = new_interval
+                return new_interval
+
+        def update_interval(plotter, istate, forward):
+            interval = istate.update(forward)
+            plotter.clear_actors()
+            plotter = self.pyvista_plotter(interval=interval, plotter=plotter, enable_key_events=enable_key_events, **kwargs)
+            plotter.update()
+            return
+
+        cornerannotation_arg_keys = ["prop", "linear_font_scale_factor"]
+        new_plotter = plotter is None
         if interval is None:
             self.save(**kwargs, skip_actions=True)
             interval = self.interval
@@ -1050,11 +1074,17 @@ class Simulation(CratermakerBase):
                 position="upper_left", text=label, name="simulation-label", **cornerannotation_args
             )
             plotter.add_actor(label_actor)
-            if enable_key_events:
+            if new_plotter:
+                istate = IntervalState(interval, max_interval=self.interval)
+            if enable_key_events and new_plotter:
                 plotter = update_pyvista_help_message(plotter, new_message="l: Show/hide label")
                 plotter.add_key_event(
                     "l", lambda plotter=plotter, label_actor=label_actor: toggle_pyvista_actor(plotter, label_actor)
                 )
+                plotter = update_pyvista_help_message(plotter, new_message="Right: Next interval")
+                plotter = update_pyvista_help_message(plotter, new_message="Left: Previous interval")
+                plotter.add_key_event("Right", lambda plotter=plotter: update_interval(plotter, istate, forward=True))
+                plotter.add_key_event("Left", lambda plotter=plotter: update_interval(plotter, istate, forward=False))
 
         return plotter
 
