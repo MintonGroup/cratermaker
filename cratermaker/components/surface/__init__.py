@@ -3644,6 +3644,7 @@ class LocalSurface(CratermakerBase):
             "show_edges": False,
             "show_scalar_bar": False,
             "color": "grey",
+            "pbr": True,
             **add_mesh_kwargs,
         }
         mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)
