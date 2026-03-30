@@ -712,7 +712,7 @@ class Morphology(ComponentBase):
                         maxtime = max(timevals)
                         mintime = min(timevals)
                         if maxtime > mintime:
-                            self.compute_subpixel_degradation(time_start=max(timevals), time_end=min(timevals), **kwargs)
+                            self.compute_subpixel_degradation(time_start=maxtime, time_end=mintime, **kwargs)
 
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)
