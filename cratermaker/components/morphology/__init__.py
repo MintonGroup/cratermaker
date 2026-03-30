@@ -406,6 +406,8 @@ class Morphology(ComponentBase):
 
         if self.counting is not None and self.counting.morphology is not self:
             self.counting.morphology = self  # Associated counting and morphology with each other
+        else:
+            self.counting = Counting.maker(counting, surface=self.surface, morphology=self, **kwargs)
 
         if do_counting is not None:
             if do_counting and self.counting is None:
