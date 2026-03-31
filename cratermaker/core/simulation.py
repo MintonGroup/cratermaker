@@ -18,12 +18,7 @@ from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import Surface
 from cratermaker.components.surface.hireslocal import HiResLocalSurface
 from cratermaker.components.target import Target
-from cratermaker.constants import (
-    _COMPONENT_NAMES,
-    _CONFIG_FILE_NAME,
-    FloatLike,
-    PairOfFloats,
-)
+from cratermaker.constants import _COMPONENT_NAMES, _CONFIG_FILE_NAME, _DSTD, FloatLike, PairOfFloats
 from cratermaker.core.base import CratermakerBase, _convert_for_yaml
 from cratermaker.utils.general_utils import _set_properties, format_large_units, parameter
 
@@ -560,14 +555,14 @@ class Simulation(CratermakerBase):
             initial_interval = int((time_start - self.time) / time_interval)
         else:
             delta_n1_start = self.production.function(
-                diameter=1000.0,
+                diameter=_DSTD,
                 time_start=time_start,
                 time_end=self.time,
                 validate_inputs=validate_inputs,
             ).item()
             n1_interval = (
                 self.production.function(
-                    diameter=1000.0,
+                    diameter=_DSTD,
                     time_start=time_start,
                     time_end=time_end,
                     validate_inputs=validate_inputs,
@@ -634,7 +629,7 @@ class Simulation(CratermakerBase):
                 self.elapsed_time += time_interval
                 self.elapsed_n1 += (
                     self.production.function(
-                        diameter=1000.0,
+                        diameter=_DSTD,
                         time_start=time,
                         time_end=current_time_end,
                         validate_inputs=validate_inputs,
@@ -938,6 +933,87 @@ class Simulation(CratermakerBase):
 
         return
 
+    def labelmaker(
+        self,
+        interval: int | None = None,
+        interval_label: bool = True,
+        time_label: bool = True,
+        age_label: bool = True,
+        N_label: bool = True,
+        N_diam_val: float | None = None,
+        compact: bool = False,
+        **kwargs: Any,
+    ) -> str:
+        """
+        Generates a label for the current state of the simulation based on the time variables and other parameters.
+
+        Parameters
+        ----------
+        interval : int, optional
+            The interval number to use for generating the label. Default is None, which will use the most current interval saved in the simulation.
+        interval_label : bool, optional
+            If True, the interval number will be included in the label. Default is True.
+        time_label : bool, optional
+            If True, the time variable will be included in the label if it is available. Default is True.
+        age_label : bool, optional
+            If True, the elapsed time variable will be included in the label if it is available. Default is True.
+        N_label : bool, optional
+            If True, the elapsed N(D) variable will be included in the label if it is available. Default is True.
+        N_diam_val : float, optional
+            The D value in km to use for the N(D) label. If None, a default value is chosen based on the smallest crater size in the simulation. Default is None.
+        compact : bool, optional
+            If True, the label will be formatted in a more compact way with newlines separating the different components. If False, the components will be separated by three spaces. Default is False.
+        **kwargs : Any
+            |kwargs|
+        """
+        if interval is None:
+            interval = self.interval
+            time_variables = self.time_variables
+        else:
+            tda = self.surface.get_time_variables(interval=interval).compute()
+            time_variables = {}
+            for c in tda.coords:
+                time_variables[c] = tda[c].data.item()
+
+        if compact:
+            delim = "\n"
+        else:
+            delim = "   "
+
+        # Set a default value of the D for N(D) format based on the smallest pixel in the simulation
+        if N_diam_val is None:
+            if self.smallest_crater < 10e3:
+                N_diam_val = 1.0
+            elif self.smallest_crater < 100e3:
+                N_diam_val = 20.0
+
+        time = time_variables.get("time")
+        time_label = time_label and time is not None
+
+        elapsed_time = time_variables.get("elapsed_time")
+        age_label = age_label and elapsed_time is not None
+
+        elapsed_n1 = time_variables.get("elapsed_n1")
+        N_label = N_label and elapsed_n1 is not None
+
+        label = []
+        if interval_label:
+            label.append(f"Interval: {interval}")
+        if time_label:
+            label.append(f"Time: {time:.0f} My bp")
+        if age_label:
+            label.append(f"Age : {elapsed_time:.0f} My")
+        if N_label:
+            nfac = self.production.csfd(diameter=N_diam_val * self.production.D_conversion_factor) / self.production.csfd(
+                diameter=_DSTD
+            )
+            dtxt = f"{N_diam_val:.0f}"
+            ndval = elapsed_n1 * nfac
+            N_unit = self.production.N_unit.replace("⁶", "$^6$")
+            label.append(f"Elapsed N({dtxt}): {ndval:.4g} {N_unit}")
+
+        return delim.join(label)
+
     def plot(
         self,
         include_counting: bool = False,
@@ -961,7 +1037,7 @@ class Simulation(CratermakerBase):
         plot_style : str, optional
             The style to use for surface plots. See :py:meth:`Surface.plot` for more details. Default is 'hillshade'.
         label : str, optional
-            The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation.
+            The label to use for the plot. Default is "default", which will use the labelmaker method to build a label based on the current time and age of the simulation.
         show : bool, optional
             If True, the plot will be displayed. Default is False.
         save : bool, optional
@@ -979,13 +1055,8 @@ class Simulation(CratermakerBase):
         if interval is None:
             interval = self.interval
         if label == "default":
-            if self.time is None:
-                label = f"Interval: {interval}"
-            else:
-                if issubclass(self.surface.__class__, HiResLocalSurface):
-                    label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"  # The line break makes a more compact label that fits in the corner of the plot without overprinting the surface image for this style of plot.
-                else:
-                    label = f"Time: {self.time:.0f} My bp    Age : {self.elapsed_time:.0f} My"  # Prevent the label from overprinting the surface image for this style of plot.
+            compact = kwargs.pop("compact", issubclass(self.surface.__class__, HiResLocalSurface))
+            label = self.labelmaker(interval=interval, compact=compact, **kwargs)
 
         plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
         if include_counting:
@@ -1066,13 +1137,13 @@ class Simulation(CratermakerBase):
 
         if label is not None:
             if label == "default":
-                label = f"Interval: {interval}"
-                if self.time is not None:
-                    label += f"\nTime: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"
+                compact = kwargs.pop("compact", True)
+                label = self.labelmaker(interval=interval, compact=compact, **kwargs)
             cornerannotation_args = {k: kwargs[k] for k in cornerannotation_arg_keys if k in kwargs}
             label_actor = pyvista.CornerAnnotation(
                 position="upper_left", text=label, name="simulation-label", **cornerannotation_args
             )
+            plotter.remove_actor("simulation-label")
             plotter.add_actor(label_actor)
         if new_plotter:
             istate = IntervalState(interval, max_interval=self.interval)

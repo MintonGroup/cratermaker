@@ -12,7 +12,7 @@ from scipy.optimize import root_scalar
 
 from cratermaker.components.crater import Crater
 from cratermaker.components.target import Target
-from cratermaker.constants import FloatLike, PairOfFloats
+from cratermaker.constants import _DSTD, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils import montecarlo_utils as mc
 from cratermaker.utils.general_utils import format_large_units, parameter
@@ -888,7 +888,6 @@ class Production(ComponentBase):
         list[Crater]
             The list of processed Crater objects with their emplacement time set, and any craters without production metadata dropped.
         """
-        _DSTD = 1e3  # Standard diameter to use for conversion between time and N(D) values when not provided
 
         def _draw_quasimc_time(
             crater: Crater,

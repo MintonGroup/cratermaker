@@ -23,7 +23,7 @@ from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
 
-DRIVER_TO_EXTENSION_MAP = {"NETCDF": "nc", "SCC": "scc", "VTK": "vtp", "VTP": "vtp", "CSV": "csv", **VECTOR_DRIVER_TO_EXTENSION_MAP}
+DRIVER_TO_EXTENSION_MAP = {"SCC": "scc", "VTK": "vtp", "VTP": "vtp", "CSV": "csv", **VECTOR_DRIVER_TO_EXTENSION_MAP}
 
 
 if TYPE_CHECKING:
@@ -419,7 +419,7 @@ class Counting(ComponentBase):
 
         if len(craters) == 0:
             return xr.Dataset()
-        new_data = []
+        data = []
         if isinstance(craters, dict):
             craters = craters.values()
         for c in craters:
@@ -427,9 +427,9 @@ class Counting(ComponentBase):
             d = _convert_tuple_vars(input_dict=d, inverse=False)
             d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
             d["id"].attrs["long_name"] = _TALLY_LONG_NAME
-            new_data.append(d)
+            data.append(d)
 
-        return xr.concat(new_data, dim="id")
+        return xr.concat(data, dim="id").sortby("id")
 
     def save(
         self,
@@ -538,14 +538,7 @@ class Counting(ComponentBase):
                     interval_numbers = [interval]
             for interval in interval_numbers:
                 craters = self.Crater.from_xarray(crater_ds, interval=interval) if crater_ds is not None else []
-                if driver.upper() == "NETCDF" and crater_ds is not None:
-                    self.save(
-                        crater_type=crater_type,
-                        interval=interval,
-                        craters=craters,
-                        **kwargs,
-                    )
-                elif driver.upper() in ["VTK", "VTP"] and crater_ds is not None:
+                if driver.upper() in ["VTK", "VTP"] and crater_ds is not None:
                     self.to_vtk_file(
                         craters=craters,
                         interval=interval,

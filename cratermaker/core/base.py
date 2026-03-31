@@ -209,6 +209,90 @@ class CratermakerBase:
         """
         pass
 
+    def get_saved_interval_numbers(self) -> tuple(list[int], ...) | None:
+        """
+        Retrieved one or more lists of saved interval numbers that match the output file pattern(s).
+
+        Returns
+        -------
+        tuple[list[int], ...] or None
+            A tuple of integer lists containing the interval numbers of saved output files. The order of the lists in the tuple corresponds to the order of the file patterns returned by the output_file_pattern property. If no output files are found, returns (None, ...).
+        """
+        if len(self.output_file_pattern) == 0 or self.output_dir is None:
+            return None
+        output_lists = []
+        for pattern in self._output_file_pattern:
+            data_file_list = list(Path(self.output_dir).glob(pattern))
+            if len(data_file_list) == 0:
+                output_lists.append(None)
+                continue
+            interval_numbers = []
+            if len(data_file_list) > 1:
+                for data_file in data_file_list:
+                    n = data_file.name.split(self.output_file_prefix)[-1].split(f".{self.output_file_extension}")[0]
+                    interval_numbers.append(int(n))
+            else:  # handle the special case where the output file pattern does not include an interval number (e.g. "grid.nc")
+                n = re.findall(r"\d+", data_file_list[0].name)
+                if n:
+                    interval_numbers.append(int(n[-1]))
+            if len(interval_numbers) > 1:
+                output_lists.append(sorted(interval_numbers))
+            else:
+                output_lists.append(interval_numbers)
+
+        if len(self.output_file_pattern) == 1:
+            return (output_lists[0],)
+        else:
+            return tuple(output_lists)
+
+    def read_saved_output(self, interval: int | None = None, **kwargs) -> tuple[xr.Dataset, ...] | None:
+        """
+        Read the saved output files for this component and return them as xarray Datasets.
+
+        Parameters
+        ----------
+        interval : int or None, optional
+            The interval number to read. If None, read all intervals. Default is None.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        tuple[xr.Dataset, ...] or None
+            A tuple of xarray Datasets containing the data from the saved output files. The order of the Datasets in the tuple corresponds to the order of the file patterns returned by the output_file_pattern property. If no output files are found, returns (None, ...).
+        """
+        if len(self.output_file_pattern) == 0 or self.output_dir is None:
+            return None
+        output_ds = []
+        all_interval_numbers = self.get_saved_interval_numbers()
+
+        for pattern, interval_numbers in zip(self._output_file_pattern, all_interval_numbers, strict=True):
+            data_file_list = list(Path(self.output_dir).glob(pattern))
+
+            if len(data_file_list) == 0:
+                output_ds.append(None)
+                continue
+            data_file_list = sorted(data_file_list)
+
+            # map the requested interval to the index of interval_numbers
+            if interval is not None and len(interval_numbers) > 0:
+                if interval < 0:
+                    interval_index = interval
+                elif interval in interval_numbers:
+                    interval_index = interval_numbers.index(interval)
+                else:
+                    output_ds.append(xr.Dataset())
+                    continue
+            else:
+                interval_index = None
+
+            output_ds.append(self._output_file_processor(data_file_list=data_file_list, interval_index=interval_index, **kwargs))
+
+        if len(output_ds) == 1:
+            return output_ds[0]
+        else:
+            return tuple(output_ds)
+
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
         """
         Check if the component has any output files in its output directory.
@@ -233,6 +317,66 @@ class CratermakerBase:
             return output_file_list
         else:
             return []
+
+    def get_time_variables(self, interval: int | None = None, **kwargs) -> tuple[xr.DataArray, ...] | xr.DataArray | None:
+        """
+        Retrieves any time-based variables (variables that have only an 'interval' dimension) that are stored in saved output files.
+
+        Parameters
+        ----------
+        interval : int or None, optional
+            The interval number to retrieve the time variables for. If None, retrieves time variables for all intervals. Default is None.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        tuple[dict, ...] or dict or None
+            A dictionary or tuple of dictionaries (depending on how many file save patterns there are) where the keys are the names of the time variables and the values are the corresponding values for the specified interval. If no time variables are found, returns an empty tuple.
+        """
+        if len(self.output_file_pattern) == 0 or self.output_dir is None:
+            return None
+
+        def extract_time_vars_from_ds(ds: xr.Dataset, interval: None = None) -> dict:
+            time_vars = [var for var in ds.variables if ds[var].dims == ("interval",)]
+            if len(time_vars) == 0:
+                return xr.DataArray()
+            tds = ds[time_vars]
+            if interval is not None:
+                if interval in tds.interval:
+                    tds = tds.sel(interval=[interval])
+                else:
+                    return xr.DataArray()
+            coord_dict = {var: ("interval", tds[var].data) for var in time_vars}
+            data = coord_dict.pop("interval")[-1]
+            tda = xr.DataArray(data=data, dims=["interval"], name="interval", coords=coord_dict)
+            return tda
+
+        saved_ds = self.read_saved_output(interval=interval, **kwargs)
+
+        if not isinstance(saved_ds, tuple):
+            saved_ds = (saved_ds,)
+
+        output_time_vars = []
+        for ds in saved_ds:
+            if ds is None:
+                output_time_vars.append(None)
+                continue
+            if isinstance(ds, dict):
+                if interval is None:
+                    tda = []
+                    for d in ds.values():
+                        tda.append(extract_time_vars_from_ds(d))
+                    tda = xr.concat(tda, dim="interval", coords="all", compat="override")
+                else:
+                    tda = extract_time_vars_from_ds(d, interval)
+            else:
+                tda = extract_time_vars_from_ds(ds, interval)
+            output_time_vars.append(tda)
+        if len(output_time_vars) == 1:
+            return output_time_vars[0]
+        else:
+            return tuple(output_time_vars)
 
     def output_filename(self, interval: int | None = None, **kwargs: Any) -> str:
         """
@@ -278,14 +422,24 @@ class CratermakerBase:
                 ds.load()
         else:
             try:
-                ds = xr.open_mfdataset(data_file_list, parallel=False, engine="netcdf4", compat="no_conflicts", join="outer")
-            except Exception:
-                ds = {}  # Fall back when the files cannot be opened together (e.g., because they have different variables or dimensions). In this case, we will open each file separately and concatenate them into a list of Datasets.
+                ds = xr.open_mfdataset(
+                    data_file_list,
+                    parallel=False,
+                    engine="netcdf4",
+                    compat="no_conflicts",
+                    join="outer",
+                    data_vars=None,
+                )
+            except ValueError:
+                # Fall back when the files cannot be opened together (e.g., because they have different variables ). In this case, we will open each file separately and concatenate them into a list of Datasets.
+                ds = {}
                 for data_file in tqdm(
                     data_file_list, desc="Reading in files....", unit="files", total=len(data_file_list), position=0, leave=False
                 ):
-                    with xr.open_mfdataset(data_file, engine="netcdf4") as ds_single:
+                    with xr.open_mfdataset(data_file, engine="netcdf4", data_vars=None, combine="nested") as ds_single:
                         ds[ds_single.interval.item()] = ds_single
+                ds = dict(sorted(ds.items()))
+
         if hasattr(ds, "close"):
             ds.close()
         return ds
@@ -439,90 +593,6 @@ class CratermakerBase:
         if not isinstance(value, bool):
             raise TypeError("ask_overwrite must be a bool")
         self._ask_overwrite = value
-
-    def get_saved_interval_numbers(self) -> tuple(list[int], ...) | None:
-        """
-        Retrieved one or more lists of saved interval numbers that match the output file pattern(s).
-
-        Returns
-        -------
-        tuple[list[int], ...] or None
-            A tuple of integer lists containing the interval numbers of saved output files. The order of the lists in the tuple corresponds to the order of the file patterns returned by the output_file_pattern property. If no output files are found, returns (None, ...).
-        """
-        if len(self.output_file_pattern) == 0 or self.output_dir is None:
-            return None
-        output_lists = []
-        for pattern in self._output_file_pattern:
-            data_file_list = list(Path(self.output_dir).glob(pattern))
-            if len(data_file_list) == 0:
-                output_lists.append(None)
-                continue
-            interval_numbers = []
-            if len(data_file_list) > 1:
-                for data_file in data_file_list:
-                    n = data_file.name.split(self.output_file_prefix)[-1].split(f".{self.output_file_extension}")[0]
-                    interval_numbers.append(int(n))
-            else:  # handle the special case where the output file pattern does not include an interval number (e.g. "grid.nc")
-                n = re.findall(r"\d+", data_file_list[0].name)
-                if n:
-                    interval_numbers.append(int(n[-1]))
-            if len(interval_numbers) > 1:
-                output_lists.append(sorted(interval_numbers))
-            else:
-                output_lists.append(interval_numbers)
-
-        if len(self.output_file_pattern) == 1:
-            return (output_lists[0],)
-        else:
-            return tuple(output_lists)
-
-    def read_saved_output(self, interval: int | None = None, **kwargs) -> tuple[xr.Dataset, ...] | None:
-        """
-        Read the saved output files for this component and return them as xarray Datasets.
-
-        Parameters
-        ----------
-        interval : int or None, optional
-            The interval number to read. If None, read all intervals. Default is None.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        tuple[xr.Dataset, ...] or None
-            A tuple of xarray Datasets containing the data from the saved output files. The order of the Datasets in the tuple corresponds to the order of the file patterns returned by the output_file_pattern property. If no output files are found, returns (None, ...).
-        """
-        if len(self.output_file_pattern) == 0 or self.output_dir is None:
-            return None
-        output_ds = []
-        all_interval_numbers = self.get_saved_interval_numbers()
-
-        for pattern, interval_numbers in zip(self._output_file_pattern, all_interval_numbers, strict=True):
-            data_file_list = list(Path(self.output_dir).glob(pattern))
-
-            if len(data_file_list) == 0:
-                output_ds.append(None)
-                continue
-            data_file_list = sorted(data_file_list)
-
-            # map the requested interval to the index of interval_numbers
-            if interval is not None and len(interval_numbers) > 0:
-                if interval < 0:
-                    interval_index = interval
-                elif interval in interval_numbers:
-                    interval_index = interval_numbers.index(interval)
-                else:
-                    output_ds.append(xr.Dataset())
-                    continue
-            else:
-                interval_index = None
-
-            output_ds.append(self._output_file_processor(data_file_list=data_file_list, interval_index=interval_index, **kwargs))
-
-        if len(output_ds) == 1:
-            return output_ds[0]
-        else:
-            return tuple(output_ds)
 
     @parameter
     def simdir(self):
@@ -730,8 +800,6 @@ class ComponentBase(CratermakerBase, ABC):
     Base class for components of the Cratermaker project.
 
     Defines the common parameters and methods for all components in the Cratermaker project, including the maker class that is used to select the correct component from user arguments.
-
-
     """
 
     _registry: dict[str, type[ComponentBase]] = {}
