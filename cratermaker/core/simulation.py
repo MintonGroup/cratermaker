@@ -936,10 +936,10 @@ class Simulation(CratermakerBase):
     def labelmaker(
         self,
         interval: int | None = None,
-        interval_label: bool = True,
-        time_label: bool = True,
+        interval_label: bool = False,
+        time_label: bool = False,
         age_label: bool = True,
-        N_label: bool = True,
+        N_label: bool = False,
         N_diam_val: float | None = None,
         compact: bool = False,
         **kwargs: Any,
@@ -952,13 +952,13 @@ class Simulation(CratermakerBase):
         interval : int, optional
             The interval number to use for generating the label. Default is None, which will use the most current interval saved in the simulation.
         interval_label : bool, optional
-            If True, the interval number will be included in the label. Default is True.
+            If True, the interval number will be included in the label. Default is False.
         time_label : bool, optional
             If True, the time variable will be included in the label if it is available. Default is True.
         age_label : bool, optional
-            If True, the elapsed time variable will be included in the label if it is available. Default is True.
+            If True, the elapsed time variable will be included in the label if it is available. Default is False.
         N_label : bool, optional
-            If True, the elapsed N(D) variable will be included in the label if it is available. Default is True.
+            If True, the elapsed N(D) variable will be included in the label if it is available. Default is False.
         N_diam_val : float, optional
             The D value in km to use for the N(D) label. If None, a default value is chosen based on the smallest crater size in the simulation. Default is None.
         compact : bool, optional

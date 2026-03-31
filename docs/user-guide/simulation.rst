@@ -143,9 +143,15 @@ To place 3 craters onto the surface, you could do the following:
 
 
 Using the Production component in a Simulation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When calling |sim.run|, a simulation internally calls a helper method called |sim.populate|, which draws craters from its internal |Production| component. For more detail on how to use this component to draw crater populations and to use the Quasi-Monte Carlo functionality, see :ref:`ug-production-simulation`.
+When calling |sim.run|, a simulation internally calls a helper method called |sim.populate|, which draws craters from its internal |Production| component. For more detail on how to use this component to draw crater populations see :ref:`ug-production-simulation`.
+
+
+Quasi-Monte Carlo
+-----------------
+
+Mix pre-determined impacts with random ones using :ref:`Quasi Monte-Carlo <ug-production-quasimc>`.
 
 
 Save Actions

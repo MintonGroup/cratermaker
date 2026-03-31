@@ -113,9 +113,9 @@ This high resolution simulation could take many hours to run, and it would be in
     sim.export(interval=None, driver="VTK")
 
 
-Notice that we don't have to supply any information about the grid, as these are stored in the old simulation's configuration data file "cratermaker.yaml".  Upon running this, the code will output VTK files for each interval and place them in the "export" folder. Alternatively, we can also just use the built-in method :py:meth`~cratermaker.components.surface.to_vtk_mesh` that can convert the surface of any saved interval into a VTK mesh that can be imported directly into PyVista. 
+Notice that we don't have to supply any information about the grid, as these are stored in the old simulation's configuration data file "cratermaker.yaml".  Upon running this, the code will output VTK files for each interval and place them in the "export" folder. Alternatively, we can also just use the built-in method :py:meth:`~cratermaker.components.surface.to_vtk_mesh` that can convert the surface of any saved interval into a VTK mesh that can be imported directly into PyVista. 
 
- ere I've included a script for generating a movie of the surface evolution of the Moon, with lots of fancy graphical elements to help communicate the what is happening throughout the simulation:
+Here I've included a script for generating a movie of the surface evolution of the Moon, with lots of fancy graphical elements to help communicate the what is happening throughout the simulation.
 
 .. code-block:: python
 

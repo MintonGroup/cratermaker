@@ -129,7 +129,7 @@ In the above guides we have shown how to use the |Production| as a standalone ob
 Emplace a population of craters drawn from a production function
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The |sim.populate| is used to generate a population of craters drawn from whichever  |Production| component module is loaded into the simulation. You can pass either time interval over which to draw from the production function with either "age" or "time_start" and "time_end", or you can provide a pair of numbers in the form of (D,N) that represents the production function in the N(D) convention. For instance, to emplace a population of craters corresponding to the production function between 200 My to 100 My before present, you would do:
+The |sim.populate| is used to generate a population of craters drawn from whichever |Production| component module is loaded into the simulation. You can pass either time interval over which to draw from the production function with either "age" or "time_start" and "time_end", or you can provide a pair of numbers in the form of (D,N) that represents the production function in the N(D) convention. For instance, to emplace a population of craters corresponding to the production function between 200 My to 100 My before present, you would do:
 
 .. code-block:: python
 
@@ -142,8 +142,27 @@ The |sim.populate| method is really meant to be a helper method for the |sim.run
 Limiting the size range of the production population
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When used inside a |Simulation|, the upper and lower bounds on the sizes of craters returned by |production.function|
+When used inside a |Simulation|, the upper and lower bounds on the sizes of craters returned by |production.function| are set by the resolution of the associated |Surface| object. The smallest crater that is directly modeled (outside of any subpixel models) is the size of the local face. The largest size is the diameter of the target. These can be adjusted by the user and are access by the |sim.smallest_crater| and |sim.largest_crater| attributes.
 
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
+.. ipython:: python
+   :okwarning:
+
+
+   from cratermaker import Simulation
+
+   sim = Simulation(gridlevel=5)
+   sim.smallest_crater
+   sim.largest_crater
+
+.. _ug-production-quasimc:
 
 Quasi-Monte Carlo craters
 -------------------------
