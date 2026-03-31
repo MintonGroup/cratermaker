@@ -258,7 +258,7 @@ Our input file for this set of craters would look like this:
 .. ipython:: python
    :okwarning:
 
-   sim = Simulation(gridlevel=5, quasimc_file="qmc_selected_basins.csv")
+   sim = Simulation(gridlevel=5, quasimc_file="qmc_selected_basins.csv", ask_overwrite=False)
    for crater in sim.quasimc_craters:
        N20 = sim.production.function(diameter=20e3, age=crater.time) * 1e12
        N64 = sim.production.function(diameter=64e3, age=crater.time) * 1e12
@@ -275,12 +275,51 @@ Our input file for this set of craters would look like this:
 Adjusting the automatic crater size limit
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default, when a list of craters with production metadata is loaded into |Production.quasimc_craters|, the upper range of the randomly-generated craters is adjusted so that it is limited to the size of the smallest crat er in the quasimc list
+By default, when a list of craters with production metadata is loaded into |Production.quasimc_craters|, the upper range of the randomly-generated craters is adjusted so that it is limited to the size of the smallest crater in the |Crater.quasimc_craters| list. However, sometimes this is not desirable. For instance, suppose we want to add Copernicus to our list. If we didn't change the range of craters, this would mean that the simulation would never create random craters larger than the 96 km diameter of Copernicus. We can therefore adjust the |Simulation.largest_crater| attribute as needed. 
+
+
+.. csv-table:: qmc_with_copernicus
+   :header: "name","latitude","longitude","diameter","production_time","production_time_stdev","production_D","production_N","production_N_stdev","production_sequence"
+   :widths: auto
+
+   South Pole-Aitken,-53,191,2400000,,,20,999,,0
+   Vaporum,14.2,3.1,410000,,,,,,5
+   Fecunditatis,-4.6,52,690000,,,90,10,4,10
+   Nectaris,-15.6,35.1,885000,,,20,172,20,40
+   Imbrium,37,341.5,1321000,3922,12,,,,100
+   Copernicus,9.6209,339.9214,96070,800.0,15,,,,200
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from pathlib import Path
+    with Path.open("qmc_with_copernicus.csv", "w") as f:
+        f.write("name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev,production_sequence\n")
+        f.write("South Pole-Aitken,-53,191,2400000,,,20,999,,0\n")
+        f.write("Vaporum,14.2,3.1,410000,,,,,,5\n")
+        f.write("Fecunditatis,-4.6,52,690000,,,90,10,4,10\n")
+        f.write("Nectaris,-15.6,35.1,885000,,,20,172,20,40\n")
+        f.write("Imbrium,37,341.5,1321000,3922,12,,,,100\n")   
+
+
+.. ipython:: python
+   :okwarning:
+
+   sim = Simulation(gridlevel=5, simdir="test", quasimc_file="qmc_with_copernicus.csv", ask_overwrite=False)
+   print(f"Largest random crater: {sim.largest_crater * 1e-3:.1f} km")
+
+   # Now set the largest crater 
+   sim.largest_crater = 200e3
+
+   print(f"Largest random crater: {sim.largest_crater * 1e-3:.1f} km")
+
 
 More Production examples
 ------------------------
 
-See more examples at  :ref:`gal-production_and_montecarlo`
+See more examples at  :ref:`gal-production_and_montecarlo` and :ref:`gal-simulation`.
 
 .. toctree::
    :maxdepth: 3
