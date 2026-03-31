@@ -741,19 +741,19 @@ class Crater(ComponentBase):
             """
             id_args = [
                 "semimajor_axis",
-                "semiminor_axis",
+                "projectile_angle",
+                "location",
                 "orientation",
                 "transient_diameter",
                 "projectile_diameter",
                 "projectile_velocity",
-                "projectile_angle",
                 "projectile_mass",
-                "location",
+                "semiminor_axis",
             ]
             combined_args = [k for k in kwargs if k in id_args]
             combined_args.sort()  # Sort to ensure consistent ordering
             combined = "::".join(f"{k}:{kwargs[k]}" for k in combined_args)
-            hexid = hashlib.shake_128(combined.encode()).hexdigest(4)
+            hexid = hashlib.shake_256(combined.encode()).hexdigest(4)
             return np.uint32(int(f"0x{hexid}", 16))
 
         # Convert from the old API "final_diameter/final_radius" to "diameter/radius"
