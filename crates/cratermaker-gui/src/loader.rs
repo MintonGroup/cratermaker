@@ -1,33 +1,29 @@
 use std::{collections::HashMap, sync::Arc};
 
 use pyo3::{
-    ffi::PyProperty_Type,
     intern,
     prelude::*,
     types::{PyFunction, PyType},
 };
 
-#[derive(Clone)]
-pub struct Inspect<'py> {
-    inspect: Bound<'py, PyModule>,
-}
-
-impl<'py> Inspect<'py> {
-    pub fn load(py: Python<'py>) -> Self {
-        Self {
-            inspect: py.import(intern!(py, "inspect")).unwrap(),
-        }
+pub mod inspect {
+    use pyo3::sync::PyOnceLock;
+    use pyo3::{intern, prelude::*};
+    static INSPECT: PyOnceLock<Py<PyModule>> = PyOnceLock::new();
+    fn inner<'py, 'a>(py: Python<'py>) -> &'a Bound<'py, PyModule> {
+        INSPECT
+            .get_or_init(py, || PyModule::import(py, "inspect").unwrap().unbind())
+            .bind(py)
     }
-
-    pub fn getdoc(&self, obj: &Bound<'py, PyAny>) -> Option<String> {
-        self.inspect
+    pub fn getdoc<'py>(obj: &Bound<'py, PyAny>) -> Option<String> {
+        inner(obj.py())
             .call_method1(intern!(obj.py(), "getdoc"), (obj,))
             .unwrap()
             .extract()
             .unwrap()
     }
-    pub fn getmembers(&self, obj: &Bound<'py, PyAny>) -> Vec<(String, Bound<'py, PyAny>)> {
-        self.inspect
+    pub fn getmembers<'py>(obj: &Bound<'py, PyAny>) -> Vec<(String, Bound<'py, PyAny>)> {
+        inner(obj.py())
             .call_method1(intern!(obj.py(), "getmembers"), (obj,))
             .unwrap()
             .extract()
@@ -35,12 +31,8 @@ impl<'py> Inspect<'py> {
     }
 }
 
-pub fn get_indexable_members<'py>(
-    inspect: &Inspect<'py>,
-    obj: &Bound<'py, PyAny>,
-) -> Vec<(String, Bound<'py, PyAny>)> {
-    inspect
-        .getmembers(obj)
+pub fn get_indexable_members<'py>(obj: &Bound<'py, PyAny>) -> Vec<(String, Bound<'py, PyAny>)> {
+    inspect::getmembers(obj)
         .into_iter()
         .filter(|(name, _)| !name.starts_with('_'))
         .collect()
@@ -48,18 +40,21 @@ pub fn get_indexable_members<'py>(
 
 #[derive(Debug)]
 pub struct Cratermaker {
-    pub module: Module,
+    pub module: Arc<Module>,
 }
 
 impl Cratermaker {
     pub fn load(py: Python<'_>) -> PyResult<Self> {
         let cratermaker = py.import("cratermaker")?;
         Ok(Cratermaker {
-            module: Module::load(&Inspect::load(py), cratermaker),
+            module: Arc::new(Module::load(cratermaker)),
         })
     }
-    pub fn get_module(&self, path: &[&str]) -> Option<&Module> {
-        self.module.get_submodule_tree(path)
+    pub fn get_module(&self, path: &[&str]) -> Option<Arc<Module>> {
+        path.iter()
+            .fold(Some(self.module.clone()), |current, &name| {
+                current.and_then(|current| current.get_submodule(name))
+            })
     }
     pub fn get_class(&self, module_path: &[&str], name: &str) -> Option<Arc<Class>> {
         self.get_module(module_path)
@@ -72,15 +67,15 @@ pub struct Module {
     pub name: String,
     pub docstring: Option<String>,
     pub inner: Py<PyModule>,
-    pub submodules: HashMap<String, Module>,
+    pub submodules: HashMap<String, Arc<Module>>,
     pub classes: HashMap<String, Arc<Class>>,
 }
 
 impl Module {
-    pub fn load<'py>(inspect: &Inspect<'py>, module: Bound<'py, PyModule>) -> Self {
+    pub fn load<'py>(module: Bound<'py, PyModule>) -> Self {
         let mut name = module.name().unwrap().extract::<String>().unwrap();
-        let docstring = inspect.getdoc(module.as_any());
-        let members = get_indexable_members(inspect, module.as_any());
+        let docstring = inspect::getdoc(module.as_any());
+        let members = get_indexable_members(module.as_any());
         let submodules = members
             .iter()
             .filter_map(|(_, item)| item.cast::<PyModule>().ok())
@@ -92,8 +87,8 @@ impl Module {
                     .unwrap()
                     .starts_with(&name)
             })
-            .map(|submodule| Module::load(inspect, submodule.clone()))
-            .map(|submodule| (submodule.name.clone(), submodule))
+            .map(|submodule| Module::load(submodule.clone()))
+            .map(|submodule| (submodule.name.clone(), Arc::new(submodule)))
             .collect();
         let classes = members
             .iter()
@@ -106,7 +101,7 @@ impl Module {
                     .unwrap()
                     .starts_with(&name)
             })
-            .map(|class| Arc::new(Class::load(inspect, class.clone())))
+            .map(|class| Arc::new(Class::load(class.clone())))
             .map(|class| (class.name.clone(), class))
             .collect();
         if let Some((_, shortname)) = name.rsplit_once('.') {
@@ -120,13 +115,8 @@ impl Module {
             classes,
         }
     }
-    pub fn get_submodule(&self, name: &str) -> Option<&Module> {
-        self.submodules.get(name)
-    }
-    pub fn get_submodule_tree(&self, path: &[&str]) -> Option<&Module> {
-        path.iter().fold(Some(self), |current, &name| {
-            current.and_then(|current| current.get_submodule(name))
-        })
+    pub fn get_submodule(&self, name: &str) -> Option<Arc<Module>> {
+        self.submodules.get(name).cloned()
     }
     pub fn get_class(&self, name: &str) -> Option<Arc<Class>> {
         self.classes.get(name).cloned()
@@ -144,17 +134,17 @@ pub struct Class {
 }
 
 impl Class {
-    pub fn load<'py>(inspect: &Inspect<'py>, class: Bound<'py, PyType>) -> Self {
+    pub fn load<'py>(class: Bound<'py, PyType>) -> Self {
         let name = class.name().unwrap().extract::<String>().unwrap();
-        let docstring = inspect.getdoc(class.as_any());
-        let members = get_indexable_members(inspect, class.as_any());
+        let docstring = inspect::getdoc(class.as_any());
+        let members = get_indexable_members(class.as_any());
         let mut methods: HashMap<String, Arc<Method>> = members
             .iter()
             .filter_map(|(name, item)| item.cast::<PyFunction>().ok().map(|item| (name, item)))
             .map(|(name, method)| {
                 (
                     name.clone(),
-                    Arc::new(Method::load(inspect, method.as_any().clone(), name.clone())),
+                    Arc::new(Method::load(method.as_any().clone(), name.clone())),
                 )
             })
             .collect();
@@ -168,17 +158,12 @@ impl Class {
             .map(|(name, property)| {
                 (
                     name.clone(),
-                    Arc::new(Property::load(
-                        inspect,
-                        property.as_any().clone(),
-                        name.clone(),
-                    )),
+                    Arc::new(Property::load(property.as_any().clone(), name.clone())),
                 )
             })
             .collect();
         let create_method = methods.remove("maker").unwrap_or_else(|| {
             let mut method = Method::load(
-                inspect,
                 class
                     .getattr(intern!(class.py(), "__init__"))
                     .unwrap()
@@ -209,8 +194,8 @@ pub struct Method {
 }
 
 impl Method {
-    pub fn load<'py>(inspect: &Inspect<'py>, method: Bound<'py, PyAny>, name: String) -> Self {
-        let docstring = inspect.getdoc(&method);
+    pub fn load<'py>(method: Bound<'py, PyAny>, name: String) -> Self {
+        let docstring = inspect::getdoc(&method);
         Self {
             name,
             docstring,
@@ -227,8 +212,8 @@ pub struct Property {
 }
 
 impl Property {
-    pub fn load<'py>(inspect: &Inspect<'py>, property: Bound<'py, PyAny>, name: String) -> Self {
-        let docstring = inspect.getdoc(&property);
+    pub fn load<'py>(property: Bound<'py, PyAny>, name: String) -> Self {
+        let docstring = inspect::getdoc(&property);
         Self {
             name,
             docstring,
