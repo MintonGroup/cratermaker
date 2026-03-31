@@ -161,6 +161,7 @@ rst_prolog = """
 .. |sim.populate| replace:: :py:class:`Simulation.populate() <cratermaker.core.simulation.Simulation.populate>`
 .. |sim.emplace| replace:: :py:class:`Simulation.emplace() <cratermaker.core.simulation.Simulation.emplace>`
 .. |sim.smallest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater`
+.. |sim.largest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.largest_crater`
 .. |Production| replace:: :py:class:`~cratermaker.components.production.Production`
 .. |NPF| replace:: :py:class:`~cratermaker.components.production.neukum.NeukumProduction`
 .. |PowerLawProduction| replace:: :py:class:`~cratermaker.components.production.powerlaw.PowerLawProduction`
@@ -170,6 +171,8 @@ rst_prolog = """
 .. |production.N_D_units| replace:: :py:attr:`~cratermaker.components.production.Production.N_D_units`
 .. |production.N_conversion_factor| replace:: :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`
 .. |production.D_conversion_factor| replace:: :py:attr:`~cratermaker.components.production.Production.D_conversion_factor`
+.. |production.quasimc_craters| replace:: :py:attr:`~cratermaker.components.production.Production.quasimc_craters`
+.. |production.quasimc_file| replace:: :py:attr:`~cratermaker.components.production.Production.quasimc_file`
 .. |Surface| replace:: :py:class:`~cratermaker.components.surface.Surface`
 .. |LocalSurface| replace:: :py:class:`~cratermaker.components.surface.LocalSurface`
 .. |Target| replace:: :py:class:`~cratermaker.components.target.Target`

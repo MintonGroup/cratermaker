@@ -275,7 +275,7 @@ Our input file for this set of craters would look like this:
 Adjusting the automatic crater size limit
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default, when a list of craters with production metadata is loaded into |Production.quasimc_craters|, the upper range of the randomly-generated craters is adjusted so that it is limited to the size of the smallest crater in the |Crater.quasimc_craters| list. However, sometimes this is not desirable. For instance, suppose we want to add Copernicus to our list. If we didn't change the range of craters, this would mean that the simulation would never create random craters larger than the 96 km diameter of Copernicus. We can therefore adjust the |Simulation.largest_crater| attribute as needed. 
+By default, when a list of craters with production metadata is loaded into |production.quasimc_craters|, the upper range of the randomly-generated craters is adjusted so that it is limited to the size of the smallest crater in the |production.quasimc_craters| list. However, sometimes this is not desirable. For instance, suppose we want to add Copernicus to our list. If we didn't change the range of craters, this would mean that the simulation would never create random craters larger than the 96 km diameter of Copernicus. We can therefore adjust the |sim.largest_crater| attribute as needed. 
 
 
 .. csv-table:: qmc_with_copernicus
