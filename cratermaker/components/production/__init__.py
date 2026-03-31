@@ -905,6 +905,9 @@ class Production(ComponentBase):
                 seq_tlo = self.age_from_D_N(diameter=_DSTD, cumulative_number_density=seq_nlo)
                 seq_thi = self.age_from_D_N(diameter=_DSTD, cumulative_number_density=seq_nhi)
                 seq_tmean = (seq_tlo + seq_thi) / 2
+                seq_tsig = (seq_thi - seq_tlo) / 2
+                if seq_tsig / seq_tmean < 1e-12:  # Prevents an error when the bounds are too tight
+                    seq_tsig = 0.0
             else:
                 s = None
 
@@ -936,7 +939,7 @@ class Production(ComponentBase):
                     if nsig > 0 and seq_nsig > 0.0:
                         nval = bounded_norm(loc=nmean, scale=nsig, lower_bound=seq_nlo, upper_bound=seq_nhi, rng=self.rng)
                     else:
-                        nval = nmean
+                        nval = max(min(nmean, seq_nhi), seq_nlo)
                 else:
                     nval = self.rng.normal(loc=nmean, scale=nsig) if nsig > 0 else nmean
                 nval = max(0.0, nval)
@@ -944,13 +947,10 @@ class Production(ComponentBase):
             elif crater.production_time is not None and crater.production_time != [None, None]:
                 tmean, tsig = crater.production_time
                 if has_sequence:
-                    if seq_nsig > 0.0:
-                        if tsig > 0.0:
-                            t = bounded_norm(loc=tmean, scale=tsig, lower_bound=seq_tlo, upper_bound=seq_thi, rng=self.rng)
-                        else:
-                            t = tmean
+                    if tsig > 0 and seq_tsig > 0.0:
+                        t = bounded_norm(loc=tmean, scale=tsig, lower_bound=seq_tlo, upper_bound=seq_thi, rng=self.rng)
                     else:
-                        t = seq_tmean
+                        t = max(min(tmean, seq_thi), seq_tlo)
                 else:
                     t = self.rng.normal(loc=tmean, scale=tsig) if tsig > 0 else tmean
                 max(t, 0.0)
