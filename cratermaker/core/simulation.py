@@ -1074,17 +1074,18 @@ class Simulation(CratermakerBase):
                 position="upper_left", text=label, name="simulation-label", **cornerannotation_args
             )
             plotter.add_actor(label_actor)
-            if new_plotter:
-                istate = IntervalState(interval, max_interval=self.interval)
-            if enable_key_events and new_plotter:
+        if new_plotter:
+            istate = IntervalState(interval, max_interval=self.interval)
+        if enable_key_events and new_plotter:
+            if label is not None:
                 plotter = update_pyvista_help_message(plotter, new_message="l: Show/hide label")
                 plotter.add_key_event(
                     "l", lambda plotter=plotter, label_actor=label_actor: toggle_pyvista_actor(plotter, label_actor)
                 )
-                plotter = update_pyvista_help_message(plotter, new_message="Right: Next interval")
-                plotter = update_pyvista_help_message(plotter, new_message="Left: Previous interval")
-                plotter.add_key_event("Right", lambda plotter=plotter: update_interval(plotter, istate, forward=True))
-                plotter.add_key_event("Left", lambda plotter=plotter: update_interval(plotter, istate, forward=False))
+            plotter = update_pyvista_help_message(plotter, new_message="Right: Next interval")
+            plotter = update_pyvista_help_message(plotter, new_message="Left: Previous interval")
+            plotter.add_key_event("Right", lambda plotter=plotter: update_interval(plotter, istate, forward=True))
+            plotter.add_key_event("Left", lambda plotter=plotter: update_interval(plotter, istate, forward=False))
 
         return plotter
 
