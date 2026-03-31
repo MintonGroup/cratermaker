@@ -431,47 +431,11 @@ class Counting(ComponentBase):
 
         return xr.concat(new_data, dim="id")
 
-    def _to_file(
-        self,
-        craters: dict[int, Crater] | list[Crater],
-        filename: Path | str,
-        interval: int = 0,
-    ) -> xr.Dataset | None:
-        """
-        Merge a list or dictionary of Crater objects with an existing file.
-
-        Parameters
-        ----------
-        craters : dict[int, Crater] | list[Crater]
-            A dictionary or list of Crater objects to merge.
-        filename : Path | str
-            The path to the file to merge with.
-        interval : int, optional
-            The interval number. This is added to the coordinates of the dataset created from the craters before merging with the file. Default is 0.
-
-        Returns
-        -------
-        xr.Dataset | None
-            An xarray Dataset containing the merged crater data, or None if no data.
-        """
-        # Convert into an xarray dataset
-        combined_data = self.to_xarray(craters)
-        combined_data = combined_data.expand_dims(dim="interval").assign_coords({"interval": [interval]})
-
-        # If the file already exists, read it and merge
-        if filename.exists():
-            filename.unlink()
-
-        # Write merged data back to file
-        if combined_data:
-            combined_data.to_netcdf(filename)
-        return combined_data
-
     def save(
         self,
         crater_type: Literal["observed", "emplaced", "both"] = "both",
         interval: int = 0,
-        craters: list[Crater] | None = None,
+        time_variables: dict | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -483,39 +447,35 @@ class Counting(ComponentBase):
             The type of craters to export. Options are "observed", "emplaced", and "both". Default is "observed".
         interval : int, default=0
             The interval number for the output file naming.
-        craters: list[Crater] | None, optional
-            An arbitrary list of craters to save. If None, then the current observed and/or emplaced tallies are used. Default is None.
+        time_variables: dict | None, optional
+            A dictionary of time variables to include in the output file.
         **kwargs : Any
             |kwargs|
         """
-        if craters is None:
-            self.remove_complex_data()
-            observed = self.observed
-            emplaced = self.emplaced
-        else:
-            if crater_type == "both":
-                raise ValueError(
-                    "If supplying a custom list of craters to save, then crater_type must be either 'observed' or 'emplaced', not 'both'."
-                )
-            elif crater_type == "observed":
-                observed = {crater.id: crater for crater in craters}
-                emplaced = None
-            elif crater_type == "emplaced":
-                observed = None
-                emplaced = craters
+        if crater_type not in ["observed", "emplaced", "both"]:
+            raise ValueError(f"Invalid crater_type: {crater_type}. Must be one of 'observed', 'emplaced', or 'both'.")
+        if time_variables is not None and not isinstance(time_variables, dict):
+            raise TypeError("time_variables must be a dictionary")
+
+        self.remove_complex_data()
 
         if crater_type == "observed":
-            iter = zip([observed], ["observed"], strict=True)
+            iterator = zip([self.observed], ["observed"], strict=True)
         elif crater_type == "emplaced":
-            iter = zip([emplaced], ["emplaced"], strict=True)
+            iterator = zip([self.emplaced], ["emplaced"], strict=True)
         elif crater_type == "both":
-            iter = zip([observed, emplaced], ["observed", "emplaced"], strict=True)
-        else:
-            raise ValueError(f"Invalid crater_type: {crater_type}. Must be one of 'observed', 'emplaced', or 'both'.")
-        for craters, crater_type in iter:
+            iterator = zip([self.observed, self.emplaced], ["observed", "emplaced"], strict=True)
+        for craters, crater_type in iterator:
             if craters:
                 filename = self.output_dir / f"{crater_type}_{self.output_filename(interval)}"
-                self._to_file(craters, filename, interval)
+                ds = self.to_xarray(craters)
+                ds = ds.expand_dims(dim="interval").assign_coords({"interval": [interval]})
+                if time_variables is not None:
+                    for k, v in time_variables.items():
+                        ds[k] = xr.DataArray(data=[v], name=k, dims=["interval"], coords={"interval": [interval]})
+                if filename.exists():
+                    filename.unlink()
+                ds.to_netcdf(filename)
         save_args = {"interval": interval, **kwargs}
         super().save(**save_args)
         return
@@ -1220,7 +1180,7 @@ class Counting(ComponentBase):
                 elif crater_style == "spheres":
                     z += size_scale_factor * crater.projectile_radius
                 elif crater_style == "impacts":
-                    z += size_scale_factor * crater.floor_diameter / 2
+                    z += np.sqrt(size_scale_factor) * crater.floor_diameter / 2
                 geoms.append(Point(crater.location[0], crater.location[1], z))
             gs = GeoSeries(geoms, crs=surface.crs)
 

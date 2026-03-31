@@ -657,7 +657,7 @@ class Surface(ComponentBase):
         """
         Save the surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension.
 
         Parameters
         ----------
@@ -3177,7 +3177,7 @@ class LocalSurface(CratermakerBase):
         """
         Save the region surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension.
 
         Parameters
         ----------
@@ -3193,11 +3193,8 @@ class LocalSurface(CratermakerBase):
         self.surface.output_dir.mkdir(parents=True, exist_ok=True)
         if interval is None:
             interval = 0
-        if time_variables is None:
-            time_variables = {"elapsed_time": float(interval)}
-        else:
-            if not isinstance(time_variables, dict):
-                raise TypeError("time_variables must be a dictionary")
+        if time_variables is not None and not isinstance(time_variables, dict):
+            raise TypeError("time_variables must be a dictionary")
 
         # Sort any layers that we might have before saving
         for var in self.uxds.data_vars:
@@ -3207,8 +3204,9 @@ class LocalSurface(CratermakerBase):
         self.uxds.close()
 
         ds = self.uxds.expand_dims(dim="interval").assign_coords({"interval": [interval]})
-        for k, v in time_variables.items():
-            ds[k] = xr.DataArray(data=[v], name=k, dims=["interval"], coords={"interval": [interval]})
+        if time_variables is not None:
+            for k, v in time_variables.items():
+                ds[k] = xr.DataArray(data=[v], name=k, dims=["interval"], coords={"interval": [interval]})
 
         self.surface._save_data(
             ds,
