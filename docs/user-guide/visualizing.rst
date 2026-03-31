@@ -115,10 +115,13 @@ This high resolution simulation could take many hours to run, and it would be in
 
 Notice that we don't have to supply any information about the grid, as these are stored in the old simulation's configuration data file "cratermaker.yaml".  Upon running this, the code will output VTK files for each interval and place them in the "export" folder. Alternatively, we can also just use the built-in method :py:meth`~cratermaker.components.surface.to_vtk_mesh` that can convert the surface of any saved interval into a VTK mesh that can be imported directly into PyVista. 
 
- Here I've included a script for generating an animated gif of the surface evolution, with lots of fancy graphical elements to help communicate the what is happening throughout the simulation:
+ ere I've included a script for generating a movie of the surface evolution of the Moon, with lots of fancy graphical elements to help communicate the what is happening throughout the simulation:
 
 .. code-block:: python
 
+    from pathlib import Path
+
+    import numpy as np
     import pyvista as pv
     from cratermaker import Simulation
     from tqdm import tqdm
@@ -127,48 +130,72 @@ Notice that we don't have to supply any information about the grid, as these are
 
     # Set up some spacy looking lighting and background
     pv.set_plot_theme("dark")
-    pl = pv.Plotter(lighting="none", window_size=(1280, 960))
+    pl = pv.Plotter(off_screen=True, lighting="none", window_size=(1280, 960))
+    pl.enable_hidden_line_removal()
     light = pv.Light()
     light.set_direction_angle(30, -40)
     cubemap = pv.examples.download_cubemap_space_16k()
     _ = pl.add_actor(cubemap.to_skybox())
     pl.set_environment_texture(cubemap, is_srgb=True)
     pl.add_light(light)
-    pl.open_gif(simname + "-anim.gif")
+    pl.open_movie(simname + "-anim.mp4")
 
 
     # This will rotate the Moon 1.5 times so that it starts facing the far side with South Pole-Aitken, and ends facing the near side
     def rotation_angle(frac):
-        return 180 + (360 + 180) * frac
+        return 180 + (360 + 180) * np.sqrt(frac)
 
 
     # Read in the Simulation data and iterate over all saved intervals
     sim = Simulation(simdir=simname, reset=False)
     for interval in tqdm(
-        range(sim.interval),
+        range(sim.interval + 1),
         desc="Creating animation...",
         unit="interval",
         total=sim.interval,
     ):
-        mesh = pv.PolyData(sim.surface.to_vtk_mesh(interval=interval)).rotate_z(
-            rotation_angle(frac=interval / sim.interval), inplace=True
+        # Time is poorly constrained in this early epoch, so the 4310 My bp simulation start time could in reality be representative of anything from the high 4400s to the mid 4200s.  
+        # The amount of cratering wouldn't change, just the relationship between the number of craters and the time. once you get close to Imbrium at 3922, the simulation time is probably pretty close to accurate.
+        if interval < 27: 
+            label = "Time: Pre-Nectarian"
+        else:
+            label = "default"
+
+        pl = sim.pyvista_plotter(
+            plotter=pl,
+            interval=interval,
+            crater_style="impacts",  # This will create a neat effect where the new craters show an "impact flash" as they are added to the plot.
+            crater_type="emplaced",
+            crater_color="white",
+            label=label,
+            time_label=True,  # Pare down the default label set to just time
+            interval_label=False,
+            age_label=False,
+            N_label=False,
+            enable_interactive=False,  # Turns off interactive key events, which will otherwise cause the impact flashes to be turned off by default
         )
-        pl.add_mesh(
-            mesh=mesh,
-            color="grey",
-            show_edges=False,
-            show_scalar_bar=False,
-            smooth_shading=True,
-            name="Moon",
-        )
-        pl.view_yz()
+
+        # Rotate all of the PyVista actors together using our rotation function
+        for n in ["Moon", "emplaced_impacts"]:
+            if n in pl.actors:
+                pl.actors[n].rotate_z(rotation_angle(frac=interval / sim.interval))
+
+        if interval == 0:
+            pl.reset_camera()
+            pl.view_yz()
+        pl.show(auto_close=False)
+        pl.write_frame()
+
+    # Add a few extra frames at the end to let the animation linger on the final state
+    pl.remove_actor("emplaced_impacts")
+    for _ in range(30):
         pl.write_frame()
 
     pl.close()
 
 
-.. image:: ../_images/quasimc-anim.gif
-    :alt: Simulation
+
+.. video:: ../_images/quasimc-anim.mp4
+    :alt: Quasi-Monte Carlo simulation of the Moon
     :align: center
-    :width: 600px
     :class: dark-light

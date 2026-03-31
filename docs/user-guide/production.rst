@@ -158,7 +158,7 @@ First, we we will create a CSV file called "qmc_inputs.csv" and populate it with
 Specifying an emplacement time
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Setting |Crater.production_time| specifies the time when the crater should form along with an optional 1σ standard deviation value. When passing this to |Crater.maker| this can be specified as either a single value or a pair of values, where the first value represents the time and the second the standard deviation, both in units of My. The actual time value will be drawn from a normal distribution, unless you only pass a single value to |Crater.production_time|.  We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) of 3922 My.
+Setting |Crater.production_time| specifies the time when the crater should form along with an optional 1σ standard deviation value. When passing this to |Crater.maker| this can be specified as either a single value or a pair of values, where the first value represents the time and the second the standard deviation, both in units of My. The actual time value will be drawn from a normal distribution, unless you only pass a single value to |Crater.production_time|.  We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) [#]_ of 3922±12 My.
 
 .. ipython:: python
     :okwarning:
@@ -177,90 +177,105 @@ Setting |Crater.production_time| specifies the time when the crater should form 
    qmc_list = []
    qmc_list.append(sim.Crater.maker(name="Imbrium", diameter=1321e3, location=(341.5, 37), production_time=(3922, 12)))
    sim.quasimc_craters = qmc_list # This will process the craters and give it a time values bsed on their production metadata
-   print(sim.quasimc_craters[0])
+   print(sim.quasimc_craters[-1])
 
 
 The equivalent in a CSV file would be:
 
 .. csv-table:: qmc_imbrium
    :header: "name","latitude","longitude","diameter","production_time","production_time_stdev"
+   :widths: auto
 
    Imbrium,37,341.5,1321000,3922,12
 
 
 .. note::
 
-    Always remember that crater chronology model ages are **not** true ages, especially for the period of time prior to 3900 My bp. It's best to think of the model age as a way of expressing crater number density (not the other way around), and is subject to change as better calibration data is obtained. Thus a model age of 4310 My bp just means N(20)=999 craters per million sq. km. in the Neukum production function, and will likely be updated if and when samples of the South Pole-Aitken melt sheet are returned and dated.
+    Always remember that crater chronology model ages are **not** true ages, especially for the period of time prior to 3900 My bp. It's best to think of the model age as a way of expressing crater number density (not the other way around), and is subject to change as better calibration data is obtained. Thus a model age of 4310 My bp just means N(20)=999.8 craters per million sq. km. in the Neukum chronology function, which in reality could represent anything from the high 4400s to the mid 4200s. The formation age of the ancient South Pole-Aitken basins, which is stratigraphically the oldest surface feature known on the Moon, has to wait until samples of its melt sheet are returned and dated.
 
 Specifying a production crater number density
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Rather than a specific time, you can specify a crater's "age" by its position on the production function using N(D) convention. This is done by setting the |Crater.production_ND| attribute, which is a tuple of (D, N, N_stdev), where D is the reference diameter in km, N is the cumulative number density of craters per 10⁶ km² greater than D, and N_stdev is the 1σ standard deviation of that number density. The actual age of the crater will be drawn from a normal distribution based on the age corresponding to that point on the production function and the standard deviation of that age.
+Rather than a specific time, you can specify a crater's "age" by its position on the production function using N(D) convention. This is done by setting the |Crater.production_ND| attribute, which is a tuple of (D, N, N_stdev), where D is the reference diameter in km, N is the cumulative number density of craters per 10⁶ km² greater than D, and N_stdev is the 1σ standard deviation of that number density. Here we will use the N(20) value of the Nectaris basin obtained by Orgel et al. (2020) [#]_ using the Buffered Non-Sparseness Correction technique, which yielded an N(20)=172±20 per 10⁶ km².
 
-Serenetitatis likely formed before Nectaris, which formed before Crisium and Imbrium, so we set ``production_time`` values for Serenitatis, Nectaris, and Crisium of 4220, 4170, and 4070 My, respectively. Both Schrödinger and Orientale post-date Imbrium, so we set their ``production_time`` values to 3860 and 3810 My, respectively. Therefore our 
+.. note::
+
+   The N(D) convention takes D in units of km, rather than the units of m used when defining craters. To see what unit system is current set, see the |production.N_D_units|. Other conventions can be set changing |production.D_conversion_factor| and |production.N_conversion_factor|.
+
+
+.. ipython:: python
+   :okwarning:
+
+
+   qmc_list.append(sim.Crater.maker(name="Nectaris", diameter=885e3, location=(35.1, -15.6), production_ND=(20, 172, 20)))
+   sim.quasimc_craters = qmc_list # This will process the craters and give it a time values bsed on their production metadata
+   print(sim.quasimc_craters[-1])
+
+
+The equivalent in a CSV file would be:
+
+.. csv-table:: qmc_nectaris
+   :header: "name","latitude","longitude","diameter","production_time","production_time_stdev","production_D","production_N","production_N_stdev"
+   :widths: auto
+
+   Nectaris,-15.6,35.1,885000,,,20,172,20
+   Imbrium,37,341.5,1321000,3922,12,,,
+
+Specifying a sequence constraint
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For many craters, it is difficult to constrain their formation time, however we can bracket them stratigraphically relative to other craters. To accomplish this in Cratermaker, we can supply an integer value to the |Crater.production_sequence| attribute. Craters that have a sequence number must form after craters with a lower sequence number. A sequence number can be added to any crater, even if it has another piece of production metadata such as |Crater.production_time| or |Crater.production_ND|, or has none. The only constraint is that at least one crater with the lowest sequence number must have either |Crater.production_time| or |Crater.production_ND| set, otherwise there is no way to determine the earliest time boundary of the sequences.
+
+In this example, will add the basins Fecunditatis and Vaporum. Fecunditatis was determined by Orgel et al. (2020) to have  N(90)=10±4 per 10⁶ km². Vaporum is stratigraphically older than Fecunditatis, but younger than South Pole-Aitken (SPA). SPA is stratigraphically the oldest crater on the Moon, so we give it a value of |Crater.production_sequence| of 0. Because it is the oldest, we need an additional constraint. Its absolute formation age is currently not well known. It must be younger than the Moon, so is likely less than 4500 My. There are materials older than about 4250 My that are attributed to basins other than SPA, so it is likely older than that. We will therefore constrain it to an N(20)=999 per 10⁶ km², which is the value of the production function at 4310 My bp. Fecunditatis is younger than Vaporum, so we give it a sequence number of 10, and Vaporum gets a sequence number of 5, and no other constraints. We can also add sequence constraints to Nectaris and Imbrium.
+
+Our input file for this set of craters would look like this:
+
+.. csv-table:: qmc_selected_basins
+   :header: "name","latitude","longitude","diameter","production_time","production_time_stdev","production_D","production_N","production_N_stdev","production_sequence"
+   :widths: auto
+
+   South Pole-Aitken,-53,191,2400000,,,20,999,,0
+   Vaporum,14.2,3.1,410000,,,,,,5
+   Fecunditatis,-4.6,52,690000,,,90,10,4,10
+   Nectaris,-15.6,35.1,885000,,,20,172,20,40
+   Imbrium,37,341.5,1321000,3922,12,,,,100
+
+
 
 .. ipython:: python
     :okwarning:
     :suppress:
 
     from pathlib import Path
-    with Path.open("basins_exact_time.csv", "w") as f:
-        f.write("name,latitude,longitude,diameter,production_time\n")
-        f.write("South Pole-Aitken,-53,191,2400000,4310\n")
-        f.write("Serenitatis,25.4,18.8,923000,4220\n")
-        f.write("Nectaris,-15.6,35.1,885000,4170\n")
-        f.write("Crisium,16.8,58.4,1076000,4070\n")
-        f.write("Imbrium,37,341.5,1321000,3922\n")
-        f.write("Schrödinger,-74.9,133.5,326000,3860\n")
-        f.write("Orientale,-20.1,265.2,937000,3810\n")
-
-.. ipython:: python
-    :okwarning:
-
-    from pathlib import Path
-
-    with Path.open("basins_exact_time.csv", "r") as f:
-        print(f.read())
-
-
-Now we can pass this file into a Simulation, with a reduced resolution to make the example run more quickly. We will also cut off the crater population below 100 km by setting the |sim.smallest_crater| attribute, which will also speed up our simulation as the majority of craters will be small ones. We also pass a value to the rng_seed argument of the Simulation constructor so that the random population of craters drawn from the production function is the same each time this example is run.
-
-.. code-block:: python
-
-    from cratermaker import Simulation
-    sim = Simulation(quasimc_file="basins_exact_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
-    sim.smallest_crater = 100e3
-    sim.run(age=4310)
-    sim.show3d(variable_name="face_elevation")
+    with Path.open("qmc_selected_basins.csv", "w") as f:
+        f.write("name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev,production_sequence\n")
+        f.write("South Pole-Aitken,-53,191,2400000,,,20,999,,0\n")
+        f.write("Vaporum,14.2,3.1,410000,,,,,,5\n")
+        f.write("Fecunditatis,-4.6,52,690000,,,90,10,4,10\n")
+        f.write("Nectaris,-15.6,35.1,885000,,,20,172,20,40\n")
+        f.write("Imbrium,37,341.5,1321000,3922,12,,,,100\n")
 
 .. ipython:: python
    :okwarning:
-   :suppress:
 
-    from cratermaker import Simulation
-    sim = Simulation(quasimc_file="basins_exact_time.csv",gridlevel=5, ask_overwrite=False, reset=True, rng_seed=298263286)
-    sim.smallest_crater = 100e3
-    sim.run(age=4310)
+   sim = Simulation(gridlevel=5, quasimc_file="qmc_selected_basins.csv")
+   for crater in sim.quasimc_craters:
+       N20 = sim.production.function(diameter=20e3, age=crater.time) * 1e12
+       N64 = sim.production.function(diameter=64e3, age=crater.time) * 1e12
+       n20text = f"N(20) = {N20:.1f}"
+       n64text = f"N(64) = {N64:.1f}"
+       stext = f"{crater.production_sequence}" if crater.production_sequence is not None else "-"
+       print(f"{crater.name:22}: {crater.time:.1f} My {n20text:15} {n64text:14} {stext:5}")
 
+.. note::
 
-.. pyvista-plot::
-   :caption: Quasi-Monte Carlo simulation with craters emplaced at specific times.
-   :include-source: False 
-
-    >>> # The pyvista-plot tool apparently doesn't recognize the show3d method, so we will just show how to do this manually with pyvista.
-    >>> import pyvista as pv
-    >>> import cratermaker as cm
-    >>> sim = cm.Simulation(reset=False)
-    >>> plotter = sim.pyvista_plotter(variable_name="face_elevation") 
-    >>> plotter.show()
+   The numerical value of the |Crater.production_sequence| is only important if there are no other production metadata constraints, such as in the Vaporum example. In that case, the N(1) range corresponding to the sequence is an interpolation between bordering sequences. So in the above case, Vaporum's nominal "age" (in N(1) value) would be determined by extrapolating the N(1) values of craters with sequence 10 (Fecunditatis) and sequence 0 (SPA). With a value of 5, Vaporum would have a nominal N(1) value exactly in the middle, though its actual value will still be drawn from a normal distribution.
 
 
+Adjusting the automatic crater size limit
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Emplacing a crater at a specific time range
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-In some cases, we may be more confident that a crater forms within a specific time range. To do this, we can set the "production_time_stdev" and "production_time_high" columns in the input file, which will cause the Simulation to draw a random time for that crater in a normal distribution, where the mean is the midpoint between  
-
+By default, when a list of craters with production metadata is loaded into |Production.quasimc_craters|, the upper range of the randomly-generated craters is adjusted so that it is limited to the size of the smallest crat er in the quasimc list
 
 More Production examples
 ------------------------
@@ -275,9 +290,13 @@ See more examples at  :ref:`gal-production_and_montecarlo`
 References
 ----------
 
-.. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. https://doi.org/10.1023/A:1011989004263
-.. [#] Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. https://doi.org/10.1023/A:1011941121102
-.. [#] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1-34. https://doi.org/10.1007/978-94-010-0712-2_1
+.. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. `doi:10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`
+.. [#] Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. `doi:10.1023/A:1011941121102 <https://doi.org/10.1023/A:1011941121102>`
+.. [#] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1-34. `doi:10.1007/978-94-010-0712-2_1 <https://doi.org/10.1007/978-94-010-0712-2_1>``
+.. [#] Nemchin, A.A., Long, T., Jolliff, B.L., Wan, Y., Snape, J.F., Zeigler, R., Grange, M.L., Liu, D., Whitehouse, M.J., Timms, N.E., Jourdan, F., 2021. Ages of lunar impact breccias: Limits for timing of the Imbrium impact. Geochemistry 81, 125683. `doi:10.1016/j.chemer.2020.125683 <https://doi.org/10.1016/j.chemer.2020.125683>`
+.. [#] Orgel, C., Michael, G., Fassett, C.I., van der Bogert, C.H., Riedel, C., Kneissl, T., Hiesinger, H., 2018. Ancient Bombardment of the Inner Solar System: Reinvestigation of the “Fingerprints” of Different Impactor Populations on the Lunar Surface. J. Geophys. Res. 123, 748–762. `doi:10.1002/2017JE005451 <https://doi.org/10.1002/2017JE005451>`
+
+
 
 .. ipython:: python
     :okwarning:

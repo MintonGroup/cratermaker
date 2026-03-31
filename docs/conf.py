@@ -167,6 +167,9 @@ rst_prolog = """
 .. |production.function| replace:: :py:meth:`Production.function() <cratermaker.components.production.Production.function>`
 .. |production.sample| replace:: :py:meth:`Production.sample() <cratermaker.components.production.Production.sample>`
 .. |production.age_from_D_N| replace:: :py:meth:`Production.age_from_D_N() <cratermaker.components.production.Production.age_from_D_N>`
+.. |production.N_D_units| replace:: :py:attr:`~cratermaker.components.production.Production.N_D_units`
+.. |production.N_conversion_factor| replace:: :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`
+.. |production.D_conversion_factor| replace:: :py:attr:`~cratermaker.components.production.Production.D_conversion_factor`
 .. |Surface| replace:: :py:class:`~cratermaker.components.surface.Surface`
 .. |LocalSurface| replace:: :py:class:`~cratermaker.components.surface.LocalSurface`
 .. |Target| replace:: :py:class:`~cratermaker.components.target.Target`

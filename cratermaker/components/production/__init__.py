@@ -936,7 +936,7 @@ class Production(ComponentBase):
                     if nsig > 0 and seq_nsig > 0.0:
                         nval = bounded_norm(loc=nmean, scale=nsig, lower_bound=seq_nlo, upper_bound=seq_nhi, rng=self.rng)
                     else:
-                        nval = seq_nmean
+                        nval = nmean
                 else:
                     nval = self.rng.normal(loc=nmean, scale=nsig) if nsig > 0 else nmean
                 nval = max(0.0, nval)
@@ -1332,6 +1332,9 @@ class Production(ComponentBase):
 
     @property
     def N_unit(self) -> float:
+        """
+        Units of N in the N(D) format convention.
+        """
         if self._N_conversion_factor == 1.0:
             return "per m²"
         elif self._N_conversion_factor == 1.0e6:
@@ -1343,6 +1346,9 @@ class Production(ComponentBase):
 
     @property
     def N_D_units(self) -> float:
+        """
+        Units used in the N(D) format convention.
+        """
         return f"N>D({self.D_unit}) {self.N_unit}"
 
 
