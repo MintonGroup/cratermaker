@@ -46,6 +46,7 @@ extensions = [
     "cratermaker_autodoc",
     "pyvista.ext.plot_directive",
     "pyvista.ext.viewer_directive",
+    "sphinxcontrib.video",
 ]
 
 extlinks = {

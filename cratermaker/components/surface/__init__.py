@@ -885,7 +885,7 @@ class Surface(ComponentBase):
         theme: str | None = None,
         transparent_background: bool | None = None,
         plotter: pv.Plotter | None = None,
-        enable_key_events: bool = True,
+        enable_interactive: bool = True,
         **kwargs: Any,
     ) -> pv.Plotter:
         """
@@ -905,7 +905,7 @@ class Surface(ComponentBase):
             If True, the background of the plot will be transparent. Default is False.
         plotter : pv.Plotter, optional
             An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
-        enable_key_events : bool, optional
+        enable_interactive : bool, optional
             If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         **kwargs : Any
             |kwargs|
@@ -922,7 +922,7 @@ class Surface(ComponentBase):
             theme=theme,
             transparent_background=transparent_background,
             plotter=plotter,
-            enable_key_events=enable_key_events,
+            enable_interactive=enable_interactive,
             **kwargs,
         )
 
@@ -3430,7 +3430,7 @@ class LocalSurface(CratermakerBase):
         theme: str | None = None,
         transparent_background: bool | None = None,
         plotter: pv.Plotter | None = None,
-        enable_key_events: bool = True,
+        enable_interactive: bool = True,
         **kwargs: Any,
     ) -> pv.Plotter:
         """
@@ -3450,7 +3450,7 @@ class LocalSurface(CratermakerBase):
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         plotter : pyvista.Plotter, optional
             A pre-existing Plotter object to use. If None, then a new one will be created and returned. Default is None.
-        enable_key_events : bool, optional
+        enable_interactive : bool, optional
             If True, the default PyVista key events will be updated to include custom events for toggling scalar visibility, changing the camera view, and showing a help message. Default is True.
         **kwargs : Any
             |kwargs|
@@ -3626,7 +3626,7 @@ class LocalSurface(CratermakerBase):
             mesh_actor.mapper.SetScalarVisibility(False)
         else:
             plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
-        if enable_key_events and new_plotter:
+        if enable_interactive and new_plotter:
             plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
             plotter.add_key_event("j", lambda plotter=plotter, cmap=cmap: update_scalars(plotter, cmap=cmap))
             plotter.add_key_event("r", lambda plotter=plotter: reset_view(plotter))

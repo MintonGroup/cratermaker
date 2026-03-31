@@ -982,10 +982,12 @@ class Simulation(CratermakerBase):
 
         # Set a default value of the D for N(D) format based on the smallest pixel in the simulation
         if N_diam_val is None:
-            if self.smallest_crater < 10e3:
+            if self.smallest_crater < 1e2:
                 N_diam_val = 1.0
-            elif self.smallest_crater < 100e3:
+            elif self.smallest_crater < 10e3:
                 N_diam_val = 20.0
+            else:
+                N_diam_val = 64.0
 
         time = time_variables.get("time")
         time_label = time_label and time is not None
@@ -1070,7 +1072,7 @@ class Simulation(CratermakerBase):
         interval: int | None = None,
         label: str = "default",
         plotter: pyvista.Plotter | None = None,
-        enable_key_events: bool = True,
+        enable_interactive: bool = True,
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -1084,7 +1086,7 @@ class Simulation(CratermakerBase):
             The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation.
         plotter : pv.Plotter, optional
             An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
-        enable_key_events : bool, optional
+        enable_interactive : bool, optional
             If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         **kwargs : Any
             |kwargs|
@@ -1116,11 +1118,11 @@ class Simulation(CratermakerBase):
         def update_interval(plotter, istate, forward):
             interval = istate.update(forward)
             plotter.clear_actors()
-            plotter = self.pyvista_plotter(interval=interval, plotter=plotter, enable_key_events=enable_key_events, **kwargs)
+            plotter = self.pyvista_plotter(interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs)
             plotter.update()
             return
 
-        cornerannotation_arg_keys = ["prop", "linear_font_scale_factor"]
+        text_arg_keys = ["position", "font_size", "color", "font", "shadow", "viewport", "orientation", "font_file", "render"]
         new_plotter = plotter is None
         if interval is None:
             self.save(**kwargs, skip_actions=True)
@@ -1128,26 +1130,24 @@ class Simulation(CratermakerBase):
 
         if self.counting is not None:
             plotter = self.counting.pyvista_plotter(
-                interval=interval, plotter=plotter, enable_key_events=enable_key_events, **kwargs
+                interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs
             )
         else:
             plotter = self.surface.pyvista_plotter(
-                interval=interval, plotter=plotter, enable_key_events=enable_key_events, **kwargs
+                interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs
             )
 
         if label is not None:
             if label == "default":
                 compact = kwargs.pop("compact", True)
                 label = self.labelmaker(interval=interval, compact=compact, **kwargs)
-            cornerannotation_args = {k: kwargs[k] for k in cornerannotation_arg_keys if k in kwargs}
-            label_actor = pyvista.CornerAnnotation(
-                position="upper_left", text=label, name="simulation-label", **cornerannotation_args
-            )
+            text_args = {k: kwargs[k] for k in text_arg_keys if k in kwargs}
+            label_actor = plotter.add_text(text=label, name="simulation-label", **text_args)
             plotter.remove_actor("simulation-label")
             plotter.add_actor(label_actor)
         if new_plotter:
             istate = IntervalState(interval, max_interval=self.interval)
-        if enable_key_events and new_plotter:
+        if enable_interactive and new_plotter:
             if label is not None:
                 plotter = update_pyvista_help_message(plotter, new_message="l: Show/hide label")
                 plotter.add_key_event(
