@@ -330,11 +330,11 @@ See more examples at  :ref:`gal-production_and_montecarlo` and :ref:`gal-simulat
 References
 ----------
 
-.. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. `doi:10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`
-.. [#] Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. `doi:10.1023/A:1011941121102 <https://doi.org/10.1023/A:1011941121102>`
-.. [#] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1-34. `doi:10.1007/978-94-010-0712-2_1 <https://doi.org/10.1007/978-94-010-0712-2_1>``
-.. [#] Nemchin, A.A., Long, T., Jolliff, B.L., Wan, Y., Snape, J.F., Zeigler, R., Grange, M.L., Liu, D., Whitehouse, M.J., Timms, N.E., Jourdan, F., 2021. Ages of lunar impact breccias: Limits for timing of the Imbrium impact. Geochemistry 81, 125683. `doi:10.1016/j.chemer.2020.125683 <https://doi.org/10.1016/j.chemer.2020.125683>`
-.. [#] Orgel, C., Michael, G., Fassett, C.I., van der Bogert, C.H., Riedel, C., Kneissl, T., Hiesinger, H., 2018. Ancient Bombardment of the Inner Solar System: Reinvestigation of the “Fingerprints” of Different Impactor Populations on the Lunar Surface. J. Geophys. Res. 123, 748–762. `doi:10.1002/2017JE005451 <https://doi.org/10.1002/2017JE005451>`
+.. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. `doi:10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`_
+.. [#] Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. `doi:10.1023/A:1011941121102 <https://doi.org/10.1023/A:1011941121102>`_
+.. [#] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters and Asteroids, in: Collisional Processes in the Solar System. Springer Netherlands, Dordrecht, pp. 1-34. `doi:10.1007/978-94-010-0712-2_1 <https://doi.org/10.1007/978-94-010-0712-2_1>`_
+.. [#] Nemchin, A.A., Long, T., Jolliff, B.L., Wan, Y., Snape, J.F., Zeigler, R., Grange, M.L., Liu, D., Whitehouse, M.J., Timms, N.E., Jourdan, F., 2021. Ages of lunar impact breccias: Limits for timing of the Imbrium impact. Geochemistry 81, 125683. `doi:10.1016/j.chemer.2020.125683 <https://doi.org/10.1016/j.chemer.2020.125683>`_
+.. [#] Orgel, C., Michael, G., Fassett, C.I., van der Bogert, C.H., Riedel, C., Kneissl, T., Hiesinger, H., 2018. Ancient Bombardment of the Inner Solar System: Reinvestigation of the “Fingerprints” of Different Impactor Populations on the Lunar Surface. J. Geophys. Res. 123, 748–762. `doi:10.1002/2017JE005451 <https://doi.org/10.1002/2017JE005451>`_
 
 
 
