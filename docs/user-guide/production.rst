@@ -302,12 +302,13 @@ By default, when a list of craters with production metadata is loaded into |prod
         f.write("Fecunditatis,-4.6,52,690000,,,90,10,4,10\n")
         f.write("Nectaris,-15.6,35.1,885000,,,20,172,20,40\n")
         f.write("Imbrium,37,341.5,1321000,3922,12,,,,100\n")   
+        f.write("Copernicus,9.6209,339.9214,96070,800.0,15,,,,200\n")   
 
 
 .. ipython:: python
    :okwarning:
 
-   sim = Simulation(gridlevel=5, simdir="test", quasimc_file="qmc_with_copernicus.csv", ask_overwrite=False)
+   sim.quasimc_file="qmc_with_copernicus.csv"
    print(f"Largest random crater: {sim.largest_crater * 1e-3:.1f} km")
 
    # Now set the largest crater 
