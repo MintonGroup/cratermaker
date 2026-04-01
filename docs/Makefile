@@ -2,8 +2,8 @@
 #
 
 # You can set these variables from the command line.
-SPHINXOPTS      = 
-SPHINXBUILD     = sphinx-build
+SPHINXOPTS      =
+SPHINXBUILD     = TQDM_DISABLE=1 sphinx-build
 SPHINXATUOBUILD = sphinx-autobuild
 PAPER           =
 BUILDDIR        = _build

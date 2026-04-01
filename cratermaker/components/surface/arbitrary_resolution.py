@@ -48,10 +48,11 @@ class ArbitraryResolutionSurface(Surface):
         self._load_from_files(reset=reset, regrid=regrid, **kwargs)
 
     def __str__(self) -> str:
-        base = super().__str__()
+        str_repr = super().__str__()
         pix_mean = format_large_units(self.pix_mean, quantity="length")
         pix_std = format_large_units(self.pix_std, quantity="length")
-        return f"{base}\nEffective pixel size: {pix_mean} +/- {pix_std}"
+        str_repr += f"Effective pixel size: {pix_mean} +/- {pix_std}"
+        return str_repr
 
     @property
     def _hashvars(self):

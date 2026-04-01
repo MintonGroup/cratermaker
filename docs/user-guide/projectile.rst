@@ -20,7 +20,7 @@ Projectile
 
 The :py:class:`~cratermaker.components.projectile.Projectile` class contains information about the populations of projectiles used to scale between crater and projectile sizes.
 
-To define a projectile, a :py:class:`~cratermaker.components.target.Target` must be created first. If you're unsure how to define a target, see the :ref:`Target documentation <ug-target>` for guidance.
+To define a projectile, a |Target| must be created first. If you're unsure how to define a target, see the :ref:`Target documentation <ug-target>` for guidance.
 
 Creating a Projectile
 ---------------------
