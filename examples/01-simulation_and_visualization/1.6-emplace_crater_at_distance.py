@@ -2,6 +2,8 @@
 Emplace a crater a specific distance and bearing from the center of a HiResLocalSurface
 =======================================================================================
 
+.. rubric:: By David Minton
+
 This example shows how to emplace a crater at a specific distance and bearing from the center of a HiResLocalSurface using the new `relative_location` arguments that can be passed to the `emplace` method. This is useful to place a crater on a HiResLocalSurface at a specific location relative to the center without trying to figure out what lat,lon coordinates to use. In this example, we will emplace a sequence of craters in a spiral pattern. This not meant to be a realistic planetary surface, but it looks pretty cool!
 
 """

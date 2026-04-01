@@ -52,7 +52,6 @@ cratermaker/_version.py
 !docs/Makefile
 !docs/conf.py
 !docs/_static/
-!docs/_static/
 !docs/_images/
 !docs/_images/logos/
 !docs/_templates/
@@ -67,6 +66,8 @@ cratermaker/_version.py
 !docs/**/*.svg
 !docs/**/*.py
 !docs/**/*.gif
+!docs/**/*.mp4
+!docs/_static/qmc_input.csv
 docs/sg_execution_times.rst
 !examples/
 !examples/01-simulation_and_visualization/
