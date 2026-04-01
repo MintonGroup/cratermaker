@@ -216,7 +216,7 @@ Two dimensional plots of the surface can be made with the |sim.plot| method, whi
         pix=100.0,
         local_radius=20.0e3,
     )
-    sim.emplace(diameter=10e3)
+    sim.emplace(diameter=10e3, location=(0, 0))
     sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=True)
 
 Exporting data

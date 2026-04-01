@@ -1066,6 +1066,7 @@ class Simulation(CratermakerBase):
         """
         if interval is None:
             interval = self.interval
+            self.save(**kwargs, skip_actions=True)
         if label == "default":
             compact = kwargs.pop("compact", issubclass(self.surface.__class__, HiResLocalSurface))
             label = self.labelmaker(interval=interval, compact=compact, **kwargs)
