@@ -171,14 +171,14 @@ The |Simulation| class has a |save_actions| parameter that can be set by any com
     sim = Simulation(gridlevel=4)
     print(sim.save_actions)
 
-If you wanted to automatically export the crater count data to Spatial Crater Count (SCC) format that can be read in by Craterstats, you can use |add_save_actions| to add an export command to the |Counting| component's save actions, like this:
+If you wanted to automatically export the crater count data to Spatial Crater Count (SCC) format that can be read in by Craterstats, you can use |add_save_action| to add an export command to the |Counting| component's save actions, like this:
 
 .. code-block:: python
 
     from cratermaker import Simulation
 
     sim = Simulation()
-    sim.counting.add_save_actions({"export": {"driver": "SCC"}})
+    sim.counting.add_save_action({"export": {"driver": "SCC"}})
     sim.run(time_start=3000, time_interval=1000)
 
 You can also can have multiple save actions that use the same method, but with different arguments. So for instance, suppose you want to generate a plot with the craters overlaied onto the hillshade of the standard suface plot. You could set up a simulation like this:
