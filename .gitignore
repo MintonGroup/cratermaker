@@ -58,6 +58,8 @@ cratermaker/_version.py
 !docs/_templates/autosummary/
 !docs/_exts/
 !docs/user-guide/
+!docs/qmc_selected_basins.csv
+!docs/qmc_with_copernicus.csv
 !docs/api/
 !docs/contributing/
 !docs/**/*.rst
@@ -67,8 +69,10 @@ cratermaker/_version.py
 !docs/**/*.py
 !docs/**/*.gif
 !docs/**/*.mp4
+!docs/
 !docs/_static/qmc_input.csv
 docs/sg_execution_times.rst
+docs/_images/local_surface_hillshade000000.png
 !examples/
 !examples/01-simulation_and_visualization/
 !examples/01-simulation_and_visualization/qmc_input.csv

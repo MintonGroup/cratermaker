@@ -20,6 +20,7 @@ help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  html       to make standalone HTML files"
 	@echo "  rtdhtml    Build html using same settings used on ReadtheDocs"
+	@echo "  rtdfast    Build html using same settings used on ReadtheDocs except with some options to speed things up"
 	@echo "  livehtml   Make standalone HTML files and rebuild the documentation when a change is detected. Also includes a livereload enabled web server"
 	@echo "  dirhtml    to make HTML files named index.html in directories"
 	@echo "  singlehtml to make a single large HTML file"
@@ -69,6 +70,12 @@ html: version
 .PHONY: rtdhtml
 rtdhtml: version
 	$(SPHINXBUILD) -T -j 1 -E -W -v --keep-going -b html -d $(BUILDDIR)/doctrees -D language=en . $(BUILDDIR)/html
+	@echo
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
+
+.PHONY: rtdfast
+rtdfast: version
+	$(SPHINXBUILD) -T -j 1 -W -v -b html -d $(BUILDDIR)/doctrees -D language=en . $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
